@@ -1,4 +1,4 @@
-﻿import os, json
+import os, json
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -12,9 +12,9 @@ from SkyServer_Core import (  # type: ignore
     ensure_dir
 )
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 # SAVE & SUMMARY UTILITIES
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 def detect_logs(config):
     monitored = config.get("logs_to_monitor", [])
     logs_dir = get_full_path(config, "")
@@ -25,7 +25,7 @@ def save_summary_md(config, content, date_str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print(f"ðŸ“„ Saved markdown summary: {path}")
+    print(f"📄 Saved markdown summary: {path}")
     return path
 
 def update_sky_log_index(config, log_file_path, log_type, entry_count, date_str, summary_file, aggregated_file):
@@ -49,13 +49,13 @@ def update_sky_log_index(config, log_file_path, log_type, entry_count, date_str,
         }
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(index, f, indent=2)
-        print(f"âœ… Updated SkyLogIndex for {date_str} â†’ {log_type}")
+        print(f"✅ Updated SkyLogIndex for {date_str} → {log_type}")
     except Exception as e:
-        print(f"âŒ Failed to update SkyLogIndex: {e}")
+        print(f"❌ Failed to update SkyLogIndex: {e}")
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────
 # Empty-aggregate guard
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────
 def write_empty_aggregate_if_none(entries: Optional[Iterable[Any]], output_path: Path | str) -> bool:
     """
     Ensure an aggregate file exists even if there are no entries.
@@ -88,13 +88,13 @@ def write_empty_aggregate_if_none(entries: Optional[Iterable[Any]], output_path:
         print("[Core] write_empty_aggregate_if_none failed:", e)
         return False
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# ðŸ’¡ load_all_daily_aggregates | Load All Processed Logs by Date
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ════════════════════════════════════════════════════════════════════
+# 💡 load_all_daily_aggregates | Load All Processed Logs by Date
+# ────────────────────────────────────────────────────────────────────
 # PURPOSE:    Collects all available aggregated logs for a given date.
 # STRATEGY:   Scans /processed/ folder and loads files matching pattern.
 # RETURNS:    Dictionary with keys like 'meal', 'workout', etc.
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════════
 def load_all_daily_aggregates(date_str):
     base = "/processed/"
     suffixes = {
@@ -112,13 +112,13 @@ def load_all_daily_aggregates(date_str):
                 aggregates[key] = json.load(f)
     return aggregates
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# ðŸ’¡ save_sky_daily_summary | Compile and Save Daily Summary
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ════════════════════════════════════════════════════════════════════
+# 💡 save_sky_daily_summary | Compile and Save Daily Summary
+# ────────────────────────────────────────────────────────────────────
 # PURPOSE:    Merges all daily aggregates into a unified report.
 # STRATEGY:   Collects entries and totals into one JSON file.
 # RETURNS:    Path to saved SkyDailySummary.json
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════════
 def save_sky_daily_summary(date_str):
     data = load_all_daily_aggregates(date_str)
     result = {
@@ -133,18 +133,18 @@ def save_sky_daily_summary(date_str):
     output_path = f"./processed/SkyDailySummary_{date_str}.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-    print(f"ðŸ“˜ Saved SkyDailySummary: {output_path}")
+    print(f"📘 Saved SkyDailySummary: {output_path}")
     return output_path
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 # EDUCATION LOGGING: Aggregation + Parsing
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 
 def parse_sky_education_log(config, date_prefix=None):
     log_path = get_full_path(config, "SkyLog_Education.jsonl")
     entries = []
     if not os.path.exists(log_path):
-        print("ðŸ“­ No education log found.")
+        print("📭 No education log found.")
         return entries
     with open(log_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -154,7 +154,7 @@ def parse_sky_education_log(config, date_prefix=None):
                     entries.append(entry)
             except json.JSONDecodeError:
                 continue
-    print(f"ðŸ“˜ Loaded {len(entries)} education log entries.")
+    print(f"📘 Loaded {len(entries)} education log entries.")
     return entries
 
 def save_aggregated_education(config, date_str=None):
@@ -164,7 +164,7 @@ def save_aggregated_education(config, date_str=None):
     out_path = get_full_path(config, f"processed/aggregated_education_{date_str}.json")
     entries = []
     if not os.path.exists(log_path):
-        print("ðŸ“­ No education log found.")
+        print("📭 No education log found.")
         return None
     with open(log_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -175,7 +175,7 @@ def save_aggregated_education(config, date_str=None):
             except json.JSONDecodeError:
                 continue
     if not entries:
-        print(f"ðŸ“­ No education entries for {date_str}")
+        print(f"📭 No education entries for {date_str}")
         return None
     output = {
         "date": date_str,
@@ -185,12 +185,12 @@ def save_aggregated_education(config, date_str=None):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
-    print(f"ðŸ“˜ Aggregated education log saved: {out_path}")
+    print(f"📘 Aggregated education log saved: {out_path}")
     return out_path
 
-# â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-# â”‚ âš–ï¸ Smart Scale Log                                               â”‚
-# â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
+# ╭──────────────────────────────────────────────────────────────────╮
+# │ ⚖️ Smart Scale Log                                               │
+# ╰──────────────────────────────────────────────────────────────────╯
 
 def parse_sky_smartscale_log(filepath):
     try:
@@ -220,9 +220,9 @@ def summarize_smartscale(entries):
         "body_fat": latest.get("body_fat")
     }
 
-# â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-# â”‚ ðŸ‹ï¸â€â™‚ï¸ Workout Log                                                   â”‚
-# â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
+# ╭──────────────────────────────────────────────────────────────────╮
+# │ 🏋️‍♂️ Workout Log                                                   │
+# ╰──────────────────────────────────────────────────────────────────╯
 
 def parse_sky_workout_log(filepath):
     entries = []
@@ -239,7 +239,7 @@ def save_aggregated_workout(entries, date_str):
     out = f"./processed/aggregated_workout_{date_str}.json"
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"date": date_str, "entries": entries, "totals": summarize_workout(entries)}, f, indent=2)
-    print(f"ðŸ‹ï¸ Workout summary saved: {out}")
+    print(f"🏋️ Workout summary saved: {out}")
     return out
 
 def summarize_workout(entries):
@@ -257,9 +257,9 @@ def summarize_workout(entries):
     summary["groups"] = list(summary["groups"])
     return summary
 
-# â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-# â”‚ ðŸ½ï¸ Meal Log                                                      â”‚
-# â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
+# ╭──────────────────────────────────────────────────────────────────╮
+# │ 🍽️ Meal Log                                                      │
+# ╰──────────────────────────────────────────────────────────────────╯
 
 def parse_sky_meal_log(filepath):
     entries = []
@@ -276,7 +276,7 @@ def parse_sky_meal_log(filepath):
                 rest = line.split("]")[1].strip()
                 if ":" in rest:
                     type_part, items = rest.split(":", 1)
-                    meal_type = type_part.replace("ðŸ½ï¸", "").strip()
+                    meal_type = type_part.replace("🍽️", "").strip()
                     current = {
                         "timestamp": timestamp,
                         "type": meal_type,
@@ -315,7 +315,7 @@ def save_aggregated_meal(entries, date_str):
     filename = f"./processed/aggregated_meal_{date_str}.json"
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-    print(f"ðŸ½ï¸ Aggregated meal data saved: {filename}")
+    print(f"🍽️ Aggregated meal data saved: {filename}")
     return filename
 
 def summarize_meals(entries):
@@ -328,9 +328,9 @@ def summarize_meals(entries):
     
     return totals
 
-# â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-# â”‚ ðŸš¶ Walk Log                                                       â”‚
-# â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
+# ╭──────────────────────────────────────────────────────────────────╮
+# │ 🚶 Walk Log                                                       │
+# ╰──────────────────────────────────────────────────────────────────╯
 
 def parse_sky_walk_log(filepath):
     entries = []
@@ -356,7 +356,7 @@ def save_aggregated_walk(entries, date_str):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-    print(f"ðŸš¶ Aggregated walk data saved: {output_path}")
+    print(f"🚶 Aggregated walk data saved: {output_path}")
     return output_path
 
 def summarize_walk_log(entries):
@@ -373,9 +373,9 @@ def summarize_walk_log(entries):
         summary["total_calories"] += entry.get("calories_burned", 0)
     return summary
 
-# â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-# â”‚ ðŸ¥Š Bagwork Log                                                   â”‚
-# â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
+# ╭──────────────────────────────────────────────────────────────────╮
+# │ 🥊 Bagwork Log                                                   │
+# ╰──────────────────────────────────────────────────────────────────╯
 
 def parse_sky_bagwork_log(filepath):
     entries = []
@@ -401,7 +401,7 @@ def save_aggregated_bagwork(entries, date_str):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-    print(f"ðŸ¥Š Aggregated bagwork data saved: {output_path}")
+    print(f"🥊 Aggregated bagwork data saved: {output_path}")
     return output_path
 
 def summarize_bagwork_log(entries):
@@ -422,9 +422,9 @@ def summarize_bagwork_log(entries):
             summary["rounds_by_intensity"][effort] += entry.get("rounds", 0)
     return summary
 
-# â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-# â”‚ ðŸ¥Š Sky Log Dispatcher                                            â”‚
-# â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
+# ╭──────────────────────────────────────────────────────────────────╮
+# │ 🥊 Sky Log Dispatcher                                            │
+# ╰──────────────────────────────────────────────────────────────────╯
 
 SkyLogDispatcher = {
     "meal": {"parser": parse_sky_meal_log, "summarizer": summarize_meals, "saver": save_aggregated_meal, "log_type": "meal"},
@@ -435,9 +435,9 @@ SkyLogDispatcher = {
     "education": {"parser": parse_sky_education_log, "summarizer": None, "saver": save_aggregated_education, "log_type": "education"}
 }
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# ðŸ’¡ process_log_via_dispatcher | Routed Log Aggregation & Summary
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ════════════════════════════════════════════════════════════════════
+# 💡 process_log_via_dispatcher | Routed Log Aggregation & Summary
+# ────────────────────────────────────────────────────────────────────
 # PURPOSE:    Routes a single log file through SkyLogDispatcher to:
 #             parse entries, aggregate data, optionally summarize, 
 #             and update the SkyLogIndex.json metadata tracker.
@@ -452,19 +452,19 @@ SkyLogDispatcher = {
 #
 # NOTES:      Called by aggregate_logs_task() or CLI-activated schedulers.
 #             Dispatcher must have keys defined in lowercase filename match.
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════════
 def process_log_via_dispatcher(config, log_file_path, dispatcher_map, date_str):
-    print("ðŸ“¡ SkyServer v2.3 Dispatcher Activated", flush=True)
+    print("📡 SkyServer v2.3 Dispatcher Activated", flush=True)
     basename = os.path.basename(log_file_path).lower()
     matched = False
 
     for key, ops in dispatcher_map.items():
         if key in basename:
             matched = True
-            print(f"ðŸ“¥ Processing {key.title()} log...", flush=True)
+            print(f"📥 Processing {key.title()} log...", flush=True)
             entries = ops["parser"](log_file_path)
             if not entries:
-                print(f"âš ï¸ No valid entries in {key.title()} log.")
+                print(f"⚠️ No valid entries in {key.title()} log.")
                 return
             aggregated_file = ops["saver"](config, entries, date_str)
             summary_file = ""
@@ -473,7 +473,7 @@ def process_log_via_dispatcher(config, log_file_path, dispatcher_map, date_str):
                 summary = ops["summarizer"](entries)
                 summary_file = save_summary_md(
                     config,
-                    f"# {key.title()} Summary â€“ {date_str}\n" + json.dumps(summary, indent=2),
+                    f"# {key.title()} Summary – {date_str}\n" + json.dumps(summary, indent=2),
                     date_str
                 )
 
@@ -489,15 +489,15 @@ def process_log_via_dispatcher(config, log_file_path, dispatcher_map, date_str):
             return
 
     if not matched:
-        print(f"âš ï¸ No dispatcher match found for: {basename}", flush=True)
+        print(f"⚠️ No dispatcher match found for: {basename}", flush=True)
 
-# â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-# â”‚ ðŸ¥Š SkyScheduler Tasks                                            â”‚
-# â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
+# ╭──────────────────────────────────────────────────────────────────╮
+# │ 🥊 SkyScheduler Tasks                                            │
+# ╰──────────────────────────────────────────────────────────────────╯
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# ðŸ’¡ aggregate_logs_task | Log Aggregation via SkyDispatcher
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ════════════════════════════════════════════════════════════════════
+# 💡 aggregate_logs_task | Log Aggregation via SkyDispatcher
+# ────────────────────────────────────────────────────────────────────
 # PURPOSE:     Aggregates all eligible SkyLogs for the current date
 #              by parsing, saving entries, and indexing log metadata.
 #
@@ -511,28 +511,28 @@ def process_log_via_dispatcher(config, log_file_path, dispatcher_map, date_str):
 # NOTES:       This is part of the SkyScheduler system and may be
 #              scheduled via CLI, cron, or Windows Task Scheduler.
 #              Runs independently of summary logic.
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════════
 def aggregate_logs_task():
-    print("ðŸ“¡ Started aggregate_logs_task()", flush=True)
+    print("📡 Started aggregate_logs_task()", flush=True)
     config = load_config()
     logs = detect_logs(config)
     date_str = datetime.now(ZoneInfo("America/Toronto")).strftime("%Y-%m-%d")
     
     for log_file in logs:
         process_log_via_dispatcher(config, log_file, SkyLogDispatcher, date_str)
-        print(f"ðŸ” Dispatching log: {log_file}", flush=True)
+        print(f"🔍 Dispatching log: {log_file}", flush=True)
 
-    print("âœ… aggregate_logs_task() completed.", flush=True)
+    print("✅ aggregate_logs_task() completed.", flush=True)
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# ðŸ’¡ summarize_logs_task | Post-Aggregation Markdown + Index Sync
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ════════════════════════════════════════════════════════════════════
+# 💡 summarize_logs_task | Post-Aggregation Markdown + Index Sync
+# ────────────────────────────────────────────────────────────────────
 # PURPOSE:    Generates unified markdown summary from all active
 #              logs using dispatcher metadata and summary handlers.
 # STRATEGY:   Iterates through dispatcher to load summaries
 #              and render fragments into clean markdown file.
 # DEPENDS:    dispatcher["summarizer"] must exist
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════════
 def summarize_logs_task():
     now = datetime.now(ZoneInfo("America/Toronto"))
     date_str = now.strftime("%Y-%m-%d")
@@ -563,15 +563,15 @@ def summarize_logs_task():
                 content = json.load(af)
 
             summary = summarizer(content.get("entries", []))
-            fragment = f"ðŸ”¹ **{log_type.capitalize()}** â€“ {json.dumps(summary, indent=0)}"
+            fragment = f"🔹 **{log_type.capitalize()}** – {json.dumps(summary, indent=0)}"
             summary_fragments.append(fragment)
 
         if summary_fragments:
-            md = "# SkyNP Summary â€“ " + date_str + "\n" + "\n".join(summary_fragments)
+            md = "# SkyNP Summary – " + date_str + "\n" + "\n".join(summary_fragments)
             path = save_summary_md(md, date_str)
-            print(f"âœ… Summary written to: {path}", flush=True)
+            print(f"✅ Summary written to: {path}", flush=True)
         else:
-            print("âš ï¸ No summary fragments generated.")
+            print("⚠️ No summary fragments generated.")
 
     except Exception as e:
-        print(f"âŒ Error during summarization: {e}", flush=True)
+        print(f"❌ Error during summarization: {e}", flush=True)

@@ -1,4 +1,4 @@
-﻿import os, json, time, sys
+import os, json, time, sys
 from pathlib import Path as _P
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -24,9 +24,9 @@ except Exception as _e:
     print("[dotenv] auto-load failed:", _e)
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 # MAIN FUNCTION (Entry point for SkyServer Execution)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 def main(scheduled_task=None):
     now = datetime.now(ZoneInfo("America/Toronto"))
     date_str = now.strftime("%Y-%m-%d")
@@ -35,19 +35,19 @@ def main(scheduled_task=None):
     write_heartbeat(_hb)
 
     try:
-        print("âœ… Started main()", flush=True)
+        print("✅ Started main()", flush=True)
 
         if scheduled_task == "aggregate_logs_task":
             run_scheduler(scheduled_task)
-            print("âœ… main - aggregate_logs_task completed.", flush=True)
+            print("✅ main - aggregate_logs_task completed.", flush=True)
         elif scheduled_task == "summarize_logs_task":
             run_scheduler(scheduled_task)
-            print("âœ… main - summarize_logs_task completed.", flush=True)
+            print("✅ main - summarize_logs_task completed.", flush=True)
 
-        print("âœ… Completed main()", flush=True)
+        print("✅ Completed main()", flush=True)
 
     except Exception as e:
-        print(f"âŒ Exception: {e}", flush=True)
+        print(f"❌ Exception: {e}", flush=True)
 
 if __name__ == "__main__":
     task_arg = sys.argv[1] if len(sys.argv) > 1 else None
