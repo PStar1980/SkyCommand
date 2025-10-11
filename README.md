@@ -1,4 +1,4 @@
-SkyServer
+#SkyServer
 
 SkyServer is a backend service for orchestrating the ingestion, processing and storage of AI‑driven tasks.
 It consumes tasks from an ingestion queue, dispatches them to an AI engine for generation or transformation,
@@ -6,7 +6,7 @@ and persists the resulting outputs and metadata to disk. The service includes sc
 management and data management components to ensure reliable and reproducible processing runs.
 
 
-Architecture
+##Architecture
 
 SkyServer is composed of several Python modules and supporting directories:
 
@@ -29,7 +29,7 @@ Data folders (data/, index/, logs/, processed/) – manage input datasets, inter
 log records and final processed results respectively.
 
 
-Features
+###Features
 
 Automated task ingestion – monitors an ingestion queue and automatically picks up new tasks for processing.
 
@@ -52,13 +52,13 @@ Scalable design – separates scheduling, core processing and logging into disti
 easier to extend or run components independently.
 
 
-Releases
+####Releases
 
 v1.0.0 – Initial release of SkyServer with core ingestion and processing pipeline, scheduling support and
 improved reliability through comprehensive logging and error handling.
 
 
-Usage
+#####Usage
 
 Install dependencies – ensure Python 3.8+ is installed along with any required packages
 (e.g. requests, pandas, schedule, openai). Use pip install -r requirements.txt if a requirements
