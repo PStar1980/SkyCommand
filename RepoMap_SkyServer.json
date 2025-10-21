@@ -1,7 +1,7 @@
 {
   "repo": "SkyServer",
-  "commit": "1ffaa7b09b25fe8bd0de41cf971fb9d8e22eadce",
-  "scanned_at": "2025-10-20T20:43:11Z",
+  "commit": "3cc706f1d88dea37d97570fa2bfd986381d0f843",
+  "scanned_at": "2025-10-21T03:05:51Z",
   "nodes": [
     {
       "path": ".editorconfig",
@@ -27,6 +27,16 @@
       "path": ".gitignore",
       "type": "file",
       "summary": "Text/Config",
+      "exports": [],
+      "imports": [],
+      "reads": [],
+      "writes": [],
+      "notes": []
+    },
+    {
+      "path": "DeltaReport_SkyServer.md",
+      "type": "file",
+      "summary": "Markdown documentation",
       "exports": [],
       "imports": [],
       "reads": [],
