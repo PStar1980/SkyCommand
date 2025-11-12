@@ -1,5 +1,3 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
 echo "🔍 Running pre-commit checks on staged files..."
 npx lint-staged || exit 1
