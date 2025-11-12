@@ -1,0 +1,18 @@
+#!/bin/sh
+echo "💠 Running pre-push checks..."
+
+# Run the full prepush routine (lint + format check)
+OUTPUT=$(npm run prepush --silent 2>&1)
+STATUS=$?
+
+# Count successful operations
+FIXED=$(echo "$OUTPUT" | grep -E "eslint|prettier" | grep -Eo "[0-9]+ file" | awk '{sum+=$1} END {print sum+0}')
+
+# Log the result
+if [ $STATUS -eq 0 ]; then
+  echo "🌙 Pre-push complete — $FIXED file(s) verified and ready for launch."
+else
+  echo "❌ Pre-push check failed. Review above output before retrying."
+  echo "$OUTPUT"
+  exit 1
+fi

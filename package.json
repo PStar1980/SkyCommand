@@ -1,0 +1,56 @@
+{
+  "name": "skyserver",
+  "version": "1.0.0",
+  "description": "Private Admin & Automation Hub for the Sky Ecosystem.",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky init",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "daemon": "nodemon src/index.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "npm run lint:fix && npm run format",
+    "prepush": "npm run lint:fix && npm run format:check"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,html,css}": [
+      "prettier --write"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PStar1980/SkyServer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/PStar1980/SkyServer/issues"
+  },
+  "homepage": "https://github.com/PStar1980/SkyServer#readme",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
+    "nodemon": "^3.1.11",
+    "prettier": "^3.6.2"
+  }
+}

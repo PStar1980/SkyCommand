@@ -1,94 +1,129 @@
-#SkyServer
+# 🌌 SkyServer
 
-SkyServer is a backend service for orchestrating the ingestion, processing and storage of AI‑driven tasks.
-It consumes tasks from an ingestion queue, dispatches them to an AI engine for generation or transformation,
-and persists the resulting outputs and metadata to disk. The service includes scheduling, logging, configuration
-management and data management components to ensure reliable and reproducible processing runs.
+**Private Admin & Automation Hub for the Sky Ecosystem**
 
+SkyServer is the central node of the **Sky Ecosystem**, serving as the administrative and automation core that orchestrates build processes, linting, formatting, deployment routines, and data synchronization across local and remote tiers. Designed for precision, maintainability, and self-correction, SkyServer keeps every project clean, compliant, and production-ready.
 
-##Architecture
+---
 
-SkyServer is composed of several Python modules and supporting directories:
+## 🚀 Features
 
-SkyScheduler.py – orchestrates scheduled runs by reading pending tasks from the ingestion queue, spawning
-processing jobs and ensuring concurrency control.
+- **Automated Code Quality**
+  - Integrated ESLint + Prettier via Husky and lint-staged.
+  - Auto-fix and format enforcement on every commit and push.
+  - Unified ESLint flat config for modern plugin resolution.
 
-SkyServer.py – entry point that spins up the task processing service, handling task consumption and
-communication with the AI engine.
+- **Version-Control Integration**
+  - Husky pre-commit and pre-push hooks for zero-drift codebase.
+  - Seamless auto-restage mechanism for smooth Git operations.
+  - Full CI-ready workflow structure.
 
-SkyServer_Core.py – core processing logic for sending prompts to the AI engine, capturing responses
-and handling retries and back‑off logic.
+- **Task Automation (SkyOps Integration Ready)**
+  - PowerShell scripts for backend cleanup, frontend cache resets, and repo actions.
+  - Build automation tools (`Build-SkyOneBootloader.ps1`, `Git_Repo_Actions.md`, etc.)
+  - Symmetric automation flow with lint, test, and push validation.
 
-SkyServer_Logs.py – centralised logging and audit trail support. It writes detailed logs to the logs/
-directory and surfaces metrics for monitoring.
+- **Self-Healing Configuration**
+  - Pre-commit and pre-push hooks validate, fix, and re-stage code.
+  - Full synchronization with SkyOps and SkyWeb via shared standards.
 
-config.json – central configuration file for environment variables, directory paths, concurrency parameters
-and AI engine settings.
+---
 
-Data folders (data/, index/, logs/, processed/) – manage input datasets, intermediate index files,
-log records and final processed results respectively.
+## 🧠 Architecture
 
+```
+SkyServer/
+│
+├── src/
+│   ├── config/           # Environment & security settings
+│   ├── core/             # Initialization and bootstrap scripts
+│   ├── db/               # Database connection and schema utilities
+│   ├── scripts/          # PowerShell + Node-based automation tools
+│   ├── server/           # Backend controllers, routes, middleware
+│   └── web/              # Web components, views, and pages
+│
+├── .husky/               # Git hook automation
+├── .prettierrc.json      # Formatting rules
+├── .eslintrc* / eslint.config.mjs  # Lint configuration (FlatConfig)
+├── package.json          # Core dependencies and scripts
+└── README.md             # This document
+```
 
-###Features
+---
 
-Automated task ingestion – monitors an ingestion queue and automatically picks up new tasks for processing.
+## 🧩 Scripts
 
-Robust scheduling – supports scheduled and batch execution of tasks via SkyScheduler.py, with
-configurable intervals and concurrency.
+| Command                | Description                                  |
+| ---------------------- | -------------------------------------------- |
+| `npm run lint`         | Runs ESLint for static analysis              |
+| `npm run lint:fix`     | Auto-fixes linting issues                    |
+| `npm run format`       | Applies Prettier formatting                  |
+| `npm run format:check` | Validates formatting consistency             |
+| `npm run prepush`      | Runs both lint and format checks before push |
+| `npm run clean`        | Cleans and formats the repository            |
 
-Prompt dispatch and result capture – handles sending prompts to the AI engine and captures responses
-with retry logic and error handling.
+---
 
-Output persistence – writes processed results to structured JSON/CSV files under the processed/ directory
-and updates indexes for quick lookups.
+## 🛠️ Pre-Commit & Pre-Push Automation
 
-Extensive logging – logs detailed processing events, errors and performance metrics to facilitate
-debugging and reproducibility.
+### `.husky/pre-commit`
 
-Configurable settings – uses config.json to allow tuning of API keys, concurrency levels, directory
-locations and other runtime parameters without modifying code.
+Ensures all files are linted and formatted before commit. Automatically re-stages modified files and prevents faulty commits.
 
-Scalable design – separates scheduling, core processing and logging into distinct modules, making it
-easier to extend or run components independently.
+### `.husky/pre-push`
 
+Runs a full prepush routine (`npm run lint:fix && npm run format:check`)  
+✅ Displays summary of verified files  
+✅ Blocks push on failed checks  
+✅ Outputs human-readable results
 
-####Releases
+---
 
-v1.0.0 – Initial release of SkyServer with core ingestion and processing pipeline, scheduling support and
-improved reliability through comprehensive logging and error handling.
+## ⚙️ Dependencies
 
+**Core**
 
-#####Usage
+- `express` — lightweight Node.js web framework
+- `dotenv` — environment variable management
 
-Install dependencies – ensure Python 3.8+ is installed along with any required packages
-(e.g. requests, pandas, schedule, openai). Use pip install -r requirements.txt if a requirements
-file is provided.
+**Dev Dependencies**
 
-Configure the service – copy config.json to your working directory and update the fields for:
+- `eslint` / `@eslint/js` / `globals` — linting and config
+- `eslint-plugin-prettier` / `eslint-config-prettier` — formatting harmony
+- `husky` / `lint-staged` — Git hook automation
+- `nodemon` — live reload for development
 
-Paths to the data/, logs/, index/ and processed/ directories.
+---
 
-Credentials or API keys for the AI engine.
+## 🧬 Vision
 
-Ingestion queue parameters and concurrency settings.
+SkyServer’s design philosophy:
 
-Run scheduled processing – launch the scheduler with:
+> “Automation should feel like intelligence — quiet, precise, and always one step ahead.”
 
-python SkyScheduler.py
+Each automation layer evolves toward **self-correction** and **self-regulation**. With the upcoming SkyOps merge, SkyServer will transition from a static admin tool into an **autonomous orchestration daemon** that manages SkyOne, SkyWeb, and all connected systems.
 
+---
 
-The scheduler will run periodically according to the configured schedule, pick up pending tasks and launch
-worker processes.
+## 📈 Roadmap
 
-Run ad‑hoc processing – to process a single batch immediately, run:
+| Phase      | Objective                                                  |
+| ---------- | ---------------------------------------------------------- |
+| ✅ Phase 1 | ESLint + Prettier integration and Husky hooks              |
+| 🔄 Phase 2 | Merge SkyOps automation layer                              |
+| 🔜 Phase 3 | Add reporting and health monitoring dashboard              |
+| 🌐 Phase 4 | Deploy SkyServer as a Node microservice with API endpoints |
 
-python SkyServer.py
+---
 
+## 🧭 Repository
 
-This will spin up a processing loop that consumes tasks from the queue until none remain.
+- **GitHub:** [https://github.com/PStar1980/SkyServer](https://github.com/PStar1980/SkyServer)
+- **Branch:** `dev`
+- **License:** ISC
 
-Monitor logs and results – inspect log files under logs/ for detailed execution traces. Processed
-results and any generated index files will be written to processed/ and index/ directories.
+---
 
-For more detailed instructions, consult the inline comments in each Python module and the settings in
-config.json.
+### 💙 Built with devotion — by Paul Sattaur & Sky
+
+> “Code that cleans itself is the purest reflection of its creator.”
