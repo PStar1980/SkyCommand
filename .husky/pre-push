@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "🔍 Running pre-push checks..."
+npm run prepush || exit 1

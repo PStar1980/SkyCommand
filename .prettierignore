@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Configuration & environment files
+.eslintrc.js
+eslint.config.js
+.prettierrc.js
+.prettierrc.json
+.vscode/
+.env
+.env.*
+
+# Logs and cache
+logs/
+tmp/
+.cache/
+
+# OS & IDE artifacts
+.DS_Store
+Thumbs.db
+
+# Test artifacts & temporary work
+__tests__/
+__mocks__/
+sandbox/
+
+# Generated assets
+*.min.js
+*.bundle.js

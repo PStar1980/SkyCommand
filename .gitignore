@@ -1,4 +1,8 @@
-﻿# Python
+﻿# Node.js
+node_modules/
+.env
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
