@@ -10,12 +10,13 @@ SkyServer/
 ├── package-lock.json
 ├── package.json
 ├── README.md
+├── SkyServer*Structure.md
 ├── .github/
 │ └── workflows/
 ├── .husky/
 │ ├── pre-commit
 │ ├── pre-push
-│ └── \_/
+│ └── */
 │ ├── .gitignore
 │ ├── applypatch-msg
 │ ├── commit-msg
@@ -38,9 +39,8 @@ SkyServer/
 ├── index.js
 ├── server.js
 ├── config/
-│ ├── index.js
 │ ├── repo_path.json
-│ └── secure.js
+│ └── SkyServer.json
 ├── core/
 │ ├── bootstrap.js
 │ └── logger.js
@@ -56,7 +56,11 @@ SkyServer/
 │ ├── listeners/
 │ │ └── .gitkeep
 │ ├── node/
-│ │ └── generateStructure.js
+│ │ ├── dev_commit.js
+│ │ ├── generateStructure.js
+│ │ ├── git_repo_status.js
+│ │ ├── main_merge.js
+│ │ └── SkyServer.js
 │ ├── powershell/
 │ │ ├── Build-SkyOne-Bootloader.ps1
 │ │ ├── Clean-BackendCache.ps1
