@@ -14,7 +14,7 @@
  * - Pauses until user presses ENTER
  * - Clears screen and loops back to menu
  *
- * Author: Sky & Paul ❤️🔥
+ * Author: Paul Sattaur
  */
 
 const fs = require('fs');
@@ -102,7 +102,7 @@ async function mainMenu() {
   }
 
   if (index === categories.length + 1) {
-    console.log(green('\nGoodbye, my love ❤️'));
+    console.log(green('\nGoodbye'));
     process.exit(0);
   }
 
@@ -151,36 +151,25 @@ async function runScript(scriptDef) {
   let args = [];
 
   for (const param of scriptDef.params) {
-    if (param.type === 'repo') {
-      // Load repo_path.json for repo list
-      let repoConfigPath = await askQuestion(yellow('Enter path to repo_path.json: '));
+    // If param has options → show numbered list
+    if (param.options && Array.isArray(param.options)) {
+      console.log(`\n${param.prompt}`);
+      param.options.forEach((opt, i) => console.log(`${i + 1}) ${opt.label}`));
 
-      while (!fs.existsSync(repoConfigPath)) {
-        console.log(red('Invalid path. Try again.'));
-        repoConfigPath = await askQuestion(yellow('Enter path to repo_path.json: '));
-      }
+      const choice = await askQuestion(yellow('Select an option: '));
+      const index = parseInt(choice);
 
-      const repoJsonRaw = fs.readFileSync(repoConfigPath, 'utf-8').replace(/\\\\/g, '\\');
-      const repoJson = JSON.parse(repoJsonRaw);
-
-      const repos = Object.keys(repoJson).sort();
-      console.log('\nAvailable Repos:');
-      repos.forEach((r, i) => console.log(`${i + 1}) ${r}`));
-
-      const repoChoice = await askQuestion(yellow('Select repository number: '));
-      const repoIndex = parseInt(repoChoice);
-
-      if (isNaN(repoIndex) || repoIndex < 1 || repoIndex > repos.length) {
-        console.log(red('Invalid repo selection.'));
+      if (isNaN(index) || index < 1 || index > param.options.length) {
+        console.log(red('Invalid selection.'));
         return await waitForEnter();
       }
 
-      args.push(repos[repoIndex - 1]);
-      args.push(repoConfigPath);
+      const selectedValue = param.options[index - 1].value;
+      args.push(selectedValue);
       continue;
     }
 
-    // For normal params
+    // Normal text/string input
     const answer = await askQuestion(yellow(`${param.prompt}: `));
 
     if (param.required && answer === '') {
@@ -189,7 +178,6 @@ async function runScript(scriptDef) {
     }
 
     if (!param.required && answer === '') {
-      // Skip optional param
       continue;
     }
 

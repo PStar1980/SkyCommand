@@ -49,7 +49,7 @@ Example:
 // -------------------------------------------------------------
 let config;
 try {
-  const fixedJson = fs.readFileSync(configPath, 'utf-8').replace(/\\\\/g, '\\');
+  const fixedJson = fs.readFileSync(configPath, 'utf-8');
   config = JSON.parse(fixedJson);
 } catch (err) {
   console.error('❌ Failed to load config file:', err.message);
