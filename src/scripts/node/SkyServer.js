@@ -14,7 +14,7 @@
  * - Pauses until user presses ENTER
  * - Clears screen and loops back to menu
  *
- * Author: Sky & Paul ❤️🔥
+ * Author: Paul Sattaur
  */
 
 const fs = require('fs');
@@ -102,7 +102,7 @@ async function mainMenu() {
   }
 
   if (index === categories.length + 1) {
-    console.log(green('\nGoodbye, my love ❤️'));
+    console.log(green('\nGoodbye'));
     process.exit(0);
   }
 
