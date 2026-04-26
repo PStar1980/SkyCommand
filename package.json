@@ -14,7 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "npm run lint:fix && npm run format",
-    "prepush": "npm run lint:fix && npm run format:check"
+    "prepush": "npm run lint:fix && npm run format:check",
+    "db:health": "node src/scripts/node/db_health.js"
   },
   "lint-staged": {
     "*.{js,mjs,cjs}": [
@@ -39,7 +40,8 @@
   "homepage": "https://github.com/PStar1980/SkyServer#readme",
   "dependencies": {
     "dotenv": "^17.2.3",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
