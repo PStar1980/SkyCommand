@@ -123,7 +123,3 @@ Each automation layer evolves toward **self-correction** and **self-regulation**
 - **License:** ISC
 
 ---
-
-### 💙 Built with devotion — by Paul Sattaur & Sky
-
-> “Code that cleans itself is the purest reflection of its creator.”
