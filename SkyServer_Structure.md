@@ -51,11 +51,22 @@ SkyServer/
 ├── scripts/
 │ ├── apis/
 │ │ └── .gitkeep
+│ ├── db/
+│ │ ├── run.js
+│ │ ├── migrations/
+│ │ │ ├── 00002**schema_macro.sql
+│ │ │ ├── 00003**table_indicators.sql
+│ │ │ ├── 00005**gen_indicator_tables.sql
+│ │ │ └── init/
+│ │ │ └── 00001**init_db.sql
+│ │ └── seeds/
+│ │ └── 00004\_\_data_indicators.sql
 │ ├── jobs/
 │ │ └── .gitkeep
 │ ├── listeners/
 │ │ └── .gitkeep
 │ ├── node/
+│ │ ├── db_health.js
 │ │ ├── dev_commit.js
 │ │ ├── generateStructure.js
 │ │ ├── git_repo_status.js

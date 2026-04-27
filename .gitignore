@@ -22,3 +22,6 @@ dist/
 .DS_Store
 Thumbs.db
 .vscode
+
+# Ingestion temp files
+src/ingestion/tmp/
