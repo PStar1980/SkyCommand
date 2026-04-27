@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "clean": "npm run lint:fix && npm run format",
     "prepush": "npm run lint:fix && npm run format:check",
-    "db:health": "node src/scripts/node/db_health.js"
+    "db:health": "node src/scripts/node/db_health.js",
+    "db:build": "node src/scripts/db/run.js"
   },
   "lint-staged": {
     "*.{js,mjs,cjs}": [
