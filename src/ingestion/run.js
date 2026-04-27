@@ -34,5 +34,18 @@ console.log(`📊 Active indicators: ${indicators.length}`);
     }
   }
 
+  const cleanupTempDir = (dir) => {
+    const files = fs.readdirSync(dir);
+
+    for (const file of files) {
+      const fullPath = path.join(dir, file);
+      if (fs.statSync(fullPath).isFile()) {
+        fs.unlinkSync(fullPath);
+      }
+    }
+
+    console.log('🧹 Temp files cleaned');
+  };
   console.log('🎯 Full ingestion complete');
+  cleanupTempDir(tempDir);
 })();
