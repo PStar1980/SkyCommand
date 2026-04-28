@@ -1,7 +1,9 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({
+  path: path.join(__dirname, '../../../.env'),
+});
 
 const BASE_DB = 'postgres';
 const TARGET_DB = process.env.PGDATABASE;

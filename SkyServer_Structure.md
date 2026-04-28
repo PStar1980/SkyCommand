@@ -45,7 +45,20 @@ SkyServer/
 │ ├── bootstrap.js
 │ └── logger.js
 ├── db/
-│ └── connection.js
+│ ├── connection.js
+│ ├── schemas/
+│ │ └── macro.sql
+│ ├── tables/
+│ │ └── macro.indicators..sql
+│ └── views/
+│ ├── macro.vw_credit_conditions.sql
+│ ├── macro.vw_growth.sql
+│ ├── macro.vw_housing.sql
+│ ├── macro.vw_inflation.sql
+│ ├── macro.vw_labor.sql
+│ ├── macro.vw_liquidity.sql
+│ ├── macro.vw_macro_regime.sql
+│ └── macro.vw_rates_curve.sql
 ├── lib/
 │ └── helpers.js
 ├── scripts/
@@ -57,10 +70,13 @@ SkyServer/
 │ │ │ ├── 00002**schema_macro.sql
 │ │ │ ├── 00003**table_indicators.sql
 │ │ │ ├── 00005**gen_indicator_tables.sql
+│ │ │ ├── 00006**indicators_update.sql
+│ │ │ ├── 00007_indicator_views1.sql
+│ │ │ ├── 00008_indicator_views2.sql
 │ │ │ └── init/
 │ │ │ └── 00001**init_db.sql
 │ │ └── seeds/
-│ │ └── 00004\_\_data_indicators.sql
+│ │ └── 00004**data_indicators.sql
 │ ├── jobs/
 │ │ └── .gitkeep
 │ ├── listeners/
@@ -71,7 +87,17 @@ SkyServer/
 │ │ ├── generateStructure.js
 │ │ ├── git_repo_status.js
 │ │ ├── main_merge.js
-│ │ └── SkyServer.js
+│ │ ├── SkyServer_Core.js
+│ │ └── ingestion/
+│ │ ├── updateUSMacroData.js
+│ │ ├── loaders/
+│ │ │ └── copyLoader.js
+│ │ ├── sources/
+│ │ │ ├── fred.js
+│ │ │ ├── indicators.js
+│ │ │ └── manual.js
+│ │ └── transform/
+│ │ └── csvNormalizer.js
 │ ├── powershell/
 │ │ ├── Build-SkyOne-Bootloader.ps1
 │ │ ├── Clean-BackendCache.ps1
