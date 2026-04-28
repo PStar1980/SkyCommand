@@ -1,0 +1,6 @@
+-- SCHEMA: macro
+
+-- DROP SCHEMA IF EXISTS macro ;
+
+CREATE SCHEMA IF NOT EXISTS macro
+    AUTHORIZATION postgres;
