@@ -10,7 +10,7 @@ SkyServer/
 ├── package-lock.json
 ├── package.json
 ├── README.md
-├── SkyServer*Structure.md
+├── SkyServer*RepoMap.md
 ├── .github/
 │ └── workflows/
 ├── .husky/
@@ -74,10 +74,12 @@ SkyServer/
 │ │ │ ├── 00007_indicator_views1.sql
 │ │ │ ├── 00008_indicator_views2.sql
 │ │ │ ├── 00009_gen_indicator_tables.sql
+│ │ │ ├── 00011_gen_indicator_tables.sql
 │ │ │ └── init/
 │ │ │ └── 00001**init_db.sql
 │ │ └── seeds/
-│ │ └── 00004**data_indicators.sql
+│ │ ├── 00004**data_indicators.sql
+│ │ └── 00010\_\_data_indicators.sql
 │ ├── jobs/
 │ │ └── .gitkeep
 │ ├── listeners/
@@ -92,15 +94,27 @@ SkyServer/
 │ │ ├── core/
 │ │ │ └── runPipeline.js
 │ │ └── ingestion/
-│ │ ├── loadCAMacroData.js
-│ │ ├── loadUSMacroData.js
+│ │ ├── loadBoCMacroData.js
+│ │ ├── loadFREDMacroData.js
+│ │ ├── loadManualData.js
+│ │ ├── loadStatCanMacroData.js
 │ │ ├── config/
+│ │ │ ├── manualIngestion.json
+│ │ │ ├── statcanIndicators.js
+│ │ │ └── statcanVectors.js
+│ │ ├── discovery/
+│ │ │ ├── discoverStatCanMetadata.js
+│ │ │ └── resolveStatCanVectors.js
 │ │ ├── loaders/
-│ │ │ └── copyLoader.js
+│ │ │ ├── copyLoader.js
+│ │ │ └── manualCopyLoader.js
+│ │ ├── manual/
 │ │ ├── sources/
 │ │ │ ├── boc.js
 │ │ │ ├── fred.js
-│ │ │ └── indicators.js
+│ │ │ ├── indicators.js
+│ │ │ ├── manual.js
+│ │ │ └── statcan.js
 │ │ └── transform/
 │ │ └── csvNormalizer.js
 │ ├── powershell/
