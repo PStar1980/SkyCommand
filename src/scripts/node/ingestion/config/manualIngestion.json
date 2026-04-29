@@ -1,0 +1,26 @@
+{
+  "jobs": [
+    {
+      "name": "manual_macro_example",
+      "schema": "macro",
+      "table": "MANUAL_TARGET_TABLE",
+      "spreadsheet": {
+        "folder": "C:/Users/pauls/Dropbox/Programming/SkyEco System/SkyServer System/SkyServer/src/scripts/node/ingestion/manual",
+        "fileName": "manual_data.csv",
+        "sheetName": "Sheet1",
+        "headerRow": 1
+      },
+      "columns": [
+        {
+          "spreadsheetColumn": "Date",
+          "databaseColumn": "edate"
+        },
+        {
+          "spreadsheetColumn": "Value",
+          "databaseColumn": "value"
+        }
+      ],
+      "updateOnConflict": true
+    }
+  ]
+}
