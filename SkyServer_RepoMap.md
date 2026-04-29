@@ -92,18 +92,15 @@ SkyServer/
 │ │ ├── core/
 │ │ │ └── runPipeline.js
 │ │ └── ingestion/
-│ │ ├── updateBoCData.js
-│ │ ├── updateUSMacroData.js
-│ │ ├── configs/
-│ │ │ ├── boc.config.js
-│ │ │ └── fred.config.js
+│ │ ├── loadCAMacroData.js
+│ │ ├── loadUSMacroData.js
+│ │ ├── config/
 │ │ ├── loaders/
 │ │ │ └── copyLoader.js
 │ │ ├── sources/
 │ │ │ ├── boc.js
 │ │ │ ├── fred.js
-│ │ │ ├── indicators.js
-│ │ │ └── manual.js
+│ │ │ └── indicators.js
 │ │ └── transform/
 │ │ └── csvNormalizer.js
 │ ├── powershell/
