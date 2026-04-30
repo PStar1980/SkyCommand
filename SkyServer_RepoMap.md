@@ -65,7 +65,10 @@ SkyServer/
 │ ├── macro.vw_labor.sql
 │ ├── macro.vw_liquidity.sql
 │ ├── macro.vw_macro_regime.sql
-│ └── macro.vw_rates_curve.sql
+│ ├── macro.vw_rates_curve.sql
+│ ├── macro.vw_us_ca_inflation_compare.sql
+│ ├── macro.vw_us_ca_labor_compare.sql
+│ └── macro.vw_us_ca_policy_fx.sql
 ├── lib/
 │ └── helpers.js
 ├── scripts/
@@ -83,6 +86,7 @@ SkyServer/
 │ │ │ ├── 00009_gen_indicator_tables.sql
 │ │ │ ├── 00011_gen_indicator_tables.sql
 │ │ │ ├── 00012_indicator_views.sql
+│ │ │ ├── 00013_indicator_views.sql
 │ │ │ └── init/
 │ │ │ └── 00001**init_db.sql
 │ │ └── seeds/
