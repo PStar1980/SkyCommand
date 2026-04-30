@@ -51,6 +51,13 @@ SkyServer/
 │ ├── tables/
 │ │ └── macro.indicators..sql
 │ └── views/
+│ ├── macro.vw_ca_growth.sql
+│ ├── macro.vw_ca_housing.sql
+│ ├── macro.vw_ca_inflation.sql
+│ ├── macro.vw_ca_labor.sql
+│ ├── macro.vw_ca_macro_regime.sql
+│ ├── macro.vw_ca_rates_fx.sql
+│ ├── macro.vw_ca_trade.sql
 │ ├── macro.vw_credit_conditions.sql
 │ ├── macro.vw_growth.sql
 │ ├── macro.vw_housing.sql
@@ -71,10 +78,11 @@ SkyServer/
 │ │ │ ├── 00003**table_indicators.sql
 │ │ │ ├── 00005**gen_indicator_tables.sql
 │ │ │ ├── 00006**indicators_update.sql
-│ │ │ ├── 00007_indicator_views1.sql
-│ │ │ ├── 00008_indicator_views2.sql
+│ │ │ ├── 00007_indicator_views.sql
+│ │ │ ├── 00008_indicator_views.sql
 │ │ │ ├── 00009_gen_indicator_tables.sql
 │ │ │ ├── 00011_gen_indicator_tables.sql
+│ │ │ ├── 00012_indicator_views.sql
 │ │ │ └── init/
 │ │ │ └── 00001**init_db.sql
 │ │ └── seeds/
@@ -109,6 +117,7 @@ SkyServer/
 │ │ │ ├── copyLoader.js
 │ │ │ └── manualCopyLoader.js
 │ │ ├── manual/
+│ │ │ └── manual_data.csv
 │ │ ├── sources/
 │ │ │ ├── boc.js
 │ │ │ ├── fred.js
