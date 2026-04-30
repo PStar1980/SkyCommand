@@ -1,7 +1,7 @@
 {
   "jobs": [
     {
-      "name": "manual_macro_example",
+      "name": "manual_ingestion_test",
       "schema": "macro",
       "table": "MANUAL_TARGET_TABLE",
       "spreadsheet": {
@@ -20,7 +20,7 @@
           "databaseColumn": "value"
         }
       ],
-      "updateOnConflict": true
+      "updateOnConflict": false
     }
   ]
 }
