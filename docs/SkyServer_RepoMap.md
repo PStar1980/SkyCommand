@@ -33,79 +33,84 @@ SkyServer/
 │ ├── pre-push
 │ ├── pre-rebase
 │ └── prepare-commit-msg
-├── docs/
-├── logs/
-└── src/
-├── index.js
-├── server.js
-├── config/
-│ ├── repo_path.json
-│ └── SkyServer.json
-├── core/
-│ ├── bootstrap.js
-│ └── logger.js
-├── db/
-│ ├── connection.js
-│ ├── schemas/
-│ │ └── macro.sql
-│ ├── tables/
-│ │ └── macro.indicators..sql
-│ └── views/
-│ ├── macro.vw_ca_growth.sql
-│ ├── macro.vw_ca_housing.sql
-│ ├── macro.vw_ca_inflation.sql
-│ ├── macro.vw_ca_labor.sql
-│ ├── macro.vw_ca_macro_regime.sql
-│ ├── macro.vw_ca_rates_fx.sql
-│ ├── macro.vw_ca_trade.sql
-│ ├── macro.vw_credit_conditions.sql
-│ ├── macro.vw_growth.sql
-│ ├── macro.vw_housing.sql
-│ ├── macro.vw_inflation.sql
-│ ├── macro.vw_labor.sql
-│ ├── macro.vw_liquidity.sql
-│ ├── macro.vw_macro_regime.sql
-│ ├── macro.vw_rates_curve.sql
-│ ├── macro.vw_us_ca_inflation_compare.sql
-│ ├── macro.vw_us_ca_labor_compare.sql
-│ └── macro.vw_us_ca_policy_fx.sql
-├── lib/
-│ └── helpers.js
-├── scripts/
-│ ├── apis/
-│ │ └── .gitkeep
-│ ├── db/
-│ │ ├── run.js
-│ │ ├── migrations/
-│ │ │ ├── 00002**schema_macro.sql
-│ │ │ ├── 00003**table_indicators.sql
-│ │ │ ├── 00005**gen_indicator_tables.sql
-│ │ │ ├── 00006**indicators_update.sql
-│ │ │ ├── 00007_indicator_views.sql
-│ │ │ ├── 00008_indicator_views.sql
-│ │ │ ├── 00009_gen_indicator_tables.sql
-│ │ │ ├── 00011_gen_indicator_tables.sql
-│ │ │ ├── 00012_indicator_views.sql
-│ │ │ ├── 00013_indicator_views.sql
-│ │ │ └── init/
-│ │ │ └── 00001**init_db.sql
-│ │ └── seeds/
-│ │ ├── 00004**data_indicators.sql
-│ │ └── 00010\_\_data_indicators.sql
+├── apps/
+│ ├── admin-web/
+│ │ ├── eslint.config.js
+│ │ ├── index.html
+│ │ ├── package-lock.json
+│ │ ├── package.json
+│ │ ├── vite.config.js
+│ │ ├── public/
+│ │ │ └── vite.svg
+│ │ └── src/
+│ │ ├── App.css
+│ │ ├── App.jsx
+│ │ ├── index.css
+│ │ ├── main.jsx
+│ │ ├── assets/
+│ │ │ └── react.svg
+│ │ ├── components/
+│ │ │ ├── AccountCard.jsx
+│ │ │ ├── Navbar.jsx
+│ │ │ └── TransactionList.jsx
+│ │ ├── context/
+│ │ ├── pages/
+│ │ │ ├── Dashboard.jsx
+│ │ │ ├── Home.jsx
+│ │ │ └── Login.jsx
+│ │ └── services/
+│ │ ├── api.js
+│ │ └── userService.js
+│ ├── api/
+│ │ └── src/
+│ │ ├── index.js
+│ │ ├── server.js
+│ │ ├── controllers/
+│ │ ├── middleware/
+│ │ ├── routes/
+│ │ └── services/
+│ └── worker/
+│ └── src/
 │ ├── jobs/
-│ │ └── .gitkeep
 │ ├── listeners/
-│ │ └── .gitkeep
-│ ├── node/
-│ │ ├── db_health.js
-│ │ ├── dev_commit.js
-│ │ ├── generateStructure.js
-│ │ ├── git_repo_status.js
-│ │ ├── main_merge.js
+│ └── schedulers/
+├── docs/
+│ └── SkyServer_RepoMap.md
+├── logs/
+├── packages/
+│ ├── core/
+│ │ └── src/
 │ │ ├── SkyServer_Core.js
-│ │ ├── core/
-│ │ │ └── runPipeline.js
-│ │ └── ingestion/
+│ │ └── config/
+│ │ └── SkyServer.json
+│ ├── db/
+│ │ └── src/
+│ │ ├── schemas/
+│ │ │ └── macro.sql
+│ │ ├── tables/
+│ │ │ └── macro.indicators..sql
+│ │ └── views/
+│ │ ├── macro.vw_ca_growth.sql
+│ │ ├── macro.vw_ca_housing.sql
+│ │ ├── macro.vw_ca_inflation.sql
+│ │ ├── macro.vw_ca_labor.sql
+│ │ ├── macro.vw_ca_macro_regime.sql
+│ │ ├── macro.vw_ca_rates_fx.sql
+│ │ ├── macro.vw_ca_trade.sql
+│ │ ├── macro.vw_credit_conditions.sql
+│ │ ├── macro.vw_growth.sql
+│ │ ├── macro.vw_housing.sql
+│ │ ├── macro.vw_inflation.sql
+│ │ ├── macro.vw_labor.sql
+│ │ ├── macro.vw_liquidity.sql
+│ │ ├── macro.vw_macro_regime.sql
+│ │ ├── macro.vw_rates_curve.sql
+│ │ ├── macro.vw_us_ca_inflation_compare.sql
+│ │ ├── macro.vw_us_ca_labor_compare.sql
+│ │ └── macro.vw_us_ca_policy_fx.sql
+│ ├── db_build/
+│ │ └── db_build.js
+│ ├── ingestion/
 │ │ ├── loadBoCMacroData.js
 │ │ ├── loadFREDMacroData.js
 │ │ ├── loadManualData.js
@@ -114,6 +119,8 @@ SkyServer/
 │ │ │ ├── manualIngestion.json
 │ │ │ ├── statcanIndicators.js
 │ │ │ └── statcanVectors.js
+│ │ ├── core/
+│ │ │ └── runPipeline.js
 │ │ ├── discovery/
 │ │ │ ├── discoverStatCanMetadata.js
 │ │ │ └── resolveStatCanVectors.js
@@ -130,39 +137,46 @@ SkyServer/
 │ │ │ └── statcan.js
 │ │ └── transform/
 │ │ └── csvNormalizer.js
-│ ├── powershell/
-│ │ ├── Build-SkyOne-Bootloader.ps1
-│ │ ├── Clean-BackendCache.ps1
-│ │ ├── Clean-FrontendCache.ps1
-│ │ ├── Git_Repo_Actions.md
-│ │ └── Git_Repo_Actions.ps1
-│ ├── python/
-│ │ ├── dev_commit_auto.py
-│ │ ├── main_merge_auto.py
-│ │ └── utility_functions.py
-│ ├── schedulers/
-│ │ └── .gitkeep
-│ ├── utils/
-│ │ └── logger.js
-│ └── workers/
-│ └── .gitkeep
-├── server/
-│ ├── controllers/
-│ │ └── healthController.js
-│ ├── middleware/
-│ │ └── auth.js
-│ ├── routes/
-│ │ └── index.js
-│ └── views/
-│ └── .gitkeep
-├── telemetry/
-│ └── metrics.js
-└── web/
-├── assets/
-│ └── .gitkeep
-├── components/
-│ └── .gitkeep
-├── hooks/
-│ └── .gitkeep
-└── pages/
-└── .gitkeep
+│ └── shared/
+│ └── src/
+│ ├── constants/
+│ ├── contracts/
+│ └── validators/
+└── scripts/
+├── db/
+│ ├── migrations/
+│ │ ├── 00002**schema_macro.sql
+│ │ ├── 00003**table_indicators.sql
+│ │ ├── 00005**gen_indicator_tables.sql
+│ │ ├── 00006**indicators_update.sql
+│ │ ├── 00007_indicator_views.sql
+│ │ ├── 00008_indicator_views.sql
+│ │ ├── 00009_gen_indicator_tables.sql
+│ │ ├── 00011_gen_indicator_tables.sql
+│ │ ├── 00012_indicator_views.sql
+│ │ ├── 00013_indicator_views.sql
+│ │ └── init/
+│ │ └── 00001**init_db.sql
+│ └── seeds/
+│ ├── 00004**data_indicators.sql
+│ └── 00010\_\_data_indicators.sql
+├── node/
+│ ├── db/
+│ │ ├── connection.js
+│ │ └── db_health.js
+│ ├── file/
+│ │ └── generateStructure.js
+│ ├── git/
+│ │ ├── dev_commit.js
+│ │ ├── git_repo_status.js
+│ │ ├── main_merge.js
+│ │ └── config/
+│ │ └── repo_path.json
+│ └── util/
+│ ├── bootstrap.js
+│ └── logger.js
+├── powershell/
+│ ├── Build-SkyOne-Bootloader.ps1
+│ ├── Clean-BackendCache.ps1
+│ └── Clean-FrontendCache.ps1
+└── python/
