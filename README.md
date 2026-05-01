@@ -466,6 +466,32 @@ These views are intended to support future dashboarding, public visualizations, 
 
 ---
 
+## ❄️ Future Data Warehouse and BI Direction
+
+After SkyWeb integration, SkyServer can evolve into the source-of-truth pipeline for downstream analytics platforms.
+
+The expected future path is:
+
+```text
+Public and private source data
+        ↓
+SkyServer ingestion pipelines
+        ↓
+PostgreSQL operational analytics layer
+        ↓
+SkyServer APIs and SkyWeb dashboards
+        ↓
+Snowflake ETL/ELT pipelines
+        ↓
+Curated warehouse models and BI/reporting layers
+```
+
+In this model, PostgreSQL remains the operational application database and analytics staging layer, while Snowflake becomes the long-term cloud data warehouse for larger-scale historical analysis, dimensional modeling, and BI consumption.
+
+BI report creation can also be partially automated. SkyServer can automate the preparation of report-ready datasets, scheduled exports, semantic/reporting views, and refresh workflows. Full dashboard/report creation may depend on the chosen BI platform, but the data preparation and delivery layer can be made highly repeatable.
+
+---
+
 ## 🌐 Application Direction
 
 SkyServer is the private operational backend for the Sky Ecosystem.
@@ -480,6 +506,8 @@ Its long-term role is to support:
 - Worker jobs
 - File and repository automation
 - Future SkyWeb public-facing data views
+- Future Snowflake ETL/ELT pipelines for cloud data warehousing
+- Future BI/report automation using curated warehouse and reporting layers
 
 SkyServer is not just a backend service. It is the private control layer that keeps the system structured, testable, and extensible.
 
@@ -502,18 +530,23 @@ SkyServer is built around a few practical rules:
 
 ## 🗺️ Roadmap
 
-| Phase         | Objective                                                              |
-| ------------- | ---------------------------------------------------------------------- |
-| ✅ Phase 1    | Install Node.js, initialize the application, and establish npm tooling |
-| ✅ Phase 2    | ESLint, Prettier, Husky, and lint-staged automation                    |
-| ✅ Phase 3    | PostgreSQL schema, indicator registry, migrations, seeds, views        |
-| ✅ Phase 4    | FRED, BoC, StatCan, and manual ingestion pipelines                     |
-| ✅ Phase 5    | SkyServer Core CLI Tool with configurable script launcher model        |
-| 🔄 Continuous | Expand automation scripts for all workflows                            |
-| 🔄 Phase 6    | Private admin web interface under `apps/admin-web`                     |
-| 🔜 Phase 7    | API endpoints for macro views, ingestion status, and admin actions     |
-| 🔜 Phase 8    | Worker/listener workflows for scheduled and event-driven jobs          |
-| 🔜 Phase 9    | SkyWeb integration for public-facing macro dashboards                  |
+| Phase          | Objective                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| ✅ Phase 1     | Install Node.js, initialize the application, and establish npm tooling                                                         |
+| ✅ Phase 2     | ESLint, Prettier, Husky, and lint-staged automation                                                                            |
+| ✅ Phase 3     | PostgreSQL schema, indicator registry, migrations, seeds, views                                                                |
+| ✅ Phase 4     | FRED, BoC, StatCan, and manual ingestion pipelines                                                                             |
+| ✅ Phase 5     | SkyServer Core CLI Tool with configurable script launcher model                                                                |
+| 🔄 Continuous  | Expand automation scripts for Git, files, database, ingestion, workers, and operational workflows                              |
+| 🔄 Phase 6     | Private admin web interface under `apps/admin-web`                                                                             |
+| 🔜 Phase 7     | API endpoints for macro views, ingestion status, and admin actions                                                             |
+| 🔜 Phase 8     | Worker/listener workflows for scheduled and event-driven jobs                                                                  |
+| 🔜 Phase 9     | SkyWeb integration for public-facing macro dashboards                                                                          |
+| 🔜 Phase 10    | Data mart design and analytics-ready PostgreSQL view/model refinement for public, admin, and BI consumers                      |
+| 🔜 Phase 11    | ETL/ELT pipelines from PostgreSQL into Snowflake for durable cloud data warehousing                                            |
+| 🔜 Phase 12    | Snowflake warehouse models, dimensional tables, historical snapshots, and curated reporting layers                             |
+| 🔜 Phase 13    | BI/report automation layer for scheduled exports, dashboard-ready datasets, and optional Power BI/Tableau/Superset integration |
+| 🎯 Final Phase | Operationalize the full data path: source ingestion → PostgreSQL → SkyWeb/API → Snowflake → BI/reporting outputs               |
 
 ---
 
