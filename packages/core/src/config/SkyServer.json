@@ -7,6 +7,21 @@
   },
   "categories": [
     {
+      "name": "Database Tools",
+      "scripts": [
+        {
+          "name": "db_build",
+          "file": "packages/db_build/src/db_build.js",
+          "params": []
+        },
+        {
+          "name": "db_health",
+          "file": "packages/db/src/db_health.js",
+          "params": []
+        }
+      ]
+    },
+    {
       "name": "Git Tools",
       "scripts": [
         {
@@ -60,7 +75,32 @@
       ]
     },
     {
-      "name": "Structure Tools",
+      "name": "Data Ingestion Tools",
+      "scripts": [
+        {
+          "name": "loadBoCMacroData",
+          "file": "packages/ingestion/src/loadBoCMacroData.js",
+          "params": []
+        },
+        {
+          "name": "loadFREDMacroData",
+          "file": "packages/ingestion/src/loadFREDMacroData.js",
+          "params": []
+        },
+        {
+          "name": "loadManualData",
+          "file": "packages/ingestion/src/loadManualData.js",
+          "params": []
+        },
+        {
+          "name": "loadStatCanMacroData",
+          "file": "packages/ingestion/src/loadStatCanMacroData.js",
+          "params": []
+        }
+      ]
+    },
+    {
+      "name": "File Tools",
       "scripts": [
         {
           "name": "generateRepoMap",

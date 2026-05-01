@@ -1,60 +1,113 @@
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config({
-  path: path.join(__dirname, '../../../.env'),
+const dotenv = require('dotenv');
+
+const SKY_SERVER_ROOT = path.resolve(__dirname, '../../..');
+const DB_BUILD_ROOT = path.resolve(__dirname, '..');
+const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
+
+dotenv.config({
+  path: ENV_PATH,
 });
 
 const BASE_DB = 'postgres';
 const TARGET_DB = process.env.PGDATABASE;
 
-if (!TARGET_DB) {
-  throw new Error('❌ PGDATABASE not set in .env');
+const SQL_ROOTS = [path.join(DB_BUILD_ROOT, 'migrations'), path.join(DB_BUILD_ROOT, 'seeds')];
+
+function requireEnv(name) {
+  const value = process.env[name];
+
+  if (value === undefined || value === null || value === '') {
+    throw new Error(`❌ Missing required environment variable: ${name}`);
+  }
+
+  return value;
 }
 
-const base = __dirname;
+function getAllSqlFiles(dir) {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
 
-// 🔥 Recursively collect SQL files
-const getAllSqlFiles = (dir) => {
   let results = [];
 
-  const list = fs.readdirSync(dir);
-  for (const file of list) {
-    const fullPath = path.join(dir, file);
+  const entries = fs.readdirSync(dir);
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry);
     const stat = fs.statSync(fullPath);
 
-    if (stat && stat.isDirectory()) {
+    if (stat.isDirectory()) {
       results = results.concat(getAllSqlFiles(fullPath));
-    } else if (file.endsWith('.sql')) {
+    } else if (entry.toLowerCase().endsWith('.sql')) {
       results.push(fullPath);
     }
   }
 
   return results;
-};
+}
 
-// 🔥 Sort globally by filename
-const allFiles = getAllSqlFiles(base).sort((a, b) =>
-  path.basename(a).localeCompare(path.basename(b)),
-);
+function sortSqlFiles(a, b) {
+  const fileA = path.basename(a);
+  const fileB = path.basename(b);
 
-// 🚀 Execute scripts
-for (const file of allFiles) {
+  const filenameCompare = fileA.localeCompare(fileB);
+
+  if (filenameCompare !== 0) {
+    return filenameCompare;
+  }
+
+  return a.localeCompare(b);
+}
+
+function runSqlFile(file) {
   const filename = path.basename(file);
+  const relativeFile = path.relative(DB_BUILD_ROOT, file);
 
-  // Only init script runs on base DB
   const isInit = filename.startsWith('00001');
   const db = isInit ? BASE_DB : TARGET_DB;
 
-  console.log(`🔥 Running ${filename} on ${db}`);
+  console.log(`🔥 Running ${relativeFile} on ${db}`);
 
-  execSync(
-    `psql -h ${process.env.PGHOST} -p ${process.env.PGPORT} -U ${process.env.PGUSER} -d ${db} -f "${file}"`,
+  execFileSync(
+    'psql',
+    [
+      '-h',
+      requireEnv('PGHOST'),
+      '-p',
+      process.env.PGPORT || '5432',
+      '-U',
+      requireEnv('PGUSER'),
+      '-d',
+      db,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-f',
+      file,
+    ],
     {
       stdio: 'inherit',
-      env: process.env, // 👈 passes PGPASSWORD automatically
+      env: process.env,
     },
   );
+}
+
+requireEnv('PGDATABASE');
+requireEnv('PGPASSWORD');
+
+const allFiles = SQL_ROOTS.flatMap(getAllSqlFiles).sort(sortSqlFiles);
+
+if (allFiles.length === 0) {
+  throw new Error(`❌ No SQL files found under ${SQL_ROOTS.join(', ')}`);
+}
+
+console.log(`[SkyServer DB Build] Env file: ${ENV_PATH}`);
+console.log(`[SkyServer DB Build] SQL files found: ${allFiles.length}`);
+
+for (const file of allFiles) {
+  runSqlFile(file);
 }
 
 console.log('✅ DB build complete');

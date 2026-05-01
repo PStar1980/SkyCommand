@@ -1,10 +1,10 @@
 require('dotenv').config({
-  path: require('path').join(__dirname, '../../../../.env'),
+  path: require('path').join(__dirname, '../../../.env'),
 });
 
 const path = require('path');
 
-const { runPipeline } = require('../core/runPipeline');
+const { runPipeline } = require('./core/runPipeline');
 const { getIndicators } = require('./sources/indicators');
 const { downloadFredCSV } = require('./sources/fred');
 const { normalizeFredCSV } = require('./transform/csvNormalizer');

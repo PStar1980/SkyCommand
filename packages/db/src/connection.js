@@ -1,11 +1,21 @@
 const { Pool } = require('pg');
 
+function requireEnv(name) {
+  const value = process.env[name];
+
+  if (value === undefined || value === null || value === '') {
+    throw new Error(`[SkyServer DB] Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
+
 const pool = new Pool({
-  host: process.env.PGHOST,
+  host: requireEnv('PGHOST'),
   port: Number(process.env.PGPORT || 5432),
-  database: process.env.PGDATABASE,
-  user: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
+  database: requireEnv('PGDATABASE'),
+  user: requireEnv('PGUSER'),
+  password: requireEnv('PGPASSWORD'),
 });
 
 pool.on('error', (err) => {
