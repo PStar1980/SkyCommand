@@ -6,24 +6,24 @@
   "scripts": {
     "prepare": "husky init",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "daemon": "nodemon src/index.js",
+    "start": "node apps/api/src/server.js",
+    "dev": "nodemon apps/api/src/server.js",
+    "daemon": "nodemon apps/api/src/index.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "npm run lint:fix && npm run format",
-    "prepush": "npm run lint:fix && npm run format:check",
-    "db:health": "node src/scripts/node/db_health.js",
-    "db:build": "node src/scripts/db/run.js"
+    "prepush": "npm run lint && npm run format:check",
+    "db:health": "node scripts/node/db/db_health.js",
+    "db:build": "node packages/db_build/db_build.js"
   },
   "lint-staged": {
-    "*.{js,mjs,cjs}": [
+    "*.{js,jsx,mjs,cjs,ts,tsx}": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{json,md,html,css}": [
+    "*.{json,md,html,css,yml,yaml}": [
       "prettier --write"
     ]
   },
