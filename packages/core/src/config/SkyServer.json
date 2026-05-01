@@ -1,0 +1,92 @@
+{
+  "app": {
+    "title": "SkyServer Core"
+  },
+  "paths": {
+    "repoPathConfig": "scripts/node/git/config/repo_path.json"
+  },
+  "categories": [
+    {
+      "name": "Git Tools",
+      "scripts": [
+        {
+          "name": "dev_commit",
+          "file": "scripts/node/git/dev_commit.js",
+          "params": [
+            {
+              "name": "repoName",
+              "type": "repo",
+              "prompt": "Select repository",
+              "required": true
+            },
+            {
+              "name": "commitMessage",
+              "type": "string",
+              "prompt": "Enter commit message",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "git_repo_status",
+          "file": "scripts/node/git/git_repo_status.js",
+          "params": [
+            {
+              "name": "repoName",
+              "type": "repo",
+              "prompt": "Select repository",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "main_merge",
+          "file": "scripts/node/git/main_merge.js",
+          "params": [
+            {
+              "name": "repoName",
+              "type": "repo",
+              "prompt": "Select repository",
+              "required": true
+            },
+            {
+              "name": "tagName",
+              "type": "string",
+              "prompt": "Optional tag name (leave blank for none)",
+              "required": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Structure Tools",
+      "scripts": [
+        {
+          "name": "generateStructure",
+          "file": "scripts/node/file/generateStructure.js",
+          "params": [
+            {
+              "name": "location",
+              "type": "string",
+              "prompt": "Enter root folder location",
+              "required": true
+            },
+            {
+              "name": "fileName",
+              "type": "string",
+              "prompt": "Enter output file name",
+              "required": true
+            },
+            {
+              "name": "outputPath",
+              "type": "string",
+              "prompt": "Optional output path (leave blank to use same location)",
+              "required": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
