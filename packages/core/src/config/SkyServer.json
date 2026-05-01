@@ -3,7 +3,7 @@
     "title": "SkyServer Core"
   },
   "paths": {
-    "repoPathConfig": "scripts/node/git/config/repo_path.json"
+    "repoPathConfig": "packages/git/src/config/repo_path.json"
   },
   "categories": [
     {
@@ -11,7 +11,7 @@
       "scripts": [
         {
           "name": "dev_commit",
-          "file": "scripts/node/git/dev_commit.js",
+          "file": "packages/git/src/dev_commit.js",
           "params": [
             {
               "name": "repoName",
@@ -29,7 +29,7 @@
         },
         {
           "name": "git_repo_status",
-          "file": "scripts/node/git/git_repo_status.js",
+          "file": "packages/git/src/git_repo_status.js",
           "params": [
             {
               "name": "repoName",
@@ -41,7 +41,7 @@
         },
         {
           "name": "main_merge",
-          "file": "scripts/node/git/main_merge.js",
+          "file": "packages/git/src/main_merge.js",
           "params": [
             {
               "name": "repoName",
@@ -63,8 +63,8 @@
       "name": "Structure Tools",
       "scripts": [
         {
-          "name": "generateStructure",
-          "file": "scripts/node/file/generateStructure.js",
+          "name": "generateRepoMap",
+          "file": "packages/files/src/generateRepoMap.js",
           "params": [
             {
               "name": "location",

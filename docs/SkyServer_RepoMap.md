@@ -85,31 +85,37 @@ SkyServer/
 │ │ └── SkyServer.json
 │ ├── db/
 │ │ └── src/
-│ │ ├── schemas/
-│ │ │ └── macro.sql
-│ │ ├── tables/
-│ │ │ └── macro.indicators..sql
-│ │ └── views/
-│ │ ├── macro.vw_ca_growth.sql
-│ │ ├── macro.vw_ca_housing.sql
-│ │ ├── macro.vw_ca_inflation.sql
-│ │ ├── macro.vw_ca_labor.sql
-│ │ ├── macro.vw_ca_macro_regime.sql
-│ │ ├── macro.vw_ca_rates_fx.sql
-│ │ ├── macro.vw_ca_trade.sql
-│ │ ├── macro.vw_credit_conditions.sql
-│ │ ├── macro.vw_growth.sql
-│ │ ├── macro.vw_housing.sql
-│ │ ├── macro.vw_inflation.sql
-│ │ ├── macro.vw_labor.sql
-│ │ ├── macro.vw_liquidity.sql
-│ │ ├── macro.vw_macro_regime.sql
-│ │ ├── macro.vw_rates_curve.sql
-│ │ ├── macro.vw_us_ca_inflation_compare.sql
-│ │ ├── macro.vw_us_ca_labor_compare.sql
-│ │ └── macro.vw_us_ca_policy_fx.sql
+│ │ ├── connection.js
+│ │ └── db_health.js
 │ ├── db_build/
+│ │ ├── migrations/
+│ │ │ ├── 00002**schema_macro.sql
+│ │ │ ├── 00003**table_indicators.sql
+│ │ │ ├── 00005**gen_indicator_tables.sql
+│ │ │ ├── 00006**indicators_update.sql
+│ │ │ ├── 00007_indicator_views.sql
+│ │ │ ├── 00008_indicator_views.sql
+│ │ │ ├── 00009_gen_indicator_tables.sql
+│ │ │ ├── 00011_gen_indicator_tables.sql
+│ │ │ ├── 00012_indicator_views.sql
+│ │ │ ├── 00013_indicator_views.sql
+│ │ │ └── init/
+│ │ │ └── 00001**init_db.sql
+│ │ ├── seeds/
+│ │ │ ├── 00004**data_indicators.sql
+│ │ │ └── 00010\_\_data_indicators.sql
+│ │ └── src/
 │ │ └── db_build.js
+│ ├── files/
+│ │ └── src/
+│ │ └── generateRepoMap.js
+│ ├── git/
+│ │ └── src/
+│ │ ├── dev_commit.js
+│ │ ├── git_repo_status.js
+│ │ ├── main_merge.js
+│ │ └── config/
+│ │ └── repo_path.json
 │ ├── ingestion/
 │ │ ├── loadBoCMacroData.js
 │ │ ├── loadFREDMacroData.js
@@ -144,34 +150,31 @@ SkyServer/
 │ └── validators/
 └── scripts/
 ├── db/
-│ ├── migrations/
-│ │ ├── 00002**schema_macro.sql
-│ │ ├── 00003**table_indicators.sql
-│ │ ├── 00005**gen_indicator_tables.sql
-│ │ ├── 00006**indicators_update.sql
-│ │ ├── 00007_indicator_views.sql
-│ │ ├── 00008_indicator_views.sql
-│ │ ├── 00009_gen_indicator_tables.sql
-│ │ ├── 00011_gen_indicator_tables.sql
-│ │ ├── 00012_indicator_views.sql
-│ │ ├── 00013_indicator_views.sql
-│ │ └── init/
-│ │ └── 00001**init_db.sql
-│ └── seeds/
-│ ├── 00004**data_indicators.sql
-│ └── 00010\_\_data_indicators.sql
+│ ├── schemas/
+│ │ └── macro.sql
+│ ├── tables/
+│ │ └── macro.indicators..sql
+│ └── views/
+│ ├── macro.vw_ca_growth.sql
+│ ├── macro.vw_ca_housing.sql
+│ ├── macro.vw_ca_inflation.sql
+│ ├── macro.vw_ca_labor.sql
+│ ├── macro.vw_ca_macro_regime.sql
+│ ├── macro.vw_ca_rates_fx.sql
+│ ├── macro.vw_ca_trade.sql
+│ ├── macro.vw_credit_conditions.sql
+│ ├── macro.vw_growth.sql
+│ ├── macro.vw_housing.sql
+│ ├── macro.vw_inflation.sql
+│ ├── macro.vw_labor.sql
+│ ├── macro.vw_liquidity.sql
+│ ├── macro.vw_macro_regime.sql
+│ ├── macro.vw_rates_curve.sql
+│ ├── macro.vw_us_ca_inflation_compare.sql
+│ ├── macro.vw_us_ca_labor_compare.sql
+│ └── macro.vw_us_ca_policy_fx.sql
 ├── node/
 │ ├── db/
-│ │ ├── connection.js
-│ │ └── db_health.js
-│ ├── file/
-│ │ └── generateStructure.js
-│ ├── git/
-│ │ ├── dev_commit.js
-│ │ ├── git_repo_status.js
-│ │ ├── main_merge.js
-│ │ └── config/
-│ │ └── repo_path.json
 │ └── util/
 │ ├── bootstrap.js
 │ └── logger.js
