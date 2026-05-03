@@ -75,6 +75,7 @@ SkyServer/
 │ ├── listeners/
 │ └── schedulers/
 ├── docs/
+│ ├── Phase6RemainingTasks.md
 │ └── SkyServer_RepoMap.md
 ├── logs/
 ├── packages/
@@ -99,11 +100,15 @@ SkyServer/
 │ │ │ ├── 00011_gen_indicator_tables.sql
 │ │ │ ├── 00012_indicator_views.sql
 │ │ │ ├── 00013_indicator_views.sql
+│ │ │ ├── 00014**schema_auth.sql
+│ │ │ ├── 00015**auth_tables.sql
+│ │ │ ├── 00017**auth_views.sql
 │ │ │ └── init/
 │ │ │ └── 00001**init_db.sql
 │ │ ├── seeds/
 │ │ │ ├── 00004**data_indicators.sql
-│ │ │ └── 00010\_\_data_indicators.sql
+│ │ │ ├── 00010**data_indicators.sql
+│ │ │ └── 00016\_\_auth_seed_roles_permissions.sql
 │ │ └── src/
 │ │ └── db_build.js
 │ ├── files/
@@ -151,11 +156,34 @@ SkyServer/
 │ └── validators/
 └── scripts/
 ├── db/
+│ ├── functions/
+│ │ └── auth.set_updated_at.sql
 │ ├── schemas/
+│ │ ├── auth.sql
 │ │ └── macro.sql
 │ ├── tables/
+│ │ ├── auth.audit_events.sql
+│ │ ├── auth.login_events.sql
+│ │ ├── auth.permissions.sql
+│ │ ├── auth.role_permissions.sql
+│ │ ├── auth.roles.sql
+│ │ ├── auth.script_execution_log.sql
+│ │ ├── auth.sessions.sql
+│ │ ├── auth.user_roles.sql
+│ │ ├── auth.users.sql
 │ │ └── macro.indicators..sql
+│ ├── triggers/
+│ │ ├── auth.permissions_set_updated_at.sql
+│ │ ├── auth.roles_set_updated_at.sql
+│ │ └── auth.users_set_updated_at.sql
 │ └── views/
+│ ├── auth.vw_active_sessions.sql
+│ ├── auth.vw_audit_events_recent.sql
+│ ├── auth.vw_login_events_recent.sql
+│ ├── auth.vw_role_permissions.sql
+│ ├── auth.vw_script_execution_recent.sql
+│ ├── auth.vw_user_permissions.sql
+│ ├── auth.vw_user_roles.sql
 │ ├── macro.vw_ca_growth.sql
 │ ├── macro.vw_ca_housing.sql
 │ ├── macro.vw_ca_inflation.sql

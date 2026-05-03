@@ -1,41 +1,126 @@
 {
   "app": {
-    "title": "SkyServer Core"
+    "title": "SkyServer Core",
+    "manifestVersion": "2.0.0",
+    "description": "Shared operational manifest for SkyServer Core CLI and future Admin-Web/API tool execution."
   },
   "paths": {
     "repoPathConfig": "packages/git/src/config/repo_path.json"
   },
   "categories": [
     {
+      "id": "database_tools",
       "name": "Database Tools",
+      "label": "Database Tools",
+      "description": "PostgreSQL health and build operations.",
+      "displayOrder": 10,
+      "visibility": ["cli", "admin-web"],
+      "enabled": true,
       "scripts": [
         {
-          "name": "db_build",
-          "file": "packages/db_build/src/db_build.js",
+          "id": "db_health",
+          "name": "db_health",
+          "label": "Database Health Check",
+          "description": "Tests PostgreSQL connectivity using the configured environment.",
+          "file": "packages/db/src/db_health.js",
+          "scriptFile": "packages/db/src/db_health.js",
+          "runtime": "node",
+          "visibility": ["cli", "admin-web"],
+          "permission": "DB_HEALTH_RUN",
+          "risk": "low",
+          "requiresConfirmation": false,
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 10,
+          "allowParams": false,
           "params": []
         },
         {
-          "name": "db_health",
-          "file": "packages/db/src/db_health.js",
+          "id": "db_build",
+          "name": "db_build",
+          "label": "Database Build",
+          "description": "Rebuilds the PostgreSQL database from ordered migrations and seed files.",
+          "file": "packages/db_build/src/db_build.js",
+          "scriptFile": "packages/db_build/src/db_build.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "DB_BUILD_RUN",
+          "risk": "high",
+          "requiresConfirmation": true,
+          "confirmationText": "This can drop/rebuild database objects depending on the migration set. Confirm only when you intentionally want to run the database build.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 20,
+          "allowParams": false,
           "params": []
         }
       ]
     },
     {
+      "id": "git_tools",
       "name": "Git Tools",
+      "label": "Git Tools",
+      "description": "Repository status, commit, and merge workflows.",
+      "displayOrder": 20,
+      "visibility": ["cli", "admin-web"],
+      "enabled": true,
       "scripts": [
         {
-          "name": "dev_commit",
-          "file": "packages/git/src/dev_commit.js",
+          "id": "git_repo_status",
+          "name": "git_repo_status",
+          "label": "Repository Status",
+          "description": "Checks configured repository status across dev and main branches.",
+          "file": "packages/git/src/git_repo_status.js",
+          "scriptFile": "packages/git/src/git_repo_status.js",
+          "runtime": "node",
+          "visibility": ["cli", "admin-web"],
+          "permission": "GIT_STATUS_RUN",
+          "risk": "low",
+          "requiresConfirmation": false,
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 10,
+          "allowParams": true,
           "params": [
             {
               "name": "repoName",
+              "label": "Repository",
               "type": "repo",
+              "optionsSource": "repositories",
+              "prompt": "Select repository",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "dev_commit",
+          "name": "dev_commit",
+          "label": "Dev Commit",
+          "description": "Runs the configured dev branch commit workflow.",
+          "file": "packages/git/src/dev_commit.js",
+          "scriptFile": "packages/git/src/dev_commit.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "GIT_COMMIT_RUN",
+          "risk": "medium",
+          "requiresConfirmation": true,
+          "confirmationText": "This will stage, commit, and push changes for the selected repository.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 20,
+          "allowParams": true,
+          "params": [
+            {
+              "name": "repoName",
+              "label": "Repository",
+              "type": "repo",
+              "optionsSource": "repositories",
               "prompt": "Select repository",
               "required": true
             },
             {
               "name": "commitMessage",
+              "label": "Commit Message",
               "type": "string",
               "prompt": "Enter commit message",
               "required": true
@@ -43,29 +128,34 @@
           ]
         },
         {
-          "name": "git_repo_status",
-          "file": "packages/git/src/git_repo_status.js",
-          "params": [
-            {
-              "name": "repoName",
-              "type": "repo",
-              "prompt": "Select repository",
-              "required": true
-            }
-          ]
-        },
-        {
+          "id": "main_merge",
           "name": "main_merge",
+          "label": "Main Merge",
+          "description": "Runs the configured main branch merge and synchronization workflow.",
           "file": "packages/git/src/main_merge.js",
+          "scriptFile": "packages/git/src/main_merge.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "GIT_MAIN_MERGE_RUN",
+          "risk": "high",
+          "requiresConfirmation": true,
+          "confirmationText": "This will synchronize main/dev branches and may push branch updates and tags.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 30,
+          "allowParams": true,
           "params": [
             {
               "name": "repoName",
+              "label": "Repository",
               "type": "repo",
+              "optionsSource": "repositories",
               "prompt": "Select repository",
               "required": true
             },
             {
               "name": "tagName",
+              "label": "Optional Tag Name",
               "type": "string",
               "prompt": "Optional tag name (leave blank for none)",
               "required": false
@@ -75,51 +165,135 @@
       ]
     },
     {
+      "id": "data_ingestion_tools",
       "name": "Data Ingestion Tools",
+      "label": "Data Ingestion Tools",
+      "description": "Source-specific macroeconomic and manual ingestion workflows.",
+      "displayOrder": 30,
+      "visibility": ["cli"],
+      "enabled": true,
       "scripts": [
         {
-          "name": "loadBoCMacroData",
-          "file": "packages/ingestion/src/loadBoCMacroData.js",
-          "params": []
-        },
-        {
+          "id": "ingestion_fred",
           "name": "loadFREDMacroData",
+          "label": "Run FRED Ingestion",
+          "description": "Loads active FRED macroeconomic indicators into PostgreSQL.",
           "file": "packages/ingestion/src/loadFREDMacroData.js",
+          "scriptFile": "packages/ingestion/src/loadFREDMacroData.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "INGESTION_RUN_FRED",
+          "risk": "medium",
+          "requiresConfirmation": true,
+          "confirmationText": "This will call the FRED ingestion pipeline and write any new data into PostgreSQL.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 10,
+          "allowParams": false,
           "params": []
         },
         {
-          "name": "loadManualData",
-          "file": "packages/ingestion/src/loadManualData.js",
+          "id": "ingestion_boc",
+          "name": "loadBoCMacroData",
+          "label": "Run Bank of Canada Ingestion",
+          "description": "Loads active Bank of Canada macroeconomic indicators into PostgreSQL.",
+          "file": "packages/ingestion/src/loadBoCMacroData.js",
+          "scriptFile": "packages/ingestion/src/loadBoCMacroData.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "INGESTION_RUN_BOC",
+          "risk": "medium",
+          "requiresConfirmation": true,
+          "confirmationText": "This will call the Bank of Canada ingestion pipeline and write any new data into PostgreSQL.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 20,
+          "allowParams": false,
           "params": []
         },
         {
+          "id": "ingestion_statcan",
           "name": "loadStatCanMacroData",
+          "label": "Run Statistics Canada Ingestion",
+          "description": "Loads active Statistics Canada vector-based macroeconomic indicators into PostgreSQL.",
           "file": "packages/ingestion/src/loadStatCanMacroData.js",
+          "scriptFile": "packages/ingestion/src/loadStatCanMacroData.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "INGESTION_RUN_STATCAN",
+          "risk": "medium",
+          "requiresConfirmation": true,
+          "confirmationText": "This will call the Statistics Canada ingestion pipeline and write any new data into PostgreSQL.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 30,
+          "allowParams": false,
+          "params": []
+        },
+        {
+          "id": "ingestion_manual",
+          "name": "loadManualData",
+          "label": "Run Manual Ingestion",
+          "description": "Loads configured manual spreadsheet or CSV data into PostgreSQL.",
+          "file": "packages/ingestion/src/loadManualData.js",
+          "scriptFile": "packages/ingestion/src/loadManualData.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "INGESTION_RUN_MANUAL",
+          "risk": "medium",
+          "requiresConfirmation": true,
+          "confirmationText": "This will process the configured manual ingestion file and write mapped data into PostgreSQL.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 40,
+          "allowParams": false,
           "params": []
         }
       ]
     },
     {
+      "id": "file_tools",
       "name": "File Tools",
+      "label": "File Tools",
+      "description": "File, documentation, and repository structure utilities.",
+      "displayOrder": 40,
+      "visibility": ["cli", "admin-web"],
+      "enabled": true,
       "scripts": [
         {
+          "id": "repo_map_generate",
           "name": "generateRepoMap",
+          "label": "Generate Repository Map",
+          "description": "Generates a readable repository map for documentation and structural review.",
           "file": "packages/files/src/generateRepoMap.js",
+          "scriptFile": "packages/files/src/generateRepoMap.js",
+          "runtime": "node",
+          "visibility": ["cli", "admin-web"],
+          "permission": "REPO_MAP_GENERATE",
+          "risk": "low",
+          "requiresConfirmation": false,
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 10,
+          "allowParams": true,
           "params": [
             {
               "name": "location",
+              "label": "Root Folder Location",
               "type": "string",
               "prompt": "Enter root folder location",
               "required": true
             },
             {
               "name": "fileName",
+              "label": "Output File Name",
               "type": "string",
               "prompt": "Enter output file name",
               "required": true
             },
             {
               "name": "outputPath",
+              "label": "Optional Output Path",
               "type": "string",
               "prompt": "Optional output path (leave blank to use same location)",
               "required": false
