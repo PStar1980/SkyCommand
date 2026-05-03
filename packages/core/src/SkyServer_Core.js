@@ -6,14 +6,17 @@
  *
  * - Loads config/SkyServer.json relative to this file
  * - Displays SkyServer Core as the app title
- * - Lists categories alphabetically
- * - Lists scripts alphabetically
+ * - Lists CLI-visible categories/scripts
  * - Prompts for script parameters from config
  * - Resolves script file locations from config
- * - Executes target scripts through Node
+ * - Executes target scripts through configured runtime
  * - Shows raw script output
  * - Pauses until ENTER
  * - Clears screen and loops back to menu
+ *
+ * The SkyServer.json manifest is shared between:
+ * - SkyServer Core CLI
+ * - future Admin-Web/API tool execution
  *
  * Author: Paul Sattaur
  */
@@ -26,6 +29,7 @@ const { spawnSync } = require('child_process');
 // ------------------------------------------------------------
 // Paths
 // ------------------------------------------------------------
+
 const CORE_DIR = __dirname;
 const CONFIG_PATH = path.join(CORE_DIR, 'config', 'SkyServer.json');
 
@@ -35,15 +39,18 @@ const SKY_SERVER_ROOT = path.resolve(CORE_DIR, '../../..');
 // ------------------------------------------------------------
 // Colors
 // ------------------------------------------------------------
+
 const cyan = (str) => `\x1b[36m${str}\x1b[0m`;
 const yellow = (str) => `\x1b[33m${str}\x1b[0m`;
 const magenta = (str) => `\x1b[35m${str}\x1b[0m`;
 const green = (str) => `\x1b[32m${str}\x1b[0m`;
 const red = (str) => `\x1b[31m${str}\x1b[0m`;
+const gray = (str) => `\x1b[90m${str}\x1b[0m`;
 
 // ------------------------------------------------------------
 // Console helpers
 // ------------------------------------------------------------
+
 function printHeader(title) {
   console.log(cyan('=========================================='));
   console.log(cyan(`              ${title}`));
@@ -81,6 +88,7 @@ function askQuestion(query) {
 // ------------------------------------------------------------
 // Config helpers
 // ------------------------------------------------------------
+
 function readJson(filePath, label) {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -97,6 +105,45 @@ function resolveFromSkyServerRoot(filePath) {
   }
 
   return path.resolve(SKY_SERVER_ROOT, filePath);
+}
+
+function isVisibleInCli(item) {
+  if (item.enabled === false) {
+    return false;
+  }
+
+  if (!Array.isArray(item.visibility)) {
+    return true;
+  }
+
+  return item.visibility.includes('cli');
+}
+
+function getDisplayName(item) {
+  return item.label || item.name || item.id || 'Unnamed';
+}
+
+function getScriptId(scriptDef) {
+  return scriptDef.id || scriptDef.name || scriptDef.label || 'unknown_script';
+}
+
+function getScriptFile(scriptDef) {
+  return scriptDef.scriptFile || scriptDef.file;
+}
+
+function getRuntime(scriptDef) {
+  return scriptDef.runtime || 'node';
+}
+
+function sortByDisplayOrderThenName(a, b) {
+  const orderA = Number.isFinite(a.displayOrder) ? a.displayOrder : 999999;
+  const orderB = Number.isFinite(b.displayOrder) ? b.displayOrder : 999999;
+
+  if (orderA !== orderB) {
+    return orderA - orderB;
+  }
+
+  return getDisplayName(a).localeCompare(getDisplayName(b));
 }
 
 function loadRepoOptions(config) {
@@ -128,16 +175,21 @@ function getOptionsForParam(param, config) {
     return param.options;
   }
 
-  if (param.type === 'repo') {
+  if (param.type === 'repo' || param.optionsSource === 'repositories') {
     return loadRepoOptions(config);
   }
 
   return null;
 }
 
+function getParamPrompt(param) {
+  return param.prompt || param.label || param.name;
+}
+
 // ------------------------------------------------------------
 // Load SkyServer Core config
 // ------------------------------------------------------------
+
 if (!fs.existsSync(CONFIG_PATH)) {
   console.error(red(`ERROR: SkyServer Core config not found at: ${CONFIG_PATH}`));
   process.exit(1);
@@ -149,14 +201,27 @@ const appTitle = config.app?.title || 'SkyServer Core';
 // ------------------------------------------------------------
 // Main menu
 // ------------------------------------------------------------
+
 async function mainMenu() {
   console.clear();
   printHeader(appTitle);
 
-  const categories = [...config.categories].sort((a, b) => a.name.localeCompare(b.name));
+  const categories = [...config.categories]
+    .filter(isVisibleInCli)
+    .filter((category) => Array.isArray(category.scripts))
+    .map((category) => ({
+      ...category,
+      scripts: category.scripts.filter(isVisibleInCli),
+    }))
+    .filter((category) => category.scripts.length > 0)
+    .sort(sortByDisplayOrderThenName);
 
   categories.forEach((category, index) => {
-    console.log(`${magenta(index + 1)}) ${category.name}`);
+    console.log(`${magenta(index + 1)}) ${getDisplayName(category)}`);
+
+    if (category.description) {
+      console.log(gray(`   ${category.description}`));
+    }
   });
 
   console.log(`${magenta(categories.length + 1)}) Exit\n`);
@@ -182,14 +247,21 @@ async function mainMenu() {
 // ------------------------------------------------------------
 // Script menu
 // ------------------------------------------------------------
+
 async function scriptMenu(category) {
   console.clear();
-  printHeader(category.name);
+  printHeader(getDisplayName(category));
 
-  const scripts = [...category.scripts].sort((a, b) => a.name.localeCompare(b.name));
+  const scripts = [...category.scripts].filter(isVisibleInCli).sort(sortByDisplayOrderThenName);
 
   scripts.forEach((script, index) => {
-    console.log(`${magenta(index + 1)}) ${script.name}`);
+    const risk = script.risk ? ` [${script.risk.toUpperCase()}]` : '';
+
+    console.log(`${magenta(index + 1)}) ${getDisplayName(script)}${gray(risk)}`);
+
+    if (script.description) {
+      console.log(gray(`   ${script.description}`));
+    }
   });
 
   console.log(`${magenta(scripts.length + 1)}) Back\n`);
@@ -213,14 +285,16 @@ async function scriptMenu(category) {
 // ------------------------------------------------------------
 // Script execution
 // ------------------------------------------------------------
+
 async function collectScriptArgs(scriptDef) {
   const args = [];
 
   for (const param of scriptDef.params || []) {
     const options = getOptionsForParam(param, config);
+    const prompt = getParamPrompt(param);
 
     if (options && options.length > 0) {
-      console.log(`\n${param.prompt}`);
+      console.log(`\n${prompt}`);
 
       options.forEach((option, index) => {
         console.log(`${index + 1}) ${option.label}`);
@@ -237,7 +311,7 @@ async function collectScriptArgs(scriptDef) {
       continue;
     }
 
-    const answer = await askQuestion(yellow(`${param.prompt}: `));
+    const answer = await askQuestion(yellow(`${prompt}: `));
 
     if (param.required && answer === '') {
       throw new Error(`${param.name} is required.`);
@@ -253,11 +327,68 @@ async function collectScriptArgs(scriptDef) {
   return args;
 }
 
+async function confirmRisk(scriptDef) {
+  if (!scriptDef.requiresConfirmation) {
+    return true;
+  }
+
+  const risk = scriptDef.risk ? scriptDef.risk.toUpperCase() : 'UNKNOWN';
+  const scriptName = getDisplayName(scriptDef);
+
+  console.log('');
+  console.log(yellow(`⚠️  Confirmation required for ${scriptName}`));
+  console.log(yellow(`Risk level: ${risk}`));
+
+  if (scriptDef.confirmationText) {
+    console.log(yellow(scriptDef.confirmationText));
+  }
+
+  const answer = await askQuestion(yellow('Type YES to continue: '));
+
+  return answer === 'YES';
+}
+
+function getRuntimeCommand(runtime) {
+  if (runtime === 'node') {
+    return {
+      command: process.execPath,
+      prefixArgs: [],
+      label: 'node',
+    };
+  }
+
+  if (runtime === 'powershell') {
+    return {
+      command: 'powershell.exe',
+      prefixArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File'],
+      label: 'powershell',
+    };
+  }
+
+  if (runtime === 'pwsh') {
+    return {
+      command: 'pwsh',
+      prefixArgs: ['-NoProfile', '-File'],
+      label: 'pwsh',
+    };
+  }
+
+  throw new Error(`Unsupported runtime: ${runtime}`);
+}
+
 async function runScript(scriptDef) {
   console.clear();
-  printHeader(`Executing: ${scriptDef.name}`);
+  printHeader(`Executing: ${getDisplayName(scriptDef)}`);
 
-  const scriptFile = resolveFromSkyServerRoot(scriptDef.file);
+  const scriptPath = getScriptFile(scriptDef);
+
+  if (!scriptPath) {
+    console.error(red('ERROR: Script file is not configured.'));
+    await waitForEnter();
+    return;
+  }
+
+  const scriptFile = resolveFromSkyServerRoot(scriptPath);
 
   if (!fs.existsSync(scriptFile)) {
     console.error(red(`ERROR: Script file not found at: ${scriptFile}`));
@@ -268,6 +399,14 @@ async function runScript(scriptDef) {
   let args;
 
   try {
+    const confirmed = await confirmRisk(scriptDef);
+
+    if (!confirmed) {
+      console.log(yellow('\nCancelled.'));
+      await waitForEnter();
+      return;
+    }
+
     args = await collectScriptArgs(scriptDef);
   } catch (err) {
     console.error(red(`\nERROR: ${err.message}`));
@@ -275,11 +414,25 @@ async function runScript(scriptDef) {
     return;
   }
 
+  let runtimeCommand;
+
+  try {
+    runtimeCommand = getRuntimeCommand(getRuntime(scriptDef));
+  } catch (err) {
+    console.error(red(`\nERROR: ${err.message}`));
+    await waitForEnter();
+    return;
+  }
+
+  const commandArgs = [...runtimeCommand.prefixArgs, scriptFile, ...args];
+
   console.log('\nRunning:');
-  console.log(green(`node ${scriptFile} ${args.map((arg) => `"${arg}"`).join(' ')}`));
+  console.log(
+    green(`${runtimeCommand.label} ${scriptFile} ${args.map((arg) => `"${arg}"`).join(' ')}`),
+  );
   console.log('');
 
-  const result = spawnSync(process.execPath, [scriptFile, ...args], {
+  const result = spawnSync(runtimeCommand.command, commandArgs, {
     cwd: path.dirname(scriptFile),
     stdio: 'inherit',
     shell: false,
@@ -298,4 +451,5 @@ async function runScript(scriptDef) {
 // ------------------------------------------------------------
 // Start
 // ------------------------------------------------------------
+
 mainMenu();
