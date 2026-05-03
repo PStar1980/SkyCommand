@@ -66,9 +66,14 @@ SkyServer/
 │ │ ├── index.js
 │ │ ├── server.js
 │ │ ├── controllers/
+│ │ │ └── authController.js
 │ │ ├── middleware/
+│ │ │ ├── authMiddleware.js
+│ │ │ └── permissionMiddleware.js
 │ │ ├── routes/
+│ │ │ └── auth.routes.js
 │ │ └── services/
+│ │ └── authService.js
 │ └── worker/
 │ └── src/
 │ ├── jobs/
@@ -79,6 +84,10 @@ SkyServer/
 │ └── SkyServer_RepoMap.md
 ├── logs/
 ├── packages/
+│ ├── auth/
+│ │ └── src/
+│ │ ├── createAdminUser.js
+│ │ └── password.js
 │ ├── core/
 │ │ └── src/
 │ │ ├── SkyServer_Core.js
