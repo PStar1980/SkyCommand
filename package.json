@@ -16,7 +16,8 @@
     "clean": "npm run lint:fix && npm run format",
     "prepush": "npm run lint && npm run format:check",
     "db:health": "node packages/db/src/db_health.js",
-    "db:build": "node packages/db_build/src/db_build.js"
+    "db:build": "node packages/db_build/src/db_build.js",
+    "auth:create-admin": "node packages/auth/src/createAdminUser.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
@@ -41,6 +42,7 @@
   "homepage": "https://github.com/PStar1980/SkyServer#readme",
   "dependencies": {
     "axios": "^1.15.2",
+    "bcryptjs": "^2.4.3",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "pg": "^8.20.0",

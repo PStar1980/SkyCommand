@@ -57,6 +57,36 @@
       ]
     },
     {
+      "id": "auth_tools",
+      "name": "Auth Tools",
+      "label": "Auth Tools",
+      "description": "User, role, permission, and authentication setup utilities.",
+      "displayOrder": 15,
+      "visibility": ["cli"],
+      "enabled": true,
+      "scripts": [
+        {
+          "id": "auth_create_admin_user",
+          "name": "createAdminUser",
+          "label": "Create Admin User",
+          "description": "Creates an ACTIVE SkyServer user and assigns an RBAC role.",
+          "file": "packages/auth/src/createAdminUser.js",
+          "scriptFile": "packages/auth/src/createAdminUser.js",
+          "runtime": "node",
+          "visibility": ["cli"],
+          "permission": "ADMIN_USER_WRITE",
+          "risk": "high",
+          "requiresConfirmation": true,
+          "confirmationText": "This creates an active user account and assigns a role. Confirm only when intentionally provisioning an admin user.",
+          "capturesOutput": true,
+          "enabled": true,
+          "displayOrder": 10,
+          "allowParams": false,
+          "params": []
+        }
+      ]
+    },
+    {
       "id": "git_tools",
       "name": "Git Tools",
       "label": "Git Tools",
