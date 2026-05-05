@@ -5,8 +5,14 @@
  *
  * Sequential dual-branch health checker for configured git repositories.
  *
- * Config:
- *   ./config/repo_path.json
+ * Database config:
+ *   core.repositories
+ *   core.repository_paths
+ *   core.config_profiles
+ *
+ * Environment:
+ *   Loads .env from the SkyServer repository root:
+ *   packages/git/src -> ../../.. -> SkyServer/.env
  *
  * Usage:
  *   node git_repo_status.js <repoName>
@@ -17,58 +23,118 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
+const dotenv = require('dotenv');
 
-const REPO_CONFIG_PATH = path.join(__dirname, 'config', 'repo_path.json');
+const SCRIPT_DIR = __dirname;
+const SKY_SERVER_ROOT = path.resolve(SCRIPT_DIR, '../../..');
+const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
+
+dotenv.config({ path: ENV_PATH });
+
+const { pool } = require('../../db/src/connection');
+
+const PROFILE_CODE =
+  process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.CONFIG_PROFILE ||
+  'DEV_LOCAL';
 
 // ------------------------------------------------------------
 // Utility
 // ------------------------------------------------------------
 function fail(message) {
-  console.error(`❌ ${message}`);
-  process.exit(1);
+  throw new Error(message);
 }
 
-function loadRepoPaths() {
-  if (!fs.existsSync(REPO_CONFIG_PATH)) {
-    fail(`Repo config not found at: ${REPO_CONFIG_PATH}`);
+function runGitCapture(args, cwd) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    shell: false,
+  });
+
+  if (result.error) {
+    return `ERROR: ${result.error.message}`;
   }
 
-  try {
-    return JSON.parse(fs.readFileSync(REPO_CONFIG_PATH, 'utf8'));
-  } catch (err) {
-    fail(`Invalid repo_path.json: ${err.message}`);
+  if (result.status !== 0) {
+    return `ERROR: ${result.stderr?.toString().trim() || `git ${args.join(' ')}`}`;
   }
+
+  return result.stdout.trim();
 }
 
-function run(cmd, cwd) {
-  try {
-    return execSync(cmd, {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-  } catch (err) {
-    return `ERROR: ${err.stderr?.toString().trim() || err.message}`;
-  }
+async function listAvailableRepositories() {
+  const result = await pool.query(
+    `
+      SELECT r.repo_code
+      FROM core.repositories r
+      JOIN core.repository_paths rp
+        ON rp.repo_id = r.repo_id
+      JOIN core.config_profiles cp
+        ON cp.profile_id = rp.profile_id
+      WHERE cp.profile_code = $1
+        AND cp.active = TRUE
+        AND r.active = TRUE
+        AND rp.active = TRUE
+      ORDER BY r.display_order, r.repo_code
+    `,
+    [PROFILE_CODE],
+  );
+
+  return result.rows.map((row) => row.repo_code);
 }
 
-function validateRepo(repoPaths, repoName) {
+async function loadRepository(repoName) {
   if (!repoName) {
     fail('Missing repoName. Usage: node git_repo_status.js <repoName>');
   }
 
-  if (!repoPaths[repoName]) {
-    fail(`Unknown repo '${repoName}'. Available repos: ${Object.keys(repoPaths).join(', ')}`);
+  const result = await pool.query(
+    `
+      SELECT
+        r.repo_code,
+        r.repo_name,
+        r.main_branch,
+        r.dev_branch,
+        rp.root_path
+      FROM core.repositories r
+      JOIN core.repository_paths rp
+        ON rp.repo_id = r.repo_id
+      JOIN core.config_profiles cp
+        ON cp.profile_id = rp.profile_id
+      WHERE cp.profile_code = $1
+        AND cp.active = TRUE
+        AND r.active = TRUE
+        AND rp.active = TRUE
+        AND (
+          LOWER(r.repo_code) = LOWER($2)
+          OR LOWER(r.repo_name) = LOWER($2)
+        )
+      LIMIT 1
+    `,
+    [PROFILE_CODE, repoName],
+  );
+
+  if (result.rowCount === 0) {
+    const availableRepos = await listAvailableRepositories();
+    fail(`Unknown repo '${repoName}'. Available repos: ${availableRepos.join(', ')}`);
   }
 
-  const repoRoot = repoPaths[repoName];
+  const repo = result.rows[0];
 
-  if (!fs.existsSync(repoRoot)) {
-    fail(`Repo path does not exist: ${repoRoot}`);
+  if (!repo.root_path || !fs.existsSync(repo.root_path)) {
+    fail(`Repo path does not exist: ${repo.root_path}`);
   }
 
-  return repoRoot;
+  return {
+    repoCode: repo.repo_code,
+    repoName: repo.repo_name,
+    mainBranch: repo.main_branch || 'main',
+    devBranch: repo.dev_branch || 'dev',
+    rootPath: repo.root_path,
+  };
 }
 
 function cleanFileList(output) {
@@ -83,22 +149,24 @@ function cleanFileList(output) {
 }
 
 function collectBranchStatus(repoRoot, branchName) {
-  run(`git switch ${branchName}`, repoRoot);
-  run('git fetch origin', repoRoot);
+  runGitCapture(['switch', branchName], repoRoot);
+  runGitCapture(['fetch', 'origin'], repoRoot);
 
-  const currentBranch = run('git branch --show-current', repoRoot);
-  const ahead = run(
-    `git rev-list --left-only --count ${branchName}...origin/${branchName}`,
+  const currentBranch = runGitCapture(['branch', '--show-current'], repoRoot);
+  const ahead = runGitCapture(
+    ['rev-list', '--left-only', '--count', `${branchName}...origin/${branchName}`],
     repoRoot,
   );
-  const behind = run(
-    `git rev-list --right-only --count ${branchName}...origin/${branchName}`,
+  const behind = runGitCapture(
+    ['rev-list', '--right-only', '--count', `${branchName}...origin/${branchName}`],
     repoRoot,
   );
-  const latestCommit = run('git log -1 --oneline', repoRoot);
+  const latestCommit = runGitCapture(['log', '-1', '--oneline'], repoRoot);
 
-  const modified = cleanFileList(run('git ls-files -m', repoRoot));
-  const untracked = cleanFileList(run('git ls-files --others --exclude-standard', repoRoot));
+  const modified = cleanFileList(runGitCapture(['ls-files', '-m'], repoRoot));
+  const untracked = cleanFileList(
+    runGitCapture(['ls-files', '--others', '--exclude-standard'], repoRoot),
+  );
 
   return {
     branch: currentBranch,
@@ -128,37 +196,45 @@ function formatTimestamp(date) {
   );
 }
 
+async function closePool() {
+  try {
+    await pool.end();
+  } catch {
+    // Nothing useful to do during CLI shutdown.
+  }
+}
+
 // ------------------------------------------------------------
 // Main
 // ------------------------------------------------------------
-const [repoName] = process.argv.slice(2);
+async function main() {
+  const [repoName] = process.argv.slice(2);
 
-const repoPaths = loadRepoPaths();
-const repoRoot = validateRepo(repoPaths, repoName);
+  const repo = await loadRepository(repoName);
+  const originalBranch = runGitCapture(['branch', '--show-current'], repo.rootPath);
 
-const originalBranch = run('git branch --show-current', repoRoot);
+  const devStatus = collectBranchStatus(repo.rootPath, repo.devBranch);
+  const mainStatus = collectBranchStatus(repo.rootPath, repo.mainBranch);
 
-const devStatus = collectBranchStatus(repoRoot, 'dev');
-const mainStatus = collectBranchStatus(repoRoot, 'main');
+  // Safety default: return to configured dev branch if it exists.
+  // If dev switch fails, return to original branch.
+  const returnToDev = runGitCapture(['switch', repo.devBranch], repo.rootPath);
 
-// Safety default: return to dev if it exists.
-// If dev switch fails, return to original branch.
-const returnToDev = run('git switch dev', repoRoot);
+  if (returnToDev.startsWith('ERROR:') && originalBranch && !originalBranch.startsWith('ERROR:')) {
+    runGitCapture(['switch', originalBranch], repo.rootPath);
+  }
 
-if (returnToDev.startsWith('ERROR:') && originalBranch && !originalBranch.startsWith('ERROR:')) {
-  run(`git switch ${originalBranch}`, repoRoot);
-}
+  const timestamp = formatTimestamp(new Date());
 
-const timestamp = formatTimestamp(new Date());
-
-console.log(`
+  console.log(`
 =========================================
- Repo Status Report: ${repoName}
+ Repo Status Report: ${repo.repoCode}
  Generated: ${timestamp}
- Root: ${repoRoot}
+ Profile: ${PROFILE_CODE}
+ Root: ${repo.rootPath}
 =========================================
 
-[ DEV BRANCH ]
+[ ${repo.devBranch.toUpperCase()} BRANCH ]
 -----------------------------------------
 Branch: ${devStatus.branch}
 Latest commit: ${devStatus.latestCommit}
@@ -173,7 +249,7 @@ Working Directory:
     ${formatList(devStatus.untracked)}
 
 
-[ MAIN BRANCH ]
+[ ${repo.mainBranch.toUpperCase()} BRANCH ]
 -----------------------------------------
 Branch: ${mainStatus.branch}
 Latest commit: ${mainStatus.latestCommit}
@@ -189,6 +265,14 @@ Working Directory:
 
 -----------------------------------------
 Status check completed.
-Returned to dev branch safely.
+Returned to ${repo.devBranch} branch safely.
 =========================================
 `);
+}
+
+main()
+  .catch((error) => {
+    console.error(`❌ ${error.message}`);
+    process.exitCode = 1;
+  })
+  .finally(closePool);

@@ -89,9 +89,7 @@ SkyServer/
 │ │ └── password.js
 │ ├── core/
 │ │ └── src/
-│ │ ├── SkyServer_Core.js
-│ │ └── config/
-│ │ └── SkyServer.json
+│ │ └── SkyServer_Core.js
 │ ├── db/
 │ │ └── src/
 │ │ ├── connection.js
@@ -128,9 +126,7 @@ SkyServer/
 │ │ └── src/
 │ │ ├── dev_commit.js
 │ │ ├── git_repo_status.js
-│ │ ├── main_merge.js
-│ │ └── config/
-│ │ └── repo_path.json
+│ │ └── main_merge.js
 │ ├── ingestion/
 │ │ └── src/
 │ │ ├── loadBoCMacroData.js
