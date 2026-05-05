@@ -80,7 +80,6 @@ SkyServer/
 │ ├── listeners/
 │ └── schedulers/
 ├── docs/
-│ ├── Phase6RemainingTasks.md
 │ └── SkyServer_RepoMap.md
 ├── logs/
 ├── packages/
@@ -112,12 +111,14 @@ SkyServer/
 │ │ │ ├── 00014**schema_auth.sql
 │ │ │ ├── 00015**auth_tables.sql
 │ │ │ ├── 00017**auth_views.sql
+│ │ │ ├── 00018**core_config_tables.sql
 │ │ │ └── init/
 │ │ │ └── 00001**init_db.sql
 │ │ ├── seeds/
 │ │ │ ├── 00004**data_indicators.sql
 │ │ │ ├── 00010**data_indicators.sql
-│ │ │ └── 00016\_\_auth_seed_roles_permissions.sql
+│ │ │ ├── 00016**auth_seed_roles_permissions.sql
+│ │ │ └── 00019\_\_core_config_seed.sql
 │ │ └── src/
 │ │ └── db_build.js
 │ ├── files/
@@ -166,9 +167,11 @@ SkyServer/
 └── scripts/
 ├── db/
 │ ├── functions/
-│ │ └── auth.set_updated_at.sql
+│ │ ├── auth.set_updated_at.sql
+│ │ └── core.set_updated_at.sql
 │ ├── schemas/
 │ │ ├── auth.sql
+│ │ ├── core.sql
 │ │ └── macro.sql
 │ ├── tables/
 │ │ ├── auth.audit_events.sql
@@ -180,11 +183,32 @@ SkyServer/
 │ │ ├── auth.sessions.sql
 │ │ ├── auth.user_roles.sql
 │ │ ├── auth.users.sql
+│ │ ├── core.applications.sql
+│ │ ├── core.config_profiles.sql
+│ │ ├── core.option_sources.sql
+│ │ ├── core.param_types.sql
+│ │ ├── core.repositories.sql
+│ │ ├── core.repository_paths.sql
+│ │ ├── core.risk_levels.sql
+│ │ ├── core.runtimes.sql
+│ │ ├── core.tool_categories.sql
+│ │ ├── core.tool_category_visibility.sql
+│ │ ├── core.tool_parameter_options.sql
+│ │ ├── core.tool_parameters.sql
+│ │ ├── core.tool_visibility.sql
+│ │ ├── core.tools.sql
+│ │ ├── core.visibility_channels.sql
 │ │ └── macro.indicators..sql
 │ ├── triggers/
 │ │ ├── auth.permissions_set_updated_at.sql
 │ │ ├── auth.roles_set_updated_at.sql
-│ │ └── auth.users_set_updated_at.sql
+│ │ ├── auth.users_set_updated_at.sql
+│ │ ├── core.applications_set_updated_at.sql
+│ │ ├── core.repositories_set_updated_at.sql
+│ │ ├── core.repository_paths_set_updated_at.sql
+│ │ ├── core.tool_categories_set_updated_at.sql
+│ │ ├── core.tool_parameters_set_updated_at.sql
+│ │ └── core.tools_set_updated_at.sql
 │ └── views/
 │ ├── auth.vw_active_sessions.sql
 │ ├── auth.vw_audit_events_recent.sql
@@ -193,6 +217,13 @@ SkyServer/
 │ ├── auth.vw_script_execution_recent.sql
 │ ├── auth.vw_user_permissions.sql
 │ ├── auth.vw_user_roles.sql
+│ ├── core.vw_admin_web_tools.sql
+│ ├── core.vw_cli_categories.sql
+│ ├── core.vw_cli_tools.sql
+│ ├── core.vw_repository_paths.sql
+│ ├── core.vw_tool_manifest.sql
+│ ├── core.vw_tool_parameter_options.sql
+│ ├── core.vw_tool_parameters.sql
 │ ├── macro.vw_ca_growth.sql
 │ ├── macro.vw_ca_housing.sql
 │ ├── macro.vw_ca_inflation.sql
