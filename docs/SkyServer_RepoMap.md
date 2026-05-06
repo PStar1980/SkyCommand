@@ -66,14 +66,17 @@ SkyServer/
 │ │ ├── index.js
 │ │ ├── server.js
 │ │ ├── controllers/
-│ │ │ └── authController.js
+│ │ │ ├── authController.js
+│ │ │ └── toolsController.js
 │ │ ├── middleware/
 │ │ │ ├── authMiddleware.js
 │ │ │ └── permissionMiddleware.js
 │ │ ├── routes/
-│ │ │ └── auth.routes.js
+│ │ │ ├── auth.routes.js
+│ │ │ └── tools.routes.js
 │ │ └── services/
-│ │ └── authService.js
+│ │ ├── authService.js
+│ │ └── toolManifestService.js
 │ └── worker/
 │ └── src/
 │ ├── jobs/
