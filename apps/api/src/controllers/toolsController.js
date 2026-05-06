@@ -1,4 +1,6 @@
 const toolManifestService = require('../services/toolManifestService');
+const scriptExecutionService = require('../services/scriptExecutionService');
+const authService = require('../services/authService');
 
 async function listTools(req, res, next) {
   try {
@@ -50,7 +52,41 @@ async function getTool(req, res, next) {
   }
 }
 
+async function runTool(req, res, next) {
+  try {
+    const { toolCode } = req.params;
+    const body = req.body || {};
+    const context = authService.getRequestContext(req);
+
+    const result = await scriptExecutionService.runTool({
+      toolCode,
+      parameters: body.parameters || {},
+      confirmed: body.confirmed || body.confirm,
+      user: req.user,
+      session: req.session,
+      permissions: req.permissions || [],
+      context,
+    });
+
+    return res.status(result.status === 'SUCCESS' ? 200 : 500).json({
+      ok: result.status === 'SUCCESS',
+      execution: result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   listTools,
   getTool,
+  runTool,
 };

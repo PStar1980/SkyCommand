@@ -76,6 +76,7 @@ SkyServer/
 │ │ │ └── tools.routes.js
 │ │ └── services/
 │ │ ├── authService.js
+│ │ ├── scriptExecutionService.js
 │ │ └── toolManifestService.js
 │ └── worker/
 │ └── src/
@@ -85,6 +86,11 @@ SkyServer/
 ├── docs/
 │ └── SkyServer_RepoMap.md
 ├── logs/
+│ └── script-executions/
+│ ├── 104e84f1-7564-4600-aee6-ca5401648950.stderr.log
+│ ├── 104e84f1-7564-4600-aee6-ca5401648950.stdout.log
+│ ├── e3df07e4-49f4-48ce-94e6-12168474f82d.stderr.log
+│ └── e3df07e4-49f4-48ce-94e6-12168474f82d.stdout.log
 ├── packages/
 │ ├── auth/
 │ │ └── src/
