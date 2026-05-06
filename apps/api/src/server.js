@@ -5,6 +5,7 @@ const path = require('path');
 const { testConnection } = require('../../../packages/db/src/connection');
 const authRoutes = require('./routes/auth.routes');
 const toolsRoutes = require('./routes/tools.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 function createApp() {
   const app = express();
@@ -40,6 +41,7 @@ function createApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/tools', toolsRoutes);
+  app.use('/api/admin', adminRoutes);
 
   if (process.env.SERVE_ADMIN_WEB === 'true') {
     const adminWebPath = path.resolve(__dirname, '../../admin-web/dist');
