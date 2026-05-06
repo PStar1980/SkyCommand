@@ -66,15 +66,18 @@ SkyServer/
 │ │ ├── index.js
 │ │ ├── server.js
 │ │ ├── controllers/
+│ │ │ ├── adminController.js
 │ │ │ ├── authController.js
 │ │ │ └── toolsController.js
 │ │ ├── middleware/
 │ │ │ ├── authMiddleware.js
 │ │ │ └── permissionMiddleware.js
 │ │ ├── routes/
+│ │ │ ├── admin.routes.js
 │ │ │ ├── auth.routes.js
 │ │ │ └── tools.routes.js
 │ │ └── services/
+│ │ ├── adminReadService.js
 │ │ ├── authService.js
 │ │ ├── scriptExecutionService.js
 │ │ └── toolManifestService.js
@@ -89,6 +92,8 @@ SkyServer/
 │ └── script-executions/
 │ ├── 104e84f1-7564-4600-aee6-ca5401648950.stderr.log
 │ ├── 104e84f1-7564-4600-aee6-ca5401648950.stdout.log
+│ ├── 10b049e5-757b-4387-be19-ed8905ed0483.stderr.log
+│ ├── 10b049e5-757b-4387-be19-ed8905ed0483.stdout.log
 │ ├── e3df07e4-49f4-48ce-94e6-12168474f82d.stderr.log
 │ └── e3df07e4-49f4-48ce-94e6-12168474f82d.stdout.log
 ├── packages/
