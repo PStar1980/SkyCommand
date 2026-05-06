@@ -9,6 +9,7 @@ router.use(requireAuth);
 router.use(requirePermission('CORE_VIEW_TOOLS'));
 
 router.get('/', toolsController.listTools);
+router.post('/:toolCode/run', toolsController.runTool);
 router.get('/:toolCode', toolsController.getTool);
 
 module.exports = router;

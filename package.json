@@ -17,7 +17,8 @@
     "prepush": "npm run lint && npm run format:check",
     "db:health": "node packages/db/src/db_health.js",
     "db:build": "node packages/db_build/src/db_build.js",
-    "auth:create-admin": "node packages/auth/src/createAdminUser.js"
+    "auth:create-admin": "node packages/auth/src/createAdminUser.js",
+    "core": "node packages/core/src/SkyServer_Core.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
