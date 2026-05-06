@@ -35,32 +35,30 @@ SkyServer/
 │ └── prepare-commit-msg
 ├── apps/
 │ ├── admin-web/
-│ │ ├── eslint.config.js
 │ │ ├── index.html
-│ │ ├── package-lock.json
-│ │ ├── package.json
 │ │ ├── vite.config.js
 │ │ ├── public/
-│ │ │ └── vite.svg
 │ │ └── src/
 │ │ ├── App.css
 │ │ ├── App.jsx
 │ │ ├── index.css
 │ │ ├── main.jsx
-│ │ ├── assets/
-│ │ │ └── react.svg
 │ │ ├── components/
-│ │ │ ├── AccountCard.jsx
 │ │ │ ├── Navbar.jsx
-│ │ │ └── TransactionList.jsx
+│ │ │ └── ProtectedRoute.jsx
 │ │ ├── context/
+│ │ │ └── AuthContext.jsx
 │ │ ├── pages/
+│ │ │ ├── AuditEvents.jsx
 │ │ │ ├── Dashboard.jsx
-│ │ │ ├── Home.jsx
-│ │ │ └── Login.jsx
+│ │ │ ├── Login.jsx
+│ │ │ ├── ScriptExecutions.jsx
+│ │ │ └── Tools.jsx
 │ │ └── services/
+│ │ ├── adminService.js
 │ │ ├── api.js
-│ │ └── userService.js
+│ │ ├── authService.js
+│ │ └── toolService.js
 │ ├── api/
 │ │ └── src/
 │ │ ├── index.js
@@ -94,6 +92,8 @@ SkyServer/
 │ ├── 104e84f1-7564-4600-aee6-ca5401648950.stdout.log
 │ ├── 10b049e5-757b-4387-be19-ed8905ed0483.stderr.log
 │ ├── 10b049e5-757b-4387-be19-ed8905ed0483.stdout.log
+│ ├── 464b0f1c-174c-451f-baa4-8ce36fd57928.stderr.log
+│ ├── 464b0f1c-174c-451f-baa4-8ce36fd57928.stdout.log
 │ ├── e3df07e4-49f4-48ce-94e6-12168474f82d.stderr.log
 │ └── e3df07e4-49f4-48ce-94e6-12168474f82d.stdout.log
 ├── packages/

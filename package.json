@@ -8,6 +8,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node apps/api/src/server.js",
     "api": "nodemon apps/api/src/server.js",
+    "web": "vite --config apps/admin-web/vite.config.js",
+    "web:build": "vite build --config apps/admin-web/vite.config.js",
+    "web:preview": "vite preview --config apps/admin-web/vite.config.js",
     "daemon": "nodemon apps/api/src/index.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -44,14 +47,19 @@
   "dependencies": {
     "axios": "^1.15.2",
     "bcryptjs": "^2.4.3",
+    "bootstrap": "^5.3.8",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "pg": "^8.20.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.15.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.39.1",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
@@ -59,6 +67,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.6",
     "nodemon": "^3.1.11",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "vite": "^8.0.10"
   }
 }
