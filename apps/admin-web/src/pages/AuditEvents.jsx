@@ -28,7 +28,17 @@ function AuditEvents() {
       const result = await adminService.listAuditEvents(nextFilters);
       setItems(result.items || []);
       setTotal(result.total || 0);
-      setSelectedItem(result.items?.[0] || null);
+      setSelectedItem((currentSelected) => {
+        if (!currentSelected) {
+          return result.items?.[0] || null;
+        }
+
+        return (
+          result.items?.find((item) => item.auditEventId === currentSelected.auditEventId) ||
+          result.items?.[0] ||
+          null
+        );
+      });
     } catch (loadError) {
       setError(loadError.message || 'Failed to load audit events.');
     } finally {
@@ -112,12 +122,12 @@ function AuditEvents() {
 
       <div className="row g-3">
         <div className="col-xl-7">
-          <section className="sky-card">
+          <section className="sky-card sky-table-card">
             {loading ? (
               <div className="sky-empty-state">Loading audit events...</div>
             ) : (
               <div className="table-responsive">
-                <table className="table sky-table">
+                <table className="table table-hover sky-table">
                   <thead>
                     <tr>
                       <th>Event</th>
@@ -129,12 +139,14 @@ function AuditEvents() {
                   <tbody>
                     {items.map((item) => (
                       <tr
-                        className="sky-clickable-row"
+                        className={`sky-clickable-row ${
+                          selectedItem?.auditEventId === item.auditEventId ? 'sky-selected-row' : ''
+                        }`}
                         key={item.auditEventId}
                         onClick={() => setSelectedItem(item)}
                       >
                         <td>
-                          <div className="fw-bold">{item.eventType}</div>
+                          <div className="fw-bold sky-detail-value">{item.eventType}</div>
                           <div className="small sky-muted">{item.resourceType || '—'}</div>
                         </td>
                         <td>{item.action}</td>
@@ -165,20 +177,22 @@ function AuditEvents() {
             <div className="sky-card-body">
               {selectedItem ? (
                 <>
-                  <dl className="row">
-                    <dt className="col-sm-4 sky-muted">Audit ID</dt>
-                    <dd className="col-sm-8 sky-mono small">{selectedItem.auditEventId}</dd>
+                  <dl className="row g-2">
+                    <dt className="col-sm-4 sky-detail-label">Audit ID</dt>
+                    <dd className="col-sm-8 sky-mono small sky-detail-value">
+                      {selectedItem.auditEventId}
+                    </dd>
 
-                    <dt className="col-sm-4 sky-muted">User</dt>
-                    <dd className="col-sm-8">
+                    <dt className="col-sm-4 sky-detail-label">User</dt>
+                    <dd className="col-sm-8 sky-detail-value">
                       {selectedItem.displayName || selectedItem.email || '—'}
                     </dd>
 
-                    <dt className="col-sm-4 sky-muted">Message</dt>
-                    <dd className="col-sm-8">{selectedItem.message || '—'}</dd>
+                    <dt className="col-sm-4 sky-detail-label">Message</dt>
+                    <dd className="col-sm-8 sky-detail-value">{selectedItem.message || '—'}</dd>
 
-                    <dt className="col-sm-4 sky-muted">IP</dt>
-                    <dd className="col-sm-8">{selectedItem.ipAddress || '—'}</dd>
+                    <dt className="col-sm-4 sky-detail-label">IP</dt>
+                    <dd className="col-sm-8 sky-detail-value">{selectedItem.ipAddress || '—'}</dd>
                   </dl>
 
                   <pre className="sky-code-block">

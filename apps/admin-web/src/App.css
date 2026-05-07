@@ -1,5 +1,6 @@
 .sky-app-shell {
   min-height: 100vh;
+  color: #dce8ff;
 }
 
 .sky-main {
@@ -9,7 +10,7 @@
 
 .sky-navbar {
   border-bottom: 1px solid rgba(124, 144, 177, 0.2);
-  background: rgba(8, 13, 24, 0.92);
+  background: rgba(8, 13, 24, 0.94);
   backdrop-filter: blur(16px);
 }
 
@@ -52,34 +53,66 @@
 .sky-page-subtitle {
   max-width: 760px;
   margin: 0.45rem 0 0;
-  color: #9fb0cc;
+  color: #b8c7e4;
 }
 
 .sky-card {
-  border: 1px solid rgba(124, 144, 177, 0.18);
+  overflow: hidden;
+  border: 1px solid rgba(124, 144, 177, 0.2);
   border-radius: 1rem;
-  background: rgba(14, 22, 38, 0.88);
+  background: rgba(14, 22, 38, 0.9);
+  color: #dce8ff;
   box-shadow: 0 22px 80px rgba(0, 0, 0, 0.24);
+}
+
+.sky-card h1,
+.sky-card h2,
+.sky-card h3,
+.sky-card h4,
+.sky-card h5,
+.sky-card h6 {
+  color: #f6f9ff;
 }
 
 .sky-card-header {
   padding: 1rem 1.1rem;
   border-bottom: 1px solid rgba(124, 144, 177, 0.16);
+  background: rgba(9, 16, 30, 0.38);
 }
 
 .sky-card-body {
   padding: 1.1rem;
 }
 
+.form-label {
+  color: #9fb8e8;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.form-text {
+  color: #8fa1bf;
+}
+
 .sky-form-control,
 .sky-form-control:focus {
-  border-color: rgba(124, 144, 177, 0.28);
-  background-color: rgba(6, 11, 22, 0.74);
+  border-color: rgba(124, 144, 177, 0.3);
+  background-color: rgba(6, 11, 22, 0.78);
   color: #f6f9ff;
+  box-shadow: none;
+}
+
+.sky-form-control:hover {
+  border-color: rgba(124, 144, 177, 0.46);
 }
 
 .sky-form-control::placeholder {
   color: #61718f;
+}
+
+.sky-form-control option {
+  background: #0a0f1c;
+  color: #e7edf7;
 }
 
 .sky-btn-primary {
@@ -96,29 +129,44 @@
 }
 
 .sky-btn-ghost {
-  border: 1px solid rgba(124, 144, 177, 0.24);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(124, 144, 177, 0.26);
+  background: rgba(255, 255, 255, 0.045);
   color: #dce8ff;
 }
 
 .sky-btn-ghost:hover,
 .sky-btn-ghost:focus {
-  border-color: rgba(72, 167, 255, 0.48);
-  background: rgba(72, 167, 255, 0.1);
+  border-color: rgba(72, 167, 255, 0.5);
+  background: rgba(72, 167, 255, 0.12);
   color: #ffffff;
 }
 
-.sky-table {
+.sky-table-card {
+  border-radius: 1rem;
+}
+
+.sky-table.table {
+  --bs-table-bg: rgba(10, 17, 31, 0.78);
+  --bs-table-color: #dce8ff;
+  --bs-table-border-color: rgba(124, 144, 177, 0.14);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.025);
+  --bs-table-striped-color: #dce8ff;
+  --bs-table-hover-bg: rgba(72, 167, 255, 0.1);
+  --bs-table-hover-color: #ffffff;
+  --bs-table-active-bg: rgba(72, 167, 255, 0.14);
+  --bs-table-active-color: #ffffff;
   margin: 0;
   color: #dce8ff;
 }
 
 .sky-table thead th {
-  border-color: rgba(124, 144, 177, 0.16);
-  color: #83a4d7;
+  border-bottom: 1px solid rgba(124, 144, 177, 0.22);
+  background: rgba(8, 14, 26, 0.96);
+  color: #9ebdff;
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .sky-table tbody td {
@@ -126,8 +174,34 @@
   vertical-align: middle;
 }
 
+.sky-table tbody tr.sky-selected-row td {
+  background: rgba(72, 167, 255, 0.12);
+  color: #ffffff;
+}
+
+.sky-clickable-row {
+  cursor: pointer;
+}
+
+.sky-clickable-row:hover td {
+  background: rgba(72, 167, 255, 0.08);
+}
+
 .sky-muted {
   color: #9fb0cc;
+}
+
+.sky-soft-text {
+  color: #c8d7ef;
+}
+
+.sky-detail-label {
+  color: #9fb8e8;
+  font-weight: 700;
+}
+
+.sky-detail-value {
+  color: #e7edf7;
 }
 
 .sky-mono {
@@ -139,35 +213,36 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 0.55rem;
-  border: 1px solid rgba(124, 144, 177, 0.2);
+  border: 1px solid rgba(124, 144, 177, 0.22);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.045);
   color: #dce8ff;
   font-size: 0.78rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .sky-pill-success {
-  border-color: rgba(50, 220, 150, 0.3);
-  background: rgba(50, 220, 150, 0.1);
+  border-color: rgba(50, 220, 150, 0.34);
+  background: rgba(50, 220, 150, 0.12);
   color: #70f5bd;
 }
 
 .sky-pill-danger {
-  border-color: rgba(255, 94, 117, 0.3);
-  background: rgba(255, 94, 117, 0.1);
+  border-color: rgba(255, 94, 117, 0.34);
+  background: rgba(255, 94, 117, 0.12);
   color: #ff9cad;
 }
 
 .sky-pill-warning {
-  border-color: rgba(255, 210, 97, 0.32);
-  background: rgba(255, 210, 97, 0.1);
+  border-color: rgba(255, 210, 97, 0.34);
+  background: rgba(255, 210, 97, 0.12);
   color: #ffe08f;
 }
 
 .sky-pill-info {
-  border-color: rgba(72, 167, 255, 0.32);
-  background: rgba(72, 167, 255, 0.1);
+  border-color: rgba(72, 167, 255, 0.34);
+  background: rgba(72, 167, 255, 0.12);
   color: #9ad7ff;
 }
 
@@ -176,20 +251,19 @@
   margin: 0;
   overflow: auto;
   white-space: pre-wrap;
-  border: 1px solid rgba(124, 144, 177, 0.14);
+  border: 1px solid rgba(124, 144, 177, 0.16);
   border-radius: 0.85rem;
-  background: rgba(4, 8, 16, 0.86);
+  background: rgba(4, 8, 16, 0.9);
   color: #cde4ff;
   padding: 1rem;
   font-size: 0.86rem;
 }
 
-.sky-clickable-row {
-  cursor: pointer;
-}
-
-.sky-clickable-row:hover td {
-  background: rgba(72, 167, 255, 0.06);
+.sky-truncate {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .sky-login-wrap {
@@ -215,8 +289,48 @@
 
 .sky-empty-state {
   padding: 2.5rem 1rem;
-  color: #8fa1bf;
+  color: #9fb0cc;
   text-align: center;
+}
+
+.sky-tool-list {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.sky-tool-item {
+  width: 100%;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(8, 15, 28, 0.58);
+  color: #dce8ff;
+  padding: 1rem;
+  text-align: left;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.sky-tool-item:hover,
+.sky-tool-item:focus {
+  border-color: rgba(72, 167, 255, 0.44);
+  background: rgba(72, 167, 255, 0.08);
+  color: #ffffff;
+  outline: none;
+}
+
+.sky-tool-item.active {
+  border-color: rgba(72, 167, 255, 0.68);
+  background: linear-gradient(135deg, rgba(72, 167, 255, 0.16), rgba(155, 89, 255, 0.1));
+}
+
+.sky-output-box {
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(6, 11, 22, 0.72);
+  padding: 1rem;
 }
 
 @media (max-width: 768px) {

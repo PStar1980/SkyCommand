@@ -28,6 +28,24 @@ function statusClass(status) {
   return 'sky-pill-info';
 }
 
+function getDisplaySummary(summary) {
+  if (!summary) {
+    return '—';
+  }
+
+  const lines = String(summary)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return (
+    lines.find((line) => /✅|successfully|connected|complete|completed/i.test(line)) ||
+    lines.find((line) => !line.includes('[dotenv')) ||
+    lines[0] ||
+    String(summary)
+  );
+}
+
 function ScriptExecutions() {
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -44,7 +62,17 @@ function ScriptExecutions() {
       const result = await adminService.listScriptExecutions(nextFilters);
       setItems(result.items || []);
       setTotal(result.total || 0);
-      setSelectedItem(result.items?.[0] || null);
+      setSelectedItem((currentSelected) => {
+        if (!currentSelected) {
+          return result.items?.[0] || null;
+        }
+
+        return (
+          result.items?.find((item) => item.executionId === currentSelected.executionId) ||
+          result.items?.[0] ||
+          null
+        );
+      });
     } catch (loadError) {
       setError(loadError.message || 'Failed to load script executions.');
     } finally {
@@ -131,12 +159,12 @@ function ScriptExecutions() {
 
       <div className="row g-3">
         <div className="col-xl-7">
-          <section className="sky-card">
+          <section className="sky-card sky-table-card">
             {loading ? (
               <div className="sky-empty-state">Loading executions...</div>
             ) : (
               <div className="table-responsive">
-                <table className="table sky-table">
+                <table className="table table-hover sky-table">
                   <thead>
                     <tr>
                       <th>Tool</th>
@@ -148,12 +176,14 @@ function ScriptExecutions() {
                   <tbody>
                     {items.map((item) => (
                       <tr
-                        className="sky-clickable-row"
+                        className={`sky-clickable-row ${
+                          selectedItem?.executionId === item.executionId ? 'sky-selected-row' : ''
+                        }`}
                         key={item.executionId}
                         onClick={() => setSelectedItem(item)}
                       >
                         <td>
-                          <div className="fw-bold">{item.scriptName}</div>
+                          <div className="fw-bold sky-detail-value">{item.scriptName}</div>
                           <div className="small sky-muted">{item.category}</div>
                         </td>
                         <td>
@@ -180,19 +210,23 @@ function ScriptExecutions() {
             <div className="sky-card-body">
               {selectedItem ? (
                 <>
-                  <dl className="row">
-                    <dt className="col-sm-4 sky-muted">Execution</dt>
-                    <dd className="col-sm-8 sky-mono small">{selectedItem.executionId}</dd>
+                  <dl className="row g-2">
+                    <dt className="col-sm-4 sky-detail-label">Execution</dt>
+                    <dd className="col-sm-8 sky-mono small sky-detail-value">
+                      {selectedItem.executionId}
+                    </dd>
 
-                    <dt className="col-sm-4 sky-muted">User</dt>
-                    <dd className="col-sm-8">
+                    <dt className="col-sm-4 sky-detail-label">User</dt>
+                    <dd className="col-sm-8 sky-detail-value">
                       {selectedItem.displayName || selectedItem.email || '—'}
                     </dd>
 
-                    <dt className="col-sm-4 sky-muted">Summary</dt>
-                    <dd className="col-sm-8">{selectedItem.summary || '—'}</dd>
+                    <dt className="col-sm-4 sky-detail-label">Summary</dt>
+                    <dd className="col-sm-8 sky-detail-value">
+                      {getDisplaySummary(selectedItem.summary)}
+                    </dd>
 
-                    <dt className="col-sm-4 sky-muted">Logs</dt>
+                    <dt className="col-sm-4 sky-detail-label">Logs</dt>
                     <dd className="col-sm-8">
                       <span className="sky-pill">
                         stdout: {selectedItem.hasStdoutLog ? 'yes' : 'no'}
