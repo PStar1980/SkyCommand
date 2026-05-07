@@ -31,9 +31,10 @@ async function getTool(toolCode) {
   return api.get(`/api/tools/${encodeURIComponent(toolCode)}`);
 }
 
-async function runTool(toolCode, parameters = {}) {
+async function runTool(toolCode, parameters = {}, options = {}) {
   return api.post(`/api/tools/${encodeURIComponent(toolCode)}/run`, {
     parameters,
+    confirmed: Boolean(options.confirmed),
   });
 }
 
