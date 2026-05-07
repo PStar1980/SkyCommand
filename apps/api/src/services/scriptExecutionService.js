@@ -15,8 +15,6 @@ const LOW_RISK_RUN_PERMISSION = 'CORE_RUN_LOW_RISK_SCRIPT';
 const MEDIUM_RISK_RUN_PERMISSION = 'CORE_RUN_MEDIUM_RISK_SCRIPT';
 const HIGH_RISK_RUN_PERMISSION = 'CORE_RUN_HIGH_RISK_SCRIPT';
 
-const API_EXECUTION_ALLOWLIST = new Set(['db_health', 'git_repo_status', 'repo_map_generate']);
-
 const DEFAULT_TIMEOUT_MS = Number(process.env.TOOL_EXECUTION_TIMEOUT_MS || 180000);
 const MAX_OUTPUT_BYTES = Number(process.env.TOOL_EXECUTION_MAX_OUTPUT_BYTES || 250000);
 
@@ -321,6 +319,12 @@ async function loadToolForExecution(toolCode) {
           WHERE tv.tool_id = m.tool_id
             AND tv.channel_code = 'admin-web'
         )
+        AND EXISTS (
+          SELECT 1
+          FROM core.tool_visibility tv
+          WHERE tv.tool_id = m.tool_id
+            AND tv.channel_code = 'api'
+        )
       LIMIT 1
     `,
     [APP_CODE, toolCode, PROFILE_CODE],
@@ -580,44 +584,31 @@ async function executeChildProcess({ tool, scriptFile, args }) {
 
 async function assertRunAllowed({ tool, permissions, user, context }) {
   if (!tool) {
-    throw createHttpError(404, 'Tool not found or not visible to Admin-Web.');
-  }
-
-  if (!API_EXECUTION_ALLOWLIST.has(tool.tool_code)) {
-    await auditExecutionAttempt({
-      user,
-      context,
-      toolCode: tool.tool_code,
-      success: false,
-      message: 'Tool is not enabled for API execution yet.',
-      metadata: { riskCode: tool.risk_code },
-    });
-
-    throw createHttpError(403, 'Tool is not enabled for API execution yet.');
-  }
-
-  if (tool.risk_code !== 'low') {
-    await auditExecutionAttempt({
-      user,
-      context,
-      toolCode: tool.tool_code,
-      success: false,
-      message: 'Only low-risk tools are enabled for API execution at this stage.',
-      metadata: { riskCode: tool.risk_code },
-    });
-
-    throw createHttpError(403, 'Only low-risk tools are enabled for API execution at this stage.');
+    throw createHttpError(404, 'Tool not found or not enabled for Admin-Web/API execution.');
   }
 
   const permissionCodes = getPermissionCodeSet(permissions);
   const requiredRiskPermission = getRiskRunPermission(tool.risk_code);
   const missingPermissions = [];
 
+  if (!requiredRiskPermission) {
+    await auditExecutionAttempt({
+      user,
+      context,
+      toolCode: tool.tool_code,
+      success: false,
+      message: `Unsupported risk level: ${tool.risk_code}`,
+      metadata: { riskCode: tool.risk_code },
+    });
+
+    throw createHttpError(500, `Unsupported risk level: ${tool.risk_code}`);
+  }
+
   if (tool.permission_code && !permissionCodes.has(tool.permission_code)) {
     missingPermissions.push(tool.permission_code);
   }
 
-  if (requiredRiskPermission && !permissionCodes.has(requiredRiskPermission)) {
+  if (!permissionCodes.has(requiredRiskPermission)) {
     missingPermissions.push(requiredRiskPermission);
   }
 
@@ -640,7 +631,7 @@ function assertConfirmationIfRequired({ tool, confirmed }) {
     return;
   }
 
-  if (confirmed === true || confirmed === 'YES') {
+  if (confirmed === true || confirmed === 'true' || confirmed === 'YES' || confirmed === 'yes') {
     return;
   }
 

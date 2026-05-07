@@ -147,11 +147,14 @@ function Tools() {
       return;
     }
 
-    if (
-      selectedTool.requiresConfirmation &&
-      !window.confirm(selectedTool.confirmationText || `Run ${selectedTool.label}?`)
-    ) {
-      return;
+    let confirmed = false;
+
+    if (selectedTool.requiresConfirmation) {
+      confirmed = window.confirm(selectedTool.confirmationText || `Run ${selectedTool.label}?`);
+
+      if (!confirmed) {
+        return;
+      }
     }
 
     setRunning(true);
@@ -162,6 +165,7 @@ function Tools() {
       const result = await toolService.runTool(
         selectedTool.toolCode,
         cleanParameterValues(parameterValues),
+        { confirmed },
       );
 
       setRunResult(result.execution || result);
