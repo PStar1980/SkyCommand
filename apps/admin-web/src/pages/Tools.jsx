@@ -32,6 +32,14 @@ function cleanParameterValues(values) {
   );
 }
 
+function formatExecutionOutput(runResult) {
+  if (!runResult) {
+    return 'No output.';
+  }
+
+  return runResult.stdout || runResult.summary || 'No output.';
+}
+
 function Tools() {
   const [manifest, setManifest] = useState(null);
   const [selectedToolCode, setSelectedToolCode] = useState('');
@@ -153,10 +161,10 @@ function Tools() {
               <div className="sky-card-header">
                 <h2 className="h5 mb-0">Available tools</h2>
               </div>
-              <div className="list-group list-group-flush">
+              <div className="sky-tool-list">
                 {tools.map((tool) => (
                   <button
-                    className={`list-group-item list-group-item-action bg-transparent text-light border-secondary-subtle ${
+                    className={`sky-tool-item ${
                       selectedTool?.toolCode === tool.toolCode ? 'active' : ''
                     }`}
                     key={tool.toolId || tool.toolCode}
@@ -170,7 +178,7 @@ function Tools() {
                       </span>
                     </div>
                     <div className="small sky-muted mt-1">{tool.category?.label}</div>
-                    <div className="small mt-2">{tool.description}</div>
+                    <div className="small sky-soft-text mt-2">{tool.description}</div>
                   </button>
                 ))}
               </div>
@@ -215,7 +223,7 @@ function Tools() {
                               type="text"
                               value={parameterValues[parameter.parameterName] || ''}
                             />
-                            <div className="form-text sky-muted">
+                            <div className="form-text">
                               {parameter.paramTypeCode || 'string'} parameter
                             </div>
                           </div>
@@ -248,7 +256,7 @@ function Tools() {
                 <div className="sky-card-body">
                   <div className="row g-3 mb-3">
                     <div className="col-md-3">
-                      <div className="sky-muted small">Status</div>
+                      <div className="sky-detail-label small">Status</div>
                       <span
                         className={`sky-pill ${
                           runResult.status === 'SUCCESS' ? 'sky-pill-success' : 'sky-pill-danger'
@@ -258,22 +266,22 @@ function Tools() {
                       </span>
                     </div>
                     <div className="col-md-3">
-                      <div className="sky-muted small">Exit code</div>
-                      <div>{runResult.exitCode ?? '—'}</div>
+                      <div className="sky-detail-label small">Exit code</div>
+                      <div className="sky-detail-value">{runResult.exitCode ?? '—'}</div>
                     </div>
                     <div className="col-md-3">
-                      <div className="sky-muted small">Duration</div>
-                      <div>{runResult.durationMs ?? '—'} ms</div>
+                      <div className="sky-detail-label small">Duration</div>
+                      <div className="sky-detail-value">{runResult.durationMs ?? '—'} ms</div>
                     </div>
                     <div className="col-md-3">
-                      <div className="sky-muted small">Execution ID</div>
-                      <div className="sky-mono small">{runResult.executionId || '—'}</div>
+                      <div className="sky-detail-label small">Execution ID</div>
+                      <div className="sky-mono small sky-detail-value">
+                        {runResult.executionId || '—'}
+                      </div>
                     </div>
                   </div>
 
-                  <pre className="sky-code-block">
-                    {runResult.stdout || runResult.summary || 'No output.'}
-                  </pre>
+                  <pre className="sky-code-block">{formatExecutionOutput(runResult)}</pre>
                 </div>
               </section>
             )}

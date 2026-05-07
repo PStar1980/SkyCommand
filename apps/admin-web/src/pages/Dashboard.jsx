@@ -14,6 +14,41 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function statusClass(status) {
+  if (status === 'SUCCESS') {
+    return 'sky-pill-success';
+  }
+
+  if (status === 'FAILED') {
+    return 'sky-pill-danger';
+  }
+
+  if (status === 'STARTED') {
+    return 'sky-pill-warning';
+  }
+
+  return 'sky-pill-info';
+}
+
+function getDisplaySummary(summary) {
+  if (!summary) {
+    return '—';
+  }
+
+  const lines = String(summary)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const preferredLine =
+    lines.find((line) => /✅|successfully|connected|complete|completed/i.test(line)) ||
+    lines.find((line) => !line.includes('[dotenv')) ||
+    lines[0] ||
+    String(summary);
+
+  return preferredLine.length > 180 ? `${preferredLine.slice(0, 177)}...` : preferredLine;
+}
+
 function Dashboard() {
   const { permissions, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -26,6 +61,32 @@ function Dashboard() {
   const [error, setError] = useState('');
 
   const permissionCount = useMemo(() => permissions.length, [permissions]);
+
+  const statCards = useMemo(
+    () => [
+      {
+        label: 'Visible tools',
+        value: loading ? '—' : summary.tools,
+        help: 'Permission-filtered Admin-Web tools',
+      },
+      {
+        label: 'Executions',
+        value: loading ? '—' : summary.executions,
+        help: 'Logged script execution records',
+      },
+      {
+        label: 'Audit events',
+        value: loading ? '—' : summary.auditEvents,
+        help: 'Authorization and operational trail',
+      },
+      {
+        label: 'Permissions',
+        value: permissionCount,
+        help: 'Granted to current session',
+      },
+    ],
+    [loading, permissionCount, summary.auditEvents, summary.executions, summary.tools],
+  );
 
   useEffect(() => {
     let active = true;
@@ -87,45 +148,17 @@ function Dashboard() {
       {error && <div className="alert alert-danger">{error}</div>}
 
       <div className="row g-3">
-        <div className="col-md-3">
-          <section className="sky-card sky-stat-card">
-            <div className="sky-card-body">
-              <div className="sky-page-kicker">Visible tools</div>
-              <div className="sky-stat-value">{loading ? '—' : summary.tools}</div>
-              <div className="sky-muted small">Permission-filtered Admin-Web tools</div>
-            </div>
-          </section>
-        </div>
-
-        <div className="col-md-3">
-          <section className="sky-card sky-stat-card">
-            <div className="sky-card-body">
-              <div className="sky-page-kicker">Executions</div>
-              <div className="sky-stat-value">{loading ? '—' : summary.executions}</div>
-              <div className="sky-muted small">Logged script execution records</div>
-            </div>
-          </section>
-        </div>
-
-        <div className="col-md-3">
-          <section className="sky-card sky-stat-card">
-            <div className="sky-card-body">
-              <div className="sky-page-kicker">Audit events</div>
-              <div className="sky-stat-value">{loading ? '—' : summary.auditEvents}</div>
-              <div className="sky-muted small">Authorization and operational trail</div>
-            </div>
-          </section>
-        </div>
-
-        <div className="col-md-3">
-          <section className="sky-card sky-stat-card">
-            <div className="sky-card-body">
-              <div className="sky-page-kicker">Permissions</div>
-              <div className="sky-stat-value">{permissionCount}</div>
-              <div className="sky-muted small">Granted to current session</div>
-            </div>
-          </section>
-        </div>
+        {statCards.map((card) => (
+          <div className="col-md-3" key={card.label}>
+            <section className="sky-card sky-stat-card">
+              <div className="sky-card-body">
+                <div className="sky-page-kicker">{card.label}</div>
+                <div className="sky-stat-value">{card.value}</div>
+                <div className="sky-muted small">{card.help}</div>
+              </div>
+            </section>
+          </div>
+        ))}
       </div>
 
       <section className="sky-card mt-4">
@@ -136,20 +169,26 @@ function Dashboard() {
           {summary.recentExecution ? (
             <div className="row g-3">
               <div className="col-md-3">
-                <div className="sky-muted small">Tool</div>
-                <div className="fw-bold">{summary.recentExecution.scriptName}</div>
+                <div className="sky-detail-label small">Tool</div>
+                <div className="fw-bold sky-detail-value">{summary.recentExecution.scriptName}</div>
               </div>
               <div className="col-md-3">
-                <div className="sky-muted small">Status</div>
-                <span className="sky-pill sky-pill-success">{summary.recentExecution.status}</span>
+                <div className="sky-detail-label small">Status</div>
+                <span className={`sky-pill ${statusClass(summary.recentExecution.status)}`}>
+                  {summary.recentExecution.status}
+                </span>
               </div>
               <div className="col-md-3">
-                <div className="sky-muted small">Started</div>
-                <div>{formatDate(summary.recentExecution.startedAt)}</div>
+                <div className="sky-detail-label small">Started</div>
+                <div className="sky-detail-value">
+                  {formatDate(summary.recentExecution.startedAt)}
+                </div>
               </div>
               <div className="col-md-3">
-                <div className="sky-muted small">Summary</div>
-                <div>{summary.recentExecution.summary || '—'}</div>
+                <div className="sky-detail-label small">Summary</div>
+                <div className="sky-detail-value sky-truncate">
+                  {getDisplaySummary(summary.recentExecution.summary)}
+                </div>
               </div>
             </div>
           ) : (
