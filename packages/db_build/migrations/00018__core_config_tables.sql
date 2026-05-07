@@ -540,6 +540,7 @@ SELECT
   t.risk_code,
   rl.risk_rank,
   t.requires_confirmation,
+  t.confirmation_text,
   t.captures_output,
   t.allow_params,
   t.display_order,
