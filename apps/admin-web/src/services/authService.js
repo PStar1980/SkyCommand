@@ -1,10 +1,34 @@
 import api from './api';
 
-const userService = {
-  register: async (payload) => (await api.post('/users/register', payload)).data,
-  login: async (payload) => (await api.post('/users/login', payload)).data,
-  getTransactions: async () => (await api.get('/transactions')).data,
+async function login({ email, password }) {
+  const result = await api.post('/api/auth/login', { email, password }, { token: null });
+
+  api.setSessionToken(result.sessionToken);
+
+  return result;
+}
+
+async function logout() {
+  try {
+    await api.post('/api/auth/logout', {});
+  } finally {
+    api.clearSessionToken();
+  }
+}
+
+async function getCurrentSession() {
+  return api.get('/api/auth/me');
+}
+
+async function getPermissions() {
+  return api.get('/api/auth/permissions');
+}
+
+const authService = {
+  login,
+  logout,
+  getCurrentSession,
+  getPermissions,
 };
 
-export const { getTransactions } = userService;
-export default userService;
+export default authService;

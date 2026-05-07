@@ -1,40 +1,90 @@
 import { useState } from 'react';
-import userService from '../services/userService';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 
-export default function Login() {
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [message, setMessage] = useState('');
+function Login() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const from = location.state?.from?.pathname || '/dashboard';
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSubmitting(true);
+
     try {
-      const data = await userService.login(form);
-      setMessage(`Welcome back, ${data.user.name}!`);
-    } catch (err) {
-      setMessage('Login failed. Check credentials.');
+      await login({ email, password });
+      navigate(from, { replace: true });
+    } catch (loginError) {
+      setError(loginError.message || 'Login failed.');
+    } finally {
+      setSubmitting(false);
     }
-  };
+  }
 
   return (
-    <div className="container mt-5" style={{ maxWidth: 400 }}>
-      <h2 className="mb-4">Login</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          className="form-control mb-2"
-          placeholder="Email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-        />
-        <input
-          className="form-control mb-2"
-          type="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
-        <button className="btn btn-primary w-100">Login</button>
-      </form>
-      {message && <p className="mt-3 text-center">{message}</p>}
+    <div className="sky-login-wrap">
+      <section className="sky-card sky-login-card">
+        <div className="sky-card-header">
+          <div className="sky-page-kicker">Private console</div>
+          <h1 className="h3 sky-page-title">SkyServer Admin</h1>
+          <p className="sky-page-subtitle">
+            Sign in to run approved tools, inspect execution history, and monitor the control layer.
+          </p>
+        </div>
+
+        <div className="sky-card-body">
+          {error && <div className="alert alert-danger">{error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3 text-start">
+              <label className="form-label" htmlFor="email">
+                Email
+              </label>
+              <input
+                autoComplete="email"
+                autoFocus
+                className="form-control sky-form-control"
+                id="email"
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                required
+                type="email"
+                value={email}
+              />
+            </div>
+
+            <div className="mb-4 text-start">
+              <label className="form-label" htmlFor="password">
+                Password
+              </label>
+              <input
+                autoComplete="current-password"
+                className="form-control sky-form-control"
+                id="password"
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••••••"
+                required
+                type="password"
+                value={password}
+              />
+            </div>
+
+            <button className="btn sky-btn-primary w-100" disabled={submitting} type="submit">
+              {submitting ? 'Opening console...' : 'Login'}
+            </button>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }
+
+export default Login;
