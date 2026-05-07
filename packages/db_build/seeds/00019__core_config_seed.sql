@@ -191,11 +191,11 @@ FROM core.tools t
 JOIN (
   VALUES
     ('db_health','cli'), ('db_health','admin-web'), ('db_health','api'),
-    ('db_build','cli'),
+    ('db_build','cli'), ('db_build','admin-web'), ('db_build','api'),
     ('auth_create_admin_user','cli'),
     ('git_repo_status','cli'), ('git_repo_status','admin-web'), ('git_repo_status','api'),
-    ('dev_commit','cli'),
-    ('main_merge','cli'),
+    ('dev_commit','cli'), ('dev_commit','admin-web'), ('dev_commit','api'),
+    ('main_merge','cli'), ('main_merge','admin-web'), ('main_merge','api'),
     ('ingestion_fred','cli'), ('ingestion_fred','admin-web'), ('ingestion_fred','api'),
     ('ingestion_boc','cli'), ('ingestion_boc','admin-web'), ('ingestion_boc','api'),
     ('ingestion_statcan','cli'), ('ingestion_statcan','admin-web'), ('ingestion_statcan','api'),
