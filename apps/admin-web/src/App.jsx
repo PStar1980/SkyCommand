@@ -1,13 +1,13 @@
-import NavBar from './components/Navbar';
 import { Outlet } from 'react-router-dom';
+import Navbar from './components/Navbar.jsx';
 
 function App() {
   return (
-    <div>
-      <NavBar />
-      <div className="container mt-4">
+    <div className="sky-app-shell">
+      <Navbar />
+      <main className="container-fluid sky-main">
         <Outlet />
-      </div>
+      </main>
     </div>
   );
 }

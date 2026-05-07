@@ -37,7 +37,6 @@ SkyServer/
 │ ├── admin-web/
 │ │ ├── index.html
 │ │ ├── vite.config.js
-│ │ ├── public/
 │ │ └── src/
 │ │ ├── App.css
 │ │ ├── App.jsx
@@ -51,6 +50,7 @@ SkyServer/
 │ │ ├── pages/
 │ │ │ ├── AuditEvents.jsx
 │ │ │ ├── Dashboard.jsx
+│ │ │ ├── Home.jsx
 │ │ │ ├── Login.jsx
 │ │ │ ├── ScriptExecutions.jsx
 │ │ │ └── Tools.jsx
@@ -94,6 +94,8 @@ SkyServer/
 │ ├── 10b049e5-757b-4387-be19-ed8905ed0483.stdout.log
 │ ├── 464b0f1c-174c-451f-baa4-8ce36fd57928.stderr.log
 │ ├── 464b0f1c-174c-451f-baa4-8ce36fd57928.stdout.log
+│ ├── c4fe7867-3d7f-48cf-bc7d-89549dd64a43.stderr.log
+│ ├── c4fe7867-3d7f-48cf-bc7d-89549dd64a43.stdout.log
 │ ├── e3df07e4-49f4-48ce-94e6-12168474f82d.stderr.log
 │ └── e3df07e4-49f4-48ce-94e6-12168474f82d.stdout.log
 ├── packages/

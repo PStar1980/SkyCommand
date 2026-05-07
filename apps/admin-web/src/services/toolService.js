@@ -1,10 +1,46 @@
 import api from './api';
 
-const userService = {
-  register: async (payload) => (await api.post('/users/register', payload)).data,
-  login: async (payload) => (await api.post('/users/login', payload)).data,
-  getTransactions: async () => (await api.get('/transactions')).data,
+function flattenCategories(categories = []) {
+  return categories.flatMap((category) =>
+    (category.tools || []).map((tool) => ({
+      ...tool,
+      category: {
+        categoryId: category.categoryId,
+        categoryCode: category.categoryCode,
+        label: category.label,
+        description: category.description,
+        displayOrder: category.displayOrder,
+      },
+    })),
+  );
+}
+
+async function listTools() {
+  const result = await api.get('/api/tools');
+  const categories = result.categories || [];
+  const tools = flattenCategories(categories);
+
+  return {
+    ...result,
+    categories,
+    tools,
+  };
+}
+
+async function getTool(toolCode) {
+  return api.get(`/api/tools/${encodeURIComponent(toolCode)}`);
+}
+
+async function runTool(toolCode, parameters = {}) {
+  return api.post(`/api/tools/${encodeURIComponent(toolCode)}/run`, {
+    parameters,
+  });
+}
+
+const toolService = {
+  listTools,
+  getTool,
+  runTool,
 };
 
-export const { getTransactions } = userService;
-export default userService;
+export default toolService;
