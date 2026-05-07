@@ -38,10 +38,12 @@ function sanitizeTool(row) {
     riskCode: row.risk_code,
     riskRank: row.risk_rank,
     requiresConfirmation: toBoolean(row.requires_confirmation),
+    confirmationText: row.confirmation_text || null,
     capturesOutput: toBoolean(row.captures_output),
     allowParams: toBoolean(row.allow_params),
     displayOrder: row.display_order,
     enabled: toBoolean(row.enabled),
+    parameters: [],
   };
 }
 
@@ -72,7 +74,11 @@ function sanitizeParameter(row, options = []) {
   };
 }
 
-function groupToolsByCategory(rows) {
+function isRepositoryParameter(parameter) {
+  return parameter.param_type_code === 'repo' || parameter.option_source_code === 'repositories';
+}
+
+function groupToolsByCategory(rows, toolsByCode = new Map()) {
   const categoriesByCode = new Map();
 
   for (const row of rows) {
@@ -80,7 +86,8 @@ function groupToolsByCategory(rows) {
       categoriesByCode.set(row.category_code, sanitizeCategory(row));
     }
 
-    categoriesByCode.get(row.category_code).tools.push(sanitizeTool(row));
+    const tool = toolsByCode.get(row.tool_code) || sanitizeTool(row);
+    categoriesByCode.get(row.category_code).tools.push(tool);
   }
 
   const categories = [...categoriesByCode.values()];
@@ -306,20 +313,28 @@ function groupStaticOptions(optionRows) {
   return optionsByToolAndParam;
 }
 
-async function hydrateToolParameters(tool) {
-  const parameterRows = await getParametersForTools([tool.toolCode]);
-  const staticOptionRows = await getStaticOptionsForTools([tool.toolCode]);
+async function hydrateToolsParameters(tools) {
+  if (!Array.isArray(tools) || tools.length === 0) {
+    return [];
+  }
+
+  const toolCodes = [...new Set(tools.map((tool) => tool.toolCode).filter(Boolean))];
+
+  const [parameterRows, staticOptionRows] = await Promise.all([
+    getParametersForTools(toolCodes),
+    getStaticOptionsForTools(toolCodes),
+  ]);
+
   const staticOptionsByParam = groupStaticOptions(staticOptionRows);
+  const parametersByToolCode = new Map(toolCodes.map((toolCode) => [toolCode, []]));
 
   let repositoryOptions = null;
-
-  const parameters = [];
 
   for (const parameter of parameterRows) {
     const key = `${parameter.tool_code}:${parameter.parameter_name}`;
     let options = staticOptionsByParam.get(key) || [];
 
-    if (parameter.param_type_code === 'repo' || parameter.option_source_code === 'repositories') {
+    if (isRepositoryParameter(parameter)) {
       if (!repositoryOptions) {
         repositoryOptions = await getRepositoryOptions();
       }
@@ -327,13 +342,28 @@ async function hydrateToolParameters(tool) {
       options = repositoryOptions;
     }
 
-    parameters.push(sanitizeParameter(parameter, options));
+    if (!parametersByToolCode.has(parameter.tool_code)) {
+      parametersByToolCode.set(parameter.tool_code, []);
+    }
+
+    parametersByToolCode.get(parameter.tool_code).push(sanitizeParameter(parameter, options));
   }
 
-  return {
+  return tools.map((tool) => ({
     ...tool,
-    parameters,
-  };
+    parameters: parametersByToolCode.get(tool.toolCode) || [],
+  }));
+}
+
+async function hydrateToolParameters(tool) {
+  const [hydratedTool] = await hydrateToolsParameters([tool]);
+
+  return (
+    hydratedTool || {
+      ...tool,
+      parameters: [],
+    }
+  );
 }
 
 async function listToolsForUser({ permissions = [] } = {}) {
@@ -341,12 +371,14 @@ async function listToolsForUser({ permissions = [] } = {}) {
   const permissionCodes = getPermissionCodeSet(permissions);
 
   const allowedRows = rows.filter((row) => canAccessTool(row, permissionCodes));
+  const hydratedTools = await hydrateToolsParameters(allowedRows.map(sanitizeTool));
+  const toolsByCode = new Map(hydratedTools.map((tool) => [tool.toolCode, tool]));
 
   return {
     app,
     channel: 'admin-web',
     profileCode: PROFILE_CODE,
-    categories: groupToolsByCategory(allowedRows),
+    categories: groupToolsByCategory(allowedRows, toolsByCode),
   };
 }
 

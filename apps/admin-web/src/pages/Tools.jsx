@@ -17,9 +17,23 @@ function riskClass(riskCode) {
   return 'sky-pill-info';
 }
 
+function getBooleanValue(value) {
+  return value === true || value === 'true' || value === 't' || value === 1 || value === '1';
+}
+
 function getInitialParameterValues(tool) {
   return (tool?.parameters || []).reduce((accumulator, parameter) => {
-    accumulator[parameter.parameterName] = parameter.defaultValue || '';
+    if (parameter.defaultValue !== undefined && parameter.defaultValue !== null) {
+      accumulator[parameter.parameterName] = parameter.defaultValue;
+      return accumulator;
+    }
+
+    if (parameter.paramTypeCode === 'boolean') {
+      accumulator[parameter.parameterName] = false;
+      return accumulator;
+    }
+
+    accumulator[parameter.parameterName] = '';
     return accumulator;
   }, {});
 }
@@ -32,12 +46,34 @@ function cleanParameterValues(values) {
   );
 }
 
-function formatExecutionOutput(runResult) {
-  if (!runResult) {
-    return 'No output.';
+function getInputType(parameter) {
+  if (parameter.paramTypeCode === 'number') {
+    return 'number';
   }
 
-  return runResult.stdout || runResult.summary || 'No output.';
+  if (parameter.paramTypeCode === 'date') {
+    return 'date';
+  }
+
+  return 'text';
+}
+
+function shouldRenderSelect(parameter) {
+  return (
+    parameter.paramTypeCode === 'repo' ||
+    parameter.paramTypeCode === 'select' ||
+    (parameter.options || []).length > 0
+  );
+}
+
+function getParameterHelpText(parameter) {
+  const type = parameter.paramTypeCode || 'string';
+
+  if (parameter.optionSourceCode) {
+    return `${type} parameter · source: ${parameter.optionSourceCode}`;
+  }
+
+  return `${type} parameter`;
 }
 
 function Tools() {
@@ -127,12 +163,75 @@ function Tools() {
         selectedTool.toolCode,
         cleanParameterValues(parameterValues),
       );
+
       setRunResult(result.execution || result);
     } catch (runError) {
       setError(runError.message || 'Tool execution failed.');
     } finally {
       setRunning(false);
     }
+  }
+
+  function renderParameterInput(parameter) {
+    const parameterName = parameter.parameterName;
+    const value = parameterValues[parameterName] ?? '';
+    const options = parameter.options || [];
+
+    if (parameter.paramTypeCode === 'boolean') {
+      return (
+        <div className="form-check form-switch">
+          <input
+            checked={getBooleanValue(value)}
+            className="form-check-input"
+            id={parameterName}
+            onChange={(event) => updateParameter(parameterName, event.target.checked)}
+            type="checkbox"
+          />
+          <label className="form-check-label sky-muted" htmlFor={parameterName}>
+            {parameter.prompt || parameter.label}
+          </label>
+        </div>
+      );
+    }
+
+    if (shouldRenderSelect(parameter)) {
+      return (
+        <>
+          <select
+            className="form-select sky-form-control"
+            id={parameterName}
+            onChange={(event) => updateParameter(parameterName, event.target.value)}
+            required={parameter.required}
+            value={String(value)}
+          >
+            <option value="">{parameter.prompt || `Select ${parameter.label}`}</option>
+            {options.map((option) => (
+              <option key={option.optionId || option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          {options.length === 0 && (
+            <div className="form-text text-warning">
+              No options were returned for this parameter.
+            </div>
+          )}
+        </>
+      );
+    }
+
+    return (
+      <input
+        className="form-control sky-form-control sky-mono"
+        id={parameterName}
+        onChange={(event) => updateParameter(parameterName, event.target.value)}
+        placeholder={parameter.prompt || parameterName}
+        required={parameter.required}
+        type={getInputType(parameter)}
+        value={String(value)}
+      />
+    );
   }
 
   return (
@@ -161,10 +260,10 @@ function Tools() {
               <div className="sky-card-header">
                 <h2 className="h5 mb-0">Available tools</h2>
               </div>
-              <div className="sky-tool-list">
+              <div className="list-group list-group-flush">
                 {tools.map((tool) => (
                   <button
-                    className={`sky-tool-item ${
+                    className={`list-group-item list-group-item-action bg-transparent text-light border-secondary-subtle ${
                       selectedTool?.toolCode === tool.toolCode ? 'active' : ''
                     }`}
                     key={tool.toolId || tool.toolCode}
@@ -178,7 +277,7 @@ function Tools() {
                       </span>
                     </div>
                     <div className="small sky-muted mt-1">{tool.category?.label}</div>
-                    <div className="small sky-soft-text mt-2">{tool.description}</div>
+                    <div className="small mt-2">{tool.description}</div>
                   </button>
                 ))}
               </div>
@@ -212,22 +311,18 @@ function Tools() {
                               {parameter.label}
                               {parameter.required && <span className="text-danger ms-1">*</span>}
                             </label>
-                            <input
-                              className="form-control sky-form-control sky-mono"
-                              id={parameter.parameterName}
-                              onChange={(event) =>
-                                updateParameter(parameter.parameterName, event.target.value)
-                              }
-                              placeholder={parameter.prompt || parameter.parameterName}
-                              required={parameter.required}
-                              type="text"
-                              value={parameterValues[parameter.parameterName] || ''}
-                            />
-                            <div className="form-text">
-                              {parameter.paramTypeCode || 'string'} parameter
+
+                            {renderParameterInput(parameter)}
+
+                            <div className="form-text sky-muted">
+                              {getParameterHelpText(parameter)}
                             </div>
                           </div>
                         ))}
+                      </div>
+                    ) : selectedTool.allowParams ? (
+                      <div className="sky-empty-state text-warning">
+                        This tool allows parameters, but no parameter metadata was returned.
                       </div>
                     ) : (
                       <div className="sky-empty-state">This tool does not require parameters.</div>
@@ -256,7 +351,7 @@ function Tools() {
                 <div className="sky-card-body">
                   <div className="row g-3 mb-3">
                     <div className="col-md-3">
-                      <div className="sky-detail-label small">Status</div>
+                      <div className="sky-muted small">Status</div>
                       <span
                         className={`sky-pill ${
                           runResult.status === 'SUCCESS' ? 'sky-pill-success' : 'sky-pill-danger'
@@ -266,22 +361,29 @@ function Tools() {
                       </span>
                     </div>
                     <div className="col-md-3">
-                      <div className="sky-detail-label small">Exit code</div>
-                      <div className="sky-detail-value">{runResult.exitCode ?? '—'}</div>
+                      <div className="sky-muted small">Exit code</div>
+                      <div>{runResult.exitCode ?? '—'}</div>
                     </div>
                     <div className="col-md-3">
-                      <div className="sky-detail-label small">Duration</div>
-                      <div className="sky-detail-value">{runResult.durationMs ?? '—'} ms</div>
+                      <div className="sky-muted small">Duration</div>
+                      <div>{runResult.durationMs ?? '—'} ms</div>
                     </div>
                     <div className="col-md-3">
-                      <div className="sky-detail-label small">Execution ID</div>
-                      <div className="sky-mono small sky-detail-value">
-                        {runResult.executionId || '—'}
-                      </div>
+                      <div className="sky-muted small">Execution ID</div>
+                      <div className="sky-mono small">{runResult.executionId || '—'}</div>
                     </div>
                   </div>
 
-                  <pre className="sky-code-block">{formatExecutionOutput(runResult)}</pre>
+                  {runResult.summary && (
+                    <div className="mb-3">
+                      <div className="sky-muted small">Summary</div>
+                      <div>{runResult.summary}</div>
+                    </div>
+                  )}
+
+                  <pre className="sky-code-block">
+                    {runResult.stdout || runResult.stderr || 'No output.'}
+                  </pre>
                 </div>
               </section>
             )}
