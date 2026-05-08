@@ -1,10 +1,10 @@
 # 🌌 SkyServer
 
-**Private Admin, Automation, PostgreSQL, and Data Ingestion Hub for the Sky Ecosystem**
+**Private Admin, Automation, PostgreSQL, API, and Data Ingestion Hub for the Sky Ecosystem**
 
-SkyServer is the private administrative and automation core of the **Sky Ecosystem**. It combines backend services, PostgreSQL database tooling, macroeconomic data ingestion, repository automation, file utilities, and a configurable CLI launcher into one clean operational hub.
+SkyServer is the private administrative and automation core of the **Sky Ecosystem**. It combines a Node/Express API layer, PostgreSQL-backed configuration and audit tables, a private React Admin-Web interface, macroeconomic data ingestion pipelines, repository automation, file utilities, and a configurable CLI launcher into one operational control plane.
 
-SkyServer is designed to be precise, repeatable, idempotent, and easy to extend. It supports local development workflows, database rebuilds, macro data ingestion from multiple public data providers, manual spreadsheet ingestion, Git automation, and script orchestration through the **SkyServer Core CLI Tool**.
+SkyServer is designed to be precise, repeatable, idempotent, permission-aware, and easy to extend. It supports local development workflows, database rebuilds, macro data ingestion from multiple public data providers, manual spreadsheet ingestion, Git automation, script orchestration, and browser-triggered administration through **SkyServer Admin-Web**.
 
 ---
 
@@ -12,19 +12,19 @@ SkyServer is designed to be precise, repeatable, idempotent, and easy to extend.
 
 ### 🧠 SkyServer Core CLI Tool
 
-SkyServer includes a configurable command-line launcher:
+SkyServer includes a command-line launcher:
+
+```bash
+npm run core
+```
+
+or directly:
 
 ```bash
 node packages/core/src/SkyServer_Core.js
 ```
 
-The CLI reads from:
-
-```text
-packages/core/src/config/SkyServer.json
-```
-
-It provides a menu-driven interface for running configured tools without requiring users to remember script paths or command syntax.
+The CLI provides a menu-driven interface for running configured tools without requiring users to remember script paths or command syntax.
 
 Current tool groups include:
 
@@ -43,10 +43,316 @@ Current tool groups include:
   - Statistics Canada data ingestion
   - Manual spreadsheet/CSV ingestion
 
-- **Structure Tools**
+- **File / Structure Tools**
   - Repository map generation
 
-The CLI is config-driven, meaning new tools can be added by updating `SkyServer.json` rather than modifying the launcher itself.
+The operational tool model is now backed by relational configuration in the PostgreSQL `core` schema for API/Admin-Web execution. This creates a stronger bridge between tool metadata, permissions, risk levels, parameter definitions, and UI visibility.
+
+---
+
+## 🖥️ Admin-Web Control Surface
+
+SkyServer now includes a private React/Vite Admin-Web application under:
+
+```text
+apps/admin-web
+```
+
+Run the Admin-Web development server with:
+
+```bash
+npm run web
+```
+
+The Admin-Web currently includes:
+
+- **Login**
+  - Authenticates through the API
+  - Stores a bearer session token client-side
+  - Protects private routes
+
+- **Dashboard**
+  - Shows visible tool counts
+  - Shows script execution count
+  - Shows audit event count
+  - Shows permission count for the current session
+  - Displays the latest script execution
+
+- **Tools**
+  - Lists permission-filtered tools from the API
+  - Renders tool parameters dynamically
+  - Supports repository dropdown parameters
+  - Runs low-, medium-, and high-risk tools
+  - Shows confirmation panels before sensitive execution
+  - Requires phrase confirmation for high-risk tools
+  - Displays running state, elapsed time, status, exit code, duration, summary, stdout, and stderr
+
+- **Script Executions**
+  - Shows execution history from the database
+  - Supports status/limit filtering
+  - Displays execution metadata and log availability
+
+- **Audit Events**
+  - Shows authentication, authorization, and tool execution audit activity
+  - Supports result/limit filtering
+  - Displays event metadata for traceability
+
+The Admin-Web is intentionally private and operational. It is not the public SkyWeb layer; it is the control surface for trusted administration.
+
+---
+
+## 🔐 Authentication, Sessions, and RBAC
+
+SkyServer includes an authentication and permission layer built around the `auth` schema.
+
+Core auth tables include:
+
+```text
+auth.users
+auth.roles
+auth.permissions
+auth.user_roles
+auth.role_permissions
+auth.sessions
+auth.login_events
+auth.audit_events
+auth.script_execution_log
+```
+
+Core auth views include:
+
+```text
+auth.vw_user_permissions
+auth.vw_user_roles
+auth.vw_role_permissions
+auth.vw_active_sessions
+auth.vw_login_events_recent
+auth.vw_audit_events_recent
+auth.vw_script_execution_recent
+```
+
+Key design points:
+
+- Passwords are stored as hashes.
+- Session tokens are stored as hashes only.
+- Login attempts are recorded.
+- Successful and failed operational actions are audited.
+- API routes are protected by bearer-token authentication.
+- Sensitive endpoints are protected by permission middleware.
+- Tool visibility is filtered by the logged-in user’s permissions.
+
+Create the first admin user with:
+
+```bash
+npm run auth:create-admin
+```
+
+---
+
+## 🧩 Relational Tool Manifest
+
+SkyServer now stores operational configuration in the `core` schema.
+
+Core configuration tables include:
+
+```text
+core.applications
+core.visibility_channels
+core.runtimes
+core.risk_levels
+core.config_profiles
+core.repositories
+core.repository_paths
+core.tool_categories
+core.tool_category_visibility
+core.tools
+core.tool_visibility
+core.param_types
+core.option_sources
+core.tool_parameters
+core.tool_parameter_options
+```
+
+Core manifest views include:
+
+```text
+core.vw_cli_categories
+core.vw_cli_tools
+core.vw_admin_web_tools
+core.vw_tool_manifest
+core.vw_tool_parameters
+core.vw_tool_parameter_options
+core.vw_repository_paths
+```
+
+This relational manifest controls:
+
+- Which tools exist
+- Which tools are visible in Admin-Web
+- Which tools are executable through the API
+- Which permission is required per tool
+- Which risk level applies per tool
+- Whether confirmation is required
+- Whether parameters are allowed
+- How parameter inputs are rendered
+- Which repository paths are available for repo-driven tools
+
+This is the main plug-in layer for future tools: add the script, register it in the core configuration, assign permissions/risk/visibility/parameters, and Admin-Web can expose it without hardcoding a new page for every script.
+
+---
+
+## 🧰 Admin-Web Tool Catalog
+
+Current Admin-Web-visible tool families include:
+
+### Database Tools
+
+| Tool                  | Risk | Purpose                                                                  |
+| --------------------- | ---- | ------------------------------------------------------------------------ |
+| Database Health Check | Low  | Tests PostgreSQL connectivity using the configured environment.          |
+| Database Build        | High | Rebuilds the PostgreSQL database from ordered migrations and seed files. |
+
+### Git Tools
+
+| Tool              | Risk   | Purpose                                                              |
+| ----------------- | ------ | -------------------------------------------------------------------- |
+| Repository Status | Low    | Checks configured repository status across dev and main branches.    |
+| Dev Commit        | Medium | Stages, commits, and pushes the selected repository’s dev branch.    |
+| Main Merge        | High   | Synchronizes main/dev branches and may push branch updates and tags. |
+
+### Data Ingestion Tools
+
+| Tool                            | Risk   | Purpose                                                                               |
+| ------------------------------- | ------ | ------------------------------------------------------------------------------------- |
+| Run FRED Ingestion              | Medium | Loads active FRED macroeconomic indicators into PostgreSQL.                           |
+| Run Bank of Canada Ingestion    | Medium | Loads active Bank of Canada macroeconomic indicators into PostgreSQL.                 |
+| Run Statistics Canada Ingestion | Medium | Loads active Statistics Canada vector-based macroeconomic indicators into PostgreSQL. |
+| Run Manual Ingestion            | Medium | Loads configured manual spreadsheet or CSV data into PostgreSQL.                      |
+
+### File Tools
+
+| Tool                    | Risk | Purpose                                                                      |
+| ----------------------- | ---- | ---------------------------------------------------------------------------- |
+| Generate Repository Map | Low  | Generates a readable repository map for documentation and structural review. |
+
+High-risk tools require the configured phrase confirmation before execution. The current default phrase is:
+
+```text
+RUN HIGH RISK
+```
+
+---
+
+## 🔌 API Layer
+
+The API server is located under:
+
+```text
+apps/api
+```
+
+Run the API server with:
+
+```bash
+npm run start
+```
+
+or in development mode:
+
+```bash
+npm run api
+```
+
+### Health Endpoints
+
+| Method | Endpoint      | Description                              |
+| ------ | ------------- | ---------------------------------------- |
+| GET    | `/_health`    | Basic API health check.                  |
+| GET    | `/_db/health` | API-level PostgreSQL connectivity check. |
+
+### Auth Endpoints
+
+| Method | Endpoint                | Permission    | Description                                         |
+| ------ | ----------------------- | ------------- | --------------------------------------------------- |
+| POST   | `/api/auth/login`       | Public        | Authenticates a user and returns a session token.   |
+| POST   | `/api/auth/logout`      | Authenticated | Revokes the current session.                        |
+| GET    | `/api/auth/me`          | Authenticated | Returns the current user, session, and permissions. |
+| GET    | `/api/auth/permissions` | Authenticated | Returns permissions granted to the current session. |
+
+### Tool Endpoints
+
+All tool endpoints require authentication and `CORE_VIEW_TOOLS` before tool-specific execution checks are applied.
+
+| Method | Endpoint                   | Description                                                 |
+| ------ | -------------------------- | ----------------------------------------------------------- |
+| GET    | `/api/tools`               | Lists permission-filtered Admin-Web-visible tools.          |
+| GET    | `/api/tools/:toolCode`     | Returns metadata for one permitted tool.                    |
+| POST   | `/api/tools/:toolCode/run` | Runs a permitted tool through the script execution service. |
+
+Tool execution also checks:
+
+- tool-specific permission code
+- risk-level execution permission
+- confirmation requirement
+- high-risk phrase confirmation, when applicable
+- parameter schema and allowed values
+- repository option validity
+- path traversal safety
+- active execution lock for the same tool/profile
+
+### Admin Read Endpoints
+
+All admin endpoints require authentication and their matching read permission.
+
+| Method | Endpoint                       | Permission              | Description                               |
+| ------ | ------------------------------ | ----------------------- | ----------------------------------------- |
+| GET    | `/api/admin/audit-events`      | `AUDIT_READ`            | Lists audit events.                       |
+| GET    | `/api/admin/login-events`      | `AUDIT_READ`            | Lists login events.                       |
+| GET    | `/api/admin/script-executions` | `SCRIPT_EXECUTION_READ` | Lists script execution history.           |
+| GET    | `/api/admin/active-sessions`   | `ADMIN_USER_READ`       | Lists active sessions.                    |
+| GET    | `/api/admin/users`             | `ADMIN_USER_READ`       | Lists users without password hashes.      |
+| GET    | `/api/admin/user-roles`        | `ADMIN_USER_READ`       | Lists active user-role assignments.       |
+| GET    | `/api/admin/roles`             | `ADMIN_ROLE_READ`       | Lists roles.                              |
+| GET    | `/api/admin/permissions`       | `ADMIN_PERMISSION_READ` | Lists permissions.                        |
+| GET    | `/api/admin/role-permissions`  | `ADMIN_PERMISSION_READ` | Lists active role-permission assignments. |
+
+---
+
+## 🛡️ Browser-Triggered Script Execution Safety
+
+Admin-Web tool execution is designed with guardrails because it allows scripts to be launched from a browser.
+
+Current safety controls include:
+
+- Bearer-token authentication
+- RBAC permission checks
+- Tool-specific permissions
+- Risk-level execution permissions
+- Medium/high-risk confirmation flows
+- High-risk phrase confirmation
+- Parameter count and payload-size limits
+- Parameter name/value validation
+- Null-byte rejection
+- File-name safety checks
+- Script path resolution inside a configured repository root
+- Output byte limits and truncation notice
+- Execution timeout handling
+- STARTED/SUCCESS/FAILED execution lifecycle logging
+- Startup and read-time stale STARTED cleanup
+- Audit events for execution attempts and results
+- Per-tool active execution lock to prevent duplicate concurrent runs
+
+Execution records are stored in:
+
+```text
+auth.script_execution_log
+```
+
+Captured stdout/stderr logs are written under:
+
+```text
+logs/script-executions
+```
 
 ---
 
@@ -54,7 +360,13 @@ The CLI is config-driven, meaning new tools can be added by updating `SkyServer.
 
 SkyServer uses PostgreSQL as its structured data backend.
 
-The database layer currently focuses on macroeconomic data, using a `macro` schema with:
+The database layer currently supports:
+
+- `macro` schema for macroeconomic indicators and reporting views
+- `auth` schema for users, sessions, RBAC, audit, and script execution logs
+- `core` schema for applications, tool manifests, repositories, runtimes, parameters, and visibility
+
+The `macro` schema includes:
 
 - `macro.indicators`
   - Central registry of available indicators
@@ -125,6 +437,8 @@ Run directly:
 node packages/ingestion/src/loadFREDMacroData.js
 ```
 
+or from Admin-Web using **Run FRED Ingestion**.
+
 ---
 
 #### Bank of Canada
@@ -141,6 +455,8 @@ Run directly:
 ```bash
 node packages/ingestion/src/loadBoCMacroData.js
 ```
+
+or from Admin-Web using **Run Bank of Canada Ingestion**.
 
 ---
 
@@ -165,6 +481,8 @@ Run directly:
 ```bash
 node packages/ingestion/src/loadStatCanMacroData.js
 ```
+
+or from Admin-Web using **Run Statistics Canada Ingestion**.
 
 Supporting StatCan configuration files live under:
 
@@ -205,6 +523,8 @@ Run directly:
 ```bash
 node packages/ingestion/src/loadManualData.js
 ```
+
+or from Admin-Web using **Run Manual Ingestion**.
 
 This is useful for team environments where a user can prepare a file and config while the ingestion process handles database loading safely and consistently.
 
@@ -260,7 +580,7 @@ This keeps the console output compact while still showing whether new data was l
 
 SkyServer includes automation scripts for repository, file, database, ingestion, and operational workflows.
 
-Automation is not a one-time phase of the project. It is a continuous layer of the system: as repeated workflows emerge, they can be promoted into scripts and then exposed through SkyServer Core.
+Automation is not a one-time phase of the project. It is a continuous layer of the system: as repeated workflows emerge, they can be promoted into scripts and then exposed through SkyServer Core and Admin-Web.
 
 ### Git Automation
 
@@ -278,13 +598,7 @@ git_repo_status.js
 main_merge.js
 ```
 
-These tools use:
-
-```text
-packages/git/src/config/repo_path.json
-```
-
-to resolve configured repository roots.
+These tools now resolve configured repositories through the relational `core.repositories` / `core.repository_paths` configuration model for API/Admin-Web execution.
 
 They support:
 
@@ -331,11 +645,12 @@ Clean-FrontendCache.ps1
 ```text
 SkyServer/
 ├── apps/
-│   ├── admin-web/        # Private admin frontend
+│   ├── admin-web/        # Private React/Vite Admin-Web frontend
 │   ├── api/              # Node/Express API layer
 │   └── worker/           # Background jobs, listeners, schedulers
 │
 ├── packages/
+│   ├── auth/             # Admin user creation and password helpers
 │   ├── core/             # SkyServer Core CLI Tool
 │   ├── db/               # PostgreSQL connection and health tools
 │   ├── db_build/         # Database migrations, seeds, and build runner
@@ -345,13 +660,16 @@ SkyServer/
 │   └── shared/           # Shared constants, contracts, and validators
 │
 ├── scripts/
-│   ├── db/               # SQL schemas, table scripts, and views
+│   ├── db/               # SQL schemas, tables, views, triggers, and functions
 │   ├── node/             # Shared Node utilities
 │   ├── powershell/       # PowerShell automation helpers
 │   └── python/           # Reserved for Python utilities
 │
 ├── docs/
 │   └── SkyServer_RepoMap.md
+│
+├── logs/
+│   └── script-executions/
 │
 ├── .husky/               # Git hooks
 ├── eslint.config.mjs     # ESLint flat configuration
@@ -364,19 +682,24 @@ SkyServer/
 
 ## 🧩 NPM Scripts
 
-| Command                | Description                                     |
-| ---------------------- | ----------------------------------------------- |
-| `npm run start`        | Starts the API server                           |
-| `npm run dev`          | Starts the API server with Nodemon              |
-| `npm run daemon`       | Starts the API daemon entry point with Nodemon  |
-| `npm run lint`         | Runs ESLint checks                              |
-| `npm run lint:fix`     | Runs ESLint with auto-fix                       |
-| `npm run format`       | Applies Prettier formatting                     |
-| `npm run format:check` | Verifies Prettier formatting                    |
-| `npm run clean`        | Runs lint fix and formatting                    |
-| `npm run prepush`      | Runs lint and formatting checks before push     |
-| `npm run db:health`    | Tests PostgreSQL connectivity                   |
-| `npm run db:build`     | Rebuilds the PostgreSQL database from SQL files |
+| Command                     | Description                                      |
+| --------------------------- | ------------------------------------------------ |
+| `npm run start`             | Starts the API server.                           |
+| `npm run api`               | Starts the API server with Nodemon.              |
+| `npm run web`               | Starts the Admin-Web Vite development server.    |
+| `npm run web:build`         | Builds the Admin-Web frontend.                   |
+| `npm run web:preview`       | Previews the built Admin-Web frontend.           |
+| `npm run daemon`            | Starts the API daemon entry point with Nodemon.  |
+| `npm run lint`              | Runs ESLint checks.                              |
+| `npm run lint:fix`          | Runs ESLint with auto-fix.                       |
+| `npm run format`            | Applies Prettier formatting.                     |
+| `npm run format:check`      | Verifies Prettier formatting.                    |
+| `npm run clean`             | Runs lint fix and formatting.                    |
+| `npm run prepush`           | Runs lint and formatting checks before push.     |
+| `npm run db:health`         | Tests PostgreSQL connectivity.                   |
+| `npm run db:build`          | Rebuilds the PostgreSQL database from SQL files. |
+| `npm run auth:create-admin` | Runs the first-admin/user creation script.       |
+| `npm run core`              | Starts the SkyServer Core CLI Tool.              |
 
 ---
 
@@ -415,7 +738,26 @@ PGUSER=postgres
 PGPASSWORD=your_password
 ```
 
-Database and ingestion scripts load `.env` from the SkyServer root so tools can be executed from different command prompt locations.
+Useful optional variables include:
+
+```env
+API_PORT=7171
+AUTH_SESSION_HOURS=12
+AUTH_MAX_FAILED_LOGIN_ATTEMPTS=5
+AUTH_LOCK_MINUTES=15
+AUTH_LOGIN_RATE_LIMIT_WINDOW_MS=60000
+AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS=8
+AUTH_LOGIN_RATE_LIMIT_BLOCK_MS=300000
+SKYSERVER_CORE_APP_CODE=SKYSERVER_CORE
+SKYSERVER_CONFIG_PROFILE=DEV_LOCAL
+TOOL_EXECUTION_TIMEOUT_MS=180000
+TOOL_EXECUTION_MAX_OUTPUT_BYTES=250000
+TOOL_EXECUTION_STALE_AFTER_MINUTES=15
+TOOL_HIGH_RISK_CONFIRMATION_PHRASE=RUN HIGH RISK
+SERVE_ADMIN_WEB=false
+```
+
+Database, ingestion, API, and tool execution scripts load `.env` from the SkyServer root so tools can be executed from different command prompt locations.
 
 ---
 
@@ -464,37 +806,13 @@ macro.vw_us_ca_labor_compare
 
 These views are intended to support future dashboarding, public visualizations, analytical reporting, and SkyWeb integration.
 
----
-
-## ❄️ Future Data Warehouse and BI Direction
-
-After SkyWeb integration, SkyServer can evolve into the source-of-truth pipeline for downstream analytics platforms.
-
-The expected future path is:
-
-```text
-Public and private source data
-        ↓
-SkyServer ingestion pipelines
-        ↓
-PostgreSQL operational analytics layer
-        ↓
-SkyServer APIs and SkyWeb dashboards
-        ↓
-Snowflake ETL/ELT pipelines
-        ↓
-Curated warehouse models and BI/reporting layers
-```
-
-In this model, PostgreSQL remains the operational application database and analytics staging layer, while Snowflake becomes the long-term cloud data warehouse for larger-scale historical analysis, dimensional modeling, and BI consumption.
-
-BI report creation can also be partially automated. SkyServer can automate the preparation of report-ready datasets, scheduled exports, semantic/reporting views, and refresh workflows. Full dashboard/report creation may depend on the chosen BI platform, but the data preparation and delivery layer can be made highly repeatable.
+Macro view browsing endpoints are planned for Phase 7.
 
 ---
 
 ## 🌐 Application Direction
 
-SkyServer is the private operational backend for the Sky Ecosystem.
+SkyServer is the private operational backend and admin control layer for the Sky Ecosystem.
 
 Its long-term role is to support:
 
@@ -506,10 +824,8 @@ Its long-term role is to support:
 - Worker jobs
 - File and repository automation
 - Future SkyWeb public-facing data views
-- Future Snowflake ETL/ELT pipelines for cloud data warehousing
-- Future BI/report automation using curated warehouse and reporting layers
 
-SkyServer is not just a backend service. It is the private control layer that keeps the system structured, testable, and extensible.
+SkyServer is not just a backend service. It is the private control layer that keeps the system structured, testable, observable, and extensible.
 
 ---
 
@@ -524,29 +840,30 @@ SkyServer is built around a few practical rules:
 - Keep database builds deterministic.
 - Keep ingestion idempotent.
 - Keep console output useful but compact.
+- Keep browser-triggered script execution permission-aware and audited.
 - Keep architecture modular before it becomes painful to change.
 
 ---
 
 ## 🗺️ Roadmap
 
-| Phase          | Objective                                                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| ✅ Phase 1     | Install Node.js, initialize the application, and establish npm tooling                                                         |
-| ✅ Phase 2     | ESLint, Prettier, Husky, and lint-staged automation                                                                            |
-| ✅ Phase 3     | PostgreSQL schema, indicator registry, migrations, seeds, views                                                                |
-| ✅ Phase 4     | FRED, BoC, StatCan, and manual ingestion pipelines                                                                             |
-| ✅ Phase 5     | SkyServer Core CLI Tool with configurable script launcher model                                                                |
-| 🔄 Continuous  | Expand automation scripts for Git, files, database, ingestion, workers, and operational workflows                              |
-| 🔄 Phase 6     | Private admin web interface under `apps/admin-web`                                                                             |
-| 🔜 Phase 7     | API endpoints for macro views, ingestion status, and admin actions                                                             |
-| 🔜 Phase 8     | Worker/listener workflows for scheduled and event-driven jobs                                                                  |
-| 🔜 Phase 9     | SkyWeb integration for public-facing macro dashboards                                                                          |
-| 🔜 Phase 10    | Data mart design and analytics-ready PostgreSQL view/model refinement for public, admin, and BI consumers                      |
-| 🔜 Phase 11    | ETL/ELT pipelines from PostgreSQL into Snowflake for durable cloud data warehousing                                            |
-| 🔜 Phase 12    | Snowflake warehouse models, dimensional tables, historical snapshots, and curated reporting layers                             |
-| 🔜 Phase 13    | BI/report automation layer for scheduled exports, dashboard-ready datasets, and optional Power BI/Tableau/Superset integration |
-| 🎯 Final Phase | Operationalize the full data path: source ingestion → PostgreSQL → SkyWeb/API → Snowflake → BI/reporting outputs               |
+| Phase          | Objective                                                                                                                                             |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅ Phase 1     | Install Node.js, initialize the application, and establish npm tooling                                                                                |
+| ✅ Phase 2     | ESLint, Prettier, Husky, and lint-staged automation                                                                                                   |
+| ✅ Phase 3     | PostgreSQL schema, indicator registry, migrations, seeds, views                                                                                       |
+| ✅ Phase 4     | FRED, BoC, StatCan, and manual ingestion pipelines                                                                                                    |
+| ✅ Phase 5     | SkyServer Core CLI Tool with configurable script launcher model                                                                                       |
+| 🔄 Continuous  | Expand automation scripts for Git, files, database, ingestion, workers, and operational workflows                                                     |
+| ✅ Phase 6     | Private Admin-Web interface with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety confirmation UX |
+| 🔜 Phase 7     | API endpoints for macro views, ingestion status, and admin actions                                                                                    |
+| 🔜 Phase 8     | Worker/listener workflows for scheduled and event-driven jobs                                                                                         |
+| 🔜 Phase 9     | SkyWeb integration for public-facing macro dashboards                                                                                                 |
+| 🔜 Phase 10    | Data mart design and analytics-ready PostgreSQL view/model refinement for public, admin, and BI consumers                                             |
+| 🔜 Phase 11    | ETL/ELT pipelines from PostgreSQL into Snowflake for durable cloud data warehousing                                                                   |
+| 🔜 Phase 12    | Snowflake warehouse models, dimensional tables, historical snapshots, and curated reporting layers                                                    |
+| 🔜 Phase 13    | BI/report automation layer for scheduled exports, dashboard-ready datasets, and optional Power BI/Tableau/Superset integration                        |
+| 🎯 Final Phase | Operationalize the full data path: source ingestion → PostgreSQL → SkyWeb/API → Snowflake → BI/reporting outputs                                      |
 
 ---
 
