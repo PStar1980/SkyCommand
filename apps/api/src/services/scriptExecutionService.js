@@ -17,6 +17,13 @@ const HIGH_RISK_RUN_PERMISSION = 'CORE_RUN_HIGH_RISK_SCRIPT';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.TOOL_EXECUTION_TIMEOUT_MS || 180000);
 const MAX_OUTPUT_BYTES = Number(process.env.TOOL_EXECUTION_MAX_OUTPUT_BYTES || 250000);
+const CONFIGURED_STALE_AFTER_MINUTES = Number(process.env.TOOL_EXECUTION_STALE_AFTER_MINUTES || 15);
+const DEFAULT_STALE_AFTER_MS = Math.max(
+  Number.isFinite(CONFIGURED_STALE_AFTER_MINUTES)
+    ? CONFIGURED_STALE_AFTER_MINUTES * 60 * 1000
+    : 15 * 60 * 1000,
+  DEFAULT_TIMEOUT_MS + 60000,
+);
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
@@ -225,12 +232,22 @@ function writeExecutionOutputFiles({ executionId, stdout, stderr }) {
   };
 }
 
-function buildSummary({ status, exitCode, stdout, stderr, timedOut }) {
-  const output = stdout || stderr || '';
-  const firstLine = output
+function getUsefulOutputLine(output) {
+  return (output || '')
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(Boolean)[0];
+    .filter(Boolean)
+    .find((line) => !line.includes('[dotenv'));
+}
+
+function buildSummary({ status, exitCode, stdout, stderr, timedOut }) {
+  const firstUsefulLine = getUsefulOutputLine(stdout) || getUsefulOutputLine(stderr);
+  const firstLine =
+    firstUsefulLine ||
+    (stdout || stderr || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)[0];
 
   if (timedOut) {
     return 'Script timed out.';
@@ -273,6 +290,58 @@ function stringifyOutput(bufferState) {
   }
 
   return `${output}\n\n[SkyServer API] Output truncated at ${MAX_OUTPUT_BYTES} bytes.`;
+}
+
+function normalizeExecutionError(error) {
+  if (!error) {
+    return 'Unexpected tool execution error.';
+  }
+
+  return error.stack || error.message || String(error);
+}
+
+async function markStaleStartedExecutions(options = {}) {
+  const staleAfterMs = Number(options.staleAfterMs || DEFAULT_STALE_AFTER_MS);
+  const safeStaleAfterMs =
+    Number.isFinite(staleAfterMs) && staleAfterMs > 0 ? staleAfterMs : DEFAULT_STALE_AFTER_MS;
+  const staleAfterSeconds = Math.ceil(safeStaleAfterMs / 1000);
+  const reason = options.reason || 'stale_started_execution_cleanup';
+
+  const result = await query(
+    `
+      UPDATE auth.script_execution_log
+      SET status = 'FAILED',
+          exit_code = -1,
+          finished_at = CURRENT_TIMESTAMP,
+          duration_ms = GREATEST(
+            0,
+            FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at)) * 1000)::BIGINT
+          ),
+          summary = COALESCE(
+            summary,
+            'Marked failed by SkyServer because execution remained STARTED beyond the stale threshold.'
+          ),
+          metadata = metadata || $2::jsonb
+      WHERE status = 'STARTED'
+        AND started_at < CURRENT_TIMESTAMP - ($1::TEXT)::INTERVAL
+      RETURNING execution_id, script_name, started_at
+    `,
+    [
+      `${staleAfterSeconds} seconds`,
+      sanitizeMetadata({
+        staleCleanup: true,
+        reason,
+        staleAfterMs: safeStaleAfterMs,
+        cleanedAt: new Date().toISOString(),
+      }),
+    ],
+  );
+
+  return {
+    staleAfterMs: safeStaleAfterMs,
+    cleanedCount: result.rowCount || 0,
+    executions: result.rows || [],
+  };
 }
 
 async function loadToolForExecution(toolCode) {
@@ -487,6 +556,46 @@ async function updateExecutionFinished({
   );
 }
 
+async function markExecutionFailedAfterUnexpectedError({ execution, executionStartedAtMs, error }) {
+  if (!execution?.execution_id) {
+    return;
+  }
+
+  const normalizedError = normalizeExecutionError(error);
+  const summary = error?.message
+    ? `Tool execution failed unexpectedly: ${error.message}`
+    : 'Tool execution failed unexpectedly.';
+
+  let outputFiles = {
+    stdoutPath: null,
+    stderrPath: null,
+  };
+
+  try {
+    outputFiles = writeExecutionOutputFiles({
+      executionId: execution.execution_id,
+      stdout: '',
+      stderr: normalizedError,
+    });
+  } catch (fileError) {
+    console.error('[SkyServer API] Failed to write execution failure logs:', fileError);
+  }
+
+  await updateExecutionFinished({
+    executionId: execution.execution_id,
+    status: 'FAILED',
+    exitCode: -1,
+    durationMs: Math.max(0, Date.now() - executionStartedAtMs),
+    stdoutPath: outputFiles.stdoutPath,
+    stderrPath: outputFiles.stderrPath,
+    summary,
+    metadata: {
+      unexpectedFailure: true,
+      errorMessage: error?.message || String(error),
+    },
+  });
+}
+
 async function auditExecutionAttempt({
   user,
   context,
@@ -680,74 +789,103 @@ async function runTool({
     user,
     session,
   });
+  const executionStartedAtMs = Date.now();
 
-  await auditExecutionAttempt({
-    user,
-    context,
-    toolCode: tool.tool_code,
-    success: true,
-    message: 'Tool execution started.',
-    action: 'start_tool',
-    metadata: {
+  try {
+    await auditExecutionAttempt({
+      user,
+      context,
+      toolCode: tool.tool_code,
+      success: true,
+      message: 'Tool execution started.',
+      action: 'start_tool',
+      metadata: {
+        executionId: execution.execution_id,
+        parameters,
+      },
+    });
+  } catch (auditError) {
+    console.error('[SkyServer API] Failed to record tool start audit event:', auditError);
+  }
+
+  let childResult;
+  let outputFiles;
+  let summary;
+
+  try {
+    childResult = await executeChildProcess({
+      tool,
+      scriptFile,
+      args,
+    });
+
+    outputFiles = writeExecutionOutputFiles({
       executionId: execution.execution_id,
-      parameters,
-    },
-  });
+      stdout: childResult.stdout,
+      stderr: childResult.stderr,
+    });
 
-  const childResult = await executeChildProcess({
-    tool,
-    scriptFile,
-    args,
-  });
-
-  const outputFiles = writeExecutionOutputFiles({
-    executionId: execution.execution_id,
-    stdout: childResult.stdout,
-    stderr: childResult.stderr,
-  });
-
-  const summary = buildSummary({
-    status: childResult.status,
-    exitCode: childResult.exitCode,
-    stdout: childResult.stdout,
-    stderr: childResult.stderr,
-    timedOut: childResult.timedOut,
-  });
-
-  await updateExecutionFinished({
-    executionId: execution.execution_id,
-    status: childResult.status,
-    exitCode: childResult.exitCode,
-    durationMs: childResult.durationMs,
-    stdoutPath: outputFiles.stdoutPath,
-    stderrPath: outputFiles.stderrPath,
-    summary,
-    metadata: {
-      runtime: childResult.runtimeLabel,
+    summary = buildSummary({
+      status: childResult.status,
+      exitCode: childResult.exitCode,
+      stdout: childResult.stdout,
+      stderr: childResult.stderr,
       timedOut: childResult.timedOut,
-      outputTruncated:
-        childResult.stdout.includes('Output truncated') ||
-        childResult.stderr.includes('Output truncated'),
-    },
-  });
+    });
 
-  await authService.recordAuditEvent({
-    userId: user?.userId || null,
-    eventType: 'TOOL_EXECUTION',
-    resourceType: 'core.tools',
-    resourceId: tool.tool_code,
-    action: 'finish_tool',
-    success: childResult.status === 'SUCCESS',
-    message: summary,
-    metadata: {
+    await updateExecutionFinished({
       executionId: execution.execution_id,
       status: childResult.status,
       exitCode: childResult.exitCode,
       durationMs: childResult.durationMs,
-    },
-    ipAddress: context?.ipAddress || null,
-    userAgent: context?.userAgent || null,
-  });
+      stdoutPath: outputFiles.stdoutPath,
+      stderrPath: outputFiles.stderrPath,
+      summary,
+      metadata: {
+        runtime: childResult.runtimeLabel,
+        timedOut: childResult.timedOut,
+        outputTruncated:
+          childResult.stdout.includes('Output truncated') ||
+          childResult.stderr.includes('Output truncated'),
+      },
+    });
+  } catch (executionError) {
+    try {
+      await markExecutionFailedAfterUnexpectedError({
+        execution,
+        executionStartedAtMs,
+        error: executionError,
+      });
+    } catch (cleanupError) {
+      console.error('[SkyServer API] Failed to mark execution as failed:', cleanupError);
+    }
+
+    throw executionError.statusCode
+      ? executionError
+      : createHttpError(500, executionError.message || 'Tool execution failed unexpectedly.');
+  }
+
+  try {
+    await authService.recordAuditEvent({
+      userId: user?.userId || null,
+      eventType: 'TOOL_EXECUTION',
+      resourceType: 'core.tools',
+      resourceId: tool.tool_code,
+      action: 'finish_tool',
+      success: childResult.status === 'SUCCESS',
+      message: summary,
+      metadata: {
+        executionId: execution.execution_id,
+        status: childResult.status,
+        exitCode: childResult.exitCode,
+        durationMs: childResult.durationMs,
+      },
+      ipAddress: context?.ipAddress || null,
+      userAgent: context?.userAgent || null,
+    });
+  } catch (auditError) {
+    console.error('[SkyServer API] Failed to record tool finish audit event:', auditError);
+  }
 
   return {
     executionId: execution.execution_id,
@@ -764,5 +902,6 @@ async function runTool({
 }
 
 module.exports = {
+  markStaleStartedExecutions,
   runTool,
 };

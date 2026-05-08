@@ -1,4 +1,5 @@
 const { query } = require('../../../../packages/db/src/connection');
+const scriptExecutionService = require('./scriptExecutionService');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -379,6 +380,14 @@ async function listLoginEvents(filters = {}) {
 }
 
 async function listScriptExecutions(filters = {}) {
+  try {
+    await scriptExecutionService.markStaleStartedExecutions({
+      reason: 'admin_read_script_executions',
+    });
+  } catch (cleanupError) {
+    console.warn('[SkyServer API] Stale execution cleanup failed:', cleanupError.message);
+  }
+
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
