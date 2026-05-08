@@ -1,11 +1,90 @@
 const authService = require('../services/authService');
 
+const LOGIN_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MS || 60000);
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = Number(process.env.AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS || 8);
+const LOGIN_RATE_LIMIT_BLOCK_MS = Number(process.env.AUTH_LOGIN_RATE_LIMIT_BLOCK_MS || 300000);
+
+const loginAttemptsByKey = new Map();
+
+function normalizeRateLimitPart(value, fallback = 'unknown') {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+
+  return normalized || fallback;
+}
+
+function getLoginRateLimitKey({ email, context }) {
+  const emailPart = normalizeRateLimitPart(email, 'no-email');
+  const ipPart = normalizeRateLimitPart(context?.ipAddress, 'no-ip');
+
+  return `${ipPart}:${emailPart}`;
+}
+
+function getLoginRateLimitState(key) {
+  const now = Date.now();
+  const current = loginAttemptsByKey.get(key);
+
+  if (!current || now > current.windowExpiresAt) {
+    const freshState = {
+      attempts: 0,
+      windowExpiresAt: now + LOGIN_RATE_LIMIT_WINDOW_MS,
+      blockedUntil: 0,
+    };
+
+    loginAttemptsByKey.set(key, freshState);
+    return freshState;
+  }
+
+  return current;
+}
+
+function assertLoginRateLimit({ email, context }) {
+  const key = getLoginRateLimitKey({ email, context });
+  const state = getLoginRateLimitState(key);
+  const now = Date.now();
+
+  if (state.blockedUntil && now < state.blockedUntil) {
+    const retryAfterSeconds = Math.ceil((state.blockedUntil - now) / 1000);
+    const error = new Error('Too many login attempts. Please wait before trying again.');
+    error.statusCode = 429;
+    error.retryAfterSeconds = retryAfterSeconds;
+    throw error;
+  }
+
+  return key;
+}
+
+function recordLoginRateLimitFailure(key) {
+  const state = getLoginRateLimitState(key);
+  const now = Date.now();
+
+  state.attempts += 1;
+
+  if (state.attempts >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
+    state.blockedUntil = now + LOGIN_RATE_LIMIT_BLOCK_MS;
+    state.windowExpiresAt = Math.max(state.windowExpiresAt, state.blockedUntil);
+  }
+
+  loginAttemptsByKey.set(key, state);
+}
+
+function clearLoginRateLimit(key) {
+  if (key) {
+    loginAttemptsByKey.delete(key);
+  }
+}
+
 async function login(req, res, next) {
+  const { email, password } = req.body || {};
+  const context = authService.getRequestContext(req);
+  let rateLimitKey = null;
+
   try {
-    const { email, password } = req.body || {};
-    const context = authService.getRequestContext(req);
+    rateLimitKey = assertLoginRateLimit({ email, context });
 
     const result = await authService.login({ email, password, context });
+    clearLoginRateLimit(rateLimitKey);
 
     res.json({
       ok: true,
@@ -15,7 +94,17 @@ async function login(req, res, next) {
       permissions: result.permissions,
     });
   } catch (error) {
-    res.status(401).json({
+    if (error.statusCode === 429) {
+      return res.status(429).json({
+        ok: false,
+        error: error.message,
+        retryAfterSeconds: error.retryAfterSeconds,
+      });
+    }
+
+    recordLoginRateLimitFailure(rateLimitKey);
+
+    return res.status(401).json({
       ok: false,
       error: error.message || 'Login failed.',
     });

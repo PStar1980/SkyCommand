@@ -62,6 +62,7 @@ async function runTool(req, res, next) {
       toolCode,
       parameters: body.parameters || {},
       confirmed: body.confirmed || body.confirm,
+      confirmationPhrase: body.confirmationPhrase || body.confirmationText,
       user: req.user,
       session: req.session,
       permissions: req.permissions || [],

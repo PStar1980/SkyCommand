@@ -25,6 +25,13 @@ const DEFAULT_STALE_AFTER_MS = Math.max(
   DEFAULT_TIMEOUT_MS + 60000,
 );
 
+const MAX_PARAMETER_COUNT = Number(process.env.TOOL_EXECUTION_MAX_PARAMETERS || 20);
+const MAX_PARAMETER_BYTES = Number(process.env.TOOL_EXECUTION_MAX_PARAMETER_BYTES || 12000);
+const HIGH_RISK_CONFIRMATION_PHRASE =
+  process.env.TOOL_HIGH_RISK_CONFIRMATION_PHRASE || 'RUN HIGH RISK';
+
+const activeExecutionLocks = new Map();
+
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -68,6 +75,94 @@ function normalizeOptionalString(value) {
 
   const text = String(value).trim();
   return text === '' ? null : text;
+}
+
+function normalizeConfirmationPhrase(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase();
+}
+
+function assertPlainParameterObject(parameters) {
+  if (parameters === undefined || parameters === null) {
+    return {};
+  }
+
+  if (Array.isArray(parameters) || typeof parameters !== 'object') {
+    throw createHttpError(400, 'Tool parameters must be a JSON object.');
+  }
+
+  return parameters;
+}
+
+function assertParameterPayloadSafe(parameters = {}) {
+  const parameterEntries = Object.entries(parameters);
+
+  if (parameterEntries.length > MAX_PARAMETER_COUNT) {
+    throw createHttpError(400, `Too many parameters. Maximum allowed: ${MAX_PARAMETER_COUNT}.`);
+  }
+
+  const parameterJson = JSON.stringify(parameters || {});
+  const parameterBytes = Buffer.byteLength(parameterJson, 'utf8');
+
+  if (parameterBytes > MAX_PARAMETER_BYTES) {
+    throw createHttpError(
+      400,
+      `Parameter payload is too large. Maximum allowed: ${MAX_PARAMETER_BYTES} bytes.`,
+    );
+  }
+
+  for (const [parameterName, parameterValue] of parameterEntries) {
+    validateStringParam(parameterName, 'parameter name');
+
+    if (typeof parameterValue === 'string') {
+      validateStringParam(parameterValue, parameterName);
+    }
+  }
+}
+
+function getExecutionLockKey(tool) {
+  return `${APP_CODE}:${PROFILE_CODE}:${tool.tool_code}`;
+}
+
+function assertExecutionNotAlreadyRunning(tool) {
+  const lockKey = getExecutionLockKey(tool);
+  const activeExecution = activeExecutionLocks.get(lockKey);
+
+  if (activeExecution) {
+    throw createHttpError(409, `${tool.label || tool.tool_code} is already running.`, {
+      activeExecutionId: activeExecution.executionId || null,
+      startedAt: activeExecution.startedAt || null,
+      toolCode: tool.tool_code,
+    });
+  }
+}
+
+function acquireExecutionLock(tool) {
+  const lockKey = getExecutionLockKey(tool);
+
+  activeExecutionLocks.set(lockKey, {
+    toolCode: tool.tool_code,
+    startedAt: new Date().toISOString(),
+    executionId: null,
+  });
+
+  return {
+    lockKey,
+    setExecutionId(executionId) {
+      const currentLock = activeExecutionLocks.get(lockKey);
+
+      if (currentLock) {
+        activeExecutionLocks.set(lockKey, {
+          ...currentLock,
+          executionId,
+        });
+      }
+    },
+    release() {
+      activeExecutionLocks.delete(lockKey);
+    },
+  };
 }
 
 function assertNoNullByte(value, label) {
@@ -735,22 +830,37 @@ async function assertRunAllowed({ tool, permissions, user, context }) {
   }
 }
 
-function assertConfirmationIfRequired({ tool, confirmed }) {
+function assertConfirmationIfRequired({ tool, confirmed, confirmationPhrase }) {
   if (!toBoolean(tool.requires_confirmation)) {
     return;
   }
 
-  if (confirmed === true || confirmed === 'true' || confirmed === 'YES' || confirmed === 'yes') {
+  const confirmedBoolean =
+    confirmed === true || confirmed === 'true' || confirmed === 'YES' || confirmed === 'yes';
+
+  if (!confirmedBoolean) {
+    throw createHttpError(400, 'Confirmation is required for this tool.');
+  }
+
+  if (String(tool.risk_code || '').toLowerCase() !== 'high') {
     return;
   }
 
-  throw createHttpError(400, 'Confirmation is required for this tool.');
+  if (normalizeConfirmationPhrase(confirmationPhrase) === HIGH_RISK_CONFIRMATION_PHRASE) {
+    return;
+  }
+
+  throw createHttpError(
+    400,
+    `High-risk confirmation phrase is required: ${HIGH_RISK_CONFIRMATION_PHRASE}`,
+  );
 }
 
 async function runTool({
   toolCode,
   parameters = {},
   confirmed = false,
+  confirmationPhrase = '',
   user,
   session,
   permissions = [],
@@ -761,6 +871,9 @@ async function runTool({
   if (!normalizedToolCode) {
     throw createHttpError(400, 'toolCode is required.');
   }
+
+  const safeParameters = assertPlainParameterObject(parameters);
+  assertParameterPayloadSafe(safeParameters);
 
   const tool = await loadToolForExecution(normalizedToolCode);
 
@@ -774,58 +887,61 @@ async function runTool({
   assertConfirmationIfRequired({
     tool,
     confirmed,
+    confirmationPhrase,
   });
 
-  const scriptFile = resolveScriptFile(tool);
-  const { args } = await buildToolArgs({
-    toolCode: tool.tool_code,
-    rawParameters: parameters,
-  });
+  assertExecutionNotAlreadyRunning(tool);
 
-  const execution = await insertExecutionStarted({
-    tool,
-    scriptFile,
-    parameters,
-    user,
-    session,
-  });
+  const executionLock = acquireExecutionLock(tool);
+  let execution = null;
   const executionStartedAtMs = Date.now();
 
   try {
-    await auditExecutionAttempt({
-      user,
-      context,
+    const scriptFile = resolveScriptFile(tool);
+    const { args } = await buildToolArgs({
       toolCode: tool.tool_code,
-      success: true,
-      message: 'Tool execution started.',
-      action: 'start_tool',
-      metadata: {
-        executionId: execution.execution_id,
-        parameters,
-      },
+      rawParameters: safeParameters,
     });
-  } catch (auditError) {
-    console.error('[SkyServer API] Failed to record tool start audit event:', auditError);
-  }
 
-  let childResult;
-  let outputFiles;
-  let summary;
+    execution = await insertExecutionStarted({
+      tool,
+      scriptFile,
+      parameters: safeParameters,
+      user,
+      session,
+    });
+    executionLock.setExecutionId(execution.execution_id);
 
-  try {
-    childResult = await executeChildProcess({
+    try {
+      await auditExecutionAttempt({
+        user,
+        context,
+        toolCode: tool.tool_code,
+        success: true,
+        message: 'Tool execution started.',
+        action: 'start_tool',
+        metadata: {
+          executionId: execution.execution_id,
+          parameters: safeParameters,
+        },
+      });
+    } catch (auditError) {
+      console.error('[SkyServer API] Failed to record tool start audit event:', auditError);
+    }
+
+    const childResult = await executeChildProcess({
       tool,
       scriptFile,
       args,
     });
 
-    outputFiles = writeExecutionOutputFiles({
+    const outputFiles = writeExecutionOutputFiles({
       executionId: execution.execution_id,
       stdout: childResult.stdout,
       stderr: childResult.stderr,
     });
 
-    summary = buildSummary({
+    const summary = buildSummary({
       status: childResult.status,
       exitCode: childResult.exitCode,
       stdout: childResult.stdout,
@@ -849,56 +965,60 @@ async function runTool({
           childResult.stderr.includes('Output truncated'),
       },
     });
-  } catch (executionError) {
+
     try {
-      await markExecutionFailedAfterUnexpectedError({
-        execution,
-        executionStartedAtMs,
-        error: executionError,
+      await authService.recordAuditEvent({
+        userId: user?.userId || null,
+        eventType: 'TOOL_EXECUTION',
+        resourceType: 'core.tools',
+        resourceId: tool.tool_code,
+        action: 'finish_tool',
+        success: childResult.status === 'SUCCESS',
+        message: summary,
+        metadata: {
+          executionId: execution.execution_id,
+          status: childResult.status,
+          exitCode: childResult.exitCode,
+          durationMs: childResult.durationMs,
+        },
+        ipAddress: context?.ipAddress || null,
+        userAgent: context?.userAgent || null,
       });
-    } catch (cleanupError) {
-      console.error('[SkyServer API] Failed to mark execution as failed:', cleanupError);
+    } catch (auditError) {
+      console.error('[SkyServer API] Failed to record tool finish audit event:', auditError);
     }
 
-    throw executionError.statusCode
-      ? executionError
-      : createHttpError(500, executionError.message || 'Tool execution failed unexpectedly.');
-  }
+    return {
+      executionId: execution.execution_id,
+      toolCode: tool.tool_code,
+      label: tool.label,
+      status: childResult.status,
+      exitCode: childResult.exitCode,
+      durationMs: childResult.durationMs,
+      startedAt: execution.started_at,
+      summary,
+      stdout: childResult.stdout,
+      stderr: childResult.stderr,
+    };
+  } catch (error) {
+    if (execution?.execution_id) {
+      try {
+        await markExecutionFailedAfterUnexpectedError({
+          execution,
+          executionStartedAtMs,
+          error,
+        });
+      } catch (cleanupError) {
+        console.error('[SkyServer API] Failed to clean up failed execution:', cleanupError);
+      }
+    }
 
-  try {
-    await authService.recordAuditEvent({
-      userId: user?.userId || null,
-      eventType: 'TOOL_EXECUTION',
-      resourceType: 'core.tools',
-      resourceId: tool.tool_code,
-      action: 'finish_tool',
-      success: childResult.status === 'SUCCESS',
-      message: summary,
-      metadata: {
-        executionId: execution.execution_id,
-        status: childResult.status,
-        exitCode: childResult.exitCode,
-        durationMs: childResult.durationMs,
-      },
-      ipAddress: context?.ipAddress || null,
-      userAgent: context?.userAgent || null,
-    });
-  } catch (auditError) {
-    console.error('[SkyServer API] Failed to record tool finish audit event:', auditError);
+    throw error.statusCode
+      ? error
+      : createHttpError(500, error.message || 'Tool execution failed unexpectedly.');
+  } finally {
+    executionLock.release();
   }
-
-  return {
-    executionId: execution.execution_id,
-    toolCode: tool.tool_code,
-    label: tool.label,
-    status: childResult.status,
-    exitCode: childResult.exitCode,
-    durationMs: childResult.durationMs,
-    startedAt: execution.started_at,
-    summary,
-    stdout: childResult.stdout,
-    stderr: childResult.stderr,
-  };
 }
 
 module.exports = {
