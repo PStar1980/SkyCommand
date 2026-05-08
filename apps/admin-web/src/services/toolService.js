@@ -35,6 +35,7 @@ async function runTool(toolCode, parameters = {}, options = {}) {
   return api.post(`/api/tools/${encodeURIComponent(toolCode)}/run`, {
     parameters,
     confirmed: Boolean(options.confirmed),
+    confirmationPhrase: options.confirmationPhrase || undefined,
   });
 }
 

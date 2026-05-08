@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import toolService from '../services/toolService';
 
+const HIGH_RISK_CONFIRMATION_PHRASE = 'RUN HIGH RISK';
+
 function riskClass(riskCode) {
   if (riskCode === 'low') {
     return 'sky-pill-success';
@@ -15,6 +17,18 @@ function riskClass(riskCode) {
   }
 
   return 'sky-pill-info';
+}
+
+function isHighRiskTool(tool) {
+  return String(tool?.riskCode || '').toLowerCase() === 'high';
+}
+
+function isHighRiskPhraseValid(value) {
+  return (
+    String(value || '')
+      .trim()
+      .toUpperCase() === HIGH_RISK_CONFIRMATION_PHRASE
+  );
 }
 
 function statusClass(status) {
@@ -151,6 +165,7 @@ function Tools() {
   const [runningStartedAt, setRunningStartedAt] = useState(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
+  const [confirmationPhrase, setConfirmationPhrase] = useState('');
   const [error, setError] = useState('');
 
   const tools = useMemo(() => manifest?.tools || [], [manifest]);
@@ -216,6 +231,7 @@ function Tools() {
     setParameterValues(getInitialParameterValues(tool));
     setRunResult(null);
     setPendingConfirmation(false);
+    setConfirmationPhrase('');
     setError('');
   }
 
@@ -242,7 +258,10 @@ function Tools() {
       const result = await toolService.runTool(
         selectedTool.toolCode,
         cleanParameterValues(parameterValues),
-        { confirmed },
+        {
+          confirmed,
+          confirmationPhrase: confirmationPhrase.trim(),
+        },
       );
 
       setRunResult(result.execution || result);
@@ -263,9 +282,17 @@ function Tools() {
 
     if (selectedTool.requiresConfirmation && !pendingConfirmation) {
       setPendingConfirmation(true);
+      setConfirmationPhrase('');
       setRunResult(null);
       setError('');
       return;
+    }
+
+    if (selectedTool.requiresConfirmation && isHighRiskTool(selectedTool)) {
+      if (!isHighRiskPhraseValid(confirmationPhrase)) {
+        setError(`Type ${HIGH_RISK_CONFIRMATION_PHRASE} to confirm this high-risk tool.`);
+        return;
+      }
     }
 
     runSelectedTool({ confirmed: Boolean(selectedTool.requiresConfirmation) });
@@ -341,9 +368,12 @@ function Tools() {
       return null;
     }
 
+    const highRisk = isHighRiskTool(selectedTool);
+    const phraseValid = !highRisk || isHighRiskPhraseValid(confirmationPhrase);
+
     return (
       <div className="sky-confirm-panel mt-4">
-        <div>
+        <div className="flex-grow-1">
           <div className="sky-page-kicker mb-1">Confirmation required</div>
           <div className="fw-bold sky-detail-value">
             {selectedTool.confirmationText || `Run ${selectedTool.label}?`}
@@ -352,12 +382,33 @@ function Tools() {
             This action will be executed through the API layer and recorded in the script execution
             log.
           </div>
+
+          {highRisk && (
+            <div className="mt-3">
+              <label className="form-label" htmlFor="highRiskConfirmationPhrase">
+                Type <span className="sky-mono">{HIGH_RISK_CONFIRMATION_PHRASE}</span> to confirm
+              </label>
+              <input
+                autoComplete="off"
+                className="form-control sky-form-control sky-mono"
+                disabled={running}
+                id="highRiskConfirmationPhrase"
+                onChange={(event) => setConfirmationPhrase(event.target.value)}
+                placeholder={HIGH_RISK_CONFIRMATION_PHRASE}
+                type="text"
+                value={confirmationPhrase}
+              />
+              <div className="form-text sky-muted">
+                High-risk tools require phrase confirmation before the API will execute them.
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="d-flex flex-wrap gap-2">
           <button
             className="btn sky-btn-primary"
-            disabled={running}
+            disabled={running || !phraseValid}
             onClick={() => runSelectedTool({ confirmed: true })}
             type="button"
           >
@@ -366,7 +417,10 @@ function Tools() {
           <button
             className="btn sky-btn-ghost"
             disabled={running}
-            onClick={() => setPendingConfirmation(false)}
+            onClick={() => {
+              setPendingConfirmation(false);
+              setConfirmationPhrase('');
+            }}
             type="button"
           >
             Cancel
