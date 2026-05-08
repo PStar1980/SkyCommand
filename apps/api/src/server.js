@@ -6,6 +6,7 @@ const { testConnection } = require('../../../packages/db/src/connection');
 const authRoutes = require('./routes/auth.routes');
 const toolsRoutes = require('./routes/tools.routes');
 const adminRoutes = require('./routes/admin.routes');
+const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 
 function createApp() {
@@ -73,6 +74,46 @@ function createApp() {
   return app;
 }
 
+async function runStartupMaintenance() {
+  const sessionConfig = authService.getSessionConfig();
+
+  console.log(
+    `[SkyServer API] Session expiry: ${sessionConfig.sessionMinutes} minute(s) | revoke on start: ${sessionConfig.revokeSessionsOnStart}`,
+  );
+
+  if (authService.shouldRevokeSessionsOnStart()) {
+    try {
+      const revokeResult = await authService.revokeActiveSessionsOnStartup({
+        reason: 'API_STARTUP',
+      });
+
+      if (revokeResult.revokedCount > 0) {
+        console.warn(
+          `[SkyServer API] Revoked ${revokeResult.revokedCount} active session(s) on startup.`,
+        );
+      } else {
+        console.log('[SkyServer API] No active sessions required startup revocation.');
+      }
+    } catch (error) {
+      console.warn('[SkyServer API] Startup session revocation failed:', error.message);
+    }
+  }
+
+  try {
+    const staleExecutionResult = await scriptExecutionService.markStaleStartedExecutions({
+      reason: 'api_startup',
+    });
+
+    if (staleExecutionResult.cleanedCount > 0) {
+      console.warn(
+        `[SkyServer API] Cleaned ${staleExecutionResult.cleanedCount} stale STARTED script execution row(s).`,
+      );
+    }
+  } catch (error) {
+    console.warn('[SkyServer API] Startup stale execution cleanup failed:', error.message);
+  }
+}
+
 if (require.main === module) {
   const port = Number(process.env.API_PORT || process.env.ADMIN_PORT || 7171);
   const app = createApp();
@@ -80,18 +121,9 @@ if (require.main === module) {
   app.listen(port, () => {
     console.log(`[SkyServer API] Listening on port ${port}`);
 
-    scriptExecutionService
-      .markStaleStartedExecutions({ reason: 'api_startup' })
-      .then((result) => {
-        if (result.cleanedCount > 0) {
-          console.warn(
-            `[SkyServer API] Cleaned ${result.cleanedCount} stale STARTED script execution row(s).`,
-          );
-        }
-      })
-      .catch((error) => {
-        console.warn('[SkyServer API] Startup stale execution cleanup failed:', error.message);
-      });
+    runStartupMaintenance().catch((error) => {
+      console.warn('[SkyServer API] Startup maintenance failed:', error.message);
+    });
   });
 }
 

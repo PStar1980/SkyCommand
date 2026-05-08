@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { authNotice, clearAuthNotice, login } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,9 +14,16 @@ function Login() {
 
   const from = location.state?.from?.pathname || '/dashboard';
 
+  useEffect(() => {
+    return () => {
+      clearAuthNotice();
+    };
+  }, [clearAuthNotice]);
+
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
+    clearAuthNotice();
     setSubmitting(true);
 
     try {
@@ -41,8 +48,16 @@ function Login() {
         </div>
 
         <div className="sky-card-body">
-          {error && <div className="alert alert-danger">{error}</div>}
-
+          {authNotice && !error && (
+            <div className="sky-auth-alert sky-auth-alert-danger" role="alert">
+              {authNotice}
+            </div>
+          )}
+          {error && (
+            <div className="sky-auth-alert sky-auth-alert-danger" role="alert">
+              {error}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <div className="mb-3 text-start">
               <label className="form-label" htmlFor="email">

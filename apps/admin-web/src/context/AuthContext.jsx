@@ -16,14 +16,33 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authNotice, setAuthNotice] = useState('');
+
+  const clearAuthState = useCallback(() => {
+    setUser(null);
+    setSession(null);
+    setPermissions([]);
+  }, []);
+
+  const clearAuthNotice = useCallback(() => {
+    setAuthNotice('');
+  }, []);
+
+  const handleExpiredSession = useCallback(
+    (message = 'Your session expired. Please sign in again.') => {
+      api.clearSessionToken();
+      clearAuthState();
+      setLoading(false);
+      setAuthNotice(message);
+    },
+    [clearAuthState],
+  );
 
   const refreshSession = useCallback(async () => {
     const token = api.getSessionToken();
 
     if (!token) {
-      setUser(null);
-      setSession(null);
-      setPermissions([]);
+      clearAuthState();
       setLoading(false);
       return null;
     }
@@ -34,18 +53,28 @@ export function AuthProvider({ children }) {
       setUser(result.user || null);
       setSession(result.session || null);
       setPermissions(normalizePermissions(result.permissions || []));
+      setAuthNotice('');
 
       return result;
     } catch (error) {
-      api.clearSessionToken();
-      setUser(null);
-      setSession(null);
-      setPermissions([]);
+      handleExpiredSession(error.message || 'Your session expired. Please sign in again.');
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearAuthState, handleExpiredSession]);
+
+  useEffect(() => {
+    function onAuthExpired(event) {
+      handleExpiredSession(event.detail?.message || 'Your session expired. Please sign in again.');
+    }
+
+    window.addEventListener(api.AUTH_EXPIRED_EVENT, onAuthExpired);
+
+    return () => {
+      window.removeEventListener(api.AUTH_EXPIRED_EVENT, onAuthExpired);
+    };
+  }, [handleExpiredSession]);
 
   useEffect(() => {
     refreshSession();
@@ -57,16 +86,20 @@ export function AuthProvider({ children }) {
     setUser(result.user || null);
     setSession({ expiresAt: result.expiresAt });
     setPermissions(normalizePermissions(result.permissions || []));
+    setAuthNotice('');
 
     return result;
   }, []);
 
   const logout = useCallback(async () => {
-    await authService.logout();
-    setUser(null);
-    setSession(null);
-    setPermissions([]);
-  }, []);
+    try {
+      await authService.logout();
+    } finally {
+      api.clearSessionToken();
+      clearAuthState();
+      setAuthNotice('');
+    }
+  }, [clearAuthState]);
 
   const permissionCodes = useMemo(
     () => new Set(permissions.map((permission) => permission.permissionCode).filter(Boolean)),
@@ -90,13 +123,26 @@ export function AuthProvider({ children }) {
       session,
       permissions,
       loading,
+      authNotice,
       isAuthenticated: Boolean(user),
       login,
       logout,
       refreshSession,
       hasPermission,
+      clearAuthNotice,
     }),
-    [user, session, permissions, loading, login, logout, refreshSession, hasPermission],
+    [
+      user,
+      session,
+      permissions,
+      loading,
+      authNotice,
+      login,
+      logout,
+      refreshSession,
+      hasPermission,
+      clearAuthNotice,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

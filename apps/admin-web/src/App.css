@@ -294,6 +294,37 @@
   width: min(100%, 470px);
 }
 
+.sky-auth-alert {
+  display: flex;
+  align-items: center;
+  min-height: 3.15rem;
+  margin-bottom: 1.1rem;
+  border: 1px solid rgba(255, 94, 117, 0.42);
+  border-left: 4px solid #ff5e75;
+  border-radius: 0.75rem;
+  background:
+    linear-gradient(135deg, rgba(255, 94, 117, 0.14), rgba(155, 89, 255, 0.07)),
+    rgba(8, 15, 28, 0.92);
+  color: #ff9cad;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  box-shadow: 0 12px 36px rgba(255, 94, 117, 0.08);
+}
+
+.sky-auth-alert-danger {
+  border-color: rgba(255, 94, 117, 0.42);
+  border-left-color: #ff5e75;
+  color: #ff9cad;
+}
+
+.sky-auth-alert::before {
+  content: '⚠';
+  margin-right: 0.65rem;
+  color: #ff5e75;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .sky-stat-card {
   min-height: 132px;
 }
