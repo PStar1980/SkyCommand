@@ -115,6 +115,24 @@
   color: #e7edf7;
 }
 
+.sky-form-control:disabled,
+.sky-form-control[disabled],
+.sky-form-control:disabled:focus {
+  border-color: rgba(124, 144, 177, 0.24);
+  background-color: rgba(6, 11, 22, 0.78);
+  color: #c8d7ef;
+  opacity: 0.78;
+  box-shadow: none;
+  cursor: not-allowed;
+  -webkit-text-fill-color: #c8d7ef;
+}
+
+.sky-form-control:disabled::placeholder,
+.sky-form-control[disabled]::placeholder {
+  color: #61718f;
+  opacity: 1;
+}
+
 .sky-btn-primary {
   border: 0;
   background: linear-gradient(135deg, #1e8fff, #7f5af0);

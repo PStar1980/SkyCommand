@@ -173,6 +173,8 @@ function Tools() {
     () => tools.find((tool) => tool.toolCode === selectedToolCode) || tools[0] || null,
     [selectedToolCode, tools],
   );
+  const confirmationLocked = pendingConfirmation && !running;
+  const interactionLocked = running || confirmationLocked;
 
   useEffect(() => {
     let active = true;
@@ -223,7 +225,7 @@ function Tools() {
   }, [running, runningStartedAt]);
 
   function handleSelectTool(tool) {
-    if (running) {
+    if (interactionLocked) {
       return;
     }
 
@@ -236,6 +238,10 @@ function Tools() {
   }
 
   function updateParameter(parameterName, value) {
+    if (interactionLocked) {
+      return;
+    }
+
     setParameterValues((currentValues) => ({
       ...currentValues,
       [parameterName]: value,
@@ -276,11 +282,15 @@ function Tools() {
   function handleRunTool(event) {
     event.preventDefault();
 
-    if (!selectedTool) {
+    if (!selectedTool || running) {
       return;
     }
 
-    if (selectedTool.requiresConfirmation && !pendingConfirmation) {
+    if (selectedTool.requiresConfirmation) {
+      if (pendingConfirmation) {
+        return;
+      }
+
       setPendingConfirmation(true);
       setConfirmationPhrase('');
       setRunResult(null);
@@ -288,14 +298,20 @@ function Tools() {
       return;
     }
 
-    if (selectedTool.requiresConfirmation && isHighRiskTool(selectedTool)) {
-      if (!isHighRiskPhraseValid(confirmationPhrase)) {
-        setError(`Type ${HIGH_RISK_CONFIRMATION_PHRASE} to confirm this high-risk tool.`);
-        return;
-      }
+    runSelectedTool({ confirmed: false });
+  }
+
+  function handleConfirmRun() {
+    if (!selectedTool || running) {
+      return;
     }
 
-    runSelectedTool({ confirmed: Boolean(selectedTool.requiresConfirmation) });
+    if (isHighRiskTool(selectedTool) && !isHighRiskPhraseValid(confirmationPhrase)) {
+      setError(`Type ${HIGH_RISK_CONFIRMATION_PHRASE} to confirm this high-risk tool.`);
+      return;
+    }
+
+    runSelectedTool({ confirmed: true });
   }
 
   function renderParameterInput(parameter) {
@@ -309,7 +325,7 @@ function Tools() {
           <input
             checked={getBooleanValue(value)}
             className="form-check-input"
-            disabled={running}
+            disabled={interactionLocked}
             id={parameterName}
             onChange={(event) => updateParameter(parameterName, event.target.checked)}
             type="checkbox"
@@ -326,7 +342,7 @@ function Tools() {
         <>
           <select
             className="form-select sky-form-control"
-            disabled={running}
+            disabled={interactionLocked}
             id={parameterName}
             onChange={(event) => updateParameter(parameterName, event.target.value)}
             required={parameter.required}
@@ -352,7 +368,7 @@ function Tools() {
     return (
       <input
         className="form-control sky-form-control sky-mono"
-        disabled={running}
+        disabled={interactionLocked}
         id={parameterName}
         onChange={(event) => updateParameter(parameterName, event.target.value)}
         placeholder={parameter.prompt || parameterName}
@@ -409,7 +425,7 @@ function Tools() {
           <button
             className="btn sky-btn-primary"
             disabled={running || !phraseValid}
-            onClick={() => runSelectedTool({ confirmed: true })}
+            onClick={handleConfirmRun}
             type="button"
           >
             Confirm and run
@@ -491,8 +507,8 @@ function Tools() {
                   <button
                     className={`list-group-item list-group-item-action bg-transparent text-light border-secondary-subtle ${
                       selectedTool?.toolCode === tool.toolCode ? 'active' : ''
-                    } ${running ? 'sky-disabled-item' : ''}`}
-                    disabled={running}
+                    } ${interactionLocked ? 'sky-disabled-item' : ''}`}
+                    disabled={interactionLocked}
                     key={tool.toolId || tool.toolCode}
                     onClick={() => handleSelectTool(tool)}
                     type="button"
@@ -558,8 +574,16 @@ function Tools() {
                     {renderConfirmationPanel()}
 
                     <div className="d-flex align-items-center gap-2 mt-4">
-                      <button className="btn sky-btn-primary" disabled={running} type="submit">
-                        {running ? 'Running...' : 'Run tool'}
+                      <button
+                        className="btn sky-btn-primary"
+                        disabled={interactionLocked}
+                        type="submit"
+                      >
+                        {running
+                          ? 'Running...'
+                          : pendingConfirmation
+                            ? 'Awaiting confirmation'
+                            : 'Run tool'}
                       </button>
                       {selectedTool.requiresConfirmation && (
                         <span className="sky-pill sky-pill-warning">Confirmation required</span>
