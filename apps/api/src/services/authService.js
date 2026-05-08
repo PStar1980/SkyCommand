@@ -5,9 +5,51 @@ const {
   hashToken,
 } = require('../../../../packages/auth/src/password');
 
-const DEFAULT_SESSION_HOURS = Number(process.env.AUTH_SESSION_HOURS || 12);
-const MAX_FAILED_LOGIN_ATTEMPTS = Number(process.env.AUTH_MAX_FAILED_LOGIN_ATTEMPTS || 5);
-const LOCK_MINUTES = Number(process.env.AUTH_LOCK_MINUTES || 15);
+const DEFAULT_SESSION_MINUTES = parsePositiveNumber(
+  process.env.AUTH_SESSION_MINUTES,
+  process.env.AUTH_SESSION_HOURS
+    ? parsePositiveNumber(process.env.AUTH_SESSION_HOURS, 12) * 60
+    : 12 * 60,
+);
+
+const REVOKE_SESSIONS_ON_START = parseBoolean(process.env.AUTH_REVOKE_SESSIONS_ON_START, false);
+const MAX_FAILED_LOGIN_ATTEMPTS = parsePositiveInteger(
+  process.env.AUTH_MAX_FAILED_LOGIN_ATTEMPTS,
+  5,
+);
+const LOCK_MINUTES = parsePositiveInteger(process.env.AUTH_LOCK_MINUTES, 15);
+
+function parseBoolean(value, fallback = false) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['false', '0', 'no', 'n', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return fallback;
+}
+
+function parsePositiveNumber(value, fallback) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function parsePositiveInteger(value, fallback) {
+  return Math.trunc(parsePositiveNumber(value, fallback));
+}
 
 function normalizeEmail(email) {
   return String(email || '')
@@ -31,6 +73,17 @@ function getRequestContext(req) {
     ipAddress: req.ip || req.socket?.remoteAddress || null,
     userAgent: req.get('user-agent') || null,
   };
+}
+
+function getSessionConfig() {
+  return {
+    sessionMinutes: DEFAULT_SESSION_MINUTES,
+    revokeSessionsOnStart: REVOKE_SESSIONS_ON_START,
+  };
+}
+
+function shouldRevokeSessionsOnStart() {
+  return REVOKE_SESSIONS_ON_START;
 }
 
 function sanitizeUser(user) {
@@ -174,7 +227,7 @@ async function createSession(userId, context = {}) {
         $3,
         $4,
         $5::jsonb,
-        CURRENT_TIMESTAMP + ($6::int * INTERVAL '1 hour'),
+        CURRENT_TIMESTAMP + ($6::numeric * INTERVAL '1 minute'),
         CURRENT_TIMESTAMP
       )
       RETURNING session_id, expires_at
@@ -184,8 +237,11 @@ async function createSession(userId, context = {}) {
       sessionTokenHash,
       context.ipAddress || null,
       context.userAgent || null,
-      JSON.stringify({ source: 'admin-web' }),
-      DEFAULT_SESSION_HOURS,
+      JSON.stringify({
+        source: 'admin-web',
+        sessionMinutes: DEFAULT_SESSION_MINUTES,
+      }),
+      DEFAULT_SESSION_MINUTES,
     ],
   );
 
@@ -193,6 +249,42 @@ async function createSession(userId, context = {}) {
     sessionId: result.rows[0].session_id,
     sessionToken,
     expiresAt: result.rows[0].expires_at,
+  };
+}
+
+async function revokeActiveSessionsOnStartup({ reason = 'API_STARTUP' } = {}) {
+  const result = await query(
+    `
+      UPDATE auth.sessions
+      SET revoked_at = CURRENT_TIMESTAMP,
+          revoked_reason = $1
+      WHERE revoked_at IS NULL
+        AND expires_at > CURRENT_TIMESTAMP
+      RETURNING session_id
+    `,
+    [reason],
+  );
+
+  const revokedCount = result.rowCount || 0;
+
+  if (revokedCount > 0) {
+    await recordAuditEvent({
+      eventType: 'AUTH_SESSION_REVOKE',
+      resourceType: 'auth.sessions',
+      resourceId: reason,
+      action: 'revoke_active_sessions_on_startup',
+      success: true,
+      message: `Revoked ${revokedCount} active session(s) during API startup.`,
+      metadata: {
+        reason,
+        revokedCount,
+      },
+    });
+  }
+
+  return {
+    revokedCount,
+    reason,
   };
 }
 
@@ -468,6 +560,9 @@ async function logout({ sessionToken, userId = null, context = {} }) {
 module.exports = {
   getBearerToken,
   getRequestContext,
+  getSessionConfig,
+  shouldRevokeSessionsOnStart,
+  revokeActiveSessionsOnStartup,
   login,
   logout,
   getSessionFromToken,

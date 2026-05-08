@@ -1,5 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const SESSION_TOKEN_KEY = 'skyserver.admin.sessionToken';
+const AUTH_EXPIRED_EVENT = 'skyserver:auth-expired';
 
 function getSessionToken() {
   return localStorage.getItem(SESSION_TOKEN_KEY);
@@ -16,6 +17,18 @@ function setSessionToken(token) {
 
 function clearSessionToken() {
   localStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
+function notifyAuthExpired(message = 'Invalid or expired session.') {
+  clearSessionToken();
+
+  window.dispatchEvent(
+    new CustomEvent(AUTH_EXPIRED_EVENT, {
+      detail: {
+        message,
+      },
+    }),
+  );
 }
 
 function buildUrl(path, query = {}) {
@@ -38,7 +51,9 @@ async function parseResponse(response) {
     const text = await response.text();
 
     if (!response.ok) {
-      throw new Error(text || response.statusText);
+      const error = new Error(text || response.statusText);
+      error.status = response.status;
+      throw error;
     }
 
     return text;
@@ -59,6 +74,7 @@ async function parseResponse(response) {
 
 async function request(path, options = {}) {
   const token = options.token === undefined ? getSessionToken() : options.token;
+  const usesStoredSessionToken = options.token === undefined;
   const headers = {
     Accept: 'application/json',
     ...(options.headers || {}),
@@ -72,19 +88,29 @@ async function request(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(buildUrl(path, options.query), {
-    method: options.method || 'GET',
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  try {
+    const response = await fetch(buildUrl(path, options.query), {
+      method: options.method || 'GET',
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
 
-  return parseResponse(response);
+    return await parseResponse(response);
+  } catch (error) {
+    if (error.status === 401 && usesStoredSessionToken) {
+      notifyAuthExpired(error.message || 'Invalid or expired session.');
+    }
+
+    throw error;
+  }
 }
 
 const api = {
+  AUTH_EXPIRED_EVENT,
   getSessionToken,
   setSessionToken,
   clearSessionToken,
+  notifyAuthExpired,
   get: (path, options) => request(path, { ...options, method: 'GET' }),
   post: (path, body, options) => request(path, { ...options, method: 'POST', body }),
 };
