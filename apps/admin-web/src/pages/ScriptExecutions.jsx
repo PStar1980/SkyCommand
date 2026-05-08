@@ -22,13 +22,29 @@ function statusClass(status) {
   }
 
   if (status === 'STARTED') {
-    return 'sky-pill-warning';
+    return 'sky-pill-warning sky-pill-pulse';
+  }
+
+  if (status === 'CANCELLED') {
+    return 'sky-pill-info';
   }
 
   return 'sky-pill-info';
 }
 
-function getDisplaySummary(summary) {
+function getStatusLabel(status) {
+  if (status === 'STARTED') {
+    return 'RUNNING';
+  }
+
+  return status || 'UNKNOWN';
+}
+
+function getDisplaySummary(summary, status) {
+  if (status === 'STARTED' && !summary) {
+    return 'Execution is currently running.';
+  }
+
   if (!summary) {
     return '—';
   }
@@ -44,6 +60,22 @@ function getDisplaySummary(summary) {
     lines[0] ||
     String(summary)
   );
+}
+
+function formatDuration(item) {
+  if (!item) {
+    return '—';
+  }
+
+  if (item.durationMs !== undefined && item.durationMs !== null) {
+    return `${item.durationMs} ms`;
+  }
+
+  if (item.status === 'STARTED') {
+    return 'Running';
+  }
+
+  return '—';
 }
 
 function ScriptExecutions() {
@@ -106,8 +138,13 @@ function ScriptExecutions() {
             workers.
           </p>
         </div>
-        <button className="btn sky-btn-ghost" onClick={() => loadExecutions()} type="button">
-          Refresh
+        <button
+          className="btn sky-btn-ghost"
+          disabled={loading}
+          onClick={() => loadExecutions()}
+          type="button"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </header>
 
@@ -129,7 +166,7 @@ function ScriptExecutions() {
                 <option value="">All</option>
                 <option value="SUCCESS">SUCCESS</option>
                 <option value="FAILED">FAILED</option>
-                <option value="STARTED">STARTED</option>
+                <option value="STARTED">RUNNING / STARTED</option>
                 <option value="CANCELLED">CANCELLED</option>
               </select>
             </div>
@@ -161,7 +198,10 @@ function ScriptExecutions() {
         <div className="col-xl-7">
           <section className="sky-card sky-table-card">
             {loading ? (
-              <div className="sky-empty-state">Loading executions...</div>
+              <div className="sky-empty-state">
+                <div className="spinner-border text-info" role="status" aria-label="Loading" />
+                <div className="mt-3">Loading executions...</div>
+              </div>
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover sky-table">
@@ -188,10 +228,10 @@ function ScriptExecutions() {
                         </td>
                         <td>
                           <span className={`sky-pill ${statusClass(item.status)}`}>
-                            {item.status}
+                            {getStatusLabel(item.status)}
                           </span>
                         </td>
-                        <td>{item.durationMs ?? '—'} ms</td>
+                        <td>{formatDuration(item)}</td>
                         <td>{formatDate(item.startedAt)}</td>
                       </tr>
                     ))}
@@ -216,14 +256,34 @@ function ScriptExecutions() {
                       {selectedItem.executionId}
                     </dd>
 
+                    <dt className="col-sm-4 sky-detail-label">Status</dt>
+                    <dd className="col-sm-8">
+                      <span className={`sky-pill ${statusClass(selectedItem.status)}`}>
+                        {getStatusLabel(selectedItem.status)}
+                      </span>
+                    </dd>
+
                     <dt className="col-sm-4 sky-detail-label">User</dt>
                     <dd className="col-sm-8 sky-detail-value">
                       {selectedItem.displayName || selectedItem.email || '—'}
                     </dd>
 
+                    <dt className="col-sm-4 sky-detail-label">Started</dt>
+                    <dd className="col-sm-8 sky-detail-value">
+                      {formatDate(selectedItem.startedAt)}
+                    </dd>
+
+                    <dt className="col-sm-4 sky-detail-label">Finished</dt>
+                    <dd className="col-sm-8 sky-detail-value">
+                      {formatDate(selectedItem.finishedAt)}
+                    </dd>
+
+                    <dt className="col-sm-4 sky-detail-label">Duration</dt>
+                    <dd className="col-sm-8 sky-detail-value">{formatDuration(selectedItem)}</dd>
+
                     <dt className="col-sm-4 sky-detail-label">Summary</dt>
                     <dd className="col-sm-8 sky-detail-value">
-                      {getDisplaySummary(selectedItem.summary)}
+                      {getDisplaySummary(selectedItem.summary, selectedItem.status)}
                     </dd>
 
                     <dt className="col-sm-4 sky-detail-label">Logs</dt>
@@ -237,6 +297,7 @@ function ScriptExecutions() {
                     </dd>
                   </dl>
 
+                  <div className="mb-2 sky-detail-label">Execution metadata</div>
                   <pre className="sky-code-block">
                     {JSON.stringify(selectedItem.metadata || {}, null, 2)}
                   </pre>

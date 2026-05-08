@@ -17,6 +17,22 @@ function riskClass(riskCode) {
   return 'sky-pill-info';
 }
 
+function statusClass(status) {
+  if (status === 'SUCCESS') {
+    return 'sky-pill-success';
+  }
+
+  if (status === 'FAILED') {
+    return 'sky-pill-danger';
+  }
+
+  if (status === 'STARTED' || status === 'RUNNING') {
+    return 'sky-pill-warning';
+  }
+
+  return 'sky-pill-info';
+}
+
 function getBooleanValue(value) {
   return value === true || value === 'true' || value === 't' || value === 1 || value === '1';
 }
@@ -76,6 +92,55 @@ function getParameterHelpText(parameter) {
   return `${type} parameter`;
 }
 
+function formatElapsedMilliseconds(milliseconds) {
+  if (!milliseconds || milliseconds < 1000) {
+    return '< 1s';
+  }
+
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes === 0) {
+    return `${seconds}s`;
+  }
+
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+}
+
+function getOutputText(result) {
+  if (!result) {
+    return 'No output.';
+  }
+
+  const stdout = result.stdout || '';
+  const stderr = result.stderr || '';
+
+  if (stdout && stderr) {
+    return `${stdout}\n\n--- stderr ---\n${stderr}`;
+  }
+
+  return stdout || stderr || 'No output.';
+}
+
+function getDisplaySummary(summary) {
+  if (!summary) {
+    return '—';
+  }
+
+  const lines = String(summary)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return (
+    lines.find((line) => /✅|successfully|connected|complete|completed/i.test(line)) ||
+    lines.find((line) => !line.includes('[dotenv')) ||
+    lines[0] ||
+    String(summary)
+  );
+}
+
 function Tools() {
   const [manifest, setManifest] = useState(null);
   const [selectedToolCode, setSelectedToolCode] = useState('');
@@ -83,6 +148,9 @@ function Tools() {
   const [runResult, setRunResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [runningStartedAt, setRunningStartedAt] = useState(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [pendingConfirmation, setPendingConfirmation] = useState(false);
   const [error, setError] = useState('');
 
   const tools = useMemo(() => manifest?.tools || [], [manifest]);
@@ -126,10 +194,28 @@ function Tools() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!running || !runningStartedAt) {
+      setElapsedMs(0);
+      return undefined;
+    }
+
+    const interval = window.setInterval(() => {
+      setElapsedMs(Date.now() - runningStartedAt.getTime());
+    }, 500);
+
+    return () => window.clearInterval(interval);
+  }, [running, runningStartedAt]);
+
   function handleSelectTool(tool) {
+    if (running) {
+      return;
+    }
+
     setSelectedToolCode(tool.toolCode);
     setParameterValues(getInitialParameterValues(tool));
     setRunResult(null);
+    setPendingConfirmation(false);
     setError('');
   }
 
@@ -140,26 +226,17 @@ function Tools() {
     }));
   }
 
-  async function handleRunTool(event) {
-    event.preventDefault();
-
-    if (!selectedTool) {
+  async function runSelectedTool({ confirmed = false } = {}) {
+    if (!selectedTool || running) {
       return;
     }
 
-    let confirmed = false;
-
-    if (selectedTool.requiresConfirmation) {
-      confirmed = window.confirm(selectedTool.confirmationText || `Run ${selectedTool.label}?`);
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
     setRunning(true);
+    setRunningStartedAt(new Date());
+    setElapsedMs(0);
     setError('');
     setRunResult(null);
+    setPendingConfirmation(false);
 
     try {
       const result = await toolService.runTool(
@@ -173,7 +250,25 @@ function Tools() {
       setError(runError.message || 'Tool execution failed.');
     } finally {
       setRunning(false);
+      setRunningStartedAt(null);
     }
+  }
+
+  function handleRunTool(event) {
+    event.preventDefault();
+
+    if (!selectedTool) {
+      return;
+    }
+
+    if (selectedTool.requiresConfirmation && !pendingConfirmation) {
+      setPendingConfirmation(true);
+      setRunResult(null);
+      setError('');
+      return;
+    }
+
+    runSelectedTool({ confirmed: Boolean(selectedTool.requiresConfirmation) });
   }
 
   function renderParameterInput(parameter) {
@@ -187,6 +282,7 @@ function Tools() {
           <input
             checked={getBooleanValue(value)}
             className="form-check-input"
+            disabled={running}
             id={parameterName}
             onChange={(event) => updateParameter(parameterName, event.target.checked)}
             type="checkbox"
@@ -203,6 +299,7 @@ function Tools() {
         <>
           <select
             className="form-select sky-form-control"
+            disabled={running}
             id={parameterName}
             onChange={(event) => updateParameter(parameterName, event.target.value)}
             required={parameter.required}
@@ -228,6 +325,7 @@ function Tools() {
     return (
       <input
         className="form-control sky-form-control sky-mono"
+        disabled={running}
         id={parameterName}
         onChange={(event) => updateParameter(parameterName, event.target.value)}
         placeholder={parameter.prompt || parameterName}
@@ -235,6 +333,76 @@ function Tools() {
         type={getInputType(parameter)}
         value={String(value)}
       />
+    );
+  }
+
+  function renderConfirmationPanel() {
+    if (!pendingConfirmation || !selectedTool) {
+      return null;
+    }
+
+    return (
+      <div className="sky-confirm-panel mt-4">
+        <div>
+          <div className="sky-page-kicker mb-1">Confirmation required</div>
+          <div className="fw-bold sky-detail-value">
+            {selectedTool.confirmationText || `Run ${selectedTool.label}?`}
+          </div>
+          <div className="small sky-muted mt-1">
+            This action will be executed through the API layer and recorded in the script execution
+            log.
+          </div>
+        </div>
+
+        <div className="d-flex flex-wrap gap-2">
+          <button
+            className="btn sky-btn-primary"
+            disabled={running}
+            onClick={() => runSelectedTool({ confirmed: true })}
+            type="button"
+          >
+            Confirm and run
+          </button>
+          <button
+            className="btn sky-btn-ghost"
+            disabled={running}
+            onClick={() => setPendingConfirmation(false)}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderRunningPanel() {
+    if (!running || !selectedTool) {
+      return null;
+    }
+
+    return (
+      <section className="sky-card mt-3 sky-running-card">
+        <div className="sky-card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div className="d-flex align-items-center gap-3">
+            <div className="spinner-border text-info" role="status" aria-label="Running" />
+            <div>
+              <div className="sky-page-kicker mb-1">Execution in progress</div>
+              <h2 className="h5 mb-1">{selectedTool.label}</h2>
+              <div className="small sky-muted">
+                The browser is waiting for the API to return the final execution result.
+              </div>
+            </div>
+          </div>
+
+          <div className="text-md-end">
+            <div className="sky-muted small">Elapsed</div>
+            <div className="sky-stat-value sky-running-timer">
+              {formatElapsedMilliseconds(elapsedMs)}
+            </div>
+          </div>
+        </div>
+      </section>
     );
   }
 
@@ -269,7 +437,8 @@ function Tools() {
                   <button
                     className={`list-group-item list-group-item-action bg-transparent text-light border-secondary-subtle ${
                       selectedTool?.toolCode === tool.toolCode ? 'active' : ''
-                    }`}
+                    } ${running ? 'sky-disabled-item' : ''}`}
+                    disabled={running}
                     key={tool.toolId || tool.toolCode}
                     onClick={() => handleSelectTool(tool)}
                     type="button"
@@ -332,6 +501,8 @@ function Tools() {
                       <div className="sky-empty-state">This tool does not require parameters.</div>
                     )}
 
+                    {renderConfirmationPanel()}
+
                     <div className="d-flex align-items-center gap-2 mt-4">
                       <button className="btn sky-btn-primary" disabled={running} type="submit">
                         {running ? 'Running...' : 'Run tool'}
@@ -347,6 +518,8 @@ function Tools() {
               </div>
             </section>
 
+            {renderRunningPanel()}
+
             {runResult && (
               <section className="sky-card mt-3">
                 <div className="sky-card-header">
@@ -356,11 +529,7 @@ function Tools() {
                   <div className="row g-3 mb-3">
                     <div className="col-md-3">
                       <div className="sky-muted small">Status</div>
-                      <span
-                        className={`sky-pill ${
-                          runResult.status === 'SUCCESS' ? 'sky-pill-success' : 'sky-pill-danger'
-                        }`}
-                      >
+                      <span className={`sky-pill ${statusClass(runResult.status)}`}>
                         {runResult.status || 'UNKNOWN'}
                       </span>
                     </div>
@@ -381,13 +550,11 @@ function Tools() {
                   {runResult.summary && (
                     <div className="mb-3">
                       <div className="sky-muted small">Summary</div>
-                      <div>{runResult.summary}</div>
+                      <div>{getDisplaySummary(runResult.summary)}</div>
                     </div>
                   )}
 
-                  <pre className="sky-code-block">
-                    {runResult.stdout || runResult.stderr || 'No output.'}
-                  </pre>
+                  <pre className="sky-code-block sky-result-output">{getOutputText(runResult)}</pre>
                 </div>
               </section>
             )}

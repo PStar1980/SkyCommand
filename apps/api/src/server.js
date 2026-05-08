@@ -6,6 +6,7 @@ const { testConnection } = require('../../../packages/db/src/connection');
 const authRoutes = require('./routes/auth.routes');
 const toolsRoutes = require('./routes/tools.routes');
 const adminRoutes = require('./routes/admin.routes');
+const scriptExecutionService = require('./services/scriptExecutionService');
 
 function createApp() {
   const app = express();
@@ -78,6 +79,19 @@ if (require.main === module) {
 
   app.listen(port, () => {
     console.log(`[SkyServer API] Listening on port ${port}`);
+
+    scriptExecutionService
+      .markStaleStartedExecutions({ reason: 'api_startup' })
+      .then((result) => {
+        if (result.cleanedCount > 0) {
+          console.warn(
+            `[SkyServer API] Cleaned ${result.cleanedCount} stale STARTED script execution row(s).`,
+          );
+        }
+      })
+      .catch((error) => {
+        console.warn('[SkyServer API] Startup stale execution cleanup failed:', error.message);
+      });
   });
 }
 

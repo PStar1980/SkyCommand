@@ -342,3 +342,49 @@
     display: block;
   }
 }
+
+.sky-confirm-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(255, 210, 97, 0.34);
+  border-radius: 0.9rem;
+  background: rgba(255, 210, 97, 0.08);
+  padding: 1rem;
+}
+
+.sky-running-card {
+  border-color: rgba(72, 167, 255, 0.36);
+  background: linear-gradient(135deg, rgba(14, 22, 38, 0.96), rgba(20, 36, 64, 0.9));
+}
+
+.sky-running-timer {
+  font-size: 1.45rem;
+}
+
+.sky-pill-pulse {
+  position: relative;
+  animation: skyPulseGlow 1.7s ease-in-out infinite;
+}
+
+.sky-disabled-item {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.sky-result-output {
+  max-height: 480px;
+}
+
+@keyframes skyPulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 210, 97, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 18px rgba(255, 210, 97, 0.28);
+  }
+}
