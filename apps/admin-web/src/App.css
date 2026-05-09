@@ -437,3 +437,106 @@
     box-shadow: 0 0 18px rgba(255, 210, 97, 0.28);
   }
 }
+
+.sky-tool-category-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.sky-tool-category {
+  overflow: hidden;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(8, 15, 28, 0.58);
+}
+
+.sky-tool-category.has-selected {
+  border-color: rgba(72, 167, 255, 0.38);
+}
+
+.sky-tool-category-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border: 0;
+  background: linear-gradient(135deg, rgba(72, 167, 255, 0.12), rgba(155, 89, 255, 0.07));
+  color: #dce8ff;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.sky-tool-category-header:hover,
+.sky-tool-category-header:focus {
+  background: linear-gradient(135deg, rgba(72, 167, 255, 0.16), rgba(155, 89, 255, 0.1));
+  color: #ffffff;
+  outline: none;
+}
+
+.sky-tool-category-header.active {
+  background: linear-gradient(135deg, rgba(72, 167, 255, 0.12), rgba(155, 89, 255, 0.07));
+}
+
+.sky-tool-category-header:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.sky-tool-category-title {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.sky-tool-category-chevron {
+  color: #83a4d7;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: transform 150ms ease;
+}
+
+.sky-tool-category-header.active .sky-tool-category-chevron {
+  transform: rotate(90deg);
+}
+
+.sky-tool-category-items {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border-top: 1px solid rgba(124, 144, 177, 0.14);
+  background: rgba(4, 8, 16, 0.18);
+}
+
+.sky-tool-category-item {
+  width: 100%;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.8rem;
+  background: rgba(6, 11, 22, 0.52);
+  color: #dce8ff;
+  padding: 0.85rem;
+  text-align: left;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.sky-tool-category-item:hover,
+.sky-tool-category-item:focus {
+  border-color: rgba(72, 167, 255, 0.44);
+  background: rgba(72, 167, 255, 0.08);
+  color: #ffffff;
+  outline: none;
+}
+
+.sky-tool-category-item.active {
+  border-color: rgba(72, 167, 255, 0.68);
+  background: linear-gradient(135deg, rgba(72, 167, 255, 0.16), rgba(155, 89, 255, 0.1));
+}
+
+.sky-tool-category-item:disabled {
+  cursor: not-allowed;
+}

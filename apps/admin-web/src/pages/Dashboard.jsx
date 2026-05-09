@@ -14,6 +14,32 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function formatDuration(value) {
+  if (value === undefined || value === null || value === '') {
+    return '—';
+  }
+
+  const milliseconds = Number(value);
+
+  if (!Number.isFinite(milliseconds)) {
+    return '—';
+  }
+
+  if (milliseconds < 1000) {
+    return `${milliseconds} ms`;
+  }
+
+  const totalSeconds = Math.round(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes === 0) {
+    return `${totalSeconds} s`;
+  }
+
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+}
+
 function statusClass(status) {
   if (status === 'SUCCESS') {
     return 'sky-pill-success';
@@ -30,23 +56,55 @@ function statusClass(status) {
   return 'sky-pill-info';
 }
 
-function getDisplaySummary(summary) {
-  if (!summary) {
+function resultClass(success) {
+  if (success === true) {
+    return 'sky-pill-success';
+  }
+
+  if (success === false) {
+    return 'sky-pill-danger';
+  }
+
+  return 'sky-pill-info';
+}
+
+function buildToolLabelMap(tools = []) {
+  return tools.reduce((toolLabels, tool) => {
+    if (tool.toolCode) {
+      toolLabels[tool.toolCode] = tool.label || tool.toolCode;
+    }
+
+    return toolLabels;
+  }, {});
+}
+
+function getToolDisplayName(execution, toolLabels = {}) {
+  if (!execution) {
     return '—';
   }
 
-  const lines = String(summary)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  return (
+    execution.metadata?.toolLabel ||
+    execution.toolLabel ||
+    toolLabels[execution.scriptName] ||
+    toolLabels[execution.script_name] ||
+    execution.scriptName ||
+    execution.script_name ||
+    '—'
+  );
+}
 
-  const preferredLine =
-    lines.find((line) => /✅|successfully|connected|complete|completed/i.test(line)) ||
-    lines.find((line) => !line.includes('[dotenv')) ||
-    lines[0] ||
-    String(summary);
+function formatAction(value) {
+  if (!value) {
+    return '—';
+  }
 
-  return preferredLine.length > 180 ? `${preferredLine.slice(0, 177)}...` : preferredLine;
+  return String(value)
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
+    .join(' ');
 }
 
 function Dashboard() {
@@ -57,6 +115,8 @@ function Dashboard() {
     executions: 0,
     auditEvents: 0,
     recentExecution: null,
+    recentAudit: null,
+    toolLabels: {},
   });
   const [error, setError] = useState('');
 
@@ -111,6 +171,8 @@ function Dashboard() {
           executions: executionsResult.total || 0,
           auditEvents: auditResult.total || 0,
           recentExecution: executionsResult.items?.[0] || null,
+          recentAudit: auditResult.items?.[0] || null,
+          toolLabels: buildToolLabelMap(toolsResult.tools || []),
         });
       } catch (loadError) {
         if (active) {
@@ -161,40 +223,102 @@ function Dashboard() {
         ))}
       </div>
 
-      <section className="sky-card mt-4">
+      <section className="sky-card sky-table-card mt-4">
         <div className="sky-card-header">
-          <h2 className="h5 mb-0">Latest execution</h2>
+          <h2 className="h5 mb-0">Latest Execution</h2>
         </div>
-        <div className="sky-card-body">
-          {summary.recentExecution ? (
-            <div className="row g-3">
-              <div className="col-md-3">
-                <div className="sky-detail-label small">Tool</div>
-                <div className="fw-bold sky-detail-value">{summary.recentExecution.scriptName}</div>
-              </div>
-              <div className="col-md-3">
-                <div className="sky-detail-label small">Status</div>
-                <span className={`sky-pill ${statusClass(summary.recentExecution.status)}`}>
-                  {summary.recentExecution.status}
-                </span>
-              </div>
-              <div className="col-md-3">
-                <div className="sky-detail-label small">Started</div>
-                <div className="sky-detail-value">
-                  {formatDate(summary.recentExecution.startedAt)}
-                </div>
-              </div>
-              <div className="col-md-3">
-                <div className="sky-detail-label small">Summary</div>
-                <div className="sky-detail-value sky-truncate">
-                  {getDisplaySummary(summary.recentExecution.summary)}
-                </div>
-              </div>
-            </div>
-          ) : (
+
+        {summary.recentExecution ? (
+          <div className="table-responsive">
+            <table className="table sky-table">
+              <thead>
+                <tr>
+                  <th>Tool</th>
+                  <th>Status</th>
+                  <th>Started</th>
+                  <th>Duration</th>
+                  <th>Finished</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div className="fw-bold sky-detail-value">
+                      {getToolDisplayName(summary.recentExecution, summary.toolLabels)}
+                    </div>
+                    <div className="small sky-muted sky-mono">
+                      {summary.recentExecution.scriptName ||
+                        summary.recentExecution.script_name ||
+                        '—'}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`sky-pill ${statusClass(summary.recentExecution.status)}`}>
+                      {summary.recentExecution.status || 'UNKNOWN'}
+                    </span>
+                  </td>
+                  <td>{formatDate(summary.recentExecution.startedAt)}</td>
+                  <td>{formatDuration(summary.recentExecution.durationMs)}</td>
+                  <td>{formatDate(summary.recentExecution.finishedAt)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="sky-card-body">
             <div className="sky-empty-state">No script executions yet.</div>
-          )}
+          </div>
+        )}
+      </section>
+
+      <section className="sky-card sky-table-card mt-4">
+        <div className="sky-card-header">
+          <h2 className="h5 mb-0">Latest Audit</h2>
         </div>
+
+        {summary.recentAudit ? (
+          <div className="table-responsive">
+            <table className="table sky-table">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Message</th>
+                  <th>Result</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div className="fw-bold sky-detail-value">
+                      {formatAction(summary.recentAudit.action)}
+                    </div>
+                    <div className="small sky-muted">{summary.recentAudit.resourceType || '—'}</div>
+                  </td>
+                  <td>
+                    <div className="sky-detail-value sky-truncate">
+                      {summary.recentAudit.message || '—'}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`sky-pill ${resultClass(summary.recentAudit.success)}`}>
+                      {summary.recentAudit.success === true
+                        ? 'SUCCESS'
+                        : summary.recentAudit.success === false
+                          ? 'FAILED'
+                          : 'UNKNOWN'}
+                    </span>
+                  </td>
+                  <td>{formatDate(summary.recentAudit.createdAt)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="sky-card-body">
+            <div className="sky-empty-state">No audit events yet.</div>
+          </div>
+        )}
       </section>
     </>
   );
