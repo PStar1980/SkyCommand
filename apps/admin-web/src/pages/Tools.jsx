@@ -155,9 +155,82 @@ function getDisplaySummary(summary) {
   );
 }
 
+function getCategoryKey(tool) {
+  return String(
+    tool?.category?.categoryCode ||
+      tool?.category?.code ||
+      tool?.categoryCode ||
+      tool?.category?.label ||
+      tool?.categoryLabel ||
+      'uncategorized',
+  );
+}
+
+function getCategoryLabel(tool) {
+  return (
+    tool?.category?.label ||
+    tool?.category?.categoryName ||
+    tool?.categoryLabel ||
+    tool?.categoryName ||
+    'Uncategorized'
+  );
+}
+
+function getRiskRank(riskCode) {
+  if (riskCode === 'high') {
+    return 3;
+  }
+
+  if (riskCode === 'medium') {
+    return 2;
+  }
+
+  if (riskCode === 'low') {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getHighestRiskCode(tools = []) {
+  return tools.reduce((highestRisk, tool) => {
+    const nextRisk = String(tool.riskCode || '').toLowerCase();
+
+    if (getRiskRank(nextRisk) > getRiskRank(highestRisk)) {
+      return nextRisk;
+    }
+
+    return highestRisk;
+  }, 'low');
+}
+
+function groupToolsByCategory(tools = []) {
+  const categoriesByKey = new Map();
+
+  tools.forEach((tool) => {
+    const categoryKey = getCategoryKey(tool);
+
+    if (!categoriesByKey.has(categoryKey)) {
+      categoriesByKey.set(categoryKey, {
+        key: categoryKey,
+        label: getCategoryLabel(tool),
+        tools: [],
+      });
+    }
+
+    categoriesByKey.get(categoryKey).tools.push(tool);
+  });
+
+  return Array.from(categoriesByKey.values()).map((category) => ({
+    ...category,
+    riskCode: getHighestRiskCode(category.tools),
+  }));
+}
+
 function Tools() {
   const [manifest, setManifest] = useState(null);
   const [selectedToolCode, setSelectedToolCode] = useState('');
+  const [expandedCategoryKey, setExpandedCategoryKey] = useState('');
   const [parameterValues, setParameterValues] = useState({});
   const [runResult, setRunResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -169,12 +242,24 @@ function Tools() {
   const [error, setError] = useState('');
 
   const tools = useMemo(() => manifest?.tools || [], [manifest]);
+  const groupedToolCategories = useMemo(() => groupToolsByCategory(tools), [tools]);
+
   const selectedTool = useMemo(
-    () => tools.find((tool) => tool.toolCode === selectedToolCode) || tools[0] || null,
+    () => tools.find((tool) => tool.toolCode === selectedToolCode) || null,
     [selectedToolCode, tools],
   );
+
   const confirmationLocked = pendingConfirmation && !running;
   const interactionLocked = running || confirmationLocked;
+
+  function clearSelectedTool() {
+    setSelectedToolCode('');
+    setParameterValues({});
+    setRunResult(null);
+    setPendingConfirmation(false);
+    setConfirmationPhrase('');
+    setError('');
+  }
 
   useEffect(() => {
     let active = true;
@@ -191,8 +276,12 @@ function Tools() {
         }
 
         setManifest(result);
-        setSelectedToolCode(result.tools?.[0]?.toolCode || '');
-        setParameterValues(getInitialParameterValues(result.tools?.[0]));
+        setSelectedToolCode('');
+        setExpandedCategoryKey('');
+        setParameterValues({});
+        setRunResult(null);
+        setPendingConfirmation(false);
+        setConfirmationPhrase('');
       } catch (loadError) {
         if (active) {
           setError(loadError.message || 'Failed to load tools.');
@@ -223,6 +312,15 @@ function Tools() {
 
     return () => window.clearInterval(interval);
   }, [running, runningStartedAt]);
+
+  function handleCategoryToggle(category) {
+    if (interactionLocked) {
+      return;
+    }
+
+    clearSelectedTool();
+    setExpandedCategoryKey((currentKey) => (currentKey === category.key ? '' : category.key));
+  }
 
   function handleSelectTool(tool) {
     if (interactionLocked) {
@@ -502,27 +600,70 @@ function Tools() {
               <div className="sky-card-header">
                 <h2 className="h5 mb-0">Available tools</h2>
               </div>
-              <div className="list-group list-group-flush">
-                {tools.map((tool) => (
-                  <button
-                    className={`list-group-item list-group-item-action bg-transparent text-light border-secondary-subtle ${
-                      selectedTool?.toolCode === tool.toolCode ? 'active' : ''
-                    } ${interactionLocked ? 'sky-disabled-item' : ''}`}
-                    disabled={interactionLocked}
-                    key={tool.toolId || tool.toolCode}
-                    onClick={() => handleSelectTool(tool)}
-                    type="button"
-                  >
-                    <div className="d-flex justify-content-between gap-2">
-                      <span className="fw-bold">{tool.label}</span>
-                      <span className={`sky-pill ${riskClass(tool.riskCode)}`}>
-                        {tool.riskCode}
-                      </span>
+
+              <div className="sky-tool-category-list">
+                {groupedToolCategories.map((category) => {
+                  const expanded = expandedCategoryKey === category.key;
+                  const selectedInCategory = category.tools.some(
+                    (tool) => tool.toolCode === selectedTool?.toolCode,
+                  );
+
+                  return (
+                    <div
+                      className={`sky-tool-category ${expanded ? 'expanded' : ''} ${
+                        selectedInCategory ? 'has-selected' : ''
+                      }`}
+                      key={category.key}
+                    >
+                      <button
+                        aria-expanded={expanded}
+                        className={`sky-tool-category-header ${expanded ? 'active' : ''}`}
+                        disabled={interactionLocked}
+                        onClick={() => handleCategoryToggle(category)}
+                        type="button"
+                      >
+                        <span className="sky-tool-category-title">
+                          <span className="fw-bold">{category.label}</span>
+                          <span className="small sky-muted">
+                            {category.tools.length} tool{category.tools.length === 1 ? '' : 's'}
+                          </span>
+                        </span>
+
+                        <span className="d-flex align-items-center gap-2">
+                          <span className={`sky-pill ${riskClass(category.riskCode)}`}>
+                            {category.riskCode}
+                          </span>
+                          <span className="sky-tool-category-chevron">›</span>
+                        </span>
+                      </button>
+
+                      {expanded && (
+                        <div className="sky-tool-category-items">
+                          {category.tools.map((tool) => (
+                            <button
+                              className={`sky-tool-category-item ${
+                                selectedTool?.toolCode === tool.toolCode ? 'active' : ''
+                              } ${interactionLocked ? 'sky-disabled-item' : ''}`}
+                              disabled={interactionLocked}
+                              key={tool.toolId || tool.toolCode}
+                              onClick={() => handleSelectTool(tool)}
+                              type="button"
+                            >
+                              <div className="d-flex justify-content-between gap-2">
+                                <span className="fw-bold">{tool.label}</span>
+                                <span className={`sky-pill ${riskClass(tool.riskCode)}`}>
+                                  {tool.riskCode}
+                                </span>
+                              </div>
+
+                              <div className="small mt-2">{tool.description}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="small sky-muted mt-1">{tool.category?.label}</div>
-                    <div className="small mt-2">{tool.description}</div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>
@@ -591,7 +732,11 @@ function Tools() {
                     </div>
                   </form>
                 ) : (
-                  <div className="sky-empty-state">No tools are available for this user.</div>
+                  <div className="sky-empty-state">
+                    {tools.length === 0
+                      ? 'No tools are available for this user.'
+                      : 'Expand a category and select a tool to view execution options.'}
+                  </div>
                 )}
               </div>
             </section>

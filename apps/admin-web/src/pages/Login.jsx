@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+
+const LOGIN_REDIRECT_PATH = '/dashboard';
 
 function Login() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { authNotice, clearAuthNotice, login } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
-  const from = location.state?.from?.pathname || '/dashboard';
 
   useEffect(() => {
     return () => {
@@ -28,7 +27,7 @@ function Login() {
 
     try {
       await login({ email, password });
-      navigate(from, { replace: true });
+      navigate(LOGIN_REDIRECT_PATH, { replace: true });
     } catch (loginError) {
       setError(loginError.message || 'Login failed.');
     } finally {
@@ -58,6 +57,7 @@ function Login() {
               {error}
             </div>
           )}
+
           <form onSubmit={handleSubmit}>
             <div className="mb-3 text-start">
               <label className="form-label" htmlFor="email">
