@@ -467,9 +467,19 @@ async function getSessionFromToken(sessionToken) {
 
   const result = await query(
     `
-      SELECT
+      UPDATE auth.sessions s
+      SET last_seen_at = CURRENT_TIMESTAMP,
+          expires_at = CURRENT_TIMESTAMP + ($2::numeric * INTERVAL '1 minute')
+      FROM auth.users u
+      WHERE s.user_id = u.user_id
+        AND s.session_token_hash = $1
+        AND s.revoked_at IS NULL
+        AND s.expires_at > CURRENT_TIMESTAMP
+        AND u.status = 'ACTIVE'
+      RETURNING
         s.session_id,
         s.expires_at,
+        s.last_seen_at,
         u.user_id,
         u.email,
         u.username,
@@ -477,16 +487,8 @@ async function getSessionFromToken(sessionToken) {
         u.status,
         u.is_system_user,
         u.last_login_at
-      FROM auth.sessions s
-      JOIN auth.users u
-        ON u.user_id = s.user_id
-      WHERE s.session_token_hash = $1
-        AND s.revoked_at IS NULL
-        AND s.expires_at > CURRENT_TIMESTAMP
-        AND u.status = 'ACTIVE'
-      LIMIT 1
     `,
-    [sessionTokenHash],
+    [sessionTokenHash, DEFAULT_SESSION_MINUTES],
   );
 
   if (result.rowCount === 0) {
@@ -494,22 +496,14 @@ async function getSessionFromToken(sessionToken) {
   }
 
   const row = result.rows[0];
-
-  await query(
-    `
-      UPDATE auth.sessions
-      SET last_seen_at = CURRENT_TIMESTAMP
-      WHERE session_id = $1
-    `,
-    [row.session_id],
-  );
-
   const permissions = await getPermissionsForUser(row.user_id);
 
   return {
     session: {
       sessionId: row.session_id,
       expiresAt: row.expires_at,
+      lastSeenAt: row.last_seen_at,
+      sessionMinutes: DEFAULT_SESSION_MINUTES,
     },
     user: sanitizeUser(row),
     permissions,
