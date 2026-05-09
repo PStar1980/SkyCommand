@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth.routes');
 const toolsRoutes = require('./routes/tools.routes');
 const adminRoutes = require('./routes/admin.routes');
 const macroRoutes = require('./routes/macro.routes');
+const ingestionRoutes = require('./routes/ingestion.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 
@@ -46,6 +47,7 @@ function createApp() {
   app.use('/api/tools', toolsRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/macro', macroRoutes);
+  app.use('/api/ingestion', ingestionRoutes);
 
   if (process.env.SERVE_ADMIN_WEB === 'true') {
     const adminWebPath = path.resolve(__dirname, '../../admin-web/dist');
