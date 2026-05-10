@@ -714,3 +714,121 @@
     width: 100%;
   }
 }
+
+.sky-dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 1rem;
+  align-items: stretch;
+  border: 1px solid rgba(124, 144, 177, 0.2);
+  border-radius: 1.15rem;
+  background:
+    radial-gradient(circle at top left, rgba(72, 167, 255, 0.18), transparent 36%),
+    radial-gradient(circle at bottom right, rgba(155, 89, 255, 0.14), transparent 42%),
+    rgba(14, 22, 38, 0.92);
+  padding: 1.2rem;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.28);
+}
+
+.sky-dashboard-task-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.sky-dashboard-task {
+  display: block;
+  min-height: 5.6rem;
+  border: 1px solid rgba(124, 144, 177, 0.18);
+  border-radius: 0.9rem;
+  background: rgba(6, 11, 22, 0.46);
+  color: #dce8ff;
+  padding: 0.85rem;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.sky-dashboard-task:hover,
+.sky-dashboard-task:focus {
+  border-color: rgba(72, 167, 255, 0.52);
+  background: rgba(72, 167, 255, 0.11);
+  color: #ffffff;
+  outline: none;
+  transform: translateY(-1px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.sky-dashboard-task-value {
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.sky-dashboard-stat-card {
+  position: relative;
+}
+
+.sky-dashboard-stat-card::after {
+  position: absolute;
+  inset: auto 1rem 0 1rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(72, 167, 255, 0.42), transparent);
+  content: '';
+}
+
+.sky-mini-metric {
+  min-height: 5rem;
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 0.85rem;
+  background: rgba(6, 11, 22, 0.5);
+  padding: 0.8rem;
+}
+
+.sky-mini-metric-value {
+  color: #ffffff;
+  font-size: 1.55rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.sky-session-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.sky-session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 0.85rem;
+  background: rgba(6, 11, 22, 0.5);
+  padding: 0.8rem;
+}
+
+@media (max-width: 1200px) {
+  .sky-dashboard-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-dashboard-task-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .sky-dashboard-task-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-session-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
