@@ -48,6 +48,9 @@ SkyServer/
 │ │ ├── context/
 │ │ │ └── AuthContext.jsx
 │ │ ├── pages/
+│ │ │ ├── AdminPrivileges.jsx
+│ │ │ ├── AdminRoles.jsx
+│ │ │ ├── AdminUsers.jsx
 │ │ │ ├── AuditEvents.jsx
 │ │ │ ├── Dashboard.jsx
 │ │ │ ├── Home.jsx
@@ -66,6 +69,8 @@ SkyServer/
 │ │ ├── controllers/
 │ │ │ ├── adminController.js
 │ │ │ ├── authController.js
+│ │ │ ├── ingestionController.js
+│ │ │ ├── macroController.js
 │ │ │ └── toolsController.js
 │ │ ├── middleware/
 │ │ │ ├── authMiddleware.js
@@ -73,10 +78,15 @@ SkyServer/
 │ │ ├── routes/
 │ │ │ ├── admin.routes.js
 │ │ │ ├── auth.routes.js
+│ │ │ ├── ingestion.routes.js
+│ │ │ ├── macro.routes.js
 │ │ │ └── tools.routes.js
 │ │ └── services/
+│ │ ├── adminActionService.js
 │ │ ├── adminReadService.js
 │ │ ├── authService.js
+│ │ ├── ingestionStatusService.js
+│ │ ├── macroReadService.js
 │ │ ├── scriptExecutionService.js
 │ │ └── toolManifestService.js
 │ └── worker/
@@ -88,8 +98,12 @@ SkyServer/
 │ └── SkyServer_RepoMap.md
 ├── logs/
 │ └── script-executions/
+│ ├── 016999bb-d333-488d-9ffb-ada170c5726c.stderr.log
+│ ├── 016999bb-d333-488d-9ffb-ada170c5726c.stdout.log
 │ ├── 052bc4ff-153a-44da-a49b-a202dfb5998c.stderr.log
 │ ├── 052bc4ff-153a-44da-a49b-a202dfb5998c.stdout.log
+│ ├── 055c61ee-c229-43f6-a2f0-a95505bd718a.stderr.log
+│ ├── 055c61ee-c229-43f6-a2f0-a95505bd718a.stdout.log
 │ ├── 05b83ab5-73a9-4792-b68f-7e0d0958c648.stderr.log
 │ ├── 05b83ab5-73a9-4792-b68f-7e0d0958c648.stdout.log
 │ ├── 0ee692d1-c573-4967-a8ce-cf738e8df8e3.stderr.log
@@ -106,6 +120,8 @@ SkyServer/
 │ ├── 197c5f54-d4d5-4662-8e69-3fe714a43a5d.stdout.log
 │ ├── 1c2a1f3e-d34d-49ab-9b3b-ad14ed823a9c.stderr.log
 │ ├── 1c2a1f3e-d34d-49ab-9b3b-ad14ed823a9c.stdout.log
+│ ├── 1f7bf3a8-5051-47d0-8ee5-c2841bcafa56.stderr.log
+│ ├── 1f7bf3a8-5051-47d0-8ee5-c2841bcafa56.stdout.log
 │ ├── 25969461-b1a2-4ea2-a851-730b3665b3f0.stderr.log
 │ ├── 25969461-b1a2-4ea2-a851-730b3665b3f0.stdout.log
 │ ├── 25b6fd64-a49c-467c-89f8-093fc2187f44.stderr.log
@@ -138,6 +154,8 @@ SkyServer/
 │ ├── 520f422d-a367-480c-abea-d2443d980bd9.stdout.log
 │ ├── 53d14425-01b7-44f6-aa1e-e44f1e253a01.stderr.log
 │ ├── 53d14425-01b7-44f6-aa1e-e44f1e253a01.stdout.log
+│ ├── 59129bc2-2cff-40eb-bd59-8f2101f08cd7.stderr.log
+│ ├── 59129bc2-2cff-40eb-bd59-8f2101f08cd7.stdout.log
 │ ├── 5b851b8e-fe40-4bcd-abdd-8a4a5ee09bb7.stderr.log
 │ ├── 5b851b8e-fe40-4bcd-abdd-8a4a5ee09bb7.stdout.log
 │ ├── 638d5806-0d8e-4403-973d-8fb0da0f5d33.stderr.log
@@ -150,16 +168,24 @@ SkyServer/
 │ ├── 72ed8328-0b02-4fe9-8146-49decff568b2.stdout.log
 │ ├── 739fb244-a5e1-4187-87d1-5ef67b9cdee6.stderr.log
 │ ├── 739fb244-a5e1-4187-87d1-5ef67b9cdee6.stdout.log
+│ ├── 7744956b-7ea4-4ccf-bb16-23806521d942.stderr.log
+│ ├── 7744956b-7ea4-4ccf-bb16-23806521d942.stdout.log
 │ ├── 7a84eb11-4d1f-4291-adea-f1fee31272ef.stderr.log
 │ ├── 7a84eb11-4d1f-4291-adea-f1fee31272ef.stdout.log
 │ ├── 7e71af4f-5cd0-4c76-8269-4fed50048f93.stderr.log
 │ ├── 7e71af4f-5cd0-4c76-8269-4fed50048f93.stdout.log
 │ ├── 7f2919aa-cc6b-4b95-a48a-12d97f35a190.stderr.log
 │ ├── 7f2919aa-cc6b-4b95-a48a-12d97f35a190.stdout.log
+│ ├── 7f7fcac0-f92f-49ff-b359-6bc803121d29.stderr.log
+│ ├── 7f7fcac0-f92f-49ff-b359-6bc803121d29.stdout.log
 │ ├── 85154acf-f762-42dd-9f3e-f27e4620007f.stderr.log
 │ ├── 85154acf-f762-42dd-9f3e-f27e4620007f.stdout.log
 │ ├── 85292f07-1c9e-4799-9467-0b7ec6ea2026.stderr.log
 │ ├── 85292f07-1c9e-4799-9467-0b7ec6ea2026.stdout.log
+│ ├── 86b18753-832d-4c24-a803-3b07e3f8f1f9.stderr.log
+│ ├── 86b18753-832d-4c24-a803-3b07e3f8f1f9.stdout.log
+│ ├── 8e2b39ce-df6f-4e9d-a5a2-8fab782871b4.stderr.log
+│ ├── 8e2b39ce-df6f-4e9d-a5a2-8fab782871b4.stdout.log
 │ ├── 95680357-8f27-4f4c-97e7-c301fa3a3546.stderr.log
 │ ├── 95680357-8f27-4f4c-97e7-c301fa3a3546.stdout.log
 │ ├── 9872126c-0f3f-4a30-80ed-cbff618bab70.stderr.log
@@ -168,6 +194,8 @@ SkyServer/
 │ ├── 9a0a164d-ece6-47b6-acca-aff8c274b660.stdout.log
 │ ├── 9e5a1c27-5976-4081-86fc-e07d80836b2d.stderr.log
 │ ├── 9e5a1c27-5976-4081-86fc-e07d80836b2d.stdout.log
+│ ├── a06e98c5-d3a4-4b78-b25c-d4db92bb5eba.stderr.log
+│ ├── a06e98c5-d3a4-4b78-b25c-d4db92bb5eba.stdout.log
 │ ├── a4180e3f-6de7-45b5-a9bd-a8bc20d6a2db.stderr.log
 │ ├── a4180e3f-6de7-45b5-a9bd-a8bc20d6a2db.stdout.log
 │ ├── a59f67b8-07b0-49de-8d7e-22e0677ea815.stderr.log
@@ -190,6 +218,8 @@ SkyServer/
 │ ├── c70a29ca-4db2-430d-8964-81bb452c8867.stdout.log
 │ ├── c9195b01-a1f4-40be-900d-8690f90c4e11.stderr.log
 │ ├── c9195b01-a1f4-40be-900d-8690f90c4e11.stdout.log
+│ ├── c9c03841-b681-444a-82ea-8e4dc6e8d9c2.stderr.log
+│ ├── c9c03841-b681-444a-82ea-8e4dc6e8d9c2.stdout.log
 │ ├── cd3fd468-9d68-46d3-a308-fc4ca9012d46.stderr.log
 │ ├── cd3fd468-9d68-46d3-a308-fc4ca9012d46.stdout.log
 │ ├── cffdb6f2-2226-4a2f-8cbb-aea75f310cc4.stderr.log
@@ -206,16 +236,22 @@ SkyServer/
 │ ├── e34e263a-2628-44da-9b38-7cf0f970a4a8.stdout.log
 │ ├── e3df07e4-49f4-48ce-94e6-12168474f82d.stderr.log
 │ ├── e3df07e4-49f4-48ce-94e6-12168474f82d.stdout.log
+│ ├── e55f1b82-281e-4493-9996-ad6116dece0e.stderr.log
+│ ├── e55f1b82-281e-4493-9996-ad6116dece0e.stdout.log
 │ ├── e5c2876c-faf4-4f4e-915d-1fe0a706c3ec.stderr.log
 │ ├── e5c2876c-faf4-4f4e-915d-1fe0a706c3ec.stdout.log
 │ ├── e8a461e6-046f-4c54-a381-f3143c0d000a.stderr.log
 │ ├── e8a461e6-046f-4c54-a381-f3143c0d000a.stdout.log
+│ ├── ed40324c-8687-4ebf-81f0-659e5090cf27.stderr.log
+│ ├── ed40324c-8687-4ebf-81f0-659e5090cf27.stdout.log
 │ ├── f01eb679-9acd-49b4-a896-a7428b0da983.stderr.log
 │ ├── f01eb679-9acd-49b4-a896-a7428b0da983.stdout.log
 │ ├── f4a7f5ef-74a2-475e-9f7c-69bd8a4075a9.stderr.log
 │ ├── f4a7f5ef-74a2-475e-9f7c-69bd8a4075a9.stdout.log
 │ ├── f520e190-1718-41ca-9efe-8234efe39e76.stderr.log
 │ ├── f520e190-1718-41ca-9efe-8234efe39e76.stdout.log
+│ ├── f57b0226-b586-45b4-8ef4-22cce0d4861c.stderr.log
+│ ├── f57b0226-b586-45b4-8ef4-22cce0d4861c.stdout.log
 │ ├── f85201b2-1354-4219-a97f-02cc14c22731.stderr.log
 │ ├── f85201b2-1354-4219-a97f-02cc14c22731.stdout.log
 │ ├── fb7f47a8-7757-4324-8265-a24fa2be8045.stderr.log

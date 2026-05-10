@@ -540,3 +540,64 @@
 .sky-tool-category-item:disabled {
   cursor: not-allowed;
 }
+
+.sky-navbar-dropdown {
+  border: 1px solid rgba(124, 144, 177, 0.22);
+  background: rgba(8, 13, 24, 0.98);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+}
+
+.sky-nav-dropdown-toggle {
+  border: 0;
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+}
+
+.sky-nav-dropdown-toggle:hover,
+.sky-nav-dropdown-toggle:focus {
+  color: rgba(255, 255, 255, 0.94);
+  text-decoration: none;
+}
+
+.sky-card hr {
+  opacity: 0.28;
+}
+
+.sky-table td .sky-truncate {
+  max-width: 28rem;
+}
+
+.sky-card textarea.sky-form-control {
+  resize: vertical;
+}
+
+.sky-card .form-check-input {
+  border-color: rgba(124, 144, 177, 0.4);
+  background-color: rgba(6, 11, 22, 0.86);
+}
+
+.sky-card .form-check-input:checked {
+  border-color: rgba(72, 167, 255, 0.7);
+  background-color: #1e8fff;
+}
+
+.sky-card select.sky-form-control[multiple] {
+  min-height: 9rem;
+}
+
+.sky-card select.sky-form-control[multiple] option {
+  padding: 0.35rem 0.5rem;
+}
+
+.sky-card .alert-success {
+  border-color: rgba(50, 220, 150, 0.34);
+  background: rgba(50, 220, 150, 0.12);
+  color: #70f5bd;
+}
+
+.sky-card .alert-danger,
+.alert-danger {
+  border-color: rgba(255, 94, 117, 0.34);
+  background: rgba(255, 94, 117, 0.12);
+  color: #ff9cad;
+}

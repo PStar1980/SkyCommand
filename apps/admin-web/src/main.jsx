@@ -7,6 +7,9 @@ import App from './App.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import AuditEvents from './pages/AuditEvents.jsx';
+import AdminPrivileges from './pages/AdminPrivileges.jsx';
+import AdminRoles from './pages/AdminRoles.jsx';
+import AdminUsers from './pages/AdminUsers.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Home from './pages/Home.jsx';
 import Login from './pages/Login.jsx';
@@ -56,6 +59,33 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="AUDIT_READ">
                   <AuditEvents />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="admin/users"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_USER_READ">
+                  <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="admin/roles"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_ROLE_READ">
+                  <AdminRoles />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="admin/privileges"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_PERMISSION_READ">
+                  <AdminPrivileges />
                 </ProtectedRoute>
               }
             />
