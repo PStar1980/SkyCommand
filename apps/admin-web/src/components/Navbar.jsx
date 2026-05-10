@@ -1,9 +1,17 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
+function getDropdownItemClass({ isActive }) {
+  return `dropdown-item ${isActive ? 'active' : ''}`;
+}
+
 function Navbar() {
   const navigate = useNavigate();
   const { hasPermission, isAuthenticated, logout, user } = useAuth();
+  const canViewAccessControl =
+    hasPermission('ADMIN_USER_READ') ||
+    hasPermission('ADMIN_ROLE_READ') ||
+    hasPermission('ADMIN_PERMISSION_READ');
 
   async function handleLogout() {
     await logout();
@@ -60,6 +68,44 @@ function Navbar() {
                   <NavLink className="nav-link" to="/audit-events">
                     Audit
                   </NavLink>
+                </li>
+              )}
+
+              {canViewAccessControl && (
+                <li className="nav-item dropdown">
+                  <button
+                    aria-expanded="false"
+                    className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    type="button"
+                  >
+                    Access Control
+                  </button>
+                  <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                    {hasPermission('ADMIN_USER_READ') && (
+                      <li>
+                        <NavLink className={getDropdownItemClass} to="/admin/users">
+                          Users
+                        </NavLink>
+                      </li>
+                    )}
+
+                    {hasPermission('ADMIN_ROLE_READ') && (
+                      <li>
+                        <NavLink className={getDropdownItemClass} to="/admin/roles">
+                          Roles
+                        </NavLink>
+                      </li>
+                    )}
+
+                    {hasPermission('ADMIN_PERMISSION_READ') && (
+                      <li>
+                        <NavLink className={getDropdownItemClass} to="/admin/privileges">
+                          Privileges
+                        </NavLink>
+                      </li>
+                    )}
+                  </ul>
                 </li>
               )}
             </ul>
