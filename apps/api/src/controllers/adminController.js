@@ -1,4 +1,6 @@
 const adminReadService = require('../services/adminReadService');
+const adminActionService = require('../services/adminActionService');
+const authService = require('../services/authService');
 
 function sendPagedResponse(res, payload) {
   res.json({
@@ -10,84 +12,391 @@ function sendPagedResponse(res, payload) {
   });
 }
 
-async function listAuditEvents(req, res, next) {
+function sendServiceResponse(res, payload = {}) {
+  res.json({
+    ok: true,
+    ...payload,
+  });
+}
+
+function sendServiceError(res, error) {
+  const statusCode = error.statusCode || 500;
+  const response = {
+    ok: false,
+    error: statusCode >= 500 ? 'Internal server error.' : error.message,
+  };
+
+  if (error.details && Object.keys(error.details).length > 0) {
+    response.details = error.details;
+  }
+
+  res.status(statusCode).json(response);
+}
+
+function getActionContext(req) {
+  return {
+    actor: req.user,
+    permissions: req.permissions || [],
+    context: authService.getRequestContext(req),
+  };
+}
+
+async function listAuditEvents(req, res) {
   try {
     const payload = await adminReadService.listAuditEvents(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listLoginEvents(req, res, next) {
+async function listLoginEvents(req, res) {
   try {
     const payload = await adminReadService.listLoginEvents(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listScriptExecutions(req, res, next) {
+async function listScriptExecutions(req, res) {
   try {
     const payload = await adminReadService.listScriptExecutions(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listActiveSessions(req, res, next) {
+async function listActiveSessions(req, res) {
   try {
     const payload = await adminReadService.listActiveSessions(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listUsers(req, res, next) {
+async function listUsers(req, res) {
   try {
     const payload = await adminReadService.listUsers(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listUserRoles(req, res, next) {
+async function getUser(req, res) {
+  try {
+    const payload = await adminActionService.getUser(req.params.userId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function createUser(req, res) {
+  try {
+    const payload = await adminActionService.createUser({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    res.status(201).json({
+      ok: true,
+      ...payload,
+    });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateUser(req, res) {
+  try {
+    const payload = await adminActionService.updateUser({
+      userId: req.params.userId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateUserStatus(req, res) {
+  try {
+    const payload = await adminActionService.updateUserStatus({
+      userId: req.params.userId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function resetUserPassword(req, res) {
+  try {
+    const payload = await adminActionService.resetUserPassword({
+      userId: req.params.userId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function listUserRoles(req, res) {
   try {
     const payload = await adminReadService.listUserRoles(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listRoles(req, res, next) {
+async function getUserRoles(req, res) {
+  try {
+    const payload = await adminActionService.getUserRoles(req.params.userId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateUserRoles(req, res) {
+  try {
+    const payload = await adminActionService.updateUserRoles({
+      userId: req.params.userId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getUserSessions(req, res) {
+  try {
+    const payload = await adminActionService.getUserSessions(req.params.userId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function revokeUserSessions(req, res) {
+  try {
+    const payload = await adminActionService.revokeUserSessions({
+      userId: req.params.userId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function listRoles(req, res) {
   try {
     const payload = await adminReadService.listRoles(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listPermissions(req, res, next) {
+async function getRole(req, res) {
+  try {
+    const payload = await adminActionService.getRole(req.params.roleId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function createRole(req, res) {
+  try {
+    const payload = await adminActionService.createRole({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    res.status(201).json({
+      ok: true,
+      ...payload,
+    });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateRole(req, res) {
+  try {
+    const payload = await adminActionService.updateRole({
+      roleId: req.params.roleId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateRoleStatus(req, res) {
+  try {
+    const payload = await adminActionService.updateRoleStatus({
+      roleId: req.params.roleId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getRolePermissions(req, res) {
+  try {
+    const payload = await adminActionService.getRolePermissions(req.params.roleId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateRolePermissions(req, res) {
+  try {
+    const payload = await adminActionService.updateRolePermissions({
+      roleId: req.params.roleId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getRoleUsers(req, res) {
+  try {
+    const payload = await adminActionService.getRoleUsers(req.params.roleId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function listPermissions(req, res) {
   try {
     const payload = await adminReadService.listPermissions(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
   }
 }
 
-async function listRolePermissions(req, res, next) {
+async function getPermission(req, res) {
+  try {
+    const payload = await adminActionService.getPermission(req.params.permissionId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function createPermission(req, res) {
+  try {
+    const payload = await adminActionService.createPermission({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    res.status(201).json({
+      ok: true,
+      ...payload,
+    });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updatePermission(req, res) {
+  try {
+    const payload = await adminActionService.updatePermission({
+      permissionId: req.params.permissionId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updatePermissionStatus(req, res) {
+  try {
+    const payload = await adminActionService.updatePermissionStatus({
+      permissionId: req.params.permissionId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getPermissionRoles(req, res) {
+  try {
+    const payload = await adminActionService.getPermissionRoles(req.params.permissionId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function listRolePermissions(req, res) {
   try {
     const payload = await adminReadService.listRolePermissions(req.query || {});
     sendPagedResponse(res, payload);
   } catch (error) {
-    next(error);
+    sendServiceError(res, error);
+  }
+}
+
+async function getAuthSettings(req, res) {
+  try {
+    const payload = adminActionService.getAuthSettings();
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getCoreSettings(req, res) {
+  try {
+    const payload = await adminActionService.getCoreSettings();
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
   }
 }
 
@@ -97,8 +406,31 @@ module.exports = {
   listScriptExecutions,
   listActiveSessions,
   listUsers,
+  getUser,
+  createUser,
+  updateUser,
+  updateUserStatus,
+  resetUserPassword,
   listUserRoles,
+  getUserRoles,
+  updateUserRoles,
+  getUserSessions,
+  revokeUserSessions,
   listRoles,
+  getRole,
+  createRole,
+  updateRole,
+  updateRoleStatus,
+  getRolePermissions,
+  updateRolePermissions,
+  getRoleUsers,
   listPermissions,
+  getPermission,
+  createPermission,
+  updatePermission,
+  updatePermissionStatus,
+  getPermissionRoles,
   listRolePermissions,
+  getAuthSettings,
+  getCoreSettings,
 };
