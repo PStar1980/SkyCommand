@@ -1,10 +1,27 @@
 # 🌌 SkyServer
 
-**Private Admin, Automation, PostgreSQL, API, and Data Ingestion Hub for the Sky Ecosystem**
+**Private Admin, Automation, PostgreSQL, API, Data Ingestion, and Operational Monitoring Hub for the Sky Ecosystem**
 
 SkyServer is the private administrative and automation core of the **Sky Ecosystem**. It combines a Node/Express API layer, PostgreSQL-backed configuration and audit tables, a private React Admin-Web interface, macroeconomic data ingestion pipelines, repository automation, file utilities, and a configurable CLI launcher into one operational control plane.
 
 SkyServer is designed to be precise, repeatable, idempotent, permission-aware, and easy to extend. It supports local development workflows, database rebuilds, macro data ingestion from multiple public data providers, manual spreadsheet ingestion, Git automation, script orchestration, and browser-triggered administration through **SkyServer Admin-Web**.
+
+---
+
+## ✅ Phase 7 Completion Snapshot
+
+Phase 7 is complete. SkyServer now includes a full API and Admin-Web monitoring/control layer for macro views, ingestion status, and administrative actions.
+
+Completed Phase 7 capabilities include:
+
+- **Macro API endpoints** for curated macro views, latest rows, column metadata, indicator registry access, raw indicator series, and macro summary reporting.
+- **Ingestion status API endpoints** for source health, recent ingestion executions, indicator freshness, stale-data detection, missing-table detection, and per-indicator diagnostics.
+- **Admin action API endpoints** for user account management, role management, permission/privilege management, role assignment, permission assignment, session revocation, password reset, and read-only system settings.
+- **SkyServer Admin Access Control pages** for Users, Roles, and Privileges.
+- **SkyServer Admin Ingestion Status page** for pipeline health, source cards, recent ingestion runs, indicator freshness, and indicator detail inspection.
+- **Dashboard v2** as a command-center view for API/DB health, ingestion status, macro summary, tools, sessions, script executions, audit events, and current operator permissions.
+
+The project is now positioned to move into **Phase 8: worker/listener workflows for scheduled and event-driven jobs**.
 
 ---
 
@@ -71,12 +88,13 @@ The Admin-Web currently includes:
   - Stores a bearer session token client-side
   - Protects private routes
 
-- **Dashboard**
-  - Shows visible tool counts
-  - Shows script execution count
-  - Shows audit event count
-  - Shows permission count for the current session
-  - Displays the latest script execution
+- **Dashboard v2**
+  - Acts as the SkyServer Admin command center
+  - Shows API and database health
+  - Shows ingestion health and macro summary information
+  - Shows visible tool counts, active sessions, script execution counts, audit event counts, and current operator permission count
+  - Provides quick links into Tools, Ingestion, Executions, Audit, and Access Control
+  - Displays source-level pipeline health and recent operational activity
 
 - **Tools**
   - Lists permission-filtered tools from the API
@@ -87,6 +105,14 @@ The Admin-Web currently includes:
   - Requires phrase confirmation for high-risk tools
   - Displays running state, elapsed time, status, exit code, duration, summary, stdout, and stderr
 
+- **Ingestion Status**
+  - Shows overall ingestion health
+  - Shows FRED, Bank of Canada, and Statistics Canada source-health cards
+  - Shows current/stale/problem indicator counts
+  - Shows recent ingestion execution history
+  - Shows indicator freshness with source/status/active/search filters
+  - Provides per-indicator detail with row counts, date ranges, thresholds, and status messages
+
 - **Script Executions**
   - Shows execution history from the database
   - Supports status/limit filtering
@@ -96,6 +122,12 @@ The Admin-Web currently includes:
   - Shows authentication, authorization, and tool execution audit activity
   - Supports result/limit filtering
   - Displays event metadata for traceability
+
+- **Access Control**
+  - Provides Users, Roles, and Privileges pages
+  - Supports user creation, user profile updates, status changes, role assignment, password reset, and session revocation
+  - Supports role creation, role updates, activation/deactivation, and permission assignment
+  - Supports permission/privilege creation, updates, activation/deactivation, and role usage review
 
 The Admin-Web is intentionally private and operational. It is not the public SkyWeb layer; it is the control surface for trusted administration.
 
@@ -300,9 +332,11 @@ Tool execution also checks:
 - path traversal safety
 - active execution lock for the same tool/profile
 
-### Admin Read Endpoints
+### Admin Read and Action Endpoints
 
-All admin endpoints require authentication and their matching read permission.
+All admin endpoints require authentication and their matching permission. Destructive account, role, and permission operations are implemented as controlled updates or deactivation flows rather than hard deletes.
+
+#### Operational Read Endpoints
 
 | Method | Endpoint                       | Permission              | Description                               |
 | ------ | ------------------------------ | ----------------------- | ----------------------------------------- |
@@ -310,11 +344,77 @@ All admin endpoints require authentication and their matching read permission.
 | GET    | `/api/admin/login-events`      | `AUDIT_READ`            | Lists login events.                       |
 | GET    | `/api/admin/script-executions` | `SCRIPT_EXECUTION_READ` | Lists script execution history.           |
 | GET    | `/api/admin/active-sessions`   | `ADMIN_USER_READ`       | Lists active sessions.                    |
-| GET    | `/api/admin/users`             | `ADMIN_USER_READ`       | Lists users without password hashes.      |
-| GET    | `/api/admin/user-roles`        | `ADMIN_USER_READ`       | Lists active user-role assignments.       |
-| GET    | `/api/admin/roles`             | `ADMIN_ROLE_READ`       | Lists roles.                              |
-| GET    | `/api/admin/permissions`       | `ADMIN_PERMISSION_READ` | Lists permissions.                        |
-| GET    | `/api/admin/role-permissions`  | `ADMIN_PERMISSION_READ` | Lists active role-permission assignments. |
+| GET    | `/api/admin/settings/auth`     | `ADMIN_USER_READ`       | Returns read-only auth/session settings.  |
+| GET    | `/api/admin/settings/core`     | `ADMIN_ROLE_READ`       | Returns read-only core manifest settings. |
+
+#### User Endpoints
+
+| Method | Endpoint                                   | Permission         | Description                                      |
+| ------ | ------------------------------------------ | ------------------ | ------------------------------------------------ |
+| GET    | `/api/admin/users`                         | `ADMIN_USER_READ`  | Lists users without password hashes.             |
+| GET    | `/api/admin/users/:userId`                 | `ADMIN_USER_READ`  | Returns one user with roles and permissions.     |
+| POST   | `/api/admin/users`                         | `ADMIN_USER_WRITE` | Creates a user account.                          |
+| PATCH  | `/api/admin/users/:userId`                 | `ADMIN_USER_WRITE` | Updates editable user fields.                    |
+| PATCH  | `/api/admin/users/:userId/status`          | `ADMIN_USER_WRITE` | Updates account status and revokes when needed.  |
+| POST   | `/api/admin/users/:userId/reset-password`  | `ADMIN_USER_WRITE` | Resets password and optionally revokes sessions. |
+| GET    | `/api/admin/users/:userId/roles`           | `ADMIN_USER_READ`  | Lists roles assigned to a user.                  |
+| PUT    | `/api/admin/users/:userId/roles`           | `ADMIN_ROLE_WRITE` | Replaces active role assignments for a user.     |
+| GET    | `/api/admin/users/:userId/sessions`        | `ADMIN_USER_READ`  | Lists active sessions for a user.                |
+| POST   | `/api/admin/users/:userId/revoke-sessions` | `ADMIN_USER_WRITE` | Revokes active sessions for a user.              |
+| GET    | `/api/admin/user-roles`                    | `ADMIN_USER_READ`  | Lists active user-role assignments.              |
+
+#### Role Endpoints
+
+| Method | Endpoint                               | Permission               | Description                                  |
+| ------ | -------------------------------------- | ------------------------ | -------------------------------------------- |
+| GET    | `/api/admin/roles`                     | `ADMIN_ROLE_READ`        | Lists roles.                                 |
+| GET    | `/api/admin/roles/:roleId`             | `ADMIN_ROLE_READ`        | Returns one role with users and permissions. |
+| POST   | `/api/admin/roles`                     | `ADMIN_ROLE_WRITE`       | Creates a role.                              |
+| PATCH  | `/api/admin/roles/:roleId`             | `ADMIN_ROLE_WRITE`       | Updates editable role fields.                |
+| PATCH  | `/api/admin/roles/:roleId/status`      | `ADMIN_ROLE_WRITE`       | Activates or deactivates a role.             |
+| GET    | `/api/admin/roles/:roleId/permissions` | `ADMIN_PERMISSION_READ`  | Lists permissions assigned to a role.        |
+| PUT    | `/api/admin/roles/:roleId/permissions` | `ADMIN_PERMISSION_WRITE` | Replaces role permission assignments.        |
+| GET    | `/api/admin/roles/:roleId/users`       | `ADMIN_ROLE_READ`        | Lists users assigned to a role.              |
+
+#### Permission / Privilege Endpoints
+
+| Method | Endpoint                                      | Permission               | Description                                |
+| ------ | --------------------------------------------- | ------------------------ | ------------------------------------------ |
+| GET    | `/api/admin/permissions`                      | `ADMIN_PERMISSION_READ`  | Lists permissions.                         |
+| GET    | `/api/admin/permissions/:permissionId`        | `ADMIN_PERMISSION_READ`  | Returns one permission and assigned roles. |
+| POST   | `/api/admin/permissions`                      | `ADMIN_PERMISSION_WRITE` | Creates a permission.                      |
+| PATCH  | `/api/admin/permissions/:permissionId`        | `ADMIN_PERMISSION_WRITE` | Updates editable permission fields.        |
+| PATCH  | `/api/admin/permissions/:permissionId/status` | `ADMIN_PERMISSION_WRITE` | Activates or deactivates a permission.     |
+| GET    | `/api/admin/permissions/:permissionId/roles`  | `ADMIN_PERMISSION_READ`  | Lists roles using a permission.            |
+| GET    | `/api/admin/role-permissions`                 | `ADMIN_PERMISSION_READ`  | Lists active role-permission assignments.  |
+
+### Macro API Endpoints
+
+All macro endpoints require authentication and `MACRO_VIEW_READ`.
+
+| Method | Endpoint                                      | Description                                      |
+| ------ | --------------------------------------------- | ------------------------------------------------ |
+| GET    | `/api/macro/summary`                          | Returns macro view and indicator summary data.   |
+| GET    | `/api/macro/views`                            | Lists curated macro views.                       |
+| GET    | `/api/macro/views/:viewKey`                   | Lists rows for one curated macro view.           |
+| GET    | `/api/macro/views/:viewKey/latest`            | Returns the latest row for one macro view.       |
+| GET    | `/api/macro/views/:viewKey/columns`           | Returns column metadata for one macro view.      |
+| GET    | `/api/macro/indicators`                       | Lists registered macro indicators.               |
+| GET    | `/api/macro/indicators/:indicatorCode`        | Returns one registered indicator.                |
+| GET    | `/api/macro/indicators/:indicatorCode/series` | Returns raw series rows for one indicator table. |
+
+### Ingestion Status Endpoints
+
+All ingestion status endpoints require authentication and `INGESTION_VIEW_STATUS`.
+
+| Method | Endpoint                                          | Description                                       |
+| ------ | ------------------------------------------------- | ------------------------------------------------- |
+| GET    | `/api/ingestion/status`                           | Returns aggregate pipeline health.                |
+| GET    | `/api/ingestion/sources`                          | Lists configured ingestion sources.               |
+| GET    | `/api/ingestion/sources/:source`                  | Returns source health, indicators, and runs.      |
+| GET    | `/api/ingestion/recent`                           | Lists recent ingestion-related executions.        |
+| GET    | `/api/ingestion/indicators`                       | Lists indicator freshness/status diagnostics.     |
+| GET    | `/api/ingestion/indicators/:indicatorCode/status` | Returns freshness/status detail for an indicator. |
 
 ---
 
@@ -574,6 +674,20 @@ target_max
 
 This keeps the console output compact while still showing whether new data was loaded.
 
+### Ingestion Observability
+
+SkyServer now includes a read-only ingestion status layer exposed through the API and Admin-Web.
+
+The ingestion status layer combines:
+
+- **Execution truth** from recent script execution history
+- **Data truth** from `macro.indicators` and each physical indicator table
+- Source-level rollups for FRED, Bank of Canada, and Statistics Canada
+- Per-indicator freshness checks based on configured frequency
+- Detection for stale data, missing tables, no-data states, and table read errors
+
+This separates pipeline monitoring from tool execution: **Tools** runs ingestion scripts, while **Ingestion Status** monitors whether the resulting data is healthy.
+
 ---
 
 ## 🧰 Automation Tools
@@ -806,7 +920,7 @@ macro.vw_us_ca_labor_compare
 
 These views are intended to support future dashboarding, public visualizations, analytical reporting, and SkyWeb integration.
 
-Macro view browsing endpoints are planned for Phase 7.
+Macro view browsing endpoints are implemented under `/api/macro` and support Admin-Web monitoring, future SkyWeb dashboards, analytical reporting, and BI/reporting preparation.
 
 ---
 
@@ -856,7 +970,7 @@ SkyServer is built around a few practical rules:
 | ✅ Phase 5     | SkyServer Core CLI Tool with configurable script launcher model                                                                                       |
 | 🔄 Continuous  | Expand automation scripts for Git, files, database, ingestion, workers, and operational workflows                                                     |
 | ✅ Phase 6     | Private Admin-Web interface with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety confirmation UX |
-| 🔜 Phase 7     | API endpoints for macro views, ingestion status, and admin actions                                                                                    |
+| ✅ Phase 7     | API endpoints for macro views, ingestion status, and admin actions, plus Admin-Web Access Control, Ingestion Status, and Dashboard v2                 |
 | 🔜 Phase 8     | Worker/listener workflows for scheduled and event-driven jobs                                                                                         |
 | 🔜 Phase 9     | SkyWeb integration for public-facing macro dashboards                                                                                                 |
 | 🔜 Phase 10    | Data mart design and analytics-ready PostgreSQL view/model refinement for public, admin, and BI consumers                                             |
