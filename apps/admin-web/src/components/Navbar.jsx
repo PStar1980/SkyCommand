@@ -55,6 +55,14 @@ function Navbar() {
                 </li>
               )}
 
+              {hasPermission('INGESTION_VIEW_STATUS') && (
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/ingestion-status">
+                    Ingestion
+                  </NavLink>
+                </li>
+              )}
+
               {hasPermission('SCRIPT_EXECUTION_READ') && (
                 <li className="nav-item">
                   <NavLink className="nav-link" to="/script-executions">

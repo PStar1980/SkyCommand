@@ -12,6 +12,7 @@ import AdminRoles from './pages/AdminRoles.jsx';
 import AdminUsers from './pages/AdminUsers.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Home from './pages/Home.jsx';
+import IngestionStatus from './pages/IngestionStatus.jsx';
 import Login from './pages/Login.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
@@ -41,6 +42,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="CORE_VIEW_TOOLS">
                   <Tools />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="ingestion-status"
+              element={
+                <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
+                  <IngestionStatus />
                 </ProtectedRoute>
               }
             />
