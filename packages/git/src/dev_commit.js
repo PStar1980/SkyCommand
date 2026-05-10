@@ -29,6 +29,15 @@ const dotenv = require('dotenv');
 const SCRIPT_DIR = __dirname;
 const SKY_SERVER_ROOT = path.resolve(SCRIPT_DIR, '../../..');
 const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
+const GENERATE_REPO_MAP_SCRIPT = path.join(
+  SKY_SERVER_ROOT,
+  'packages',
+  'files',
+  'src',
+  'generateRepoMap.js',
+);
+
+const REPO_MAP_FILE_SUFFIX = '_RepoMap.md';
 
 dotenv.config({ path: ENV_PATH });
 
@@ -47,22 +56,26 @@ function fail(message) {
   throw new Error(message);
 }
 
-function runGit(args, cwd) {
-  console.log(`> git ${args.join(' ')}`);
+function runCommand(command, args, cwd, label = command) {
+  console.log(`> ${label} ${args.join(' ')}`);
 
-  const result = spawnSync('git', args, {
+  const result = spawnSync(command, args, {
     cwd,
     stdio: 'inherit',
     shell: false,
   });
 
   if (result.error) {
-    fail(`Git command failed: ${result.error.message}`);
+    fail(`${label} command failed: ${result.error.message}`);
   }
 
   if (result.status !== 0) {
-    fail(`Git command failed: git ${args.join(' ')}`);
+    fail(`${label} command failed: ${label} ${args.join(' ')}`);
   }
+}
+
+function runGit(args, cwd) {
+  runCommand('git', args, cwd, 'git');
 }
 
 function getGitOutput(args, cwd) {
@@ -81,6 +94,43 @@ function getGitOutput(args, cwd) {
   }
 
   return result.stdout.trim();
+}
+
+function getRepoRootFolderName(repoRootPath) {
+  return path.basename(path.resolve(repoRootPath));
+}
+
+function getRepoMapConfig(repo) {
+  const repoRootFolderName = getRepoRootFolderName(repo.rootPath);
+  const outputPath = path.join(repo.rootPath, 'docs');
+  const fileName = `${repoRootFolderName}${REPO_MAP_FILE_SUFFIX}`;
+
+  return {
+    fileName,
+    outputPath,
+    outputFilePath: path.join(outputPath, fileName),
+  };
+}
+
+function generateRepoMap(repo) {
+  if (!fs.existsSync(GENERATE_REPO_MAP_SCRIPT)) {
+    fail(`Repository map generator does not exist: ${GENERATE_REPO_MAP_SCRIPT}`);
+  }
+
+  const repoMap = getRepoMapConfig(repo);
+
+  console.log('');
+  console.log('🗺️  Generating repository map before staging changes...');
+  console.log(`📂 Source folder: ${repo.rootPath}`);
+  console.log(`📄 Repo map file: ${repoMap.outputFilePath}`);
+  console.log('');
+
+  runCommand(
+    process.execPath,
+    [GENERATE_REPO_MAP_SCRIPT, repo.rootPath, repoMap.fileName, repoMap.outputPath],
+    SKY_SERVER_ROOT,
+    'node',
+  );
 }
 
 async function listAvailableRepositories() {
@@ -184,6 +234,8 @@ async function main() {
   runGit(['fetch', 'origin'], repo.rootPath);
   runGit(['switch', repo.devBranch], repo.rootPath);
   runGit(['pull', 'origin', repo.devBranch], repo.rootPath);
+
+  generateRepoMap(repo);
 
   const status = getGitOutput(['status', '--porcelain'], repo.rootPath);
 

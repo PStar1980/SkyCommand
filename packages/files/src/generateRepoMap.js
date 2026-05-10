@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * generateStructure.js
+ * generateRepoMap.js
+ *
+ * Generates a readable repository map for documentation and structural review.
  *
  * Usage:
- *   node generateStructure.js <location> <fileName> [outputPath]
+ *   node generateRepoMap.js <location> <fileName> [outputPath]
  *
  * Example:
- *   node generateStructure.js "C:\\Projects\\NeoFinTech" "structure.md"
- *   node generateStructure.js "./NeoFinTech" "tree.md" "C:\\Exports"
+ *   node generateRepoMap.js "C:\\Projects\\SkyServer" "SkyServer_RepoMap.md" "C:\\Projects\\SkyServer\\docs"
+ *   node generateRepoMap.js "./SkyWeb" "SkyWeb_RepoMap.md" "./SkyWeb/docs"
  */
 
 const fs = require('fs');
@@ -46,15 +48,36 @@ if (!fs.existsSync(location)) {
 }
 
 // ------------------------------------------------------------
-// PHASE 2: Recursive directory walker (ignoring node_modules)
+// PHASE 2: Recursive directory walker
 // ------------------------------------------------------------
+const IGNORED_ENTRIES = new Set([
+  'node_modules',
+  '.git',
+  '.vscode',
+  '.idea',
+  '.ds_store',
+  '.cache',
+  '.next',
+  'dist',
+  'build',
+  'coverage',
+  'out',
+  'temp',
+  'tmp',
+  'logs',
+]);
+
+function shouldIgnoreEntry(entryName) {
+  return IGNORED_ENTRIES.has(entryName.toLowerCase());
+}
+
 function sortEntries(entries) {
   const files = entries
-    .filter((e) => e.type === 'file')
+    .filter((entry) => entry.type === 'file')
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const folders = entries
-    .filter((e) => e.type === 'directory')
+    .filter((entry) => entry.type === 'directory')
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return [...files, ...folders];
@@ -63,27 +86,8 @@ function sortEntries(entries) {
 function scanDirectory(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-  let results = entries
-    .filter((entry) => {
-      const lower = entry.name.toLowerCase();
-      const ignoreList = [
-        'node_modules',
-        '.git',
-        '.vscode',
-        '.idea',
-        '.ds_store',
-        '.cache',
-        '.next',
-        'dist',
-        'build',
-        'coverage',
-        'out',
-        'temp',
-        'tmp',
-      ];
-
-      return !ignoreList.includes(lower);
-    })
+  const results = entries
+    .filter((entry) => !shouldIgnoreEntry(entry.name))
     .map((entry) => {
       const fullPath = path.join(dir, entry.name);
 
@@ -93,18 +97,15 @@ function scanDirectory(dir) {
           name: entry.name,
           children: scanDirectory(fullPath),
         };
-      } else {
-        return {
-          type: 'file',
-          name: entry.name,
-        };
       }
+
+      return {
+        type: 'file',
+        name: entry.name,
+      };
     });
 
-  // 🔥 Sort: files first, folders second
-  results = sortEntries(results);
-
-  return results;
+  return sortEntries(results);
 }
 
 // ------------------------------------------------------------
@@ -121,7 +122,10 @@ function renderTree(nodeName, children, prefix = '') {
 
       if (item.type === 'file') {
         output += `${currentPrefix}${branch}${item.name}\n`;
-      } else if (item.type === 'directory') {
+        return;
+      }
+
+      if (item.type === 'directory') {
         output += `${currentPrefix}${branch}${item.name}/\n`;
         traverse(item.children, nextPrefix);
       }
@@ -149,5 +153,5 @@ const outputFilePath = path.join(outputPath, fileName);
 // Write to disk
 fs.writeFileSync(outputFilePath, asciiTree, 'utf8');
 
-console.log(`\n✅ Folder structure generated successfully!`);
+console.log('\n✅ Repository map generated successfully!');
 console.log(`📄 Output file: ${outputFilePath}\n`);
