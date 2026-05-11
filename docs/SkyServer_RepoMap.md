@@ -93,9 +93,16 @@ SkyServer/
 │ │ └── toolManifestService.js
 │ └── worker/
 │ └── src/
+│ ├── index.js
 │ ├── jobs/
+│ │ ├── scheduledToolRunner.js
+│ │ ├── workerNodeService.js
+│ │ └── workerToolExecutionService.js
 │ ├── listeners/
+│ │ └── listenerPoller.js
 │ └── schedulers/
+│ ├── scheduleCalculator.js
+│ └── schedulePoller.js
 ├── docs/
 │ └── SkyServer_RepoMap.md
 ├── packages/
@@ -127,12 +134,13 @@ SkyServer/
 │ │ │ ├── 00014**schema_auth.sql
 │ │ │ ├── 00015**auth_tables.sql
 │ │ │ ├── 00017**auth_views.sql
-│ │ │ └── 00018**core_config_tables.sql
+│ │ │ ├── 00018**core_config_tables.sql
+│ │ │ └── 00020**worker_tables.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
-│ │ └── 00019**core_config_seed.sql
+│ │ └── 00019\_\_core_config_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ └── generateRepoMap.js
@@ -178,11 +186,13 @@ SkyServer/
 ├── db/
 │ ├── functions/
 │ │ ├── auth.set_updated_at.sql
-│ │ └── core.set_updated_at.sql
+│ │ ├── core.set_updated_at.sql
+│ │ └── worker.set_updated_at.sql
 │ ├── schemas/
 │ │ ├── auth.sql
 │ │ ├── core.sql
-│ │ └── macro.sql
+│ │ ├── macro.sql
+│ │ └── worker.sql
 │ ├── tables/
 │ │ ├── auth.audit_events.sql
 │ │ ├── auth.login_events.sql
@@ -208,7 +218,12 @@ SkyServer/
 │ │ ├── core.tool_visibility.sql
 │ │ ├── core.tools.sql
 │ │ ├── core.visibility_channels.sql
-│ │ └── macro.indicators..sql
+│ │ ├── macro.indicators..sql
+│ │ ├── worker.listener_events.sql
+│ │ ├── worker.listeners.sql
+│ │ ├── worker.schedule_runs.sql
+│ │ ├── worker.schedules.sql
+│ │ └── worker.worker_nodes.sql
 │ ├── triggers/
 │ │ ├── auth.permissions_set_updated_at.sql
 │ │ ├── auth.roles_set_updated_at.sql
@@ -218,7 +233,17 @@ SkyServer/
 │ │ ├── core.repository_paths_set_updated_at.sql
 │ │ ├── core.tool_categories_set_updated_at.sql
 │ │ ├── core.tool_parameters_set_updated_at.sql
-│ │ └── core.tools_set_updated_at.sql
+│ │ ├── core.tools_set_updated_at.sql
+│ │ ├── worker.listener_events_set_updated_at.sql
+│ │ ├── worker.listeners_set_updated_at.sql
+│ │ ├── worker.schedule_runs_set_updated_at.sql
+│ │ ├── worker.schedules_set_updated_at.sql
+│ │ ├── worker.vw_listener_events_recent.sql
+│ │ ├── worker.vw_listeners.sql
+│ │ ├── worker.vw_schedule_runs_recent.sql
+│ │ ├── worker.vw_schedules.sql
+│ │ ├── worker.vw_worker_nodes.sql
+│ │ └── worker.worker_nodes_set_updated_at.sql
 │ └── views/
 │ ├── auth.vw_active_sessions.sql
 │ ├── auth.vw_audit_events_recent.sql
@@ -251,7 +276,12 @@ SkyServer/
 │ ├── macro.vw_rates_curve.sql
 │ ├── macro.vw_us_ca_inflation_compare.sql
 │ ├── macro.vw_us_ca_labor_compare.sql
-│ └── macro.vw_us_ca_policy_fx.sql
+│ ├── macro.vw_us_ca_policy_fx.sql
+│ ├── worker.vw_listener_events_recent.sql
+│ ├── worker.vw_listeners.sql
+│ ├── worker.vw_schedule_runs_recent.sql
+│ ├── worker.vw_schedules.sql
+│ └── worker.vw_worker_nodes.sql
 ├── node/
 │ └── util/
 │ ├── bootstrap.js
