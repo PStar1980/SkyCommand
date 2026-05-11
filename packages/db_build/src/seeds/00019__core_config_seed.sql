@@ -153,7 +153,7 @@ SELECT c.category_id, v.tool_code, v.name, v.label, v.description, r.repo_id, v.
 FROM (
   VALUES
     ('database_tools','db_health','db_health','Database Health Check','Tests PostgreSQL connectivity using the configured environment.','packages/db/src/db_health.js','node','DB_HEALTH_RUN','low',FALSE,NULL,TRUE,FALSE,10),
-    ('database_tools','db_build','db_build','Database Build','Rebuilds the PostgreSQL database from ordered migrations and seed files.','packages/db_build/src/db_build.js','node','DB_BUILD_RUN','high',TRUE,'This can drop/rebuild database objects depending on the migration set. Confirm only when you intentionally want to run the database build.',TRUE,FALSE,20),
+    ('database_tools','db_build','db_build','Database Build','Drops, recreates, and rebuilds the selected PostgreSQL database from ordered migrations and seed files.','packages/db_build/src/db_build.js','node','DB_BUILD_RUN','high',TRUE,'This will drop and recreate the selected database, then run all configured migrations and seeds. Confirm only when you intentionally want to rebuild that database.',TRUE,TRUE,20),
     ('auth_tools','auth_create_admin_user','createAdminUser','Create Admin User','Creates an ACTIVE SkyServer user and assigns an RBAC role.','packages/auth/src/createAdminUser.js','node','ADMIN_USER_WRITE','high',TRUE,'This creates an active user account and assigns a role. Confirm only when intentionally provisioning an admin user.',TRUE,FALSE,10),
     ('git_tools','git_repo_status','git_repo_status','Repository Status','Checks configured repository status across dev and main branches.','packages/git/src/git_repo_status.js','node','GIT_STATUS_RUN','low',FALSE,NULL,TRUE,TRUE,10),
     ('git_tools','dev_commit','dev_commit','Dev Commit','Runs the configured dev branch commit workflow.','packages/git/src/dev_commit.js','node','GIT_COMMIT_RUN','medium',TRUE,'This will stage, commit, and push changes for the selected repository.',TRUE,TRUE,20),
@@ -209,6 +209,7 @@ SELECT t.tool_id, v.parameter_name, v.label, v.param_type_code, v.prompt, v.requ
 FROM core.tools t
 JOIN (
   VALUES
+    ('db_build','databaseName','Database Name','string','Enter target database name, for example skyserver_dev or skyserver_test',TRUE,NULL,NULL,10),
     ('git_repo_status','repoName','Repository','repo','Select repository',TRUE,NULL,'repositories',10),
     ('dev_commit','repoName','Repository','repo','Select repository',TRUE,NULL,'repositories',10),
     ('dev_commit','commitMessage','Commit Message','string','Enter commit message',TRUE,NULL,NULL,20),

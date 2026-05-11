@@ -127,14 +127,12 @@ SkyServer/
 │ │ │ ├── 00014**schema_auth.sql
 │ │ │ ├── 00015**auth_tables.sql
 │ │ │ ├── 00017**auth_views.sql
-│ │ │ ├── 00018**core_config_tables.sql
-│ │ │ └── init/
-│ │ │ └── 00001**init_db.sql
+│ │ │ └── 00018**core_config_tables.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
-│ │ └── 00019\_\_core_config_seed.sql
+│ │ └── 00019**core_config_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ └── generateRepoMap.js
