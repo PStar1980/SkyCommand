@@ -133,10 +133,10 @@ FROM core.tool_categories c
 JOIN core.applications a ON a.app_id = c.app_id
 JOIN (
   VALUES
-    ('database_tools','cli'), ('database_tools','admin-web'), ('database_tools','api'),
+    ('database_tools','cli'), ('database_tools','admin-web'), ('database_tools','api'), ('database_tools','worker'),
     ('auth_tools','cli'),
     ('git_tools','cli'), ('git_tools','admin-web'), ('git_tools','api'),
-    ('data_ingestion_tools','cli'), ('data_ingestion_tools','admin-web'), ('data_ingestion_tools','api'),
+    ('data_ingestion_tools','cli'), ('data_ingestion_tools','admin-web'), ('data_ingestion_tools','api'), ('data_ingestion_tools','worker'),
     ('file_tools','cli'), ('file_tools','admin-web'), ('file_tools','api')
 ) AS v(category_code, channel_code) ON v.category_code = c.category_code
 WHERE a.app_code = 'SKYSERVER_CORE'
@@ -190,15 +190,15 @@ SELECT t.tool_id, v.channel_code
 FROM core.tools t
 JOIN (
   VALUES
-    ('db_health','cli'), ('db_health','admin-web'), ('db_health','api'),
+    ('db_health','cli'), ('db_health','admin-web'), ('db_health','api'), ('db_health','worker'),
     ('db_build','cli'), ('db_build','admin-web'), ('db_build','api'),
     ('auth_create_admin_user','cli'),
     ('git_repo_status','cli'), ('git_repo_status','admin-web'), ('git_repo_status','api'),
     ('dev_commit','cli'), ('dev_commit','admin-web'), ('dev_commit','api'),
     ('main_merge','cli'), ('main_merge','admin-web'), ('main_merge','api'),
-    ('ingestion_fred','cli'), ('ingestion_fred','admin-web'), ('ingestion_fred','api'),
-    ('ingestion_boc','cli'), ('ingestion_boc','admin-web'), ('ingestion_boc','api'),
-    ('ingestion_statcan','cli'), ('ingestion_statcan','admin-web'), ('ingestion_statcan','api'),
+    ('ingestion_fred','cli'), ('ingestion_fred','admin-web'), ('ingestion_fred','api'), ('ingestion_fred','worker'),
+    ('ingestion_boc','cli'), ('ingestion_boc','admin-web'), ('ingestion_boc','api'), ('ingestion_boc','worker'),
+    ('ingestion_statcan','cli'), ('ingestion_statcan','admin-web'), ('ingestion_statcan','api'), ('ingestion_statcan','worker'),
     ('ingestion_manual','cli'), ('ingestion_manual','admin-web'), ('ingestion_manual','api'),
     ('repo_map_generate','cli'), ('repo_map_generate','admin-web'), ('repo_map_generate','api')
 ) AS v(tool_code, channel_code) ON v.tool_code = t.tool_code

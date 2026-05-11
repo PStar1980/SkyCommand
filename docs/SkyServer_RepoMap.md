@@ -73,7 +73,8 @@ SkyServer/
 │ │ │ ├── authController.js
 │ │ │ ├── ingestionController.js
 │ │ │ ├── macroController.js
-│ │ │ └── toolsController.js
+│ │ │ ├── toolsController.js
+│ │ │ └── workerController.js
 │ │ ├── middleware/
 │ │ │ ├── authMiddleware.js
 │ │ │ └── permissionMiddleware.js
@@ -82,7 +83,8 @@ SkyServer/
 │ │ │ ├── auth.routes.js
 │ │ │ ├── ingestion.routes.js
 │ │ │ ├── macro.routes.js
-│ │ │ └── tools.routes.js
+│ │ │ ├── tools.routes.js
+│ │ │ └── worker.routes.js
 │ │ └── services/
 │ │ ├── adminActionService.js
 │ │ ├── adminReadService.js
@@ -90,7 +92,8 @@ SkyServer/
 │ │ ├── ingestionStatusService.js
 │ │ ├── macroReadService.js
 │ │ ├── scriptExecutionService.js
-│ │ └── toolManifestService.js
+│ │ ├── toolManifestService.js
+│ │ └── workerService.js
 │ └── worker/
 │ └── src/
 │ ├── index.js
@@ -184,6 +187,7 @@ SkyServer/
 │ └── validators/
 └── scripts/
 ├── db/
+│ ├── current/
 │ ├── functions/
 │ │ ├── auth.set_updated_at.sql
 │ │ ├── core.set_updated_at.sql
