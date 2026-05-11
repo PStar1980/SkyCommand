@@ -246,6 +246,56 @@ VALUES
         'cancel',
         'Cancel or mark script execution as cancelled when supported.',
         TRUE
+    ),
+
+    (
+        'WORKER_SCHEDULE_READ',
+        'worker_schedules',
+        'read',
+        'View worker schedules, run history, worker health, and worker-visible tools.',
+        TRUE
+    ),
+    (
+        'WORKER_SCHEDULE_WRITE',
+        'worker_schedules',
+        'write',
+        'Create, update, enable, or disable worker schedules.',
+        TRUE
+    ),
+    (
+        'WORKER_SCHEDULE_RUN',
+        'worker_schedules',
+        'run_now',
+        'Queue an existing worker schedule for immediate execution.',
+        TRUE
+    ),
+    (
+        'WORKER_LISTENER_READ',
+        'worker_listeners',
+        'read',
+        'View worker listener definitions.',
+        TRUE
+    ),
+    (
+        'WORKER_LISTENER_WRITE',
+        'worker_listeners',
+        'write',
+        'Create, update, enable, or disable worker listeners.',
+        TRUE
+    ),
+    (
+        'WORKER_EVENT_READ',
+        'worker_events',
+        'read',
+        'View worker listener events and related execution outcomes.',
+        TRUE
+    ),
+    (
+        'WORKER_ADMIN',
+        'worker_admin',
+        'admin',
+        'View worker nodes and perform elevated worker administration tasks.',
+        TRUE
     )
 ON CONFLICT (permission_code)
 DO UPDATE SET
@@ -308,6 +358,14 @@ WITH admin_permissions(permission_code) AS (
         ('ADMIN_ROLE_WRITE'),
         ('ADMIN_PERMISSION_READ'),
 
+        ('WORKER_SCHEDULE_READ'),
+        ('WORKER_SCHEDULE_WRITE'),
+        ('WORKER_SCHEDULE_RUN'),
+        ('WORKER_LISTENER_READ'),
+        ('WORKER_LISTENER_WRITE'),
+        ('WORKER_EVENT_READ'),
+        ('WORKER_ADMIN'),
+
         ('AUDIT_READ'),
         ('SCRIPT_EXECUTION_READ')
 )
@@ -355,6 +413,11 @@ WITH operator_permissions(permission_code) AS (
 
         ('MACRO_VIEW_READ'),
 
+        ('WORKER_SCHEDULE_READ'),
+        ('WORKER_SCHEDULE_RUN'),
+        ('WORKER_LISTENER_READ'),
+        ('WORKER_EVENT_READ'),
+
         ('SCRIPT_EXECUTION_READ')
 )
 INSERT INTO auth.role_permissions (
@@ -387,6 +450,9 @@ WITH viewer_permissions(permission_code) AS (
         ('DB_HEALTH_RUN'),
         ('GIT_STATUS_RUN'),
         ('MACRO_VIEW_READ'),
+        ('WORKER_SCHEDULE_READ'),
+        ('WORKER_LISTENER_READ'),
+        ('WORKER_EVENT_READ'),
         ('SCRIPT_EXECUTION_READ')
 )
 INSERT INTO auth.role_permissions (
