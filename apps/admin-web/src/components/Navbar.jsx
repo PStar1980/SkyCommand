@@ -12,6 +12,8 @@ function Navbar() {
     hasPermission('ADMIN_USER_READ') ||
     hasPermission('ADMIN_ROLE_READ') ||
     hasPermission('ADMIN_PERMISSION_READ');
+  const canViewAutomation =
+    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
 
   async function handleLogout() {
     await logout();
@@ -63,11 +65,33 @@ function Navbar() {
                 </li>
               )}
 
-              {hasPermission('WORKER_SCHEDULE_READ') && (
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/worker">
-                    Worker
-                  </NavLink>
+              {canViewAutomation && (
+                <li className="nav-item dropdown">
+                  <button
+                    aria-expanded="false"
+                    className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    type="button"
+                  >
+                    Automation
+                  </button>
+                  <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                    {hasPermission('WORKER_SCHEDULE_READ') && (
+                      <li>
+                        <NavLink className={getDropdownItemClass} to="/automation/scheduler">
+                          Scheduler
+                        </NavLink>
+                      </li>
+                    )}
+
+                    {hasPermission('WORKER_LISTENER_READ') && (
+                      <li>
+                        <NavLink className={getDropdownItemClass} to="/automation/listeners">
+                          Listener
+                        </NavLink>
+                      </li>
+                    )}
+                  </ul>
                 </li>
               )}
 

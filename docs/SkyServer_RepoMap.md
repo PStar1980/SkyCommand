@@ -52,10 +52,12 @@ SkyServer/
 │ │ │ ├── AdminRoles.jsx
 │ │ │ ├── AdminUsers.jsx
 │ │ │ ├── AuditEvents.jsx
+│ │ │ ├── AutomationListeners.jsx
 │ │ │ ├── Dashboard.jsx
 │ │ │ ├── Home.jsx
 │ │ │ ├── IngestionStatus.jsx
 │ │ │ ├── Login.jsx
+│ │ │ ├── SchedulerControl.jsx
 │ │ │ ├── ScriptExecutions.jsx
 │ │ │ ├── Tools.jsx
 │ │ │ └── WorkerControl.jsx
@@ -140,12 +142,13 @@ SkyServer/
 │ │ │ ├── 00015**auth_tables.sql
 │ │ │ ├── 00017**auth_views.sql
 │ │ │ ├── 00018**core_config_tables.sql
-│ │ │ └── 00020**worker_tables.sql
+│ │ │ ├── 00020**worker_tables.sql
+│ │ │ └── 00021**worker_automation_polish.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
-│ │ └── 00019\_\_core_config_seed.sql
+│ │ └── 00019**core_config_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ └── generateRepoMap.js
@@ -189,7 +192,6 @@ SkyServer/
 │ └── validators/
 └── scripts/
 ├── db/
-│ ├── current/
 │ ├── functions/
 │ │ ├── auth.set_updated_at.sql
 │ │ ├── core.set_updated_at.sql
@@ -226,8 +228,10 @@ SkyServer/
 │ │ ├── core.visibility_channels.sql
 │ │ ├── macro.indicators..sql
 │ │ ├── worker.listener_events.sql
+│ │ ├── worker.listeners_phase8_5.sql
 │ │ ├── worker.listeners.sql
 │ │ ├── worker.schedule_runs.sql
+│ │ ├── worker.schedules_phase8_5.sql
 │ │ ├── worker.schedules.sql
 │ │ └── worker.worker_nodes.sql
 │ ├── triggers/

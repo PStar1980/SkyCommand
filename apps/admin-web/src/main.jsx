@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import App from './App.jsx';
@@ -16,7 +16,8 @@ import IngestionStatus from './pages/IngestionStatus.jsx';
 import Login from './pages/Login.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
-import WorkerControl from './pages/WorkerControl.jsx';
+import AutomationListeners from './pages/AutomationListeners.jsx';
+import SchedulerControl from './pages/SchedulerControl.jsx';
 import './index.css';
 import './App.css';
 
@@ -56,11 +57,22 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
+            <Route path="worker" element={<Navigate replace to="/automation/scheduler" />} />
+
             <Route
-              path="worker"
+              path="automation/scheduler"
               element={
                 <ProtectedRoute permissionCode="WORKER_SCHEDULE_READ">
-                  <WorkerControl />
+                  <SchedulerControl />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="automation/listeners"
+              element={
+                <ProtectedRoute permissionCode="WORKER_LISTENER_READ">
+                  <AutomationListeners />
                 </ProtectedRoute>
               }
             />

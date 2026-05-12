@@ -107,6 +107,7 @@ async function claimDueSchedules({ workerNode, limit = getMaxDuePerTick() } = {}
         LEFT JOIN core.config_profiles cp
           ON cp.profile_id = s.profile_id
         WHERE s.enabled = TRUE
+          AND s.deleted_at IS NULL
           AND s.next_run_at IS NOT NULL
           AND s.next_run_at <= CURRENT_TIMESTAMP
           AND s.schedule_type IN ('ONCE', 'INTERVAL')

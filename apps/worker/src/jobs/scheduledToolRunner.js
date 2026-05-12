@@ -117,6 +117,9 @@ async function updateScheduleAfterRun({ schedule, status }) {
           last_run_at = CURRENT_TIMESTAMP,
           last_status = $3,
           enabled = CASE WHEN $4 = TRUE THEN FALSE ELSE enabled END,
+          queue_requested_at = NULL,
+          queue_requested_by_user_id = NULL,
+          queued_previous_next_run_at = NULL,
           updated_at = CURRENT_TIMESTAMP
       WHERE schedule_id = $1
     `,

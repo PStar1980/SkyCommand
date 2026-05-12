@@ -34,9 +34,24 @@ router.patch(
   workerController.updateScheduleStatus,
 );
 router.post(
+  '/schedules/:scheduleId/queue',
+  requirePermission('WORKER_SCHEDULE_RUN'),
+  workerController.queueScheduleNow,
+);
+router.post(
+  '/schedules/:scheduleId/unqueue',
+  requirePermission('WORKER_SCHEDULE_RUN'),
+  workerController.unqueueSchedule,
+);
+router.post(
   '/schedules/:scheduleId/run-now',
   requirePermission('WORKER_SCHEDULE_RUN'),
   workerController.runScheduleNow,
+);
+router.delete(
+  '/schedules/:scheduleId',
+  requirePermission('WORKER_SCHEDULE_WRITE'),
+  workerController.deleteSchedule,
 );
 router.get(
   '/schedules/:scheduleId/runs',
