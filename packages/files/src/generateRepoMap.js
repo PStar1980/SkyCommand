@@ -65,10 +65,29 @@ const IGNORED_ENTRIES = new Set([
   'temp',
   'tmp',
   'logs',
+  'zip',
+]);
+
+const SENSITIVE_ENV_FILES = new Set([
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.production',
+  '.env.test',
 ]);
 
 function shouldIgnoreEntry(entryName) {
   return IGNORED_ENTRIES.has(entryName.toLowerCase());
+}
+
+function shouldSkipFile(fileName) {
+  const normalizedFileName = String(fileName || '').toLowerCase();
+
+  if (SENSITIVE_ENV_FILES.has(normalizedFileName)) {
+    return true;
+  }
+
+  return path.extname(normalizedFileName) === '.zip';
 }
 
 function sortEntries(entries) {
@@ -99,11 +118,16 @@ function scanDirectory(dir) {
         };
       }
 
+      if (!entry.isFile() || shouldSkipFile(entry.name)) {
+        return null;
+      }
+
       return {
         type: 'file',
         name: entry.name,
       };
-    });
+    })
+    .filter(Boolean);
 
   return sortEntries(results);
 }
