@@ -16,6 +16,7 @@ import IngestionStatus from './pages/IngestionStatus.jsx';
 import Login from './pages/Login.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
+import WorkerControl from './pages/WorkerControl.jsx';
 import './index.css';
 import './App.css';
 
@@ -51,6 +52,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
                   <IngestionStatus />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="worker"
+              element={
+                <ProtectedRoute permissionCode="WORKER_SCHEDULE_READ">
+                  <WorkerControl />
                 </ProtectedRoute>
               }
             />
