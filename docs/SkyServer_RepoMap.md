@@ -151,7 +151,8 @@ SkyServer/
 │ │ └── 00019**core_config_seed.sql
 │ ├── files/
 │ │ └── src/
-│ │ └── generateRepoMap.js
+│ │ ├── generateRepoMap.js
+│ │ └── generateRepoZip.js
 │ ├── git/
 │ │ └── src/
 │ │ ├── dev_commit.js
@@ -190,114 +191,116 @@ SkyServer/
 │ ├── constants/
 │ ├── contracts/
 │ └── validators/
-└── scripts/
-├── db/
-│ ├── functions/
-│ │ ├── auth.set_updated_at.sql
-│ │ ├── core.set_updated_at.sql
-│ │ └── worker.set_updated_at.sql
-│ ├── schemas/
-│ │ ├── auth.sql
-│ │ ├── core.sql
-│ │ ├── macro.sql
-│ │ └── worker.sql
-│ ├── tables/
-│ │ ├── auth.audit_events.sql
-│ │ ├── auth.login_events.sql
-│ │ ├── auth.permissions.sql
-│ │ ├── auth.role_permissions.sql
-│ │ ├── auth.roles.sql
-│ │ ├── auth.script_execution_log.sql
-│ │ ├── auth.sessions.sql
-│ │ ├── auth.user_roles.sql
-│ │ ├── auth.users.sql
-│ │ ├── core.applications.sql
-│ │ ├── core.config_profiles.sql
-│ │ ├── core.option_sources.sql
-│ │ ├── core.param_types.sql
-│ │ ├── core.repositories.sql
-│ │ ├── core.repository_paths.sql
-│ │ ├── core.risk_levels.sql
-│ │ ├── core.runtimes.sql
-│ │ ├── core.tool_categories.sql
-│ │ ├── core.tool_category_visibility.sql
-│ │ ├── core.tool_parameter_options.sql
-│ │ ├── core.tool_parameters.sql
-│ │ ├── core.tool_visibility.sql
-│ │ ├── core.tools.sql
-│ │ ├── core.visibility_channels.sql
-│ │ ├── macro.indicators..sql
-│ │ ├── worker.listener_events.sql
-│ │ ├── worker.listeners_phase8_5.sql
-│ │ ├── worker.listeners.sql
-│ │ ├── worker.schedule_runs.sql
-│ │ ├── worker.schedules_phase8_5.sql
-│ │ ├── worker.schedules.sql
-│ │ └── worker.worker_nodes.sql
-│ ├── triggers/
-│ │ ├── auth.permissions_set_updated_at.sql
-│ │ ├── auth.roles_set_updated_at.sql
-│ │ ├── auth.users_set_updated_at.sql
-│ │ ├── core.applications_set_updated_at.sql
-│ │ ├── core.repositories_set_updated_at.sql
-│ │ ├── core.repository_paths_set_updated_at.sql
-│ │ ├── core.tool_categories_set_updated_at.sql
-│ │ ├── core.tool_parameters_set_updated_at.sql
-│ │ ├── core.tools_set_updated_at.sql
-│ │ ├── worker.listener_events_set_updated_at.sql
-│ │ ├── worker.listeners_set_updated_at.sql
-│ │ ├── worker.schedule_runs_set_updated_at.sql
-│ │ ├── worker.schedules_set_updated_at.sql
+├── scripts/
+│ ├── db/
+│ │ ├── functions/
+│ │ │ ├── auth.set_updated_at.sql
+│ │ │ ├── core.set_updated_at.sql
+│ │ │ └── worker.set_updated_at.sql
+│ │ ├── schemas/
+│ │ │ ├── auth.sql
+│ │ │ ├── core.sql
+│ │ │ ├── macro.sql
+│ │ │ └── worker.sql
+│ │ ├── tables/
+│ │ │ ├── auth.audit_events.sql
+│ │ │ ├── auth.login_events.sql
+│ │ │ ├── auth.permissions.sql
+│ │ │ ├── auth.role_permissions.sql
+│ │ │ ├── auth.roles.sql
+│ │ │ ├── auth.script_execution_log.sql
+│ │ │ ├── auth.sessions.sql
+│ │ │ ├── auth.user_roles.sql
+│ │ │ ├── auth.users.sql
+│ │ │ ├── core.applications.sql
+│ │ │ ├── core.config_profiles.sql
+│ │ │ ├── core.option_sources.sql
+│ │ │ ├── core.param_types.sql
+│ │ │ ├── core.repositories.sql
+│ │ │ ├── core.repository_paths.sql
+│ │ │ ├── core.risk_levels.sql
+│ │ │ ├── core.runtimes.sql
+│ │ │ ├── core.tool_categories.sql
+│ │ │ ├── core.tool_category_visibility.sql
+│ │ │ ├── core.tool_parameter_options.sql
+│ │ │ ├── core.tool_parameters.sql
+│ │ │ ├── core.tool_visibility.sql
+│ │ │ ├── core.tools.sql
+│ │ │ ├── core.visibility_channels.sql
+│ │ │ ├── macro.indicators..sql
+│ │ │ ├── worker.listener_events.sql
+│ │ │ ├── worker.listeners_phase8_5.sql
+│ │ │ ├── worker.listeners.sql
+│ │ │ ├── worker.schedule_runs.sql
+│ │ │ ├── worker.schedules_phase8_5.sql
+│ │ │ ├── worker.schedules.sql
+│ │ │ └── worker.worker_nodes.sql
+│ │ ├── triggers/
+│ │ │ ├── auth.permissions_set_updated_at.sql
+│ │ │ ├── auth.roles_set_updated_at.sql
+│ │ │ ├── auth.users_set_updated_at.sql
+│ │ │ ├── core.applications_set_updated_at.sql
+│ │ │ ├── core.repositories_set_updated_at.sql
+│ │ │ ├── core.repository_paths_set_updated_at.sql
+│ │ │ ├── core.tool_categories_set_updated_at.sql
+│ │ │ ├── core.tool_parameters_set_updated_at.sql
+│ │ │ ├── core.tools_set_updated_at.sql
+│ │ │ ├── worker.listener_events_set_updated_at.sql
+│ │ │ ├── worker.listeners_set_updated_at.sql
+│ │ │ ├── worker.schedule_runs_set_updated_at.sql
+│ │ │ ├── worker.schedules_set_updated_at.sql
+│ │ │ ├── worker.vw_listener_events_recent.sql
+│ │ │ ├── worker.vw_listeners.sql
+│ │ │ ├── worker.vw_schedule_runs_recent.sql
+│ │ │ ├── worker.vw_schedules.sql
+│ │ │ ├── worker.vw_worker_nodes.sql
+│ │ │ └── worker.worker_nodes_set_updated_at.sql
+│ │ └── views/
+│ │ ├── auth.vw_active_sessions.sql
+│ │ ├── auth.vw_audit_events_recent.sql
+│ │ ├── auth.vw_login_events_recent.sql
+│ │ ├── auth.vw_role_permissions.sql
+│ │ ├── auth.vw_script_execution_recent.sql
+│ │ ├── auth.vw_user_permissions.sql
+│ │ ├── auth.vw_user_roles.sql
+│ │ ├── core.vw_admin_web_tools.sql
+│ │ ├── core.vw_cli_categories.sql
+│ │ ├── core.vw_cli_tools.sql
+│ │ ├── core.vw_repository_paths.sql
+│ │ ├── core.vw_tool_manifest.sql
+│ │ ├── core.vw_tool_parameter_options.sql
+│ │ ├── core.vw_tool_parameters.sql
+│ │ ├── macro.vw_ca_growth.sql
+│ │ ├── macro.vw_ca_housing.sql
+│ │ ├── macro.vw_ca_inflation.sql
+│ │ ├── macro.vw_ca_labor.sql
+│ │ ├── macro.vw_ca_macro_regime.sql
+│ │ ├── macro.vw_ca_rates_fx.sql
+│ │ ├── macro.vw_ca_trade.sql
+│ │ ├── macro.vw_credit_conditions.sql
+│ │ ├── macro.vw_growth.sql
+│ │ ├── macro.vw_housing.sql
+│ │ ├── macro.vw_inflation.sql
+│ │ ├── macro.vw_labor.sql
+│ │ ├── macro.vw_liquidity.sql
+│ │ ├── macro.vw_macro_regime.sql
+│ │ ├── macro.vw_rates_curve.sql
+│ │ ├── macro.vw_us_ca_inflation_compare.sql
+│ │ ├── macro.vw_us_ca_labor_compare.sql
+│ │ ├── macro.vw_us_ca_policy_fx.sql
 │ │ ├── worker.vw_listener_events_recent.sql
 │ │ ├── worker.vw_listeners.sql
 │ │ ├── worker.vw_schedule_runs_recent.sql
 │ │ ├── worker.vw_schedules.sql
-│ │ ├── worker.vw_worker_nodes.sql
-│ │ └── worker.worker_nodes_set_updated_at.sql
-│ └── views/
-│ ├── auth.vw_active_sessions.sql
-│ ├── auth.vw_audit_events_recent.sql
-│ ├── auth.vw_login_events_recent.sql
-│ ├── auth.vw_role_permissions.sql
-│ ├── auth.vw_script_execution_recent.sql
-│ ├── auth.vw_user_permissions.sql
-│ ├── auth.vw_user_roles.sql
-│ ├── core.vw_admin_web_tools.sql
-│ ├── core.vw_cli_categories.sql
-│ ├── core.vw_cli_tools.sql
-│ ├── core.vw_repository_paths.sql
-│ ├── core.vw_tool_manifest.sql
-│ ├── core.vw_tool_parameter_options.sql
-│ ├── core.vw_tool_parameters.sql
-│ ├── macro.vw_ca_growth.sql
-│ ├── macro.vw_ca_housing.sql
-│ ├── macro.vw_ca_inflation.sql
-│ ├── macro.vw_ca_labor.sql
-│ ├── macro.vw_ca_macro_regime.sql
-│ ├── macro.vw_ca_rates_fx.sql
-│ ├── macro.vw_ca_trade.sql
-│ ├── macro.vw_credit_conditions.sql
-│ ├── macro.vw_growth.sql
-│ ├── macro.vw_housing.sql
-│ ├── macro.vw_inflation.sql
-│ ├── macro.vw_labor.sql
-│ ├── macro.vw_liquidity.sql
-│ ├── macro.vw_macro_regime.sql
-│ ├── macro.vw_rates_curve.sql
-│ ├── macro.vw_us_ca_inflation_compare.sql
-│ ├── macro.vw_us_ca_labor_compare.sql
-│ ├── macro.vw_us_ca_policy_fx.sql
-│ ├── worker.vw_listener_events_recent.sql
-│ ├── worker.vw_listeners.sql
-│ ├── worker.vw_schedule_runs_recent.sql
-│ ├── worker.vw_schedules.sql
-│ └── worker.vw_worker_nodes.sql
-├── node/
-│ └── util/
-│ ├── bootstrap.js
-│ └── logger.js
-├── powershell/
-│ ├── Build-SkyOne-Bootloader.ps1
-│ ├── Clean-BackendCache.ps1
-│ └── Clean-FrontendCache.ps1
-└── python/
+│ │ └── worker.vw_worker_nodes.sql
+│ ├── node/
+│ │ └── util/
+│ │ ├── bootstrap.js
+│ │ └── logger.js
+│ ├── powershell/
+│ │ ├── Build-SkyOne-Bootloader.ps1
+│ │ ├── Clean-BackendCache.ps1
+│ │ └── Clean-FrontendCache.ps1
+│ └── python/
+└── zip/
+└── SkyServer_RepoZip.zip
