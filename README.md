@@ -1,16 +1,16 @@
 # 🌌 SkyServer
 
-**Private Admin, Automation, PostgreSQL, API, Data Ingestion, and Operational Monitoring Hub for the Sky Ecosystem**
+**Private Admin, Automation, PostgreSQL, API, Data Ingestion, Worker Scheduling, and Operational Monitoring Hub for the Sky Ecosystem**
 
-SkyServer is the private administrative and automation core of the **Sky Ecosystem**. It combines a Node/Express API layer, PostgreSQL-backed configuration and audit tables, a private React Admin-Web interface, macroeconomic data ingestion pipelines, repository automation, file utilities, and a configurable CLI launcher into one operational control plane.
+SkyServer is the private administrative and automation core of the **Sky Ecosystem**. It combines a Node/Express API layer, PostgreSQL-backed configuration and audit tables, a private React Admin-Web interface, macroeconomic data ingestion pipelines, repository automation, file utilities, worker-driven scheduling, and a configurable CLI launcher into one operational control plane.
 
-SkyServer is designed to be precise, repeatable, idempotent, permission-aware, and easy to extend. It supports local development workflows, database rebuilds, macro data ingestion from multiple public data providers, manual spreadsheet ingestion, Git automation, script orchestration, and browser-triggered administration through **SkyServer Admin-Web**.
+SkyServer is designed to be precise, repeatable, idempotent, permission-aware, observable, and easy to extend. It supports local development workflows, database rebuilds, macro data ingestion from multiple public data providers, manual spreadsheet ingestion, Git automation, script orchestration, browser-triggered administration through **SkyServer Admin-Web**, and scheduled background automation through the **worker runtime**.
 
 ---
 
 ## ✅ Phase 7 Completion Snapshot
 
-Phase 7 is complete. SkyServer now includes a full API and Admin-Web monitoring/control layer for macro views, ingestion status, and administrative actions.
+Phase 7 is complete. SkyServer includes a full API and Admin-Web monitoring/control layer for macro views, ingestion status, and administrative actions.
 
 Completed Phase 7 capabilities include:
 
@@ -21,7 +21,27 @@ Completed Phase 7 capabilities include:
 - **SkyServer Admin Ingestion Status page** for pipeline health, source cards, recent ingestion runs, indicator freshness, and indicator detail inspection.
 - **Dashboard v2** as a command-center view for API/DB health, ingestion status, macro summary, tools, sessions, script executions, audit events, and current operator permissions.
 
-The project is now positioned to move into **Phase 8: worker/listener workflows for scheduled and event-driven jobs**.
+---
+
+## ✅ Phase 8 Completion Snapshot
+
+Phase 8 is complete for the **scheduler-driven automation foundation**. SkyServer now has a PostgreSQL-backed worker schema, a standalone worker daemon, worker API endpoints, and Admin-Web automation control surfaces.
+
+Completed Phase 8 capabilities include:
+
+- **Worker schema and tables** for worker nodes, schedules, schedule runs, listeners, and listener events.
+- **Worker daemon runtime** under `apps/worker`, including node registration, heartbeat tracking, schedule polling, due-schedule claiming, scheduled tool execution, and worker-launched script execution logging.
+- **Worker-visible tool execution** using the existing relational `core` tool manifest and `worker` visibility channel.
+- **Scheduler support** for one-time and recurring interval schedules.
+- **Queue / Unqueue controls** for requesting or cancelling pending immediate schedule execution.
+- **Safe schedule archive/delete flow** that removes completed or archived schedules from active scheduler views without destroying run history.
+- **Worker API endpoints** for health, tools, nodes, schedules, runs, listeners, and listener events.
+- **SkyServer Admin Automation section** with separate Scheduler and Listener pages.
+- **Active Schedules view** focused on active schedule definitions, excluding completed one-time schedules.
+- **Active Listeners view** prepared for event-driven automation configuration.
+- **Dashboard automation visibility** showing worker status, nodes online, active schedules, upcoming run time, and recent automation runs.
+
+Listener runtime processors are intentionally staged for a later focused implementation. The database structure, API surface, and Admin-Web listener surface are now in place.
 
 ---
 
@@ -63,13 +83,13 @@ Current tool groups include:
 - **File / Structure Tools**
   - Repository map generation
 
-The operational tool model is now backed by relational configuration in the PostgreSQL `core` schema for API/Admin-Web execution. This creates a stronger bridge between tool metadata, permissions, risk levels, parameter definitions, and UI visibility.
+The operational tool model is backed by relational configuration in the PostgreSQL `core` schema for CLI, API, Admin-Web, and worker execution. This creates a strong bridge between tool metadata, permissions, risk levels, parameter definitions, runtime configuration, and UI visibility.
 
 ---
 
 ## 🖥️ Admin-Web Control Surface
 
-SkyServer now includes a private React/Vite Admin-Web application under:
+SkyServer includes a private React/Vite Admin-Web application under:
 
 ```text
 apps/admin-web
@@ -92,8 +112,9 @@ The Admin-Web currently includes:
   - Acts as the SkyServer Admin command center
   - Shows API and database health
   - Shows ingestion health and macro summary information
+  - Shows automation/worker status, nodes online, active schedules, next run, and recent automation activity
   - Shows visible tool counts, active sessions, script execution counts, audit event counts, and current operator permission count
-  - Provides quick links into Tools, Ingestion, Executions, Audit, and Access Control
+  - Provides quick links into Tools, Ingestion, Automation, Executions, Audit, and Access Control
   - Displays source-level pipeline health and recent operational activity
 
 - **Tools**
@@ -113,10 +134,20 @@ The Admin-Web currently includes:
   - Shows indicator freshness with source/status/active/search filters
   - Provides per-indicator detail with row counts, date ranges, thresholds, and status messages
 
+- **Automation**
+  - Provides Scheduler and Listener pages
+  - Shows worker health, worker nodes, worker-visible tools, active schedules, and schedule run history
+  - Supports schedule creation and editing for worker-visible tools
+  - Supports one-time and recurring interval schedules
+  - Supports queueing schedules for immediate execution and unqueueing pending requests
+  - Supports safe schedule archive/delete behavior
+  - Shows Active Listeners as the prepared surface for event-driven automation
+
 - **Script Executions**
   - Shows execution history from the database
   - Supports status/limit filtering
   - Displays execution metadata and log availability
+  - Includes tool executions launched manually through Admin-Web and scheduled executions launched by the worker
 
 - **Audit Events**
   - Shows authentication, authorization, and tool execution audit activity
@@ -172,6 +203,7 @@ Key design points:
 - API routes are protected by bearer-token authentication.
 - Sensitive endpoints are protected by permission middleware.
 - Tool visibility is filtered by the logged-in user’s permissions.
+- Worker scheduling permissions are separated from normal tool execution permissions.
 
 Create the first admin user with:
 
@@ -183,7 +215,7 @@ npm run auth:create-admin
 
 ## 🧩 Relational Tool Manifest
 
-SkyServer now stores operational configuration in the `core` schema.
+SkyServer stores operational configuration in the `core` schema.
 
 Core configuration tables include:
 
@@ -220,8 +252,7 @@ core.vw_repository_paths
 This relational manifest controls:
 
 - Which tools exist
-- Which tools are visible in Admin-Web
-- Which tools are executable through the API
+- Which tools are visible in CLI, Admin-Web, API, and worker channels
 - Which permission is required per tool
 - Which risk level applies per tool
 - Whether confirmation is required
@@ -229,7 +260,7 @@ This relational manifest controls:
 - How parameter inputs are rendered
 - Which repository paths are available for repo-driven tools
 
-This is the main plug-in layer for future tools: add the script, register it in the core configuration, assign permissions/risk/visibility/parameters, and Admin-Web can expose it without hardcoding a new page for every script.
+This is the main plug-in layer for future tools: add the script, register it in the core configuration, assign permissions/risk/visibility/parameters, and SkyServer can expose it without hardcoding a new page for every script.
 
 ---
 
@@ -239,18 +270,18 @@ Current Admin-Web-visible tool families include:
 
 ### Database Tools
 
-| Tool                  | Risk | Purpose                                                                  |
-| --------------------- | ---- | ------------------------------------------------------------------------ |
-| Database Health Check | Low  | Tests PostgreSQL connectivity using the configured environment.          |
-| Database Build        | High | Rebuilds the PostgreSQL database from ordered migrations and seed files. |
+| Tool                  | Risk | Purpose                                                                           |
+| --------------------- | ---- | --------------------------------------------------------------------------------- |
+| Database Health Check | Low  | Tests PostgreSQL connectivity using the configured environment.                   |
+| Database Build        | High | Rebuilds the selected PostgreSQL database from ordered migrations and seed files. |
 
 ### Git Tools
 
-| Tool              | Risk   | Purpose                                                              |
-| ----------------- | ------ | -------------------------------------------------------------------- |
-| Repository Status | Low    | Checks configured repository status across dev and main branches.    |
-| Dev Commit        | Medium | Stages, commits, and pushes the selected repository’s dev branch.    |
-| Main Merge        | High   | Synchronizes main/dev branches and may push branch updates and tags. |
+| Tool              | Risk   | Purpose                                                                                         |
+| ----------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| Repository Status | Low    | Checks configured repository status across dev and main branches.                               |
+| Dev Commit        | Medium | Generates the repository map, stages, commits, and pushes the selected repository’s dev branch. |
+| Main Merge        | High   | Synchronizes main/dev branches and may push branch updates and tags.                            |
 
 ### Data Ingestion Tools
 
@@ -416,6 +447,46 @@ All ingestion status endpoints require authentication and `INGESTION_VIEW_STATUS
 | GET    | `/api/ingestion/indicators`                       | Lists indicator freshness/status diagnostics.     |
 | GET    | `/api/ingestion/indicators/:indicatorCode/status` | Returns freshness/status detail for an indicator. |
 
+### Worker / Automation API Endpoints
+
+Worker endpoints require authentication and the matching worker permission.
+
+#### Worker Health and Metadata
+
+| Method | Endpoint             | Permission             | Description                                                         |
+| ------ | -------------------- | ---------------------- | ------------------------------------------------------------------- |
+| GET    | `/api/worker/health` | `WORKER_SCHEDULE_READ` | Returns worker nodes, schedules, runs, and listener health summary. |
+| GET    | `/api/worker/tools`  | `WORKER_SCHEDULE_READ` | Lists worker-visible tools from the core manifest.                  |
+| GET    | `/api/worker/nodes`  | `WORKER_SCHEDULE_READ` | Lists registered worker daemon nodes and heartbeat status.          |
+| GET    | `/api/worker/runs`   | `WORKER_SCHEDULE_READ` | Lists worker schedule runs.                                         |
+
+#### Scheduler Endpoints
+
+| Method | Endpoint                                    | Permission              | Description                                                                 |
+| ------ | ------------------------------------------- | ----------------------- | --------------------------------------------------------------------------- |
+| GET    | `/api/worker/schedules`                     | `WORKER_SCHEDULE_READ`  | Lists active schedule definitions by default.                               |
+| GET    | `/api/worker/schedules/:scheduleId`         | `WORKER_SCHEDULE_READ`  | Returns one schedule definition.                                            |
+| POST   | `/api/worker/schedules`                     | `WORKER_SCHEDULE_WRITE` | Creates a schedule.                                                         |
+| PATCH  | `/api/worker/schedules/:scheduleId`         | `WORKER_SCHEDULE_WRITE` | Updates a schedule.                                                         |
+| PATCH  | `/api/worker/schedules/:scheduleId/status`  | `WORKER_SCHEDULE_WRITE` | Enables or disables a schedule.                                             |
+| POST   | `/api/worker/schedules/:scheduleId/queue`   | `WORKER_SCHEDULE_RUN`   | Queues a schedule for immediate worker execution.                           |
+| POST   | `/api/worker/schedules/:scheduleId/unqueue` | `WORKER_SCHEDULE_RUN`   | Cancels a pending queued schedule before it is claimed.                     |
+| POST   | `/api/worker/schedules/:scheduleId/run-now` | `WORKER_SCHEDULE_RUN`   | Legacy alias for queueing a schedule immediately.                           |
+| DELETE | `/api/worker/schedules/:scheduleId`         | `WORKER_SCHEDULE_WRITE` | Archives/removes a schedule from active views while preserving run history. |
+| GET    | `/api/worker/schedules/:scheduleId/runs`    | `WORKER_SCHEDULE_READ`  | Lists runs for one schedule.                                                |
+
+#### Listener Endpoints
+
+| Method | Endpoint                                   | Permission              | Description                        |
+| ------ | ------------------------------------------ | ----------------------- | ---------------------------------- |
+| GET    | `/api/worker/listeners`                    | `WORKER_LISTENER_READ`  | Lists active listener definitions. |
+| GET    | `/api/worker/listeners/:listenerId`        | `WORKER_LISTENER_READ`  | Returns one listener definition.   |
+| POST   | `/api/worker/listeners`                    | `WORKER_LISTENER_WRITE` | Creates a listener definition.     |
+| PATCH  | `/api/worker/listeners/:listenerId`        | `WORKER_LISTENER_WRITE` | Updates a listener definition.     |
+| PATCH  | `/api/worker/listeners/:listenerId/status` | `WORKER_LISTENER_WRITE` | Enables or disables a listener.    |
+| GET    | `/api/worker/listeners/:listenerId/events` | `WORKER_EVENT_READ`     | Lists events for one listener.     |
+| GET    | `/api/worker/listener-events`              | `WORKER_EVENT_READ`     | Lists recent listener events.      |
+
 ---
 
 ## 🛡️ Browser-Triggered Script Execution Safety
@@ -456,6 +527,66 @@ logs/script-executions
 
 ---
 
+## ⚙️ Worker Automation Layer
+
+SkyServer includes a standalone worker runtime under:
+
+```text
+apps/worker
+```
+
+Run the worker daemon with:
+
+```bash
+npm run worker
+```
+
+or in development mode:
+
+```bash
+npm run worker:dev
+```
+
+The worker runtime is intentionally separate from the API process:
+
+```text
+API       = request/response control plane
+Admin-Web = human control surface
+Worker    = background execution plane
+```
+
+Current worker capabilities include:
+
+- Worker node registration
+- Heartbeat tracking
+- Schedule polling
+- Due-schedule claiming with database locking
+- One-time schedule execution
+- Recurring interval schedule execution
+- Worker-visible tool execution through the existing `core` manifest
+- Schedule run records in `worker.schedule_runs`
+- Linked execution records in `auth.script_execution_log`
+- Automatic disabling of completed one-time schedules
+- Queue / Unqueue controls for immediate scheduled execution requests
+- Active schedule views that exclude completed one-time schedules and archived schedules
+
+Worker-visible tools are controlled through:
+
+```text
+core.tool_visibility
+```
+
+Only tools explicitly exposed to the `worker` channel are executable by the worker daemon. High-risk tools are not worker-visible by default.
+
+Listener support is partially staged:
+
+- Listener schema exists.
+- Listener API endpoints exist.
+- Admin-Web Active Listeners page exists.
+- Runtime listener processors remain a future focused slice.
+
+---
+
 ## 🗄️ PostgreSQL Database Layer
 
 SkyServer uses PostgreSQL as its structured data backend.
@@ -465,6 +596,7 @@ The database layer currently supports:
 - `macro` schema for macroeconomic indicators and reporting views
 - `auth` schema for users, sessions, RBAC, audit, and script execution logs
 - `core` schema for applications, tool manifests, repositories, runtimes, parameters, and visibility
+- `worker` schema for worker nodes, schedules, schedule runs, listeners, and listener events
 
 The `macro` schema includes:
 
@@ -486,6 +618,26 @@ value NUMERIC
   - Canadian macro views
   - U.S./Canada comparison views
 
+The `worker` schema includes:
+
+```text
+worker.worker_nodes
+worker.schedules
+worker.schedule_runs
+worker.listeners
+worker.listener_events
+```
+
+Worker views include:
+
+```text
+worker.vw_worker_nodes
+worker.vw_schedules
+worker.vw_schedule_runs_recent
+worker.vw_listeners
+worker.vw_listener_events_recent
+```
+
 The database build system is managed through:
 
 ```bash
@@ -495,14 +647,14 @@ npm run db:build
 and the direct script:
 
 ```bash
-node packages/db_build/src/db_build.js
+node packages/db_build/src/db_build.js <databaseName>
 ```
 
 The build tool scans SQL files from:
 
 ```text
-packages/db_build/migrations
-packages/db_build/seeds
+packages/db_build/src/migrations
+packages/db_build/src/seeds
 ```
 
 SQL files are sorted and executed in filename order, preserving deterministic database rebuild behavior across folders.
@@ -519,18 +671,6 @@ SkyServer includes a reusable ingestion framework for loading public and manual 
 
 Loads U.S. macroeconomic indicators from the Federal Reserve Economic Data ecosystem.
 
-Example indicators include:
-
-- Inflation
-- Labor market
-- Interest rates
-- Treasury curve
-- Credit conditions
-- Housing
-- Liquidity
-- Growth
-- Energy
-
 Run directly:
 
 ```bash
@@ -539,16 +679,9 @@ node packages/ingestion/src/loadFREDMacroData.js
 
 or from Admin-Web using **Run FRED Ingestion**.
 
----
-
 #### Bank of Canada
 
 Loads selected Canadian financial indicators from Bank of Canada data sources.
-
-Current active indicators include:
-
-- USD/CAD exchange rate
-- Bank of Canada overnight policy rate
 
 Run directly:
 
@@ -558,23 +691,9 @@ node packages/ingestion/src/loadBoCMacroData.js
 
 or from Admin-Web using **Run Bank of Canada Ingestion**.
 
----
-
 #### Statistics Canada
 
 Loads selected Canadian macroeconomic indicators from Statistics Canada vector-based data.
-
-Current covered areas include:
-
-- CPI / inflation
-- GDP
-- Housing
-- Population
-- Labor market
-- Imports
-- Retail sales
-- Building permits
-- Trade by industry
 
 Run directly:
 
@@ -604,8 +723,6 @@ packages/ingestion/src/discovery/discoverStatCanMetadata.js
 packages/ingestion/src/discovery/resolveStatCanVectors.js
 ```
 
----
-
 #### Manual Spreadsheet / CSV Ingestion
 
 SkyServer also supports manual ingestion for user-provided spreadsheet or CSV files.
@@ -616,8 +733,6 @@ Manual ingestion uses:
 packages/ingestion/src/config/manualIngestion.json
 ```
 
-The config maps spreadsheet columns to database columns and allows controlled loading into a target table without requiring direct database write access.
-
 Run directly:
 
 ```bash
@@ -625,8 +740,6 @@ node packages/ingestion/src/loadManualData.js
 ```
 
 or from Admin-Web using **Run Manual Ingestion**.
-
-This is useful for team environments where a user can prepare a file and config while the ingestion process handles database loading safely and consistently.
 
 ---
 
@@ -672,11 +785,9 @@ inserted_rows
 target_max
 ```
 
-This keeps the console output compact while still showing whether new data was loaded.
-
 ### Ingestion Observability
 
-SkyServer now includes a read-only ingestion status layer exposed through the API and Admin-Web.
+SkyServer includes a read-only ingestion status layer exposed through the API and Admin-Web.
 
 The ingestion status layer combines:
 
@@ -692,9 +803,9 @@ This separates pipeline monitoring from tool execution: **Tools** runs ingestion
 
 ## 🧰 Automation Tools
 
-SkyServer includes automation scripts for repository, file, database, ingestion, and operational workflows.
+SkyServer includes automation scripts for repository, file, database, ingestion, worker, and operational workflows.
 
-Automation is not a one-time phase of the project. It is a continuous layer of the system: as repeated workflows emerge, they can be promoted into scripts and then exposed through SkyServer Core and Admin-Web.
+Automation is not a one-time phase of the project. It is a continuous layer of the system: as repeated workflows emerge, they can be promoted into scripts, registered in the relational manifest, exposed through SkyServer Core/Admin-Web, and eventually scheduled through the worker automation layer.
 
 ### Git Automation
 
@@ -712,17 +823,16 @@ git_repo_status.js
 main_merge.js
 ```
 
-These tools now resolve configured repositories through the relational `core.repositories` / `core.repository_paths` configuration model for API/Admin-Web execution.
+These tools resolve configured repositories through the relational `core.repositories` / `core.repository_paths` configuration model for API/Admin-Web execution.
 
 They support:
 
 - Dev branch commit workflow
+- Repository map generation before dev commits
 - Pre-commit and pre-push validation
 - Repository status reporting
 - Main branch merge/sync workflow
 - Optional tagging during merge operations
-
----
 
 ### File / Structure Automation
 
@@ -732,9 +842,7 @@ Repository map generation is handled by:
 packages/files/src/generateRepoMap.js
 ```
 
-This produces a readable file tree for project documentation and structural review.
-
----
+This produces a readable file tree for project documentation and structural review. Runtime logs and their subfolders are omitted from generated repo maps to keep documentation clean.
 
 ### PowerShell Utilities
 
@@ -803,6 +911,8 @@ SkyServer/
 | `npm run web`               | Starts the Admin-Web Vite development server.    |
 | `npm run web:build`         | Builds the Admin-Web frontend.                   |
 | `npm run web:preview`       | Previews the built Admin-Web frontend.           |
+| `npm run worker`            | Starts the worker daemon.                        |
+| `npm run worker:dev`        | Starts the worker daemon with Nodemon.           |
 | `npm run daemon`            | Starts the API daemon entry point with Nodemon.  |
 | `npm run lint`              | Runs ESLint checks.                              |
 | `npm run lint:fix`          | Runs ESLint with auto-fix.                       |
@@ -856,6 +966,7 @@ Useful optional variables include:
 
 ```env
 API_PORT=7171
+AUTH_SESSION_MINUTES=30
 AUTH_SESSION_HOURS=12
 AUTH_MAX_FAILED_LOGIN_ATTEMPTS=5
 AUTH_LOCK_MINUTES=15
@@ -869,9 +980,17 @@ TOOL_EXECUTION_MAX_OUTPUT_BYTES=250000
 TOOL_EXECUTION_STALE_AFTER_MINUTES=15
 TOOL_HIGH_RISK_CONFIRMATION_PHRASE=RUN HIGH RISK
 SERVE_ADMIN_WEB=false
+WORKER_SCHEDULER_ENABLED=true
+WORKER_LISTENER_ENABLED=false
+WORKER_NODE_NAME=
+WORKER_HEARTBEAT_SECONDS=30
+WORKER_POLL_INTERVAL_SECONDS=15
+WORKER_TOOL_TIMEOUT_MS=180000
+WORKER_TOOL_MAX_OUTPUT_BYTES=250000
+WORKER_ALLOW_HIGH_RISK_TOOLS=false
 ```
 
-Database, ingestion, API, and tool execution scripts load `.env` from the SkyServer root so tools can be executed from different command prompt locations.
+Database, ingestion, API, worker, and tool execution scripts load `.env` from the SkyServer root so tools can be executed from different command prompt locations.
 
 ---
 
@@ -918,7 +1037,7 @@ macro.vw_us_ca_inflation_compare
 macro.vw_us_ca_labor_compare
 ```
 
-These views are intended to support future dashboarding, public visualizations, analytical reporting, and SkyWeb integration.
+These views support future dashboarding, public visualizations, analytical reporting, and SkyWeb integration.
 
 Macro view browsing endpoints are implemented under `/api/macro` and support Admin-Web monitoring, future SkyWeb dashboards, analytical reporting, and BI/reporting preparation.
 
@@ -934,6 +1053,8 @@ Its long-term role is to support:
 - PostgreSQL-backed analytics
 - Data ingestion and synchronization
 - Script orchestration
+- Scheduled background automation
+- Event-driven listener automation
 - Backend APIs
 - Worker jobs
 - File and repository automation
@@ -955,6 +1076,7 @@ SkyServer is built around a few practical rules:
 - Keep ingestion idempotent.
 - Keep console output useful but compact.
 - Keep browser-triggered script execution permission-aware and audited.
+- Keep scheduled automation explicit, observable, and reversible.
 - Keep architecture modular before it becomes painful to change.
 
 ---
@@ -971,7 +1093,7 @@ SkyServer is built around a few practical rules:
 | 🔄 Continuous  | Expand automation scripts for Git, files, database, ingestion, workers, and operational workflows                                                     |
 | ✅ Phase 6     | Private Admin-Web interface with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety confirmation UX |
 | ✅ Phase 7     | API endpoints for macro views, ingestion status, and admin actions, plus Admin-Web Access Control, Ingestion Status, and Dashboard v2                 |
-| 🔜 Phase 8     | Worker/listener workflows for scheduled and event-driven jobs                                                                                         |
+| ✅ Phase 8     | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker API, Automation Admin-Web pages, and listener foundation     |
 | 🔜 Phase 9     | SkyWeb integration for public-facing macro dashboards                                                                                                 |
 | 🔜 Phase 10    | Data mart design and analytics-ready PostgreSQL view/model refinement for public, admin, and BI consumers                                             |
 | 🔜 Phase 11    | ETL/ELT pipelines from PostgreSQL into Snowflake for durable cloud data warehousing                                                                   |
