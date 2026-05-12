@@ -63,6 +63,14 @@ function Navbar() {
                 </li>
               )}
 
+              {hasPermission('WORKER_SCHEDULE_READ') && (
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/worker">
+                    Worker
+                  </NavLink>
+                </li>
+              )}
+
               {hasPermission('SCRIPT_EXECUTION_READ') && (
                 <li className="nav-item">
                   <NavLink className="nav-link" to="/script-executions">

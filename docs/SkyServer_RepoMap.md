@@ -57,13 +57,15 @@ SkyServer/
 │ │ │ ├── IngestionStatus.jsx
 │ │ │ ├── Login.jsx
 │ │ │ ├── ScriptExecutions.jsx
-│ │ │ └── Tools.jsx
+│ │ │ ├── Tools.jsx
+│ │ │ └── WorkerControl.jsx
 │ │ └── services/
 │ │ ├── adminService.js
 │ │ ├── api.js
 │ │ ├── authService.js
 │ │ ├── ingestionService.js
-│ │ └── toolService.js
+│ │ ├── toolService.js
+│ │ └── workerService.js
 │ ├── api/
 │ │ └── src/
 │ │ ├── index.js
