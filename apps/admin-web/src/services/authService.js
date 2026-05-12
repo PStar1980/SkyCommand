@@ -16,6 +16,10 @@ async function logout() {
   }
 }
 
+async function changePassword(payload) {
+  return api.post('/api/auth/change-password', payload);
+}
+
 async function getCurrentSession() {
   return api.get('/api/auth/me');
 }
@@ -27,6 +31,7 @@ async function getPermissions() {
 const authService = {
   login,
   logout,
+  changePassword,
   getCurrentSession,
   getPermissions,
 };

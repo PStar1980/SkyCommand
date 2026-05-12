@@ -120,6 +120,38 @@ async function listRolePermissions(filters = {}) {
   return api.get('/api/admin/role-permissions', { query: filters });
 }
 
+async function listRepositories(filters = {}) {
+  return api.get('/api/admin/repositories', { query: filters });
+}
+
+async function listConfigProfiles() {
+  return api.get('/api/admin/repositories/profiles');
+}
+
+async function getRepository(repoId) {
+  return api.get(`/api/admin/repositories/${repoId}`);
+}
+
+async function createRepository(payload) {
+  return api.post('/api/admin/repositories', payload);
+}
+
+async function updateRepository(repoId, payload) {
+  return api.patch(`/api/admin/repositories/${repoId}`, payload);
+}
+
+async function updateRepositoryStatus(repoId, payload) {
+  return api.patch(`/api/admin/repositories/${repoId}/status`, payload);
+}
+
+async function updateRepositoryPaths(repoId, payload) {
+  return api.put(`/api/admin/repositories/${repoId}/paths`, payload);
+}
+
+async function deleteRepository(repoId, payload = {}) {
+  return api.delete(`/api/admin/repositories/${repoId}`, { body: payload });
+}
+
 async function getAuthSettings() {
   return api.get('/api/admin/settings/auth');
 }
@@ -159,6 +191,14 @@ const adminService = {
   updatePermissionStatus,
   getPermissionRoles,
   listRolePermissions,
+  listRepositories,
+  listConfigProfiles,
+  getRepository,
+  createRepository,
+  updateRepository,
+  updateRepositoryStatus,
+  updateRepositoryPaths,
+  deleteRepository,
   getAuthSettings,
   getCoreSettings,
 };

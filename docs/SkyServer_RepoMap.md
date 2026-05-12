@@ -48,6 +48,7 @@ SkyServer/
 │ │ │ └── AuthContext.jsx
 │ │ ├── pages/
 │ │ │ ├── AdminPrivileges.jsx
+│ │ │ ├── AdminRepositories.jsx
 │ │ │ ├── AdminRoles.jsx
 │ │ │ ├── AdminUsers.jsx
 │ │ │ ├── AuditEvents.jsx

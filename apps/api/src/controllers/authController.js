@@ -127,6 +127,34 @@ async function logout(req, res, next) {
   }
 }
 
+async function changePassword(req, res, next) {
+  try {
+    const context = authService.getRequestContext(req);
+    const result = await authService.changePassword({
+      userId: req.user?.userId,
+      sessionId: req.session?.sessionId,
+      currentPassword: req.body?.currentPassword,
+      newPassword: req.body?.newPassword,
+      confirmPassword: req.body?.confirmPassword,
+      revokeOtherSessions: req.body?.revokeOtherSessions !== false,
+      context,
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+
+    res.status(statusCode).json({
+      ok: false,
+      error: statusCode >= 500 ? 'Internal server error.' : error.message,
+      ...(error.details && Object.keys(error.details).length > 0 ? { details: error.details } : {}),
+    });
+  }
+}
+
 async function me(req, res) {
   res.json({
     ok: true,
@@ -146,6 +174,7 @@ async function permissions(req, res) {
 module.exports = {
   login,
   logout,
+  changePassword,
   me,
   permissions,
 };

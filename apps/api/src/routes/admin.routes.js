@@ -23,6 +23,47 @@ router.get(
 router.get('/settings/auth', requirePermission('ADMIN_USER_READ'), adminController.getAuthSettings);
 router.get('/settings/core', requirePermission('ADMIN_ROLE_READ'), adminController.getCoreSettings);
 
+router.get(
+  '/repositories/profiles',
+  requirePermission('ADMIN_REPOSITORY_READ'),
+  adminController.listConfigProfiles,
+);
+router.get(
+  '/repositories',
+  requirePermission('ADMIN_REPOSITORY_READ'),
+  adminController.listRepositories,
+);
+router.post(
+  '/repositories',
+  requirePermission('ADMIN_REPOSITORY_WRITE'),
+  adminController.createRepository,
+);
+router.get(
+  '/repositories/:repoId',
+  requirePermission('ADMIN_REPOSITORY_READ'),
+  adminController.getRepository,
+);
+router.patch(
+  '/repositories/:repoId',
+  requirePermission('ADMIN_REPOSITORY_WRITE'),
+  adminController.updateRepository,
+);
+router.patch(
+  '/repositories/:repoId/status',
+  requirePermission('ADMIN_REPOSITORY_WRITE'),
+  adminController.updateRepositoryStatus,
+);
+router.put(
+  '/repositories/:repoId/paths',
+  requirePermission('ADMIN_REPOSITORY_WRITE'),
+  adminController.updateRepositoryPaths,
+);
+router.delete(
+  '/repositories/:repoId',
+  requirePermission('ADMIN_REPOSITORY_WRITE'),
+  adminController.deleteRepository,
+);
+
 router.get('/user-roles', requirePermission('ADMIN_USER_READ'), adminController.listUserRoles);
 router.get(
   '/role-permissions',

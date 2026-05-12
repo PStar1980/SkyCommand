@@ -382,6 +382,105 @@ async function listRolePermissions(req, res) {
   }
 }
 
+async function listRepositories(req, res) {
+  try {
+    const payload = await adminActionService.listRepositories(req.query || {});
+    sendPagedResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function listConfigProfiles(req, res) {
+  try {
+    const payload = await adminActionService.listConfigProfiles();
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getRepository(req, res) {
+  try {
+    const payload = await adminActionService.getRepository(req.params.repoId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function createRepository(req, res) {
+  try {
+    const payload = await adminActionService.createRepository({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    res.status(201).json({
+      ok: true,
+      ...payload,
+    });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateRepository(req, res) {
+  try {
+    const payload = await adminActionService.updateRepository({
+      repoId: req.params.repoId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateRepositoryStatus(req, res) {
+  try {
+    const payload = await adminActionService.updateRepositoryStatus({
+      repoId: req.params.repoId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateRepositoryPaths(req, res) {
+  try {
+    const payload = await adminActionService.updateRepositoryPaths({
+      repoId: req.params.repoId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function deleteRepository(req, res) {
+  try {
+    const payload = await adminActionService.deleteRepository({
+      repoId: req.params.repoId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function getAuthSettings(req, res) {
   try {
     const payload = adminActionService.getAuthSettings();
@@ -431,6 +530,14 @@ module.exports = {
   updatePermissionStatus,
   getPermissionRoles,
   listRolePermissions,
+  listRepositories,
+  listConfigProfiles,
+  getRepository,
+  createRepository,
+  updateRepository,
+  updateRepositoryStatus,
+  updateRepositoryPaths,
+  deleteRepository,
   getAuthSettings,
   getCoreSettings,
 };

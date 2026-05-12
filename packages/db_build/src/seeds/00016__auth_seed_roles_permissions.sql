@@ -234,6 +234,21 @@ VALUES
     ),
 
     (
+        'ADMIN_REPOSITORY_READ',
+        'admin_repositories',
+        'read',
+        'View repository configuration and profile-specific repository paths.',
+        TRUE
+    ),
+    (
+        'ADMIN_REPOSITORY_WRITE',
+        'admin_repositories',
+        'write',
+        'Create, update, disable, or manage repository configuration and repository paths.',
+        TRUE
+    ),
+
+    (
         'AUDIT_READ',
         'audit',
         'read',
@@ -365,6 +380,8 @@ WITH admin_permissions(permission_code) AS (
         ('ADMIN_ROLE_READ'),
         ('ADMIN_ROLE_WRITE'),
         ('ADMIN_PERMISSION_READ'),
+        ('ADMIN_REPOSITORY_READ'),
+        ('ADMIN_REPOSITORY_WRITE'),
 
         ('WORKER_SCHEDULE_READ'),
         ('WORKER_SCHEDULE_WRITE'),
@@ -421,6 +438,7 @@ WITH operator_permissions(permission_code) AS (
         ('REPO_ZIP_GENERATE'),
 
         ('MACRO_VIEW_READ'),
+        ('ADMIN_REPOSITORY_READ'),
 
         ('WORKER_SCHEDULE_READ'),
         ('WORKER_SCHEDULE_RUN'),
@@ -459,6 +477,7 @@ WITH viewer_permissions(permission_code) AS (
         ('DB_HEALTH_RUN'),
         ('GIT_STATUS_RUN'),
         ('MACRO_VIEW_READ'),
+        ('ADMIN_REPOSITORY_READ'),
         ('WORKER_SCHEDULE_READ'),
         ('WORKER_LISTENER_READ'),
         ('WORKER_EVENT_READ'),
