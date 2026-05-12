@@ -162,7 +162,8 @@ FROM (
     ('data_ingestion_tools','ingestion_boc','loadBoCMacroData','Run Bank of Canada Ingestion','Loads active Bank of Canada macroeconomic indicators into PostgreSQL.','packages/ingestion/src/loadBoCMacroData.js','node','INGESTION_RUN_BOC','medium',TRUE,'This will call the Bank of Canada ingestion pipeline and write any new data into PostgreSQL.',TRUE,FALSE,20),
     ('data_ingestion_tools','ingestion_statcan','loadStatCanMacroData','Run Statistics Canada Ingestion','Loads active Statistics Canada vector-based macroeconomic indicators into PostgreSQL.','packages/ingestion/src/loadStatCanMacroData.js','node','INGESTION_RUN_STATCAN','medium',TRUE,'This will call the Statistics Canada ingestion pipeline and write any new data into PostgreSQL.',TRUE,FALSE,30),
     ('data_ingestion_tools','ingestion_manual','loadManualData','Run Manual Ingestion','Loads configured manual spreadsheet or CSV data into PostgreSQL.','packages/ingestion/src/loadManualData.js','node','INGESTION_RUN_MANUAL','medium',TRUE,'This will process the configured manual ingestion file and write mapped data into PostgreSQL.',TRUE,FALSE,40),
-    ('file_tools','repo_map_generate','generateRepoMap','Generate Repository Map','Generates a readable repository map for documentation and structural review.','packages/files/src/generateRepoMap.js','node','REPO_MAP_GENERATE','low',FALSE,NULL,TRUE,TRUE,10)
+    ('file_tools','repo_map_generate','generateRepoMap','Generate Repository Map','Generates a readable repository map for documentation and structural review.','packages/files/src/generateRepoMap.js','node','REPO_MAP_GENERATE','low',FALSE,NULL,TRUE,TRUE,10),
+    ('file_tools','repo_zip_generate','generateRepoZip','Generate Repository Zip','Generates a zip archive of a repository using the configured ignore rules for project handoff and review.','packages/files/src/generateRepoZip.js','node','REPO_ZIP_GENERATE','low',FALSE,NULL,TRUE,TRUE,20)
 ) AS v(category_code, tool_code, name, label, description, script_path, runtime_code, permission_code, risk_code, requires_confirmation, confirmation_text, captures_output, allow_params, display_order)
 JOIN core.applications a ON a.app_code = 'SKYSERVER_CORE'
 JOIN core.tool_categories c ON c.app_id = a.app_id AND c.category_code = v.category_code
@@ -200,7 +201,8 @@ JOIN (
     ('ingestion_boc','cli'), ('ingestion_boc','admin-web'), ('ingestion_boc','api'), ('ingestion_boc','worker'),
     ('ingestion_statcan','cli'), ('ingestion_statcan','admin-web'), ('ingestion_statcan','api'), ('ingestion_statcan','worker'),
     ('ingestion_manual','cli'), ('ingestion_manual','admin-web'), ('ingestion_manual','api'),
-    ('repo_map_generate','cli'), ('repo_map_generate','admin-web'), ('repo_map_generate','api')
+    ('repo_map_generate','cli'), ('repo_map_generate','admin-web'), ('repo_map_generate','api'),
+    ('repo_zip_generate','cli'), ('repo_zip_generate','admin-web'), ('repo_zip_generate','api')
 ) AS v(tool_code, channel_code) ON v.tool_code = t.tool_code
 ON CONFLICT (tool_id, channel_code) DO NOTHING;
 
@@ -217,7 +219,10 @@ JOIN (
     ('main_merge','tagName','Optional Tag Name','string','Optional tag name (leave blank for none)',FALSE,NULL,NULL,20),
     ('repo_map_generate','location','Root Folder Location','string','Enter root folder location',TRUE,NULL,NULL,10),
     ('repo_map_generate','fileName','Output File Name','string','Enter output file name',TRUE,NULL,NULL,20),
-    ('repo_map_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location)',FALSE,NULL,NULL,30)
+    ('repo_map_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location)',FALSE,NULL,NULL,30),
+    ('repo_zip_generate','location','Root Folder Location','string','Enter root folder location',TRUE,NULL,NULL,10),
+    ('repo_zip_generate','fileName','Output Zip File Name','string','Enter output zip file name',TRUE,NULL,NULL,20),
+    ('repo_zip_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location)',FALSE,NULL,NULL,30)
 ) AS v(tool_code, parameter_name, label, param_type_code, prompt, required, default_value, option_source_code, display_order)
 ON v.tool_code = t.tool_code
 ON CONFLICT (tool_id, parameter_name) DO UPDATE

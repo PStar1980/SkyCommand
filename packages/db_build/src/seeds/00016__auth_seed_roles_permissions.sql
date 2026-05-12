@@ -174,6 +174,13 @@ VALUES
         'Generate repository map documentation.',
         TRUE
     ),
+    (
+        'REPO_ZIP_GENERATE',
+        'files',
+        'generate_repo_zip',
+        'Generate repository zip archives for project handoff and review.',
+        TRUE
+    ),
 
     (
         'MACRO_VIEW_READ',
@@ -349,6 +356,7 @@ WITH admin_permissions(permission_code) AS (
         ('GIT_COMMIT_RUN'),
 
         ('REPO_MAP_GENERATE'),
+        ('REPO_ZIP_GENERATE'),
 
         ('MACRO_VIEW_READ'),
 
@@ -410,6 +418,7 @@ WITH operator_permissions(permission_code) AS (
         ('GIT_STATUS_RUN'),
 
         ('REPO_MAP_GENERATE'),
+        ('REPO_ZIP_GENERATE'),
 
         ('MACRO_VIEW_READ'),
 
