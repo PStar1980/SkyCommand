@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import AuditEvents from './pages/AuditEvents.jsx';
 import AdminPrivileges from './pages/AdminPrivileges.jsx';
+import AdminRepositories from './pages/AdminRepositories.jsx';
 import AdminRoles from './pages/AdminRoles.jsx';
 import AdminUsers from './pages/AdminUsers.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -73,6 +74,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="WORKER_LISTENER_READ">
                   <AutomationListeners />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="configuration/repositories"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_REPOSITORY_READ">
+                  <AdminRepositories />
                 </ProtectedRoute>
               }
             />

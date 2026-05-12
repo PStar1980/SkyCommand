@@ -912,3 +912,59 @@
     font-size: 1.35rem;
   }
 }
+
+.sky-account-menu-button {
+  border: 1px solid rgba(124, 144, 177, 0.26);
+  background: rgba(6, 11, 22, 0.42);
+  color: #dce8ff;
+  line-height: 1.15;
+  padding: 0.35rem 0.65rem;
+}
+
+.sky-account-menu-button:hover,
+.sky-account-menu-button:focus {
+  border-color: rgba(72, 167, 255, 0.52);
+  background: rgba(72, 167, 255, 0.12);
+  color: #ffffff;
+}
+
+.sky-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  padding: 1rem;
+}
+
+.sky-modal-card {
+  width: min(100%, 540px);
+  overflow: hidden;
+  border: 1px solid rgba(124, 144, 177, 0.26);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(72, 167, 255, 0.16), transparent 34%), #101827;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
+}
+
+.sky-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(124, 144, 177, 0.16);
+  padding: 1rem 1.1rem;
+}
+
+.sky-repository-path-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.sky-repository-path-row {
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 0.85rem;
+  background: rgba(6, 11, 22, 0.44);
+  padding: 0.85rem;
+}

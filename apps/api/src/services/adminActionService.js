@@ -86,6 +86,37 @@ function normalizeCode(value, label) {
   return code;
 }
 
+function normalizeRepositoryCode(value) {
+  const text = normalizeRequiredString(value, 'repoCode');
+
+  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(text)) {
+    throw createHttpError(
+      400,
+      'repoCode must start with a letter and contain only letters, numbers, underscores, or dashes.',
+    );
+  }
+
+  return text;
+}
+
+function normalizeInteger(value, fallback, label) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const numberValue = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(numberValue)) {
+    throw createHttpError(400, `${label} must be an integer.`);
+  }
+
+  return numberValue;
+}
+
+function normalizePathPayload(value, label = 'rootPath') {
+  return normalizeRequiredString(value, label);
+}
+
 function normalizeResourceAction(value, label) {
   const text = normalizeRequiredString(value, label).toLowerCase();
 
@@ -263,6 +294,59 @@ function sanitizeSession(row) {
     expiresAt: row.expires_at,
     lastSeenAt: row.last_seen_at,
     secondsUntilExpiry: row.seconds_until_expiry,
+  };
+}
+
+function sanitizeRepository(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    repoId: row.repo_id,
+    repoCode: row.repo_code,
+    repoName: row.repo_name,
+    description: row.description,
+    remoteUrl: row.remote_url,
+    mainBranch: row.main_branch,
+    devBranch: row.dev_branch,
+    displayOrder: row.display_order,
+    active: row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function sanitizeRepositoryPath(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    repoPathId: row.repo_path_id || null,
+    repoId: row.repo_id || null,
+    profileId: row.profile_id,
+    profileCode: row.profile_code,
+    profileName: row.profile_name,
+    rootPath: row.root_path || '',
+    active: row.path_active === undefined ? row.active : row.path_active,
+    createdAt: row.path_created_at || row.created_at || null,
+    updatedAt: row.path_updated_at || row.updated_at || null,
+  };
+}
+
+function sanitizeConfigProfile(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    profileId: row.profile_id,
+    profileCode: row.profile_code,
+    profileName: row.profile_name,
+    description: row.description,
+    active: row.active,
+    createdAt: row.created_at,
   };
 }
 
@@ -1785,6 +1869,504 @@ async function getPermissionRoles(permissionId) {
   };
 }
 
+async function listRepositories(filters = {}) {
+  const limit = Math.min(Math.max(Number.parseInt(filters.limit, 10) || 50, 1), 200);
+  const offset = Math.max(Number.parseInt(filters.offset, 10) || 0, 0);
+  const clauses = [];
+  const values = [];
+
+  const q = normalizeOptionalString(filters.q);
+
+  if (q) {
+    values.push(`%${q}%`);
+    clauses.push(`(
+      repo_code ILIKE $${values.length}
+      OR repo_name ILIKE $${values.length}
+      OR COALESCE(description, '') ILIKE $${values.length}
+      OR COALESCE(remote_url, '') ILIKE $${values.length}
+    )`);
+  }
+
+  if (filters.active !== undefined && filters.active !== null && filters.active !== '') {
+    values.push(normalizeBoolean(filters.active, 'active'));
+    clauses.push(`active = $${values.length}`);
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+
+  const countResult = await query(
+    `
+      SELECT COUNT(*)::int AS total
+      FROM core.repositories
+      ${whereClause}
+    `,
+    values,
+  );
+
+  const dataResult = await query(
+    `
+      SELECT
+        repo_id,
+        repo_code,
+        repo_name,
+        description,
+        remote_url,
+        main_branch,
+        dev_branch,
+        display_order,
+        active,
+        created_at,
+        updated_at
+      FROM core.repositories
+      ${whereClause}
+      ORDER BY display_order, repo_name, repo_code
+      LIMIT $${values.length + 1}
+      OFFSET $${values.length + 2}
+    `,
+    [...values, limit, offset],
+  );
+
+  return {
+    total: Number(countResult.rows[0]?.total || 0),
+    limit,
+    offset,
+    items: dataResult.rows.map(sanitizeRepository),
+  };
+}
+
+async function listConfigProfiles() {
+  const result = await query(
+    `
+      SELECT profile_id, profile_code, profile_name, description, active, created_at
+      FROM core.config_profiles
+      ORDER BY profile_code
+    `,
+  );
+
+  return {
+    items: result.rows.map(sanitizeConfigProfile),
+  };
+}
+
+async function getRepositoryRowById(client, rawRepoId, options = {}) {
+  const repoId = normalizeUuid(rawRepoId, 'repoId');
+  const result = await client.query(
+    `
+      SELECT
+        repo_id,
+        repo_code,
+        repo_name,
+        description,
+        remote_url,
+        main_branch,
+        dev_branch,
+        display_order,
+        active,
+        created_at,
+        updated_at
+      FROM core.repositories
+      WHERE repo_id = $1
+      ${options.forUpdate ? 'FOR UPDATE' : ''}
+    `,
+    [repoId],
+  );
+
+  if (result.rowCount === 0) {
+    throw createHttpError(404, 'Repository not found.');
+  }
+
+  return result.rows[0];
+}
+
+async function getRepositoryPaths(client, repoId) {
+  const result = await client.query(
+    `
+      SELECT
+        cp.profile_id,
+        cp.profile_code,
+        cp.profile_name,
+        rp.repo_path_id,
+        rp.repo_id,
+        rp.root_path,
+        rp.active AS path_active,
+        rp.created_at AS path_created_at,
+        rp.updated_at AS path_updated_at
+      FROM core.config_profiles cp
+      LEFT JOIN core.repository_paths rp
+        ON rp.profile_id = cp.profile_id
+       AND rp.repo_id = $1
+      WHERE cp.active = TRUE
+      ORDER BY cp.profile_code
+    `,
+    [repoId],
+  );
+
+  return result.rows.map(sanitizeRepositoryPath);
+}
+
+async function getRepository(repoId) {
+  const client = await pool.connect();
+
+  try {
+    const repository = await getRepositoryRowById(client, repoId);
+    const paths = await getRepositoryPaths(client, repository.repo_id);
+
+    return {
+      repository: sanitizeRepository(repository),
+      paths,
+    };
+  } finally {
+    client.release();
+  }
+}
+
+function normalizeRepositoryPayload(body = {}, options = {}) {
+  const patch = Boolean(options.patch);
+  const payload = {};
+
+  if (!patch || Object.prototype.hasOwnProperty.call(body, 'repoCode')) {
+    payload.repoCode = normalizeRepositoryCode(body.repoCode);
+  }
+
+  if (!patch || Object.prototype.hasOwnProperty.call(body, 'repoName')) {
+    payload.repoName = normalizeRequiredString(body.repoName, 'repoName');
+  }
+
+  for (const [bodyKey, payloadKey] of [
+    ['description', 'description'],
+    ['remoteUrl', 'remoteUrl'],
+  ]) {
+    if (!patch || Object.prototype.hasOwnProperty.call(body, bodyKey)) {
+      payload[payloadKey] = normalizeOptionalString(body[bodyKey]);
+    }
+  }
+
+  if (!patch || Object.prototype.hasOwnProperty.call(body, 'mainBranch')) {
+    payload.mainBranch = normalizeRequiredString(body.mainBranch || 'main', 'mainBranch');
+  }
+
+  if (!patch || Object.prototype.hasOwnProperty.call(body, 'devBranch')) {
+    payload.devBranch = normalizeRequiredString(body.devBranch || 'dev', 'devBranch');
+  }
+
+  if (!patch || Object.prototype.hasOwnProperty.call(body, 'displayOrder')) {
+    payload.displayOrder = normalizeInteger(body.displayOrder, 999, 'displayOrder');
+  }
+
+  if (!patch || Object.prototype.hasOwnProperty.call(body, 'active')) {
+    payload.active = normalizeOptionalBoolean(body.active, true, 'active');
+  }
+
+  return payload;
+}
+
+function normalizeRepositoryPathsPayload(paths) {
+  if (!Array.isArray(paths)) {
+    throw createHttpError(400, 'paths must be an array.');
+  }
+
+  return paths.map((pathItem) => {
+    const profileId = normalizeUuid(pathItem.profileId, 'profileId');
+    const active = normalizeOptionalBoolean(pathItem.active, true, 'path.active');
+    const rootPath = active
+      ? normalizePathPayload(pathItem.rootPath)
+      : normalizeOptionalString(pathItem.rootPath);
+
+    return {
+      profileId,
+      rootPath,
+      active,
+    };
+  });
+}
+
+async function upsertRepositoryPaths(client, repoId, paths = []) {
+  const normalizedPaths = normalizeRepositoryPathsPayload(paths);
+
+  for (const pathItem of normalizedPaths) {
+    if (!pathItem.rootPath && !pathItem.active) {
+      await client.query(
+        `
+          UPDATE core.repository_paths
+          SET active = FALSE,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE repo_id = $1
+            AND profile_id = $2
+        `,
+        [repoId, pathItem.profileId],
+      );
+      continue;
+    }
+
+    await client.query(
+      `
+        INSERT INTO core.repository_paths (repo_id, profile_id, root_path, active)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (repo_id, profile_id)
+        DO UPDATE SET
+          root_path = EXCLUDED.root_path,
+          active = EXCLUDED.active,
+          updated_at = CURRENT_TIMESTAMP
+      `,
+      [repoId, pathItem.profileId, pathItem.rootPath || '', pathItem.active],
+    );
+  }
+}
+
+async function createRepository({ body = {}, actor, context = {} }) {
+  const payload = normalizeRepositoryPayload(body);
+  const paths = Array.isArray(body.paths) ? body.paths : [];
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `
+        INSERT INTO core.repositories (
+          repo_code,
+          repo_name,
+          description,
+          remote_url,
+          main_branch,
+          dev_branch,
+          display_order,
+          active
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING
+          repo_id,
+          repo_code,
+          repo_name,
+          description,
+          remote_url,
+          main_branch,
+          dev_branch,
+          display_order,
+          active,
+          created_at,
+          updated_at
+      `,
+      [
+        payload.repoCode,
+        payload.repoName,
+        payload.description,
+        payload.remoteUrl,
+        payload.mainBranch,
+        payload.devBranch,
+        payload.displayOrder,
+        payload.active,
+      ],
+    );
+
+    const repository = result.rows[0];
+    await upsertRepositoryPaths(client, repository.repo_id, paths);
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: 'ADMIN_REPOSITORY_CREATE',
+      resourceType: 'core.repositories',
+      resourceId: repository.repo_id,
+      action: 'create_repository',
+      success: true,
+      message: 'Repository configuration created through Admin API.',
+      metadata: {
+        repoCode: repository.repo_code,
+        repoName: repository.repo_name,
+        pathCount: paths.length,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    return {
+      repository: sanitizeRepository(repository),
+      paths: await getRepositoryPaths(client, repository.repo_id),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+
+    if (error.code === '23505') {
+      throw createHttpError(409, 'Repository code already exists.', {
+        constraint: error.constraint,
+      });
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateRepository({ repoId, body = {}, actor, context = {} }) {
+  const normalizedRepoId = normalizeUuid(repoId, 'repoId');
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await getRepositoryRowById(client, normalizedRepoId, { forUpdate: true });
+
+    const payload = normalizeRepositoryPayload(body, { patch: true });
+    const updates = [];
+    const values = [];
+    const fieldMap = [
+      ['repoCode', 'repo_code'],
+      ['repoName', 'repo_name'],
+      ['description', 'description'],
+      ['remoteUrl', 'remote_url'],
+      ['mainBranch', 'main_branch'],
+      ['devBranch', 'dev_branch'],
+      ['displayOrder', 'display_order'],
+      ['active', 'active'],
+    ];
+
+    for (const [payloadKey, columnName] of fieldMap) {
+      if (Object.prototype.hasOwnProperty.call(payload, payloadKey)) {
+        values.push(payload[payloadKey]);
+        updates.push(`${columnName} = $${values.length}`);
+      }
+    }
+
+    if (updates.length > 0) {
+      values.push(normalizedRepoId);
+      await client.query(
+        `
+          UPDATE core.repositories
+          SET ${updates.join(', ')},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE repo_id = $${values.length}
+        `,
+        values,
+      );
+    }
+
+    if (Array.isArray(body.paths)) {
+      await upsertRepositoryPaths(client, normalizedRepoId, body.paths);
+    }
+
+    const repository = await getRepositoryRowById(client, normalizedRepoId);
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: 'ADMIN_REPOSITORY_UPDATE',
+      resourceType: 'core.repositories',
+      resourceId: normalizedRepoId,
+      action: 'update_repository',
+      success: true,
+      message: 'Repository configuration updated through Admin API.',
+      metadata: {
+        changedFields: Object.keys(payload),
+        pathsUpdated: Array.isArray(body.paths),
+      },
+    });
+
+    await client.query('COMMIT');
+
+    return {
+      repository: sanitizeRepository(repository),
+      paths: await getRepositoryPaths(client, normalizedRepoId),
+      changed: updates.length > 0 || Array.isArray(body.paths),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+
+    if (error.code === '23505') {
+      throw createHttpError(409, 'Repository code already exists.', {
+        constraint: error.constraint,
+      });
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateRepositoryStatus({ repoId, body = {}, actor, context = {} }) {
+  return updateRepository({
+    repoId,
+    body: {
+      active: normalizeBoolean(body.active, 'active'),
+    },
+    actor,
+    context,
+  });
+}
+
+async function updateRepositoryPaths({ repoId, body = {}, actor, context = {} }) {
+  return updateRepository({
+    repoId,
+    body: {
+      paths: body.paths,
+    },
+    actor,
+    context,
+  });
+}
+
+async function deleteRepository({ repoId, body = {}, actor, context = {} }) {
+  const normalizedRepoId = normalizeUuid(repoId, 'repoId');
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const repository = await getRepositoryRowById(client, normalizedRepoId, { forUpdate: true });
+
+    await client.query(
+      `
+        UPDATE core.repositories
+        SET active = FALSE,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE repo_id = $1
+      `,
+      [normalizedRepoId],
+    );
+
+    await client.query(
+      `
+        UPDATE core.repository_paths
+        SET active = FALSE,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE repo_id = $1
+      `,
+      [normalizedRepoId],
+    );
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: 'ADMIN_REPOSITORY_DELETE',
+      resourceType: 'core.repositories',
+      resourceId: normalizedRepoId,
+      action: 'delete_repository',
+      success: true,
+      message: 'Repository configuration was disabled through Admin API.',
+      metadata: {
+        repoCode: repository.repo_code,
+        repoName: repository.repo_name,
+        deleteReason: normalizeOptionalString(body.reason),
+        softDelete: true,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    return {
+      repository: sanitizeRepository({ ...repository, active: false }),
+      deleted: true,
+      softDelete: true,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 function getAuthSettings() {
   return {
     auth: {
@@ -1901,6 +2483,14 @@ module.exports = {
   updatePermission,
   updatePermissionStatus,
   getPermissionRoles,
+  listRepositories,
+  listConfigProfiles,
+  getRepository,
+  createRepository,
+  updateRepository,
+  updateRepositoryStatus,
+  updateRepositoryPaths,
+  deleteRepository,
   getAuthSettings,
   getCoreSettings,
 };

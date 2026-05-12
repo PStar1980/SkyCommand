@@ -1,6 +1,7 @@
-const { query } = require('../../../../packages/db/src/connection');
+const { pool, query } = require('../../../../packages/db/src/connection');
 const {
   verifyPassword,
+  hashPassword,
   createSessionToken,
   hashToken,
 } = require('../../../../packages/auth/src/password');
@@ -80,6 +81,13 @@ function getSessionConfig() {
     sessionMinutes: DEFAULT_SESSION_MINUTES,
     revokeSessionsOnStart: REVOKE_SESSIONS_ON_START,
   };
+}
+
+function createHttpError(statusCode, message, details = {}) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.details = details;
+  return error;
 }
 
 function shouldRevokeSessionsOnStart() {
@@ -510,6 +518,170 @@ async function getSessionFromToken(sessionToken) {
   };
 }
 
+async function changePassword({
+  userId,
+  sessionId,
+  currentPassword,
+  newPassword,
+  confirmPassword,
+  revokeOtherSessions = true,
+  context = {},
+}) {
+  if (!userId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    throw createHttpError(400, 'Current password, new password, and confirmation are required.');
+  }
+
+  if (newPassword !== confirmPassword) {
+    throw createHttpError(400, 'New password and confirmation do not match.');
+  }
+
+  if (newPassword === currentPassword) {
+    throw createHttpError(400, 'New password must be different from the current password.');
+  }
+
+  if (typeof newPassword !== 'string' || newPassword.length < 12) {
+    throw createHttpError(400, 'Password must be at least 12 characters long.');
+  }
+
+  const userResult = await query(
+    `
+      SELECT
+        user_id,
+        email,
+        username,
+        display_name,
+        password_hash,
+        status,
+        is_system_user,
+        failed_login_count,
+        locked_until,
+        last_login_at
+      FROM auth.users
+      WHERE user_id = $1
+      LIMIT 1
+    `,
+    [userId],
+  );
+
+  const user = userResult.rows[0];
+
+  if (!user || user.status !== 'ACTIVE') {
+    throw createHttpError(404, 'Active user account not found.');
+  }
+
+  const currentPasswordMatches = await verifyPassword(currentPassword, user.password_hash);
+
+  if (!currentPasswordMatches) {
+    await recordAuditEvent({
+      userId,
+      eventType: 'AUTH_PASSWORD_CHANGE',
+      resourceType: 'auth.users',
+      resourceId: userId,
+      action: 'change_own_password',
+      success: false,
+      message: 'Password change rejected because the current password was incorrect.',
+      metadata: { reason: 'INVALID_CURRENT_PASSWORD' },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    });
+
+    throw createHttpError(400, 'Current password is incorrect.');
+  }
+
+  const newPasswordHash = await hashPassword(newPassword);
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const updateResult = await client.query(
+      `
+        UPDATE auth.users
+        SET password_hash = $2,
+            failed_login_count = 0,
+            locked_until = NULL,
+            updated_by = $1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $1
+        RETURNING
+          user_id,
+          email,
+          username,
+          display_name,
+          status,
+          is_system_user,
+          last_login_at
+      `,
+      [userId, newPasswordHash],
+    );
+
+    let revokedOtherSessionsCount = 0;
+
+    if (revokeOtherSessions) {
+      const revokeResult = await client.query(
+        `
+          UPDATE auth.sessions
+          SET revoked_at = CURRENT_TIMESTAMP,
+              revoked_reason = 'PASSWORD_CHANGE'
+          WHERE user_id = $1
+            AND session_id <> $2
+            AND revoked_at IS NULL
+            AND expires_at > CURRENT_TIMESTAMP
+          RETURNING session_id
+        `,
+        [userId, sessionId || '00000000-0000-0000-0000-000000000000'],
+      );
+
+      revokedOtherSessionsCount = revokeResult.rowCount || 0;
+    }
+
+    await client.query(
+      `
+        INSERT INTO auth.audit_events (
+          user_id,
+          event_type,
+          resource_type,
+          resource_id,
+          action,
+          success,
+          message,
+          metadata,
+          ip_address,
+          user_agent
+        )
+        VALUES ($1, 'AUTH_PASSWORD_CHANGE', 'auth.users', $1, 'change_own_password', TRUE, $2, $3::jsonb, $4, $5)
+      `,
+      [
+        userId,
+        'User changed their own password successfully.',
+        JSON.stringify({
+          revokeOtherSessions: Boolean(revokeOtherSessions),
+          revokedOtherSessionsCount,
+        }),
+        context.ipAddress || null,
+        context.userAgent || null,
+      ],
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      user: sanitizeUser(updateResult.rows[0]),
+      changed: true,
+      revokedOtherSessionsCount,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function logout({ sessionToken, userId = null, context = {} }) {
   if (!sessionToken) {
     return false;
@@ -559,6 +731,7 @@ module.exports = {
   revokeActiveSessionsOnStartup,
   login,
   logout,
+  changePassword,
   getSessionFromToken,
   getPermissionsForUser,
   hasPermission,
