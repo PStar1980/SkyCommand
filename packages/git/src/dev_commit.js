@@ -36,8 +36,16 @@ const GENERATE_REPO_MAP_SCRIPT = path.join(
   'src',
   'generateRepoMap.js',
 );
+const GENERATE_REPO_ZIP_SCRIPT = path.join(
+  SKY_SERVER_ROOT,
+  'packages',
+  'files',
+  'src',
+  'generateRepoZip.js',
+);
 
 const REPO_MAP_FILE_SUFFIX = '_RepoMap.md';
+const REPO_ZIP_FILE_SUFFIX = '_RepoZip.zip';
 
 dotenv.config({ path: ENV_PATH });
 
@@ -112,6 +120,18 @@ function getRepoMapConfig(repo) {
   };
 }
 
+function getRepoZipConfig(repo) {
+  const repoRootFolderName = getRepoRootFolderName(repo.rootPath);
+  const outputPath = path.join(repo.rootPath, 'zip');
+  const fileName = `${repoRootFolderName}${REPO_ZIP_FILE_SUFFIX}`;
+
+  return {
+    fileName,
+    outputPath,
+    outputFilePath: path.join(outputPath, fileName),
+  };
+}
+
 function generateRepoMap(repo) {
   if (!fs.existsSync(GENERATE_REPO_MAP_SCRIPT)) {
     fail(`Repository map generator does not exist: ${GENERATE_REPO_MAP_SCRIPT}`);
@@ -128,6 +148,27 @@ function generateRepoMap(repo) {
   runCommand(
     process.execPath,
     [GENERATE_REPO_MAP_SCRIPT, repo.rootPath, repoMap.fileName, repoMap.outputPath],
+    SKY_SERVER_ROOT,
+    'node',
+  );
+}
+
+function generateRepoZip(repo) {
+  if (!fs.existsSync(GENERATE_REPO_ZIP_SCRIPT)) {
+    fail(`Repository zip generator does not exist: ${GENERATE_REPO_ZIP_SCRIPT}`);
+  }
+
+  const repoZip = getRepoZipConfig(repo);
+
+  console.log('');
+  console.log('📦 Generating repository zip after repo map generation...');
+  console.log(`📂 Source folder: ${repo.rootPath}`);
+  console.log(`🗜️  Repo zip file: ${repoZip.outputFilePath}`);
+  console.log('');
+
+  runCommand(
+    process.execPath,
+    [GENERATE_REPO_ZIP_SCRIPT, repo.rootPath, repoZip.fileName, repoZip.outputPath],
     SKY_SERVER_ROOT,
     'node',
   );
@@ -236,6 +277,7 @@ async function main() {
   runGit(['pull', 'origin', repo.devBranch], repo.rootPath);
 
   generateRepoMap(repo);
+  generateRepoZip(repo);
 
   const status = getGitOutput(['status', '--porcelain'], repo.rootPath);
 
