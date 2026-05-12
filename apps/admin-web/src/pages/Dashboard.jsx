@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 import api from '../services/api';
 import toolService from '../services/toolService';
+import workerService from '../services/workerService';
 
 function formatDate(value) {
   if (!value) {
@@ -246,6 +247,7 @@ function Dashboard() {
       items: [],
     },
     ingestion: null,
+    worker: null,
     macro: null,
     coreSettings: null,
     authSettings: null,
@@ -304,6 +306,10 @@ function Dashboard() {
     };
   }, [summary.ingestion]);
   const sourceHealth = summary.ingestion?.sources || [];
+  const workerHealth = summary.worker || null;
+  const workerSchedules = workerHealth?.schedules || {};
+  const workerNodes = workerHealth?.nodes || {};
+  const workerRuns24h = workerHealth?.runs24h || {};
   const macroIndicators = sumMacroIndicators(summary.macro?.indicatorCounts || []);
   const executionStatusCounts = countByStatus(recentExecutions);
   const sourceStatusCounts = countByStatus(sourceHealth);
@@ -319,6 +325,7 @@ function Dashboard() {
 
     if (
       summary.ingestion?.overallStatus === 'WARNING' ||
+      summary.worker?.overallStatus === 'WARNING' ||
       failedExecutions.length > 0 ||
       failedAuditEvents.length > 0
     ) {
@@ -336,6 +343,7 @@ function Dashboard() {
     summary.apiHealth,
     summary.dbHealth,
     summary.ingestion,
+    summary.worker,
   ]);
 
   const dashboardTasks = useMemo(
@@ -353,6 +361,13 @@ function Dashboard() {
           summary.ingestion?.overallStatus || '—',
           '/ingestion-status',
           'INGESTION_VIEW_STATUS',
+          permissionCodes,
+        ),
+        buildDashboardTask(
+          'Automation',
+          summary.worker?.overallStatus || '—',
+          '/automation/scheduler',
+          'WORKER_SCHEDULE_READ',
           permissionCodes,
         ),
         buildDashboardTask(
@@ -382,6 +397,7 @@ function Dashboard() {
       summary.audits.total,
       summary.executions.total,
       summary.ingestion?.overallStatus,
+      summary.worker?.overallStatus,
       summary.sessions.total,
       visibleToolsCount,
     ],
@@ -417,6 +433,14 @@ function Dashboard() {
               ingestionCounts.staleIndicators || 0
             } stale`,
         status: summary.ingestion?.overallStatus || 'UNKNOWN',
+      },
+      {
+        label: 'Automation',
+        value: loading ? '—' : workerHealth?.overallStatus || '—',
+        help: loading
+          ? 'Loading worker status'
+          : `${workerNodes.online || 0} node(s) online / ${workerSchedules.enabled || 0} schedule(s) enabled`,
+        status: workerHealth?.overallStatus || 'UNKNOWN',
       },
       {
         label: 'Sessions',
@@ -461,6 +485,9 @@ function Dashboard() {
       macroIndicators.active,
       macroIndicators.total,
       runningExecutions.length,
+      workerHealth,
+      workerNodes.online,
+      workerSchedules.enabled,
       summary.apiHealth,
       summary.audits.total,
       summary.dbHealth,
@@ -495,6 +522,7 @@ function Dashboard() {
         auditResult,
         sessionsResult,
         ingestionResult,
+        workerResult,
         macroResult,
         coreSettingsResult,
         authSettingsResult,
@@ -517,6 +545,9 @@ function Dashboard() {
           ? loadOptional('ingestion', () =>
               api.get('/api/ingestion/status', { query: { recentLimit: 6 } }),
             )
+          : Promise.resolve(null),
+        hasPermission('WORKER_SCHEDULE_READ')
+          ? loadOptional('worker', () => workerService.getHealth())
           : Promise.resolve(null),
         hasPermission('MACRO_VIEW_READ')
           ? loadOptional('macro', () => api.get('/api/macro/summary'))
@@ -547,6 +578,7 @@ function Dashboard() {
           items: sessionsResult?.items || [],
         },
         ingestion: ingestionResult,
+        worker: workerResult,
         macro: macroResult,
         coreSettings: coreSettingsResult,
         authSettings: authSettingsResult,
@@ -620,7 +652,8 @@ function Dashboard() {
           <p className="sky-muted mb-0">
             API {summary.apiHealth?.ok ? 'online' : 'unknown'} · Database{' '}
             {summary.dbHealth?.ok ? 'online' : 'unknown'} · Ingestion{' '}
-            {summary.ingestion?.overallStatus || 'not loaded'} · Permissions {permissionCount}
+            {summary.ingestion?.overallStatus || 'not loaded'} · Automation{' '}
+            {summary.worker?.overallStatus || 'not loaded'} · Permissions {permissionCount}
           </p>
         </div>
 
@@ -833,6 +866,69 @@ function Dashboard() {
                 <div className="sky-muted small">Macro summary requires MACRO_VIEW_READ.</div>
               )}
             </div>
+          </section>
+        </div>
+      </div>
+
+      <div className="row g-3 mt-1">
+        <div className="col-12">
+          <section className="sky-card sky-table-card">
+            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
+              <div>
+                <h2 className="h5 mb-0">Automation health</h2>
+                <div className="small sky-muted">
+                  Background worker nodes, active schedules, and recent scheduler runs
+                </div>
+              </div>
+              {hasPermission('WORKER_SCHEDULE_READ') && (
+                <Link className="btn btn-sm sky-btn-ghost" to="/automation/scheduler">
+                  Open scheduler
+                </Link>
+              )}
+            </div>
+
+            {workerHealth ? (
+              <div className="sky-card-body">
+                <div className="row g-3">
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Status</div>
+                      <div className="sky-mini-metric-value">
+                        {workerHealth.overallStatus || '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Nodes online</div>
+                      <div className="sky-mini-metric-value">{workerNodes.online || 0}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Active schedules</div>
+                      <div className="sky-mini-metric-value">{workerSchedules.total || 0}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Runs 24h</div>
+                      <div className="sky-mini-metric-value">{workerRuns24h.total || 0}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="small sky-muted mt-3">
+                  Enabled {workerSchedules.enabled || 0} · Due {workerSchedules.due || 0} · Failed{' '}
+                  {workerSchedules.failed || 0} · Next run {formatDate(workerSchedules.nextRunAt)}
+                </div>
+              </div>
+            ) : (
+              <div className="sky-empty-state">
+                {hasPermission('WORKER_SCHEDULE_READ')
+                  ? 'Automation status could not be loaded.'
+                  : 'Automation status requires WORKER_SCHEDULE_READ.'}
+              </div>
+            )}
           </section>
         </div>
       </div>

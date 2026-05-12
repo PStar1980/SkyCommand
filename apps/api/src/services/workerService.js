@@ -242,6 +242,24 @@ function sanitizeSchedule(row) {
     nextRunAt: schedule.nextRunAt,
     lastRunAt: schedule.lastRunAt,
     lastStatus: schedule.lastStatus,
+    queueRequestedAt: schedule.queueRequestedAt,
+    queueRequestedByUserId: schedule.queueRequestedByUserId,
+    queueRequestedByEmail: schedule.queueRequestedByEmail,
+    queueRequestedByDisplayName: schedule.queueRequestedByDisplayName,
+    queuedPreviousNextRunAt: schedule.queuedPreviousNextRunAt,
+    deletedAt: schedule.deletedAt,
+    deletedByUserId: schedule.deletedByUserId,
+    deletedByEmail: schedule.deletedByEmail,
+    deletedByDisplayName: schedule.deletedByDisplayName,
+    deleteReason: schedule.deleteReason,
+    isDeleted: Boolean(schedule.deletedAt),
+    isQueued: Boolean(schedule.queueRequestedAt),
+    isCompletedOnce:
+      schedule.scheduleType === 'ONCE' &&
+      Boolean(schedule.lastRunAt) &&
+      ['SUCCESS', 'FAILED', 'SKIPPED', 'CANCELLED'].includes(
+        String(schedule.lastStatus || '').toUpperCase(),
+      ),
     toolId: schedule.toolId,
     toolCode: schedule.toolCode,
     toolLabel: schedule.toolLabel,
@@ -328,6 +346,10 @@ function sanitizeListener(row) {
     lastCheckedAt: listener.lastCheckedAt,
     lastEventAt: listener.lastEventAt,
     lastStatus: listener.lastStatus,
+    deletedAt: listener.deletedAt,
+    deletedByUserId: listener.deletedByUserId,
+    deleteReason: listener.deleteReason,
+    isDeleted: Boolean(listener.deletedAt),
     toolId: listener.toolId,
     toolCode: listener.toolCode,
     toolLabel: listener.toolLabel,
@@ -701,6 +723,21 @@ async function listSchedules(filters = {}) {
   const clauses = [];
   const values = [];
 
+  const includeCompleted = toBoolean(filters.includeCompleted || filters.include_completed, false);
+  const includeDeleted = toBoolean(filters.includeDeleted || filters.include_deleted, false);
+
+  if (!includeDeleted) {
+    clauses.push('deleted_at IS NULL');
+  }
+
+  if (!includeCompleted) {
+    clauses.push(`NOT (
+      schedule_type = 'ONCE'
+      AND last_run_at IS NOT NULL
+      AND last_status IN ('SUCCESS', 'FAILED', 'SKIPPED', 'CANCELLED')
+    )`);
+  }
+
   const enabled = toBoolean(filters.enabled);
   if (enabled !== null) {
     values.push(enabled);
@@ -863,6 +900,14 @@ async function createSchedule({ body = {}, actor = null, context = {} } = {}) {
 
 async function updateSchedule({ scheduleId, body = {}, actor = null, context = {} } = {}) {
   const existing = (await getSchedule(scheduleId)).schedule;
+
+  if (existing.isDeleted) {
+    throw createHttpError(409, 'Deleted schedules cannot be updated.', {
+      scheduleId: existing.scheduleId,
+      scheduleCode: existing.scheduleCode,
+    });
+  }
+
   const toolCode = normalizeOptionalString(body.toolCode || body.tool_code || existing.toolCode);
   const toolId = normalizeOptionalString(body.toolId || body.tool_id || existing.toolId);
   const tool = await getWorkerToolByCodeOrId({ toolCode, toolId });
@@ -898,6 +943,9 @@ async function updateSchedule({ scheduleId, body = {}, actor = null, context = {
           max_concurrent_runs = $14,
           misfire_policy = $15,
           next_run_at = $16,
+          queue_requested_at = NULL,
+          queue_requested_by_user_id = NULL,
+          queued_previous_next_run_at = NULL,
           updated_by_user_id = $17,
           updated_at = CURRENT_TIMESTAMP
       WHERE schedule_id = $1
@@ -938,6 +986,14 @@ async function updateSchedule({ scheduleId, body = {}, actor = null, context = {
 
 async function updateScheduleStatus({ scheduleId, body = {}, actor = null, context = {} } = {}) {
   const existing = (await getSchedule(scheduleId)).schedule;
+
+  if (existing.isDeleted) {
+    throw createHttpError(409, 'Deleted schedules cannot be enabled or disabled.', {
+      scheduleId: existing.scheduleId,
+      scheduleCode: existing.scheduleCode,
+    });
+  }
+
   const enabled = toBoolean(body.enabled);
 
   if (enabled === null) {
@@ -955,6 +1011,9 @@ async function updateScheduleStatus({ scheduleId, body = {}, actor = null, conte
       UPDATE worker.schedules
       SET enabled = $2,
           next_run_at = $3,
+          queue_requested_at = NULL,
+          queue_requested_by_user_id = NULL,
+          queued_previous_next_run_at = NULL,
           updated_by_user_id = $4,
           updated_at = CURRENT_TIMESTAMP
       WHERE schedule_id = $1
@@ -975,11 +1034,18 @@ async function updateScheduleStatus({ scheduleId, body = {}, actor = null, conte
   return getSchedule(existing.scheduleId);
 }
 
-async function runScheduleNow({ scheduleId, actor = null, context = {} } = {}) {
+async function queueScheduleNow({ scheduleId, actor = null, context = {} } = {}) {
   const existing = (await getSchedule(scheduleId)).schedule;
 
+  if (existing.isDeleted) {
+    throw createHttpError(409, 'Deleted schedules cannot be queued.', {
+      scheduleId: existing.scheduleId,
+      scheduleCode: existing.scheduleCode,
+    });
+  }
+
   if (!existing.enabled) {
-    throw createHttpError(409, 'Schedule is disabled. Enable it before using run-now.', {
+    throw createHttpError(409, 'Schedule is disabled. Enable it before queueing it.', {
       scheduleId: existing.scheduleId,
       scheduleCode: existing.scheduleCode,
     });
@@ -988,7 +1054,10 @@ async function runScheduleNow({ scheduleId, actor = null, context = {} } = {}) {
   await query(
     `
       UPDATE worker.schedules
-      SET next_run_at = CURRENT_TIMESTAMP,
+      SET queued_previous_next_run_at = COALESCE(queued_previous_next_run_at, next_run_at),
+          queue_requested_at = CURRENT_TIMESTAMP,
+          queue_requested_by_user_id = $2,
+          next_run_at = CURRENT_TIMESTAMP,
           last_status = 'QUEUED',
           updated_by_user_id = $2,
           updated_at = CURRENT_TIMESTAMP
@@ -1000,11 +1069,140 @@ async function runScheduleNow({ scheduleId, actor = null, context = {} } = {}) {
   await recordWorkerAudit({
     actor,
     context,
-    action: 'run_schedule_now',
+    action: 'queue_schedule_now',
     success: true,
     message: `Queued worker schedule ${existing.scheduleCode} for immediate execution.`,
     resourceId: existing.scheduleId,
     metadata: { scheduleCode: existing.scheduleCode, toolCode: existing.toolCode },
+  });
+
+  return getSchedule(existing.scheduleId);
+}
+
+async function unqueueSchedule({ scheduleId, actor = null, context = {} } = {}) {
+  const existing = (await getSchedule(scheduleId)).schedule;
+
+  if (existing.isDeleted) {
+    throw createHttpError(409, 'Deleted schedules cannot be unqueued.', {
+      scheduleId: existing.scheduleId,
+      scheduleCode: existing.scheduleCode,
+    });
+  }
+
+  if (!existing.queueRequestedAt) {
+    throw createHttpError(409, 'Schedule does not have a pending queue request.', {
+      scheduleId: existing.scheduleId,
+      scheduleCode: existing.scheduleCode,
+    });
+  }
+
+  const activeRunResult = await query(
+    `
+      SELECT COUNT(*)::int AS active_run_count
+      FROM worker.schedule_runs
+      WHERE schedule_id = $1
+        AND status IN ('QUEUED', 'STARTED')
+    `,
+    [existing.scheduleId],
+  );
+
+  if (Number(activeRunResult.rows[0]?.active_run_count || 0) > 0) {
+    throw createHttpError(
+      409,
+      'Schedule has already been claimed by the worker and cannot be unqueued.',
+      {
+        scheduleId: existing.scheduleId,
+        scheduleCode: existing.scheduleCode,
+      },
+    );
+  }
+
+  await query(
+    `
+      UPDATE worker.schedules
+      SET next_run_at = queued_previous_next_run_at,
+          queue_requested_at = NULL,
+          queue_requested_by_user_id = NULL,
+          queued_previous_next_run_at = NULL,
+          last_status = CASE WHEN last_status = 'QUEUED' THEN 'CANCELLED' ELSE last_status END,
+          updated_by_user_id = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE schedule_id = $1
+    `,
+    [existing.scheduleId, actor?.userId || null],
+  );
+
+  await recordWorkerAudit({
+    actor,
+    context,
+    action: 'unqueue_schedule',
+    success: true,
+    message: `Unqueued worker schedule ${existing.scheduleCode}.`,
+    resourceId: existing.scheduleId,
+    metadata: { scheduleCode: existing.scheduleCode, toolCode: existing.toolCode },
+  });
+
+  return getSchedule(existing.scheduleId);
+}
+
+async function runScheduleNow(options = {}) {
+  return queueScheduleNow(options);
+}
+
+async function deleteSchedule({ scheduleId, body = {}, actor = null, context = {} } = {}) {
+  const existing = (await getSchedule(scheduleId)).schedule;
+
+  if (existing.isDeleted) {
+    return { schedule: existing };
+  }
+
+  const activeRunResult = await query(
+    `
+      SELECT COUNT(*)::int AS active_run_count
+      FROM worker.schedule_runs
+      WHERE schedule_id = $1
+        AND status IN ('QUEUED', 'STARTED')
+    `,
+    [existing.scheduleId],
+  );
+
+  if (Number(activeRunResult.rows[0]?.active_run_count || 0) > 0) {
+    throw createHttpError(409, 'Schedule has an active run and cannot be deleted yet.', {
+      scheduleId: existing.scheduleId,
+      scheduleCode: existing.scheduleCode,
+    });
+  }
+
+  const deleteReason = normalizeOptionalString(
+    body.deleteReason || body.delete_reason || body.reason,
+  );
+
+  await query(
+    `
+      UPDATE worker.schedules
+      SET enabled = FALSE,
+          next_run_at = NULL,
+          queue_requested_at = NULL,
+          queue_requested_by_user_id = NULL,
+          queued_previous_next_run_at = NULL,
+          deleted_at = CURRENT_TIMESTAMP,
+          deleted_by_user_id = $2,
+          delete_reason = $3,
+          updated_by_user_id = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE schedule_id = $1
+    `,
+    [existing.scheduleId, actor?.userId || null, deleteReason],
+  );
+
+  await recordWorkerAudit({
+    actor,
+    context,
+    action: 'delete_schedule',
+    success: true,
+    message: `Deleted worker schedule ${existing.scheduleCode}.`,
+    resourceId: existing.scheduleId,
+    metadata: { scheduleCode: existing.scheduleCode, toolCode: existing.toolCode, deleteReason },
   });
 
   return getSchedule(existing.scheduleId);
@@ -1091,6 +1289,12 @@ async function getWorkerHealth() {
           COUNT(*) FILTER (WHERE last_status = 'FAILED')::int AS failed_schedules,
           MIN(next_run_at) FILTER (WHERE enabled = TRUE AND next_run_at IS NOT NULL) AS next_run_at
         FROM worker.vw_schedules
+        WHERE deleted_at IS NULL
+          AND NOT (
+            schedule_type = 'ONCE'
+            AND last_run_at IS NOT NULL
+            AND last_status IN ('SUCCESS', 'FAILED', 'SKIPPED', 'CANCELLED')
+          )
       `,
     ),
     query(
@@ -1232,7 +1436,7 @@ function buildListenerPayload(body, existing = null) {
 
 async function listListeners(filters = {}) {
   const { limit, offset } = getPagination(filters);
-  const clauses = [];
+  const clauses = ['deleted_at IS NULL'];
   const values = [];
 
   const enabled = toBoolean(filters.enabled);
@@ -1532,7 +1736,10 @@ module.exports = {
   createSchedule,
   updateSchedule,
   updateScheduleStatus,
+  queueScheduleNow,
+  unqueueSchedule,
   runScheduleNow,
+  deleteSchedule,
   listScheduleRuns,
   listListeners,
   getListener,

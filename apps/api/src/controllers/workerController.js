@@ -128,10 +128,41 @@ async function updateScheduleStatus(req, res) {
   }
 }
 
-async function runScheduleNow(req, res) {
+async function queueScheduleNow(req, res) {
   try {
-    const payload = await workerService.runScheduleNow({
+    const payload = await workerService.queueScheduleNow({
       scheduleId: req.params.scheduleId,
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function unqueueSchedule(req, res) {
+  try {
+    const payload = await workerService.unqueueSchedule({
+      scheduleId: req.params.scheduleId,
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function runScheduleNow(req, res) {
+  return queueScheduleNow(req, res);
+}
+
+async function deleteSchedule(req, res) {
+  try {
+    const payload = await workerService.deleteSchedule({
+      scheduleId: req.params.scheduleId,
+      body: req.body || {},
       ...getActionContext(req),
     });
 
@@ -256,7 +287,10 @@ module.exports = {
   createSchedule,
   updateSchedule,
   updateScheduleStatus,
+  queueScheduleNow,
+  unqueueSchedule,
   runScheduleNow,
+  deleteSchedule,
   listScheduleRuns,
   listRunsForSchedule,
   listListeners,

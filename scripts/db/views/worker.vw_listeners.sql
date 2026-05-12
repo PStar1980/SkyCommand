@@ -1,5 +1,6 @@
 -- View: worker.vw_listeners
--- Purpose: Admin-friendly listener configuration view with tool/profile metadata.
+-- Purpose: Admin-friendly listener configuration view with tool/profile metadata and archive fields.
+-- Important: Existing 00020 columns remain in their original order. New 8.5 columns are appended.
 
 CREATE OR REPLACE VIEW worker.vw_listeners AS
 SELECT
@@ -26,7 +27,10 @@ SELECT
   l.created_by_user_id,
   l.updated_by_user_id,
   l.created_at,
-  l.updated_at
+  l.updated_at,
+  l.deleted_at,
+  l.deleted_by_user_id,
+  l.delete_reason
 FROM worker.listeners l
 JOIN core.tools t
   ON t.tool_id = l.tool_id

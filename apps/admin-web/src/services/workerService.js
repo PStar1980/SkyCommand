@@ -32,8 +32,20 @@ function updateScheduleStatus(scheduleId, enabled) {
   return api.patch(`/api/worker/schedules/${encodeURIComponent(scheduleId)}/status`, { enabled });
 }
 
+function queueScheduleNow(scheduleId) {
+  return api.post(`/api/worker/schedules/${encodeURIComponent(scheduleId)}/queue`, {});
+}
+
+function unqueueSchedule(scheduleId) {
+  return api.post(`/api/worker/schedules/${encodeURIComponent(scheduleId)}/unqueue`, {});
+}
+
 function runScheduleNow(scheduleId) {
-  return api.post(`/api/worker/schedules/${encodeURIComponent(scheduleId)}/run-now`, {});
+  return queueScheduleNow(scheduleId);
+}
+
+function deleteSchedule(scheduleId, payload = {}) {
+  return api.delete(`/api/worker/schedules/${encodeURIComponent(scheduleId)}`, { body: payload });
 }
 
 function listRuns(filters = {}) {
@@ -85,7 +97,10 @@ const workerService = {
   createSchedule,
   updateSchedule,
   updateScheduleStatus,
+  queueScheduleNow,
+  unqueueSchedule,
   runScheduleNow,
+  deleteSchedule,
   listRuns,
   listRunsForSchedule,
   listListeners,
