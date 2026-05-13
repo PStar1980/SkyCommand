@@ -25,13 +25,13 @@ function Navbar() {
 
   const canViewTools = hasPermission('CORE_VIEW_TOOLS') || hasPermission('SCRIPT_EXECUTION_READ');
   const canViewData = hasPermission('INGESTION_VIEW_STATUS');
-  const canViewAutomation =
-    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
-  const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
     hasPermission('ADMIN_ROLE_READ') ||
     hasPermission('ADMIN_PERMISSION_READ');
+  const canViewAutomation =
+    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
+  const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAudit = hasPermission('AUDIT_READ');
 
   function openPasswordModal() {
@@ -127,7 +127,6 @@ function Navbar() {
                           </NavLink>
                         </li>
                       )}
-
                       {hasPermission('SCRIPT_EXECUTION_READ') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/tools/executions">
@@ -179,7 +178,6 @@ function Navbar() {
                           </NavLink>
                         </li>
                       )}
-
                       {hasPermission('WORKER_LISTENER_READ') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/automation/listeners">
@@ -234,7 +232,13 @@ function Navbar() {
                           </NavLink>
                         </li>
                       )}
-
+                      {hasPermission('ADMIN_USER_READ') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/admin/sessions">
+                            Sessions
+                          </NavLink>
+                        </li>
+                      )}
                       {hasPermission('ADMIN_ROLE_READ') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/admin/roles">
@@ -242,7 +246,6 @@ function Navbar() {
                           </NavLink>
                         </li>
                       )}
-
                       {hasPermission('ADMIN_PERMISSION_READ') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/admin/privileges">

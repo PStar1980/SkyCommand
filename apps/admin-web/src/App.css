@@ -968,3 +968,24 @@
   background: rgba(6, 11, 22, 0.44);
   padding: 0.85rem;
 }
+
+.sky-btn-danger {
+  border: 1px solid rgba(255, 94, 117, 0.55);
+  background: rgba(255, 94, 117, 0.1);
+  color: #ff9cad;
+}
+
+.sky-btn-danger:hover,
+.sky-btn-danger:focus {
+  border-color: rgba(255, 94, 117, 0.82);
+  background: rgba(255, 94, 117, 0.2);
+  color: #ffffff;
+}
+
+.sky-btn-danger:disabled {
+  opacity: 0.45;
+}
+
+.sky-table tbody tr.sky-table-row-selected > * {
+  background: rgba(72, 167, 255, 0.14);
+}

@@ -1,0 +1,523 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
+import adminService from '../services/adminService';
+
+const DEFAULT_FILTERS = {
+  q: '',
+  limit: '50',
+};
+
+function formatDate(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+function formatSeconds(value) {
+  if (value === undefined || value === null || value === '') {
+    return '—';
+  }
+
+  const totalSeconds = Number(value);
+
+  if (!Number.isFinite(totalSeconds)) {
+    return '—';
+  }
+
+  if (totalSeconds <= 0) {
+    return 'Expired';
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  }
+
+  return `${minutes}m`;
+}
+
+function getShortId(value) {
+  if (!value) {
+    return '—';
+  }
+
+  return `${String(value).slice(0, 8)}…${String(value).slice(-6)}`;
+}
+
+function getUserAgentSummary(userAgent) {
+  if (!userAgent) {
+    return '—';
+  }
+
+  if (userAgent.includes('Edg/')) {
+    return 'Microsoft Edge';
+  }
+
+  if (userAgent.includes('Chrome/')) {
+    return 'Chrome';
+  }
+
+  if (userAgent.includes('Firefox/')) {
+    return 'Firefox';
+  }
+
+  if (userAgent.includes('Safari/') && !userAgent.includes('Chrome/')) {
+    return 'Safari';
+  }
+
+  return userAgent.split(' ')[0] || 'Unknown client';
+}
+
+function getExpiryClass(session) {
+  const seconds = Number(session?.secondsUntilExpiry || 0);
+
+  if (session?.isCurrentSession) {
+    return 'sky-pill-info';
+  }
+
+  if (seconds > 0 && seconds <= 900) {
+    return 'sky-pill-warning';
+  }
+
+  return 'sky-pill-success';
+}
+
+function AdminSessions() {
+  const { hasPermission } = useAuth();
+  const canRevoke = hasPermission('ADMIN_USER_WRITE');
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
+  const [sessions, setSessions] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [revokingSessionId, setRevokingSessionId] = useState(null);
+
+  const selectedSession = useMemo(
+    () => sessions.find((item) => item.sessionId === selectedSessionId) || sessions[0] || null,
+    [selectedSessionId, sessions],
+  );
+
+  const stats = useMemo(() => {
+    const userIds = new Set(sessions.map((item) => item.userId).filter(Boolean));
+    const expiringSoon = sessions.filter((item) => {
+      const seconds = Number(item.secondsUntilExpiry || 0);
+      return seconds > 0 && seconds <= 900;
+    }).length;
+
+    return {
+      activeSessions: total,
+      usersOnline: userIds.size,
+      currentSessions: sessions.filter((item) => item.isCurrentSession).length,
+      expiringSoon,
+    };
+  }, [sessions, total]);
+
+  async function loadSessions(nextFilters = appliedFilters) {
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await adminService.listSessions(nextFilters);
+      const items = result.items || [];
+
+      setSessions(items);
+      setTotal(result.total || 0);
+      setSelectedSessionId((current) => {
+        if (current && items.some((item) => item.sessionId === current)) {
+          return current;
+        }
+
+        return items[0]?.sessionId || null;
+      });
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load active sessions.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function applyFilters(event) {
+    event.preventDefault();
+    const nextFilters = {
+      q: filters.q.trim(),
+      limit: filters.limit,
+    };
+
+    setAppliedFilters(nextFilters);
+    loadSessions(nextFilters);
+  }
+
+  function clearFilters() {
+    setFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
+    loadSessions(DEFAULT_FILTERS);
+  }
+
+  async function revokeSession(sessionItem) {
+    if (!sessionItem || sessionItem.isCurrentSession) {
+      return;
+    }
+
+    const label = sessionItem.displayName || sessionItem.username || sessionItem.email;
+    const confirmed = window.confirm(`Revoke active session for ${label}?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRevokingSessionId(sessionItem.sessionId);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await adminService.revokeSession(sessionItem.sessionId, {
+        reason: 'ADMIN_REVOKE_SESSION',
+      });
+
+      setSuccess(`Revoked ${result.revokedSessionCount || 0} active session(s) for ${label}.`);
+      await loadSessions(appliedFilters);
+    } catch (revokeError) {
+      setError(revokeError.message || 'Failed to revoke session.');
+    } finally {
+      setRevokingSessionId(null);
+    }
+  }
+
+  useEffect(() => {
+    loadSessions(DEFAULT_FILTERS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <header className="sky-page-header">
+        <div>
+          <div className="sky-page-kicker">Access control</div>
+          <h1 className="sky-page-title">Sessions</h1>
+          <p className="sky-page-subtitle">
+            Monitor active Admin-Web sessions, inspect live access metadata, and revoke sessions
+            when needed.
+          </p>
+        </div>
+
+        <div className="text-md-end">
+          <button
+            className="btn sky-btn-ghost"
+            disabled={loading}
+            onClick={() => loadSessions(appliedFilters)}
+            type="button"
+          >
+            {loading ? 'Refreshing...' : 'Refresh sessions'}
+          </button>
+        </div>
+      </header>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+
+      <div className="row g-3 mb-3">
+        <div className="col-sm-6 col-xl-3">
+          <section className="sky-card sky-stat-card h-100">
+            <div className="sky-card-body">
+              <div className="sky-page-kicker">Active sessions</div>
+              <div className="sky-stat-value">{stats.activeSessions}</div>
+              <div className="sky-muted small">Non-revoked and unexpired</div>
+            </div>
+          </section>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <section className="sky-card sky-stat-card h-100">
+            <div className="sky-card-body">
+              <div className="sky-page-kicker">Users online</div>
+              <div className="sky-stat-value">{stats.usersOnline}</div>
+              <div className="sky-muted small">Unique authenticated users</div>
+            </div>
+          </section>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <section className="sky-card sky-stat-card h-100">
+            <div className="sky-card-body">
+              <div className="sky-page-kicker">Current session</div>
+              <div className="sky-stat-value">{stats.currentSessions}</div>
+              <div className="sky-muted small">Protected from admin revoke</div>
+            </div>
+          </section>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <section className="sky-card sky-stat-card h-100">
+            <div className="sky-card-body">
+              <div className="sky-page-kicker">Expiring soon</div>
+              <div className="sky-stat-value">{stats.expiringSoon}</div>
+              <div className="sky-muted small">Within 15 minutes</div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <section className="sky-card mb-3">
+        <form className="sky-card-body" onSubmit={applyFilters}>
+          <div className="row g-3 align-items-end">
+            <div className="col-lg-7">
+              <label className="form-label sky-form-label" htmlFor="sessionSearch">
+                Search
+              </label>
+              <input
+                className="form-control sky-form-control"
+                id="sessionSearch"
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, q: event.target.value }))
+                }
+                placeholder="Email, username, display name, IP address, or user agent..."
+                value={filters.q}
+              />
+            </div>
+            <div className="col-lg-2">
+              <label className="form-label sky-form-label" htmlFor="sessionLimit">
+                Limit
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="sessionLimit"
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, limit: event.target.value }))
+                }
+                value={filters.limit}
+              >
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </div>
+            <div className="col-lg-3 d-flex gap-2">
+              <button className="btn sky-btn-primary flex-fill" disabled={loading} type="submit">
+                Apply
+              </button>
+              <button
+                className="btn sky-btn-ghost"
+                disabled={loading}
+                onClick={clearFilters}
+                type="button"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <div className="row g-3">
+        <div className="col-xl-8">
+          <section className="sky-card sky-table-card h-100">
+            <div className="sky-card-header">
+              <h2 className="h5 mb-0">Active Sessions</h2>
+              <div className="small sky-muted">
+                Showing {sessions.length} of {total} active session record(s).
+              </div>
+            </div>
+
+            {sessions.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table sky-table align-middle">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Session</th>
+                      <th>Client</th>
+                      <th>Last seen</th>
+                      <th>Expires</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions.map((item) => (
+                      <tr
+                        className={
+                          item.sessionId === selectedSession?.sessionId
+                            ? 'sky-table-row-selected'
+                            : ''
+                        }
+                        key={item.sessionId}
+                        onClick={() => setSelectedSessionId(item.sessionId)}
+                      >
+                        <td>
+                          <div className="fw-bold sky-detail-value">
+                            {item.displayName || item.username || 'Unknown user'}
+                          </div>
+                          <div className="small sky-muted">{item.email}</div>
+                        </td>
+                        <td>
+                          <div className="sky-mono small">{getShortId(item.sessionId)}</div>
+                          {item.isCurrentSession && (
+                            <span className="sky-pill sky-pill-info mt-1">Current</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="sky-detail-value">{item.ipAddress || '—'}</div>
+                          <div className="small sky-muted">
+                            {getUserAgentSummary(item.userAgent)}
+                          </div>
+                        </td>
+                        <td>{formatDate(item.lastSeenAt || item.createdAt)}</td>
+                        <td>
+                          <span className={`sky-pill ${getExpiryClass(item)}`}>
+                            {formatSeconds(item.secondsUntilExpiry)}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-sm sky-btn-ghost"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedSessionId(item.sessionId);
+                            }}
+                            type="button"
+                          >
+                            Inspect
+                          </button>
+                          {canRevoke && (
+                            <button
+                              className="btn btn-sm sky-btn-danger ms-2"
+                              disabled={
+                                item.isCurrentSession || revokingSessionId === item.sessionId
+                              }
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                revokeSession(item);
+                              }}
+                              title={
+                                item.isCurrentSession
+                                  ? 'Use Logout to end your current session.'
+                                  : ''
+                              }
+                              type="button"
+                            >
+                              {revokingSessionId === item.sessionId ? 'Revoking...' : 'Revoke'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="sky-empty-state">
+                {loading ? 'Loading active sessions...' : 'No active sessions found.'}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="col-xl-4">
+          <section className="sky-card h-100">
+            <div className="sky-card-header d-flex align-items-start justify-content-between gap-3">
+              <div>
+                <h2 className="h5 mb-0">Session detail</h2>
+                <div className="small sky-muted">Selected active session metadata.</div>
+              </div>
+              {selectedSession?.isCurrentSession && (
+                <span className="sky-pill sky-pill-info">Current</span>
+              )}
+            </div>
+
+            {selectedSession ? (
+              <div className="sky-card-body">
+                <dl className="row g-3 mb-0">
+                  <dt className="col-5 sky-detail-label">User</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {selectedSession.displayName || selectedSession.username || '—'}
+                  </dd>
+
+                  <dt className="col-5 sky-detail-label">Email</dt>
+                  <dd className="col-7 sky-detail-value">{selectedSession.email || '—'}</dd>
+
+                  <dt className="col-5 sky-detail-label">Session ID</dt>
+                  <dd className="col-7 sky-detail-value sky-mono small">
+                    {selectedSession.sessionId}
+                  </dd>
+
+                  <dt className="col-5 sky-detail-label">IP address</dt>
+                  <dd className="col-7 sky-detail-value">{selectedSession.ipAddress || '—'}</dd>
+
+                  <dt className="col-5 sky-detail-label">Created</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {formatDate(selectedSession.createdAt)}
+                  </dd>
+
+                  <dt className="col-5 sky-detail-label">Last seen</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {formatDate(selectedSession.lastSeenAt)}
+                  </dd>
+
+                  <dt className="col-5 sky-detail-label">Expires</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {formatDate(selectedSession.expiresAt)}
+                  </dd>
+
+                  <dt className="col-5 sky-detail-label">Time left</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {formatSeconds(selectedSession.secondsUntilExpiry)}
+                  </dd>
+                </dl>
+
+                <hr />
+
+                <div className="sky-page-kicker mb-2">User agent</div>
+                <pre className="sky-code-block small mb-3">{selectedSession.userAgent || '—'}</pre>
+
+                <div className="sky-page-kicker mb-2">Metadata</div>
+                <pre className="sky-code-block small">
+                  {JSON.stringify(selectedSession.metadata || {}, null, 2)}
+                </pre>
+
+                {canRevoke && (
+                  <button
+                    className="btn sky-btn-danger mt-3"
+                    disabled={
+                      selectedSession.isCurrentSession ||
+                      revokingSessionId === selectedSession.sessionId
+                    }
+                    onClick={() => revokeSession(selectedSession)}
+                    title={
+                      selectedSession.isCurrentSession
+                        ? 'Use Logout to end your current session.'
+                        : ''
+                    }
+                    type="button"
+                  >
+                    {selectedSession.isCurrentSession
+                      ? 'Current session protected'
+                      : revokingSessionId === selectedSession.sessionId
+                        ? 'Revoking...'
+                        : 'Revoke session'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="sky-empty-state">Select a session to inspect it.</div>
+            )}
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default AdminSessions;

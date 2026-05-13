@@ -443,6 +443,14 @@ function assertNotSelfSessionRevoke({ targetUserId, actor }) {
   }
 }
 
+function assertNotCurrentSessionRevoke({ targetSessionId, currentSession }) {
+  const currentSessionId = currentSession?.sessionId || currentSession?.session_id || null;
+
+  if (currentSessionId && String(currentSessionId) === String(targetSessionId)) {
+    throw createHttpError(400, 'You cannot revoke your current session. Use Logout instead.');
+  }
+}
+
 async function insertAuditEvent(
   client,
   {
@@ -1254,6 +1262,95 @@ async function revokeUserSessions({ userId, body = {}, actor, context = {} }) {
     return {
       userId: normalizedUserId,
       revokedSessionCount: result.rowCount || 0,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function revokeSession({ sessionId, body = {}, actor, currentSession, context = {} }) {
+  const normalizedSessionId = normalizeUuid(sessionId, 'sessionId');
+  assertNotCurrentSessionRevoke({ targetSessionId: normalizedSessionId, currentSession });
+
+  const reason = normalizeOptionalString(body.reason) || 'ADMIN_REVOKE_SESSION';
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const sessionResult = await client.query(
+      `
+        SELECT
+          s.session_id,
+          s.user_id,
+          s.ip_address,
+          s.user_agent,
+          s.created_at,
+          s.expires_at,
+          s.last_seen_at,
+          u.email,
+          u.username,
+          u.display_name,
+          u.status AS user_status,
+          u.is_system_user
+        FROM auth.sessions s
+        JOIN auth.users u
+          ON u.user_id = s.user_id
+        WHERE s.session_id = $1
+          AND s.revoked_at IS NULL
+          AND s.expires_at > CURRENT_TIMESTAMP
+        FOR UPDATE OF s
+      `,
+      [normalizedSessionId],
+    );
+
+    if (sessionResult.rowCount === 0) {
+      throw createHttpError(404, 'Active session not found.');
+    }
+
+    const session = sessionResult.rows[0];
+    await assertCanMutateSystemUser({ user: session, actor });
+
+    const revokeResult = await client.query(
+      `
+        UPDATE auth.sessions
+        SET revoked_at = CURRENT_TIMESTAMP,
+            revoked_reason = $1
+        WHERE session_id = $2
+          AND revoked_at IS NULL
+        RETURNING session_id
+      `,
+      [reason, normalizedSessionId],
+    );
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: 'AUTH_SESSION_ADMIN_REVOKE',
+      resourceType: 'auth.sessions',
+      resourceId: normalizedSessionId,
+      action: 'revoke_session',
+      success: true,
+      message: `Revoked session for ${session.email}.`,
+      metadata: {
+        reason,
+        targetUserId: session.user_id,
+        targetEmail: session.email,
+        targetUsername: session.username,
+        revokedSessionCount: revokeResult.rowCount || 0,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    return {
+      sessionId: normalizedSessionId,
+      userId: session.user_id,
+      email: session.email,
+      revokedSessionCount: revokeResult.rowCount || 0,
     };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
@@ -2471,6 +2568,7 @@ module.exports = {
   updateUserRoles,
   getUserSessions,
   revokeUserSessions,
+  revokeSession,
   getRole,
   createRole,
   updateRole,

@@ -50,6 +50,7 @@ SkyServer/
 │ │ │ ├── AdminPrivileges.jsx
 │ │ │ ├── AdminRepositories.jsx
 │ │ │ ├── AdminRoles.jsx
+│ │ │ ├── AdminSessions.jsx
 │ │ │ ├── AdminUsers.jsx
 │ │ │ ├── AuditEvents.jsx
 │ │ │ ├── AutomationListeners.jsx

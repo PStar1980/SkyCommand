@@ -37,6 +37,7 @@ function getActionContext(req) {
   return {
     actor: req.user,
     permissions: req.permissions || [],
+    currentSession: req.session,
     context: authService.getRequestContext(req),
   };
 }
@@ -72,6 +73,32 @@ async function listActiveSessions(req, res) {
   try {
     const payload = await adminReadService.listActiveSessions(req.query || {});
     sendPagedResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function listSessions(req, res) {
+  try {
+    const payload = await adminReadService.listActiveSessions({
+      ...(req.query || {}),
+      currentSessionId: req.session?.sessionId,
+    });
+    sendPagedResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function revokeSession(req, res) {
+  try {
+    const payload = await adminActionService.revokeSession({
+      sessionId: req.params.sessionId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
   } catch (error) {
     sendServiceError(res, error);
   }
@@ -504,6 +531,8 @@ module.exports = {
   listLoginEvents,
   listScriptExecutions,
   listActiveSessions,
+  listSessions,
+  revokeSession,
   listUsers,
   getUser,
   createUser,

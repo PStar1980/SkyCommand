@@ -187,9 +187,11 @@ function sanitizeScriptExecution(row) {
   };
 }
 
-function sanitizeActiveSession(row) {
+function sanitizeActiveSession(row, currentSessionId = null) {
+  const sessionId = row.session_id;
+
   return {
-    sessionId: row.session_id,
+    sessionId,
     userId: row.user_id,
     email: row.email,
     username: row.username,
@@ -202,6 +204,7 @@ function sanitizeActiveSession(row) {
     expiresAt: row.expires_at,
     lastSeenAt: row.last_seen_at,
     secondsUntilExpiry: row.seconds_until_expiry,
+    isCurrentSession: currentSessionId ? String(sessionId) === String(currentSessionId) : false,
   };
 }
 
@@ -430,7 +433,9 @@ async function listActiveSessions(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
+  const currentSessionId = normalizeOptionalString(filters.currentSessionId);
 
+  addEqualsFilter({ clauses, values, columnName: 'user_id', value: filters.userId });
   addDateRangeFilters({
     clauses,
     values,
@@ -441,7 +446,7 @@ async function listActiveSessions(filters = {}) {
   addSearchFilter({
     clauses,
     values,
-    columns: ['email', 'username', 'display_name', 'user_agent'],
+    columns: ['email', 'username', 'display_name', 'user_agent', 'ip_address::text'],
     searchText: filters.q,
   });
 
@@ -457,7 +462,7 @@ async function listActiveSessions(filters = {}) {
 
   return {
     ...result,
-    items: result.rows.map(sanitizeActiveSession),
+    items: result.rows.map((row) => sanitizeActiveSession(row, currentSessionId)),
     rows: undefined,
   };
 }
