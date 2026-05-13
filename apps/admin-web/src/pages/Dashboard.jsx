@@ -352,14 +352,14 @@ function Dashboard() {
         buildDashboardTask(
           'Run tools',
           visibleToolsCount,
-          '/tools',
+          '/tools/run',
           'CORE_VIEW_TOOLS',
           permissionCodes,
         ),
         buildDashboardTask(
           'Review ingestion',
           summary.ingestion?.overallStatus || '—',
-          '/ingestion-status',
+          '/data/ingestion',
           'INGESTION_VIEW_STATUS',
           permissionCodes,
         ),
@@ -373,14 +373,14 @@ function Dashboard() {
         buildDashboardTask(
           'Inspect executions',
           summary.executions.total,
-          '/script-executions',
+          '/tools/executions',
           'SCRIPT_EXECUTION_READ',
           permissionCodes,
         ),
         buildDashboardTask(
           'Audit activity',
           summary.audits.total,
-          '/audit-events',
+          '/audit/events',
           'AUDIT_READ',
           permissionCodes,
         ),
@@ -695,7 +695,7 @@ function Dashboard() {
                 <div className="small sky-muted">Source freshness and indicator health</div>
               </div>
               {hasPermission('INGESTION_VIEW_STATUS') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/ingestion-status">
+                <Link className="btn btn-sm sky-btn-ghost" to="/data/ingestion">
                   Open ingestion
                 </Link>
               )}
@@ -942,7 +942,7 @@ function Dashboard() {
                 <div className="small sky-muted">Recent script/tool activity</div>
               </div>
               {hasPermission('SCRIPT_EXECUTION_READ') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/script-executions">
+                <Link className="btn btn-sm sky-btn-ghost" to="/tools/executions">
                   Open executions
                 </Link>
               )}
@@ -1007,7 +1007,7 @@ function Dashboard() {
                 <div className="small sky-muted">Authorization and operational trail</div>
               </div>
               {hasPermission('AUDIT_READ') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/audit-events">
+                <Link className="btn btn-sm sky-btn-ghost" to="/audit/events">
                   Open audit
                 </Link>
               )}
