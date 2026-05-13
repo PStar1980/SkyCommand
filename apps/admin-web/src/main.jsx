@@ -40,8 +40,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
+            <Route path="tools" element={<Navigate replace to="/tools/run" />} />
+
             <Route
-              path="tools"
+              path="tools/run"
               element={
                 <ProtectedRoute permissionCode="CORE_VIEW_TOOLS">
                   <Tools />
@@ -49,8 +51,22 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
+            <Route path="script-executions" element={<Navigate replace to="/tools/executions" />} />
+
             <Route
-              path="ingestion-status"
+              path="tools/executions"
+              element={
+                <ProtectedRoute permissionCode="SCRIPT_EXECUTION_READ">
+                  <ScriptExecutions />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="data" element={<Navigate replace to="/data/ingestion" />} />
+            <Route path="ingestion-status" element={<Navigate replace to="/data/ingestion" />} />
+
+            <Route
+              path="data/ingestion"
               element={
                 <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
                   <IngestionStatus />
@@ -87,17 +103,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
-            <Route
-              path="script-executions"
-              element={
-                <ProtectedRoute permissionCode="SCRIPT_EXECUTION_READ">
-                  <ScriptExecutions />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="audit" element={<Navigate replace to="/audit/events" />} />
+            <Route path="audit-events" element={<Navigate replace to="/audit/events" />} />
 
             <Route
-              path="audit-events"
+              path="audit/events"
               element={
                 <ProtectedRoute permissionCode="AUDIT_READ">
                   <AuditEvents />

@@ -23,13 +23,16 @@ function Navbar() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
+  const canViewTools = hasPermission('CORE_VIEW_TOOLS') || hasPermission('SCRIPT_EXECUTION_READ');
+  const canViewData = hasPermission('INGESTION_VIEW_STATUS');
+  const canViewAutomation =
+    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
+  const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
     hasPermission('ADMIN_ROLE_READ') ||
     hasPermission('ADMIN_PERMISSION_READ');
-  const canViewAutomation =
-    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
-  const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
+  const canViewAudit = hasPermission('AUDIT_READ');
 
   function openPasswordModal() {
     setPasswordForm(DEFAULT_PASSWORD_FORM);
@@ -106,19 +109,55 @@ function Navbar() {
                   </NavLink>
                 </li>
 
-                {hasPermission('CORE_VIEW_TOOLS') && (
-                  <li className="nav-item">
-                    <NavLink className="nav-link" to="/tools">
+                {canViewTools && (
+                  <li className="nav-item dropdown">
+                    <button
+                      aria-expanded="false"
+                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      type="button"
+                    >
                       Tools
-                    </NavLink>
+                    </button>
+                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      {hasPermission('CORE_VIEW_TOOLS') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/tools/run">
+                            Run Tools
+                          </NavLink>
+                        </li>
+                      )}
+
+                      {hasPermission('SCRIPT_EXECUTION_READ') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/tools/executions">
+                            Execution History
+                          </NavLink>
+                        </li>
+                      )}
+                    </ul>
                   </li>
                 )}
 
-                {hasPermission('INGESTION_VIEW_STATUS') && (
-                  <li className="nav-item">
-                    <NavLink className="nav-link" to="/ingestion-status">
-                      Ingestion
-                    </NavLink>
+                {canViewData && (
+                  <li className="nav-item dropdown">
+                    <button
+                      aria-expanded="false"
+                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      type="button"
+                    >
+                      Data
+                    </button>
+                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      {hasPermission('INGESTION_VIEW_STATUS') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/data/ingestion">
+                            Ingestion Status
+                          </NavLink>
+                        </li>
+                      )}
+                    </ul>
                   </li>
                 )}
 
@@ -177,22 +216,6 @@ function Navbar() {
                   </li>
                 )}
 
-                {hasPermission('SCRIPT_EXECUTION_READ') && (
-                  <li className="nav-item">
-                    <NavLink className="nav-link" to="/script-executions">
-                      Executions
-                    </NavLink>
-                  </li>
-                )}
-
-                {hasPermission('AUDIT_READ') && (
-                  <li className="nav-item">
-                    <NavLink className="nav-link" to="/audit-events">
-                      Audit
-                    </NavLink>
-                  </li>
-                )}
-
                 {canViewAccessControl && (
                   <li className="nav-item dropdown">
                     <button
@@ -224,6 +247,28 @@ function Navbar() {
                         <li>
                           <NavLink className={getDropdownItemClass} to="/admin/privileges">
                             Privileges
+                          </NavLink>
+                        </li>
+                      )}
+                    </ul>
+                  </li>
+                )}
+
+                {canViewAudit && (
+                  <li className="nav-item dropdown">
+                    <button
+                      aria-expanded="false"
+                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      type="button"
+                    >
+                      Audit
+                    </button>
+                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      {hasPermission('AUDIT_READ') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/audit/events">
+                            Audit Events
                           </NavLink>
                         </li>
                       )}
