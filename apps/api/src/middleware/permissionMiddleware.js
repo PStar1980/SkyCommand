@@ -15,12 +15,14 @@ function requirePermission(permissionCode) {
       );
 
       const allowed =
-        hasCachedPermission || (await authService.hasPermission(req.user.userId, permissionCode));
+        hasCachedPermission ||
+        (await authService.hasPermission(req.user.userId, permissionCode, req.session?.appCode));
 
       if (!allowed) {
         const context = authService.getRequestContext(req);
 
         await authService.recordAuditEvent({
+          appCode: req.session?.appCode,
           userId: req.user.userId,
           eventType: 'AUTHORIZATION_DENIED',
           resourceType: 'permission',

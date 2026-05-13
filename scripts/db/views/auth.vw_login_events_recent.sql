@@ -1,9 +1,5 @@
--- ------------------------------------------------------------
 -- View: auth.vw_login_events_recent
--- Purpose:
--- Friendly login attempt history.
--- Useful for security review and Admin-Web account diagnostics.
--- ------------------------------------------------------------
+-- Purpose: Phase 8.6 app-aware auth view.
 
 CREATE OR REPLACE VIEW auth.vw_login_events_recent
 AS
@@ -22,12 +18,15 @@ SELECT
 
     le.ip_address,
     le.user_agent,
-    le.created_at
+    le.created_at,
+
+    le.app_id,
+    app.app_code,
+    app.title AS app_title
 FROM auth.login_events le
 LEFT JOIN auth.users u
-    ON u.user_id = le.user_id;
+    ON u.user_id = le.user_id
+LEFT JOIN core.applications app
+    ON app.app_id = le.app_id;
 
 ALTER VIEW auth.vw_login_events_recent OWNER TO postgres;
-
-COMMENT ON VIEW auth.vw_login_events_recent IS
-'Readable login attempt history, including successful and failed login events.';

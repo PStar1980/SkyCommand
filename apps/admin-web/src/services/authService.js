@@ -1,7 +1,11 @@
 import api from './api';
 
 async function login({ email, password }) {
-  const result = await api.post('/api/auth/login', { email, password }, { token: null });
+  const result = await api.post(
+    '/api/auth/login',
+    { email, password, appCode: 'SKYSERVER_ADMIN' },
+    { token: null },
+  );
 
   api.setSessionToken(result.sessionToken);
 
