@@ -16,6 +16,14 @@ async function listActiveSessions(filters = {}) {
   return api.get('/api/admin/active-sessions', { query: filters });
 }
 
+async function listSessions(filters = {}) {
+  return api.get('/api/admin/sessions', { query: filters });
+}
+
+async function revokeSession(sessionId, payload = {}) {
+  return api.post(`/api/admin/sessions/${sessionId}/revoke`, payload);
+}
+
 async function listUsers(filters = {}) {
   return api.get('/api/admin/users', { query: filters });
 }
@@ -165,6 +173,8 @@ const adminService = {
   listAuditEvents,
   listLoginEvents,
   listActiveSessions,
+  listSessions,
+  revokeSession,
   listUsers,
   getUser,
   createUser,

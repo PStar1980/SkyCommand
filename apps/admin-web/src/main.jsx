@@ -10,6 +10,7 @@ import AuditEvents from './pages/AuditEvents.jsx';
 import AdminPrivileges from './pages/AdminPrivileges.jsx';
 import AdminRepositories from './pages/AdminRepositories.jsx';
 import AdminRoles from './pages/AdminRoles.jsx';
+import AdminSessions from './pages/AdminSessions.jsx';
 import AdminUsers from './pages/AdminUsers.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Home from './pages/Home.jsx';
@@ -41,7 +42,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
 
             <Route path="tools" element={<Navigate replace to="/tools/run" />} />
-
             <Route
               path="tools/run"
               element={
@@ -50,9 +50,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
-
             <Route path="script-executions" element={<Navigate replace to="/tools/executions" />} />
-
             <Route
               path="tools/executions"
               element={
@@ -64,7 +62,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
             <Route path="data" element={<Navigate replace to="/data/ingestion" />} />
             <Route path="ingestion-status" element={<Navigate replace to="/data/ingestion" />} />
-
             <Route
               path="data/ingestion"
               element={
@@ -75,7 +72,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
 
             <Route path="worker" element={<Navigate replace to="/automation/scheduler" />} />
-
             <Route
               path="automation/scheduler"
               element={
@@ -84,7 +80,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="automation/listeners"
               element={
@@ -105,7 +100,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
             <Route path="audit" element={<Navigate replace to="/audit/events" />} />
             <Route path="audit-events" element={<Navigate replace to="/audit/events" />} />
-
             <Route
               path="audit/events"
               element={
@@ -123,7 +117,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
-
+            <Route
+              path="admin/sessions"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_USER_READ">
+                  <AdminSessions />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="admin/roles"
               element={
@@ -132,7 +133,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="admin/privileges"
               element={
