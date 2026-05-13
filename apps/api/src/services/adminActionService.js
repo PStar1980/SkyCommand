@@ -4,6 +4,10 @@ const { hashPassword } = require('../../../../packages/auth/src/password');
 const VALID_USER_STATUSES = new Set(['ACTIVE', 'DISABLED', 'LOCKED', 'PENDING']);
 const CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const RESOURCE_ACTION_PATTERN = /^[a-z][a-z0-9_]*$/;
+const DEFAULT_ADMIN_APP_CODE = String(process.env.AUTH_APP_CODE || 'SKYSERVER_ADMIN')
+  .trim()
+  .toUpperCase();
+
 const CORE_ADMIN_PERMISSION_CODES = new Set([
   'ADMIN_USER_READ',
   'ADMIN_USER_WRITE',
@@ -363,9 +367,10 @@ async function actorHasRole(actor, roleCode) {
       FROM auth.vw_user_roles
       WHERE user_id = $1
         AND role_code = $2
+        AND app_code = $3
       LIMIT 1
     `,
-    [actorUserId, roleCode],
+    [actorUserId, roleCode, DEFAULT_ADMIN_APP_CODE],
   );
 
   return result.rowCount > 0;
@@ -534,6 +539,7 @@ async function getRoleRowById(client, rawRoleId, options = {}) {
     `
       SELECT
         role_id,
+        app_id,
         role_code,
         role_name,
         description,
@@ -561,6 +567,7 @@ async function getPermissionRowById(client, rawPermissionId, options = {}) {
     `
       SELECT
         permission_id,
+        app_id,
         permission_code,
         resource,
         action,
@@ -589,12 +596,15 @@ async function getRolesByCodes(client, roleCodes, { activeOnly = true } = {}) {
 
   const result = await client.query(
     `
-      SELECT role_id, role_code, role_name, is_system_role, active
-      FROM auth.roles
-      WHERE role_code = ANY($1::text[])
-        ${activeOnly ? 'AND active = TRUE' : ''}
+      SELECT r.role_id, r.app_id, r.role_code, r.role_name, r.is_system_role, r.active
+      FROM auth.roles r
+      JOIN core.applications app
+        ON app.app_id = r.app_id
+      WHERE r.role_code = ANY($1::text[])
+        AND app.app_code = $2
+        ${activeOnly ? 'AND r.active = TRUE' : ''}
     `,
-    [roleCodes],
+    [roleCodes, DEFAULT_ADMIN_APP_CODE],
   );
 
   const foundCodes = new Set(result.rows.map((row) => row.role_code));
@@ -614,12 +624,15 @@ async function getPermissionsByCodes(client, permissionCodes, { activeOnly = tru
 
   const result = await client.query(
     `
-      SELECT permission_id, permission_code, resource, action, active
-      FROM auth.permissions
-      WHERE permission_code = ANY($1::text[])
-        ${activeOnly ? 'AND active = TRUE' : ''}
+      SELECT p.permission_id, p.app_id, p.permission_code, p.resource, p.action, p.active
+      FROM auth.permissions p
+      JOIN core.applications app
+        ON app.app_id = p.app_id
+      WHERE p.permission_code = ANY($1::text[])
+        AND app.app_code = $2
+        ${activeOnly ? 'AND p.active = TRUE' : ''}
     `,
-    [permissionCodes],
+    [permissionCodes, DEFAULT_ADMIN_APP_CODE],
   );
 
   const foundCodes = new Set(result.rows.map((row) => row.permission_code));
@@ -743,6 +756,21 @@ async function createUser({ body = {}, actor, context = {} }) {
     );
 
     const user = userResult.rows[0];
+
+    await client.query(
+      `
+        INSERT INTO auth.user_applications (user_id, app_id, status, created_by, updated_by)
+        SELECT $1, app.app_id, 'ACTIVE', $2, $2
+        FROM core.applications app
+        WHERE app.app_code = $3
+        ON CONFLICT (user_id, app_id)
+        DO UPDATE SET
+          status = EXCLUDED.status,
+          updated_by = EXCLUDED.updated_by,
+          updated_at = CURRENT_TIMESTAMP
+      `,
+      [user.user_id, actorUserId, DEFAULT_ADMIN_APP_CODE],
+    );
 
     for (const role of roleRows) {
       await client.query(
@@ -1418,13 +1446,16 @@ async function createRole({ body = {}, actor, context = {} }) {
     const result = await client.query(
       `
         INSERT INTO auth.roles (
+          app_id,
           role_code,
           role_name,
           description,
           is_system_role,
           active
         )
-        VALUES ($1, $2, $3, $4, $5)
+        SELECT app.app_id, $1, $2, $3, $4, $5
+        FROM core.applications app
+        WHERE app.app_code = $6
         RETURNING
           role_id,
           role_code,
@@ -1435,7 +1466,7 @@ async function createRole({ body = {}, actor, context = {} }) {
           created_at,
           updated_at
       `,
-      [roleCode, roleName, description, isSystemRole, active],
+      [roleCode, roleName, description, isSystemRole, active, DEFAULT_ADMIN_APP_CODE],
     );
 
     const role = result.rows[0];
@@ -1771,13 +1802,16 @@ async function createPermission({ body = {}, actor, context = {} }) {
     const result = await client.query(
       `
         INSERT INTO auth.permissions (
+          app_id,
           permission_code,
           resource,
           action,
           description,
           active
         )
-        VALUES ($1, $2, $3, $4, $5)
+        SELECT app.app_id, $1, $2, $3, $4, $5
+        FROM core.applications app
+        WHERE app.app_code = $6
         RETURNING
           permission_id,
           permission_code,
@@ -1788,7 +1822,7 @@ async function createPermission({ body = {}, actor, context = {} }) {
           created_at,
           updated_at
       `,
-      [permissionCode, resource, action, description, active],
+      [permissionCode, resource, action, description, active, DEFAULT_ADMIN_APP_CODE],
     );
 
     const permission = result.rows[0];

@@ -9,15 +9,20 @@ BEGIN;
 -- Roles
 -- ------------------------------------------------------------
 
-INSERT INTO auth.roles (
+WITH auth_app AS (
+    SELECT app_id
+    FROM core.applications
+    WHERE app_code = 'SKYSERVER_ADMIN'
+    LIMIT 1
+), role_seed (
     role_code,
     role_name,
     description,
     is_system_role,
     active
-)
-VALUES
-    (
+) AS (
+    VALUES
+(
         'SUPER_ADMIN',
         'Super Administrator',
         'Full access to all SkyServer administrative, database, ingestion, automation, Git, and script execution capabilities.',
@@ -45,8 +50,27 @@ VALUES
         TRUE,
         TRUE
     )
+)
+INSERT INTO auth.roles (
+    app_id,
+    role_code,
+    role_name,
+    description,
+    is_system_role,
+    active
+)
+SELECT
+    auth_app.app_id,
+    role_seed.role_code,
+    role_seed.role_name,
+    role_seed.description,
+    role_seed.is_system_role,
+    role_seed.active
+FROM role_seed
+CROSS JOIN auth_app
 ON CONFLICT (role_code)
 DO UPDATE SET
+    app_id = EXCLUDED.app_id,
     role_name = EXCLUDED.role_name,
     description = EXCLUDED.description,
     is_system_role = EXCLUDED.is_system_role,
@@ -57,15 +81,20 @@ DO UPDATE SET
 -- Permissions
 -- ------------------------------------------------------------
 
-INSERT INTO auth.permissions (
+WITH auth_app AS (
+    SELECT app_id
+    FROM core.applications
+    WHERE app_code = 'SKYSERVER_ADMIN'
+    LIMIT 1
+), permission_seed (
     permission_code,
     resource,
     action,
     description,
     active
-)
-VALUES
-    (
+) AS (
+    VALUES
+(
         'CORE_VIEW_TOOLS',
         'core',
         'view_tools',
@@ -319,8 +348,27 @@ VALUES
         'View worker nodes and perform elevated worker administration tasks.',
         TRUE
     )
+)
+INSERT INTO auth.permissions (
+    app_id,
+    permission_code,
+    resource,
+    action,
+    description,
+    active
+)
+SELECT
+    auth_app.app_id,
+    permission_seed.permission_code,
+    permission_seed.resource,
+    permission_seed.action,
+    permission_seed.description,
+    permission_seed.active
+FROM permission_seed
+CROSS JOIN auth_app
 ON CONFLICT (permission_code)
 DO UPDATE SET
+    app_id = EXCLUDED.app_id,
     resource = EXCLUDED.resource,
     action = EXCLUDED.action,
     description = EXCLUDED.description,
@@ -502,5 +550,37 @@ ON CONFLICT (role_id, permission_id)
 DO UPDATE SET
     active = TRUE,
     granted_at = CURRENT_TIMESTAMP;
+
+
+-- ------------------------------------------------------------
+-- Existing/admin users get SkyServer Admin application access
+-- ------------------------------------------------------------
+
+WITH auth_app AS (
+    SELECT app_id
+    FROM core.applications
+    WHERE app_code = 'SKYSERVER_ADMIN'
+    LIMIT 1
+)
+INSERT INTO auth.user_applications (
+    user_id,
+    app_id,
+    status,
+    created_by,
+    updated_by
+)
+SELECT
+    u.user_id,
+    auth_app.app_id,
+    'ACTIVE',
+    u.created_by,
+    u.updated_by
+FROM auth.users u
+CROSS JOIN auth_app
+ON CONFLICT (user_id, app_id)
+DO UPDATE SET
+    status = EXCLUDED.status,
+    updated_by = EXCLUDED.updated_by,
+    updated_at = CURRENT_TIMESTAMP;
 
 COMMIT;

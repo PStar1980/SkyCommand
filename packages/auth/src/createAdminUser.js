@@ -6,6 +6,10 @@ const readline = require('readline');
 const { pool } = require('../../db/src/connection');
 const { hashPassword } = require('./password');
 
+const ADMIN_APP_CODE = String(process.env.AUTH_APP_CODE || 'SKYSERVER_ADMIN')
+  .trim()
+  .toUpperCase();
+
 function askQuestion(query, options = {}) {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -53,8 +57,11 @@ async function getActiveRoles(client) {
   const result = await client.query(
     `
       SELECT role_code, role_name, description
-      FROM auth.roles
-      WHERE active = TRUE
+      FROM auth.roles r
+      JOIN core.applications app
+        ON app.app_id = r.app_id
+      WHERE r.active = TRUE
+        AND app.app_code = $1
       ORDER BY
         CASE role_code
           WHEN 'SUPER_ADMIN' THEN 1
@@ -65,6 +72,7 @@ async function getActiveRoles(client) {
         END,
         role_code
     `,
+    [ADMIN_APP_CODE],
   );
 
   return result.rows;
@@ -161,12 +169,15 @@ async function createAdminUser() {
     const roleResult = await client.query(
       `
         SELECT role_id, role_code
-        FROM auth.roles
-        WHERE role_code = $1
-          AND active = TRUE
+        FROM auth.roles r
+        JOIN core.applications app
+          ON app.app_id = r.app_id
+        WHERE r.role_code = $1
+          AND r.active = TRUE
+          AND app.app_code = $2
         LIMIT 1
       `,
-      [selectedRole.role_code],
+      [selectedRole.role_code, ADMIN_APP_CODE],
     );
 
     if (roleResult.rowCount === 0) {
@@ -200,6 +211,21 @@ async function createAdminUser() {
         WHERE user_id = $1
       `,
       [user.user_id],
+    );
+
+    await client.query(
+      `
+        INSERT INTO auth.user_applications (user_id, app_id, status, created_by, updated_by)
+        SELECT $1, app.app_id, 'ACTIVE', $1, $1
+        FROM core.applications app
+        WHERE app.app_code = $2
+        ON CONFLICT (user_id, app_id)
+        DO UPDATE SET
+          status = 'ACTIVE',
+          updated_by = EXCLUDED.updated_by,
+          updated_at = CURRENT_TIMESTAMP
+      `,
+      [user.user_id, ADMIN_APP_CODE],
     );
 
     await client.query(
@@ -241,6 +267,7 @@ async function createAdminUser() {
           username: user.username,
           displayName: user.display_name,
           roleCode: role.role_code,
+          appCode: ADMIN_APP_CODE,
           createdByTool: 'packages/auth/src/createAdminUser.js',
         }),
       ],

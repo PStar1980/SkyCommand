@@ -144,12 +144,13 @@ SkyServer/
 │ │ │ ├── 00017**auth_views.sql
 │ │ │ ├── 00018**core_config_tables.sql
 │ │ │ ├── 00020**worker_tables.sql
-│ │ │ └── 00021**worker_automation_polish.sql
+│ │ │ ├── 00021**worker_automation_polish.sql
+│ │ │ └── 00022**auth_application_scope.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
-│ │ └── 00019**core_config_seed.sql
+│ │ └── 00019\_\_core_config_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ ├── generateRepoMap.js
@@ -211,6 +212,7 @@ SkyServer/
 │ │ ├── auth.roles.sql
 │ │ ├── auth.script_execution_log.sql
 │ │ ├── auth.sessions.sql
+│ │ ├── auth.user_applications.sql
 │ │ ├── auth.user_roles.sql
 │ │ ├── auth.users.sql
 │ │ ├── core.applications.sql
@@ -239,6 +241,7 @@ SkyServer/
 │ ├── triggers/
 │ │ ├── auth.permissions_set_updated_at.sql
 │ │ ├── auth.roles_set_updated_at.sql
+│ │ ├── auth.user_applications_set_updated_at.sql
 │ │ ├── auth.users_set_updated_at.sql
 │ │ ├── core.applications_set_updated_at.sql
 │ │ ├── core.repositories_set_updated_at.sql
@@ -262,6 +265,7 @@ SkyServer/
 │ ├── auth.vw_login_events_recent.sql
 │ ├── auth.vw_role_permissions.sql
 │ ├── auth.vw_script_execution_recent.sql
+│ ├── auth.vw_user_applications.sql
 │ ├── auth.vw_user_permissions.sql
 │ ├── auth.vw_user_roles.sql
 │ ├── core.vw_admin_web_tools.sql

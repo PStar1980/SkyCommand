@@ -1,9 +1,5 @@
--- ------------------------------------------------------------
 -- View: auth.vw_user_roles
--- Purpose:
--- Shows each active user-to-role assignment.
--- Useful for Admin-Web user management screens.
--- ------------------------------------------------------------
+-- Purpose: Phase 8.6 app-aware auth view.
 
 CREATE OR REPLACE VIEW auth.vw_user_roles
 AS
@@ -24,17 +20,26 @@ SELECT
 
     ur.active AS user_role_active,
     ur.assigned_at,
-    ur.assigned_by
+    ur.assigned_by,
+
+    r.app_id,
+    app.app_code,
+    app.title AS app_title,
+    ua.status AS user_application_status
 FROM auth.users u
 JOIN auth.user_roles ur
     ON ur.user_id = u.user_id
 JOIN auth.roles r
     ON r.role_id = ur.role_id
+JOIN core.applications app
+    ON app.app_id = r.app_id
+JOIN auth.user_applications ua
+    ON ua.user_id = u.user_id
+   AND ua.app_id = r.app_id
 WHERE u.status = 'ACTIVE'
   AND r.active = TRUE
-  AND ur.active = TRUE;
+  AND ur.active = TRUE
+  AND ua.status = 'ACTIVE'
+  AND app.active = TRUE;
 
 ALTER VIEW auth.vw_user_roles OWNER TO postgres;
-
-COMMENT ON VIEW auth.vw_user_roles IS
-'Active user-to-role assignments for Admin-Web user management and authorization inspection.';

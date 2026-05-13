@@ -3,6 +3,9 @@ const scriptExecutionService = require('./scriptExecutionService');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const DEFAULT_ADMIN_APP_CODE = String(process.env.AUTH_APP_CODE || 'SKYSERVER_ADMIN')
+  .trim()
+  .toUpperCase();
 
 function toPositiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   const numberValue = Number.parseInt(value, 10);
@@ -204,6 +207,9 @@ function sanitizeActiveSession(row, currentSessionId = null) {
     expiresAt: row.expires_at,
     lastSeenAt: row.last_seen_at,
     secondsUntilExpiry: row.seconds_until_expiry,
+    appId: row.app_id || null,
+    appCode: row.app_code || null,
+    appTitle: row.app_title || null,
     isCurrentSession: currentSessionId ? String(sessionId) === String(currentSessionId) : false,
   };
 }
@@ -234,6 +240,9 @@ function sanitizeRole(row) {
     active: row.active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    appId: row.app_id || null,
+    appCode: row.app_code || null,
+    appTitle: row.app_title || null,
   };
 }
 
@@ -247,6 +256,9 @@ function sanitizePermission(row) {
     active: row.active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    appId: row.app_id || null,
+    appCode: row.app_code || null,
+    appTitle: row.app_title || null,
   };
 }
 
@@ -434,6 +446,10 @@ async function listActiveSessions(filters = {}) {
   const clauses = [];
   const values = [];
   const currentSessionId = normalizeOptionalString(filters.currentSessionId);
+  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
+
+  values.push(appCode);
+  clauses.push(`app_code = $${values.length}`);
 
   addEqualsFilter({ clauses, values, columnName: 'user_id', value: filters.userId });
   addDateRangeFilters({
@@ -471,36 +487,54 @@ async function listUsers(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
+  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
 
-  addEqualsFilter({ clauses, values, columnName: 'status', value: filters.status });
-  addBooleanFilter({ clauses, values, columnName: 'is_system_user', value: filters.isSystemUser });
+  values.push(appCode);
+  clauses.push(`EXISTS (
+    SELECT 1
+    FROM auth.user_applications ua
+    JOIN core.applications app
+      ON app.app_id = ua.app_id
+    WHERE ua.user_id = u.user_id
+      AND app.app_code = $${values.length}
+      AND ua.status = 'ACTIVE'
+      AND app.active = TRUE
+  )`);
+
+  addEqualsFilter({ clauses, values, columnName: 'u.status', value: filters.status });
+  addBooleanFilter({
+    clauses,
+    values,
+    columnName: 'u.is_system_user',
+    value: filters.isSystemUser,
+  });
   addSearchFilter({
     clauses,
     values,
-    columns: ['email', 'username', 'display_name', 'status'],
+    columns: ['u.email', 'u.username', 'u.display_name', 'u.status'],
     searchText: filters.q,
   });
 
   const result = await runPagedQuery({
     selectSql: `
       SELECT
-        user_id,
-        email,
-        username,
-        display_name,
-        status,
-        is_system_user,
-        failed_login_count,
-        locked_until,
-        last_login_at,
-        created_at,
-        updated_at
-      FROM auth.users
+        u.user_id,
+        u.email,
+        u.username,
+        u.display_name,
+        u.status,
+        u.is_system_user,
+        u.failed_login_count,
+        u.locked_until,
+        u.last_login_at,
+        u.created_at,
+        u.updated_at
+      FROM auth.users u
     `,
-    countSql: 'SELECT COUNT(*)::int AS total FROM auth.users',
+    countSql: 'SELECT COUNT(*)::int AS total FROM auth.users u',
     clauses,
     values,
-    orderBy: 'ORDER BY created_at DESC',
+    orderBy: 'ORDER BY u.created_at DESC',
     limit,
     offset,
   });
@@ -516,30 +550,47 @@ async function listRoles(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
+  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
 
-  addBooleanFilter({ clauses, values, columnName: 'active', value: filters.active });
+  values.push(appCode);
+  clauses.push(`app.app_code = $${values.length}`);
+
+  addBooleanFilter({ clauses, values, columnName: 'r.active', value: filters.active });
   addSearchFilter({
     clauses,
     values,
-    columns: ['role_code', 'role_name', 'description'],
+    columns: ['r.role_code', 'r.role_name', 'r.description'],
     searchText: filters.q,
   });
 
   const result = await runPagedQuery({
-    selectSql: 'SELECT * FROM auth.roles',
-    countSql: 'SELECT COUNT(*)::int AS total FROM auth.roles',
+    selectSql: `
+      SELECT
+        r.*,
+        app.app_code,
+        app.title AS app_title
+      FROM auth.roles r
+      JOIN core.applications app
+        ON app.app_id = r.app_id
+    `,
+    countSql: `
+      SELECT COUNT(*)::int AS total
+      FROM auth.roles r
+      JOIN core.applications app
+        ON app.app_id = r.app_id
+    `,
     clauses,
     values,
     orderBy: `
       ORDER BY
-        CASE role_code
+        CASE r.role_code
           WHEN 'SUPER_ADMIN' THEN 1
           WHEN 'ADMIN' THEN 2
           WHEN 'OPERATOR' THEN 3
           WHEN 'VIEWER' THEN 4
           ELSE 99
         END,
-        role_code
+        r.role_code
     `,
     limit,
     offset,
@@ -556,23 +607,40 @@ async function listPermissions(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
+  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
 
-  addEqualsFilter({ clauses, values, columnName: 'resource', value: filters.resource });
-  addEqualsFilter({ clauses, values, columnName: 'action', value: filters.action });
-  addBooleanFilter({ clauses, values, columnName: 'active', value: filters.active });
+  values.push(appCode);
+  clauses.push(`app.app_code = $${values.length}`);
+
+  addEqualsFilter({ clauses, values, columnName: 'p.resource', value: filters.resource });
+  addEqualsFilter({ clauses, values, columnName: 'p.action', value: filters.action });
+  addBooleanFilter({ clauses, values, columnName: 'p.active', value: filters.active });
   addSearchFilter({
     clauses,
     values,
-    columns: ['permission_code', 'resource', 'action', 'description'],
+    columns: ['p.permission_code', 'p.resource', 'p.action', 'p.description'],
     searchText: filters.q,
   });
 
   const result = await runPagedQuery({
-    selectSql: 'SELECT * FROM auth.permissions',
-    countSql: 'SELECT COUNT(*)::int AS total FROM auth.permissions',
+    selectSql: `
+      SELECT
+        p.*,
+        app.app_code,
+        app.title AS app_title
+      FROM auth.permissions p
+      JOIN core.applications app
+        ON app.app_id = p.app_id
+    `,
+    countSql: `
+      SELECT COUNT(*)::int AS total
+      FROM auth.permissions p
+      JOIN core.applications app
+        ON app.app_id = p.app_id
+    `,
     clauses,
     values,
-    orderBy: 'ORDER BY resource, action, permission_code',
+    orderBy: 'ORDER BY p.resource, p.action, p.permission_code',
     limit,
     offset,
   });
@@ -588,6 +656,10 @@ async function listRolePermissions(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
+  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
+
+  values.push(appCode);
+  clauses.push(`role_app_code = $${values.length}`);
 
   addEqualsFilter({ clauses, values, columnName: 'role_code', value: filters.roleCode });
   addEqualsFilter({
@@ -625,6 +697,10 @@ async function listUserRoles(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
+  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
+
+  values.push(appCode);
+  clauses.push(`app_code = $${values.length}`);
 
   addEqualsFilter({ clauses, values, columnName: 'role_code', value: filters.roleCode });
   addEqualsFilter({ clauses, values, columnName: 'user_status', value: filters.status });

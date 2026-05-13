@@ -1,9 +1,5 @@
--- ------------------------------------------------------------
 -- View: auth.vw_audit_events_recent
--- Purpose:
--- Friendly audit event history.
--- Useful for Admin-Web audit screens and operational traceability.
--- ------------------------------------------------------------
+-- Purpose: Phase 8.6 app-aware auth view.
 
 CREATE OR REPLACE VIEW auth.vw_audit_events_recent
 AS
@@ -25,12 +21,15 @@ SELECT
 
     ae.ip_address,
     ae.user_agent,
-    ae.created_at
+    ae.created_at,
+
+    ae.app_id,
+    app.app_code,
+    app.title AS app_title
 FROM auth.audit_events ae
 LEFT JOIN auth.users u
-    ON u.user_id = ae.user_id;
+    ON u.user_id = ae.user_id
+LEFT JOIN core.applications app
+    ON app.app_id = ae.app_id;
 
 ALTER VIEW auth.vw_audit_events_recent OWNER TO postgres;
-
-COMMENT ON VIEW auth.vw_audit_events_recent IS
-'Readable audit event history for Admin-Web, API activity, script execution, authorization events, and operational workflows.';

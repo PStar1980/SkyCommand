@@ -19,6 +19,9 @@ const MAX_FAILED_LOGIN_ATTEMPTS = parsePositiveInteger(
   5,
 );
 const LOCK_MINUTES = parsePositiveInteger(process.env.AUTH_LOCK_MINUTES, 15);
+const DEFAULT_AUTH_APP_CODE = String(process.env.AUTH_APP_CODE || 'SKYSERVER_ADMIN')
+  .trim()
+  .toUpperCase();
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') {
@@ -56,6 +59,12 @@ function normalizeEmail(email) {
   return String(email || '')
     .trim()
     .toLowerCase();
+}
+
+function normalizeAppCode(appCode, fallback = DEFAULT_AUTH_APP_CODE) {
+  return String(appCode || fallback || '')
+    .trim()
+    .toUpperCase();
 }
 
 function getBearerToken(req) {
@@ -118,10 +127,14 @@ function sanitizePermission(permission) {
     action: permission.action,
     description: permission.permission_description || permission.description || null,
     grantedThroughRoles: permission.granted_through_roles || null,
+    appId: permission.app_id || null,
+    appCode: permission.app_code || null,
+    appTitle: permission.app_title || null,
   };
 }
 
 async function recordAuditEvent({
+  appCode = DEFAULT_AUTH_APP_CODE,
   userId = null,
   eventType,
   resourceType = null,
@@ -136,6 +149,7 @@ async function recordAuditEvent({
   await query(
     `
       INSERT INTO auth.audit_events (
+        app_id,
         user_id,
         event_type,
         resource_type,
@@ -147,13 +161,17 @@ async function recordAuditEvent({
         ip_address,
         user_agent
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+      VALUES (
+        (SELECT app_id FROM core.applications WHERE app_code = $1 LIMIT 1),
+        $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11
+      )
     `,
     [
+      normalizeAppCode(appCode),
       userId,
       eventType,
       resourceType,
-      resourceId,
+      resourceId === undefined || resourceId === null ? null : String(resourceId),
       action,
       success,
       message,
@@ -167,6 +185,7 @@ async function recordAuditEvent({
 async function recordAuditEventWithClient(
   client,
   {
+    appCode = DEFAULT_AUTH_APP_CODE,
     userId = null,
     eventType,
     resourceType = null,
@@ -182,6 +201,7 @@ async function recordAuditEventWithClient(
   await client.query(
     `
       INSERT INTO auth.audit_events (
+        app_id,
         user_id,
         event_type,
         resource_type,
@@ -193,9 +213,13 @@ async function recordAuditEventWithClient(
         ip_address,
         user_agent
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+      VALUES (
+        (SELECT app_id FROM core.applications WHERE app_code = $1 LIMIT 1),
+        $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11
+      )
     `,
     [
+      normalizeAppCode(appCode),
       userId,
       eventType,
       resourceType,
@@ -211,6 +235,7 @@ async function recordAuditEventWithClient(
 }
 
 async function recordLoginEvent({
+  appCode = DEFAULT_AUTH_APP_CODE,
   userId = null,
   sessionId = null,
   emailAttempted,
@@ -222,6 +247,7 @@ async function recordLoginEvent({
   await query(
     `
       INSERT INTO auth.login_events (
+        app_id,
         user_id,
         session_id,
         email_attempted,
@@ -230,10 +256,60 @@ async function recordLoginEvent({
         ip_address,
         user_agent
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES (
+        (SELECT app_id FROM core.applications WHERE app_code = $1 LIMIT 1),
+        $2, $3, $4, $5, $6, $7, $8
+      )
     `,
-    [userId, sessionId, emailAttempted, success, failureReason, ipAddress, userAgent],
+    [
+      normalizeAppCode(appCode),
+      userId,
+      sessionId,
+      emailAttempted,
+      success,
+      failureReason,
+      ipAddress,
+      userAgent,
+    ],
   );
+}
+
+async function findApplicationByCode(appCode) {
+  const normalizedAppCode = normalizeAppCode(appCode);
+
+  const result = await query(
+    `
+      SELECT app_id, app_code, title, active
+      FROM core.applications
+      WHERE app_code = $1
+        AND active = TRUE
+      LIMIT 1
+    `,
+    [normalizedAppCode],
+  );
+
+  return result.rows[0] || null;
+}
+
+async function assertUserApplicationAccess(userId, appCode) {
+  const normalizedAppCode = normalizeAppCode(appCode);
+
+  const result = await query(
+    `
+      SELECT 1
+      FROM auth.user_applications ua
+      JOIN core.applications app
+        ON app.app_id = ua.app_id
+      WHERE ua.user_id = $1
+        AND app.app_code = $2
+        AND ua.status = 'ACTIVE'
+        AND app.active = TRUE
+      LIMIT 1
+    `,
+    [userId, normalizedAppCode],
+  );
+
+  return result.rowCount > 0;
 }
 
 async function findUserByEmail(email) {
@@ -260,13 +336,22 @@ async function findUserByEmail(email) {
   return result.rows[0] || null;
 }
 
-async function createSession(userId, context = {}) {
+async function createSession(userId, context = {}, appCode = DEFAULT_AUTH_APP_CODE) {
+  const normalizedAppCode = normalizeAppCode(appCode);
   const sessionToken = createSessionToken();
   const sessionTokenHash = hashToken(sessionToken);
 
   const result = await query(
     `
+      WITH app AS (
+        SELECT app_id, app_code, title
+        FROM core.applications
+        WHERE app_code = $7
+          AND active = TRUE
+        LIMIT 1
+      )
       INSERT INTO auth.sessions (
+        app_id,
         user_id,
         session_token_hash,
         ip_address,
@@ -275,7 +360,8 @@ async function createSession(userId, context = {}) {
         expires_at,
         last_seen_at
       )
-      VALUES (
+      SELECT
+        app.app_id,
         $1,
         $2,
         $3,
@@ -283,8 +369,8 @@ async function createSession(userId, context = {}) {
         $5::jsonb,
         CURRENT_TIMESTAMP + ($6::numeric * INTERVAL '1 minute'),
         CURRENT_TIMESTAMP
-      )
-      RETURNING session_id, expires_at
+      FROM app
+      RETURNING session_id, expires_at, app_id
     `,
     [
       userId,
@@ -292,17 +378,26 @@ async function createSession(userId, context = {}) {
       context.ipAddress || null,
       context.userAgent || null,
       JSON.stringify({
-        source: 'admin-web',
+        source:
+          normalizedAppCode === 'SKYSERVER_ADMIN' ? 'admin-web' : normalizedAppCode.toLowerCase(),
+        appCode: normalizedAppCode,
         sessionMinutes: DEFAULT_SESSION_MINUTES,
       }),
       DEFAULT_SESSION_MINUTES,
+      normalizedAppCode,
     ],
   );
+
+  if (result.rowCount === 0) {
+    throw createHttpError(400, `Application is not active or not configured: ${normalizedAppCode}`);
+  }
 
   return {
     sessionId: result.rows[0].session_id,
     sessionToken,
     expiresAt: result.rows[0].expires_at,
+    appId: result.rows[0].app_id,
+    appCode: normalizedAppCode,
   };
 }
 
@@ -342,7 +437,9 @@ async function revokeActiveSessionsOnStartup({ reason = 'API_STARTUP' } = {}) {
   };
 }
 
-async function getPermissionsForUser(userId) {
+async function getPermissionsForUser(userId, appCode = DEFAULT_AUTH_APP_CODE) {
+  const normalizedAppCode = normalizeAppCode(appCode);
+
   const result = await query(
     `
       SELECT
@@ -351,27 +448,34 @@ async function getPermissionsForUser(userId) {
         resource,
         action,
         permission_description,
-        granted_through_roles
+        granted_through_roles,
+        app_id,
+        app_code,
+        app_title
       FROM auth.vw_user_permissions
       WHERE user_id = $1
+        AND app_code = $2
       ORDER BY resource, action, permission_code
     `,
-    [userId],
+    [userId, normalizedAppCode],
   );
 
   return result.rows.map(sanitizePermission);
 }
 
-async function hasPermission(userId, permissionCode) {
+async function hasPermission(userId, permissionCode, appCode = DEFAULT_AUTH_APP_CODE) {
+  const normalizedAppCode = normalizeAppCode(appCode);
+
   const result = await query(
     `
       SELECT 1
       FROM auth.vw_user_permissions
       WHERE user_id = $1
         AND permission_code = $2
+        AND app_code = $3
       LIMIT 1
     `,
-    [userId, permissionCode],
+    [userId, permissionCode, normalizedAppCode],
   );
 
   return result.rowCount > 0;
@@ -412,9 +516,10 @@ async function resetSuccessfulLoginState(userId) {
   );
 }
 
-async function login({ email, password, context }) {
+async function login({ email, password, context, appCode = DEFAULT_AUTH_APP_CODE }) {
   const normalizedEmail = normalizeEmail(email);
   const requestContext = context || {};
+  const normalizedAppCode = normalizeAppCode(appCode);
 
   if (!normalizedEmail || !password) {
     throw new Error('Email and password are required.');
@@ -424,6 +529,7 @@ async function login({ email, password, context }) {
 
   if (!user) {
     await recordLoginEvent({
+      appCode: normalizedAppCode,
       emailAttempted: normalizedEmail,
       success: false,
       failureReason: 'INVALID_CREDENTIALS',
@@ -436,6 +542,7 @@ async function login({ email, password, context }) {
 
   if (user.status !== 'ACTIVE') {
     await recordLoginEvent({
+      appCode: normalizedAppCode,
       userId: user.user_id,
       emailAttempted: normalizedEmail,
       success: false,
@@ -447,8 +554,41 @@ async function login({ email, password, context }) {
     throw new Error('User account is not active.');
   }
 
+  const application = await findApplicationByCode(normalizedAppCode);
+
+  if (!application) {
+    await recordLoginEvent({
+      appCode: normalizedAppCode,
+      userId: user.user_id,
+      emailAttempted: normalizedEmail,
+      success: false,
+      failureReason: 'APPLICATION_NOT_CONFIGURED',
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+    });
+
+    throw new Error('Application is not available.');
+  }
+
+  const hasApplicationAccess = await assertUserApplicationAccess(user.user_id, normalizedAppCode);
+
+  if (!hasApplicationAccess) {
+    await recordLoginEvent({
+      appCode: normalizedAppCode,
+      userId: user.user_id,
+      emailAttempted: normalizedEmail,
+      success: false,
+      failureReason: 'APPLICATION_ACCESS_DENIED',
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+    });
+
+    throw new Error('User does not have access to this application.');
+  }
+
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
     await recordLoginEvent({
+      appCode: normalizedAppCode,
       userId: user.user_id,
       emailAttempted: normalizedEmail,
       success: false,
@@ -466,6 +606,7 @@ async function login({ email, password, context }) {
     const locked = await markFailedLogin(user);
 
     await recordLoginEvent({
+      appCode: normalizedAppCode,
       userId: user.user_id,
       emailAttempted: normalizedEmail,
       success: false,
@@ -479,10 +620,11 @@ async function login({ email, password, context }) {
 
   await resetSuccessfulLoginState(user.user_id);
 
-  const session = await createSession(user.user_id, requestContext);
-  const permissions = await getPermissionsForUser(user.user_id);
+  const session = await createSession(user.user_id, requestContext, normalizedAppCode);
+  const permissions = await getPermissionsForUser(user.user_id, normalizedAppCode);
 
   await recordLoginEvent({
+    appCode: normalizedAppCode,
     userId: user.user_id,
     sessionId: session.sessionId,
     emailAttempted: normalizedEmail,
@@ -492,6 +634,7 @@ async function login({ email, password, context }) {
   });
 
   await recordAuditEvent({
+    appCode: normalizedAppCode,
     userId: user.user_id,
     eventType: 'AUTH_LOGIN',
     resourceType: 'auth.sessions',
@@ -524,14 +667,22 @@ async function getSessionFromToken(sessionToken) {
       UPDATE auth.sessions s
       SET last_seen_at = CURRENT_TIMESTAMP,
           expires_at = CURRENT_TIMESTAMP + ($2::numeric * INTERVAL '1 minute')
-      FROM auth.users u
+      FROM auth.users u, core.applications app, auth.user_applications ua
       WHERE s.user_id = u.user_id
+        AND s.app_id = app.app_id
+        AND ua.user_id = u.user_id
+        AND ua.app_id = s.app_id
         AND s.session_token_hash = $1
         AND s.revoked_at IS NULL
         AND s.expires_at > CURRENT_TIMESTAMP
         AND u.status = 'ACTIVE'
+        AND ua.status = 'ACTIVE'
+        AND app.active = TRUE
       RETURNING
         s.session_id,
+        s.app_id,
+        app.app_code,
+        app.title AS app_title,
         s.expires_at,
         s.last_seen_at,
         u.user_id,
@@ -550,11 +701,14 @@ async function getSessionFromToken(sessionToken) {
   }
 
   const row = result.rows[0];
-  const permissions = await getPermissionsForUser(row.user_id);
+  const permissions = await getPermissionsForUser(row.user_id, row.app_code);
 
   return {
     session: {
       sessionId: row.session_id,
+      appId: row.app_id,
+      appCode: row.app_code,
+      appTitle: row.app_title,
       expiresAt: row.expires_at,
       lastSeenAt: row.last_seen_at,
       sessionMinutes: DEFAULT_SESSION_MINUTES,
@@ -565,6 +719,7 @@ async function getSessionFromToken(sessionToken) {
 }
 
 async function changePassword({
+  appCode = DEFAULT_AUTH_APP_CODE,
   userId,
   sessionId,
   currentPassword,
@@ -573,6 +728,8 @@ async function changePassword({
   revokeOtherSessions = true,
   context = {},
 }) {
+  const normalizedAppCode = normalizeAppCode(appCode);
+
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
   }
@@ -623,6 +780,7 @@ async function changePassword({
 
   if (!currentPasswordMatches) {
     await recordAuditEvent({
+      appCode: normalizedAppCode,
       userId,
       eventType: 'AUTH_PASSWORD_CHANGE',
       resourceType: 'auth.users',
@@ -690,6 +848,7 @@ async function changePassword({
     }
 
     await recordAuditEventWithClient(client, {
+      appCode: normalizedAppCode,
       userId,
       eventType: 'AUTH_PASSWORD_CHANGE',
       resourceType: 'auth.users',

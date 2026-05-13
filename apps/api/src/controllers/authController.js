@@ -76,14 +76,14 @@ function clearLoginRateLimit(key) {
 }
 
 async function login(req, res, next) {
-  const { email, password } = req.body || {};
+  const { email, password, appCode } = req.body || {};
   const context = authService.getRequestContext(req);
   let rateLimitKey = null;
 
   try {
     rateLimitKey = assertLoginRateLimit({ email, context });
 
-    const result = await authService.login({ email, password, context });
+    const result = await authService.login({ email, password, appCode, context });
     clearLoginRateLimit(rateLimitKey);
 
     res.json({
@@ -133,6 +133,7 @@ async function changePassword(req, res, next) {
     const result = await authService.changePassword({
       userId: req.user?.userId,
       sessionId: req.session?.sessionId,
+      appCode: req.session?.appCode,
       currentPassword: req.body?.currentPassword,
       newPassword: req.body?.newPassword,
       confirmPassword: req.body?.confirmPassword,
