@@ -164,6 +164,52 @@ async function recordAuditEvent({
   );
 }
 
+async function recordAuditEventWithClient(
+  client,
+  {
+    userId = null,
+    eventType,
+    resourceType = null,
+    resourceId = null,
+    action,
+    success,
+    message = null,
+    metadata = {},
+    ipAddress = null,
+    userAgent = null,
+  },
+) {
+  await client.query(
+    `
+      INSERT INTO auth.audit_events (
+        user_id,
+        event_type,
+        resource_type,
+        resource_id,
+        action,
+        success,
+        message,
+        metadata,
+        ip_address,
+        user_agent
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+    `,
+    [
+      userId,
+      eventType,
+      resourceType,
+      resourceId === undefined || resourceId === null ? null : String(resourceId),
+      action,
+      success,
+      message,
+      JSON.stringify(metadata || {}),
+      ipAddress || null,
+      userAgent || null,
+    ],
+  );
+}
+
 async function recordLoginEvent({
   userId = null,
   sessionId = null,
@@ -580,7 +626,7 @@ async function changePassword({
       userId,
       eventType: 'AUTH_PASSWORD_CHANGE',
       resourceType: 'auth.users',
-      resourceId: userId,
+      resourceId: String(userId),
       action: 'change_own_password',
       success: false,
       message: 'Password change rejected because the current password was incorrect.',
@@ -604,7 +650,7 @@ async function changePassword({
         SET password_hash = $2,
             failed_login_count = 0,
             locked_until = NULL,
-            updated_by = $1,
+            updated_by = $3,
             updated_at = CURRENT_TIMESTAMP
         WHERE user_id = $1
         RETURNING
@@ -616,8 +662,12 @@ async function changePassword({
           is_system_user,
           last_login_at
       `,
-      [userId, newPasswordHash],
+      [userId, newPasswordHash, userId],
     );
+
+    if (updateResult.rowCount === 0) {
+      throw createHttpError(404, 'Active user account not found.');
+    }
 
     let revokedOtherSessionsCount = 0;
 
@@ -628,44 +678,32 @@ async function changePassword({
           SET revoked_at = CURRENT_TIMESTAMP,
               revoked_reason = 'PASSWORD_CHANGE'
           WHERE user_id = $1
-            AND session_id <> $2
+            AND ($2::uuid IS NULL OR session_id <> $2::uuid)
             AND revoked_at IS NULL
             AND expires_at > CURRENT_TIMESTAMP
           RETURNING session_id
         `,
-        [userId, sessionId || '00000000-0000-0000-0000-000000000000'],
+        [userId, sessionId || null],
       );
 
       revokedOtherSessionsCount = revokeResult.rowCount || 0;
     }
 
-    await client.query(
-      `
-        INSERT INTO auth.audit_events (
-          user_id,
-          event_type,
-          resource_type,
-          resource_id,
-          action,
-          success,
-          message,
-          metadata,
-          ip_address,
-          user_agent
-        )
-        VALUES ($1, 'AUTH_PASSWORD_CHANGE', 'auth.users', $1, 'change_own_password', TRUE, $2, $3::jsonb, $4, $5)
-      `,
-      [
-        userId,
-        'User changed their own password successfully.',
-        JSON.stringify({
-          revokeOtherSessions: Boolean(revokeOtherSessions),
-          revokedOtherSessionsCount,
-        }),
-        context.ipAddress || null,
-        context.userAgent || null,
-      ],
-    );
+    await recordAuditEventWithClient(client, {
+      userId,
+      eventType: 'AUTH_PASSWORD_CHANGE',
+      resourceType: 'auth.users',
+      resourceId: String(userId),
+      action: 'change_own_password',
+      success: true,
+      message: 'User changed their own password successfully.',
+      metadata: {
+        revokeOtherSessions: Boolean(revokeOtherSessions),
+        revokedOtherSessionsCount,
+      },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    });
 
     await client.query('COMMIT');
 
