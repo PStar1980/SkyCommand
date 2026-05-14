@@ -157,7 +157,7 @@ function shouldSkipFile(fullPath) {
     return true;
   }
 
-  return path.extname(fullPath).toLowerCase() === '.zip';
+  return ['.zip', '.log'].includes(path.extname(fullPath).toLowerCase());
 }
 
 function scanDirectory(dir, baseDir = dir) {
