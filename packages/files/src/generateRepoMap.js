@@ -87,7 +87,7 @@ function shouldSkipFile(fileName) {
     return true;
   }
 
-  return path.extname(normalizedFileName) === '.zip';
+  return ['.zip', '.log'].includes(path.extname(normalizedFileName));
 }
 
 function sortEntries(entries) {

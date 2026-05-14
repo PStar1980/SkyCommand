@@ -9,6 +9,7 @@ const adminRoutes = require('./routes/admin.routes');
 const macroRoutes = require('./routes/macro.routes');
 const ingestionRoutes = require('./routes/ingestion.routes');
 const workerRoutes = require('./routes/worker.routes');
+const publicRoutes = require('./routes/public.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 
@@ -43,6 +44,8 @@ function createApp() {
       });
     }
   });
+
+  app.use('/api/public', publicRoutes);
 
   app.use('/api/auth', authRoutes);
   app.use('/api/tools', toolsRoutes);

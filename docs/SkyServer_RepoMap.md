@@ -78,6 +78,7 @@ SkyServer/
 │ │ │ ├── authController.js
 │ │ │ ├── ingestionController.js
 │ │ │ ├── macroController.js
+│ │ │ ├── publicMacroController.js
 │ │ │ ├── toolsController.js
 │ │ │ └── workerController.js
 │ │ ├── middleware/
@@ -88,6 +89,8 @@ SkyServer/
 │ │ │ ├── auth.routes.js
 │ │ │ ├── ingestion.routes.js
 │ │ │ ├── macro.routes.js
+│ │ │ ├── public.routes.js
+│ │ │ ├── publicMacro.routes.js
 │ │ │ ├── tools.routes.js
 │ │ │ └── worker.routes.js
 │ │ └── services/
@@ -96,6 +99,7 @@ SkyServer/
 │ │ ├── authService.js
 │ │ ├── ingestionStatusService.js
 │ │ ├── macroReadService.js
+│ │ ├── publicMacroService.js
 │ │ ├── scriptExecutionService.js
 │ │ ├── toolManifestService.js
 │ │ └── workerService.js
