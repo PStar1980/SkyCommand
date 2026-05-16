@@ -1109,3 +1109,7 @@ SkyServer is built around a few practical rules:
 - **Primary development branch:** `dev`
 - **Main branch:** `main`
 - **License:** ISC
+
+## Phase 9.3 — SkyWeb Auth Preparation
+
+SkyServer now exposes the authenticated `/api/skyweb/profile` surface for SKYWEB app sessions and seeds initial SkyWeb roles, permissions, app memberships, profiles, and preference tables.

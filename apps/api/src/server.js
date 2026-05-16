@@ -10,6 +10,7 @@ const macroRoutes = require('./routes/macro.routes');
 const ingestionRoutes = require('./routes/ingestion.routes');
 const workerRoutes = require('./routes/worker.routes');
 const publicRoutes = require('./routes/public.routes');
+const skywebRoutes = require('./routes/skyweb.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 
@@ -53,6 +54,7 @@ function createApp() {
   app.use('/api/macro', macroRoutes);
   app.use('/api/ingestion', ingestionRoutes);
   app.use('/api/worker', workerRoutes);
+  app.use('/api/skyweb', skywebRoutes);
 
   if (process.env.SERVE_ADMIN_WEB === 'true') {
     const adminWebPath = path.resolve(__dirname, '../../admin-web/dist');
