@@ -79,6 +79,7 @@ SkyServer/
 │ │ │ ├── ingestionController.js
 │ │ │ ├── macroController.js
 │ │ │ ├── publicMacroController.js
+│ │ │ ├── skywebController.js
 │ │ │ ├── toolsController.js
 │ │ │ └── workerController.js
 │ │ ├── middleware/
@@ -91,6 +92,7 @@ SkyServer/
 │ │ │ ├── macro.routes.js
 │ │ │ ├── public.routes.js
 │ │ │ ├── publicMacro.routes.js
+│ │ │ ├── skyweb.routes.js
 │ │ │ ├── tools.routes.js
 │ │ │ └── worker.routes.js
 │ │ └── services/
@@ -101,6 +103,7 @@ SkyServer/
 │ │ ├── macroReadService.js
 │ │ ├── publicMacroService.js
 │ │ ├── scriptExecutionService.js
+│ │ ├── skywebProfileService.js
 │ │ ├── toolManifestService.js
 │ │ └── workerService.js
 │ └── worker/
@@ -149,12 +152,14 @@ SkyServer/
 │ │ │ ├── 00018**core_config_tables.sql
 │ │ │ ├── 00020**worker_tables.sql
 │ │ │ ├── 00021**worker_automation_polish.sql
-│ │ │ └── 00022**auth_application_scope.sql
+│ │ │ ├── 00022**auth_application_scope.sql
+│ │ │ └── 00023**skyweb_auth_profiles.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
-│ │ └── 00019\_\_core_config_seed.sql
+│ │ ├── 00019**core_config_seed.sql
+│ │ └── 00024\_\_skyweb_auth_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ ├── generateRepoMap.js
@@ -202,11 +207,13 @@ SkyServer/
 │ ├── functions/
 │ │ ├── auth.set_updated_at.sql
 │ │ ├── core.set_updated_at.sql
+│ │ ├── skyweb.set_updated_at.sql
 │ │ └── worker.set_updated_at.sql
 │ ├── schemas/
 │ │ ├── auth.sql
 │ │ ├── core.sql
 │ │ ├── macro.sql
+│ │ ├── skyweb.sql
 │ │ └── worker.sql
 │ ├── tables/
 │ │ ├── auth.audit_events.sql
@@ -235,6 +242,8 @@ SkyServer/
 │ │ ├── core.tools.sql
 │ │ ├── core.visibility_channels.sql
 │ │ ├── macro.indicators..sql
+│ │ ├── skyweb.user_preferences.sql
+│ │ ├── skyweb.user_profiles.sql
 │ │ ├── worker.listener_events.sql
 │ │ ├── worker.listeners_phase8_5.sql
 │ │ ├── worker.listeners.sql
@@ -253,6 +262,8 @@ SkyServer/
 │ │ ├── core.tool_categories_set_updated_at.sql
 │ │ ├── core.tool_parameters_set_updated_at.sql
 │ │ ├── core.tools_set_updated_at.sql
+│ │ ├── skyweb.user_preferences_set_updated_at.sql
+│ │ ├── skyweb.user_profiles_set_updated_at.sql
 │ │ ├── worker.listener_events_set_updated_at.sql
 │ │ ├── worker.listeners_set_updated_at.sql
 │ │ ├── worker.schedule_runs_set_updated_at.sql
@@ -297,6 +308,8 @@ SkyServer/
 │ ├── macro.vw_us_ca_inflation_compare.sql
 │ ├── macro.vw_us_ca_labor_compare.sql
 │ ├── macro.vw_us_ca_policy_fx.sql
+│ ├── skyweb.vw_user_preferences.sql
+│ ├── skyweb.vw_user_profiles.sql
 │ ├── worker.vw_listener_events_recent.sql
 │ ├── worker.vw_listeners.sql
 │ ├── worker.vw_schedule_runs_recent.sql
