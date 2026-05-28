@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
+const DEFAULT_FILTERS = {
+  q: '',
+  appCode: 'ALL',
+  active: '',
+  limit: '50',
+};
+
 const DEFAULT_CREATE_FORM = {
+  appCode: 'SKYSERVER_ADMIN',
   roleCode: '',
   roleName: '',
   description: '',
@@ -38,18 +46,31 @@ function activePill(active) {
   return active ? 'sky-pill-success' : 'sky-pill-danger';
 }
 
+function formatApplicationLabel(application) {
+  if (!application) {
+    return 'Unknown app';
+  }
+
+  return application.title || application.appCode || 'Unknown app';
+}
+
+function getCreateAppCode(filters) {
+  return filters.appCode && filters.appCode !== 'ALL' ? filters.appCode : 'SKYSERVER_ADMIN';
+}
+
 function AdminRoles() {
   const { hasPermission } = useAuth();
   const canWriteRoles = hasPermission('ADMIN_ROLE_WRITE');
   const canReadPermissions = hasPermission('ADMIN_PERMISSION_READ');
   const canWritePermissions = hasPermission('ADMIN_PERMISSION_WRITE');
 
+  const [applications, setApplications] = useState([]);
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [selectedRole, setSelectedRole] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
-  const [filters, setFilters] = useState({ q: '', active: '', limit: 50 });
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -66,17 +87,21 @@ function AdminRoles() {
     permissionCodes: [],
   });
 
-  const activePermissions = useMemo(
-    () => permissions.filter((permission) => permission.active),
-    [permissions],
-  );
+  const activePermissions = useMemo(() => {
+    const selectedAppCode = selectedRole?.appCode || null;
 
-  async function loadPermissions() {
+    return permissions.filter(
+      (permission) =>
+        permission.active && (!selectedAppCode || permission.appCode === selectedAppCode),
+    );
+  }, [permissions, selectedRole]);
+
+  async function loadPermissions(nextAppCode = 'ALL') {
     if (!canReadPermissions) {
       return;
     }
 
-    const result = await adminService.listPermissions({ limit: 200 });
+    const result = await adminService.listPermissions({ appCode: nextAppCode, limit: 200 });
     setPermissions(result.items || []);
   }
 
@@ -143,10 +168,11 @@ function AdminRoles() {
       setError('');
 
       try {
-        const [rolesResult, permissionsResult] = await Promise.all([
-          adminService.listRoles(filters),
+        const [applicationsResult, rolesResult, permissionsResult] = await Promise.all([
+          adminService.listApplications({ active: true, limit: 200 }),
+          adminService.listRoles(DEFAULT_FILTERS),
           canReadPermissions
-            ? adminService.listPermissions({ limit: 200 })
+            ? adminService.listPermissions({ appCode: 'ALL', limit: 200 })
             : Promise.resolve({ items: [] }),
         ]);
 
@@ -154,6 +180,7 @@ function AdminRoles() {
           return;
         }
 
+        setApplications(applicationsResult.items || []);
         setRoles(rolesResult.items || []);
         setTotal(rolesResult.total || 0);
         setSelectedRoleId(rolesResult.items?.[0]?.roleId || '');
@@ -205,7 +232,15 @@ function AdminRoles() {
 
   async function handleApplyFilters(event) {
     event.preventDefault();
-    await loadRoles(filters);
+    await Promise.all([loadRoles(filters), loadPermissions(filters.appCode)]);
+  }
+
+  function toggleCreatePanel() {
+    setCreateForm((currentForm) => ({
+      ...currentForm,
+      appCode: getCreateAppCode(filters),
+    }));
+    setCreateOpen((currentValue) => !currentValue);
   }
 
   async function handleCreateRole(event) {
@@ -216,16 +251,20 @@ function AdminRoles() {
 
     try {
       const result = await adminService.createRole({
+        appCode: createForm.appCode,
         roleCode: createForm.roleCode,
         roleName: createForm.roleName,
         description: createForm.description || null,
         active: createForm.active,
       });
 
-      setCreateForm(DEFAULT_CREATE_FORM);
+      setCreateForm({ ...DEFAULT_CREATE_FORM, appCode: getCreateAppCode(filters) });
       setCreateOpen(false);
       setSuccess(`Created role ${result.role?.roleCode || createForm.roleCode}.`);
-      await loadRoles(filters, result.role?.roleId);
+      await Promise.all([
+        loadRoles(filters, result.role?.roleId),
+        loadPermissions(filters.appCode),
+      ]);
       if (result.role?.roleId) {
         setSelectedRoleId(result.role.roleId);
       }
@@ -300,7 +339,7 @@ function AdminRoles() {
         permissionCodes: editForm.permissionCodes,
       });
       setSuccess('Role permission assignments updated.');
-      await loadPermissions();
+      await loadPermissions(filters.appCode);
       await loadSelectedRole(selectedRole.roleId);
     } catch (saveError) {
       setError(saveError.message || 'Failed to update role permissions.');
@@ -316,23 +355,20 @@ function AdminRoles() {
           <div className="sky-page-kicker">Access control</div>
           <h1 className="sky-page-title">Roles</h1>
           <p className="sky-page-subtitle">
-            Define role groups, inspect assigned users, and curate the permissions each role grants.
+            Define role groups across Sky applications, inspect assigned users, and curate the
+            permissions each app role grants.
           </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
           {canWriteRoles && (
-            <button
-              className="btn sky-btn-primary"
-              onClick={() => setCreateOpen((currentValue) => !currentValue)}
-              type="button"
-            >
+            <button className="btn sky-btn-primary" onClick={toggleCreatePanel} type="button">
               {createOpen ? 'Close creator' : 'Create role'}
             </button>
           )}
           <button
             className="btn sky-btn-ghost"
             disabled={loading}
-            onClick={() => loadRoles(filters)}
+            onClick={() => Promise.all([loadRoles(filters), loadPermissions(filters.appCode)])}
             type="button"
           >
             {loading ? 'Refreshing...' : 'Refresh'}
@@ -352,6 +388,24 @@ function AdminRoles() {
             <form onSubmit={handleCreateRole}>
               <div className="row g-3">
                 <div className="col-md-3">
+                  <label className="form-label" htmlFor="createRoleApp">
+                    Application
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="createRoleApp"
+                    onChange={(event) => updateCreateField('appCode', event.target.value)}
+                    required
+                    value={createForm.appCode}
+                  >
+                    {applications.map((application) => (
+                      <option key={application.appCode} value={application.appCode}>
+                        {formatApplicationLabel(application)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-3">
                   <label className="form-label" htmlFor="createRoleCode">
                     Role code
                   </label>
@@ -366,7 +420,7 @@ function AdminRoles() {
                     value={createForm.roleCode}
                   />
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-3">
                   <label className="form-label" htmlFor="createRoleName">
                     Role name
                   </label>
@@ -378,7 +432,7 @@ function AdminRoles() {
                     value={createForm.roleName}
                   />
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-2">
                   <label className="form-label" htmlFor="createRoleDescription">
                     Description
                   </label>
@@ -412,7 +466,7 @@ function AdminRoles() {
       <section className="sky-card mb-3">
         <div className="sky-card-body">
           <form className="row g-3 align-items-end" onSubmit={handleApplyFilters}>
-            <div className="col-md-6">
+            <div className="col-md-4">
               <label className="form-label" htmlFor="roleSearch">
                 Search
               </label>
@@ -423,6 +477,24 @@ function AdminRoles() {
                 placeholder="Role code, role name, description..."
                 value={filters.q}
               />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label" htmlFor="roleAppFilter">
+                Application
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="roleAppFilter"
+                onChange={(event) => updateFilter('appCode', event.target.value)}
+                value={filters.appCode}
+              >
+                <option value="ALL">All applications</option>
+                {applications.map((application) => (
+                  <option key={application.appCode} value={application.appCode}>
+                    {formatApplicationLabel(application)}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="col-md-2">
               <label className="form-label" htmlFor="roleActiveFilter">
@@ -439,7 +511,7 @@ function AdminRoles() {
                 <option value="false">Inactive</option>
               </select>
             </div>
-            <div className="col-md-2">
+            <div className="col-md-1">
               <label className="form-label" htmlFor="roleLimit">
                 Limit
               </label>
@@ -479,6 +551,7 @@ function AdminRoles() {
                   <thead>
                     <tr>
                       <th>Role</th>
+                      <th>Application</th>
                       <th>Status</th>
                       <th>System</th>
                       <th>Updated</th>
@@ -496,6 +569,10 @@ function AdminRoles() {
                         <td>
                           <div className="fw-bold sky-detail-value sky-mono">{role.roleCode}</div>
                           <div className="small sky-muted">{role.roleName}</div>
+                        </td>
+                        <td>
+                          <span className="sky-pill sky-pill-info">{role.appCode || 'APP'}</span>
+                          <div className="small sky-muted mt-1">{role.appTitle || '—'}</div>
                         </td>
                         <td>
                           <span className={`sky-pill ${activePill(role.active)}`}>
@@ -530,6 +607,7 @@ function AdminRoles() {
                     <span className={`sky-pill ${activePill(selectedRole.active)}`}>
                       {selectedRole.active ? 'ACTIVE' : 'INACTIVE'}
                     </span>
+                    <span className="sky-pill sky-pill-info">{selectedRole.appCode || 'APP'}</span>
                     {selectedRole.isSystemRole && <span className="sky-pill">System role</span>}
                     <span className="sky-pill sky-pill-info">
                       {editForm.permissionCodes.length} permission
@@ -542,6 +620,17 @@ function AdminRoles() {
 
                   <form onSubmit={handleSaveRole}>
                     <div className="row g-3">
+                      <div className="col-md-12">
+                        <label className="form-label" htmlFor="editRoleApp">
+                          Application
+                        </label>
+                        <input
+                          className="form-control sky-form-control sky-mono"
+                          disabled
+                          id="editRoleApp"
+                          value={selectedRole.appTitle || selectedRole.appCode || '—'}
+                        />
+                      </div>
                       <div className="col-md-5">
                         <label className="form-label" htmlFor="editRoleCode">
                           Role code
@@ -631,7 +720,7 @@ function AdminRoles() {
                   {canReadPermissions ? (
                     <div>
                       <label className="form-label" htmlFor="editRolePermissions">
-                        Permission assignments
+                        Permission assignments for {selectedRole.appTitle || selectedRole.appCode}
                       </label>
                       <select
                         className="form-select sky-form-control"
@@ -650,7 +739,8 @@ function AdminRoles() {
                         ))}
                       </select>
                       <div className="form-text sky-muted">
-                        Hold Ctrl/Cmd to select multiple permissions.
+                        Hold Ctrl/Cmd to select multiple permissions. Only same-app permissions are
+                        assignable.
                       </div>
                       {canWritePermissions && (
                         <button
