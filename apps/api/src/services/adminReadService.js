@@ -33,6 +33,34 @@ function normalizeOptionalString(value) {
   return text === '' ? null : text;
 }
 
+function normalizeAppCodeFilter(value, fallback = DEFAULT_ADMIN_APP_CODE) {
+  const normalizedValue = normalizeOptionalString(value);
+
+  if (normalizedValue === null) {
+    return fallback;
+  }
+
+  const appCode = normalizedValue.toUpperCase();
+  return appCode === 'ALL' ? null : appCode;
+}
+
+function addAppCodeFilter({
+  clauses,
+  values,
+  columnName,
+  value,
+  fallback = DEFAULT_ADMIN_APP_CODE,
+}) {
+  const appCode = normalizeAppCodeFilter(value, fallback);
+
+  if (appCode === null) {
+    return;
+  }
+
+  values.push(appCode);
+  clauses.push(`${columnName} = $${values.length}`);
+}
+
 function normalizeBooleanFilter(value) {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -290,6 +318,12 @@ function sanitizeRolePermission(row) {
     permissionDescription: row.permission_description,
     permissionActive: row.permission_active,
     rolePermissionActive: row.role_permission_active,
+    roleAppId: row.role_app_id || row.app_id || null,
+    roleAppCode: row.role_app_code || row.app_code || null,
+    roleAppTitle: row.role_app_title || row.app_title || null,
+    permissionAppId: row.permission_app_id || row.app_id || null,
+    permissionAppCode: row.permission_app_code || row.app_code || null,
+    permissionAppTitle: row.permission_app_title || row.app_title || null,
     grantedAt: row.granted_at,
     grantedBy: row.granted_by,
   };
@@ -463,10 +497,13 @@ async function listActiveSessions(filters = {}) {
   const clauses = [];
   const values = [];
   const currentSessionId = normalizeOptionalString(filters.currentSessionId);
-  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
-
-  values.push(appCode);
-  clauses.push(`app_code = $${values.length}`);
+  addAppCodeFilter({
+    clauses,
+    values,
+    columnName: 'app_code',
+    value: filters.appCode,
+    fallback: null,
+  });
 
   addEqualsFilter({ clauses, values, columnName: 'user_id', value: filters.userId });
   addDateRangeFilters({
@@ -612,10 +649,7 @@ async function listRoles(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
-  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
-
-  values.push(appCode);
-  clauses.push(`app.app_code = $${values.length}`);
+  addAppCodeFilter({ clauses, values, columnName: 'app.app_code', value: filters.appCode });
 
   addBooleanFilter({ clauses, values, columnName: 'r.active', value: filters.active });
   addSearchFilter({
@@ -669,10 +703,7 @@ async function listPermissions(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
-  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
-
-  values.push(appCode);
-  clauses.push(`app.app_code = $${values.length}`);
+  addAppCodeFilter({ clauses, values, columnName: 'app.app_code', value: filters.appCode });
 
   addEqualsFilter({ clauses, values, columnName: 'p.resource', value: filters.resource });
   addEqualsFilter({ clauses, values, columnName: 'p.action', value: filters.action });
@@ -718,10 +749,7 @@ async function listRolePermissions(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
-  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
-
-  values.push(appCode);
-  clauses.push(`role_app_code = $${values.length}`);
+  addAppCodeFilter({ clauses, values, columnName: 'role_app_code', value: filters.appCode });
 
   addEqualsFilter({ clauses, values, columnName: 'role_code', value: filters.roleCode });
   addEqualsFilter({
@@ -759,10 +787,13 @@ async function listUserRoles(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
-  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
-
-  values.push(appCode);
-  clauses.push(`app_code = $${values.length}`);
+  addAppCodeFilter({
+    clauses,
+    values,
+    columnName: 'app_code',
+    value: filters.appCode,
+    fallback: null,
+  });
 
   addEqualsFilter({ clauses, values, columnName: 'role_code', value: filters.roleCode });
   addEqualsFilter({ clauses, values, columnName: 'user_status', value: filters.status });

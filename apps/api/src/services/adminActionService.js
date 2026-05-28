@@ -309,6 +309,12 @@ function sanitizeRolePermission(row) {
     permissionDescription: row.permission_description,
     permissionActive: row.permission_active,
     rolePermissionActive: row.role_permission_active,
+    roleAppId: row.role_app_id || row.app_id || null,
+    roleAppCode: row.role_app_code || row.app_code || null,
+    roleAppTitle: row.role_app_title || row.app_title || null,
+    permissionAppId: row.permission_app_id || row.app_id || null,
+    permissionAppCode: row.permission_app_code || row.app_code || null,
+    permissionAppTitle: row.permission_app_title || row.app_title || null,
     grantedAt: row.granted_at,
     grantedBy: row.granted_by,
   };
@@ -680,6 +686,26 @@ async function insertAuditEvent(
   );
 }
 
+async function getApplicationRowByCode(client, rawAppCode, options = {}) {
+  const appCode = normalizeCode(rawAppCode || DEFAULT_ADMIN_APP_CODE, 'appCode');
+  const result = await client.query(
+    `
+      SELECT app_id, app_code, title, manifest_version, description, active, created_at, updated_at
+      FROM core.applications
+      WHERE app_code = $1
+      ${options.activeOnly === false ? '' : 'AND active = TRUE'}
+      ${options.forUpdate ? 'FOR UPDATE' : ''}
+    `,
+    [appCode],
+  );
+
+  if (result.rowCount === 0) {
+    throw createHttpError(400, `Application not found or inactive: ${appCode}`);
+  }
+
+  return result.rows[0];
+}
+
 async function getUserRowById(client, rawUserId, options = {}) {
   const userId = normalizeUuid(rawUserId, 'userId');
   const result = await client.query(
@@ -717,17 +743,21 @@ async function getRoleRowById(client, rawRoleId, options = {}) {
   const result = await client.query(
     `
       SELECT
-        role_id,
-        app_id,
-        role_code,
-        role_name,
-        description,
-        is_system_role,
-        active,
-        created_at,
-        updated_at
-      FROM auth.roles
-      WHERE role_id = $1
+        r.role_id,
+        r.app_id,
+        app.app_code,
+        app.title AS app_title,
+        r.role_code,
+        r.role_name,
+        r.description,
+        r.is_system_role,
+        r.active,
+        r.created_at,
+        r.updated_at
+      FROM auth.roles r
+      JOIN core.applications app
+        ON app.app_id = r.app_id
+      WHERE r.role_id = $1
       ${options.forUpdate ? 'FOR UPDATE' : ''}
     `,
     [roleId],
@@ -745,17 +775,21 @@ async function getPermissionRowById(client, rawPermissionId, options = {}) {
   const result = await client.query(
     `
       SELECT
-        permission_id,
-        app_id,
-        permission_code,
-        resource,
-        action,
-        description,
-        active,
-        created_at,
-        updated_at
-      FROM auth.permissions
-      WHERE permission_id = $1
+        p.permission_id,
+        p.app_id,
+        app.app_code,
+        app.title AS app_title,
+        p.permission_code,
+        p.resource,
+        p.action,
+        p.description,
+        p.active,
+        p.created_at,
+        p.updated_at
+      FROM auth.permissions p
+      JOIN core.applications app
+        ON app.app_id = p.app_id
+      WHERE p.permission_id = $1
       ${options.forUpdate ? 'FOR UPDATE' : ''}
     `,
     [permissionId],
@@ -796,22 +830,43 @@ async function getRolesByCodes(client, roleCodes, { activeOnly = true } = {}) {
   return result.rows;
 }
 
-async function getPermissionsByCodes(client, permissionCodes, { activeOnly = true } = {}) {
+async function getPermissionsByCodes(
+  client,
+  permissionCodes,
+  { activeOnly = true, appId = null } = {},
+) {
   if (permissionCodes.length === 0) {
     return [];
   }
 
+  const values = [permissionCodes];
+  let appPredicate = `app.app_code = $2`;
+  values.push(DEFAULT_ADMIN_APP_CODE);
+
+  if (appId) {
+    appPredicate = `p.app_id = $2`;
+    values[1] = appId;
+  }
+
   const result = await client.query(
     `
-      SELECT p.permission_id, p.app_id, p.permission_code, p.resource, p.action, p.active
+      SELECT
+        p.permission_id,
+        p.app_id,
+        app.app_code,
+        app.title AS app_title,
+        p.permission_code,
+        p.resource,
+        p.action,
+        p.active
       FROM auth.permissions p
       JOIN core.applications app
         ON app.app_id = p.app_id
       WHERE p.permission_code = ANY($1::text[])
-        AND app.app_code = $2
+        AND ${appPredicate}
         ${activeOnly ? 'AND p.active = TRUE' : ''}
     `,
-    [permissionCodes, DEFAULT_ADMIN_APP_CODE],
+    values,
   );
 
   const foundCodes = new Set(result.rows.map((row) => row.permission_code));
@@ -820,7 +875,7 @@ async function getPermissionsByCodes(client, permissionCodes, { activeOnly = tru
   if (missingCodes.length > 0) {
     throw createHttpError(
       400,
-      `Permission code(s) not found or inactive: ${missingCodes.join(', ')}`,
+      `Permission code(s) not found or inactive for selected application: ${missingCodes.join(', ')}`,
     );
   }
 
@@ -1857,6 +1912,7 @@ async function createRole({ body = {}, actor, context = {} }) {
   const description = normalizeOptionalString(body.description);
   const isSystemRole = normalizeOptionalBoolean(body.isSystemRole, false, 'isSystemRole');
   const active = normalizeOptionalBoolean(body.active, true, 'active');
+  const appCode = normalizeCode(body.appCode || DEFAULT_ADMIN_APP_CODE, 'appCode');
 
   if (isSystemRole) {
     await assertSuperAdmin({
@@ -1870,6 +1926,8 @@ async function createRole({ body = {}, actor, context = {} }) {
   try {
     await client.query('BEGIN');
 
+    const application = await getApplicationRowByCode(client, appCode);
+
     const result = await client.query(
       `
         INSERT INTO auth.roles (
@@ -1880,11 +1938,10 @@ async function createRole({ body = {}, actor, context = {} }) {
           is_system_role,
           active
         )
-        SELECT app.app_id, $1, $2, $3, $4, $5
-        FROM core.applications app
-        WHERE app.app_code = $6
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING
           role_id,
+          app_id,
           role_code,
           role_name,
           description,
@@ -1893,10 +1950,14 @@ async function createRole({ body = {}, actor, context = {} }) {
           created_at,
           updated_at
       `,
-      [roleCode, roleName, description, isSystemRole, active, DEFAULT_ADMIN_APP_CODE],
+      [application.app_id, roleCode, roleName, description, isSystemRole, active],
     );
 
-    const role = result.rows[0];
+    const role = {
+      ...result.rows[0],
+      app_code: application.app_code,
+      app_title: application.title,
+    };
 
     await insertAuditEvent(client, {
       actor,
@@ -1910,6 +1971,7 @@ async function createRole({ body = {}, actor, context = {} }) {
       metadata: {
         roleCode,
         roleName,
+        appCode: application.app_code,
         isSystemRole,
         active,
       },
@@ -2029,7 +2091,12 @@ async function updateRole({ roleId, body = {}, actor, context = {} }) {
     await client.query('COMMIT');
 
     return {
-      role: sanitizeRole(result.rows[0]),
+      role: sanitizeRole({
+        ...result.rows[0],
+        app_id: role.app_id,
+        app_code: role.app_code,
+        app_title: role.app_title,
+      }),
       changed: true,
     };
   } catch (error) {
@@ -2091,7 +2158,9 @@ async function updateRolePermissions({ roleId, body = {}, actor, context = {} })
     const role = await getRoleRowById(client, normalizedRoleId, { forUpdate: true });
     await assertCanMutateSystemRole({ role, actor });
 
-    const permissionRows = await getPermissionsByCodes(client, permissionCodes);
+    const permissionRows = await getPermissionsByCodes(client, permissionCodes, {
+      appId: role.app_id,
+    });
     const permissionIds = permissionRows.map((permission) => permission.permission_id);
     const actorUserId = getActorUserId(actor);
 
@@ -2221,10 +2290,13 @@ async function createPermission({ body = {}, actor, context = {} }) {
   const action = normalizeResourceAction(body.action, 'action');
   const description = normalizeOptionalString(body.description);
   const active = normalizeOptionalBoolean(body.active, true, 'active');
+  const appCode = normalizeCode(body.appCode || DEFAULT_ADMIN_APP_CODE, 'appCode');
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
+
+    const application = await getApplicationRowByCode(client, appCode);
 
     const result = await client.query(
       `
@@ -2236,11 +2308,10 @@ async function createPermission({ body = {}, actor, context = {} }) {
           description,
           active
         )
-        SELECT app.app_id, $1, $2, $3, $4, $5
-        FROM core.applications app
-        WHERE app.app_code = $6
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING
           permission_id,
+          app_id,
           permission_code,
           resource,
           action,
@@ -2249,10 +2320,14 @@ async function createPermission({ body = {}, actor, context = {} }) {
           created_at,
           updated_at
       `,
-      [permissionCode, resource, action, description, active, DEFAULT_ADMIN_APP_CODE],
+      [application.app_id, permissionCode, resource, action, description, active],
     );
 
-    const permission = result.rows[0];
+    const permission = {
+      ...result.rows[0],
+      app_code: application.app_code,
+      app_title: application.title,
+    };
 
     await insertAuditEvent(client, {
       actor,
@@ -2265,6 +2340,7 @@ async function createPermission({ body = {}, actor, context = {} }) {
       message: 'Permission created through Admin API.',
       metadata: {
         permissionCode,
+        appCode: application.app_code,
         resource,
         action,
         active,
@@ -2380,7 +2456,12 @@ async function updatePermission({ permissionId, body = {}, actor, context = {} }
     await client.query('COMMIT');
 
     return {
-      permission: sanitizePermission(result.rows[0]),
+      permission: sanitizePermission({
+        ...result.rows[0],
+        app_id: permission.app_id,
+        app_code: permission.app_code,
+        app_title: permission.app_title,
+      }),
       changed: true,
     };
   } catch (error) {

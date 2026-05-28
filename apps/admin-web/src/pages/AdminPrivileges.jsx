@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
+const DEFAULT_FILTERS = {
+  q: '',
+  appCode: 'ALL',
+  resource: '',
+  action: '',
+  active: '',
+  limit: '50',
+};
+
 const DEFAULT_CREATE_FORM = {
+  appCode: 'SKYSERVER_ADMIN',
   permissionCode: '',
   resource: '',
   action: '',
@@ -37,21 +47,28 @@ function normalizeResourceAction(value) {
     .replace(/[^a-z0-9_]/g, '_');
 }
 
+function formatApplicationLabel(application) {
+  if (!application) {
+    return 'Unknown app';
+  }
+
+  return application.title || application.appCode || 'Unknown app';
+}
+
+function getCreateAppCode(filters) {
+  return filters.appCode && filters.appCode !== 'ALL' ? filters.appCode : 'SKYSERVER_ADMIN';
+}
+
 function AdminPrivileges() {
   const { hasPermission } = useAuth();
   const canWritePermissions = hasPermission('ADMIN_PERMISSION_WRITE');
 
+  const [applications, setApplications] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [selectedPermissionId, setSelectedPermissionId] = useState('');
   const [selectedPermission, setSelectedPermission] = useState(null);
   const [selectedRoles, setSelectedRoles] = useState([]);
-  const [filters, setFilters] = useState({
-    q: '',
-    resource: '',
-    action: '',
-    active: '',
-    limit: 50,
-  });
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -147,15 +164,19 @@ function AdminPrivileges() {
       setError('');
 
       try {
-        const result = await adminService.listPermissions(filters);
+        const [applicationsResult, permissionsResult] = await Promise.all([
+          adminService.listApplications({ active: true, limit: 200 }),
+          adminService.listPermissions(DEFAULT_FILTERS),
+        ]);
 
         if (!active) {
           return;
         }
 
-        setPermissions(result.items || []);
-        setTotal(result.total || 0);
-        setSelectedPermissionId(result.items?.[0]?.permissionId || '');
+        setApplications(applicationsResult.items || []);
+        setPermissions(permissionsResult.items || []);
+        setTotal(permissionsResult.total || 0);
+        setSelectedPermissionId(permissionsResult.items?.[0]?.permissionId || '');
       } catch (loadError) {
         if (active) {
           setError(loadError.message || 'Failed to load privileges.');
@@ -206,6 +227,14 @@ function AdminPrivileges() {
     await loadPermissions(filters);
   }
 
+  function toggleCreatePanel() {
+    setCreateForm((currentForm) => ({
+      ...currentForm,
+      appCode: getCreateAppCode(filters),
+    }));
+    setCreateOpen((currentValue) => !currentValue);
+  }
+
   async function handleCreatePermission(event) {
     event.preventDefault();
     setSaving(true);
@@ -214,6 +243,7 @@ function AdminPrivileges() {
 
     try {
       const result = await adminService.createPermission({
+        appCode: createForm.appCode,
         permissionCode: createForm.permissionCode,
         resource: createForm.resource,
         action: createForm.action,
@@ -221,7 +251,7 @@ function AdminPrivileges() {
         active: createForm.active,
       });
 
-      setCreateForm(DEFAULT_CREATE_FORM);
+      setCreateForm({ ...DEFAULT_CREATE_FORM, appCode: getCreateAppCode(filters) });
       setCreateOpen(false);
       setSuccess(
         `Created privilege ${result.permission?.permissionCode || createForm.permissionCode}.`,
@@ -295,17 +325,13 @@ function AdminPrivileges() {
           <div className="sky-page-kicker">Access control</div>
           <h1 className="sky-page-title">Privileges</h1>
           <p className="sky-page-subtitle">
-            Inspect and maintain atomic permissions used by roles, protected routes, and the API
-            authorization layer.
+            Inspect and maintain app-scoped atomic permissions used by roles, protected routes, and
+            the API authorization layer.
           </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
           {canWritePermissions && (
-            <button
-              className="btn sky-btn-primary"
-              onClick={() => setCreateOpen((currentValue) => !currentValue)}
-              type="button"
-            >
+            <button className="btn sky-btn-primary" onClick={toggleCreatePanel} type="button">
               {createOpen ? 'Close creator' : 'Create privilege'}
             </button>
           )}
@@ -332,6 +358,24 @@ function AdminPrivileges() {
             <form onSubmit={handleCreatePermission}>
               <div className="row g-3">
                 <div className="col-md-3">
+                  <label className="form-label" htmlFor="createPermissionApp">
+                    Application
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="createPermissionApp"
+                    onChange={(event) => updateCreateField('appCode', event.target.value)}
+                    required
+                    value={createForm.appCode}
+                  >
+                    {applications.map((application) => (
+                      <option key={application.appCode} value={application.appCode}>
+                        {formatApplicationLabel(application)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-3">
                   <label className="form-label" htmlFor="createPermissionCode">
                     Permission code
                   </label>
@@ -349,7 +393,7 @@ function AdminPrivileges() {
                     value={createForm.permissionCode}
                   />
                 </div>
-                <div className="col-md-3">
+                <div className="col-md-2">
                   <label className="form-label" htmlFor="createResource">
                     Resource
                   </label>
@@ -364,7 +408,7 @@ function AdminPrivileges() {
                     value={createForm.resource}
                   />
                 </div>
-                <div className="col-md-3">
+                <div className="col-md-2">
                   <label className="form-label" htmlFor="createAction">
                     Action
                   </label>
@@ -379,7 +423,7 @@ function AdminPrivileges() {
                     value={createForm.action}
                   />
                 </div>
-                <div className="col-md-3">
+                <div className="col-md-2">
                   <label className="form-label" htmlFor="createPermissionActive">
                     Status
                   </label>
@@ -417,7 +461,7 @@ function AdminPrivileges() {
       <section className="sky-card mb-3">
         <div className="sky-card-body">
           <form className="row g-3 align-items-end" onSubmit={handleApplyFilters}>
-            <div className="col-md-4">
+            <div className="col-md-3">
               <label className="form-label" htmlFor="permissionSearch">
                 Search
               </label>
@@ -428,6 +472,24 @@ function AdminPrivileges() {
                 placeholder="Code, resource, action, description..."
                 value={filters.q}
               />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label" htmlFor="permissionAppFilter">
+                Application
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="permissionAppFilter"
+                onChange={(event) => updateFilter('appCode', event.target.value)}
+                value={filters.appCode}
+              >
+                <option value="ALL">All applications</option>
+                {applications.map((application) => (
+                  <option key={application.appCode} value={application.appCode}>
+                    {formatApplicationLabel(application)}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="col-md-2">
               <label className="form-label" htmlFor="permissionResourceFilter">
@@ -465,7 +527,7 @@ function AdminPrivileges() {
                 ))}
               </select>
             </div>
-            <div className="col-md-2">
+            <div className="col-md-1">
               <label className="form-label" htmlFor="permissionActiveFilter">
                 Active
               </label>
@@ -520,6 +582,7 @@ function AdminPrivileges() {
                   <thead>
                     <tr>
                       <th>Privilege</th>
+                      <th>Application</th>
                       <th>Resource</th>
                       <th>Action</th>
                       <th>Status</th>
@@ -541,6 +604,12 @@ function AdminPrivileges() {
                           <div className="small sky-muted sky-truncate">
                             {permission.description || '—'}
                           </div>
+                        </td>
+                        <td>
+                          <span className="sky-pill sky-pill-info">
+                            {permission.appCode || 'APP'}
+                          </span>
+                          <div className="small sky-muted mt-1">{permission.appTitle || '—'}</div>
                         </td>
                         <td className="sky-mono">{permission.resource}</td>
                         <td className="sky-mono">{permission.action}</td>
@@ -576,6 +645,9 @@ function AdminPrivileges() {
                       {selectedPermission.active ? 'ACTIVE' : 'INACTIVE'}
                     </span>
                     <span className="sky-pill sky-pill-info">
+                      {selectedPermission.appCode || 'APP'}
+                    </span>
+                    <span className="sky-pill sky-pill-info">
                       {selectedRoles.length} role{selectedRoles.length === 1 ? '' : 's'}
                     </span>
                     <span className="sky-pill sky-pill-info">
@@ -585,6 +657,17 @@ function AdminPrivileges() {
 
                   <form onSubmit={handleSavePermission}>
                     <div className="row g-3">
+                      <div className="col-md-12">
+                        <label className="form-label" htmlFor="editPermissionApp">
+                          Application
+                        </label>
+                        <input
+                          className="form-control sky-form-control sky-mono"
+                          disabled
+                          id="editPermissionApp"
+                          value={selectedPermission.appTitle || selectedPermission.appCode || '—'}
+                        />
+                      </div>
                       <div className="col-md-12">
                         <label className="form-label" htmlFor="editPermissionCode">
                           Permission code
@@ -698,6 +781,7 @@ function AdminPrivileges() {
                         <thead>
                           <tr>
                             <th>Role</th>
+                            <th>Application</th>
                             <th>Status</th>
                           </tr>
                         </thead>
@@ -709,6 +793,11 @@ function AdminPrivileges() {
                                   {role.roleCode}
                                 </div>
                                 <div className="small sky-muted">{role.roleName}</div>
+                              </td>
+                              <td>
+                                <span className="sky-pill sky-pill-info">
+                                  {role.roleAppCode || role.appCode || 'APP'}
+                                </span>
                               </td>
                               <td>
                                 <span

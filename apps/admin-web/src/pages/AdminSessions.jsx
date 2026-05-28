@@ -4,6 +4,7 @@ import adminService from '../services/adminService';
 
 const DEFAULT_FILTERS = {
   q: '',
+  appCode: 'ALL',
   limit: '50',
 };
 
@@ -95,9 +96,18 @@ function getExpiryClass(session) {
   return 'sky-pill-success';
 }
 
+function formatApplicationLabel(application) {
+  if (!application) {
+    return 'Unknown app';
+  }
+
+  return application.title || application.appCode || 'Unknown app';
+}
+
 function AdminSessions() {
   const { hasPermission } = useAuth();
   const canRevoke = hasPermission('ADMIN_USER_WRITE');
+  const [applications, setApplications] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [sessions, setSessions] = useState([]);
@@ -115,6 +125,7 @@ function AdminSessions() {
 
   const stats = useMemo(() => {
     const userIds = new Set(sessions.map((item) => item.userId).filter(Boolean));
+    const appCodes = new Set(sessions.map((item) => item.appCode).filter(Boolean));
     const expiringSoon = sessions.filter((item) => {
       const seconds = Number(item.secondsUntilExpiry || 0);
       return seconds > 0 && seconds <= 900;
@@ -123,6 +134,7 @@ function AdminSessions() {
     return {
       activeSessions: total,
       usersOnline: userIds.size,
+      appSessions: appCodes.size,
       currentSessions: sessions.filter((item) => item.isCurrentSession).length,
       expiringSoon,
     };
@@ -156,6 +168,7 @@ function AdminSessions() {
     event.preventDefault();
     const nextFilters = {
       q: filters.q.trim(),
+      appCode: filters.appCode,
       limit: filters.limit,
     };
 
@@ -175,7 +188,8 @@ function AdminSessions() {
     }
 
     const label = sessionItem.displayName || sessionItem.username || sessionItem.email;
-    const confirmed = window.confirm(`Revoke active session for ${label}?`);
+    const appLabel = sessionItem.appTitle || sessionItem.appCode || 'selected app';
+    const confirmed = window.confirm(`Revoke ${appLabel} session for ${label}?`);
 
     if (!confirmed) {
       return;
@@ -200,8 +214,43 @@ function AdminSessions() {
   }
 
   useEffect(() => {
-    loadSessions(DEFAULT_FILTERS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+
+    async function loadInitialData() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const [applicationsResult, sessionsResult] = await Promise.all([
+          adminService.listApplications({ active: true, limit: 200 }),
+          adminService.listSessions(DEFAULT_FILTERS),
+        ]);
+
+        if (!active) {
+          return;
+        }
+
+        const items = sessionsResult.items || [];
+        setApplications(applicationsResult.items || []);
+        setSessions(items);
+        setTotal(sessionsResult.total || 0);
+        setSelectedSessionId(items[0]?.sessionId || null);
+      } catch (loadError) {
+        if (active) {
+          setError(loadError.message || 'Failed to load active sessions.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
@@ -211,8 +260,8 @@ function AdminSessions() {
           <div className="sky-page-kicker">Access control</div>
           <h1 className="sky-page-title">Sessions</h1>
           <p className="sky-page-subtitle">
-            Monitor active Admin-Web sessions, inspect live access metadata, and revoke sessions
-            when needed.
+            Monitor active sessions across all applications, inspect live access metadata, and
+            revoke sessions when needed.
           </p>
         </div>
 
@@ -253,9 +302,9 @@ function AdminSessions() {
         <div className="col-sm-6 col-xl-3">
           <section className="sky-card sky-stat-card h-100">
             <div className="sky-card-body">
-              <div className="sky-page-kicker">Current session</div>
-              <div className="sky-stat-value">{stats.currentSessions}</div>
-              <div className="sky-muted small">Protected from admin revoke</div>
+              <div className="sky-page-kicker">Applications</div>
+              <div className="sky-stat-value">{stats.appSessions}</div>
+              <div className="sky-muted small">Apps with active sessions</div>
             </div>
           </section>
         </div>
@@ -273,7 +322,7 @@ function AdminSessions() {
       <section className="sky-card mb-3">
         <form className="sky-card-body" onSubmit={applyFilters}>
           <div className="row g-3 align-items-end">
-            <div className="col-lg-7">
+            <div className="col-lg-5">
               <label className="form-label sky-form-label" htmlFor="sessionSearch">
                 Search
               </label>
@@ -287,7 +336,27 @@ function AdminSessions() {
                 value={filters.q}
               />
             </div>
-            <div className="col-lg-2">
+            <div className="col-lg-3">
+              <label className="form-label sky-form-label" htmlFor="sessionAppFilter">
+                Application
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="sessionAppFilter"
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, appCode: event.target.value }))
+                }
+                value={filters.appCode}
+              >
+                <option value="ALL">All applications</option>
+                {applications.map((application) => (
+                  <option key={application.appCode} value={application.appCode}>
+                    {formatApplicationLabel(application)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-lg-1">
               <label className="form-label sky-form-label" htmlFor="sessionLimit">
                 Limit
               </label>
@@ -338,6 +407,7 @@ function AdminSessions() {
                   <thead>
                     <tr>
                       <th>User</th>
+                      <th>Application</th>
                       <th>Session</th>
                       <th>Client</th>
                       <th>Last seen</th>
@@ -361,6 +431,10 @@ function AdminSessions() {
                             {item.displayName || item.username || 'Unknown user'}
                           </div>
                           <div className="small sky-muted">{item.email}</div>
+                        </td>
+                        <td>
+                          <span className="sky-pill sky-pill-info">{item.appCode || 'APP'}</span>
+                          <div className="small sky-muted mt-1">{item.appTitle || '—'}</div>
                         </td>
                         <td>
                           <div className="sky-mono small">{getShortId(item.sessionId)}</div>
@@ -440,6 +514,11 @@ function AdminSessions() {
             {selectedSession ? (
               <div className="sky-card-body">
                 <dl className="row g-3 mb-0">
+                  <dt className="col-5 sky-detail-label">Application</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {selectedSession.appTitle || selectedSession.appCode || '—'}
+                  </dd>
+
                   <dt className="col-5 sky-detail-label">User</dt>
                   <dd className="col-7 sky-detail-value">
                     {selectedSession.displayName || selectedSession.username || '—'}
