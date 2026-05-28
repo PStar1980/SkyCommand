@@ -16,6 +16,10 @@ async function listActiveSessions(filters = {}) {
   return api.get('/api/admin/active-sessions', { query: filters });
 }
 
+async function listApplications(filters = {}) {
+  return api.get('/api/admin/applications', { query: filters });
+}
+
 async function listSessions(filters = {}) {
   return api.get('/api/admin/sessions', { query: filters });
 }
@@ -58,6 +62,14 @@ async function getUserRoles(userId) {
 
 async function updateUserRoles(userId, payload) {
   return api.put(`/api/admin/users/${userId}/roles`, payload);
+}
+
+async function getUserApplications(userId) {
+  return api.get(`/api/admin/users/${userId}/applications`);
+}
+
+async function updateUserApplications(userId, payload) {
+  return api.put(`/api/admin/users/${userId}/applications`, payload);
 }
 
 async function getUserSessions(userId) {
@@ -173,6 +185,7 @@ const adminService = {
   listAuditEvents,
   listLoginEvents,
   listActiveSessions,
+  listApplications,
   listSessions,
   revokeSession,
   listUsers,
@@ -184,6 +197,8 @@ const adminService = {
   listUserRoles,
   getUserRoles,
   updateUserRoles,
+  getUserApplications,
+  updateUserApplications,
   getUserSessions,
   revokeUserSessions,
   listRoles,

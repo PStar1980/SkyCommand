@@ -989,3 +989,42 @@
 .sky-table tbody tr.sky-table-row-selected > * {
   background: rgba(72, 167, 255, 0.14);
 }
+
+.sky-app-access-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.sky-app-access-card {
+  border: 1px solid rgba(124, 144, 177, 0.18);
+  border-radius: 0.85rem;
+  background: rgba(7, 13, 25, 0.52);
+  padding: 0.85rem;
+}
+
+.sky-role-check-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.sky-role-check {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.035);
+  color: #dce8ff;
+}
+
+.sky-role-check input {
+  margin-top: 0.18rem;
+  accent-color: #48a7ff;
+}
+
+.sky-role-check:has(input:checked) {
+  border-color: rgba(72, 167, 255, 0.38);
+  background: rgba(72, 167, 255, 0.1);
+}
