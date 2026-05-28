@@ -230,6 +230,19 @@ function sanitizeUser(row) {
   };
 }
 
+function sanitizeApplication(row) {
+  return {
+    appId: row.app_id,
+    appCode: row.app_code,
+    title: row.title,
+    manifestVersion: row.manifest_version,
+    description: row.description,
+    active: row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function sanitizeRole(row) {
   return {
     roleId: row.role_id,
@@ -297,6 +310,10 @@ function sanitizeUserRole(row) {
     isSystemRole: row.is_system_role,
     roleActive: row.role_active,
     userRoleActive: row.user_role_active,
+    appId: row.app_id || null,
+    appCode: row.app_code || null,
+    appTitle: row.app_title || null,
+    userApplicationStatus: row.user_application_status || null,
     assignedAt: row.assigned_at,
     assignedBy: row.assigned_by,
   };
@@ -483,23 +500,68 @@ async function listActiveSessions(filters = {}) {
   };
 }
 
+async function listApplications(filters = {}) {
+  const { limit, offset } = getPagination(filters);
+  const clauses = [];
+  const values = [];
+
+  addBooleanFilter({ clauses, values, columnName: 'active', value: filters.active });
+  addSearchFilter({
+    clauses,
+    values,
+    columns: ['app_code', 'title', 'description'],
+    searchText: filters.q,
+  });
+
+  const result = await runPagedQuery({
+    selectSql: `
+      SELECT app_id, app_code, title, manifest_version, description, active, created_at, updated_at
+      FROM core.applications
+    `,
+    countSql: 'SELECT COUNT(*)::int AS total FROM core.applications',
+    clauses,
+    values,
+    orderBy: `
+      ORDER BY
+        CASE app_code
+          WHEN 'SKYSERVER_ADMIN' THEN 1
+          WHEN 'SKYWEB' THEN 2
+          WHEN 'SKYSERVER_CORE' THEN 3
+          WHEN 'SKYSERVER_WORKER' THEN 4
+          ELSE 99
+        END,
+        app_code
+    `,
+    limit,
+    offset,
+  });
+
+  return {
+    ...result,
+    items: result.rows.map(sanitizeApplication),
+    rows: undefined,
+  };
+}
+
 async function listUsers(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
   const values = [];
-  const appCode = normalizeOptionalString(filters.appCode) || DEFAULT_ADMIN_APP_CODE;
+  const appCode = normalizeOptionalString(filters.appCode);
 
-  values.push(appCode);
-  clauses.push(`EXISTS (
-    SELECT 1
-    FROM auth.user_applications ua
-    JOIN core.applications app
-      ON app.app_id = ua.app_id
-    WHERE ua.user_id = u.user_id
-      AND app.app_code = $${values.length}
-      AND ua.status = 'ACTIVE'
-      AND app.active = TRUE
-  )`);
+  if (appCode !== null) {
+    values.push(appCode);
+    clauses.push(`EXISTS (
+      SELECT 1
+      FROM auth.user_applications ua
+      JOIN core.applications app
+        ON app.app_id = ua.app_id
+      WHERE ua.user_id = u.user_id
+        AND app.app_code = $${values.length}
+        AND ua.status = 'ACTIVE'
+        AND app.active = TRUE
+    )`);
+  }
 
   addEqualsFilter({ clauses, values, columnName: 'u.status', value: filters.status });
   addBooleanFilter({
@@ -733,6 +795,7 @@ module.exports = {
   listLoginEvents,
   listScriptExecutions,
   listActiveSessions,
+  listApplications,
   listUsers,
   listRoles,
   listPermissions,

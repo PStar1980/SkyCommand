@@ -104,6 +104,38 @@ async function revokeSession(req, res) {
   }
 }
 
+async function listApplications(req, res) {
+  try {
+    const payload = await adminReadService.listApplications(req.query || {});
+    sendPagedResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getUserApplications(req, res) {
+  try {
+    const payload = await adminActionService.getUserApplications(req.params.userId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateUserApplications(req, res) {
+  try {
+    const payload = await adminActionService.updateUserApplications({
+      userId: req.params.userId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function listUsers(req, res) {
   try {
     const payload = await adminReadService.listUsers(req.query || {});
@@ -533,6 +565,7 @@ module.exports = {
   listActiveSessions,
   listSessions,
   revokeSession,
+  listApplications,
   listUsers,
   getUser,
   createUser,
@@ -542,6 +575,8 @@ module.exports = {
   listUserRoles,
   getUserRoles,
   updateUserRoles,
+  getUserApplications,
+  updateUserApplications,
   getUserSessions,
   revokeUserSessions,
   listRoles,

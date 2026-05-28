@@ -2,6 +2,7 @@ const { pool, query } = require('../../../../packages/db/src/connection');
 const { hashPassword } = require('../../../../packages/auth/src/password');
 
 const VALID_USER_STATUSES = new Set(['ACTIVE', 'DISABLED', 'LOCKED', 'PENDING']);
+const VALID_APPLICATION_STATUSES = new Set(['ACTIVE', 'DISABLED', 'NONE']);
 const CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const RESOURCE_ACTION_PATTERN = /^[a-z][a-z0-9_]*$/;
 const DEFAULT_ADMIN_APP_CODE = String(process.env.AUTH_APP_CODE || 'SKYSERVER_ADMIN')
@@ -146,6 +147,30 @@ function normalizeStringArray(value, label) {
   return [...new Set(value.map((item) => normalizeRequiredString(item, label).toUpperCase()))];
 }
 
+function normalizeApplicationStatus(value) {
+  const status = normalizeRequiredString(value, 'application status').toUpperCase();
+
+  if (!VALID_APPLICATION_STATUSES.has(status)) {
+    throw createHttpError(400, `Invalid application status: ${status}`);
+  }
+
+  return status;
+}
+
+function normalizeApplicationAssignments(value) {
+  if (!Array.isArray(value)) {
+    throw createHttpError(400, 'applications must be an array.');
+  }
+
+  return value.map((item) => ({
+    appCode: normalizeCode(item.appCode || item.app_code, 'appCode'),
+    status: normalizeApplicationStatus(item.status || item.membershipStatus || 'NONE'),
+    roleCodes: normalizeStringArray(item.roleCodes || item.roles, 'roleCodes').map((roleCode) =>
+      normalizeCode(roleCode, 'roleCode'),
+    ),
+  }));
+}
+
 function normalizeUuid(value, label) {
   const uuid = normalizeRequiredString(value, label);
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -209,6 +234,9 @@ function sanitizeRole(row) {
     description: row.description,
     isSystemRole: row.is_system_role,
     active: row.active,
+    appId: row.app_id || null,
+    appCode: row.app_code || null,
+    appTitle: row.app_title || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -226,6 +254,9 @@ function sanitizePermission(row) {
     action: row.action,
     description: row.description || row.permission_description || null,
     active: row.active === undefined ? row.permission_active : row.active,
+    appId: row.app_id || null,
+    appCode: row.app_code || null,
+    appTitle: row.app_title || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -250,6 +281,10 @@ function sanitizeUserRole(row) {
     isSystemRole: row.is_system_role,
     roleActive: row.role_active,
     userRoleActive: row.user_role_active,
+    appId: row.app_id || null,
+    appCode: row.app_code || null,
+    appTitle: row.app_title || null,
+    userApplicationStatus: row.user_application_status || null,
     assignedAt: row.assigned_at,
     assignedBy: row.assigned_by,
   };
@@ -352,6 +387,150 @@ function sanitizeConfigProfile(row) {
     active: row.active,
     createdAt: row.created_at,
   };
+}
+
+function sanitizeApplication(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    appId: row.app_id,
+    appCode: row.app_code,
+    title: row.title,
+    manifestVersion: row.manifest_version,
+    description: row.description,
+    active: row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function buildApplicationAccess({
+  applications = [],
+  memberships = [],
+  roles = [],
+  assignedRoles = [],
+}) {
+  const membershipsByAppId = new Map(memberships.map((row) => [String(row.app_id), row]));
+  const rolesByAppId = new Map();
+  const assignedByAppId = new Map();
+
+  for (const role of roles) {
+    const appId = String(role.app_id);
+    rolesByAppId.set(appId, [...(rolesByAppId.get(appId) || []), role]);
+  }
+
+  for (const role of assignedRoles) {
+    const appId = String(role.app_id);
+    assignedByAppId.set(appId, [...(assignedByAppId.get(appId) || []), role]);
+  }
+
+  return applications.map((application) => {
+    const appId = String(application.app_id);
+    const membership = membershipsByAppId.get(appId) || null;
+    const availableRoles = rolesByAppId.get(appId) || [];
+    const selectedRoles = assignedByAppId.get(appId) || [];
+    const membershipStatus = membership?.status || 'NONE';
+
+    return {
+      ...sanitizeApplication(application),
+      membershipStatus,
+      hasAccess: application.active === true && membershipStatus === 'ACTIVE',
+      membershipCreatedAt: membership?.created_at || null,
+      membershipUpdatedAt: membership?.updated_at || null,
+      roles: availableRoles.map(sanitizeRole),
+      assignedRoles: selectedRoles.map(sanitizeRole),
+      assignedRoleCodes: selectedRoles.map((role) => role.role_code).filter(Boolean),
+    };
+  });
+}
+
+async function getUserApplicationsForUser(client, rawUserId) {
+  const userId = normalizeUuid(rawUserId, 'userId');
+
+  const applicationsResult = await client.query(
+    `
+      SELECT app_id, app_code, title, manifest_version, description, active, created_at, updated_at
+      FROM core.applications
+      ORDER BY
+        CASE app_code
+          WHEN 'SKYSERVER_ADMIN' THEN 1
+          WHEN 'SKYWEB' THEN 2
+          WHEN 'SKYSERVER_CORE' THEN 3
+          WHEN 'SKYSERVER_WORKER' THEN 4
+          ELSE 99
+        END,
+        app_code
+    `,
+  );
+
+  const membershipsResult = await client.query(
+    `
+      SELECT user_id, app_id, status, created_at, updated_at, created_by, updated_by
+      FROM auth.user_applications
+      WHERE user_id = $1
+    `,
+    [userId],
+  );
+
+  const rolesResult = await client.query(
+    `
+      SELECT
+        r.role_id,
+        r.app_id,
+        r.role_code,
+        r.role_name,
+        r.description,
+        r.is_system_role,
+        r.active,
+        r.created_at,
+        r.updated_at,
+        app.app_code,
+        app.title AS app_title
+      FROM auth.roles r
+      JOIN core.applications app
+        ON app.app_id = r.app_id
+      WHERE r.active = TRUE
+        AND app.active = TRUE
+      ORDER BY app.app_code, r.role_code
+    `,
+  );
+
+  const assignedRolesResult = await client.query(
+    `
+      SELECT
+        r.role_id,
+        r.app_id,
+        r.role_code,
+        r.role_name,
+        r.description,
+        r.is_system_role,
+        r.active,
+        r.created_at,
+        r.updated_at,
+        app.app_code,
+        app.title AS app_title
+      FROM auth.user_roles ur
+      JOIN auth.roles r
+        ON r.role_id = ur.role_id
+      JOIN core.applications app
+        ON app.app_id = r.app_id
+      WHERE ur.user_id = $1
+        AND ur.active = TRUE
+        AND r.active = TRUE
+        AND app.active = TRUE
+      ORDER BY app.app_code, r.role_code
+    `,
+    [userId],
+  );
+
+  return buildApplicationAccess({
+    applications: applicationsResult.rows,
+    memberships: membershipsResult.rows,
+    roles: rolesResult.rows,
+    assignedRoles: assignedRolesResult.rows,
+  });
 }
 
 async function actorHasRole(actor, roleCode) {
@@ -672,13 +851,18 @@ async function getUser(userId) {
           resource,
           action,
           permission_description,
-          granted_through_roles
+          granted_through_roles,
+          app_id,
+          app_code,
+          app_title
         FROM auth.vw_user_permissions
         WHERE user_id = $1
-        ORDER BY resource, action, permission_code
+        ORDER BY app_code, resource, action, permission_code
       `,
       [user.user_id],
     );
+
+    const applications = await getUserApplicationsForUser(client, user.user_id);
 
     return {
       user: sanitizeUser(user),
@@ -690,8 +874,241 @@ async function getUser(userId) {
         action: row.action,
         description: row.permission_description,
         grantedThroughRoles: row.granted_through_roles,
+        appId: row.app_id || null,
+        appCode: row.app_code || null,
+        appTitle: row.app_title || null,
       })),
+      applications,
     };
+  } finally {
+    client.release();
+  }
+}
+
+async function getUserApplications(userId) {
+  const normalizedUserId = normalizeUuid(userId, 'userId');
+  const client = await pool.connect();
+
+  try {
+    await getUserRowById(client, normalizedUserId);
+    const applications = await getUserApplicationsForUser(client, normalizedUserId);
+
+    return {
+      userId: normalizedUserId,
+      applications,
+    };
+  } finally {
+    client.release();
+  }
+}
+
+async function updateUserApplications({ userId, body = {}, actor, context = {} }) {
+  const normalizedUserId = normalizeUuid(userId, 'userId');
+  const assignments = normalizeApplicationAssignments(body.applications || body.items || []);
+  assertNotSelfRoleUpdate({ targetUserId: normalizedUserId, actor });
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const user = await getUserRowById(client, normalizedUserId, { forUpdate: true });
+    await assertCanMutateSystemUser({ user, actor });
+
+    const actorUserId = getActorUserId(actor);
+    const appCodes = assignments.map((assignment) => assignment.appCode);
+    const appResult = await client.query(
+      `
+        SELECT app_id, app_code, title, active
+        FROM core.applications
+        WHERE app_code = ANY($1::text[])
+      `,
+      [appCodes],
+    );
+
+    const appsByCode = new Map(appResult.rows.map((row) => [row.app_code, row]));
+    const missingApps = appCodes.filter((appCode) => !appsByCode.has(appCode));
+
+    if (missingApps.length > 0) {
+      throw createHttpError(400, `Application code(s) not found: ${missingApps.join(', ')}`);
+    }
+
+    let revokedSessionCount = 0;
+
+    for (const assignment of assignments) {
+      const app = appsByCode.get(assignment.appCode);
+
+      if (assignment.status === 'ACTIVE' && app.active !== true) {
+        throw createHttpError(400, `Application is not active: ${assignment.appCode}`);
+      }
+
+      const roleResult = await client.query(
+        `
+          SELECT role_id, role_code
+          FROM auth.roles
+          WHERE app_id = $1
+            AND role_code = ANY($2::text[])
+            AND active = TRUE
+        `,
+        [app.app_id, assignment.roleCodes],
+      );
+
+      const foundRoleCodes = new Set(roleResult.rows.map((row) => row.role_code));
+      const missingRoleCodes = assignment.roleCodes.filter(
+        (roleCode) => !foundRoleCodes.has(roleCode),
+      );
+
+      if (missingRoleCodes.length > 0) {
+        throw createHttpError(
+          400,
+          `Role code(s) not found for ${assignment.appCode}: ${missingRoleCodes.join(', ')}`,
+        );
+      }
+
+      if (assignment.status === 'ACTIVE') {
+        await client.query(
+          `
+            INSERT INTO auth.user_applications (user_id, app_id, status, created_by, updated_by)
+            VALUES ($1, $2, 'ACTIVE', $3, $3)
+            ON CONFLICT (user_id, app_id)
+            DO UPDATE SET
+              status = 'ACTIVE',
+              updated_by = EXCLUDED.updated_by,
+              updated_at = CURRENT_TIMESTAMP
+          `,
+          [normalizedUserId, app.app_id, actorUserId],
+        );
+
+        const roleIds = roleResult.rows.map((row) => row.role_id);
+
+        if (roleIds.length === 0) {
+          await client.query(
+            `
+              UPDATE auth.user_roles ur
+              SET active = FALSE
+              FROM auth.roles r
+              WHERE ur.role_id = r.role_id
+                AND ur.user_id = $1
+                AND r.app_id = $2
+                AND ur.active = TRUE
+            `,
+            [normalizedUserId, app.app_id],
+          );
+        } else {
+          await client.query(
+            `
+              UPDATE auth.user_roles ur
+              SET active = FALSE
+              FROM auth.roles r
+              WHERE ur.role_id = r.role_id
+                AND ur.user_id = $1
+                AND r.app_id = $2
+                AND ur.role_id <> ALL($3::uuid[])
+                AND ur.active = TRUE
+            `,
+            [normalizedUserId, app.app_id, roleIds],
+          );
+
+          for (const role of roleResult.rows) {
+            await client.query(
+              `
+                INSERT INTO auth.user_roles (user_id, role_id, assigned_by, active)
+                VALUES ($1, $2, $3, TRUE)
+                ON CONFLICT (user_id, role_id)
+                DO UPDATE SET
+                  assigned_at = CURRENT_TIMESTAMP,
+                  assigned_by = EXCLUDED.assigned_by,
+                  active = TRUE
+              `,
+              [normalizedUserId, role.role_id, actorUserId],
+            );
+          }
+        }
+
+        if (assignment.appCode === 'SKYWEB') {
+          await client.query(
+            `
+              INSERT INTO skyweb.user_profiles (user_id, display_name)
+              VALUES ($1, $2)
+              ON CONFLICT (user_id)
+              DO UPDATE SET
+                display_name = COALESCE(skyweb.user_profiles.display_name, EXCLUDED.display_name),
+                updated_at = CURRENT_TIMESTAMP
+            `,
+            [normalizedUserId, user.display_name],
+          );
+        }
+      } else {
+        await client.query(
+          `
+            UPDATE auth.user_applications
+            SET status = 'DISABLED',
+                updated_by = $3,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $1
+              AND app_id = $2
+          `,
+          [normalizedUserId, app.app_id, actorUserId],
+        );
+
+        await client.query(
+          `
+            UPDATE auth.user_roles ur
+            SET active = FALSE
+            FROM auth.roles r
+            WHERE ur.role_id = r.role_id
+              AND ur.user_id = $1
+              AND r.app_id = $2
+              AND ur.active = TRUE
+          `,
+          [normalizedUserId, app.app_id],
+        );
+
+        const revokedResult = await client.query(
+          `
+            UPDATE auth.sessions
+            SET revoked_at = CURRENT_TIMESTAMP,
+                revoked_reason = $3
+            WHERE user_id = $1
+              AND app_id = $2
+              AND revoked_at IS NULL
+              AND expires_at > CURRENT_TIMESTAMP
+            RETURNING session_id
+          `,
+          [normalizedUserId, app.app_id, 'ADMIN_APP_ACCESS_DISABLED'],
+        );
+
+        revokedSessionCount += revokedResult.rowCount || 0;
+      }
+    }
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: 'AUTH_USER_ADMIN_APPLICATIONS_UPDATE',
+      resourceType: 'auth.user_applications',
+      resourceId: normalizedUserId,
+      action: 'update_user_applications',
+      success: true,
+      message: 'User application access updated through Admin API.',
+      metadata: {
+        applications: assignments,
+        revokedSessionCount,
+      },
+    });
+
+    const applications = await getUserApplicationsForUser(client, normalizedUserId);
+
+    await client.query('COMMIT');
+
+    return {
+      userId: normalizedUserId,
+      applications,
+      revokedSessionCount,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
   } finally {
     client.release();
   }
@@ -1154,23 +1571,33 @@ async function updateUserRoles({ userId, body = {}, actor, context = {} }) {
     if (roleIds.length === 0) {
       await client.query(
         `
-          UPDATE auth.user_roles
+          UPDATE auth.user_roles ur
           SET active = FALSE
-          WHERE user_id = $1
-            AND active = TRUE
+          FROM auth.roles r
+          JOIN core.applications app
+            ON app.app_id = r.app_id
+          WHERE ur.role_id = r.role_id
+            AND ur.user_id = $1
+            AND app.app_code = $2
+            AND ur.active = TRUE
         `,
-        [normalizedUserId],
+        [normalizedUserId, DEFAULT_ADMIN_APP_CODE],
       );
     } else {
       await client.query(
         `
-          UPDATE auth.user_roles
+          UPDATE auth.user_roles ur
           SET active = FALSE
-          WHERE user_id = $1
-            AND role_id <> ALL($2::uuid[])
-            AND active = TRUE
+          FROM auth.roles r
+          JOIN core.applications app
+            ON app.app_id = r.app_id
+          WHERE ur.role_id = r.role_id
+            AND ur.user_id = $1
+            AND app.app_code = $2
+            AND ur.role_id <> ALL($3::uuid[])
+            AND ur.active = TRUE
         `,
-        [normalizedUserId, roleIds],
+        [normalizedUserId, DEFAULT_ADMIN_APP_CODE, roleIds],
       );
 
       for (const role of roleRows) {
@@ -2594,6 +3021,8 @@ async function getCoreSettings() {
 module.exports = {
   createHttpError,
   getUser,
+  getUserApplications,
+  updateUserApplications,
   createUser,
   updateUser,
   updateUserStatus,

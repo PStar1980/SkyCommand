@@ -30,6 +30,8 @@ router.post(
 router.get('/settings/auth', requirePermission('ADMIN_USER_READ'), adminController.getAuthSettings);
 router.get('/settings/core', requirePermission('ADMIN_ROLE_READ'), adminController.getCoreSettings);
 
+router.get('/applications', requirePermission('ADMIN_USER_READ'), adminController.listApplications);
+
 router.get(
   '/repositories/profiles',
   requirePermission('ADMIN_REPOSITORY_READ'),
@@ -101,6 +103,17 @@ router.put(
   '/users/:userId/roles',
   requirePermission('ADMIN_ROLE_WRITE'),
   adminController.updateUserRoles,
+);
+
+router.get(
+  '/users/:userId/applications',
+  requirePermission('ADMIN_USER_READ'),
+  adminController.getUserApplications,
+);
+router.put(
+  '/users/:userId/applications',
+  requirePermission('ADMIN_USER_WRITE'),
+  adminController.updateUserApplications,
 );
 router.get(
   '/users/:userId/sessions',
