@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
 const USER_STATUSES = ['ACTIVE', 'PENDING', 'LOCKED', 'DISABLED'];
+const DEFAULT_ADMIN_APP_CODE = 'SKYSERVER_ADMIN';
 const DEFAULT_CREATE_FORM = {
   email: '',
   username: '',
@@ -39,6 +40,45 @@ function statusClass(status) {
   return 'sky-pill-info';
 }
 
+function membershipStatusClass(status) {
+  if (status === 'ACTIVE') {
+    return 'sky-pill-success';
+  }
+
+  if (status === 'DISABLED') {
+    return 'sky-pill-danger';
+  }
+
+  return 'sky-pill-info';
+}
+
+function normalizeApplicationForm(applications = []) {
+  return applications.map((application) => ({
+    appCode: application.appCode,
+    title: application.title,
+    description: application.description,
+    active: application.active,
+    status: application.membershipStatus === 'ACTIVE' ? 'ACTIVE' : 'DISABLED',
+    roleCodes: application.assignedRoleCodes || [],
+    roles: application.roles || [],
+  }));
+}
+
+function getDefaultRoleCode(application) {
+  const preferredByApp = {
+    SKYSERVER_ADMIN: 'VIEWER',
+    SKYWEB: 'SKYWEB_USER',
+  };
+  const preferredCode = preferredByApp[application.appCode];
+  const preferredRole = application.roles?.find((role) => role.roleCode === preferredCode);
+
+  return preferredRole?.roleCode || application.roles?.[0]?.roleCode || null;
+}
+
+function applicationAccessCount(applications = []) {
+  return applications.filter((application) => application.status === 'ACTIVE').length;
+}
+
 function getSelectedCodesFromEvent(event) {
   return Array.from(event.target.selectedOptions).map((option) => option.value);
 }
@@ -51,7 +91,12 @@ function cleanPayload(payload) {
 
 function roleCodesFromUserRoles(userRoles = []) {
   return userRoles
-    .filter((role) => role.userRoleActive !== false && role.roleActive !== false)
+    .filter(
+      (role) =>
+        role.userRoleActive !== false &&
+        role.roleActive !== false &&
+        (!role.appCode || role.appCode === DEFAULT_ADMIN_APP_CODE),
+    )
     .map((role) => role.roleCode)
     .filter(Boolean);
 }
@@ -63,11 +108,13 @@ function AdminUsers() {
 
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [applications, setApplications] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedPermissions, setSelectedPermissions] = useState([]);
+  const [applicationForm, setApplicationForm] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [filters, setFilters] = useState({ q: '', status: '', limit: 50 });
+  const [filters, setFilters] = useState({ q: '', status: '', appCode: '', limit: 50 });
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -85,7 +132,13 @@ function AdminUsers() {
   });
   const [passwordForm, setPasswordForm] = useState({ password: '', revokeSessions: true });
 
-  const activeRoles = useMemo(() => roles.filter((role) => role.active), [roles]);
+  const activeRoles = useMemo(
+    () =>
+      roles.filter(
+        (role) => role.active && (!role.appCode || role.appCode === DEFAULT_ADMIN_APP_CODE),
+      ),
+    [roles],
+  );
   const selectedIsCurrentUser = currentUser?.userId && selectedUser?.userId === currentUser.userId;
 
   async function loadRoles() {
@@ -107,6 +160,7 @@ function AdminUsers() {
         setSelectedUserId('');
         setSelectedUser(null);
         setSelectedPermissions([]);
+        setApplicationForm([]);
         setSessions([]);
         return;
       }
@@ -124,6 +178,7 @@ function AdminUsers() {
     if (!userId) {
       setSelectedUser(null);
       setSelectedPermissions([]);
+      setApplicationForm([]);
       setSessions([]);
       return;
     }
@@ -142,6 +197,7 @@ function AdminUsers() {
 
       setSelectedUser(userResult.user || null);
       setSelectedPermissions(userResult.permissions || []);
+      setApplicationForm(normalizeApplicationForm(userResult.applications || []));
       setSessions(sessionResult.items || []);
       setEditForm({
         email: userResult.user?.email || '',
@@ -166,8 +222,9 @@ function AdminUsers() {
       setError('');
 
       try {
-        const [rolesResult, usersResult] = await Promise.all([
+        const [rolesResult, applicationsResult, usersResult] = await Promise.all([
           adminService.listRoles({ limit: 200 }),
+          adminService.listApplications({ active: true, limit: 100 }),
           adminService.listUsers(filters),
         ]);
 
@@ -176,6 +233,7 @@ function AdminUsers() {
         }
 
         setRoles(rolesResult.items || []);
+        setApplications(applicationsResult.items || []);
         setUsers(usersResult.items || []);
         setTotal(usersResult.total || 0);
         setSelectedUserId(usersResult.items?.[0]?.userId || '');
@@ -341,6 +399,77 @@ function AdminUsers() {
     }
   }
 
+  function updateApplicationStatus(appCode, enabled) {
+    setApplicationForm((currentApplications) =>
+      currentApplications.map((application) => {
+        if (application.appCode !== appCode) {
+          return application;
+        }
+
+        const defaultRoleCode = getDefaultRoleCode(application);
+        const nextRoleCodes =
+          enabled && application.roleCodes.length === 0 && defaultRoleCode
+            ? [defaultRoleCode]
+            : application.roleCodes;
+
+        return {
+          ...application,
+          status: enabled ? 'ACTIVE' : 'DISABLED',
+          roleCodes: enabled ? nextRoleCodes : [],
+        };
+      }),
+    );
+  }
+
+  function updateApplicationRole(appCode, roleCode, enabled) {
+    setApplicationForm((currentApplications) =>
+      currentApplications.map((application) => {
+        if (application.appCode !== appCode) {
+          return application;
+        }
+
+        const nextRoleCodes = enabled
+          ? [...new Set([...application.roleCodes, roleCode])]
+          : application.roleCodes.filter((currentRoleCode) => currentRoleCode !== roleCode);
+
+        return {
+          ...application,
+          status: nextRoleCodes.length > 0 ? 'ACTIVE' : application.status,
+          roleCodes: nextRoleCodes,
+        };
+      }),
+    );
+  }
+
+  async function handleSaveApplications() {
+    if (!selectedUser) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await adminService.updateUserApplications(selectedUser.userId, {
+        applications: applicationForm.map((application) => ({
+          appCode: application.appCode,
+          status: application.status,
+          roleCodes: application.status === 'ACTIVE' ? application.roleCodes : [],
+        })),
+      });
+
+      setSuccess(
+        `Application access updated. Revoked sessions: ${result.revokedSessionCount || 0}.`,
+      );
+      await loadSelectedUser(selectedUser.userId);
+    } catch (saveError) {
+      setError(saveError.message || 'Failed to update application access.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleResetPassword(event) {
     event.preventDefault();
 
@@ -393,8 +522,8 @@ function AdminUsers() {
           <div className="sky-page-kicker">Access control</div>
           <h1 className="sky-page-title">Users</h1>
           <p className="sky-page-subtitle">
-            Manage Admin-Web accounts, user status, role assignments, password resets, and active
-            sessions.
+            Manage shared identities, application access, user status, role assignments, password
+            resets, and active sessions.
           </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
@@ -498,7 +627,7 @@ function AdminUsers() {
                 </div>
                 <div className="col-md-5">
                   <label className="form-label" htmlFor="createRoles">
-                    Roles
+                    SkyServer Admin roles
                   </label>
                   <select
                     className="form-select sky-form-control"
@@ -532,7 +661,7 @@ function AdminUsers() {
       <section className="sky-card mb-3">
         <div className="sky-card-body">
           <form className="row g-3 align-items-end" onSubmit={handleApplyFilters}>
-            <div className="col-md-5">
+            <div className="col-lg-4 col-md-6">
               <label className="form-label" htmlFor="userSearch">
                 Search
               </label>
@@ -544,7 +673,7 @@ function AdminUsers() {
                 value={filters.q}
               />
             </div>
-            <div className="col-md-3">
+            <div className="col-lg-2 col-md-3">
               <label className="form-label" htmlFor="userStatusFilter">
                 Status
               </label>
@@ -562,7 +691,25 @@ function AdminUsers() {
                 ))}
               </select>
             </div>
-            <div className="col-md-2">
+            <div className="col-lg-3 col-md-3">
+              <label className="form-label" htmlFor="userAppFilter">
+                Application access
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="userAppFilter"
+                onChange={(event) => updateFilter('appCode', event.target.value)}
+                value={filters.appCode}
+              >
+                <option value="">All applications</option>
+                {applications.map((application) => (
+                  <option key={application.appCode} value={application.appCode}>
+                    {application.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-lg-1 col-md-3">
               <label className="form-label" htmlFor="userLimit">
                 Limit
               </label>
@@ -577,7 +724,7 @@ function AdminUsers() {
                 <option value="100">100</option>
               </select>
             </div>
-            <div className="col-md-2 d-grid">
+            <div className="col-lg-2 col-md-3 d-grid">
               <button className="btn sky-btn-ghost" disabled={loading} type="submit">
                 Apply
               </button>
@@ -659,6 +806,10 @@ function AdminUsers() {
                     <span className="sky-pill sky-pill-info">
                       {selectedPermissions.length} permission
                       {selectedPermissions.length === 1 ? '' : 's'}
+                    </span>
+                    <span className="sky-pill sky-pill-info">
+                      {applicationAccessCount(applicationForm)} app
+                      {applicationAccessCount(applicationForm) === 1 ? '' : 's'} active
                     </span>
                   </div>
 
@@ -752,8 +903,120 @@ function AdminUsers() {
                   <hr className="border-secondary my-4" />
 
                   <div>
+                    <div className="d-flex flex-wrap justify-content-between gap-2 mb-3">
+                      <div>
+                        <div className="sky-detail-label">Application access</div>
+                        <div className="small sky-muted">
+                          Shared identity, separate keys. Grant SkyWeb without granting Admin-Web.
+                        </div>
+                      </div>
+                      {selectedIsCurrentUser && (
+                        <span className="sky-pill sky-pill-warning">
+                          Self access changes blocked
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="sky-app-access-list">
+                      {applicationForm.map((application) => {
+                        const enabled = application.status === 'ACTIVE';
+
+                        return (
+                          <div className="sky-app-access-card" key={application.appCode}>
+                            <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                              <div>
+                                <div className="fw-bold sky-detail-value">{application.title}</div>
+                                <div className="small sky-mono sky-muted">
+                                  {application.appCode}
+                                </div>
+                                {application.description && (
+                                  <div className="small sky-muted mt-1">
+                                    {application.description}
+                                  </div>
+                                )}
+                              </div>
+                              <span
+                                className={`sky-pill ${membershipStatusClass(application.status)}`}
+                              >
+                                {application.status}
+                              </span>
+                            </div>
+
+                            <div className="form-check form-switch mt-3">
+                              <input
+                                checked={enabled}
+                                className="form-check-input"
+                                disabled={!canWriteUsers || selectedIsCurrentUser || saving}
+                                id={`app-${application.appCode}`}
+                                onChange={(event) =>
+                                  updateApplicationStatus(application.appCode, event.target.checked)
+                                }
+                                type="checkbox"
+                              />
+                              <label
+                                className="form-check-label sky-muted"
+                                htmlFor={`app-${application.appCode}`}
+                              >
+                                Application membership
+                              </label>
+                            </div>
+
+                            {application.roles.length > 0 && (
+                              <div className="mt-3">
+                                <div className="sky-detail-label mb-2">App roles</div>
+                                <div className="sky-role-check-grid">
+                                  {application.roles.map((role) => (
+                                    <label className="sky-role-check" key={role.roleCode}>
+                                      <input
+                                        checked={application.roleCodes.includes(role.roleCode)}
+                                        disabled={
+                                          !canWriteUsers ||
+                                          selectedIsCurrentUser ||
+                                          saving ||
+                                          !enabled
+                                        }
+                                        onChange={(event) =>
+                                          updateApplicationRole(
+                                            application.appCode,
+                                            role.roleCode,
+                                            event.target.checked,
+                                          )
+                                        }
+                                        type="checkbox"
+                                      />
+                                      <span>
+                                        <span className="fw-bold">{role.roleCode}</span>
+                                        <span className="small sky-muted d-block">
+                                          {role.roleName}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {canWriteUsers && (
+                      <button
+                        className="btn sky-btn-ghost mt-3"
+                        disabled={selectedIsCurrentUser || saving}
+                        onClick={handleSaveApplications}
+                        type="button"
+                      >
+                        Save application access
+                      </button>
+                    )}
+                  </div>
+
+                  <hr className="border-secondary my-4" />
+
+                  <div>
                     <label className="form-label" htmlFor="editRoles">
-                      Role assignments
+                      SkyServer Admin role assignments
                     </label>
                     <select
                       className="form-select sky-form-control"
