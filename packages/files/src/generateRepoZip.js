@@ -4,21 +4,21 @@
  * generateRepoZip.js
  *
  * Generates a zip archive of a repository/folder for project handoff and review.
- * Uses the same CLI parameter shape as generateRepoMap.js, but now includes
- * node_modules by default so received repo zips can run local Vite/build checks
- * without requiring a fresh npm install.
+ * Uses the same ignore rules and CLI parameter shape as generateRepoMap.js.
+ * Dependency folders are excluded by default to keep project handoff zips small,
+ * upload-friendly, and platform-neutral.
  *
  * Usage:
  *   node generateRepoZip.js <location> <fileName> [outputPath] [options]
  *
  * Options:
- *   --exclude-node-modules   Build a slim handoff zip without dependency folders.
- *   --slim                   Alias for --exclude-node-modules.
+ *   --include-node-modules   Optional diagnostic mode. Includes dependency folders.
+ *                            Not recommended for normal project handoff zips.
  *
  * Examples:
  *   node generateRepoZip.js "C:\\Projects\\SkyServer" "SkyServer_Repo.zip" "C:\\Projects\\SkyServer\\zip"
  *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/zip"
- *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/zip" --slim
+ *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/zip" --include-node-modules
  */
 
 const fs = require('fs');
@@ -32,12 +32,12 @@ const rawArgs = process.argv.slice(2);
 const optionArgs = rawArgs.filter((arg) => arg.startsWith('--'));
 const args = rawArgs.filter((arg) => !arg.startsWith('--'));
 
-const SUPPORTED_OPTIONS = new Set(['--exclude-node-modules', '--slim', '--include-node-modules']);
+const SUPPORTED_OPTIONS = new Set(['--include-node-modules', '--exclude-node-modules', '--slim']);
 const unknownOptions = optionArgs.filter((option) => !SUPPORTED_OPTIONS.has(option));
 
 if (unknownOptions.length > 0) {
   console.error(`❌ Error: Unsupported option(s): ${unknownOptions.join(', ')}`);
-  console.error('   Supported options: --exclude-node-modules, --slim, --include-node-modules');
+  console.error('   Supported options: --include-node-modules, --exclude-node-modules, --slim');
   process.exit(1);
 }
 
@@ -46,14 +46,12 @@ if (args.length < 2) {
   console.error('   location (required)');
   console.error('   fileName (required)');
   console.error('   outputPath (optional)');
-  console.error('   options (optional): --exclude-node-modules / --slim');
+  console.error('   options (optional): --include-node-modules');
   process.exit(1);
 }
 
 let [location, fileName, outputPath] = args;
-const includeNodeModules =
-  optionArgs.includes('--include-node-modules') ||
-  (!optionArgs.includes('--exclude-node-modules') && !optionArgs.includes('--slim'));
+const includeNodeModules = optionArgs.includes('--include-node-modules');
 
 function hasPathSeparators(value) {
   return /[\\/]/.test(value);
@@ -168,9 +166,8 @@ function shouldIgnoreDirectory(entryName, fullPath) {
     return true;
   }
 
-  // Keep package-owned dist/build/out folders inside node_modules. Many npm packages
-  // ship their runnable code there, so stripping those folders can produce a zip that
-  // looks complete but cannot actually run Vite/build checks on the receiving side.
+  // When --include-node-modules is used, keep package-owned dist/build/out folders
+  // inside node_modules. Many npm packages ship their runnable code there.
   if (!isWithinNodeModules(fullPath) && WORKSPACE_IGNORED_DIRECTORIES.has(lowerName)) {
     return true;
   }
