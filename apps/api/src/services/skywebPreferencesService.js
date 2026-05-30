@@ -27,7 +27,7 @@ const ALLOWED_VALUES = Object.freeze({
     'rates_fx',
   ]),
   defaultChartWindow: new Set(['30', '60', '120', 'ALL']),
-  dashboardDensity: new Set(['comfortable', 'compact']),
+  dashboardDensity: new Set(['comfortable', 'compact', 'roomy']),
   preferredLandingPage: new Set(['/', '/macro', '/macro/views', '/macro/indicators', '/account']),
 });
 
