@@ -82,7 +82,7 @@ Current tool groups include:
 
 - **File / Structure Tools**
   - Repository map generation
-  - Repository zip generation for project handoff, including `node_modules` by default so received zips can run local Vite/build checks without a fresh install
+  - Repository zip generation for project handoff, excluding dependency/build clutter by default so uploads stay small and platform-neutral
 
 The operational tool model is backed by relational configuration in the PostgreSQL `core` schema for CLI, API, Admin-Web, and worker execution. This creates a strong bridge between tool metadata, permissions, risk levels, parameter definitions, runtime configuration, and UI visibility.
 
