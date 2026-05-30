@@ -28,7 +28,14 @@ const ALLOWED_VALUES = Object.freeze({
   ]),
   defaultChartWindow: new Set(['30', '60', '120', 'ALL']),
   dashboardDensity: new Set(['comfortable', 'compact', 'roomy']),
-  preferredLandingPage: new Set(['/', '/macro', '/macro/views', '/macro/indicators', '/account']),
+  preferredLandingPage: new Set([
+    '/',
+    '/macro',
+    '/macro/views',
+    '/macro/indicators',
+    '/saved',
+    '/account',
+  ]),
 });
 
 function createHttpError(statusCode, message, details = {}) {
