@@ -1122,4 +1122,4 @@ SkyServer now exposes authenticated SkyWeb dashboard-preference endpoints for `S
 - `GET /api/skyweb/preferences`
 - `PATCH /api/skyweb/preferences`
 
-The preference API stores dashboard defaults in `skyweb.user_preferences` under the `dashboard_defaults` key and currently supports default macro region, default macro category, chart window, dashboard density, and preferred landing page. Dedicated `SKYWEB_PREFERENCES_READ` and `SKYWEB_PREFERENCES_WRITE` permissions are seeded for future builds, while the route also accepts the existing profile permissions for backward-compatible local testing.
+The preference API stores dashboard defaults in `skyweb.user_preferences` under the `dashboard_defaults` key and currently supports default macro region, default macro category, chart window, dashboard density, and preferred landing page. Dashboard density accepts `comfortable`, `compact`, and `roomy` so SkyWeb can apply app-level spacing preferences. Dedicated `SKYWEB_PREFERENCES_READ` and `SKYWEB_PREFERENCES_WRITE` permissions are seeded for future builds, while the route also accepts the existing profile permissions for backward-compatible local testing.
