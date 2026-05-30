@@ -8,9 +8,9 @@ BEGIN;
 INSERT INTO core.applications (app_code, title, manifest_version, description, active)
 VALUES (
   'SKYWEB',
-  'SkyWeb',
+  'SkyWeb Analytics',
   '0.1.0',
-  'Public-facing analytics layer and future member experience for Sky ecosystem dashboards.',
+  'Public-facing analytics layer and member dashboard experience for Sky ecosystem dashboards.',
   TRUE
 )
 ON CONFLICT (app_code) DO UPDATE
@@ -29,15 +29,15 @@ WITH skyweb_app AS (
   VALUES
     (
       'SKYWEB_USER',
-      'SkyWeb User',
-      'Standard SkyWeb member access for profile, saved dashboard, and future preference surfaces.',
+      'SkyWeb Analytics User',
+      'Standard SkyWeb Analytics member access for profile, saved dashboard, and future preference surfaces.',
       TRUE,
       TRUE
     ),
     (
       'SKYWEB_ADMIN',
-      'SkyWeb Administrator',
-      'Elevated SkyWeb member administration role reserved for future public-site moderation and user support workflows.',
+      'SkyWeb Analytics Administrator',
+      'Elevated SkyWeb Analytics member administration role reserved for future public-site moderation and user support workflows.',
       TRUE,
       TRUE
     )
