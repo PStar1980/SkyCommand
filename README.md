@@ -1095,7 +1095,7 @@ SkyServer is built around a few practical rules:
 | ✅ Phase 6     | Private Admin-Web interface with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety confirmation UX |
 | ✅ Phase 7     | API endpoints for macro views, ingestion status, and admin actions, plus Admin-Web Access Control, Ingestion Status, and Dashboard v2                 |
 | ✅ Phase 8     | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker API, Automation Admin-Web pages, and listener foundation     |
-| 🔜 Phase 9     | SkyWeb integration for public-facing macro dashboards                                                                                                 |
+| 🔄 Phase 9     | SkyWeb integration for public-facing macro dashboards                                                                                                 |
 | 🔜 Phase 10    | Data mart design and analytics-ready PostgreSQL view/model refinement for public, admin, and BI consumers                                             |
 | 🔜 Phase 11    | ETL/ELT pipelines from PostgreSQL into Snowflake for durable cloud data warehousing                                                                   |
 | 🔜 Phase 12    | Snowflake warehouse models, dimensional tables, historical snapshots, and curated reporting layers                                                    |
@@ -1123,3 +1123,18 @@ SkyServer now exposes authenticated SkyWeb dashboard-preference endpoints for `S
 - `PATCH /api/skyweb/preferences`
 
 The preference API stores dashboard defaults in `skyweb.user_preferences` under the `dashboard_defaults` key and currently supports default macro region, default macro category, chart window, dashboard density, and preferred landing page. Dashboard density accepts `comfortable`, `compact`, and `roomy` so SkyWeb can apply app-level spacing preferences. Dedicated `SKYWEB_PREFERENCES_READ` and `SKYWEB_PREFERENCES_WRITE` permissions are seeded for future builds, while the route also accepts the existing profile permissions for backward-compatible local testing.
+
+## Phase 9.5 — SkyWeb Preference Compatibility
+
+SkyServer now accepts the `roomy` dashboard-density option and supports `/saved` as a valid preferred SkyWeb landing surface. This keeps the API aligned with SkyWeb preference-aware macro surfaces and the personalized member routes.
+
+## Phase 9.6 — SkyWeb Saved Macro Views API
+
+SkyServer now exposes the first persisted saved-dashboard/watchlist object for authenticated `SKYWEB` app sessions:
+
+- `GET /api/skyweb/saved-views`
+- `POST /api/skyweb/saved-views`
+- `PATCH /api/skyweb/saved-views/:viewKey`
+- `DELETE /api/skyweb/saved-views/:viewKey`
+
+Saved macro views are stored in `skyweb.saved_macro_views`, exposed through `skyweb.vw_saved_macro_views`, and keyed by authenticated user plus macro view key. The API validates macro view keys against the existing macro view registry before saving, enriches saved records with macro view metadata for SkyWeb, and uses `SKYWEB_DASHBOARD_READ` / `SKYWEB_DASHBOARD_WRITE` with profile-permission fallbacks for local development compatibility.

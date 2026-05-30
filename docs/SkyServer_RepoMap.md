@@ -105,6 +105,7 @@ SkyServer/
 │ │ ├── scriptExecutionService.js
 │ │ ├── skywebPreferencesService.js
 │ │ ├── skywebProfileService.js
+│ │ ├── skywebSavedViewsService.js
 │ │ ├── toolManifestService.js
 │ │ └── workerService.js
 │ └── worker/
@@ -154,13 +155,14 @@ SkyServer/
 │ │ │ ├── 00020**worker_tables.sql
 │ │ │ ├── 00021**worker_automation_polish.sql
 │ │ │ ├── 00022**auth_application_scope.sql
-│ │ │ └── 00023**skyweb_auth_profiles.sql
+│ │ │ ├── 00023**skyweb_auth_profiles.sql
+│ │ │ └── 00025**skyweb_saved_macro_views.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
 │ │ ├── 00019**core_config_seed.sql
-│ │ └── 00024\_\_skyweb_auth_seed.sql
+│ │ └── 00024**skyweb_auth_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ ├── generateRepoMap.js
@@ -243,6 +245,7 @@ SkyServer/
 │ │ ├── core.tools.sql
 │ │ ├── core.visibility_channels.sql
 │ │ ├── macro.indicators..sql
+│ │ ├── skyweb.saved_macro_views.sql
 │ │ ├── skyweb.user_preferences.sql
 │ │ ├── skyweb.user_profiles.sql
 │ │ ├── worker.listener_events.sql
@@ -263,6 +266,7 @@ SkyServer/
 │ │ ├── core.tool_categories_set_updated_at.sql
 │ │ ├── core.tool_parameters_set_updated_at.sql
 │ │ ├── core.tools_set_updated_at.sql
+│ │ ├── skyweb.saved_macro_views_set_updated_at.sql
 │ │ ├── skyweb.user_preferences_set_updated_at.sql
 │ │ ├── skyweb.user_profiles_set_updated_at.sql
 │ │ ├── worker.listener_events_set_updated_at.sql
@@ -309,6 +313,7 @@ SkyServer/
 │ ├── macro.vw_us_ca_inflation_compare.sql
 │ ├── macro.vw_us_ca_labor_compare.sql
 │ ├── macro.vw_us_ca_policy_fx.sql
+│ ├── skyweb.vw_saved_macro_views.sql
 │ ├── skyweb.vw_user_preferences.sql
 │ ├── skyweb.vw_user_profiles.sql
 │ ├── worker.vw_listener_events_recent.sql

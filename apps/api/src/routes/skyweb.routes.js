@@ -21,4 +21,25 @@ router.patch(
   skywebController.updatePreferences,
 );
 
+router.get(
+  '/saved-views',
+  requireAnyPermission(['SKYWEB_DASHBOARD_READ', 'SKYWEB_PROFILE_READ']),
+  skywebController.listSavedViews,
+);
+router.post(
+  '/saved-views',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.saveView,
+);
+router.patch(
+  '/saved-views/:viewKey',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.updateSavedView,
+);
+router.delete(
+  '/saved-views/:viewKey',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.removeSavedView,
+);
+
 module.exports = router;
