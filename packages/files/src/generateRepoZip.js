@@ -4,14 +4,21 @@
  * generateRepoZip.js
  *
  * Generates a zip archive of a repository/folder for project handoff and review.
- * Uses the same ignore rules and CLI parameter shape as generateRepoMap.js.
+ * Uses the same CLI parameter shape as generateRepoMap.js, but now includes
+ * node_modules by default so received repo zips can run local Vite/build checks
+ * without requiring a fresh npm install.
  *
  * Usage:
- *   node generateRepoZip.js <location> <fileName> [outputPath]
+ *   node generateRepoZip.js <location> <fileName> [outputPath] [options]
  *
- * Example:
- *   node generateRepoZip.js "C:\\Projects\\SkyServer" "SkyServer_Repo.zip" "C:\\Projects\\SkyServer\\docs"
- *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/docs"
+ * Options:
+ *   --exclude-node-modules   Build a slim handoff zip without dependency folders.
+ *   --slim                   Alias for --exclude-node-modules.
+ *
+ * Examples:
+ *   node generateRepoZip.js "C:\\Projects\\SkyServer" "SkyServer_Repo.zip" "C:\\Projects\\SkyServer\\zip"
+ *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/zip"
+ *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/zip" --slim
  */
 
 const fs = require('fs');
@@ -21,17 +28,32 @@ const zlib = require('zlib');
 // ------------------------------------------------------------
 // PHASE 1: Parse CLI arguments
 // ------------------------------------------------------------
-const args = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const optionArgs = rawArgs.filter((arg) => arg.startsWith('--'));
+const args = rawArgs.filter((arg) => !arg.startsWith('--'));
+
+const SUPPORTED_OPTIONS = new Set(['--exclude-node-modules', '--slim', '--include-node-modules']);
+const unknownOptions = optionArgs.filter((option) => !SUPPORTED_OPTIONS.has(option));
+
+if (unknownOptions.length > 0) {
+  console.error(`❌ Error: Unsupported option(s): ${unknownOptions.join(', ')}`);
+  console.error('   Supported options: --exclude-node-modules, --slim, --include-node-modules');
+  process.exit(1);
+}
 
 if (args.length < 2) {
   console.error('❌ Error: You must provide at least 2 arguments:');
   console.error('   location (required)');
   console.error('   fileName (required)');
   console.error('   outputPath (optional)');
+  console.error('   options (optional): --exclude-node-modules / --slim');
   process.exit(1);
 }
 
 let [location, fileName, outputPath] = args;
+const includeNodeModules =
+  optionArgs.includes('--include-node-modules') ||
+  (!optionArgs.includes('--exclude-node-modules') && !optionArgs.includes('--slim'));
 
 function hasPathSeparators(value) {
   return /[\\/]/.test(value);
@@ -95,28 +117,24 @@ const comparableOutputFilePath = normalizeComparablePath(outputFilePath);
 // ------------------------------------------------------------
 // PHASE 2: Recursive directory walker
 // ------------------------------------------------------------
-const IGNORED_ENTRIES = new Set([
-  'node_modules',
+const ZIP32_MAX_VALUE = 0xffffffff;
+const ZIP32_MAX_ENTRY_COUNT = 0xffff;
+
+const DEPENDENCY_FOLDER_NAME = 'node_modules';
+
+const ALWAYS_IGNORED_DIRECTORIES = new Set([
   '.git',
   '.vscode',
   '.idea',
   '.ds_store',
   '.cache',
   '.next',
-  'dist',
-  'build',
   'coverage',
-  'out',
-  'temp',
-  'tmp',
   'logs',
   'zip',
-  '.env',
-  '.env.local',
-  '.env.development',
-  '.env.production',
-  '.env.test',
 ]);
+
+const WORKSPACE_IGNORED_DIRECTORIES = new Set(['dist', 'build', 'out', 'temp', 'tmp']);
 
 const SENSITIVE_ENV_FILES = new Set([
   '.env',
@@ -126,8 +144,38 @@ const SENSITIVE_ENV_FILES = new Set([
   '.env.test',
 ]);
 
-function shouldIgnoreEntry(entryName) {
-  return IGNORED_ENTRIES.has(entryName.toLowerCase());
+function isWithinNodeModules(fullPath) {
+  const relativePath = path.relative(location, fullPath);
+
+  if (!relativePath || relativePath.startsWith('..')) {
+    return false;
+  }
+
+  return relativePath
+    .split(path.sep)
+    .map((part) => part.toLowerCase())
+    .includes(DEPENDENCY_FOLDER_NAME);
+}
+
+function shouldIgnoreDirectory(entryName, fullPath) {
+  const lowerName = entryName.toLowerCase();
+
+  if (lowerName === DEPENDENCY_FOLDER_NAME) {
+    return !includeNodeModules;
+  }
+
+  if (ALWAYS_IGNORED_DIRECTORIES.has(lowerName)) {
+    return true;
+  }
+
+  // Keep package-owned dist/build/out folders inside node_modules. Many npm packages
+  // ship their runnable code there, so stripping those folders can produce a zip that
+  // looks complete but cannot actually run Vite/build checks on the receiving side.
+  if (!isWithinNodeModules(fullPath) && WORKSPACE_IGNORED_DIRECTORIES.has(lowerName)) {
+    return true;
+  }
+
+  return false;
 }
 
 function sortEntries(entries) {
@@ -164,11 +212,14 @@ function scanDirectory(dir, baseDir = dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
   const results = entries
-    .filter((entry) => !shouldIgnoreEntry(entry.name))
     .map((entry) => {
       const fullPath = path.join(dir, entry.name);
 
       if (entry.isDirectory()) {
+        if (shouldIgnoreDirectory(entry.name, fullPath)) {
+          return null;
+        }
+
         return {
           type: 'directory',
           name: entry.name,
@@ -176,6 +227,8 @@ function scanDirectory(dir, baseDir = dir) {
         };
       }
 
+      // Symlinks and special files are intentionally skipped. This keeps the archive
+      // portable on Windows and avoids accidentally following dependency symlink loops.
       if (!entry.isFile() || shouldSkipFile(fullPath)) {
         return null;
       }
@@ -262,6 +315,14 @@ function uint32(value) {
   return buffer;
 }
 
+function assertZip32Value(value, label) {
+  if (!Number.isFinite(value) || value < 0 || value > ZIP32_MAX_VALUE) {
+    throw new Error(
+      `❌ Error: ${label} exceeds standard ZIP32 limits. This repo archive needs ZIP64 support.`,
+    );
+  }
+}
+
 function createLocalFileHeader({
   fileNameBuffer,
   crc,
@@ -273,7 +334,7 @@ function createLocalFileHeader({
   return Buffer.concat([
     uint32(0x04034b50), // local file header signature
     uint16(20), // version needed to extract
-    uint16(0), // general purpose bit flag
+    uint16(0x0800), // general purpose bit flag: UTF-8 file names
     uint16(8), // compression method: deflate
     uint16(dosTime),
     uint16(dosDate),
@@ -299,7 +360,7 @@ function createCentralDirectoryHeader({
     uint32(0x02014b50), // central directory signature
     uint16(20), // version made by
     uint16(20), // version needed to extract
-    uint16(0), // general purpose bit flag
+    uint16(0x0800), // general purpose bit flag: UTF-8 file names
     uint16(8), // compression method: deflate
     uint16(dosTime),
     uint16(dosDate),
@@ -330,54 +391,91 @@ function createEndOfCentralDirectory({ entryCount, centralDirectorySize, central
   ]);
 }
 
-function createZipArchive(files, rootName) {
-  const localParts = [];
+function writeBuffer(fd, buffer) {
+  fs.writeSync(fd, buffer, 0, buffer.length);
+}
+
+function logProgress(current, total) {
+  if (total < 500) {
+    return;
+  }
+
+  if (current === total || current % 500 === 0) {
+    console.log(`   Zipped ${current}/${total} files...`);
+  }
+}
+
+function writeZipArchive(files, rootName, targetFilePath) {
+  if (files.length > ZIP32_MAX_ENTRY_COUNT) {
+    throw new Error(
+      `❌ Error: ${files.length} files exceed standard ZIP32 entry limits. This repo archive needs ZIP64 support.`,
+    );
+  }
+
   const centralParts = [];
   let offset = 0;
+  const fd = fs.openSync(targetFilePath, 'w');
 
-  files.forEach((file) => {
-    const stat = fs.statSync(file.fullPath);
-    const rawData = fs.readFileSync(file.fullPath);
-    const compressedData = zlib.deflateRawSync(rawData);
-    const checksum = crc32(rawData);
-    const zipEntryPath = toZipPath(path.join(rootName, file.relativePath));
-    const fileNameBuffer = Buffer.from(zipEntryPath, 'utf8');
-    const { dosDate, dosTime } = toDosDateTime(stat.mtime);
+  try {
+    files.forEach((file, index) => {
+      const stat = fs.statSync(file.fullPath);
+      const rawData = fs.readFileSync(file.fullPath);
+      const compressedData = zlib.deflateRawSync(rawData);
+      const checksum = crc32(rawData);
+      const zipEntryPath = toZipPath(path.join(rootName, file.relativePath));
+      const fileNameBuffer = Buffer.from(zipEntryPath, 'utf8');
+      const { dosDate, dosTime } = toDosDateTime(stat.mtime);
 
-    const localHeader = createLocalFileHeader({
-      fileNameBuffer,
-      crc: checksum,
-      compressedSize: compressedData.length,
-      uncompressedSize: rawData.length,
-      dosTime,
-      dosDate,
+      assertZip32Value(rawData.length, `Uncompressed size for ${file.relativePath}`);
+      assertZip32Value(compressedData.length, `Compressed size for ${file.relativePath}`);
+      assertZip32Value(offset, `Archive offset before ${file.relativePath}`);
+
+      const localHeader = createLocalFileHeader({
+        fileNameBuffer,
+        crc: checksum,
+        compressedSize: compressedData.length,
+        uncompressedSize: rawData.length,
+        dosTime,
+        dosDate,
+      });
+
+      const centralHeader = createCentralDirectoryHeader({
+        fileNameBuffer,
+        crc: checksum,
+        compressedSize: compressedData.length,
+        uncompressedSize: rawData.length,
+        dosTime,
+        dosDate,
+        localHeaderOffset: offset,
+      });
+
+      writeBuffer(fd, localHeader);
+      writeBuffer(fd, compressedData);
+      centralParts.push(centralHeader);
+
+      offset += localHeader.length + compressedData.length;
+      assertZip32Value(offset, `Archive offset after ${file.relativePath}`);
+      logProgress(index + 1, files.length);
     });
 
-    const centralHeader = createCentralDirectoryHeader({
-      fileNameBuffer,
-      crc: checksum,
-      compressedSize: compressedData.length,
-      uncompressedSize: rawData.length,
-      dosTime,
-      dosDate,
-      localHeaderOffset: offset,
+    const centralDirectoryOffset = offset;
+    const centralDirectory = Buffer.concat(centralParts);
+    const centralDirectorySize = centralDirectory.length;
+
+    assertZip32Value(centralDirectoryOffset, 'Central directory offset');
+    assertZip32Value(centralDirectorySize, 'Central directory size');
+
+    const endOfCentralDirectory = createEndOfCentralDirectory({
+      entryCount: files.length,
+      centralDirectorySize,
+      centralDirectoryOffset,
     });
 
-    localParts.push(localHeader, compressedData);
-    centralParts.push(centralHeader);
-
-    offset += localHeader.length + compressedData.length;
-  });
-
-  const centralDirectoryOffset = offset;
-  const centralDirectory = Buffer.concat(centralParts);
-  const endOfCentralDirectory = createEndOfCentralDirectory({
-    entryCount: files.length,
-    centralDirectorySize: centralDirectory.length,
-    centralDirectoryOffset,
-  });
-
-  return Buffer.concat([...localParts, centralDirectory, endOfCentralDirectory]);
+    writeBuffer(fd, centralDirectory);
+    writeBuffer(fd, endOfCentralDirectory);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 // ------------------------------------------------------------
@@ -392,9 +490,16 @@ if (!fs.existsSync(outputPath)) {
   fs.mkdirSync(outputPath, { recursive: true });
 }
 
-const archive = createZipArchive(files, rootName);
+try {
+  writeZipArchive(files, rootName, outputFilePath);
+} catch (error) {
+  if (fs.existsSync(outputFilePath)) {
+    fs.rmSync(outputFilePath, { force: true });
+  }
 
-fs.writeFileSync(outputFilePath, archive);
+  console.error(error.message);
+  process.exit(1);
+}
 
 const totalInputBytes = files.reduce((total, file) => total + fs.statSync(file.fullPath).size, 0);
 const outputBytes = fs.statSync(outputFilePath).size;
@@ -402,5 +507,6 @@ const outputBytes = fs.statSync(outputFilePath).size;
 console.log('\n✅ Repository zip generated successfully!');
 console.log(`📦 Output file: ${outputFilePath}`);
 console.log(`📄 Files included: ${files.length}`);
+console.log(`📦 node_modules included: ${includeNodeModules ? 'yes' : 'no'}`);
 console.log(`📥 Source bytes: ${totalInputBytes}`);
 console.log(`📤 Zip bytes: ${outputBytes}\n`);

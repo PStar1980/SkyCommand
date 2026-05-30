@@ -1,3 +1,4 @@
+const skywebPreferencesService = require('../services/skywebPreferencesService');
 const skywebProfileService = require('../services/skywebProfileService');
 
 function assertSkyWebSession(req, res) {
@@ -46,7 +47,48 @@ async function updateProfile(req, res, next) {
   }
 }
 
+async function getPreferences(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const preferenceRow = await skywebPreferencesService.getPreferences(req.user.userId);
+
+    res.json({
+      ok: true,
+      preferenceRow,
+      preferences: preferenceRow?.preferences || skywebPreferencesService.DEFAULT_PREFERENCES,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updatePreferences(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const preferenceRow = await skywebPreferencesService.updatePreferences(
+      req.user.userId,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      preferenceRow,
+      preferences: preferenceRow?.preferences || skywebPreferencesService.DEFAULT_PREFERENCES,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
+  getPreferences,
   getProfile,
+  updatePreferences,
   updateProfile,
 };

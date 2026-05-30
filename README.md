@@ -82,6 +82,7 @@ Current tool groups include:
 
 - **File / Structure Tools**
   - Repository map generation
+  - Repository zip generation for project handoff, including `node_modules` by default so received zips can run local Vite/build checks without a fresh install
 
 The operational tool model is backed by relational configuration in the PostgreSQL `core` schema for CLI, API, Admin-Web, and worker execution. This creates a strong bridge between tool metadata, permissions, risk levels, parameter definitions, runtime configuration, and UI visibility.
 
@@ -1113,3 +1114,12 @@ SkyServer is built around a few practical rules:
 ## Phase 9.3 — SkyWeb Auth Preparation
 
 SkyServer now exposes the authenticated `/api/skyweb/profile` surface for SKYWEB app sessions and seeds initial SkyWeb roles, permissions, app memberships, profiles, and preference tables.
+
+## Phase 9.4 — SkyWeb Preferences API
+
+SkyServer now exposes authenticated SkyWeb dashboard-preference endpoints for `SKYWEB` app sessions:
+
+- `GET /api/skyweb/preferences`
+- `PATCH /api/skyweb/preferences`
+
+The preference API stores dashboard defaults in `skyweb.user_preferences` under the `dashboard_defaults` key and currently supports default macro region, default macro category, chart window, dashboard density, and preferred landing page. Dedicated `SKYWEB_PREFERENCES_READ` and `SKYWEB_PREFERENCES_WRITE` permissions are seeded for future builds, while the route also accepts the existing profile permissions for backward-compatible local testing.

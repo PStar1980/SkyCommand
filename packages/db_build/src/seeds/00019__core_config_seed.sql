@@ -167,7 +167,7 @@ FROM (
     ('data_ingestion_tools','ingestion_statcan','loadStatCanMacroData','Run Statistics Canada Ingestion','Loads active Statistics Canada vector-based macroeconomic indicators into PostgreSQL.','packages/ingestion/src/loadStatCanMacroData.js','node','INGESTION_RUN_STATCAN','medium',TRUE,'This will call the Statistics Canada ingestion pipeline and write any new data into PostgreSQL.',TRUE,FALSE,30),
     ('data_ingestion_tools','ingestion_manual','loadManualData','Run Manual Ingestion','Loads configured manual spreadsheet or CSV data into PostgreSQL.','packages/ingestion/src/loadManualData.js','node','INGESTION_RUN_MANUAL','medium',TRUE,'This will process the configured manual ingestion file and write mapped data into PostgreSQL.',TRUE,FALSE,40),
     ('file_tools','repo_map_generate','generateRepoMap','Generate Repository Map','Generates a readable repository map for documentation and structural review.','packages/files/src/generateRepoMap.js','node','REPO_MAP_GENERATE','low',FALSE,NULL,TRUE,TRUE,10),
-    ('file_tools','repo_zip_generate','generateRepoZip','Generate Repository Zip','Generates a zip archive of a repository using the configured ignore rules for project handoff and review.','packages/files/src/generateRepoZip.js','node','REPO_ZIP_GENERATE','low',FALSE,NULL,TRUE,TRUE,20)
+    ('file_tools','repo_zip_generate','generateRepoZip','Generate Repository Zip','Generates a zip archive of a repository for project handoff and review. Includes node_modules by default so received zips can run local Vite/build checks.','packages/files/src/generateRepoZip.js','node','REPO_ZIP_GENERATE','low',FALSE,NULL,TRUE,TRUE,20)
 ) AS v(category_code, tool_code, name, label, description, script_path, runtime_code, permission_code, risk_code, requires_confirmation, confirmation_text, captures_output, allow_params, display_order)
 JOIN core.applications a ON a.app_code = 'SKYSERVER_CORE'
 JOIN core.tool_categories c ON c.app_id = a.app_id AND c.category_code = v.category_code
@@ -226,7 +226,7 @@ JOIN (
     ('repo_map_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location)',FALSE,NULL,NULL,30),
     ('repo_zip_generate','location','Root Folder Location','string','Enter root folder location',TRUE,NULL,NULL,10),
     ('repo_zip_generate','fileName','Output Zip File Name','string','Enter output zip file name',TRUE,NULL,NULL,20),
-    ('repo_zip_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location)',FALSE,NULL,NULL,30)
+    ('repo_zip_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location). Dependency folders are included by default.',FALSE,NULL,NULL,30)
 ) AS v(tool_code, parameter_name, label, param_type_code, prompt, required, default_value, option_source_code, display_order)
 ON v.tool_code = t.tool_code
 ON CONFLICT (tool_id, parameter_name) DO UPDATE

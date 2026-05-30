@@ -103,6 +103,7 @@ SkyServer/
 │ │ ├── macroReadService.js
 │ │ ├── publicMacroService.js
 │ │ ├── scriptExecutionService.js
+│ │ ├── skywebPreferencesService.js
 │ │ ├── skywebProfileService.js
 │ │ ├── toolManifestService.js
 │ │ └── workerService.js

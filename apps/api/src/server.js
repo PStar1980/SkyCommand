@@ -74,12 +74,19 @@ function createApp() {
   });
 
   app.use((error, req, res, next) => {
+    const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+    const responseBody = {
+      ok: false,
+      error: statusCode >= 500 ? 'Internal server error.' : error.message,
+    };
+
+    if (statusCode < 500 && error?.details) {
+      responseBody.details = error.details;
+    }
+
     console.error('[SkyServer API] Unhandled error:', error);
 
-    res.status(500).json({
-      ok: false,
-      error: 'Internal server error.',
-    });
+    res.status(statusCode).json(responseBody);
   });
 
   return app;

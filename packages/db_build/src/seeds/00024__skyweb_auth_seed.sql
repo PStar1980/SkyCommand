@@ -83,6 +83,20 @@ WITH skyweb_app AS (
       TRUE
     ),
     (
+      'SKYWEB_PREFERENCES_READ',
+      'skyweb_preferences',
+      'read',
+      'Read the authenticated user SkyWeb dashboard preferences.',
+      TRUE
+    ),
+    (
+      'SKYWEB_PREFERENCES_WRITE',
+      'skyweb_preferences',
+      'write',
+      'Update the authenticated user SkyWeb dashboard preferences.',
+      TRUE
+    ),
+    (
       'SKYWEB_DASHBOARD_READ',
       'skyweb_dashboards',
       'read',
@@ -134,6 +148,8 @@ WITH user_permissions(permission_code) AS (
   VALUES
     ('SKYWEB_PROFILE_READ'),
     ('SKYWEB_PROFILE_WRITE'),
+    ('SKYWEB_PREFERENCES_READ'),
+    ('SKYWEB_PREFERENCES_WRITE'),
     ('SKYWEB_DASHBOARD_READ'),
     ('SKYWEB_ALERT_READ')
 )
