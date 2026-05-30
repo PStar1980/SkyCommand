@@ -30,6 +30,7 @@ const ALLOWED_VALUES = Object.freeze({
   dashboardDensity: new Set(['comfortable', 'compact', 'roomy']),
   preferredLandingPage: new Set([
     '/',
+    '/dashboard',
     '/macro',
     '/macro/views',
     '/macro/indicators',

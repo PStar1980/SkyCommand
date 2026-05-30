@@ -1138,3 +1138,7 @@ SkyServer now exposes the first persisted saved-dashboard/watchlist object for a
 - `DELETE /api/skyweb/saved-views/:viewKey`
 
 Saved macro views are stored in `skyweb.saved_macro_views`, exposed through `skyweb.vw_saved_macro_views`, and keyed by authenticated user plus macro view key. The API validates macro view keys against the existing macro view registry before saving, enriches saved records with macro view metadata for SkyWeb, and uses `SKYWEB_DASHBOARD_READ` / `SKYWEB_DASHBOARD_WRITE` with profile-permission fallbacks for local development compatibility.
+
+## Phase 9.7 — SkyWeb Analytics Dashboard Compatibility
+
+SkyServer now accepts `/dashboard` as a valid SkyWeb preferred landing surface, keeping the preferences API aligned with the new SkyWeb Analytics personal dashboard route. The `SKYWEB` application seed title has also been updated to **SkyWeb Analytics** while preserving the existing app code and permission model.
