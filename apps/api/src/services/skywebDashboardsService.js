@@ -6,7 +6,15 @@ const MAX_DESCRIPTION_LENGTH = 800;
 const MAX_ITEM_NOTE_LENGTH = 800;
 
 const ALLOWED_LAYOUT_PRESETS = new Set(['executive', 'research', 'compact']);
-const ALLOWED_ITEM_MODES = new Set(['view_card', 'wide_card', 'compact_card']);
+const ALLOWED_ITEM_MODES = new Set([
+  'view_card',
+  'wide_card',
+  'compact_card',
+  'metric_card',
+  'mini_chart',
+  'latest_row',
+  'table_preview',
+]);
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);

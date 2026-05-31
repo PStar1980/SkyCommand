@@ -158,13 +158,14 @@ SkyServer/
 │ │ │ ├── 00022**auth_application_scope.sql
 │ │ │ ├── 00023**skyweb_auth_profiles.sql
 │ │ │ ├── 00025**skyweb_saved_macro_views.sql
-│ │ │ └── 00026**skyweb_user_dashboards.sql
+│ │ │ ├── 00026**skyweb_user_dashboards.sql
+│ │ │ └── 00027**skyweb_dashboard_item_visualization_modes.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
 │ │ ├── 00019**core_config_seed.sql
-│ │ └── 00024\_\_skyweb_auth_seed.sql
+│ │ └── 00024**skyweb_auth_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ ├── generateRepoMap.js
