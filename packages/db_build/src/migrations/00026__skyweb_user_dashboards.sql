@@ -96,7 +96,15 @@ CREATE TABLE IF NOT EXISTS skyweb.user_dashboard_items (
     CHECK (item_note IS NULL OR char_length(item_note) <= 800),
 
   CONSTRAINT user_dashboard_items_mode_check
-    CHECK (item_mode IN ('view_card', 'wide_card', 'compact_card')),
+    CHECK (item_mode IN (
+      'view_card',
+      'wide_card',
+      'compact_card',
+      'metric_card',
+      'mini_chart',
+      'latest_row',
+      'table_preview'
+    )),
 
   CONSTRAINT user_dashboard_items_position_check
     CHECK (position_row >= 0 AND position_col >= 0),

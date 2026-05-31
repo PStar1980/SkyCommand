@@ -1157,3 +1157,17 @@ SkyServer now exposes first-class user-owned dashboard APIs for authenticated `S
 - `DELETE /api/skyweb/dashboards/:dashboardKey/items/:itemId`
 
 Dashboard definitions are stored in `skyweb.user_dashboards`, dashboard items are stored in `skyweb.user_dashboard_items`, and read models are exposed through `skyweb.vw_user_dashboards` and `skyweb.vw_user_dashboard_items`. Dashboard items currently attach saved macro views to reusable dashboard definitions with title, note, layout mode, display order, and size metadata. The preferences API now also accepts `/dashboards` as a valid SkyWeb preferred landing surface.
+
+## Phase 9.9 — SkyWeb Dashboard Visualization Mode Compatibility
+
+SkyServer now accepts the expanded SkyWeb Analytics dashboard item modes used by Phase 7.6:
+
+- `view_card`
+- `wide_card`
+- `compact_card`
+- `metric_card`
+- `mini_chart`
+- `latest_row`
+- `table_preview`
+
+The dashboard item API validation and `skyweb.user_dashboard_items` check constraint are aligned through an idempotent migration so existing development databases can be upgraded without recreating dashboard data.
