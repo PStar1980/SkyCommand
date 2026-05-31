@@ -31,6 +31,7 @@ const ALLOWED_VALUES = Object.freeze({
   preferredLandingPage: new Set([
     '/',
     '/dashboard',
+    '/dashboards',
     '/macro',
     '/macro/views',
     '/macro/indicators',

@@ -42,4 +42,45 @@ router.delete(
   skywebController.removeSavedView,
 );
 
+router.get(
+  '/dashboards',
+  requireAnyPermission(['SKYWEB_DASHBOARD_READ', 'SKYWEB_PROFILE_READ']),
+  skywebController.listDashboards,
+);
+router.post(
+  '/dashboards',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.createDashboard,
+);
+router.get(
+  '/dashboards/:dashboardKey',
+  requireAnyPermission(['SKYWEB_DASHBOARD_READ', 'SKYWEB_PROFILE_READ']),
+  skywebController.getDashboard,
+);
+router.patch(
+  '/dashboards/:dashboardKey',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.updateDashboard,
+);
+router.delete(
+  '/dashboards/:dashboardKey',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.removeDashboard,
+);
+router.post(
+  '/dashboards/:dashboardKey/items',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.addDashboardItem,
+);
+router.patch(
+  '/dashboards/:dashboardKey/items/:itemId',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.updateDashboardItem,
+);
+router.delete(
+  '/dashboards/:dashboardKey/items/:itemId',
+  requireAnyPermission(['SKYWEB_DASHBOARD_WRITE', 'SKYWEB_PROFILE_WRITE']),
+  skywebController.removeDashboardItem,
+);
+
 module.exports = router;
