@@ -1142,3 +1142,18 @@ Saved macro views are stored in `skyweb.saved_macro_views`, exposed through `sky
 ## Phase 9.7 — SkyWeb Analytics Dashboard Compatibility
 
 SkyServer now accepts `/dashboard` as a valid SkyWeb preferred landing surface, keeping the preferences API aligned with the new SkyWeb Analytics personal dashboard route. The `SKYWEB` application seed title has also been updated to **SkyWeb Analytics** while preserving the existing app code and permission model.
+
+## Phase 9.8 — SkyWeb Dashboard Builder API
+
+SkyServer now exposes first-class user-owned dashboard APIs for authenticated `SKYWEB` app sessions:
+
+- `GET /api/skyweb/dashboards`
+- `POST /api/skyweb/dashboards`
+- `GET /api/skyweb/dashboards/:dashboardKey`
+- `PATCH /api/skyweb/dashboards/:dashboardKey`
+- `DELETE /api/skyweb/dashboards/:dashboardKey`
+- `POST /api/skyweb/dashboards/:dashboardKey/items`
+- `PATCH /api/skyweb/dashboards/:dashboardKey/items/:itemId`
+- `DELETE /api/skyweb/dashboards/:dashboardKey/items/:itemId`
+
+Dashboard definitions are stored in `skyweb.user_dashboards`, dashboard items are stored in `skyweb.user_dashboard_items`, and read models are exposed through `skyweb.vw_user_dashboards` and `skyweb.vw_user_dashboard_items`. Dashboard items currently attach saved macro views to reusable dashboard definitions with title, note, layout mode, display order, and size metadata. The preferences API now also accepts `/dashboards` as a valid SkyWeb preferred landing surface.

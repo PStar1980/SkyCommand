@@ -1,3 +1,4 @@
+const skywebDashboardsService = require('../services/skywebDashboardsService');
 const skywebPreferencesService = require('../services/skywebPreferencesService');
 const skywebProfileService = require('../services/skywebProfileService');
 const skywebSavedViewsService = require('../services/skywebSavedViewsService');
@@ -197,7 +198,215 @@ async function removeSavedView(req, res, next) {
   }
 }
 
+async function listDashboards(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const items = await skywebDashboardsService.listDashboards(req.user.userId);
+
+    res.json({
+      ok: true,
+      total: items.length,
+      items,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function createDashboard(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebDashboardsService.createDashboard(req.user.userId, req.body || {});
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function getDashboard(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebDashboardsService.getDashboard(
+      req.user.userId,
+      req.params.dashboardKey,
+    );
+
+    if (!item) {
+      res.status(404).json({
+        ok: false,
+        error: 'Dashboard not found.',
+      });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function updateDashboard(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebDashboardsService.updateDashboard(
+      req.user.userId,
+      req.params.dashboardKey,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function removeDashboard(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebDashboardsService.removeDashboard(
+      req.user.userId,
+      req.params.dashboardKey,
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function addDashboardItem(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebDashboardsService.addDashboardItem(
+      req.user.userId,
+      req.params.dashboardKey,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function updateDashboardItem(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebDashboardsService.updateDashboardItem(
+      req.user.userId,
+      req.params.dashboardKey,
+      req.params.itemId,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function removeDashboardItem(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebDashboardsService.removeDashboardItem(
+      req.user.userId,
+      req.params.dashboardKey,
+      req.params.itemId,
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
 module.exports = {
+  addDashboardItem,
+  createDashboard,
+  getDashboard,
+  listDashboards,
+  removeDashboard,
+  removeDashboardItem,
+  updateDashboard,
+  updateDashboardItem,
   getPreferences,
   getProfile,
   listSavedViews,
