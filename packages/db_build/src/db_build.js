@@ -252,7 +252,15 @@ function runSqlFile(file, databaseName) {
 requireEnv('PGPASSWORD');
 
 const targetDatabaseName = getTargetDatabaseName();
-const allFiles = SQL_ROOTS.flatMap(getAllSqlFiles).sort(sortSqlFiles);
+const migrationRoot = path.join(DB_BUILD_SRC_ROOT, 'migrations');
+const seedRoot = path.join(DB_BUILD_SRC_ROOT, 'seeds');
+const migrationFiles = getAllSqlFiles(migrationRoot).sort(sortSqlFiles);
+const seedFiles = getAllSqlFiles(seedRoot).sort(sortSqlFiles);
+const allFiles = [...migrationFiles, ...seedFiles];
+
+if (migrationFiles.length === 0) {
+  throw new Error(`❌ No migration SQL files found under ${migrationRoot}`);
+}
 
 if (allFiles.length === 0) {
   throw new Error(`❌ No SQL files found under ${SQL_ROOTS.join(', ')}`);
@@ -260,12 +268,21 @@ if (allFiles.length === 0) {
 
 console.log(`[SkyServer DB Build] Env file: ${ENV_PATH}`);
 console.log(`[SkyServer DB Build] Target database: ${targetDatabaseName}`);
-console.log(`[SkyServer DB Build] SQL roots: ${SQL_ROOTS.join(', ')}`);
+console.log(`[SkyServer DB Build] Migration root: ${migrationRoot}`);
+console.log(`[SkyServer DB Build] Seed root: ${seedRoot}`);
+console.log(`[SkyServer DB Build] Migration files found: ${migrationFiles.length}`);
+console.log(`[SkyServer DB Build] Seed files found: ${seedFiles.length}`);
 console.log(`[SkyServer DB Build] SQL files found: ${allFiles.length}`);
 
 dropAndCreateDatabase(targetDatabaseName);
 
-for (const file of allFiles) {
+console.log(`🔥 Running ${migrationFiles.length} migration file(s) before seed files`);
+for (const file of migrationFiles) {
+  runSqlFile(file, targetDatabaseName);
+}
+
+console.log(`🌱 Running ${seedFiles.length} seed file(s) after migrations`);
+for (const file of seedFiles) {
   runSqlFile(file, targetDatabaseName);
 }
 

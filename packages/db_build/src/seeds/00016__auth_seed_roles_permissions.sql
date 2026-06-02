@@ -6,6 +6,26 @@
 BEGIN;
 
 -- ------------------------------------------------------------
+-- Required application identity
+-- ------------------------------------------------------------
+
+INSERT INTO core.applications (app_code, title, manifest_version, description, active)
+VALUES (
+    'SKYSERVER_ADMIN',
+    'SkyServer Admin',
+    '1.0.0',
+    'Private administrative web console for SkyServer control-plane operations.',
+    TRUE
+)
+ON CONFLICT (app_code)
+DO UPDATE SET
+    title = EXCLUDED.title,
+    manifest_version = EXCLUDED.manifest_version,
+    description = EXCLUDED.description,
+    active = EXCLUDED.active,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- ------------------------------------------------------------
 -- Roles
 -- ------------------------------------------------------------
 
