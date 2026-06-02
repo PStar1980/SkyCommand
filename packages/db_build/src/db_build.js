@@ -229,14 +229,51 @@ function getAllSqlFiles(dir) {
   return results;
 }
 
-function sortSqlFiles(a, b) {
-  const fileA = path.basename(a);
-  const fileB = path.basename(b);
+function getSqlOrdinal(filePath) {
+  const filename = path.basename(filePath);
+  const match = filename.match(/^(\d+)/);
 
-  const filenameCompare = fileA.localeCompare(fileB);
+  if (!match) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return Number.parseInt(match[1], 10);
+}
+
+function getSqlRootRank(filePath) {
+  const relativePath = path.relative(DB_BUILD_SRC_ROOT, filePath);
+  const firstSegment = relativePath.split(path.sep)[0];
+
+  // This is only a tie-breaker when two files share the same numeric prefix.
+  // The primary ordering remains the global SQL filename number across migrations and seeds.
+  if (firstSegment === 'migrations') {
+    return 0;
+  }
+
+  if (firstSegment === 'seeds') {
+    return 1;
+  }
+
+  return 2;
+}
+
+function sortSqlFiles(a, b) {
+  const ordinalCompare = getSqlOrdinal(a) - getSqlOrdinal(b);
+
+  if (ordinalCompare !== 0) {
+    return ordinalCompare;
+  }
+
+  const filenameCompare = path.basename(a).localeCompare(path.basename(b));
 
   if (filenameCompare !== 0) {
     return filenameCompare;
+  }
+
+  const rootRankCompare = getSqlRootRank(a) - getSqlRootRank(b);
+
+  if (rootRankCompare !== 0) {
+    return rootRankCompare;
   }
 
   return a.localeCompare(b);
@@ -252,15 +289,10 @@ function runSqlFile(file, databaseName) {
 requireEnv('PGPASSWORD');
 
 const targetDatabaseName = getTargetDatabaseName();
-const migrationRoot = path.join(DB_BUILD_SRC_ROOT, 'migrations');
-const seedRoot = path.join(DB_BUILD_SRC_ROOT, 'seeds');
-const migrationFiles = getAllSqlFiles(migrationRoot).sort(sortSqlFiles);
-const seedFiles = getAllSqlFiles(seedRoot).sort(sortSqlFiles);
-const allFiles = [...migrationFiles, ...seedFiles];
-
-if (migrationFiles.length === 0) {
-  throw new Error(`❌ No migration SQL files found under ${migrationRoot}`);
-}
+// Important: these folders share one numbering sequence.
+// Do not run all migrations before all seeds; files like 00004 seed indicator rows
+// before 00005 generates indicator tables from those rows.
+const allFiles = SQL_ROOTS.flatMap(getAllSqlFiles).sort(sortSqlFiles);
 
 if (allFiles.length === 0) {
   throw new Error(`❌ No SQL files found under ${SQL_ROOTS.join(', ')}`);
@@ -268,21 +300,12 @@ if (allFiles.length === 0) {
 
 console.log(`[SkyServer DB Build] Env file: ${ENV_PATH}`);
 console.log(`[SkyServer DB Build] Target database: ${targetDatabaseName}`);
-console.log(`[SkyServer DB Build] Migration root: ${migrationRoot}`);
-console.log(`[SkyServer DB Build] Seed root: ${seedRoot}`);
-console.log(`[SkyServer DB Build] Migration files found: ${migrationFiles.length}`);
-console.log(`[SkyServer DB Build] Seed files found: ${seedFiles.length}`);
+console.log(`[SkyServer DB Build] SQL roots: ${SQL_ROOTS.join(', ')}`);
 console.log(`[SkyServer DB Build] SQL files found: ${allFiles.length}`);
 
 dropAndCreateDatabase(targetDatabaseName);
 
-console.log(`🔥 Running ${migrationFiles.length} migration file(s) before seed files`);
-for (const file of migrationFiles) {
-  runSqlFile(file, targetDatabaseName);
-}
-
-console.log(`🌱 Running ${seedFiles.length} seed file(s) after migrations`);
-for (const file of seedFiles) {
+for (const file of allFiles) {
   runSqlFile(file, targetDatabaseName);
 }
 
