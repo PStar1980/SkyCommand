@@ -97,6 +97,53 @@ function normalizeViewKey(viewKey) {
   return normalizedViewKey;
 }
 
+function normalizeIndicatorCode(indicatorCode) {
+  const normalizedIndicatorCode = normalizeRequiredString(indicatorCode, {
+    fieldName: 'indicatorCode',
+  })
+    .replace(/-/g, '_')
+    .toUpperCase();
+
+  if (!/^[A-Z0-9_]{1,128}$/.test(normalizedIndicatorCode)) {
+    throw createHttpError(400, 'indicatorCode contains invalid characters.', {
+      fieldName: 'indicatorCode',
+      value: indicatorCode,
+    });
+  }
+
+  return normalizedIndicatorCode;
+}
+
+function normalizeItemSource(value, body = {}) {
+  const rawValue =
+    value ||
+    body.item_source ||
+    body.itemType ||
+    body.item_type ||
+    body.sourceType ||
+    body.source_type;
+
+  if (rawValue) {
+    const normalizedValue = String(rawValue).trim().toLowerCase();
+
+    if (normalizedValue === 'indicator' || normalizedValue === 'macro_indicator') {
+      return 'indicator';
+    }
+
+    if (normalizedValue === 'view' || normalizedValue === 'macro_view') {
+      return 'view';
+    }
+
+    throw createHttpError(400, 'Invalid dashboard item source.', {
+      fieldName: 'itemSource',
+      value,
+      allowedValues: ['view', 'indicator'],
+    });
+  }
+
+  return body.indicatorCode || body.indicator_code ? 'indicator' : 'view';
+}
+
 function normalizeBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') {
     return fallback;
@@ -183,6 +230,30 @@ async function getMacroViewMap(options = {}) {
   return new Map((payload.items || []).map((view) => [view.viewKey, view]));
 }
 
+async function getMacroIndicatorMap(options = {}) {
+  const payload = await macroReadService.listMacroIndicators({ active: true, limit: 5000 });
+  const indicators = payload.items || [];
+
+  if (!options.includeStats) {
+    return new Map(indicators.map((indicator) => [indicator.indicatorCode, indicator]));
+  }
+
+  const enrichedIndicators = await Promise.all(
+    indicators.map(async (indicator) => {
+      try {
+        const indicatorPayload = await macroReadService.getMacroIndicator(indicator.indicatorCode);
+        return indicatorPayload.indicator
+          ? { ...indicatorPayload.indicator, stats: indicatorPayload.stats || null }
+          : indicator;
+      } catch (error) {
+        return indicator;
+      }
+    }),
+  );
+
+  return new Map(enrichedIndicators.map((indicator) => [indicator.indicatorCode, indicator]));
+}
+
 async function assertMacroViewExists(viewKey) {
   const viewByKey = await getMacroViewMap({ includeStats: true });
   const view = viewByKey.get(viewKey);
@@ -192,6 +263,24 @@ async function assertMacroViewExists(viewKey) {
   }
 
   return { view, viewByKey };
+}
+
+async function assertMacroIndicatorExists(indicatorCode) {
+  try {
+    const payload = await macroReadService.getMacroIndicator(indicatorCode);
+
+    if (!payload.indicator) {
+      throw createHttpError(404, 'Macro indicator not found.', { indicatorCode });
+    }
+
+    return payload;
+  } catch (error) {
+    if (error.statusCode) {
+      throw error;
+    }
+
+    throw createHttpError(404, 'Macro indicator not found.', { indicatorCode });
+  }
 }
 
 async function assertSavedViewExists(userId, viewKey) {
@@ -268,13 +357,24 @@ function sanitizeDashboard(row, items = []) {
   };
 }
 
-function sanitizeDashboardItem(row, viewByKey = new Map()) {
+function sanitizeDashboardItem(row, viewByKey = new Map(), indicatorByCode = new Map()) {
   if (!row) {
     return null;
   }
 
+  const itemSource = row.item_source || (row.indicator_code ? 'indicator' : 'view');
+  const indicator =
+    itemSource === 'indicator' ? indicatorByCode.get(row.indicator_code) || null : null;
+  const view = itemSource === 'view' ? viewByKey.get(row.view_key) || null : null;
   const savedDisplayLabel = row.saved_display_label || null;
-  const itemTitle = row.item_title || savedDisplayLabel || null;
+  const itemTitle =
+    row.item_title ||
+    savedDisplayLabel ||
+    view?.label ||
+    indicator?.description ||
+    row.indicator_code ||
+    row.view_key ||
+    null;
   const itemNote = row.item_note || row.saved_note || null;
 
   return {
@@ -285,7 +385,9 @@ function sanitizeDashboardItem(row, viewByKey = new Map()) {
     username: row.username,
     dashboardKey: row.dashboard_key,
     dashboardTitle: row.dashboard_title,
+    itemSource,
     viewKey: row.view_key,
+    indicatorCode: row.indicator_code,
     itemTitle,
     itemNote,
     itemMode: row.item_mode,
@@ -300,7 +402,8 @@ function sanitizeDashboardItem(row, viewByKey = new Map()) {
     savedPinned: row.saved_pinned,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    view: viewByKey.get(row.view_key) || null,
+    view,
+    indicator,
   };
 }
 
@@ -320,25 +423,33 @@ async function getDashboardRow(userId, dashboardKey) {
   return result.rows[0] || null;
 }
 
-async function getDashboardItems(userId, dashboardKey, viewByKey = null) {
+async function getDashboardItems(userId, dashboardKey, viewByKey = null, indicatorByCode = null) {
   const normalizedDashboardKey = normalizeDashboardKey(dashboardKey);
-  const macroViewByKey = viewByKey || (await getMacroViewMap({ includeStats: true }));
+  const [macroViewByKey, macroIndicatorByCode] = await Promise.all([
+    viewByKey ? Promise.resolve(viewByKey) : getMacroViewMap({ includeStats: true }),
+    indicatorByCode
+      ? Promise.resolve(indicatorByCode)
+      : getMacroIndicatorMap({ includeStats: true }),
+  ]);
   const result = await query(
     `
       SELECT *
       FROM skyweb.vw_user_dashboard_items
       WHERE user_id = $1
         AND dashboard_key = $2
-      ORDER BY sort_order ASC, updated_at DESC, view_key ASC
+      ORDER BY sort_order ASC, updated_at DESC, COALESCE(view_key, indicator_code) ASC
     `,
     [userId, normalizedDashboardKey],
   );
 
-  return result.rows.map((row) => sanitizeDashboardItem(row, macroViewByKey));
+  return result.rows.map((row) => sanitizeDashboardItem(row, macroViewByKey, macroIndicatorByCode));
 }
 
 async function listDashboards(userId) {
-  const viewByKey = await getMacroViewMap({ includeStats: true });
+  const [viewByKey, indicatorByCode] = await Promise.all([
+    getMacroViewMap({ includeStats: true }),
+    getMacroIndicatorMap({ includeStats: true }),
+  ]);
   const [dashboardResult, itemResult] = await Promise.all([
     query(
       `
@@ -354,7 +465,7 @@ async function listDashboards(userId) {
         SELECT *
         FROM skyweb.vw_user_dashboard_items
         WHERE user_id = $1
-        ORDER BY sort_order ASC, updated_at DESC, view_key ASC
+        ORDER BY sort_order ASC, updated_at DESC, COALESCE(view_key, indicator_code) ASC
       `,
       [userId],
     ),
@@ -364,7 +475,7 @@ async function listDashboards(userId) {
 
   for (const row of itemResult.rows) {
     const items = itemsByDashboardKey.get(row.dashboard_key) || [];
-    items.push(sanitizeDashboardItem(row, viewByKey));
+    items.push(sanitizeDashboardItem(row, viewByKey, indicatorByCode));
     itemsByDashboardKey.set(row.dashboard_key, items);
   }
 
@@ -375,16 +486,17 @@ async function listDashboards(userId) {
 
 async function getDashboard(userId, dashboardKey) {
   const normalizedDashboardKey = normalizeDashboardKey(dashboardKey);
-  const [dashboardRow, viewByKey] = await Promise.all([
+  const [dashboardRow, viewByKey, indicatorByCode] = await Promise.all([
     getDashboardRow(userId, normalizedDashboardKey),
     getMacroViewMap({ includeStats: true }),
+    getMacroIndicatorMap({ includeStats: true }),
   ]);
 
   if (!dashboardRow) {
     return null;
   }
 
-  const items = await getDashboardItems(userId, normalizedDashboardKey, viewByKey);
+  const items = await getDashboardItems(userId, normalizedDashboardKey, viewByKey, indicatorByCode);
   return sanitizeDashboard(dashboardRow, items);
 }
 
@@ -442,8 +554,17 @@ function normalizeDashboardPatchBody(body = {}) {
 }
 
 function normalizeDashboardItemBody(body = {}) {
+  const itemSource = normalizeItemSource(body.itemSource, body);
+  const viewKey = itemSource === 'view' ? normalizeViewKey(body.viewKey || body.view_key) : null;
+  const indicatorCode =
+    itemSource === 'indicator'
+      ? normalizeIndicatorCode(body.indicatorCode || body.indicator_code)
+      : null;
+
   return {
-    viewKey: normalizeViewKey(body.viewKey || body.view_key),
+    itemSource,
+    viewKey,
+    indicatorCode,
     itemTitle: normalizeOptionalString(body.itemTitle || body.item_title, {
       fieldName: 'itemTitle',
       maxLength: MAX_TITLE_LENGTH,
@@ -671,8 +792,13 @@ async function removeDashboard(userId, dashboardKey) {
 async function addDashboardItem(userId, dashboardKey, body = {}) {
   const normalizedDashboardKey = normalizeDashboardKey(dashboardKey);
   const item = normalizeDashboardItemBody(body);
-  await assertMacroViewExists(item.viewKey);
-  await assertSavedViewExists(userId, item.viewKey);
+
+  if (item.itemSource === 'indicator') {
+    await assertMacroIndicatorExists(item.indicatorCode);
+  } else {
+    await assertMacroViewExists(item.viewKey);
+    await assertSavedViewExists(userId, item.viewKey);
+  }
 
   const dashboardResult = await query(
     `
@@ -690,48 +816,88 @@ async function addDashboardItem(userId, dashboardKey, body = {}) {
   }
 
   const dashboardId = dashboardResult.rows[0].dashboard_id;
-
-  const result = await query(
+  const existingResult = await query(
     `
-      INSERT INTO skyweb.user_dashboard_items (
-        dashboard_id,
-        view_key,
-        item_title,
-        item_note,
-        item_mode,
-        sort_order,
-        position_row,
-        position_col,
-        width_units,
-        height_units
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      ON CONFLICT (dashboard_id, view_key)
-      DO UPDATE SET
-        item_title = EXCLUDED.item_title,
-        item_note = EXCLUDED.item_note,
-        item_mode = EXCLUDED.item_mode,
-        sort_order = EXCLUDED.sort_order,
-        position_row = EXCLUDED.position_row,
-        position_col = EXCLUDED.position_col,
-        width_units = EXCLUDED.width_units,
-        height_units = EXCLUDED.height_units,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING item_id
+      SELECT item_id
+      FROM skyweb.user_dashboard_items
+      WHERE dashboard_id = $1
+        AND item_source = $2
+        AND (
+          ($2 = 'view' AND view_key = $3)
+          OR ($2 = 'indicator' AND indicator_code = $4)
+        )
+      LIMIT 1
     `,
-    [
-      dashboardId,
-      item.viewKey,
-      item.itemTitle,
-      item.itemNote,
-      item.itemMode,
-      item.sortOrder,
-      item.positionRow,
-      item.positionCol,
-      item.widthUnits,
-      item.heightUnits,
-    ],
+    [dashboardId, item.itemSource, item.viewKey, item.indicatorCode],
   );
+
+  const existingItemId = existingResult.rows[0]?.item_id || null;
+  let result;
+
+  if (existingItemId) {
+    result = await query(
+      `
+        UPDATE skyweb.user_dashboard_items
+        SET item_title = $2,
+            item_note = $3,
+            item_mode = $4,
+            sort_order = $5,
+            position_row = $6,
+            position_col = $7,
+            width_units = $8,
+            height_units = $9,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE item_id = $1
+        RETURNING item_id
+      `,
+      [
+        existingItemId,
+        item.itemTitle,
+        item.itemNote,
+        item.itemMode,
+        item.sortOrder,
+        item.positionRow,
+        item.positionCol,
+        item.widthUnits,
+        item.heightUnits,
+      ],
+    );
+  } else {
+    result = await query(
+      `
+        INSERT INTO skyweb.user_dashboard_items (
+          dashboard_id,
+          item_source,
+          view_key,
+          indicator_code,
+          item_title,
+          item_note,
+          item_mode,
+          sort_order,
+          position_row,
+          position_col,
+          width_units,
+          height_units
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING item_id
+      `,
+      [
+        dashboardId,
+        item.itemSource,
+        item.viewKey,
+        item.indicatorCode,
+        item.itemTitle,
+        item.itemNote,
+        item.itemMode,
+        item.sortOrder,
+        item.positionRow,
+        item.positionCol,
+        item.widthUnits,
+        item.heightUnits,
+      ],
+    );
+  }
 
   const dashboard = await getDashboard(userId, normalizedDashboardKey);
   const itemId = result.rows[0]?.item_id;
