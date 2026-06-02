@@ -8,6 +8,13 @@
 
 BEGIN;
 
+-- Existing deployments already have skyweb.vw_user_dashboard_items with
+-- view_key as the first item-specific column. PostgreSQL does not allow
+-- CREATE OR REPLACE VIEW to rename/reorder existing view columns, so drop
+-- the compatibility view before recreating it with the expanded indicator-aware
+-- projection below.
+DROP VIEW IF EXISTS skyweb.vw_user_dashboard_items;
+
 ALTER TABLE skyweb.user_dashboard_items
   ADD COLUMN IF NOT EXISTS item_source TEXT NOT NULL DEFAULT 'view';
 
