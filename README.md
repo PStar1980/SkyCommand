@@ -15,6 +15,7 @@ Phase 7 is complete. SkyServer includes a full API and Admin-Web monitoring/cont
 Completed Phase 7 capabilities include:
 
 - **Macro API endpoints** for curated macro views, latest rows, column metadata, indicator registry access, raw indicator series, and macro summary reporting.
+- **SkyWeb dashboard item support** now allows user dashboard items to reference direct macro indicators as well as saved macro view surfaces.
 - **Ingestion status API endpoints** for source health, recent ingestion executions, indicator freshness, stale-data detection, missing-table detection, and per-indicator diagnostics.
 - **Admin action API endpoints** for user account management, role management, permission/privilege management, role assignment, permission assignment, session revocation, password reset, and read-only system settings.
 - **SkyServer Admin Access Control pages** for Users, Roles, and Privileges.
