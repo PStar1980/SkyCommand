@@ -1,6 +1,7 @@
 const skywebDashboardsService = require('../services/skywebDashboardsService');
 const skywebPreferencesService = require('../services/skywebPreferencesService');
 const skywebProfileService = require('../services/skywebProfileService');
+const skywebAlertsService = require('../services/skywebAlertsService');
 const skywebSavedViewsService = require('../services/skywebSavedViewsService');
 
 function assertSkyWebSession(req, res) {
@@ -188,6 +189,170 @@ async function removeSavedView(req, res, next) {
     res.json({
       ok: true,
       ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function listAlertRules(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const items = await skywebAlertsService.listAlertRules(req.user.userId, req.query || {});
+
+    res.json({
+      ok: true,
+      total: items.length,
+      items,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function createAlertRule(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebAlertsService.createAlertRule(req.user.userId, req.body || {});
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function getAlertRule(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebAlertsService.getAlertRule(req.user.userId, req.params.alertKey);
+
+    if (!item) {
+      res.status(404).json({
+        ok: false,
+        error: 'Alert rule not found.',
+      });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function updateAlertRule(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebAlertsService.updateAlertRule(
+      req.user.userId,
+      req.params.alertKey,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function removeAlertRule(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebAlertsService.removeAlertRule(req.user.userId, req.params.alertKey);
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function evaluateAlertRule(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebAlertsService.evaluateAlertRule(
+      req.user.userId,
+      req.params.alertKey,
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function evaluateAlertRules(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const results = await skywebAlertsService.evaluateAlertRules(req.user.userId, req.body || {});
+
+    res.json({
+      ok: true,
+      total: results.length,
+      items: results,
     });
   } catch (error) {
     if (sendServiceError(res, error)) {
@@ -399,6 +564,13 @@ async function removeDashboardItem(req, res, next) {
 }
 
 module.exports = {
+  createAlertRule,
+  evaluateAlertRule,
+  evaluateAlertRules,
+  getAlertRule,
+  listAlertRules,
+  removeAlertRule,
+  updateAlertRule,
   addDashboardItem,
   createDashboard,
   getDashboard,
