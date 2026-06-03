@@ -42,6 +42,34 @@ router.delete(
   skywebController.removeSavedView,
 );
 
+router.get('/alerts', requirePermission('SKYWEB_ALERT_READ'), skywebController.listAlertRules);
+router.post('/alerts', requirePermission('SKYWEB_ALERT_WRITE'), skywebController.createAlertRule);
+router.post(
+  '/alerts/evaluate',
+  requirePermission('SKYWEB_ALERT_WRITE'),
+  skywebController.evaluateAlertRules,
+);
+router.get(
+  '/alerts/:alertKey',
+  requirePermission('SKYWEB_ALERT_READ'),
+  skywebController.getAlertRule,
+);
+router.patch(
+  '/alerts/:alertKey',
+  requirePermission('SKYWEB_ALERT_WRITE'),
+  skywebController.updateAlertRule,
+);
+router.delete(
+  '/alerts/:alertKey',
+  requirePermission('SKYWEB_ALERT_WRITE'),
+  skywebController.removeAlertRule,
+);
+router.post(
+  '/alerts/:alertKey/evaluate',
+  requirePermission('SKYWEB_ALERT_WRITE'),
+  skywebController.evaluateAlertRule,
+);
+
 router.get(
   '/dashboards',
   requireAnyPermission(['SKYWEB_DASHBOARD_READ', 'SKYWEB_PROFILE_READ']),
