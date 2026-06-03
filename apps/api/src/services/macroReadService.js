@@ -193,6 +193,19 @@ function toPositiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   return Math.min(numberValue, max);
 }
 
+function isAllRowsRequest(filters = {}) {
+  const allValue = String(filters.all || '')
+    .trim()
+    .toLowerCase();
+  const limitValue = String(filters.limit || '')
+    .trim()
+    .toLowerCase();
+
+  return (
+    ['1', 'true', 'yes', 'all', 'max'].includes(allValue) || ['all', 'max'].includes(limitValue)
+  );
+}
+
 function normalizeOptionalString(value) {
   if (value === undefined || value === null) {
     return null;
@@ -219,10 +232,19 @@ function normalizeBooleanFilter(value) {
 }
 
 function getPagination(filters = {}, options = {}) {
+  if (options.allowAll === true && isAllRowsRequest(filters)) {
+    return {
+      all: true,
+      limit: null,
+      offset: 0,
+    };
+  }
+
   const defaultLimit = options.defaultLimit || DEFAULT_LIMIT;
   const maxLimit = options.maxLimit || MAX_LIMIT;
 
   return {
+    all: false,
     limit: toPositiveInteger(filters.limit, defaultLimit, maxLimit),
     offset: toPositiveInteger(filters.offset, 0),
   };
@@ -469,7 +491,7 @@ async function getMacroViewColumns(viewKey) {
 
 async function listMacroViewRows(viewKey, filters = {}) {
   const view = getMacroViewDefinition(viewKey);
-  const { limit, offset } = getPagination(filters);
+  const { limit, offset } = getPagination(filters, { allowAll: true });
   const clauses = [];
   const values = [];
 
@@ -492,22 +514,25 @@ async function listMacroViewRows(viewKey, filters = {}) {
   );
   const total = Number(countResult.rows[0]?.total || 0);
 
+  const paginationSql =
+    limit === null ? '' : `LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+  const paginationValues = limit === null ? values : [...values, limit, offset];
+
   const dataResult = await query(
     `
       SELECT *
       FROM ${relationSql}
       ${whereClause}
       ORDER BY date ${sortDirection}
-      LIMIT $${values.length + 1}
-      OFFSET $${values.length + 2}
+      ${paginationSql}
     `,
-    [...values, limit, offset],
+    paginationValues,
   );
 
   return {
     view: sanitizeMacroView(view),
     total,
-    limit,
+    limit: limit === null ? total : limit,
     offset,
     items: dataResult.rows.map(camelizeRow),
   };
@@ -658,6 +683,7 @@ async function listMacroIndicatorSeries(indicatorCode, filters = {}) {
   const indicatorPayload = await getMacroIndicator(normalizedIndicatorCode);
   const relationSql = await ensureIndicatorTableExists(normalizedIndicatorCode);
   const { limit, offset } = getPagination(filters, {
+    allowAll: true,
     defaultLimit: DEFAULT_SERIES_LIMIT,
     maxLimit: MAX_SERIES_LIMIT,
   });
@@ -682,23 +708,26 @@ async function listMacroIndicatorSeries(indicatorCode, filters = {}) {
   );
   const total = Number(countResult.rows[0]?.total || 0);
 
+  const paginationSql =
+    limit === null ? '' : `LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+  const paginationValues = limit === null ? values : [...values, limit, offset];
+
   const dataResult = await query(
     `
       SELECT edate, value
       FROM ${relationSql}
       ${whereClause}
       ORDER BY edate ${sortDirection}
-      LIMIT $${values.length + 1}
-      OFFSET $${values.length + 2}
+      ${paginationSql}
     `,
-    [...values, limit, offset],
+    paginationValues,
   );
 
   return {
     indicator: indicatorPayload.indicator,
     stats: indicatorPayload.stats,
     total,
-    limit,
+    limit: limit === null ? total : limit,
     offset,
     items: dataResult.rows.map(sanitizeIndicatorSeriesRow),
   };

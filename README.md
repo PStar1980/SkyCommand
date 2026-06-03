@@ -15,6 +15,7 @@ Phase 7 is complete. SkyServer includes a full API and Admin-Web monitoring/cont
 Completed Phase 7 capabilities include:
 
 - **Macro API endpoints** for curated macro views, latest rows, column metadata, indicator registry access, raw indicator series, and macro summary reporting.
+- **Full-history macro row payloads** for SkyWeb detail pages via `all=true`/`limit=all`, while preserving paginated defaults for normal list calls.
 - **SkyWeb dashboard item support** now allows user dashboard items to reference direct macro indicators as well as saved macro view surfaces.
 - **Ingestion status API endpoints** for source health, recent ingestion executions, indicator freshness, stale-data detection, missing-table detection, and per-indicator diagnostics.
 - **Admin action API endpoints** for user account management, role management, permission/privilege management, role assignment, permission assignment, session revocation, password reset, and read-only system settings.
@@ -1123,7 +1124,7 @@ SkyServer now exposes authenticated SkyWeb dashboard-preference endpoints for `S
 - `GET /api/skyweb/preferences`
 - `PATCH /api/skyweb/preferences`
 
-The preference API stores dashboard defaults in `skyweb.user_preferences` under the `dashboard_defaults` key and currently supports default macro region, default macro category, chart window, dashboard density, and preferred landing page. Dashboard density accepts `comfortable`, `compact`, and `roomy` so SkyWeb can apply app-level spacing preferences. Dedicated `SKYWEB_PREFERENCES_READ` and `SKYWEB_PREFERENCES_WRITE` permissions are seeded for future builds, while the route also accepts the existing profile permissions for backward-compatible local testing.
+The preference API stores dashboard defaults in `skyweb.user_preferences` under the `dashboard_defaults` key and currently supports default macro region, default macro category, chart period, dashboard density, and preferred landing page. Dashboard density accepts `comfortable`, `compact`, and `roomy` so SkyWeb can apply app-level spacing preferences. Dedicated `SKYWEB_PREFERENCES_READ` and `SKYWEB_PREFERENCES_WRITE` permissions are seeded for future builds, while the route also accepts the existing profile permissions for backward-compatible local testing.
 
 ## Phase 9.5 — SkyWeb Preference Compatibility
 
