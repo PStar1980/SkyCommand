@@ -5,7 +5,7 @@ const DASHBOARD_DEFAULTS_KEY = 'dashboard_defaults';
 const DEFAULT_PREFERENCES = Object.freeze({
   defaultMacroRegion: 'ALL',
   defaultMacroCategory: 'ALL',
-  defaultChartWindow: '120',
+  defaultChartWindow: '3Y',
   dashboardDensity: 'comfortable',
   preferredLandingPage: '/macro',
 });
@@ -26,7 +26,7 @@ const ALLOWED_VALUES = Object.freeze({
     'comparison',
     'rates_fx',
   ]),
-  defaultChartWindow: new Set(['30', '60', '120', 'ALL']),
+  defaultChartWindow: new Set(['1Y', '3Y', '5Y', '7Y', '10Y', 'MAX']),
   dashboardDensity: new Set(['comfortable', 'compact', 'roomy']),
   preferredLandingPage: new Set([
     '/',
@@ -76,12 +76,32 @@ function getBodyPreferences(body = {}) {
   return body;
 }
 
+function normalizeLegacyChartPeriod(value) {
+  const candidateValue = String(value || '').trim();
+
+  if (candidateValue === '30' || candidateValue === '60') {
+    return '1Y';
+  }
+
+  if (candidateValue === '120') {
+    return '3Y';
+  }
+
+  if (candidateValue === 'ALL') {
+    return 'MAX';
+  }
+
+  return candidateValue;
+}
+
 function normalizePreferenceValue(fieldName, value) {
   if (value === undefined) {
     return undefined;
   }
 
-  const normalized = String(value || '').trim() || DEFAULT_PREFERENCES[fieldName];
+  const rawValue = String(value || '').trim() || DEFAULT_PREFERENCES[fieldName];
+  const normalized =
+    fieldName === 'defaultChartWindow' ? normalizeLegacyChartPeriod(rawValue) : rawValue;
   const allowedValues = ALLOWED_VALUES[fieldName];
 
   if (!allowedValues.has(normalized)) {
@@ -114,7 +134,9 @@ function normalizeStoredPreferences(value = {}) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 
   return Object.keys(DEFAULT_PREFERENCES).reduce((preferences, fieldName) => {
-    const candidateValue = String(source[fieldName] || '').trim();
+    const rawValue = String(source[fieldName] || '').trim();
+    const candidateValue =
+      fieldName === 'defaultChartWindow' ? normalizeLegacyChartPeriod(rawValue) : rawValue;
 
     preferences[fieldName] = ALLOWED_VALUES[fieldName].has(candidateValue)
       ? candidateValue
