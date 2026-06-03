@@ -17,6 +17,7 @@ Completed Phase 7 capabilities include:
 - **Macro API endpoints** for curated macro views, latest rows, column metadata, indicator registry access, raw indicator series, and macro summary reporting.
 - **Full-history macro row payloads** for SkyWeb detail pages via `all=true`/`limit=all`, while preserving paginated defaults for normal list calls.
 - **SkyWeb dashboard item support** now allows user dashboard items to reference direct macro indicators as well as saved macro view surfaces.
+- **SkyWeb alert-rule foundation** adds user-owned macro alert rules, alert events, and protected alert CRUD/evaluation APIs.
 - **Ingestion status API endpoints** for source health, recent ingestion executions, indicator freshness, stale-data detection, missing-table detection, and per-indicator diagnostics.
 - **Admin action API endpoints** for user account management, role management, permission/privilege management, role assignment, permission assignment, session revocation, password reset, and read-only system settings.
 - **SkyServer Admin Access Control pages** for Users, Roles, and Privileges.
@@ -46,6 +47,24 @@ Completed Phase 8 capabilities include:
 Listener runtime processors are intentionally staged for a later focused implementation. The database structure, API surface, and Admin-Web listener surface are now in place.
 
 ---
+
+## 🔔 SkyWeb Alert Rule Foundation
+
+SkyServer now includes the Phase 8.1 backend foundation for SkyWeb Analytics macro alerts. The `skyweb` schema stores durable alert rules and evaluation events, allowing SkyWeb users to watch direct indicators or numeric metrics from analytical views.
+
+Initial alert endpoints include:
+
+```text
+GET    /api/skyweb/alerts
+POST   /api/skyweb/alerts
+GET    /api/skyweb/alerts/:alertKey
+PATCH  /api/skyweb/alerts/:alertKey
+DELETE /api/skyweb/alerts/:alertKey
+POST   /api/skyweb/alerts/:alertKey/evaluate
+POST   /api/skyweb/alerts/evaluate
+```
+
+Supported condition types are `above`, `below`, `crosses_above`, `crosses_below`, `changes_by`, and `percent_changes_by`. Scheduled evaluation and external notification delivery remain staged for later Phase 8 work.
 
 ## 🚀 Core Capabilities
 

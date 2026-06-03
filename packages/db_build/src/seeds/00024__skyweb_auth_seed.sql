@@ -152,7 +152,8 @@ WITH user_permissions(permission_code) AS (
     ('SKYWEB_PREFERENCES_WRITE'),
     ('SKYWEB_DASHBOARD_READ'),
     ('SKYWEB_DASHBOARD_WRITE'),
-    ('SKYWEB_ALERT_READ')
+    ('SKYWEB_ALERT_READ'),
+    ('SKYWEB_ALERT_WRITE')
 )
 INSERT INTO auth.role_permissions (role_id, permission_id, active)
 SELECT
