@@ -1203,3 +1203,10 @@ The dashboard item API validation and `skyweb.user_dashboard_items` check constr
 
 - Added protected alert-rule event route: `GET /api/skyweb/alerts/:alertKey/events`.
 - SkyWeb can now load the per-rule evaluation trail separately from the alert-rule summary.
+
+### Phase 10.3 — Scheduled Alert Evaluation
+
+- Added the `skyweb_alerts_evaluate` worker tool for scheduled SkyWeb Analytics macro alert checks.
+- Added `packages/skyweb/src/evaluateSkyWebAlerts.js`, which evaluates active alert rules across users and writes `skyweb.alert_rule_events` history.
+- Added seed `00030__skyweb_alert_worker_seed.sql` to register the tool, worker visibility, parameters, and a default hourly worker schedule.
+- Alert evaluation events now carry `event_metadata.evaluationSource` so manual and worker-scheduled checks can be distinguished in SkyWeb.
