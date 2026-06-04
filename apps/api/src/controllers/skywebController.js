@@ -271,6 +271,32 @@ async function getAlertRule(req, res, next) {
   }
 }
 
+async function listAlertRuleEvents(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const items = await skywebAlertsService.listAlertEvents(
+      req.user.userId,
+      req.params.alertKey,
+      req.query || {},
+    );
+
+    res.json({
+      ok: true,
+      total: items.length,
+      items,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
 async function updateAlertRule(req, res, next) {
   try {
     if (!assertSkyWebSession(req, res)) {
@@ -568,6 +594,7 @@ module.exports = {
   evaluateAlertRule,
   evaluateAlertRules,
   getAlertRule,
+  listAlertRuleEvents,
   listAlertRules,
   removeAlertRule,
   updateAlertRule,
