@@ -1192,3 +1192,14 @@ SkyServer now accepts the expanded SkyWeb Analytics dashboard item modes used by
 - `table_preview`
 
 The dashboard item API validation and `skyweb.user_dashboard_items` check constraint are aligned through an idempotent migration so existing development databases can be upgraded without recreating dashboard data.
+
+### Phase 10.2 — Alert Evaluation History
+
+- Added alert-rule event history access so SkyWeb Analytics can inspect the audit trail behind each macro alert.
+- Added `GET /api/skyweb/alerts/:alertKey/events` for protected per-rule evaluation events.
+- Alert rules remain manually evaluable from Phase 10.1 while preparing the scheduler/notification layer.
+
+### Phase 10.2 — Alert Evaluation History
+
+- Added protected alert-rule event route: `GET /api/skyweb/alerts/:alertKey/events`.
+- SkyWeb can now load the per-rule evaluation trail separately from the alert-rule summary.

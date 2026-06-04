@@ -50,6 +50,11 @@ router.post(
   skywebController.evaluateAlertRules,
 );
 router.get(
+  '/alerts/:alertKey/events',
+  requirePermission('SKYWEB_ALERT_READ'),
+  skywebController.listAlertRuleEvents,
+);
+router.get(
   '/alerts/:alertKey',
   requirePermission('SKYWEB_ALERT_READ'),
   skywebController.getAlertRule,
