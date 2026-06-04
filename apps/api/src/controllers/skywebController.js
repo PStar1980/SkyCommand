@@ -389,6 +389,104 @@ async function evaluateAlertRules(req, res, next) {
   }
 }
 
+async function listAlertNotifications(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebAlertsService.listAlertNotifications(
+      req.user.userId,
+      req.query || {},
+    );
+
+    res.json({
+      ok: true,
+      total: result.total,
+      summary: result.summary,
+      items: result.items,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function acknowledgeAlertNotification(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebAlertsService.acknowledgeAlertNotification(
+      req.user.userId,
+      req.params.notificationId,
+    );
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function dismissAlertNotification(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const item = await skywebAlertsService.dismissAlertNotification(
+      req.user.userId,
+      req.params.notificationId,
+    );
+
+    res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function acknowledgeAllAlertNotifications(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebAlertsService.acknowledgeAllAlertNotifications(
+      req.user.userId,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
 async function listDashboards(req, res, next) {
   try {
     if (!assertSkyWebSession(req, res)) {
@@ -590,10 +688,14 @@ async function removeDashboardItem(req, res, next) {
 }
 
 module.exports = {
+  acknowledgeAllAlertNotifications,
+  acknowledgeAlertNotification,
   createAlertRule,
   evaluateAlertRule,
   evaluateAlertRules,
   getAlertRule,
+  dismissAlertNotification,
+  listAlertNotifications,
   listAlertRuleEvents,
   listAlertRules,
   removeAlertRule,

@@ -163,14 +163,15 @@ SkyServer/
 │ │ │ ├── 00026**skyweb_user_dashboards.sql
 │ │ │ ├── 00027**skyweb_dashboard_item_visualization_modes.sql
 │ │ │ ├── 00028**skyweb_dashboard_indicator_items.sql
-│ │ │ └── 00029**skyweb_alert_rules.sql
+│ │ │ ├── 00029**skyweb_alert_rules.sql
+│ │ │ └── 00031**skyweb_alert_notifications.sql
 │ │ └── seeds/
 │ │ ├── 00004**data_indicators.sql
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
 │ │ ├── 00019**core_config_seed.sql
 │ │ ├── 00024**skyweb_auth_seed.sql
-│ │ └── 00030\_\_skyweb_alert_worker_seed.sql
+│ │ └── 00030**skyweb_alert_worker_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ ├── generateRepoMap.js
