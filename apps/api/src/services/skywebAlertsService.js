@@ -829,11 +829,21 @@ async function getAlertRuleForEvaluation(userId, alertKey) {
   return result.rows[0];
 }
 
-async function writeEvaluationEvent(alertRow, evaluation) {
+async function writeEvaluationEvent(alertRow, evaluation, context = {}) {
   const latest = evaluation.latest || null;
   const previous = evaluation.previous || null;
   const eventStatus = evaluation.status || 'ok';
   const isTriggered = eventStatus === 'triggered';
+  const evaluationSource = normalizeOptionalString(context.evaluationSource) || 'manual';
+  const eventMetadata = {
+    targetLabel: evaluation.targetLabel || null,
+    evaluationSource,
+    ...(context.eventMetadata &&
+    typeof context.eventMetadata === 'object' &&
+    !Array.isArray(context.eventMetadata)
+      ? context.eventMetadata
+      : {}),
+  };
 
   const eventResult = await query(
     `
@@ -860,7 +870,7 @@ async function writeEvaluationEvent(alertRow, evaluation) {
       latest?.date ?? null,
       previous?.date ?? null,
       evaluation.message || null,
-      JSON.stringify({ targetLabel: evaluation.targetLabel || null }),
+      JSON.stringify(eventMetadata),
     ],
   );
 
@@ -889,7 +899,7 @@ async function writeEvaluationEvent(alertRow, evaluation) {
   return eventResult.rows[0]?.event_id || null;
 }
 
-async function evaluateAlertRule(userId, alertKey) {
+async function evaluateAlertRule(userId, alertKey, options = {}) {
   const alertRow = await getAlertRuleForEvaluation(userId, alertKey);
   let evaluation;
 
@@ -922,7 +932,10 @@ async function evaluateAlertRule(userId, alertKey) {
     };
   }
 
-  const eventId = await writeEvaluationEvent(alertRow, evaluation);
+  const eventId = await writeEvaluationEvent(alertRow, evaluation, {
+    evaluationSource: options.evaluationSource || options.source || 'manual',
+    eventMetadata: options.eventMetadata || {},
+  });
   const [eventResult, alert] = await Promise.all([
     query('SELECT * FROM skyweb.vw_alert_rule_events WHERE event_id = $1 LIMIT 1', [eventId]),
     getAlertRule(userId, alertRow.alert_key),
@@ -946,14 +959,114 @@ async function evaluateAlertRules(userId, filters = {}) {
     // Evaluate serially so DB writes are deterministic and easier to debug.
     // This is a foundation endpoint, not the future high-throughput scheduler.
 
-    results.push(await evaluateAlertRule(userId, alert.alertKey));
+    results.push(
+      await evaluateAlertRule(userId, alert.alertKey, {
+        evaluationSource: filters.evaluationSource || filters.source || 'manual',
+        eventMetadata: filters.eventMetadata || {},
+      }),
+    );
   }
 
   return results;
 }
 
+async function listAlertRowsForScheduledEvaluation({ activeOnly = true, limit = 500 } = {}) {
+  const values = [];
+  const clauses = [];
+
+  if (activeOnly) {
+    clauses.push('active = TRUE');
+  }
+
+  values.push(Math.max(1, Math.min(Number.parseInt(limit, 10) || 500, 5000)));
+
+  const result = await query(
+    `
+      SELECT user_id, alert_key
+      FROM skyweb.alert_rules
+      ${clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''}
+      ORDER BY last_evaluated_at ASC NULLS FIRST, updated_at ASC, alert_key ASC
+      LIMIT $${values.length}
+    `,
+    values,
+  );
+
+  return result.rows;
+}
+
+function summarizeEvaluationResults(results = []) {
+  const summary = {
+    evaluatedCount: results.length,
+    triggeredCount: 0,
+    okCount: 0,
+    errorCount: 0,
+    failedCount: 0,
+  };
+
+  for (const result of results) {
+    const status = result?.event?.eventStatus || result?.status;
+
+    if (status === 'triggered') {
+      summary.triggeredCount += 1;
+    } else if (status === 'ok') {
+      summary.okCount += 1;
+    } else if (status === 'error') {
+      summary.errorCount += 1;
+    } else if (status === 'failed') {
+      summary.failedCount += 1;
+    }
+  }
+
+  return summary;
+}
+
+async function evaluateActiveAlertRulesForAllUsers(options = {}) {
+  const batchId = options.batchId || `skyweb-alert-batch-${Date.now()}`;
+  const alertRows = await listAlertRowsForScheduledEvaluation({
+    activeOnly: options.activeOnly !== false,
+    limit: options.limit || options.maxRules || 500,
+  });
+  const results = [];
+
+  for (const row of alertRows) {
+    try {
+      // Keep scheduled evaluation serial in v1. Alerts are stateful audit events, and serial
+      // writes make troubleshooting far cleaner than a noisy parallel batch.
+
+      results.push(
+        await evaluateAlertRule(row.user_id, row.alert_key, {
+          evaluationSource: options.evaluationSource || 'worker_schedule',
+          eventMetadata: {
+            batchId,
+            scheduleCode: options.scheduleCode || null,
+            scheduleRunId: options.scheduleRunId || null,
+            workerNodeId: options.workerNodeId || null,
+            workerNodeName: options.workerNodeName || null,
+          },
+        }),
+      );
+    } catch (error) {
+      results.push({
+        status: 'failed',
+        alertKey: row.alert_key,
+        userId: row.user_id,
+        error: error.message || String(error),
+      });
+    }
+  }
+
+  return {
+    batchId,
+    activeOnly: options.activeOnly !== false,
+    limit: options.limit || options.maxRules || 500,
+    ...summarizeEvaluationResults(results),
+    results,
+  };
+}
+
 module.exports = {
   createAlertRule,
+  evaluateActiveAlertRulesForAllUsers,
   evaluateAlertRule,
   evaluateAlertRules,
   getAlertRule,

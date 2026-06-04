@@ -169,7 +169,8 @@ SkyServer/
 │ │ ├── 00010**data_indicators.sql
 │ │ ├── 00016**auth_seed_roles_permissions.sql
 │ │ ├── 00019**core_config_seed.sql
-│ │ └── 00024**skyweb_auth_seed.sql
+│ │ ├── 00024**skyweb_auth_seed.sql
+│ │ └── 00030\_\_skyweb_alert_worker_seed.sql
 │ ├── files/
 │ │ └── src/
 │ │ ├── generateRepoMap.js
@@ -207,11 +208,14 @@ SkyServer/
 │ │ │ └── statcan.js
 │ │ └── transform/
 │ │ └── csvNormalizer.js
-│ └── shared/
+│ ├── shared/
+│ │ └── src/
+│ │ ├── constants/
+│ │ ├── contracts/
+│ │ └── validators/
+│ └── skyweb/
 │ └── src/
-│ ├── constants/
-│ ├── contracts/
-│ └── validators/
+│ └── evaluateSkyWebAlerts.js
 ├── scripts/
 │ ├── db/
 │ │ ├── functions/

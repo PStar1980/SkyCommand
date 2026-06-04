@@ -556,7 +556,7 @@ async function updateExecutionFinished({
   );
 }
 
-async function executeChildProcess({ tool, scriptFile, args }) {
+async function executeChildProcess({ tool, scriptFile, args, schedule, scheduleRun, workerNode }) {
   const runtime = getRuntimeCommand(tool);
   const commandArgs = [...runtime.prefixArgs, scriptFile, ...args];
 
@@ -571,7 +571,13 @@ async function executeChildProcess({ tool, scriptFile, args }) {
     const child = spawn(runtime.command, commandArgs, {
       cwd: path.dirname(scriptFile),
       shell: false,
-      env: process.env,
+      env: {
+        ...process.env,
+        SKYWEB_ALERT_SCHEDULE_CODE: schedule?.scheduleCode || '',
+        SKYWEB_ALERT_SCHEDULE_RUN_ID: scheduleRun?.scheduleRunId || '',
+        SKYWEB_ALERT_WORKER_NODE_ID: workerNode?.workerNodeId || '',
+        SKYWEB_ALERT_WORKER_NODE_NAME: workerNode?.nodeName || '',
+      },
       windowsHide: true,
     });
 
@@ -665,6 +671,9 @@ async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun,
       tool,
       scriptFile,
       args,
+      schedule,
+      scheduleRun,
+      workerNode,
     });
 
     const outputFiles = writeExecutionOutputFiles({
