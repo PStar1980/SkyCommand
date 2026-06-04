@@ -4,6 +4,7 @@ const macroReadService = require('./macroReadService');
 const MAX_TITLE_LENGTH = 160;
 const MAX_DESCRIPTION_LENGTH = 800;
 const MAX_EVENT_LIMIT = 100;
+const MAX_NOTIFICATION_LIMIT = 100;
 
 const ALLOWED_TARGET_TYPES = new Set(['indicator', 'view_metric']);
 const ALLOWED_CONDITIONS = new Set([
@@ -15,6 +16,7 @@ const ALLOWED_CONDITIONS = new Set([
   'percent_changes_by',
 ]);
 const ALLOWED_SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
+const ALLOWED_NOTIFICATION_STATUSES = new Set(['open', 'acknowledged', 'dismissed', 'all']);
 const NUMERIC_DATA_TYPES = new Set([
   'bigint',
   'decimal',
@@ -135,6 +137,39 @@ function normalizeSeverity(value, fallback = 'medium') {
       fieldName: 'severity',
       value,
       allowedValues: Array.from(ALLOWED_SEVERITIES),
+    });
+  }
+
+  return normalizedValue;
+}
+
+function normalizeNotificationStatus(value, fallback = 'open') {
+  const normalizedValue = String(value || fallback)
+    .trim()
+    .toLowerCase();
+
+  if (!ALLOWED_NOTIFICATION_STATUSES.has(normalizedValue)) {
+    throw createHttpError(400, 'Invalid alert notification status.', {
+      fieldName: 'status',
+      value,
+      allowedValues: Array.from(ALLOWED_NOTIFICATION_STATUSES),
+    });
+  }
+
+  return normalizedValue;
+}
+
+function normalizeUuid(value, fieldName = 'id') {
+  const normalizedValue = normalizeRequiredString(value, { fieldName });
+
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalizedValue,
+    )
+  ) {
+    throw createHttpError(400, `${fieldName} must be a valid UUID.`, {
+      fieldName,
+      value,
     });
   }
 
@@ -411,6 +446,38 @@ function sanitizeAlertEvent(row) {
     message: row.message,
     eventMetadata: row.event_metadata || {},
     evaluatedAt: row.evaluated_at,
+  };
+}
+
+function sanitizeAlertNotification(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    notificationId: row.notification_id,
+    userId: row.user_id,
+    alertId: row.alert_id,
+    alertKey: row.alert_key,
+    eventId: row.event_id,
+    notificationStatus: row.notification_status,
+    title: row.title,
+    message: row.message,
+    severity: row.severity,
+    targetType: row.target_type,
+    indicatorCode: row.indicator_code,
+    viewKey: row.view_key,
+    metricKey: row.metric_key,
+    observedValue: row.observed_value === null ? null : Number(row.observed_value),
+    previousValue: row.previous_value === null ? null : Number(row.previous_value),
+    thresholdValue: row.threshold_value === null ? null : Number(row.threshold_value),
+    observedAt: row.observed_at,
+    evaluatedAt: row.evaluated_at,
+    eventMetadata: row.event_metadata || {},
+    acknowledgedAt: row.acknowledged_at,
+    dismissedAt: row.dismissed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -859,7 +926,7 @@ async function writeEvaluationEvent(alertRow, evaluation, context = {}) {
         event_metadata
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-      RETURNING event_id
+      RETURNING event_id, evaluated_at
     `,
     [
       alertRow.alert_id,
@@ -873,6 +940,52 @@ async function writeEvaluationEvent(alertRow, evaluation, context = {}) {
       JSON.stringify(eventMetadata),
     ],
   );
+  const eventId = eventResult.rows[0]?.event_id || null;
+  const evaluatedAt = eventResult.rows[0]?.evaluated_at || null;
+
+  if (isTriggered && eventId) {
+    await query(
+      `
+        INSERT INTO skyweb.alert_notifications (
+          user_id,
+          alert_id,
+          event_id,
+          notification_status,
+          title,
+          message,
+          severity,
+          target_type,
+          indicator_code,
+          view_key,
+          metric_key,
+          observed_value,
+          previous_value,
+          threshold_value,
+          observed_at,
+          evaluated_at
+        )
+        VALUES ($1, $2, $3, 'open', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, CURRENT_TIMESTAMP))
+        ON CONFLICT (event_id) DO NOTHING
+      `,
+      [
+        alertRow.user_id,
+        alertRow.alert_id,
+        eventId,
+        alertRow.title,
+        evaluation.message || null,
+        alertRow.severity,
+        alertRow.target_type,
+        alertRow.indicator_code,
+        alertRow.view_key,
+        alertRow.metric_key,
+        latest?.value ?? null,
+        previous?.value ?? null,
+        alertRow.threshold_value,
+        latest?.date ?? null,
+        evaluatedAt,
+      ],
+    );
+  }
 
   await query(
     `
@@ -896,7 +1009,7 @@ async function writeEvaluationEvent(alertRow, evaluation, context = {}) {
     ],
   );
 
-  return eventResult.rows[0]?.event_id || null;
+  return eventId;
 }
 
 async function evaluateAlertRule(userId, alertKey, options = {}) {
@@ -1064,13 +1177,176 @@ async function evaluateActiveAlertRulesForAllUsers(options = {}) {
   };
 }
 
+function summarizeNotifications(rows = []) {
+  return rows.reduce(
+    (summary, notification) => {
+      summary.total += 1;
+      summary.byStatus[notification.notificationStatus] =
+        (summary.byStatus[notification.notificationStatus] || 0) + 1;
+      summary.bySeverity[notification.severity] =
+        (summary.bySeverity[notification.severity] || 0) + 1;
+      return summary;
+    },
+    {
+      total: 0,
+      byStatus: {},
+      bySeverity: {},
+    },
+  );
+}
+
+async function listAlertNotifications(userId, filters = {}) {
+  const clauses = ['user_id = $1'];
+  const values = [userId];
+  const status = normalizeNotificationStatus(filters.status, 'open');
+  const limit = Math.min(Number.parseInt(filters.limit, 10) || 25, MAX_NOTIFICATION_LIMIT);
+
+  if (status !== 'all') {
+    values.push(status);
+    clauses.push(`notification_status = $${values.length}`);
+  }
+
+  if (filters.alertKey || filters.alert_key) {
+    values.push(normalizeAlertKey(filters.alertKey || filters.alert_key));
+    clauses.push(`alert_key = $${values.length}`);
+  }
+
+  if (filters.severity) {
+    values.push(normalizeSeverity(filters.severity));
+    clauses.push(`severity = $${values.length}`);
+  }
+
+  const countResult = await query(
+    `
+      SELECT COUNT(*)::int AS total_count
+      FROM skyweb.vw_alert_notifications
+      WHERE ${clauses.join(' AND ')}
+    `,
+    values,
+  );
+
+  values.push(limit);
+
+  const result = await query(
+    `
+      SELECT *
+      FROM skyweb.vw_alert_notifications
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY
+        CASE notification_status
+          WHEN 'open' THEN 0
+          WHEN 'acknowledged' THEN 1
+          WHEN 'dismissed' THEN 2
+          ELSE 3
+        END,
+        evaluated_at DESC,
+        created_at DESC
+      LIMIT $${values.length}
+    `,
+    values,
+  );
+
+  const items = result.rows.map(sanitizeAlertNotification);
+
+  return {
+    total: Number(countResult.rows[0]?.total_count || 0),
+    items,
+    summary: summarizeNotifications(items),
+  };
+}
+
+async function updateAlertNotificationStatus(userId, notificationId, status) {
+  const normalizedNotificationId = normalizeUuid(notificationId, 'notificationId');
+  const normalizedStatus = normalizeNotificationStatus(status, 'acknowledged');
+
+  if (normalizedStatus === 'all') {
+    throw createHttpError(400, 'Notification status cannot be all for update.', {
+      fieldName: 'status',
+      status,
+    });
+  }
+
+  const result = await query(
+    `
+      UPDATE skyweb.alert_notifications
+      SET notification_status = $3,
+          acknowledged_at = CASE WHEN $3 = 'acknowledged' THEN CURRENT_TIMESTAMP ELSE acknowledged_at END,
+          dismissed_at = CASE WHEN $3 = 'dismissed' THEN CURRENT_TIMESTAMP ELSE dismissed_at END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $1
+        AND notification_id = $2
+      RETURNING notification_id
+    `,
+    [userId, normalizedNotificationId, normalizedStatus],
+  );
+
+  if (result.rowCount === 0) {
+    throw createHttpError(404, 'Alert notification not found.', {
+      notificationId: normalizedNotificationId,
+    });
+  }
+
+  const notification = await query(
+    `
+      SELECT *
+      FROM skyweb.vw_alert_notifications
+      WHERE user_id = $1
+        AND notification_id = $2
+      LIMIT 1
+    `,
+    [userId, normalizedNotificationId],
+  );
+
+  return sanitizeAlertNotification(notification.rows[0]);
+}
+
+async function acknowledgeAlertNotification(userId, notificationId) {
+  return updateAlertNotificationStatus(userId, notificationId, 'acknowledged');
+}
+
+async function dismissAlertNotification(userId, notificationId) {
+  return updateAlertNotificationStatus(userId, notificationId, 'dismissed');
+}
+
+async function acknowledgeAllAlertNotifications(userId, filters = {}) {
+  const values = [userId];
+  const clauses = ['user_id = $1', "notification_status = 'open'"];
+
+  if (filters.alertKey || filters.alert_key) {
+    values.push(normalizeAlertKey(filters.alertKey || filters.alert_key));
+    clauses.push(
+      `alert_id IN (SELECT alert_id FROM skyweb.alert_rules WHERE user_id = $1 AND alert_key = $${values.length})`,
+    );
+  }
+
+  const result = await query(
+    `
+      UPDATE skyweb.alert_notifications
+      SET notification_status = 'acknowledged',
+          acknowledged_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE ${clauses.join(' AND ')}
+      RETURNING notification_id
+    `,
+    values,
+  );
+
+  return {
+    acknowledgedCount: result.rowCount,
+  };
+}
+
 module.exports = {
+  acknowledgeAllAlertNotifications,
+  acknowledgeAlertNotification,
   createAlertRule,
   evaluateActiveAlertRulesForAllUsers,
   evaluateAlertRule,
   evaluateAlertRules,
   getAlertRule,
+  dismissAlertNotification,
   listAlertEvents,
+  listAlertNotifications,
   listAlertRules,
   removeAlertRule,
   updateAlertRule,
