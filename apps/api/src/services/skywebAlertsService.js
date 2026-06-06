@@ -1308,7 +1308,7 @@ async function dismissAlertNotification(userId, notificationId) {
   return updateAlertNotificationStatus(userId, notificationId, 'dismissed');
 }
 
-async function acknowledgeAllAlertNotifications(userId, filters = {}) {
+function buildOpenNotificationBulkFilter(userId, filters = {}) {
   const values = [userId];
   const clauses = ['user_id = $1', "notification_status = 'open'"];
 
@@ -1318,6 +1318,17 @@ async function acknowledgeAllAlertNotifications(userId, filters = {}) {
       `alert_id IN (SELECT alert_id FROM skyweb.alert_rules WHERE user_id = $1 AND alert_key = $${values.length})`,
     );
   }
+
+  if (filters.severity) {
+    values.push(normalizeSeverity(filters.severity));
+    clauses.push(`severity = $${values.length}`);
+  }
+
+  return { clauses, values };
+}
+
+async function acknowledgeAllAlertNotifications(userId, filters = {}) {
+  const { clauses, values } = buildOpenNotificationBulkFilter(userId, filters);
 
   const result = await query(
     `
@@ -1336,6 +1347,26 @@ async function acknowledgeAllAlertNotifications(userId, filters = {}) {
   };
 }
 
+async function dismissAllAlertNotifications(userId, filters = {}) {
+  const { clauses, values } = buildOpenNotificationBulkFilter(userId, filters);
+
+  const result = await query(
+    `
+      UPDATE skyweb.alert_notifications
+      SET notification_status = 'dismissed',
+          dismissed_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE ${clauses.join(' AND ')}
+      RETURNING notification_id
+    `,
+    values,
+  );
+
+  return {
+    dismissedCount: result.rowCount,
+  };
+}
+
 module.exports = {
   acknowledgeAllAlertNotifications,
   acknowledgeAlertNotification,
@@ -1345,6 +1376,7 @@ module.exports = {
   evaluateAlertRules,
   getAlertRule,
   dismissAlertNotification,
+  dismissAllAlertNotifications,
   listAlertEvents,
   listAlertNotifications,
   listAlertRules,

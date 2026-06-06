@@ -63,6 +63,11 @@ router.post(
   requirePermission('SKYWEB_ALERT_WRITE'),
   skywebController.acknowledgeAllAlertNotifications,
 );
+router.post(
+  '/alert-notifications/dismiss-all',
+  requirePermission('SKYWEB_ALERT_WRITE'),
+  skywebController.dismissAllAlertNotifications,
+);
 router.patch(
   '/alert-notifications/:notificationId/acknowledge',
   requirePermission('SKYWEB_ALERT_WRITE'),
