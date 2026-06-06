@@ -22,6 +22,17 @@ router.patch(
 );
 
 router.get(
+  '/alert-preferences',
+  requirePermission('SKYWEB_ALERT_READ'),
+  skywebController.getAlertPreferences,
+);
+router.patch(
+  '/alert-preferences',
+  requirePermission('SKYWEB_ALERT_WRITE'),
+  skywebController.updateAlertPreferences,
+);
+
+router.get(
   '/saved-views',
   requireAnyPermission(['SKYWEB_DASHBOARD_READ', 'SKYWEB_PROFILE_READ']),
   skywebController.listSavedViews,
