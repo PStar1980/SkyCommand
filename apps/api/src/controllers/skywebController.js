@@ -537,6 +537,30 @@ async function acknowledgeAllAlertNotifications(req, res, next) {
   }
 }
 
+async function dismissAllAlertNotifications(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const result = await skywebAlertsService.dismissAllAlertNotifications(
+      req.user.userId,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
 async function listDashboards(req, res, next) {
   try {
     if (!assertSkyWebSession(req, res)) {
@@ -740,6 +764,7 @@ async function removeDashboardItem(req, res, next) {
 module.exports = {
   acknowledgeAllAlertNotifications,
   acknowledgeAlertNotification,
+  dismissAllAlertNotifications,
   createAlertRule,
   evaluateAlertRule,
   evaluateAlertRules,
