@@ -1,6 +1,7 @@
 const skywebDashboardsService = require('../services/skywebDashboardsService');
 const skywebPreferencesService = require('../services/skywebPreferencesService');
 const skywebProfileService = require('../services/skywebProfileService');
+const skywebAlertPreferencesService = require('../services/skywebAlertPreferencesService');
 const skywebAlertsService = require('../services/skywebAlertsService');
 const skywebSavedViewsService = require('../services/skywebSavedViewsService');
 
@@ -97,6 +98,55 @@ async function updatePreferences(req, res, next) {
       ok: true,
       preferenceRow,
       preferences: preferenceRow?.preferences || skywebPreferencesService.DEFAULT_PREFERENCES,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function getAlertPreferences(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const preferenceRow = await skywebAlertPreferencesService.getAlertPreferences(req.user.userId);
+
+    res.json({
+      ok: true,
+      preferenceRow,
+      preferences:
+        preferenceRow?.preferences || skywebAlertPreferencesService.DEFAULT_ALERT_PREFERENCES,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function updateAlertPreferences(req, res, next) {
+  try {
+    if (!assertSkyWebSession(req, res)) {
+      return;
+    }
+
+    const preferenceRow = await skywebAlertPreferencesService.updateAlertPreferences(
+      req.user.userId,
+      req.body || {},
+    );
+
+    res.json({
+      ok: true,
+      preferenceRow,
+      preferences:
+        preferenceRow?.preferences || skywebAlertPreferencesService.DEFAULT_ALERT_PREFERENCES,
     });
   } catch (error) {
     if (sendServiceError(res, error)) {
@@ -693,12 +743,14 @@ module.exports = {
   createAlertRule,
   evaluateAlertRule,
   evaluateAlertRules,
+  getAlertPreferences,
   getAlertRule,
   dismissAlertNotification,
   listAlertNotifications,
   listAlertRuleEvents,
   listAlertRules,
   removeAlertRule,
+  updateAlertPreferences,
   updateAlertRule,
   addDashboardItem,
   createDashboard,

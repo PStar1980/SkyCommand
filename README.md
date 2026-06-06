@@ -62,13 +62,15 @@ PATCH  /api/skyweb/alerts/:alertKey
 DELETE /api/skyweb/alerts/:alertKey
 POST   /api/skyweb/alerts/:alertKey/evaluate
 POST   /api/skyweb/alerts/evaluate
+GET    /api/skyweb/alert-preferences
+PATCH  /api/skyweb/alert-preferences
 GET    /api/skyweb/alert-notifications
 PATCH  /api/skyweb/alert-notifications/:notificationId/acknowledge
 PATCH  /api/skyweb/alert-notifications/:notificationId/dismiss
 POST   /api/skyweb/alert-notifications/acknowledge-all
 ```
 
-Supported condition types are `above`, `below`, `crosses_above`, `crosses_below`, `changes_by`, and `percent_changes_by`. Scheduled evaluation is now wired into the worker scheduler, and triggered evaluations create user-facing SkyWeb alert notifications that can be acknowledged or dismissed while preserving the evaluation audit trail. External delivery channels remain staged for later Phase 8 work.
+Supported condition types are `above`, `below`, `crosses_above`, `crosses_below`, `changes_by`, and `percent_changes_by`. Scheduled evaluation is now wired into the worker scheduler, and triggered evaluations create user-facing SkyWeb alert notifications that can be acknowledged or dismissed while preserving the evaluation audit trail. Alert delivery preferences are stored in `skyweb.user_preferences` under the alert-delivery key, giving SkyWeb controls for in-app surfacing, minimum severity, severity lanes, delivery-mode staging, quiet-hours staging, and future email/browser toggles. External delivery channels remain staged for the next focused pass.
 
 ## 🚀 Core Capabilities
 
