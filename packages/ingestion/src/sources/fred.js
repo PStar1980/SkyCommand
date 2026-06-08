@@ -2,6 +2,8 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
+const FRED_DOWNLOAD_TIMEOUT_MS = 30000;
+
 const downloadFredCSV = async (seriesId, outputDir) => {
   const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
   const filePath = path.join(outputDir, `${seriesId}.csv`);
@@ -12,7 +14,7 @@ const downloadFredCSV = async (seriesId, outputDir) => {
     url,
     method: 'GET',
     responseType: 'stream',
-    timeout: 15000,
+    timeout: FRED_DOWNLOAD_TIMEOUT_MS,
   });
 
   const writer = fs.createWriteStream(filePath);
