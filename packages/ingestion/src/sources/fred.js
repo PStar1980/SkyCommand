@@ -2,7 +2,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-const FRED_DOWNLOAD_TIMEOUT_MS = 30000;
+const FRED_DOWNLOAD_TIMEOUT_MS = 100000;
 
 const downloadFredCSV = async (seriesId, outputDir) => {
   const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
