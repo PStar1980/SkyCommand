@@ -132,7 +132,15 @@ const ALWAYS_IGNORED_DIRECTORIES = new Set([
   'zip',
 ]);
 
-const WORKSPACE_IGNORED_DIRECTORIES = new Set(['dist', 'build', 'out', 'temp', 'tmp']);
+const WORKSPACE_IGNORED_DIRECTORIES = new Set([
+  'dist',
+  'build',
+  'out',
+  'bin',
+  'obj',
+  'temp',
+  'tmp',
+]);
 
 const SENSITIVE_ENV_FILES = new Set([
   '.env',
@@ -166,7 +174,7 @@ function shouldIgnoreDirectory(entryName, fullPath) {
     return true;
   }
 
-  // When --include-node-modules is used, keep package-owned dist/build/out folders
+  // When --include-node-modules is used, keep package-owned dist/build/out/bin/obj folders
   // inside node_modules. Many npm packages ship their runnable code there.
   if (!isWithinNodeModules(fullPath) && WORKSPACE_IGNORED_DIRECTORIES.has(lowerName)) {
     return true;
