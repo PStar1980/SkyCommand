@@ -9,8 +9,6 @@ SkyServer/
 ├── package-lock.json
 ├── package.json
 ├── README.md
-├── .github/
-│ └── workflows/
 ├── .husky/
 │ ├── pre-commit
 │ ├── pre-push
@@ -344,4 +342,3 @@ SkyServer/
 │ │ └── Clean-FrontendCache.ps1
 │ └── python/
 └── tests/
-└── e2e/

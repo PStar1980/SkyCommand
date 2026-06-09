@@ -53,6 +53,7 @@ if (!fs.existsSync(location)) {
 const IGNORED_ENTRIES = new Set([
   'node_modules',
   '.git',
+  '.github',
   '.vscode',
   '.idea',
   '.ds_store',
@@ -60,6 +61,8 @@ const IGNORED_ENTRIES = new Set([
   '.next',
   'dist',
   'build',
+  'bin',
+  'obj',
   'coverage',
   'out',
   'temp',
@@ -67,6 +70,8 @@ const IGNORED_ENTRIES = new Set([
   'logs',
   'zip',
 ]);
+
+const IGNORED_RELATIVE_PATHS = new Set(['tests/e2e']);
 
 const SENSITIVE_ENV_FILES = new Set([
   '.env',
@@ -76,8 +81,19 @@ const SENSITIVE_ENV_FILES = new Set([
   '.env.test',
 ]);
 
-function shouldIgnoreEntry(entryName) {
-  return IGNORED_ENTRIES.has(entryName.toLowerCase());
+function normalizeRelativePath(relativePath) {
+  return String(relativePath || '')
+    .replace(/\\/g, '/')
+    .toLowerCase();
+}
+
+function shouldIgnoreEntry(entryName, relativePath = '') {
+  const normalizedEntryName = String(entryName || '').toLowerCase();
+  const normalizedRelativePath = normalizeRelativePath(relativePath);
+
+  return (
+    IGNORED_ENTRIES.has(normalizedEntryName) || IGNORED_RELATIVE_PATHS.has(normalizedRelativePath)
+  );
 }
 
 function shouldSkipFile(fileName) {
@@ -102,19 +118,23 @@ function sortEntries(entries) {
   return [...files, ...folders];
 }
 
-function scanDirectory(dir) {
+function scanDirectory(dir, relativeDir = '') {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
   const results = entries
-    .filter((entry) => !shouldIgnoreEntry(entry.name))
     .map((entry) => {
       const fullPath = path.join(dir, entry.name);
+      const relativePath = normalizeRelativePath(path.join(relativeDir, entry.name));
+
+      if (shouldIgnoreEntry(entry.name, relativePath)) {
+        return null;
+      }
 
       if (entry.isDirectory()) {
         return {
           type: 'directory',
           name: entry.name,
-          children: scanDirectory(fullPath),
+          children: scanDirectory(fullPath, relativePath),
         };
       }
 
