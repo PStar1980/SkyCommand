@@ -103,6 +103,11 @@ function shouldSkipFile(fileName) {
     return true;
   }
 
+  // Keep the project documentation change log while still excluding runtime *.log files.
+  if (normalizedFileName === 'change.log') {
+    return false;
+  }
+
   return ['.zip', '.log'].includes(path.extname(normalizedFileName));
 }
 

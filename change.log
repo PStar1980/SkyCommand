@@ -1,0 +1,146 @@
+# SkyServer Change Log
+
+Detailed phase notes and implementation history for SkyServer. This file keeps the root README focused on product positioning, architecture, local development, and roadmap status.
+
+## 2026-06-27 — README Roadmap and Documentation Cleanup
+
+- Marked roadmap Phase 9, SkyWeb integration for public-facing macro, as complete.
+- Refocused the README around SkyServer's current role as the private Node.js / Express / PostgreSQL control plane for the Sky ecosystem.
+- Aligned README structure with SkyWeb's documentation style: stack summary, current status, architecture, local development, repository layout, documentation, and roadmap.
+- Moved detailed phase notes and historical implementation entries out of the README and into this `change.log` file.
+- Kept Temporal workflow orchestration as the next planned major component while preserving the current worker/tool infrastructure.
+
+## Completed Phase Summary
+
+### Phase 7 — API, Macro, Ingestion Status, and Admin Control Surfaces
+
+- Added macro API endpoints for curated macro views, latest rows, column metadata, indicator registry access, raw indicator series, and macro summary reporting.
+- Added full-history macro row payload support for SkyWeb detail pages via `all=true` / `limit=all`, while preserving paginated defaults.
+- Added dashboard item support so SkyWeb user dashboard items can reference direct macro indicators as well as saved macro views.
+- Added SkyWeb alert-rule backend foundation with user-owned macro alert rules, alert events, and protected alert CRUD/evaluation APIs.
+- Added ingestion status endpoints for source health, recent ingestion executions, indicator freshness, stale-data detection, missing-table detection, and per-indicator diagnostics.
+- Added admin action endpoints for users, roles, privileges, assignments, sessions, password resets, and read-only system settings.
+- Added Admin-Web access control pages for Users, Roles, and Privileges.
+- Added Admin-Web ingestion status page for pipeline health, source cards, recent ingestion runs, indicator freshness, and indicator detail inspection.
+- Added Dashboard v2 as a command-center view for API/DB health, ingestion status, macro summary, tools, sessions, script executions, audit events, and operator permissions.
+
+### Phase 8 — Worker Automation Foundation
+
+- Added PostgreSQL worker schema and tables for worker nodes, schedules, schedule runs, listeners, and listener events.
+- Added standalone worker daemon under `apps/worker` with node registration, heartbeat tracking, schedule polling, due-schedule claiming, scheduled tool execution, and worker-launched script execution logging.
+- Added worker-visible tool execution using the relational `core` tool manifest and `worker` visibility channel.
+- Added one-time and recurring interval scheduler support.
+- Added queue/unqueue controls for immediate schedule execution requests and cancellation of pending requests.
+- Added safe schedule archive/delete behavior that removes completed or archived schedules from active views while preserving run history.
+- Added worker API endpoints for health, tools, nodes, schedules, runs, listeners, and listener events.
+- Added Admin-Web Automation section with Scheduler and Listener pages.
+- Added Active Schedules and Active Listeners surfaces.
+- Added dashboard automation visibility for worker status, online nodes, active schedules, upcoming run time, and recent automation runs.
+- Listener runtime processors remain staged for a later focused implementation; schema, API, and Admin-Web surfaces exist.
+
+### Phase 8.1+ — SkyWeb Alert Rule Foundation
+
+- Added `skyweb` schema support for durable alert rules and evaluation events.
+- Added SkyWeb alert endpoints:
+
+```text
+GET    /api/skyweb/alerts
+POST   /api/skyweb/alerts
+GET    /api/skyweb/alerts/:alertKey
+PATCH  /api/skyweb/alerts/:alertKey
+DELETE /api/skyweb/alerts/:alertKey
+POST   /api/skyweb/alerts/:alertKey/evaluate
+POST   /api/skyweb/alerts/evaluate
+GET    /api/skyweb/alert-preferences
+PATCH  /api/skyweb/alert-preferences
+GET    /api/skyweb/alert-notifications
+PATCH  /api/skyweb/alert-notifications/:notificationId/acknowledge
+PATCH  /api/skyweb/alert-notifications/:notificationId/dismiss
+POST   /api/skyweb/alert-notifications/acknowledge-all
+POST   /api/skyweb/alert-notifications/dismiss-all
+```
+
+- Supported condition types: `above`, `below`, `crosses_above`, `crosses_below`, `changes_by`, and `percent_changes_by`.
+- Wired scheduled evaluation into the worker scheduler.
+- Added triggered SkyWeb alert notifications that can be acknowledged or dismissed while preserving evaluation history.
+- Added alert delivery preferences in `skyweb.user_preferences` for in-app surfacing, minimum severity, severity lanes, delivery-mode staging, quiet-hours staging, and future email/browser toggles.
+- Added bulk open-signal acknowledgement and dismissal support for Signal Center workflows.
+
+### Phase 9 — SkyWeb Integration for Public-Facing Macro
+
+Phase 9 is complete. SkyServer now supports the public/member-facing SkyWeb Analytics layer while keeping operational execution in SkyServer.
+
+- Added authenticated `/api/skyweb/profile` support for `SKYWEB` app sessions.
+- Seeded initial SkyWeb roles, permissions, app memberships, profiles, and preference tables.
+- Added authenticated dashboard-preference endpoints:
+
+```text
+GET   /api/skyweb/preferences
+PATCH /api/skyweb/preferences
+```
+
+- Added `skyweb.user_preferences` support for `dashboard_defaults`, including default macro region, macro category, chart period, dashboard density, and preferred landing page.
+- Added dedicated `SKYWEB_PREFERENCES_READ` and `SKYWEB_PREFERENCES_WRITE` permissions with compatibility fallbacks for local development.
+- Added preference compatibility for `roomy`, `/saved`, `/dashboard`, and `/dashboards` landing behavior as SkyWeb route surfaces evolved.
+- Updated `SKYWEB` application seed title to **SkyWeb Analytics** while preserving the app code and permission model.
+- Added saved macro view endpoints:
+
+```text
+GET    /api/skyweb/saved-views
+POST   /api/skyweb/saved-views
+PATCH  /api/skyweb/saved-views/:viewKey
+DELETE /api/skyweb/saved-views/:viewKey
+```
+
+- Stored saved macro views in `skyweb.saved_macro_views` and exposed them through `skyweb.vw_saved_macro_views`.
+- Validated saved view keys against the macro view registry and enriched saved records with macro view metadata.
+- Added user-owned dashboard endpoints:
+
+```text
+GET    /api/skyweb/dashboards
+POST   /api/skyweb/dashboards
+GET    /api/skyweb/dashboards/:dashboardKey
+PATCH  /api/skyweb/dashboards/:dashboardKey
+DELETE /api/skyweb/dashboards/:dashboardKey
+POST   /api/skyweb/dashboards/:dashboardKey/items
+PATCH  /api/skyweb/dashboards/:dashboardKey/items/:itemId
+DELETE /api/skyweb/dashboards/:dashboardKey/items/:itemId
+```
+
+- Stored dashboard definitions in `skyweb.user_dashboards` and dashboard items in `skyweb.user_dashboard_items`.
+- Exposed dashboard read models through `skyweb.vw_user_dashboards` and `skyweb.vw_user_dashboard_items`.
+- Added dashboard item metadata for title, note, layout mode, display order, and size.
+- Added expanded dashboard item visualization mode compatibility:
+  - `view_card`
+  - `wide_card`
+  - `compact_card`
+  - `metric_card`
+  - `mini_chart`
+  - `latest_row`
+  - `table_preview`
+- Aligned dashboard item API validation and the `skyweb.user_dashboard_items` check constraint through idempotent migrations.
+- Added alert-rule event history access with `GET /api/skyweb/alerts/:alertKey/events` so SkyWeb can inspect the evaluation trail behind each macro alert.
+- Added `skyweb_alerts_evaluate` worker tool for scheduled SkyWeb Analytics macro alert checks.
+- Added `packages/skyweb/src/evaluateSkyWebAlerts.js` to evaluate active alert rules across users and write `skyweb.alert_rule_events` history.
+- Added seed `00030__skyweb_alert_worker_seed.sql` to register the alert evaluator tool, worker visibility, parameters, and a default hourly worker schedule.
+- Added `event_metadata.evaluationSource` for distinguishing manual and worker-scheduled evaluations.
+
+## Current Intentional Split
+
+SkyServer continues to own:
+
+- ingestion
+- worker automation
+- scheduler/listener infrastructure
+- repository tooling
+- private Admin-Web operations
+- alert evaluation execution
+- future Temporal orchestration
+
+SkyWeb Analytics owns:
+
+- public/member-facing analytics UI
+- ASP.NET Core/C# analytics API
+- dashboards and saved views
+- chart presentation and alert overlays
+- Signal Center and member alert lifecycle presentation

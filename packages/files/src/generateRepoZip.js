@@ -242,6 +242,11 @@ function shouldSkipFile(fullPath) {
     return true;
   }
 
+  // Keep the project documentation change log while still excluding runtime *.log files.
+  if (fileNameOnly === 'change.log') {
+    return false;
+  }
+
   return ['.zip', '.log'].includes(extension);
 }
 
