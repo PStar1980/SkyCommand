@@ -14,6 +14,8 @@
  * Options:
  *   --include-node-modules   Optional diagnostic mode. Includes dependency folders.
  *                            Not recommended for normal project handoff zips.
+ *   --include-images         Optional diagnostic mode. Includes image assets/screenshots.
+ *                            Normal project handoff zips exclude images to stay compact.
  *
  * Examples:
  *   node generateRepoZip.js "C:\\Projects\\SkyServer" "SkyServer_Repo.zip" "C:\\Projects\\SkyServer\\zip"
@@ -32,12 +34,19 @@ const rawArgs = process.argv.slice(2);
 const optionArgs = rawArgs.filter((arg) => arg.startsWith('--'));
 const args = rawArgs.filter((arg) => !arg.startsWith('--'));
 
-const SUPPORTED_OPTIONS = new Set(['--include-node-modules', '--exclude-node-modules', '--slim']);
+const SUPPORTED_OPTIONS = new Set([
+  '--include-node-modules',
+  '--exclude-node-modules',
+  '--include-images',
+  '--slim',
+]);
 const unknownOptions = optionArgs.filter((option) => !SUPPORTED_OPTIONS.has(option));
 
 if (unknownOptions.length > 0) {
   console.error(`❌ Error: Unsupported option(s): ${unknownOptions.join(', ')}`);
-  console.error('   Supported options: --include-node-modules, --exclude-node-modules, --slim');
+  console.error(
+    '   Supported options: --include-node-modules, --exclude-node-modules, --include-images, --slim',
+  );
   process.exit(1);
 }
 
@@ -46,12 +55,13 @@ if (args.length < 2) {
   console.error('   location (required)');
   console.error('   fileName (required)');
   console.error('   outputPath (optional)');
-  console.error('   options (optional): --include-node-modules');
+  console.error('   options (optional): --include-node-modules, --include-images');
   process.exit(1);
 }
 
 let [location, fileName, outputPath] = args;
 const includeNodeModules = optionArgs.includes('--include-node-modules');
+const includeImages = optionArgs.includes('--include-images');
 
 function hasPathSeparators(value) {
   return /[\\/]/.test(value);
@@ -150,6 +160,22 @@ const SENSITIVE_ENV_FILES = new Set([
   '.env.test',
 ]);
 
+const IMAGE_FILE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.ico',
+  '.svg',
+  '.tif',
+  '.tiff',
+  '.avif',
+  '.heic',
+  '.heif',
+]);
+
 function isWithinNodeModules(fullPath) {
   const relativePath = path.relative(location, fullPath);
 
@@ -210,7 +236,13 @@ function shouldSkipFile(fullPath) {
     return true;
   }
 
-  return ['.zip', '.log'].includes(path.extname(fullPath).toLowerCase());
+  const extension = path.extname(fullPath).toLowerCase();
+
+  if (!includeImages && IMAGE_FILE_EXTENSIONS.has(extension)) {
+    return true;
+  }
+
+  return ['.zip', '.log'].includes(extension);
 }
 
 function scanDirectory(dir, baseDir = dir) {
@@ -513,5 +545,6 @@ console.log('\n✅ Repository zip generated successfully!');
 console.log(`📦 Output file: ${outputFilePath}`);
 console.log(`📄 Files included: ${files.length}`);
 console.log(`📦 node_modules included: ${includeNodeModules ? 'yes' : 'no'}`);
+console.log(`🖼️  images included: ${includeImages ? 'yes' : 'no'}`);
 console.log(`📥 Source bytes: ${totalInputBytes}`);
 console.log(`📤 Zip bytes: ${outputBytes}\n`);
