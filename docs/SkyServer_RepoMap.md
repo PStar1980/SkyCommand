@@ -5,6 +5,7 @@ SkyServer/
 ├── .gitignore
 ├── .prettierignore
 ├── .prettierrc.json
+├── change.log
 ├── eslint.config.mjs
 ├── package-lock.json
 ├── package.json
