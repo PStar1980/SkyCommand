@@ -123,7 +123,12 @@ SkyServer/
 │ └── schedulePoller.js
 ├── docs/
 │ ├── SkyServer_RepoMap.md
-│ └── SkyServer_Temporal_Workflow_Architecture_Plan.md
+│ ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
+│ └── assets/
+│ ├── auth_schema_ERD.png
+│ ├── core_schema_ERD.png
+│ ├── skyweb_schema_ERD.png
+│ └── worker_schema_ERD.png
 ├── packages/
 │ ├── auth/
 │ │ └── src/
