@@ -93,7 +93,13 @@ function runNodeScript(scriptPath, args = [], options = {}) {
 }
 
 async function loadFredMacroDataActivity(input = {}) {
-  const scriptPath = path.join(SKY_SERVER_ROOT, 'packages', 'ingestion', 'src', 'loadFREDMacroData.js');
+  const scriptPath = path.join(
+    SKY_SERVER_ROOT,
+    'packages',
+    'ingestion',
+    'src',
+    'loadFREDMacroData.js',
+  );
   const timeoutMs = parsePositiveInteger(
     input.timeoutMs || process.env.TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS,
     DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
