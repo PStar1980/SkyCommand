@@ -97,6 +97,13 @@ The default concurrency can also be overridden with:
 TEMPORAL_FRED_CONCURRENCY=3
 ```
 
+
+## API control-plane exposure
+
+Phase 10.3 exposes the FRED pilot through protected SkyServer Core/API endpoints under `/api/temporal`. The API can now start FRED workflows asynchronously, inspect workflow runs, check Temporal health, and request cancel/terminate operations through the SkyServer permission boundary.
+
+See `docs/SkyServer_Temporal_Core_API.md` for route details and example calls.
+
 ## Validation checklist
 
 1. Start Temporal dev server.
@@ -112,9 +119,8 @@ TEMPORAL_FRED_CONCURRENCY=3
 
 Later phases should improve the pilot by adding:
 
-- protected SkyServer Core/API endpoints for starting/querying/canceling workflows
-- PostgreSQL persistence of workflow run summaries for Admin-Web display and auditability
 - Admin-Web workflow dashboard and manual start controls
+- PostgreSQL persistence of workflow run summaries for Admin-Web display and auditability
 - schedule-to-workflow migration for recurring ingestion
 - dedicated retries per source and per indicator family
 - alert evaluation workflow chaining after successful ingestion

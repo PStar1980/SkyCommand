@@ -324,6 +324,20 @@ npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 
 The existing worker daemon and scheduler/listener system remain active. Temporal is introduced only when a process needs durable workflow state, retries, history, or multi-step orchestration.
 
+SkyServer Core/API now exposes a protected Temporal control-plane surface under `/api/temporal`:
+
+```text
+GET    /api/temporal/health
+GET    /api/temporal/workflow-definitions
+GET    /api/temporal/workflows
+GET    /api/temporal/workflows/:workflowId
+POST   /api/temporal/workflows/fred-ingestion/start
+POST   /api/temporal/workflows/:workflowId/cancel
+POST   /api/temporal/workflows/:workflowId/terminate
+```
+
+The browser/Admin-Web should call SkyServer API rather than Temporal directly, preserving the SkyServer auth/RBAC boundary and giving us a clean location for future audit and workflow-run persistence.
+
 ## Browser-Triggered Script Safety
 
 SkyServer allows browser-triggered tool execution through Admin-Web, so guardrails are central:
@@ -347,6 +361,7 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 | [`docs/SkyServer_Temporal_Workflow_Architecture_Plan.md`](docs/SkyServer_Temporal_Workflow_Architecture_Plan.md) | Temporal workflow architecture plan and future migration notes |
 | [`docs/SkyServer_Temporal_Local_Setup.md`](docs/SkyServer_Temporal_Local_Setup.md) | Local Temporal development setup and command guide |
 | [`docs/SkyServer_Temporal_FRED_Pilot.md`](docs/SkyServer_Temporal_FRED_Pilot.md) | FRED ingestion workflow pilot notes and validation checklist |
+| [`docs/SkyServer_Temporal_Core_API.md`](docs/SkyServer_Temporal_Core_API.md) | Protected Temporal Core/API endpoints and workflow control-plane notes |
 | [`docs/SkyServer_Temporal_Phase_10_Roadmap.md`](docs/SkyServer_Temporal_Phase_10_Roadmap.md) | Phase 10 Temporal rollout slices and migration rules |
 
 ## Roadmap
