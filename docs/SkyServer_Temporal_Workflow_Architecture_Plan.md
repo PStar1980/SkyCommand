@@ -5,9 +5,23 @@
 **Project:** SkyServer / SkyWeb  
 **Decision:** Temporal will become the long-term workflow orchestration engine for SkyServer.  
 **Initial hosting model:** Self-hosted/local Temporal, not Temporal Cloud.  
-**Status:** Architecture decision finalized.
+**Status:** Phase 10.1 foundation started — local Temporal worker and FRED ingestion pilot added.
 
 ---
+
+## Phase 10.1 Implementation Slice
+
+The first implementation slice keeps the migration intentionally narrow:
+
+- add Temporal SDK dependencies to SkyServer
+- add a local Temporal worker entry point
+- add a FRED ingestion workflow pilot
+- wrap the existing FRED ingestion script as a Temporal Activity
+- add local setup and validation docs
+- keep the existing worker/scheduler/listener stack intact
+
+The initial pilot uses a script-wrapper Activity rather than refactoring the ingestion engine immediately. This proves Temporal connectivity, task queues, workflow start/result behavior, retries, and local developer ergonomics before deeper migration work.
+
 
 ## 1. Executive Summary
 

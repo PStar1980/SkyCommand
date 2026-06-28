@@ -6,17 +6,17 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Stack at a Glance
 
-| Layer                | Technology                                                                |
-| -------------------- | ------------------------------------------------------------------------- |
-| API                  | Node.js, Express                                                          |
-| Admin client         | React, Vite, React Router, Bootstrap, Axios                               |
-| Database             | PostgreSQL                                                                |
-| Data access          | `pg`, SQL migrations/seeds, relational manifests                          |
-| Auth                 | App-scoped login, hashed bearer sessions, RBAC permissions, audit events  |
-| Worker/control plane | Node worker daemon, scheduler/listener schema, tool execution logs        |
-| Data ingestion       | FRED, Bank of Canada, Statistics Canada, manual CSV/spreadsheet pipelines |
-| Repo automation      | Dev commit workflow, repo map generation, lean repo zip generation        |
-| Product consumer     | SkyWeb Analytics via public/member macro and alert APIs                   |
+| Layer | Technology |
+| --- | --- |
+| API | Node.js, Express |
+| Admin client | React, Vite, React Router, Bootstrap, Axios |
+| Database | PostgreSQL |
+| Data access | `pg`, SQL migrations/seeds, relational manifests |
+| Auth | App-scoped login, hashed bearer sessions, RBAC permissions, audit events |
+| Worker/control plane | Node worker daemon, scheduler/listener schema, tool execution logs |
+| Data ingestion | FRED, Bank of Canada, Statistics Canada, manual CSV/spreadsheet pipelines |
+| Repo automation | Dev commit workflow, repo map generation, lean repo zip generation |
+| Product consumer | SkyWeb Analytics via public/member macro and alert APIs |
 
 ## What This Project Demonstrates
 
@@ -30,24 +30,24 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Post-Phase 9 housekeeping / Temporal preparation
+**Active status:** Phase 10.1 — Temporal orchestration foundation
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
-The next major planned component is **Temporal workflow orchestration**, introduced carefully beside the existing worker/tool infrastructure rather than replacing it all at once.
+Phase 10.1 introduces the first side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while the FRED ingestion pilot proves durable workflow execution, retries, and workflow history.
 
 ## Core Product Surfaces
 
-| Surface             | Purpose                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Surface | Purpose |
+| --- | --- |
 | Admin-Web Dashboard | Private command center for API/DB health, ingestion status, automation status, tools, sessions, scripts, and audits |
-| Tools               | Permission-filtered operational tool launcher with dynamic parameters and execution logging                         |
-| Ingestion Status    | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics                |
-| Automation          | Scheduler/listener control surfaces for worker-backed tool execution and future event-driven automation             |
-| Access Control      | User, role, permission, session, and password administration                                                        |
-| Script Executions   | Browser-triggered and worker-triggered execution history with stdout/stderr traceability                            |
-| Audit Events        | Authentication, authorization, and operational audit trail                                                          |
-| SkyWeb APIs         | Public/member macro, profile, preference, dashboard, alert, and alert-evaluation support for SkyWeb Analytics       |
+| Tools | Permission-filtered operational tool launcher with dynamic parameters and execution logging |
+| Ingestion Status | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics |
+| Automation | Scheduler/listener control surfaces for worker-backed tool execution and future event-driven automation |
+| Access Control | User, role, permission, session, and password administration |
+| Script Executions | Browser-triggered and worker-triggered execution history with stdout/stderr traceability |
+| Audit Events | Authentication, authorization, and operational audit trail |
+| SkyWeb APIs | Public/member macro, profile, preference, dashboard, alert, and alert-evaluation support for SkyWeb Analytics |
 
 ## Architecture
 
@@ -62,7 +62,9 @@ flowchart LR
     Worker --> Tools
     Ingestion["Ingestion Scripts<br/>FRED + BoC + StatCan + Manual"] --> Db
     SkyWeb["SkyWeb Analytics<br/>React + ASP.NET Core"] -->|evaluate alerts only| Api
-    Api -->|future orchestration| Temporal["Temporal Pilot<br/>planned"]
+    Api -->|future orchestration| Temporal["Temporal Pilot<br/>Phase 10.1"]
+    Temporal --> TemporalWorker["Temporal Worker<br/>FRED pilot activity"]
+    TemporalWorker --> Ingestion
 ```
 
 Current control flow:
@@ -84,15 +86,15 @@ SkyWeb Analytics
 
 SkyServer and SkyWeb now have a clean boundary:
 
-| SkyServer owns                    | SkyWeb owns                                |
-| --------------------------------- | ------------------------------------------ |
-| Ingestion pipelines               | Public/member analytics UI                 |
-| Worker scheduling                 | Dashboards and saved views                 |
-| Alert evaluation execution        | Alert rules and Signal Center presentation |
-| Admin-Web and RBAC administration | Account/profile/preferences UX             |
-| Script/tool execution             | ECharts/D3 visualization layer             |
-| Repo map/zip/dev-commit utilities | Portfolio-ready product presentation       |
-| Future Temporal orchestration     | Public/member API consumption              |
+| SkyServer owns | SkyWeb owns |
+| --- | --- |
+| Ingestion pipelines | Public/member analytics UI |
+| Worker scheduling | Dashboards and saved views |
+| Alert evaluation execution | Alert rules and Signal Center presentation |
+| Admin-Web and RBAC administration | Account/profile/preferences UX |
+| Script/tool execution | ECharts/D3 visualization layer |
+| Repo map/zip/dev-commit utilities | Portfolio-ready product presentation |
+| Future Temporal orchestration | Public/member API consumption |
 
 SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
 
@@ -169,39 +171,50 @@ WORKER_POLL_INTERVAL_SECONDS=15
 WORKER_TOOL_TIMEOUT_MS=180000
 WORKER_TOOL_MAX_OUTPUT_BYTES=250000
 WORKER_ALLOW_HIGH_RISK_TOOLS=false
+
+# Temporal local development / Phase 10 pilot
+TEMPORAL_ADDRESS=localhost:7233
+TEMPORAL_NAMESPACE=default
+TEMPORAL_TASK_QUEUE=skyserver-local
+TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skyserver-fred-ingestion
+TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS=1800000
 ```
 
 Database, ingestion, API, worker, and tool execution scripts load `.env` from the SkyServer root so tools can be executed from different command prompt locations.
 
 ## Primary Local URLs
 
-| Surface                 | URL                                |
-| ----------------------- | ---------------------------------- |
-| SkyServer API health    | `http://localhost:7171/_health`    |
-| SkyServer DB health     | `http://localhost:7171/_db/health` |
-| SkyServer Admin-Web     | `http://localhost:5173`            |
-| SkyWeb Analytics client | `http://localhost:5175`            |
-| SkyWeb.Api Swagger      | `http://localhost:7280/swagger`    |
+| Surface | URL |
+| --- | --- |
+| SkyServer API health | `http://localhost:7171/_health` |
+| SkyServer DB health | `http://localhost:7171/_db/health` |
+| SkyServer Admin-Web | `http://localhost:5173` |
+| SkyWeb Analytics client | `http://localhost:5175` |
+| SkyWeb.Api Swagger | `http://localhost:7280/swagger` |
 
 ## NPM Scripts
 
-| Command                     | Description                                                 |
-| --------------------------- | ----------------------------------------------------------- |
-| `npm run start`             | Starts the API server.                                      |
-| `npm run api`               | Starts the API server with Nodemon.                         |
-| `npm run web`               | Starts the Admin-Web Vite development server.               |
-| `npm run web:build`         | Builds the Admin-Web frontend.                              |
-| `npm run web:preview`       | Previews the built Admin-Web frontend.                      |
-| `npm run worker`            | Starts the worker daemon.                                   |
-| `npm run worker:dev`        | Starts the worker daemon with Nodemon.                      |
-| `npm run daemon`            | Starts the API daemon entry point with Nodemon.             |
-| `npm run core`              | Starts the SkyServer Core CLI tool.                         |
-| `npm run db:health`         | Tests PostgreSQL connectivity.                              |
-| `npm run db:build`          | Rebuilds the configured PostgreSQL database from SQL files. |
-| `npm run auth:create-admin` | Runs the first-admin/user creation script.                  |
-| `npm run lint`              | Runs ESLint checks.                                         |
-| `npm run format:check`      | Verifies Prettier formatting.                               |
-| `npm run prepush`           | Runs lint and formatting checks before push.                |
+| Command | Description |
+| --- | --- |
+| `npm run start` | Starts the API server. |
+| `npm run api` | Starts the API server with Nodemon. |
+| `npm run web` | Starts the Admin-Web Vite development server. |
+| `npm run web:build` | Builds the Admin-Web frontend. |
+| `npm run web:preview` | Previews the built Admin-Web frontend. |
+| `npm run worker` | Starts the worker daemon. |
+| `npm run worker:dev` | Starts the worker daemon with Nodemon. |
+| `npm run temporal:worker` | Starts the SkyServer Temporal worker. |
+| `npm run temporal:worker:dev` | Starts the SkyServer Temporal worker with Nodemon. |
+| `npm run temporal:health` | Checks connectivity to the configured Temporal service. |
+| `npm run temporal:fred` | Starts the FRED ingestion workflow pilot and waits for the result. |
+| `npm run daemon` | Starts the API daemon entry point with Nodemon. |
+| `npm run core` | Starts the SkyServer Core CLI tool. |
+| `npm run db:health` | Tests PostgreSQL connectivity. |
+| `npm run db:build` | Rebuilds the configured PostgreSQL database from SQL files. |
+| `npm run auth:create-admin` | Runs the first-admin/user creation script. |
+| `npm run lint` | Runs ESLint checks. |
+| `npm run format:check` | Verifies Prettier formatting. |
+| `npm run prepush` | Runs lint and formatting checks before push. |
 
 ## Repository Layout
 
@@ -220,6 +233,7 @@ SkyServer/
 │   ├── git/              # Dev commit, status, and merge scripts
 │   ├── ingestion/        # FRED, BoC, StatCan, and manual ingestion pipelines
 │   ├── skyweb/           # SkyWeb alert evaluation support scripts
+│   ├── temporal/         # Temporal worker, workflows, activities, and pilot clients
 │   └── shared/           # Shared constants, contracts, and validators
 ├── scripts/
 │   ├── db/               # SQL schemas, tables, views, triggers, and functions
@@ -238,38 +252,38 @@ Generated handoff zips exclude dependency/build/runtime clutter such as `node_mo
 
 ## API Families
 
-| Family                    | Purpose                                                                            |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| `/_health`, `/_db/health` | API and database health checks                                                     |
-| `/api/auth/*`             | Login, logout, current session, and permissions                                    |
-| `/api/tools/*`            | Permission-filtered tool catalog and tool execution                                |
-| `/api/admin/*`            | Users, roles, permissions, sessions, settings, script executions, and audit events |
-| `/api/macro/*`            | Private macro summary, view, indicator, and series endpoints                       |
-| `/api/public/macro/*`     | Public macro endpoints consumed by SkyWeb during the transition path               |
-| `/api/ingestion/*`        | Ingestion health, source status, recent runs, and indicator diagnostics            |
-| `/api/worker/*`           | Worker health, tools, nodes, schedules, runs, listeners, and listener events       |
-| `/api/skyweb/*`           | SkyWeb member/profile/preference/dashboard/alert support and alert evaluation      |
+| Family | Purpose |
+| --- | --- |
+| `/_health`, `/_db/health` | API and database health checks |
+| `/api/auth/*` | Login, logout, current session, and permissions |
+| `/api/tools/*` | Permission-filtered tool catalog and tool execution |
+| `/api/admin/*` | Users, roles, permissions, sessions, settings, script executions, and audit events |
+| `/api/macro/*` | Private macro summary, view, indicator, and series endpoints |
+| `/api/public/macro/*` | Public macro endpoints consumed by SkyWeb during the transition path |
+| `/api/ingestion/*` | Ingestion health, source status, recent runs, and indicator diagnostics |
+| `/api/worker/*` | Worker health, tools, nodes, schedules, runs, listeners, and listener events |
+| `/api/skyweb/*` | SkyWeb member/profile/preference/dashboard/alert support and alert evaluation |
 
 ## Data and Automation Layers
 
 ### PostgreSQL schemas
 
-| Schema   | Purpose                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------- |
-| `auth`   | Users, roles, permissions, sessions, login events, audit events, script execution logs            |
-| `core`   | Applications, repositories, tool manifest, visibility channels, runtimes, parameters, risk levels |
-| `macro`  | Indicator registry, physical indicator tables, macro analysis views                               |
-| `skyweb` | SkyWeb profiles, preferences, saved views, dashboards, alert rules, events, notifications         |
-| `worker` | Worker nodes, schedules, schedule runs, listeners, listener events                                |
+| Schema | Purpose |
+| --- | --- |
+| `auth` | Users, roles, permissions, sessions, login events, audit events, script execution logs |
+| `core` | Applications, repositories, tool manifest, visibility channels, runtimes, parameters, risk levels |
+| `macro` | Indicator registry, physical indicator tables, macro analysis views |
+| `skyweb` | SkyWeb profiles, preferences, saved views, dashboards, alert rules, events, notifications |
+| `worker` | Worker nodes, schedules, schedule runs, listeners, listener events |
 
 ### Ingestion sources
 
-| Source                 | Loader                                           |
-| ---------------------- | ------------------------------------------------ |
-| FRED                   | `packages/ingestion/src/loadFREDMacroData.js`    |
-| Bank of Canada         | `packages/ingestion/src/loadBoCMacroData.js`     |
-| Statistics Canada      | `packages/ingestion/src/loadStatCanMacroData.js` |
-| Manual CSV/spreadsheet | `packages/ingestion/src/loadManualData.js`       |
+| Source | Loader |
+| --- | --- |
+| FRED | `packages/ingestion/src/loadFREDMacroData.js` |
+| Bank of Canada | `packages/ingestion/src/loadBoCMacroData.js` |
+| Statistics Canada | `packages/ingestion/src/loadStatCanMacroData.js` |
+| Manual CSV/spreadsheet | `packages/ingestion/src/loadManualData.js` |
 
 The ingestion pattern is intentionally idempotent: discover configured indicators, download source data, normalize rows, load staging, merge new data into target tables, log outcomes, and clean temporary files.
 
@@ -278,6 +292,34 @@ The ingestion pattern is intentionally idempotent: discover configured indicator
 The worker runtime under `apps/worker` is separate from the API process. It handles worker node registration, heartbeats, schedule polling, due-schedule claiming, recurring/one-time execution, queue/unqueue controls, schedule-run records, and worker-visible tool execution through the relational `core` manifest.
 
 Listener support is staged: schema, API endpoints, and Admin-Web surfaces exist; runtime listener processors remain a future focused slice.
+
+### Temporal orchestration pilot
+
+Phase 10.1 adds a side-by-side Temporal lane for durable workflow execution. The first pilot wraps the existing FRED macro ingestion script as a Temporal Activity and starts it from `fredIngestionWorkflow`.
+
+Temporal development commands:
+
+```bash
+# Start local Temporal separately
+temporal server start-dev
+```
+
+```bash
+# Run the SkyServer Temporal worker
+npm run temporal:worker:dev
+```
+
+```bash
+# Check Temporal connectivity
+npm run temporal:health
+```
+
+```bash
+# Start the FRED ingestion workflow pilot
+npm run temporal:fred
+```
+
+The existing worker daemon and scheduler/listener system remain active. Temporal is introduced only when a process needs durable workflow state, retries, history, or multi-step orchestration.
 
 ## Browser-Triggered Script Safety
 
@@ -295,30 +337,33 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 
 ## Documentation
 
-| Asset                                                                                                            | Purpose                                                                 |
-| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [`change.log`](change.log)                                                                                       | Detailed phase history and implementation notes moved out of the README |
-| [`docs/SkyServer_RepoMap.md`](docs/SkyServer_RepoMap.md)                                                         | Generated repository structure map                                      |
-| [`docs/SkyServer_Temporal_Workflow_Architecture_Plan.md`](docs/SkyServer_Temporal_Workflow_Architecture_Plan.md) | Temporal workflow architecture plan and future migration notes          |
+| Asset | Purpose |
+| --- | --- |
+| [`change.log`](change.log) | Detailed phase history and implementation notes moved out of the README |
+| [`docs/SkyServer_RepoMap.md`](docs/SkyServer_RepoMap.md) | Generated repository structure map |
+| [`docs/SkyServer_Temporal_Workflow_Architecture_Plan.md`](docs/SkyServer_Temporal_Workflow_Architecture_Plan.md) | Temporal workflow architecture plan and future migration notes |
+| [`docs/SkyServer_Temporal_Local_Setup.md`](docs/SkyServer_Temporal_Local_Setup.md) | Local Temporal development setup and command guide |
+| [`docs/SkyServer_Temporal_FRED_Pilot.md`](docs/SkyServer_Temporal_FRED_Pilot.md) | FRED ingestion workflow pilot notes and validation checklist |
+| [`docs/SkyServer_Temporal_Phase_10_Roadmap.md`](docs/SkyServer_Temporal_Phase_10_Roadmap.md) | Phase 10 Temporal rollout slices and migration rules |
 
 ## Roadmap
 
-| Phase      | Status      | Objective                                                                                                                                                    |
-| ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Phase 1    | ✅ Complete | Install Node.js, initialize the application, and establish npm tooling                                                                                       |
-| Phase 2    | ✅ Complete | ESLint, Prettier, Husky, and lint-staged automation                                                                                                          |
-| Phase 3    | ✅ Complete | PostgreSQL schema, indicator registry, migrations, seeds, and views                                                                                          |
-| Phase 4    | ✅ Complete | FRED, BoC, StatCan, and manual ingestion pipelines                                                                                                           |
-| Phase 5    | ✅ Complete | SkyServer Core CLI tool with configurable script launcher model                                                                                              |
-| Continuous | 🔄 Ongoing  | Expand automation scripts for Git, files, database, ingestion, workers, and operational workflows                                                            |
-| Phase 6    | ✅ Complete | Private Admin-Web with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety UX                               |
-| Phase 7    | ✅ Complete | Macro, ingestion status, admin-action APIs, Access Control, Ingestion Status, and Dashboard v2                                                               |
-| Phase 8    | ✅ Complete | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation           |
-| Phase 9    | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
-| Phase 10   | 🔜 Planned  | Temporal workflow orchestration foundation and first durable workflow pilot beside the existing worker/tool stack                                            |
-| Phase 11   | 🔜 Planned  | Ingestion resilience hardening: retry/backoff, resumable runs, richer source diagnostics, and durable workflow handoff                                       |
-| Phase 12   | 🔜 Planned  | Data mart and analytics-ready PostgreSQL model refinement for public, admin, and BI consumers                                                                |
-| Phase 13   | 🔜 Planned  | Cloud warehouse / BI integration track for Snowflake-style models, snapshots, and scheduled reporting outputs                                                |
+| Phase | Status | Objective |
+| --- | --- | --- |
+| Phase 1 | ✅ Complete | Install Node.js, initialize the application, and establish npm tooling |
+| Phase 2 | ✅ Complete | ESLint, Prettier, Husky, and lint-staged automation |
+| Phase 3 | ✅ Complete | PostgreSQL schema, indicator registry, migrations, seeds, and views |
+| Phase 4 | ✅ Complete | FRED, BoC, StatCan, and manual ingestion pipelines |
+| Phase 5 | ✅ Complete | SkyServer Core CLI tool with configurable script launcher model |
+| Continuous | 🔄 Ongoing | Expand automation scripts for Git, files, database, ingestion, workers, and operational workflows |
+| Phase 6 | ✅ Complete | Private Admin-Web with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety UX |
+| Phase 7 | ✅ Complete | Macro, ingestion status, admin-action APIs, Access Control, Ingestion Status, and Dashboard v2 |
+| Phase 8 | ✅ Complete | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation |
+| Phase 9 | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
+| Phase 10 | 🔄 In progress | Temporal workflow orchestration foundation and first durable FRED ingestion workflow pilot beside the existing worker/tool stack |
+| Phase 11 | 🔜 Planned | Ingestion resilience hardening: retry/backoff, resumable runs, richer source diagnostics, and durable workflow handoff |
+| Phase 12 | 🔜 Planned | Data mart and analytics-ready PostgreSQL model refinement for public, admin, and BI consumers |
+| Phase 13 | 🔜 Planned | Cloud warehouse / BI integration track for Snowflake-style models, snapshots, and scheduled reporting outputs |
 
 ## Design Philosophy
 
