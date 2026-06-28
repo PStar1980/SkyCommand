@@ -1,3 +1,13 @@
+## Phase 10.2 — Temporal FRED Indicator Workflow
+
+- Converted `fredIngestionWorkflow` from one giant FRED script activity into per-indicator Temporal activity orchestration.
+- Added `listFredIndicatorsActivity` for active FRED indicator discovery and `loadFredIndicatorActivity` for one-indicator download/normalize/load execution.
+- Added controlled workflow concurrency with a default of 3 and a hard cap of 10.
+- Updated the manual Temporal FRED runner to support `--indicators=GDP,UNRATE` and `--concurrency=2`.
+- Updated runner output to show structured per-indicator successes and failures.
+- Kept the previous full-script FRED activity exported for compatibility while moving the active workflow to indicator-batch mode.
+- Updated Temporal docs and README notes for the indicator-level workflow.
+
 # SkyServer Change Log
 
 ## Phase 10.1b — Temporal FRED Runner Output Polish

@@ -13,13 +13,51 @@ const { Connection, Client } = require('@temporalio/client');
 
 const { getTemporalConfig, parsePositiveInteger } = require('./config');
 
+function getArgValue(name) {
+  const prefix = `--${name}=`;
+  const arg = cliArgs.find((value) => value.startsWith(prefix));
+
+  return arg ? arg.slice(prefix.length) : null;
+}
+
 function getTailLineLimit() {
-  const arg = cliArgs.find((value) => value.startsWith('--tail-lines='));
-  const rawValue = arg
-    ? arg.split('=')[1]
-    : process.env.TEMPORAL_FRED_OUTPUT_TAIL_LINES;
+  const rawValue = getArgValue('tail-lines') || process.env.TEMPORAL_FRED_OUTPUT_TAIL_LINES;
 
   return parsePositiveInteger(rawValue, 120, 5000);
+}
+
+function getConcurrency() {
+  const rawValue = getArgValue('concurrency') || process.env.TEMPORAL_FRED_CONCURRENCY;
+
+  return parsePositiveInteger(rawValue, 3, 10);
+}
+
+function getRequestedIndicators() {
+  const values = [];
+
+  for (const arg of cliArgs) {
+    if (arg.startsWith('--indicator=')) {
+      values.push(arg.slice('--indicator='.length));
+    }
+
+    if (arg.startsWith('--indicators=')) {
+      values.push(...arg.slice('--indicators='.length).split(','));
+    }
+  }
+
+  const seen = new Set();
+  const indicators = [];
+
+  for (const value of values) {
+    const code = String(value || '').trim().toUpperCase();
+
+    if (code && !seen.has(code)) {
+      seen.add(code);
+      indicators.push(code);
+    }
+  }
+
+  return indicators;
 }
 
 function formatDuration(durationMs) {
@@ -51,26 +89,12 @@ function lastLines(value, limit) {
   return lines.slice(-limit).join('\n').trim();
 }
 
-function printResult(result) {
-  if (jsonMode) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
+function printLegacyActivityResult(result) {
   const activity = result?.activity || {};
   const tailLineLimit = getTailLineLimit();
   const stdoutTail = lastLines(activity.stdoutTail, tailLineLimit);
   const stderrTail = lastLines(activity.stderrTail, tailLineLimit);
-  const statusIcon = result?.ok && activity?.ok ? '✅' : '⚠️';
 
-  console.log('');
-  console.log(`[Temporal] Workflow complete ${statusIcon}`);
-  console.log('');
-  console.log('Workflow');
-  console.log(`  name: ${result.workflow || 'unknown'}`);
-  console.log(`  started: ${result.startedAt || 'unknown'}`);
-  console.log(`  completed: ${result.completedAt || 'unknown'}`);
-  console.log('');
   console.log('Activity');
   console.log(`  source: ${activity.source || 'unknown'}`);
   console.log(`  exit code: ${activity.code ?? 'unknown'}`);
@@ -96,6 +120,73 @@ function printResult(result) {
   }
 }
 
+function printIndicatorBatchResult(result) {
+  const summary = result.summary || {};
+  const failures = Array.isArray(result.results)
+    ? result.results.filter((item) => !item.ok)
+    : [];
+  const successfulResults = Array.isArray(result.results)
+    ? result.results.filter((item) => item.ok)
+    : [];
+
+  console.log('FRED indicator batch');
+  console.log(`  source: ${result.source || 'FRED'}`);
+  console.log(`  selected indicators: ${result.selectedIndicators ? 'yes' : 'no'}`);
+  console.log(`  concurrency: ${result.concurrency || 'unknown'}`);
+  console.log(`  batches: ${result.batchCount ?? 'unknown'}`);
+  console.log(`  total: ${summary.total ?? successfulResults.length + failures.length}`);
+  console.log(`  succeeded: ${summary.succeeded ?? successfulResults.length}`);
+  console.log(`  failed: ${summary.failed ?? failures.length}`);
+
+  if (successfulResults.length > 0) {
+    console.log('');
+    console.log('Successful indicators');
+    console.log('------------------------------------------------------------');
+
+    for (const item of successfulResults) {
+      console.log(
+        `  ✅ ${item.indicatorCode}: ${formatDuration(item.durationMs)} (${item.finishedAt || 'done'})`,
+      );
+    }
+  }
+
+  if (failures.length > 0) {
+    console.log('');
+    console.log('Failed indicators');
+    console.log('------------------------------------------------------------');
+
+    for (const item of failures) {
+      console.log(`  ⚠️ ${item.indicatorCode}: ${item.error || 'unknown error'}`);
+    }
+  }
+}
+
+function printResult(result) {
+  if (jsonMode) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  const statusIcon = result?.ok ? '✅' : '⚠️';
+
+  console.log('');
+  console.log(`[Temporal] Workflow complete ${statusIcon}`);
+  console.log('');
+  console.log('Workflow');
+  console.log(`  name: ${result.workflow || 'unknown'}`);
+  console.log(`  mode: ${result.mode || 'legacy_activity'}`);
+  console.log(`  started: ${result.startedAt || 'unknown'}`);
+  console.log(`  completed: ${result.completedAt || 'unknown'}`);
+  console.log('');
+
+  if (result.mode === 'indicator_batch') {
+    printIndicatorBatchResult(result);
+    return;
+  }
+
+  printLegacyActivityResult(result);
+}
+
 async function main() {
   const config = getTemporalConfig();
   const workflowId = `${config.fredWorkflowIdPrefix}-${new Date()
@@ -106,6 +197,8 @@ async function main() {
     30 * 60 * 1000,
     24 * 60 * 60 * 1000,
   );
+  const indicators = getRequestedIndicators();
+  const concurrency = getConcurrency();
 
   if (!jsonMode) {
     console.log('[Temporal] Starting FRED ingestion workflow');
@@ -113,6 +206,11 @@ async function main() {
     console.log(`[Temporal] namespace=${config.namespace}`);
     console.log(`[Temporal] taskQueue=${config.taskQueue}`);
     console.log(`[Temporal] workflowId=${workflowId}`);
+    console.log(`[Temporal] concurrency=${concurrency}`);
+
+    if (indicators.length > 0) {
+      console.log(`[Temporal] indicators=${indicators.join(',')}`);
+    }
   }
 
   const connection = await Connection.connect({
@@ -132,6 +230,8 @@ async function main() {
         workflowId,
         runSource: 'manual_temporal_pilot',
         timeoutMs,
+        indicators,
+        concurrency,
       },
     ],
   });
