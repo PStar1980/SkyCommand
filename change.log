@@ -177,3 +177,22 @@ SkyWeb Analytics owns:
 - Added Temporal docs for local setup, FRED pilot validation, and Phase 10 rollout planning.
 - Updated README to mark Phase 10 as in progress and document the first Temporal pilot without removing the existing worker/scheduler infrastructure.
 
+## Phase 10.2 — Temporal FRED Indicator-Level Orchestration
+
+- Promoted the FRED Temporal pilot from one child-process script wrapper into indicator-level workflow orchestration.
+- Added `listFredIndicatorsActivity` to resolve the full FRED indicator set or an explicit selected subset.
+- Added `loadFredIndicatorActivity` to download, normalize, and load one FRED indicator per Temporal Activity.
+- Added workflow-level batching with configurable concurrency, defaulting to `3` and capped at `10`.
+- Updated the manual FRED runner to support `--indicators`, repeated `--indicator`, `--concurrency`, and `--json`.
+- Kept the legacy full-script activity exported for compatibility while moving the active workflow path to structured per-indicator results.
+
+## Phase 10.3 — Temporal Core/API Control Plane
+
+- Added protected SkyServer API routes under `/api/temporal` for Temporal health, workflow definitions, workflow listing, workflow detail, FRED workflow start, workflow cancellation, and workflow termination.
+- Added `apps/api/src/services/temporalService.js` as the API-side Temporal client/gateway layer.
+- Added `apps/api/src/controllers/temporalController.js` and `apps/api/src/routes/temporal.routes.js`.
+- Wired Temporal routes into the SkyServer API server.
+- Added approved workflow template metadata for `fredIngestionWorkflow` so future Admin-Web controls can render safe configuration options.
+- Added `00032__temporal_auth_seed.sql` with dedicated Temporal workflow permissions for read/start/cancel/terminate operations.
+- Kept compatibility permission fallbacks to existing worker/ingestion permissions so local operators are not blocked before the new seed is applied.
+- Added `docs/SkyServer_Temporal_Core_API.md` with route details, PowerShell examples, permission notes, and the next Admin-Web slice.

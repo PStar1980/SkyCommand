@@ -79,6 +79,7 @@ SkyServer/
 │   │       │   ├── macroController.js
 │   │       │   ├── publicMacroController.js
 │   │       │   ├── skywebController.js
+│   │       │   ├── temporalController.js
 │   │       │   ├── toolsController.js
 │   │       │   └── workerController.js
 │   │       ├── middleware/
@@ -92,6 +93,7 @@ SkyServer/
 │   │       │   ├── public.routes.js
 │   │       │   ├── publicMacro.routes.js
 │   │       │   ├── skyweb.routes.js
+│   │       │   ├── temporal.routes.js
 │   │       │   ├── tools.routes.js
 │   │       │   └── worker.routes.js
 │   │       └── services/
@@ -108,6 +110,7 @@ SkyServer/
 │   │           ├── skywebPreferencesService.js
 │   │           ├── skywebProfileService.js
 │   │           ├── skywebSavedViewsService.js
+│   │           ├── temporalService.js
 │   │           ├── toolManifestService.js
 │   │           └── workerService.js
 │   └── worker/
@@ -124,6 +127,7 @@ SkyServer/
 │               └── schedulePoller.js
 ├── docs/
 │   ├── SkyServer_RepoMap.md
+│   ├── SkyServer_Temporal_Core_API.md
 │   ├── SkyServer_Temporal_FRED_Pilot.md
 │   ├── SkyServer_Temporal_Local_Setup.md
 │   ├── SkyServer_Temporal_Phase_10_Roadmap.md
@@ -179,7 +183,8 @@ SkyServer/
 │   │           ├── 00016__auth_seed_roles_permissions.sql
 │   │           ├── 00019__core_config_seed.sql
 │   │           ├── 00024__skyweb_auth_seed.sql
-│   │           └── 00030__skyweb_alert_worker_seed.sql
+│   │           ├── 00030__skyweb_alert_worker_seed.sql
+│   │           └── 00032__temporal_auth_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

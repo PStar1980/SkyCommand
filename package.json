@@ -29,7 +29,7 @@
     "auth:create-admin": "node packages/auth/src/createAdminUser.js",
     "core": "node packages/core/src/SkyServer_Core.js",
     "precommit": "npm run validate",
-    "validate": "node --check packages/temporal/src/config.js && node --check packages/temporal/src/worker.js && node --check packages/temporal/src/temporalHealth.js && node --check packages/temporal/src/startFredIngestionWorkflow.js && node --check packages/temporal/src/activities/fredActivities.js && node --check packages/temporal/src/activities/index.js && node --check packages/temporal/src/workflows/fredIngestionWorkflow.js && node --check packages/temporal/src/workflows/index.js && node --check packages/files/src/generateRepoMap.js && node --check packages/files/src/generateRepoZip.js"
+    "validate": "node --check apps/api/src/services/temporalService.js && node --check apps/api/src/controllers/temporalController.js && node --check apps/api/src/routes/temporal.routes.js && node --check packages/temporal/src/config.js && node --check packages/temporal/src/worker.js && node --check packages/temporal/src/temporalHealth.js && node --check packages/temporal/src/startFredIngestionWorkflow.js && node --check packages/temporal/src/activities/fredActivities.js && node --check packages/temporal/src/activities/index.js && node --check packages/temporal/src/workflows/fredIngestionWorkflow.js && node --check packages/temporal/src/workflows/index.js && node --check packages/files/src/generateRepoMap.js && node --check packages/files/src/generateRepoZip.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
