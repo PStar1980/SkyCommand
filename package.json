@@ -6,8 +6,6 @@
   "scripts": {
     "prepare": "husky",
     "test": "npm run validate",
-    "precommit": "npm run validate",
-    "validate": "node --check packages/temporal/src/config.js && node --check packages/temporal/src/worker.js && node --check packages/temporal/src/temporalHealth.js && node --check packages/temporal/src/startFredIngestionWorkflow.js && node --check packages/temporal/src/activities/fredActivities.js && node --check packages/temporal/src/activities/index.js && node --check packages/temporal/src/workflows/fredIngestionWorkflow.js && node --check packages/temporal/src/workflows/index.js && node --check packages/files/src/generateRepoMap.js && node --check packages/files/src/generateRepoZip.js",
     "start": "node apps/api/src/server.js",
     "api": "nodemon apps/api/src/server.js",
     "worker": "node apps/worker/src/index.js",
@@ -25,11 +23,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "npm run lint:fix && npm run format",
-    "prepush": "npm run lint:fix && npm run format:check",
+    "prepush": "npm run validate",
     "db:health": "node packages/db/src/db_health.js",
     "db:build": "node packages/db_build/src/db_build.js",
     "auth:create-admin": "node packages/auth/src/createAdminUser.js",
-    "core": "node packages/core/src/SkyServer_Core.js"
+    "core": "node packages/core/src/SkyServer_Core.js",
+    "precommit": "npm run validate",
+    "validate": "node --check packages/temporal/src/config.js && node --check packages/temporal/src/worker.js && node --check packages/temporal/src/temporalHealth.js && node --check packages/temporal/src/startFredIngestionWorkflow.js && node --check packages/temporal/src/activities/fredActivities.js && node --check packages/temporal/src/activities/index.js && node --check packages/temporal/src/workflows/fredIngestionWorkflow.js && node --check packages/temporal/src/workflows/index.js && node --check packages/files/src/generateRepoMap.js && node --check packages/files/src/generateRepoZip.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
