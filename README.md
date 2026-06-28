@@ -30,11 +30,11 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.1 — Temporal orchestration foundation
+**Active status:** Phase 10.2 — Temporal FRED indicator workflow
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
-Phase 10.1 introduces the first side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while the FRED ingestion pilot proves durable workflow execution, retries, and workflow history.
+Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while the FRED workflow proves durable execution, retries, workflow history, and per-indicator ingestion visibility.
 
 ## Core Product Surfaces
 
@@ -62,8 +62,8 @@ flowchart LR
     Worker --> Tools
     Ingestion["Ingestion Scripts<br/>FRED + BoC + StatCan + Manual"] --> Db
     SkyWeb["SkyWeb Analytics<br/>React + ASP.NET Core"] -->|evaluate alerts only| Api
-    Api -->|future orchestration| Temporal["Temporal Pilot<br/>Phase 10.1"]
-    Temporal --> TemporalWorker["Temporal Worker<br/>FRED pilot activity"]
+    Api -->|future orchestration| Temporal["Temporal Pilot<br/>Phase 10.2"]
+    Temporal --> TemporalWorker["Temporal Worker<br/>FRED indicator activities"]
     TemporalWorker --> Ingestion
 ```
 
@@ -295,7 +295,7 @@ Listener support is staged: schema, API endpoints, and Admin-Web surfaces exist;
 
 ### Temporal orchestration pilot
 
-Phase 10.1 adds a side-by-side Temporal lane for durable workflow execution. The first pilot wraps the existing FRED macro ingestion script as a Temporal Activity and starts it from `fredIngestionWorkflow`.
+Phase 10 adds a side-by-side Temporal lane for durable workflow execution. The FRED pilot now runs indicator-level activities from `fredIngestionWorkflow`, returning structured per-indicator success/failure results that can later be surfaced through SkyServer Core and Admin-Web.
 
 Temporal development commands:
 
@@ -315,8 +315,11 @@ npm run temporal:health
 ```
 
 ```bash
-# Start the FRED ingestion workflow pilot
+# Start the FRED ingestion workflow pilot for all active FRED indicators
 npm run temporal:fred
+
+# Start selected indicators only
+npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
 The existing worker daemon and scheduler/listener system remain active. Temporal is introduced only when a process needs durable workflow state, retries, history, or multi-step orchestration.
@@ -360,7 +363,7 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 | Phase 7 | ✅ Complete | Macro, ingestion status, admin-action APIs, Access Control, Ingestion Status, and Dashboard v2 |
 | Phase 8 | ✅ Complete | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation |
 | Phase 9 | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
-| Phase 10 | 🔄 In progress | Temporal workflow orchestration foundation and first durable FRED ingestion workflow pilot beside the existing worker/tool stack |
+| Phase 10 | 🔄 In progress | Temporal workflow orchestration foundation with durable FRED indicator-level ingestion beside the existing worker/tool stack |
 | Phase 11 | 🔜 Planned | Ingestion resilience hardening: retry/backoff, resumable runs, richer source diagnostics, and durable workflow handoff |
 | Phase 12 | 🔜 Planned | Data mart and analytics-ready PostgreSQL model refinement for public, admin, and BI consumers |
 | Phase 13 | 🔜 Planned | Cloud warehouse / BI integration track for Snowflake-style models, snapshots, and scheduled reporting outputs |
