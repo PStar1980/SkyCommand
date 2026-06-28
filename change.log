@@ -1,5 +1,13 @@
 # SkyServer Change Log
 
+## Phase 10.1b — Temporal FRED Runner Output Polish
+
+- Updated the manual FRED Temporal workflow starter to print a readable workflow/activity summary by default.
+- Rendered the FRED stdout/stderr tail with real line breaks instead of escaped JSON newline characters.
+- Added `--json` mode for raw structured output and `--tail-lines=N` for output-tail tuning.
+- Documented the new manual runner output behavior in the Temporal FRED pilot notes.
+
+
 Detailed phase notes and implementation history for SkyServer. This file keeps the root README focused on product positioning, architecture, local development, and roadmap status.
 
 ## 2026-06-27 — README Roadmap and Documentation Cleanup

@@ -64,6 +64,31 @@ The local activity timeout can also be controlled through:
 TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS=1800000
 ```
 
+
+## Manual runner output
+
+The manual runner defaults to human-readable output so the FRED child-process log tail renders with real line breaks instead of one large escaped JSON string.
+
+```powershell
+npm run temporal:fred
+```
+
+Useful options:
+
+```powershell
+# Emit the raw structured workflow result for future API/Admin-Web callers.
+npm run temporal:fred -- --json
+
+# Increase or reduce the visible ingestion log tail.
+npm run temporal:fred -- --tail-lines=200
+```
+
+The default tail length is 120 lines and can also be overridden with:
+
+```env
+TEMPORAL_FRED_OUTPUT_TAIL_LINES=200
+```
+
 ## Validation checklist
 
 1. Start Temporal dev server.
