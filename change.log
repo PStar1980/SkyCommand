@@ -144,3 +144,18 @@ SkyWeb Analytics owns:
 - dashboards and saved views
 - chart presentation and alert overlays
 - Signal Center and member alert lifecycle presentation
+
+## Phase 10.1 — Temporal Orchestration Foundation
+
+- Added the initial Temporal SDK wiring to SkyServer as a side-by-side workflow lane.
+- Added local Temporal configuration helpers under `packages/temporal/src/config.js`.
+- Added a Temporal worker entry point under `packages/temporal/src/worker.js`.
+- Added a Temporal connectivity check command under `packages/temporal/src/temporalHealth.js`.
+- Added the first workflow pilot, `fredIngestionWorkflow`, under `packages/temporal/src/workflows/`.
+- Added the first activity wrapper, `loadFredMacroDataActivity`, under `packages/temporal/src/activities/`.
+- Wrapped the existing `packages/ingestion/src/loadFREDMacroData.js` script through a child-process activity instead of refactoring ingestion internals immediately.
+- Added `npm run temporal:worker`, `temporal:worker:dev`, `temporal:health`, and `temporal:fred` scripts.
+- Added Temporal environment placeholders to `.env.example`.
+- Added Temporal docs for local setup, FRED pilot validation, and Phase 10 rollout planning.
+- Updated README to mark Phase 10 as in progress and document the first Temporal pilot without removing the existing worker/scheduler infrastructure.
+
