@@ -59,6 +59,7 @@ SkyServer/
 │   │       │   ├── Login.jsx
 │   │       │   ├── SchedulerControl.jsx
 │   │       │   ├── ScriptExecutions.jsx
+│   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── Tools.jsx
 │   │       │   └── WorkerControl.jsx
 │   │       └── services/
@@ -66,6 +67,7 @@ SkyServer/
 │   │           ├── api.js
 │   │           ├── authService.js
 │   │           ├── ingestionService.js
+│   │           ├── temporalService.js
 │   │           ├── toolService.js
 │   │           └── workerService.js
 │   ├── api/
@@ -127,6 +129,7 @@ SkyServer/
 │               └── schedulePoller.js
 ├── docs/
 │   ├── SkyServer_RepoMap.md
+│   ├── SkyServer_Temporal_Admin_Web_Console.md
 │   ├── SkyServer_Temporal_Core_API.md
 │   ├── SkyServer_Temporal_FRED_Pilot.md
 │   ├── SkyServer_Temporal_Local_Setup.md

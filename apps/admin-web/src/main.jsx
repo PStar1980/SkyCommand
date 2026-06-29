@@ -20,6 +20,7 @@ import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
 import SchedulerControl from './pages/SchedulerControl.jsx';
+import TemporalWorkflows from './pages/TemporalWorkflows.jsx';
 import './index.css';
 import './App.css';
 
@@ -88,6 +89,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="automation/temporal"
+              element={
+                <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
+                  <TemporalWorkflows />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="temporal" element={<Navigate replace to="/automation/temporal" />} />
 
             <Route
               path="configuration/repositories"

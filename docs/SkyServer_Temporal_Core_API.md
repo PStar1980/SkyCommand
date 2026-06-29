@@ -73,6 +73,22 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Bearer <token>" }
 ```
 
+
+## Postman body note
+
+Use **Body -> raw -> JSON** when testing the start endpoint in Postman. The Params tab is for query-string values and can accidentally launch a full FRED run if the JSON payload does not reach `req.body`.
+
+Correct request body:
+
+```json
+{
+  "indicators": ["GDP", "UNRATE", "DGS10"],
+  "concurrency": 2
+}
+```
+
+The API also accepts simple diagnostic query parameters such as `?indicators=GDP,UNRATE&concurrency=2`, but JSON body remains the preferred shape.
+
 ## Permissions
 
 Phase 10.3 adds dedicated Temporal permissions:
@@ -103,10 +119,4 @@ Run the database seed/build step after applying this patch so the new dedicated 
 
 ## Next slice
 
-Phase 10.4 should add an Admin-Web Workflow Console using these endpoints for:
-
-- Temporal health
-- FRED workflow manual starts
-- run listing
-- run detail view
-- cancel/terminate controls behind confirmation UX
+Phase 10.4 added the Admin-Web Workflow Console. The next slice should persist workflow launch metadata into PostgreSQL for local reporting, auditability, and dashboard rollups.

@@ -18,6 +18,43 @@ function sendPagedResponse(res, payload = {}) {
   });
 }
 
+
+function parseMaybeJsonQueryPayload(query = {}) {
+  const entries = Object.entries(query || {});
+
+  if (entries.length !== 1) {
+    return {};
+  }
+
+  const [rawKey, rawValue] = entries[0];
+  const candidates = [rawKey, rawValue].filter((value) => typeof value === 'string');
+
+  for (const candidate of candidates) {
+    const trimmed = candidate.trim();
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (error) {
+        return {};
+      }
+    }
+  }
+
+  return {};
+}
+
+function buildRequestPayload(req) {
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const query = req.query && typeof req.query === 'object' ? req.query : {};
+
+  return {
+    ...parseMaybeJsonQueryPayload(query),
+    ...query,
+    ...body,
+  };
+}
+
 function sendServiceError(res, error) {
   const statusCode = error.statusCode || 500;
   const response = {
@@ -75,7 +112,7 @@ async function getWorkflow(req, res) {
 
 async function startFredIngestionWorkflow(req, res) {
   try {
-    const payload = await temporalService.startFredIngestionWorkflow(req.body || {});
+    const payload = await temporalService.startFredIngestionWorkflow(buildRequestPayload(req));
 
     res.status(202).json({
       ok: true,
