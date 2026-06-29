@@ -11,7 +11,7 @@ Introduce Temporal as SkyServer's durable workflow orchestration engine while pr
 | 10.1 | Complete | Add Temporal SDK wiring, local setup docs, worker skeleton, and first FRED ingestion pilot workflow |
 | 10.2 | Complete | Convert FRED ingestion from one script activity into per-indicator activities with controlled workflow concurrency |
 | 10.3 | Complete | Add protected API endpoints to start and inspect pilot workflows through SkyServer Core/API |
-| 10.4 | Planned | Add Admin-Web workflow console for Temporal health, FRED manual starts, and run summaries |
+| 10.4 | Complete | Add Admin-Web workflow console for Temporal health, FRED manual starts, run summaries, detail inspection, cancel, and terminate controls |
 | 10.5 | Planned | Persist workflow launch summaries into PostgreSQL for Admin-Web reporting and auditability |
 | 10.6 | Planned | Add alert-evaluation workflow chaining after successful macro ingestion |
 | 10.7 | Planned | Define migration rules for scheduler/listener jobs that should become Temporal workflows |

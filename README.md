@@ -30,11 +30,11 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.2 — Temporal FRED indicator workflow
+**Active status:** Phase 10.4 — Temporal Admin-Web workflow console
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
-Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while the FRED workflow proves durable execution, retries, workflow history, and per-indicator ingestion visibility.
+Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while the FRED workflow proves durable execution, retries, workflow history, per-indicator ingestion visibility, and Admin-Web control-plane operation.
 
 ## Core Product Surfaces
 
@@ -43,7 +43,7 @@ Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The
 | Admin-Web Dashboard | Private command center for API/DB health, ingestion status, automation status, tools, sessions, scripts, and audits |
 | Tools | Permission-filtered operational tool launcher with dynamic parameters and execution logging |
 | Ingestion Status | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics |
-| Automation | Scheduler/listener control surfaces for worker-backed tool execution and future event-driven automation |
+| Automation | Scheduler/listener control surfaces plus the Temporal Workflow Console for durable workflow starts, run inspection, cancellation, and future event-driven automation |
 | Access Control | User, role, permission, session, and password administration |
 | Script Executions | Browser-triggered and worker-triggered execution history with stdout/stderr traceability |
 | Audit Events | Authentication, authorization, and operational audit trail |
@@ -62,7 +62,7 @@ flowchart LR
     Worker --> Tools
     Ingestion["Ingestion Scripts<br/>FRED + BoC + StatCan + Manual"] --> Db
     SkyWeb["SkyWeb Analytics<br/>React + ASP.NET Core"] -->|evaluate alerts only| Api
-    Api -->|future orchestration| Temporal["Temporal Pilot<br/>Phase 10.2"]
+    Api -->|workflow control plane| Temporal["Temporal Pilot<br/>Phase 10.4"]
     Temporal --> TemporalWorker["Temporal Worker<br/>FRED indicator activities"]
     TemporalWorker --> Ingestion
 ```
@@ -97,6 +97,26 @@ SkyServer and SkyWeb now have a clean boundary:
 | Future Temporal orchestration | Public/member API consumption |
 
 SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
+
+## Temporal Workflow Console
+
+Phase 10.4 adds the first Admin-Web cockpit for Temporal-backed workflows. Open it from:
+
+```text
+Automation -> Temporal Workflows
+```
+
+The console can:
+
+- display Temporal health, namespace, and task queue;
+- show the approved FRED workflow template;
+- start FRED ingestion workflows with selected indicators or the full indicator set;
+- set workflow concurrency from the UI;
+- list recent workflow runs;
+- inspect workflow details;
+- request cancellation or termination according to RBAC permissions.
+
+Admin-Web calls `/api/temporal`; it never connects to Temporal directly.
 
 ## Local Development
 

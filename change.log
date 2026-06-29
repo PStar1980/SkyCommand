@@ -196,3 +196,14 @@ SkyWeb Analytics owns:
 - Added `00032__temporal_auth_seed.sql` with dedicated Temporal workflow permissions for read/start/cancel/terminate operations.
 - Kept compatibility permission fallbacks to existing worker/ingestion permissions so local operators are not blocked before the new seed is applied.
 - Added `docs/SkyServer_Temporal_Core_API.md` with route details, PowerShell examples, permission notes, and the next Admin-Web slice.
+
+## Phase 10.4 — Temporal Admin-Web Workflow Console
+
+- Added `apps/admin-web/src/pages/TemporalWorkflows.jsx` as the first Admin-Web cockpit for Temporal-backed operations.
+- Added `apps/admin-web/src/services/temporalService.js` for typed Admin-Web calls into `/api/temporal`.
+- Added the Automation -> Temporal Workflows navigation item and `/automation/temporal` protected route.
+- Added Temporal service health, namespace, task queue, workflow template, recent run listing, selected run detail, cancel, and terminate controls.
+- Added browser-based FRED workflow start with selected indicators, full indicator-set mode, configurable concurrency, and optional workflow ID override.
+- Updated the Temporal API controller to tolerate local diagnostic query payloads while preserving JSON body payloads as the preferred request shape.
+- Added `docs/SkyServer_Temporal_Admin_Web_Console.md` with usage, permission, Postman, and local test notes.
+- Updated the Phase 10 roadmap and README to mark the Admin-Web workflow console slice complete.

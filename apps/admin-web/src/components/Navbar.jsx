@@ -30,7 +30,9 @@ function Navbar() {
     hasPermission('ADMIN_ROLE_READ') ||
     hasPermission('ADMIN_PERMISSION_READ');
   const canViewAutomation =
-    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
+    hasPermission('WORKER_SCHEDULE_READ') ||
+    hasPermission('WORKER_LISTENER_READ') ||
+    hasPermission('TEMPORAL_WORKFLOW_READ');
   const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAudit = hasPermission('AUDIT_READ');
 
@@ -182,6 +184,13 @@ function Navbar() {
                         <li>
                           <NavLink className={getDropdownItemClass} to="/automation/listeners">
                             Listener
+                          </NavLink>
+                        </li>
+                      )}
+                      {hasPermission('TEMPORAL_WORKFLOW_READ') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/automation/temporal">
+                            Temporal Workflows
                           </NavLink>
                         </li>
                       )}
