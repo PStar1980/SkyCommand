@@ -26,6 +26,12 @@ router.get(
 );
 
 router.get(
+  '/workflow-run-records',
+  requireAnyPermission(['TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
+  temporalController.listWorkflowRunRecords,
+);
+
+router.get(
   '/workflows/:workflowId',
   requireAnyPermission(['TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
   temporalController.getWorkflow,

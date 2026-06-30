@@ -12,6 +12,10 @@ function listWorkflows(filters = {}) {
   return api.get('/api/temporal/workflows', { query: filters });
 }
 
+function listWorkflowRunRecords(filters = {}) {
+  return api.get('/api/temporal/workflow-run-records', { query: filters });
+}
+
 function getWorkflow(workflowId, options = {}) {
   return api.get(`/api/temporal/workflows/${encodeURIComponent(workflowId)}`, {
     query: options,
@@ -40,6 +44,7 @@ function terminateWorkflow(workflowId, payload = {}) {
 const temporalService = {
   getHealth,
   listWorkflowDefinitions,
+  listWorkflowRunRecords,
   listWorkflows,
   getWorkflow,
   startFredIngestionWorkflow,

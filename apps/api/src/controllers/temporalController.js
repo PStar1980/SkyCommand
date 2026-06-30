@@ -1,4 +1,5 @@
 const temporalService = require('../services/temporalService');
+const authService = require('../services/authService');
 
 function sendServiceResponse(res, payload = {}) {
   res.json({
@@ -55,6 +56,13 @@ function buildRequestPayload(req) {
   };
 }
 
+function getActionContext(req) {
+  return {
+    actor: req.user,
+    context: authService.getRequestContext(req),
+  };
+}
+
 function sendServiceError(res, error) {
   const statusCode = error.statusCode || 500;
   const response = {
@@ -98,6 +106,15 @@ async function listWorkflows(req, res) {
   }
 }
 
+async function listWorkflowRunRecords(req, res) {
+  try {
+    const payload = await temporalService.listWorkflowRunRecords(req.query || {});
+    sendPagedResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function getWorkflow(req, res) {
   try {
     const payload = await temporalService.getWorkflow({
@@ -116,6 +133,7 @@ async function startWorkflowFromDefinition(req, res) {
     const payload = await temporalService.startWorkflowFromDefinition({
       workflowCode: req.params.workflowCode,
       body: buildRequestPayload(req),
+      ...getActionContext(req),
     });
 
     res.status(202).json({
@@ -129,7 +147,11 @@ async function startWorkflowFromDefinition(req, res) {
 
 async function startFredIngestionWorkflow(req, res) {
   try {
-    const payload = await temporalService.startFredIngestionWorkflow(buildRequestPayload(req));
+    const payload = await temporalService.startFredIngestionWorkflow(
+      buildRequestPayload(req),
+      null,
+      getActionContext(req),
+    );
 
     res.status(202).json({
       ok: true,
@@ -145,6 +167,7 @@ async function cancelWorkflow(req, res) {
     const payload = await temporalService.cancelWorkflow({
       workflowId: req.params.workflowId,
       runId: req.body?.runId || req.query.runId,
+      actor: req.user,
     });
     sendServiceResponse(res, payload);
   } catch (error) {
@@ -158,6 +181,7 @@ async function terminateWorkflow(req, res) {
       workflowId: req.params.workflowId,
       runId: req.body?.runId || req.query.runId,
       reason: req.body?.reason,
+      actor: req.user,
     });
     sendServiceResponse(res, payload);
   } catch (error) {
@@ -170,6 +194,7 @@ module.exports = {
   getHealth,
   getWorkflow,
   listWorkflowDefinitions,
+  listWorkflowRunRecords,
   listWorkflows,
   startFredIngestionWorkflow,
   startWorkflowFromDefinition,
