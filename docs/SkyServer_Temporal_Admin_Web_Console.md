@@ -17,32 +17,37 @@ SkyServer Admin-Web
 
 ## Route
 
-Admin-Web surface:
+Admin-Web surfaces:
 
 ```text
-Automation -> Temporal Workflows
-/automation/temporal
+Workflows -> Start Workflow
+/workflows/start
+
+Workflows -> Workflow History
+/workflows/history
 ```
 
-Compatibility redirect:
+Compatibility redirects:
 
 ```text
-/temporal -> /automation/temporal
+/automation/temporal -> /workflows/history
+/temporal -> /workflows/history
 ```
 
 ## Features
 
-The first console slice supports:
+The workflow pages support:
 
 - Temporal health display
 - Namespace and task queue display
 - Approved workflow template summary for `fredIngestionWorkflow`
-- Manual FRED workflow start from the browser
+- Manual FRED workflow start from the browser on Start Workflow
 - Optional indicator list entry
 - Configurable concurrency entry
 - Optional workflow ID override
-- Recent workflow run listing
-- Workflow detail inspection
+- Active workflow listing on Start Workflow
+- Recent workflow run listing on Workflow History
+- Workflow detail inspection on Workflow History
 - Running workflow cancellation
 - High-risk workflow termination for users with terminate permission
 
@@ -138,10 +143,11 @@ Start Admin-Web:
 npm run web
 ```
 
-Then open:
+Then open either page:
 
 ```text
-http://localhost:5173/automation/temporal
+http://localhost:5171/workflows/start
+http://localhost:5171/workflows/history
 ```
 
 ## Phase boundary
@@ -179,3 +185,19 @@ The Scheduler page does not talk to Temporal directly. It creates a normal `work
 - the `worker.temporal_workflow_run_records` Temporal workflow launch record.
 
 A scheduler run marked `SUCCESS` means the worker successfully requested/started the Temporal workflow. The downstream workflow can continue running in Temporal after the scheduler bridge run has finished.
+
+
+## Phase 10.8 navigation split
+
+Temporal workflows now live under a dedicated top-level **Workflows** menu instead of Automation:
+
+```text
+Tools -> Run Tools / Tools History
+Workflows -> Start Workflow / Workflow History
+Automation -> Scheduler / Listener
+Data -> Ingestion Status
+Configuration -> Repositories
+Access Control -> Users / Sessions / Roles / Privileges / User History
+```
+
+The old combined console route remains as a compatibility redirect to Workflow History.

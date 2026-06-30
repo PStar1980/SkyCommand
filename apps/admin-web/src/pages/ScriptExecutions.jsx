@@ -131,11 +131,11 @@ function ScriptExecutions() {
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Execution history</div>
-          <h1 className="sky-page-title">Script Executions</h1>
+          <div className="sky-page-kicker">Tools · History</div>
+          <h1 className="sky-page-title">Tools History</h1>
           <p className="sky-page-subtitle">
-            Read-only trace of tools launched through the API, CLI-adjacent workflows, and future
-            workers.
+            Read-only trace of tools launched through the API, Admin-Web, CLI-adjacent workflows,
+            and workers.
           </p>
         </div>
         <button

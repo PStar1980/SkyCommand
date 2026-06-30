@@ -1,3 +1,13 @@
+## Phase 10.8 — Workflow Navigation Split
+
+- Moved Temporal workflow navigation out of Automation and into a new top-level Workflows menu.
+- Split the Temporal Admin-Web surface into `/workflows/start` for approved starts and `/workflows/history` for run inspection/history.
+- Redirected legacy `/automation/temporal` and `/temporal` links to Workflow History.
+- Renamed Tools -> Execution History to Tools History.
+- Moved Audit under Access Control as User History and added `/access-control/user-history` with legacy audit redirects.
+- Reordered the authenticated top menu to Dashboard, Tools, Workflows, Automation, Data, Configuration, Access Control.
+- Added navbar/dropdown grouping styles for a cleaner control-plane menu.
+
 ## Phase 10.2 — Temporal FRED Indicator Workflow
 
 - Converted `fredIngestionWorkflow` from one giant FRED script activity into per-indicator Temporal activity orchestration.

@@ -20,7 +20,7 @@ import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
 import SchedulerControl from './pages/SchedulerControl.jsx';
-import TemporalWorkflows from './pages/TemporalWorkflows.jsx';
+import { TemporalStartWorkflow, TemporalWorkflowHistory } from './pages/TemporalWorkflows.jsx';
 import './index.css';
 import './App.css';
 
@@ -52,6 +52,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
             <Route path="script-executions" element={<Navigate replace to="/tools/executions" />} />
+            <Route path="tools/history" element={<Navigate replace to="/tools/executions" />} />
             <Route
               path="tools/executions"
               element={
@@ -89,15 +90,25 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
+            <Route path="workflows" element={<Navigate replace to="/workflows/start" />} />
             <Route
-              path="automation/temporal"
+              path="workflows/start"
               element={
                 <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
-                  <TemporalWorkflows />
+                  <TemporalStartWorkflow />
                 </ProtectedRoute>
               }
             />
-            <Route path="temporal" element={<Navigate replace to="/automation/temporal" />} />
+            <Route
+              path="workflows/history"
+              element={
+                <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
+                  <TemporalWorkflowHistory />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="automation/temporal" element={<Navigate replace to="/workflows/history" />} />
+            <Route path="temporal" element={<Navigate replace to="/workflows/history" />} />
 
             <Route
               path="configuration/repositories"
@@ -108,10 +119,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
-            <Route path="audit" element={<Navigate replace to="/audit/events" />} />
-            <Route path="audit-events" element={<Navigate replace to="/audit/events" />} />
+            <Route path="access-control" element={<Navigate replace to="/admin/users" />} />
+            <Route path="audit" element={<Navigate replace to="/access-control/user-history" />} />
+            <Route path="audit-events" element={<Navigate replace to="/access-control/user-history" />} />
+            <Route path="audit/events" element={<Navigate replace to="/access-control/user-history" />} />
             <Route
-              path="audit/events"
+              path="access-control/user-history"
               element={
                 <ProtectedRoute permissionCode="AUDIT_READ">
                   <AuditEvents />

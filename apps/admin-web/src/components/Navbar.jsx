@@ -24,17 +24,15 @@ function Navbar() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
   const canViewTools = hasPermission('CORE_VIEW_TOOLS') || hasPermission('SCRIPT_EXECUTION_READ');
+  const canViewWorkflows = hasPermission('TEMPORAL_WORKFLOW_READ');
+  const canViewAutomation = hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
   const canViewData = hasPermission('INGESTION_VIEW_STATUS');
+  const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
     hasPermission('ADMIN_ROLE_READ') ||
-    hasPermission('ADMIN_PERMISSION_READ');
-  const canViewAutomation =
-    hasPermission('WORKER_SCHEDULE_READ') ||
-    hasPermission('WORKER_LISTENER_READ') ||
-    hasPermission('TEMPORAL_WORKFLOW_READ');
-  const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
-  const canViewAudit = hasPermission('AUDIT_READ');
+    hasPermission('ADMIN_PERMISSION_READ') ||
+    hasPermission('AUDIT_READ');
 
   function openPasswordModal() {
     setPasswordForm(DEFAULT_PASSWORD_FORM);
@@ -104,7 +102,7 @@ function Navbar() {
 
           <div className="collapse navbar-collapse" id="skyAdminNavbar">
             {isAuthenticated && (
-              <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+              <ul className="navbar-nav me-auto mb-2 mb-lg-0 sky-navbar-primary-nav">
                 <li className="nav-item">
                   <NavLink className="nav-link" to="/dashboard">
                     Dashboard
@@ -122,6 +120,7 @@ function Navbar() {
                       Tools
                     </button>
                     <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      <li className="dropdown-header sky-dropdown-section-label">Tool operations</li>
                       {hasPermission('CORE_VIEW_TOOLS') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/tools/run">
@@ -132,7 +131,63 @@ function Navbar() {
                       {hasPermission('SCRIPT_EXECUTION_READ') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/tools/executions">
-                            Execution History
+                            Tools History
+                          </NavLink>
+                        </li>
+                      )}
+                    </ul>
+                  </li>
+                )}
+
+                {canViewWorkflows && (
+                  <li className="nav-item dropdown">
+                    <button
+                      aria-expanded="false"
+                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      type="button"
+                    >
+                      Workflows
+                    </button>
+                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      <li className="dropdown-header sky-dropdown-section-label">Temporal control plane</li>
+                      <li>
+                        <NavLink className={getDropdownItemClass} to="/workflows/start">
+                          Start Workflow
+                        </NavLink>
+                      </li>
+                      <li>
+                        <NavLink className={getDropdownItemClass} to="/workflows/history">
+                          Workflow History
+                        </NavLink>
+                      </li>
+                    </ul>
+                  </li>
+                )}
+
+                {canViewAutomation && (
+                  <li className="nav-item dropdown">
+                    <button
+                      aria-expanded="false"
+                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      type="button"
+                    >
+                      Automation
+                    </button>
+                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      <li className="dropdown-header sky-dropdown-section-label">Scheduler lane</li>
+                      {hasPermission('WORKER_SCHEDULE_READ') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/automation/scheduler">
+                            Scheduler
+                          </NavLink>
+                        </li>
+                      )}
+                      {hasPermission('WORKER_LISTENER_READ') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/automation/listeners">
+                            Listener
                           </NavLink>
                         </li>
                       )}
@@ -151,46 +206,11 @@ function Navbar() {
                       Data
                     </button>
                     <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      <li className="dropdown-header sky-dropdown-section-label">Data operations</li>
                       {hasPermission('INGESTION_VIEW_STATUS') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/data/ingestion">
                             Ingestion Status
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {canViewAutomation && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Automation
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      {hasPermission('WORKER_SCHEDULE_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/automation/scheduler">
-                            Scheduler
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('WORKER_LISTENER_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/automation/listeners">
-                            Listener
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('TEMPORAL_WORKFLOW_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/automation/temporal">
-                            Temporal Workflows
                           </NavLink>
                         </li>
                       )}
@@ -209,6 +229,7 @@ function Navbar() {
                       Configuration
                     </button>
                     <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      <li className="dropdown-header sky-dropdown-section-label">System setup</li>
                       {hasPermission('ADMIN_REPOSITORY_READ') && (
                         <li>
                           <NavLink
@@ -234,6 +255,7 @@ function Navbar() {
                       Access Control
                     </button>
                     <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
+                      <li className="dropdown-header sky-dropdown-section-label">Users and permissions</li>
                       {hasPermission('ADMIN_USER_READ') && (
                         <li>
                           <NavLink className={getDropdownItemClass} to="/admin/users">
@@ -262,27 +284,20 @@ function Navbar() {
                           </NavLink>
                         </li>
                       )}
-                    </ul>
-                  </li>
-                )}
-
-                {canViewAudit && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Audit
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
                       {hasPermission('AUDIT_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/audit/events">
-                            Audit Events
-                          </NavLink>
-                        </li>
+                        <>
+                          <li>
+                            <hr className="dropdown-divider" />
+                          </li>
+                          <li>
+                            <NavLink
+                              className={getDropdownItemClass}
+                              to="/access-control/user-history"
+                            >
+                              User History
+                            </NavLink>
+                          </li>
+                        </>
                       )}
                     </ul>
                   </li>

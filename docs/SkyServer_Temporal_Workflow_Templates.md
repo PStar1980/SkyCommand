@@ -126,7 +126,7 @@ npm run web
 The console should continue working at:
 
 ```text
-http://localhost:5171/automation/temporal
+http://localhost:5171/workflows/start
 ```
 
 ## Future expansion

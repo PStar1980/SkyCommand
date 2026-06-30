@@ -65,10 +65,10 @@ function AuditEvents() {
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Audit trail</div>
-          <h1 className="sky-page-title">Audit Events</h1>
+          <div className="sky-page-kicker">Access Control · User History</div>
+          <h1 className="sky-page-title">User History</h1>
           <p className="sky-page-subtitle">
-            Review login, authorization, and tool execution audit activity.
+            Review login, authorization, and user-facing activity from the SkyServer audit trail.
           </p>
         </div>
         <button className="btn sky-btn-ghost" onClick={() => loadAuditEvents()} type="button">
@@ -124,7 +124,7 @@ function AuditEvents() {
         <div className="col-xl-7">
           <section className="sky-card sky-table-card">
             {loading ? (
-              <div className="sky-empty-state">Loading audit events...</div>
+              <div className="sky-empty-state">Loading user history...</div>
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover sky-table">
@@ -172,7 +172,7 @@ function AuditEvents() {
         <div className="col-xl-5">
           <section className="sky-card">
             <div className="sky-card-header">
-              <h2 className="h5 mb-0">Audit detail</h2>
+              <h2 className="h5 mb-0">User history detail</h2>
             </div>
             <div className="sky-card-body">
               {selectedItem ? (
