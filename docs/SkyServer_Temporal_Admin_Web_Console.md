@@ -163,3 +163,19 @@ The current manual-start form still targets the FRED workflow adapter, but the p
 The Recent Runs table now merges Temporal visibility with SkyServer PostgreSQL run records. Runs started through Admin-Web/API are stored in `worker.temporal_workflow_run_records` with the normalized launch input and the user who started the run.
 
 If local Temporal dev history is lost after a machine restart, Admin-Web can still display the SkyServer run record as `SkyServer DB`. That record is only a launch/status summary; full workflow event history still belongs to Temporal.
+
+
+## Phase 10.7 scheduler bridge behavior
+
+The Temporal console can now show workflows launched from the SkyServer Scheduler because scheduled starts are persisted in the same `worker.temporal_workflow_run_records` table. These runs use:
+
+```text
+run_source: scheduler
+```
+
+The Scheduler page does not talk to Temporal directly. It creates a normal `worker.schedules` row using the worker-visible `temporal_workflow_start` bridge tool. When that schedule is claimed by the worker daemon, the worker calls the approved-template Temporal start service and records both:
+
+- the `worker.schedule_runs` scheduler execution record; and
+- the `worker.temporal_workflow_run_records` Temporal workflow launch record.
+
+A scheduler run marked `SUCCESS` means the worker successfully requested/started the Temporal workflow. The downstream workflow can continue running in Temporal after the scheduler bridge run has finished.

@@ -1,6 +1,9 @@
 const { query } = require('../../../../packages/db/src/connection');
 const { calculateNextRunAfterExecution } = require('../schedulers/scheduleCalculator');
 const { runWorkerTool } = require('./workerToolExecutionService');
+const { runScheduledTemporalWorkflow } = require('./scheduledTemporalWorkflowRunner');
+
+const TEMPORAL_WORKFLOW_START_TOOL_CODE = 'temporal_workflow_start';
 
 function sanitizeSchedule(row) {
   return {
@@ -143,13 +146,20 @@ async function runClaimedSchedule(claim, workerNode) {
   );
 
   try {
-    const result = await runWorkerTool({
-      toolCode: schedule.toolCode,
-      parameters: schedule.parameters || {},
-      schedule,
-      scheduleRun,
-      workerNode,
-    });
+    const result =
+      schedule.toolCode === TEMPORAL_WORKFLOW_START_TOOL_CODE
+        ? await runScheduledTemporalWorkflow({
+            schedule,
+            scheduleRun,
+            workerNode,
+          })
+        : await runWorkerTool({
+            toolCode: schedule.toolCode,
+            parameters: schedule.parameters || {},
+            schedule,
+            scheduleRun,
+            workerNode,
+          });
 
     const finalStatus = result.status === 'SUCCESS' ? 'SUCCESS' : 'FAILED';
     const message = result.summary || `${schedule.toolCode} finished with ${finalStatus}.`;
@@ -162,6 +172,18 @@ async function runClaimedSchedule(claim, workerNode) {
       metadata: {
         exitCode: result.exitCode,
         durationMs: result.durationMs,
+        temporalWorkflow:
+          result.workflow && schedule.toolCode === TEMPORAL_WORKFLOW_START_TOOL_CODE
+            ? {
+                workflowId: result.workflow.workflowId,
+                runId: result.workflow.runId,
+                workflowCode: result.definition?.workflowCode,
+                workflowType: result.definition?.workflowType || result.workflow.workflowType,
+                taskQueue: result.workflow.taskQueue,
+                namespace: result.workflow.namespace,
+                runRecordId: result.runRecord?.runRecordId || null,
+              }
+            : null,
       },
     });
 

@@ -466,6 +466,7 @@ function buildRunRecordMetadata({ input = {}, workflow = null, source = 'api' } 
     concurrency: input.concurrency || null,
     timeoutMs: input.timeoutMs || null,
     historyLength: workflow?.historyLength || null,
+    schedulerContext: input.schedulerContext || null,
   };
 }
 
@@ -897,6 +898,7 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null, 
     String(body.runSource || definition.runSourceDefault || 'api_manual').trim() || 'api_manual';
   const taskQueue = definition.taskQueue || config.taskQueue;
 
+  const schedulerContext = getSafeJson(body.schedulerContext, null);
   const input = {
     workflowId,
     workflowCode: definition.workflowCode,
@@ -904,6 +906,7 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null, 
     timeoutMs,
     indicators,
     concurrency,
+    ...(schedulerContext ? { schedulerContext } : {}),
   };
 
   const startedAt = new Date().toISOString();
