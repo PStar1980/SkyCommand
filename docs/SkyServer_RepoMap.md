@@ -135,6 +135,7 @@ SkyServer/
 │   ├── SkyServer_Temporal_Local_Setup.md
 │   ├── SkyServer_Temporal_Phase_10_Roadmap.md
 │   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
+│   ├── SkyServer_Temporal_Workflow_Templates.md
 │   └── assets/
 │       ├── auth_schema_ERD.png
 │       ├── core_schema_ERD.png
@@ -179,7 +180,8 @@ SkyServer/
 │   │       │   ├── 00027__skyweb_dashboard_item_visualization_modes.sql
 │   │       │   ├── 00028__skyweb_dashboard_indicator_items.sql
 │   │       │   ├── 00029__skyweb_alert_rules.sql
-│   │       │   └── 00031__skyweb_alert_notifications.sql
+│   │       │   ├── 00031__skyweb_alert_notifications.sql
+│   │       │   └── 00033__temporal_workflow_templates.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -187,7 +189,8 @@ SkyServer/
 │   │           ├── 00019__core_config_seed.sql
 │   │           ├── 00024__skyweb_auth_seed.sql
 │   │           ├── 00030__skyweb_alert_worker_seed.sql
-│   │           └── 00032__temporal_auth_seed.sql
+│   │           ├── 00032__temporal_auth_seed.sql
+│   │           └── 00034__temporal_workflow_template_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

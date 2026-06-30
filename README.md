@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.4 — Temporal Admin-Web workflow console
+**Active status:** Phase 10.5 — Temporal workflow templates and configuration
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -62,7 +62,7 @@ flowchart LR
     Worker --> Tools
     Ingestion["Ingestion Scripts<br/>FRED + BoC + StatCan + Manual"] --> Db
     SkyWeb["SkyWeb Analytics<br/>React + ASP.NET Core"] -->|evaluate alerts only| Api
-    Api -->|workflow control plane| Temporal["Temporal Pilot<br/>Phase 10.4"]
+    Api -->|workflow control plane| Temporal["Temporal Pilot<br/>Phase 10.5"]
     Temporal --> TemporalWorker["Temporal Worker<br/>FRED indicator activities"]
     TemporalWorker --> Ingestion
 ```
@@ -109,14 +109,16 @@ Automation -> Temporal Workflows
 The console can:
 
 - display Temporal health, namespace, and task queue;
-- show the approved FRED workflow template;
-- start FRED ingestion workflows with selected indicators or the full indicator set;
+- show database-backed approved workflow templates and parameter schemas;
+- start the approved FRED ingestion workflow with selected indicators or the full indicator set;
 - set workflow concurrency from the UI;
 - list recent workflow runs;
 - inspect workflow details;
 - request cancellation or termination according to RBAC permissions.
 
 Admin-Web calls `/api/temporal`; it never connects to Temporal directly.
+
+Phase 10.5 adds database-backed workflow template metadata under the `worker` schema so Admin-Web can render approved workflow configuration from PostgreSQL while SkyServer Core/API still controls which workflow adapters may actually start.
 
 ## Local Development
 

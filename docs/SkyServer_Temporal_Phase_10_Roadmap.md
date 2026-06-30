@@ -12,9 +12,10 @@ Introduce Temporal as SkyServer's durable workflow orchestration engine while pr
 | 10.2 | Complete | Convert FRED ingestion from one script activity into per-indicator activities with controlled workflow concurrency |
 | 10.3 | Complete | Add protected API endpoints to start and inspect pilot workflows through SkyServer Core/API |
 | 10.4 | Complete | Add Admin-Web workflow console for Temporal health, FRED manual starts, run summaries, detail inspection, cancel, and terminate controls |
-| 10.5 | Planned | Persist workflow launch summaries into PostgreSQL for Admin-Web reporting and auditability |
-| 10.6 | Planned | Add alert-evaluation workflow chaining after successful macro ingestion |
-| 10.7 | Planned | Define migration rules for scheduler/listener jobs that should become Temporal workflows |
+| 10.5 | Complete | Add database-backed approved workflow templates and parameter schemas for configurable Admin-Web starts |
+| 10.6 | Planned | Persist workflow launch summaries into PostgreSQL for Admin-Web reporting and auditability |
+| 10.7 | Planned | Add alert-evaluation workflow chaining after successful macro ingestion |
+| 10.8 | Planned | Define migration rules for scheduler/listener jobs that should become Temporal workflows |
 
 ## Migration rules
 
@@ -53,3 +54,10 @@ Temporal
   -> durable history
 ```
 
+
+
+## Phase 10.5 — Workflow Templates + Configuration
+
+Phase 10.5 adds a PostgreSQL metadata layer for approved Temporal workflow templates. The API now reads template definitions and parameter schemas from `worker.vw_temporal_workflow_definitions`, and Admin-Web renders the selected template summary/defaults from that metadata.
+
+This keeps the control plane safe: operators can configure known templates like `fred-ingestion`, but the browser still cannot start arbitrary workflow code or arbitrary task queues.

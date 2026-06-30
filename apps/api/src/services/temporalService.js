@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 
 const { Connection, Client } = require('@temporalio/client');
 
+const { query: dbQuery } = require('../../../../packages/db/src/connection');
 const {
   getTemporalConfig,
   parsePositiveInteger,
@@ -13,47 +14,71 @@ const DEFAULT_FRED_CONCURRENCY = 3;
 const MAX_FRED_CONCURRENCY = 10;
 const DEFAULT_LIST_LIMIT = 25;
 const MAX_LIST_LIMIT = 100;
+const DEFAULT_FRED_WORKFLOW_CODE = 'fred-ingestion';
 
-const WORKFLOW_DEFINITIONS = [
+const FALLBACK_WORKFLOW_DEFINITIONS = [
   {
     workflowType: 'fredIngestionWorkflow',
-    workflowCode: 'fred-ingestion',
+    workflowCode: DEFAULT_FRED_WORKFLOW_CODE,
     displayName: 'FRED Macro Ingestion',
     description:
       'Runs Temporal-backed FRED macro ingestion at the indicator level with configurable batching/concurrency.',
     taskQueueConfigKey: 'TEMPORAL_TASK_QUEUE',
+    workflowIdPrefix: 'skyserver-fred-ingestion',
+    runSourceDefault: 'api_manual',
+    defaultTimeoutMs: DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
+    maxTimeoutMs: MAX_FRED_ACTIVITY_TIMEOUT_MS,
     defaultConcurrency: DEFAULT_FRED_CONCURRENCY,
     maxConcurrency: MAX_FRED_CONCURRENCY,
-    allowedParameters: [
+    startPermissionCode: 'TEMPORAL_WORKFLOW_START',
+    cancelPermissionCode: 'TEMPORAL_WORKFLOW_CANCEL',
+    terminatePermissionCode: 'TEMPORAL_WORKFLOW_TERMINATE',
+    visibleInAdmin: true,
+    enabled: true,
+    config: {
+      source: 'FRED',
+      mode: 'indicator_batch',
+    },
+    parameters: [
       {
         name: 'indicators',
-        type: 'string[]',
+        label: 'Indicators',
+        type: 'STRING_ARRAY',
         required: false,
-        description:
-          'Optional list of FRED indicator codes. Leave blank to run the full configured FRED indicator set.',
+        defaultValue: [],
+        placeholder: 'GDP, UNRATE, DGS10 — leave blank for full FRED set',
+        helpText:
+          'Comma, space, or newline separated. Blank runs every configured FRED indicator.',
+        adminVisible: true,
+        startFormField: true,
+        displayOrder: 10,
+        config: { textareaRows: 4 },
       },
       {
         name: 'concurrency',
-        type: 'number',
+        label: 'Concurrency',
+        type: 'INTEGER',
         required: false,
         defaultValue: DEFAULT_FRED_CONCURRENCY,
+        minValue: 1,
         maxValue: MAX_FRED_CONCURRENCY,
-        description: 'Maximum number of indicator activities to run in each workflow batch.',
+        helpText: 'Worker batches up to this many indicator activities at once.',
+        adminVisible: true,
+        startFormField: true,
+        displayOrder: 20,
+        config: {},
       },
       {
-        name: 'timeoutMs',
-        type: 'number',
+        name: 'workflowId',
+        label: 'Workflow ID override',
+        type: 'STRING',
         required: false,
-        defaultValue: DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
-        maxValue: MAX_FRED_ACTIVITY_TIMEOUT_MS,
-        description: 'Activity timeout in milliseconds for legacy compatibility and future long-running jobs.',
-      },
-      {
-        name: 'runSource',
-        type: 'string',
-        required: false,
-        defaultValue: 'api_manual',
-        description: 'Source tag written into the workflow input for auditing and future run attribution.',
+        placeholder: 'Optional; normally auto-generated',
+        helpText: 'Optional manual workflow ID. Leave blank unless you need a stable run identifier.',
+        adminVisible: true,
+        startFormField: true,
+        displayOrder: 30,
+        config: {},
       },
     ],
   },
@@ -66,6 +91,16 @@ class ServiceError extends Error {
     this.statusCode = statusCode;
     this.details = details;
   }
+}
+
+function toCamelCase(value) {
+  return String(value).replace(/_([a-z0-9])/g, (_, character) => character.toUpperCase());
+}
+
+function camelizeRow(row) {
+  return Object.fromEntries(
+    Object.entries(row || {}).map(([key, value]) => [toCamelCase(key), value]),
+  );
 }
 
 function normalizeIndicatorCode(value) {
@@ -106,18 +141,6 @@ function normalizeIndicatorCodes(value) {
   return indicators;
 }
 
-function getFredConcurrency(value) {
-  return parsePositiveInteger(value, DEFAULT_FRED_CONCURRENCY, MAX_FRED_CONCURRENCY);
-}
-
-function getFredTimeoutMs(value) {
-  return parsePositiveInteger(
-    value || process.env.TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS,
-    DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
-    MAX_FRED_ACTIVITY_TIMEOUT_MS,
-  );
-}
-
 function getListLimit(value) {
   return parsePositiveInteger(value, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT);
 }
@@ -133,13 +156,15 @@ function normalizeWorkflowIdPart(value, fallback = 'workflow') {
   return normalized || fallback;
 }
 
-function buildFredWorkflowId(config, value) {
+function buildWorkflowId(prefix, value) {
+  const normalizedPrefix = normalizeWorkflowIdPart(prefix, 'skyserver-workflow');
+
   if (value) {
-    return normalizeWorkflowIdPart(value, `${config.fredWorkflowIdPrefix}-manual`);
+    return normalizeWorkflowIdPart(value, `${normalizedPrefix}-manual`);
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `${config.fredWorkflowIdPrefix}-${timestamp}-${randomUUID().slice(0, 8)}`;
+  return `${normalizedPrefix}-${timestamp}-${randomUUID().slice(0, 8)}`;
 }
 
 function serializeTemporalValue(value) {
@@ -220,7 +245,7 @@ function getWorkflowListQuery(query = {}) {
   }
 
   const clauses = [];
-  const workflowType = String(query.workflowType || query.type || 'fredIngestionWorkflow').trim();
+  const workflowType = String(query.workflowType || query.type || '').trim();
   const status = String(query.status || '').trim();
 
   if (workflowType) {
@@ -232,6 +257,122 @@ function getWorkflowListQuery(query = {}) {
   }
 
   return clauses.join(' AND ');
+}
+
+function normalizeWorkflowDefinitionRow(row, temporalConfig) {
+  const definition = camelizeRow(row);
+  const parameters = Array.isArray(definition.parameters) ? definition.parameters : [];
+  const taskQueue = definition.taskQueueName || temporalConfig.taskQueue;
+
+  return {
+    definitionId: definition.definitionId,
+    workflowCode: definition.workflowCode,
+    workflowType: definition.workflowType,
+    displayName: definition.displayName,
+    description: definition.description,
+    taskQueue,
+    taskQueueName: definition.taskQueueName,
+    taskQueueConfigKey: definition.taskQueueConfigKey || 'TEMPORAL_TASK_QUEUE',
+    workflowIdPrefix: definition.workflowIdPrefix,
+    runSourceDefault: definition.runSourceDefault || 'api_manual',
+    defaultTimeoutMs: definition.defaultTimeoutMs || DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
+    maxTimeoutMs: definition.maxTimeoutMs || MAX_FRED_ACTIVITY_TIMEOUT_MS,
+    defaultConcurrency: definition.defaultConcurrency,
+    maxConcurrency: definition.maxConcurrency,
+    startPermissionCode: definition.startPermissionCode,
+    cancelPermissionCode: definition.cancelPermissionCode,
+    terminatePermissionCode: definition.terminatePermissionCode,
+    visibleInAdmin: definition.visibleInAdmin,
+    enabled: definition.enabled,
+    config: definition.config || {},
+    parameters,
+    // Backward-compatible shape used by early Phase 10.3/10.4 callers/docs.
+    allowedParameters: parameters.map((parameter) => ({
+      name: parameter.name,
+      type: parameter.type,
+      required: parameter.required,
+      defaultValue: parameter.defaultValue,
+      maxValue: parameter.maxValue,
+      description: parameter.helpText,
+    })),
+  };
+}
+
+function normalizeFallbackDefinition(definition, temporalConfig) {
+  return {
+    ...definition,
+    taskQueue: definition.taskQueue || temporalConfig.taskQueue,
+    parameters: definition.parameters || [],
+    allowedParameters: definition.allowedParameters ||
+      (definition.parameters || []).map((parameter) => ({
+        name: parameter.name,
+        type: parameter.type,
+        required: parameter.required,
+        defaultValue: parameter.defaultValue,
+        maxValue: parameter.maxValue,
+        description: parameter.helpText,
+      })),
+  };
+}
+
+function isMissingTemplateTableError(error) {
+  return error?.code === '42P01' || /temporal_workflow_definitions/i.test(error?.message || '');
+}
+
+async function getDatabaseWorkflowDefinitions({ enabledOnly = true, visibleOnly = false } = {}) {
+  const temporalConfig = getTemporalConfig();
+  const clauses = [];
+  const values = [];
+
+  if (enabledOnly) {
+    clauses.push('enabled = TRUE');
+  }
+
+  if (visibleOnly) {
+    clauses.push('visible_in_admin = TRUE');
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+
+  try {
+    const result = await dbQuery(
+      `
+        SELECT *
+        FROM worker.vw_temporal_workflow_definitions
+        ${whereClause}
+        ORDER BY display_name, workflow_code
+      `,
+      values,
+    );
+
+    const definitions = result.rows.map((row) => normalizeWorkflowDefinitionRow(row, temporalConfig));
+
+    if (definitions.length > 0) {
+      return definitions;
+    }
+  } catch (error) {
+    if (!isMissingTemplateTableError(error)) {
+      throw error;
+    }
+  }
+
+  return FALLBACK_WORKFLOW_DEFINITIONS.map((definition) =>
+    normalizeFallbackDefinition(definition, temporalConfig),
+  );
+}
+
+async function getWorkflowDefinition(workflowCode = DEFAULT_FRED_WORKFLOW_CODE) {
+  const normalizedWorkflowCode = String(workflowCode || DEFAULT_FRED_WORKFLOW_CODE).trim();
+  const definitions = await getDatabaseWorkflowDefinitions({ enabledOnly: true });
+  const definition = definitions.find((item) => item.workflowCode === normalizedWorkflowCode);
+
+  if (!definition) {
+    throw new ServiceError('Temporal workflow template is not approved or enabled.', 404, {
+      workflowCode: normalizedWorkflowCode,
+    });
+  }
+
+  return definition;
 }
 
 async function createTemporalClient() {
@@ -267,33 +408,63 @@ async function getHealth() {
 
 async function listWorkflowDefinitions() {
   const config = getTemporalConfig();
+  const items = await getDatabaseWorkflowDefinitions({ enabledOnly: true, visibleOnly: true });
 
   return {
     address: config.address,
     namespace: config.namespace,
     taskQueue: config.taskQueue,
-    items: WORKFLOW_DEFINITIONS,
+    source: items[0]?.definitionId ? 'database' : 'fallback',
+    items,
   };
 }
 
-async function startFredIngestionWorkflow(body = {}) {
+function getFredConcurrency(value, definition) {
+  return parsePositiveInteger(
+    value,
+    definition.defaultConcurrency || DEFAULT_FRED_CONCURRENCY,
+    definition.maxConcurrency || MAX_FRED_CONCURRENCY,
+  );
+}
+
+function getFredTimeoutMs(value, definition) {
+  return parsePositiveInteger(
+    value || process.env.TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS,
+    definition.defaultTimeoutMs || DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
+    definition.maxTimeoutMs || MAX_FRED_ACTIVITY_TIMEOUT_MS,
+  );
+}
+
+async function startFredIngestionWorkflow(body = {}, providedDefinition = null) {
+  const definition = providedDefinition || (await getWorkflowDefinition(DEFAULT_FRED_WORKFLOW_CODE));
+
+  if (definition.workflowType !== 'fredIngestionWorkflow') {
+    throw new ServiceError('Workflow template is not backed by fredIngestionWorkflow.', 500, {
+      workflowCode: definition.workflowCode,
+      workflowType: definition.workflowType,
+    });
+  }
+
   const { config, client } = await createTemporalClient();
-  const workflowId = buildFredWorkflowId(config, body.workflowId);
+  const workflowId = buildWorkflowId(definition.workflowIdPrefix || config.fredWorkflowIdPrefix, body.workflowId);
   const indicators = normalizeIndicatorCodes(body.indicators);
-  const concurrency = getFredConcurrency(body.concurrency || body.batchSize);
-  const timeoutMs = getFredTimeoutMs(body.timeoutMs);
-  const runSource = String(body.runSource || 'api_manual').trim() || 'api_manual';
+  const concurrency = getFredConcurrency(body.concurrency || body.batchSize, definition);
+  const timeoutMs = getFredTimeoutMs(body.timeoutMs, definition);
+  const runSource =
+    String(body.runSource || definition.runSourceDefault || 'api_manual').trim() || 'api_manual';
+  const taskQueue = definition.taskQueue || config.taskQueue;
 
   const input = {
     workflowId,
+    workflowCode: definition.workflowCode,
     runSource,
     timeoutMs,
     indicators,
     concurrency,
   };
 
-  const handle = await client.workflow.start('fredIngestionWorkflow', {
-    taskQueue: config.taskQueue,
+  const handle = await client.workflow.start(definition.workflowType, {
+    taskQueue,
     workflowId,
     args: [input],
   });
@@ -302,19 +473,49 @@ async function startFredIngestionWorkflow(body = {}) {
     workflow: {
       workflowId: handle.workflowId,
       runId: handle.firstExecutionRunId,
-      workflowType: 'fredIngestionWorkflow',
-      taskQueue: config.taskQueue,
+      workflowCode: definition.workflowCode,
+      workflowType: definition.workflowType,
+      taskQueue,
       namespace: config.namespace,
       startedAt: new Date().toISOString(),
+    },
+    definition: {
+      workflowCode: definition.workflowCode,
+      workflowType: definition.workflowType,
+      displayName: definition.displayName,
     },
     input,
   };
 }
 
+async function startWorkflowFromDefinition({ workflowCode, body = {} } = {}) {
+  const definition = await getWorkflowDefinition(workflowCode);
+
+  if (definition.workflowCode === DEFAULT_FRED_WORKFLOW_CODE) {
+    return startFredIngestionWorkflow(body, definition);
+  }
+
+  throw new ServiceError('Workflow template does not have a start adapter yet.', 501, {
+    workflowCode: definition.workflowCode,
+    workflowType: definition.workflowType,
+  });
+}
+
 async function listWorkflows(query = {}) {
   const { client, config } = await createTemporalClient();
   const limit = getListLimit(query.limit);
-  const temporalQuery = getWorkflowListQuery(query);
+  const listQuery = { ...query };
+
+  if (!listQuery.query && !listQuery.workflowType && !listQuery.type) {
+    try {
+      const definition = await getWorkflowDefinition(listQuery.workflowCode || DEFAULT_FRED_WORKFLOW_CODE);
+      listQuery.workflowType = definition.workflowType;
+    } catch (error) {
+      listQuery.workflowType = 'fredIngestionWorkflow';
+    }
+  }
+
+  const temporalQuery = getWorkflowListQuery(listQuery);
   const items = [];
 
   for await (const workflowInfo of client.workflow.list({
@@ -402,5 +603,6 @@ module.exports = {
   listWorkflowDefinitions,
   listWorkflows,
   startFredIngestionWorkflow,
+  startWorkflowFromDefinition,
   terminateWorkflow,
 };

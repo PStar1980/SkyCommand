@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import temporalService from '../services/temporalService';
 
+const DEFAULT_WORKFLOW_CODE = 'fred-ingestion';
+
 const DEFAULT_START_FORM = {
   indicators: '',
   concurrency: '3',
@@ -137,6 +139,44 @@ function getDefinitionSummary(definition) {
   return `${definition.displayName || definition.workflowType} · default concurrency ${defaultConcurrency} · max ${maxConcurrency}`;
 }
 
+function getDefinitionParameter(definition, parameterName) {
+  return (definition?.parameters || []).find((parameter) => parameter.name === parameterName) || null;
+}
+
+function getParameterDefaultValue(parameter, fallback = '') {
+  if (!parameter || parameter.defaultValue === undefined || parameter.defaultValue === null) {
+    return fallback;
+  }
+
+  if (Array.isArray(parameter.defaultValue)) {
+    return parameter.defaultValue.join(', ');
+  }
+
+  return String(parameter.defaultValue);
+}
+
+function getStartFormDefaults(definition) {
+  const concurrencyParameter = getDefinitionParameter(definition, 'concurrency');
+  const defaultConcurrency =
+    definition?.defaultConcurrency || getParameterDefaultValue(concurrencyParameter, '3') || '3';
+
+  return {
+    indicators: getParameterDefaultValue(getDefinitionParameter(definition, 'indicators'), ''),
+    concurrency: String(defaultConcurrency),
+    workflowId: '',
+  };
+}
+
+function formatParameterType(parameter) {
+  return String(parameter?.type || 'UNKNOWN').replace('_', ' ');
+}
+
+function getAdminParameters(definition) {
+  return (definition?.parameters || [])
+    .filter((parameter) => parameter.adminVisible !== false)
+    .sort((left, right) => (left.displayOrder || 0) - (right.displayOrder || 0));
+}
+
 function TemporalWorkflows() {
   const { hasPermission } = useAuth();
   const canStart = hasPermission('TEMPORAL_WORKFLOW_START') || hasPermission('INGESTION_RUN_FRED');
@@ -145,6 +185,7 @@ function TemporalWorkflows() {
 
   const [health, setHealth] = useState(null);
   const [definitions, setDefinitions] = useState([]);
+  const [selectedWorkflowCode, setSelectedWorkflowCode] = useState(DEFAULT_WORKFLOW_CODE);
   const [workflows, setWorkflows] = useState([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState(null);
   const [filters, setFilters] = useState({ status: '', limit: '25' });
@@ -158,10 +199,18 @@ function TemporalWorkflows() {
   const [startMessage, setStartMessage] = useState('');
   const [actionMessage, setActionMessage] = useState('');
 
-  const fredDefinition = useMemo(
-    () => definitions.find((item) => item.workflowCode === 'fred-ingestion') || definitions[0],
-    [definitions],
+  const selectedDefinition = useMemo(
+    () =>
+      definitions.find((item) => item.workflowCode === selectedWorkflowCode) ||
+      definitions.find((item) => item.workflowCode === DEFAULT_WORKFLOW_CODE) ||
+      definitions[0],
+    [definitions, selectedWorkflowCode],
   );
+
+  const indicatorsParameter = getDefinitionParameter(selectedDefinition, 'indicators');
+  const concurrencyParameter = getDefinitionParameter(selectedDefinition, 'concurrency');
+  const workflowIdParameter = getDefinitionParameter(selectedDefinition, 'workflowId');
+  const adminParameters = getAdminParameters(selectedDefinition);
 
   const runningCount = workflows.filter((workflow) => workflowIsRunning(workflow)).length;
   const completedCount = workflows.filter(
@@ -178,7 +227,7 @@ function TemporalWorkflows() {
     try {
       const query = {
         limit: filters.limit,
-        workflowType: fredDefinition?.workflowType || 'fredIngestionWorkflow',
+        workflowType: selectedDefinition?.workflowType || 'fredIngestionWorkflow',
         status: filters.status,
       };
 
@@ -189,10 +238,15 @@ function TemporalWorkflows() {
       ]);
 
       const loadedWorkflows = workflowsResult.items || [];
+      const loadedDefinitions = definitionsResult.items || [];
 
       setHealth(healthResult);
-      setDefinitions(definitionsResult.items || []);
+      setDefinitions(loadedDefinitions);
       setWorkflows(loadedWorkflows);
+
+      if (loadedDefinitions.length > 0 && !loadedDefinitions.some((item) => item.workflowCode === selectedWorkflowCode)) {
+        setSelectedWorkflowCode(loadedDefinitions[0].workflowCode);
+      }
 
       if (keepSelection && selectedWorkflow?.workflowId) {
         const matchingWorkflow = loadedWorkflows.find(
@@ -254,7 +308,7 @@ function TemporalWorkflows() {
       const indicators = parseIndicators(startForm.indicators);
       const payload = {
         indicators,
-        concurrency: Number(startForm.concurrency) || fredDefinition?.defaultConcurrency || 3,
+        concurrency: Number(startForm.concurrency) || selectedDefinition?.defaultConcurrency || 3,
         runSource: 'admin_web_manual',
       };
 
@@ -262,7 +316,10 @@ function TemporalWorkflows() {
         payload.workflowId = startForm.workflowId.trim();
       }
 
-      const result = await temporalService.startFredIngestionWorkflow(payload);
+      const result = await temporalService.startWorkflowFromDefinition(
+        selectedDefinition?.workflowCode || DEFAULT_WORKFLOW_CODE,
+        payload,
+      );
       const workflow = result.workflow;
 
       setStartMessage(
@@ -270,7 +327,7 @@ function TemporalWorkflows() {
           indicators.length > 0 ? `${indicators.length} selected indicator(s).` : 'Full indicator set.'
         }`,
       );
-      setStartForm(DEFAULT_START_FORM);
+      setStartForm(getStartFormDefaults(selectedDefinition));
       setSelectedWorkflow(workflow);
       await loadConsole({ keepSelection: true });
     } catch (startError) {
@@ -336,7 +393,13 @@ function TemporalWorkflows() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filterKey = `${filters.status}:${filters.limit}`;
+  useEffect(() => {
+    if (selectedDefinition) {
+      setStartForm(getStartFormDefaults(selectedDefinition));
+    }
+  }, [selectedDefinition?.workflowCode]);
+
+  const filterKey = `${filters.status}:${filters.limit}:${selectedDefinition?.workflowType || ''}`;
 
   useEffect(() => {
     if (!loading) {
@@ -394,7 +457,7 @@ function TemporalWorkflows() {
             <div className="sky-worker-command-card">
               <div className="sky-page-kicker">Task queue</div>
               <div className="sky-worker-command-value sky-mono">
-                {health?.taskQueue || fredDefinition?.taskQueue || '—'}
+                {health?.taskQueue || selectedDefinition?.taskQueue || '—'}
               </div>
             </div>
           </div>
@@ -402,11 +465,33 @@ function TemporalWorkflows() {
 
         <div className="sky-card">
           <div className="sky-card-header">
-            <div className="sky-page-kicker">Approved template</div>
-            <h3 className="h5 mb-0">{fredDefinition?.displayName || 'FRED Macro Ingestion'}</h3>
+            <div className="sky-page-kicker">Approved templates</div>
+            <h3 className="h5 mb-0">{selectedDefinition?.displayName || 'FRED Macro Ingestion'}</h3>
           </div>
           <div className="sky-card-body">
-            <p className="sky-muted mb-3">{getDefinitionSummary(fredDefinition)}</p>
+            <p className="sky-muted mb-3">{getDefinitionSummary(selectedDefinition)}</p>
+            {definitions.length > 1 && (
+              <select
+                className="form-select sky-form-control mb-3"
+                onChange={(event) => setSelectedWorkflowCode(event.target.value)}
+                value={selectedDefinition?.workflowCode || selectedWorkflowCode}
+              >
+                {definitions.map((definition) => (
+                  <option key={definition.workflowCode} value={definition.workflowCode}>
+                    {definition.displayName}
+                  </option>
+                ))}
+              </select>
+            )}
+            {adminParameters.length > 0 && (
+              <div className="d-flex flex-wrap gap-2 mb-3">
+                {adminParameters.map((parameter) => (
+                  <span className="sky-pill sky-pill-info" key={parameter.name}>
+                    {parameter.label || parameter.name}: {formatParameterType(parameter)}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="row g-2">
               <div className="col-4">
                 <div className="sky-mini-metric">
@@ -439,7 +524,7 @@ function TemporalWorkflows() {
           <div className="sky-card mb-4">
             <div className="sky-card-header">
               <div className="sky-page-kicker">Manual start</div>
-              <h2 className="h5 mb-0">Run FRED ingestion</h2>
+              <h2 className="h5 mb-0">{selectedDefinition?.config?.adminForm?.title || `Run ${selectedDefinition?.displayName || 'workflow'}`}</h2>
             </div>
             <form className="sky-card-body" onSubmit={handleStartSubmit}>
               {startMessage && (
@@ -460,12 +545,12 @@ function TemporalWorkflows() {
                   onChange={(event) =>
                     setStartForm((current) => ({ ...current, indicators: event.target.value }))
                   }
-                  placeholder="GDP, UNRATE, DGS10 — leave blank for full FRED set"
+                  placeholder={indicatorsParameter?.placeholder || 'GDP, UNRATE, DGS10 — leave blank for full FRED set'}
                   rows={4}
                   value={startForm.indicators}
                 />
                 <div className="form-text">
-                  Comma, space, or newline separated. Blank runs every configured FRED indicator.
+                  {indicatorsParameter?.helpText || 'Comma, space, or newline separated. Blank runs every configured FRED indicator.'}
                 </div>
               </div>
 
@@ -476,7 +561,7 @@ function TemporalWorkflows() {
                 <input
                   className="form-control sky-form-control"
                   id="temporalConcurrency"
-                  max={fredDefinition?.maxConcurrency || 10}
+                  max={concurrencyParameter?.maxValue || selectedDefinition?.maxConcurrency || 10}
                   min="1"
                   onChange={(event) =>
                     setStartForm((current) => ({ ...current, concurrency: event.target.value }))
@@ -485,7 +570,7 @@ function TemporalWorkflows() {
                   value={startForm.concurrency}
                 />
                 <div className="form-text">
-                  Worker batches up to this many indicator activities at once.
+                  {concurrencyParameter?.helpText || 'Worker batches up to this many indicator activities at once.'}
                 </div>
               </div>
 
@@ -499,14 +584,14 @@ function TemporalWorkflows() {
                   onChange={(event) =>
                     setStartForm((current) => ({ ...current, workflowId: event.target.value }))
                   }
-                  placeholder="Optional; normally auto-generated"
+                  placeholder={workflowIdParameter?.placeholder || 'Optional; normally auto-generated'}
                   type="text"
                   value={startForm.workflowId}
                 />
               </div>
 
-              <button className="btn sky-btn-primary w-100" disabled={starting || !canStart} type="submit">
-                {starting ? 'Starting...' : 'Start workflow'}
+              <button className="btn sky-btn-primary w-100" disabled={starting || !canStart || !selectedDefinition} type="submit">
+                {starting ? 'Starting...' : selectedDefinition?.config?.adminForm?.submitLabel || 'Start workflow'}
               </button>
               {!canStart && (
                 <div className="small sky-muted mt-2">

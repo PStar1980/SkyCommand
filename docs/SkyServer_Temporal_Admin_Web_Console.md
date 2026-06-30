@@ -149,3 +149,10 @@ http://localhost:5173/automation/temporal
 Phase 10.4 is intentionally UI/API driven only. It does not yet persist workflow launch summaries into PostgreSQL. Temporal remains the source of workflow history for this slice.
 
 The next slice should add local run metadata/audit persistence so the Admin dashboard can report workflow starts even when Temporal history retention is eventually configured or cleaned.
+
+
+## Phase 10.5 template upgrade
+
+The console now reads approved workflow templates from the SkyServer database instead of relying only on in-code API constants. Template metadata comes from `worker.vw_temporal_workflow_definitions` and includes the workflow code, workflow type, task queue configuration key, default/max concurrency, permission codes, and visible parameter schema.
+
+The current manual-start form still targets the FRED workflow adapter, but the page is now ready to display additional approved workflow templates as they are seeded and wired to server-side start adapters.

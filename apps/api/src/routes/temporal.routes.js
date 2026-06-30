@@ -38,6 +38,12 @@ router.post(
 );
 
 router.post(
+  '/workflow-definitions/:workflowCode/start',
+  requireAnyPermission(['TEMPORAL_WORKFLOW_START', 'WORKER_SCHEDULE_RUN', 'INGESTION_RUN_FRED']),
+  temporalController.startWorkflowFromDefinition,
+);
+
+router.post(
   '/workflows/:workflowId/cancel',
   requireAnyPermission(['TEMPORAL_WORKFLOW_CANCEL', 'WORKER_SCHEDULE_RUN']),
   temporalController.cancelWorkflow,
