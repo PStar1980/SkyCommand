@@ -22,6 +22,13 @@ function startFredIngestionWorkflow(payload = {}) {
   return api.post('/api/temporal/workflows/fred-ingestion/start', payload);
 }
 
+function startWorkflowFromDefinition(workflowCode, payload = {}) {
+  return api.post(
+    `/api/temporal/workflow-definitions/${encodeURIComponent(workflowCode)}/start`,
+    payload,
+  );
+}
+
 function cancelWorkflow(workflowId, payload = {}) {
   return api.post(`/api/temporal/workflows/${encodeURIComponent(workflowId)}/cancel`, payload);
 }
@@ -36,6 +43,7 @@ const temporalService = {
   listWorkflows,
   getWorkflow,
   startFredIngestionWorkflow,
+  startWorkflowFromDefinition,
   cancelWorkflow,
   terminateWorkflow,
 };

@@ -207,3 +207,14 @@ SkyWeb Analytics owns:
 - Updated the Temporal API controller to tolerate local diagnostic query payloads while preserving JSON body payloads as the preferred request shape.
 - Added `docs/SkyServer_Temporal_Admin_Web_Console.md` with usage, permission, Postman, and local test notes.
 - Updated the Phase 10 roadmap and README to mark the Admin-Web workflow console slice complete.
+
+
+## Phase 10.5 — Temporal Workflow Templates + Configuration
+
+- Added `worker.temporal_workflow_definitions` and `worker.temporal_workflow_parameters` for approved Temporal workflow template metadata.
+- Added `worker.vw_temporal_workflow_definitions` to expose API-friendly workflow template payloads with parameter schemas.
+- Added `00034__temporal_workflow_template_seed.sql` to seed the FRED Macro Ingestion template and its Admin-Web start parameters.
+- Updated the Temporal API service to read workflow definitions from PostgreSQL with a safe fallback for local patch application.
+- Added generic approved-template start support at `/api/temporal/workflow-definitions/:workflowCode/start`; Phase 10.5 wires `fred-ingestion` to the existing FRED workflow adapter.
+- Updated the Admin-Web Temporal Workflow Console to render template summaries, parameter chips, defaults, placeholders, and help text from database-backed template metadata.
+- Added `docs/SkyServer_Temporal_Workflow_Templates.md` and updated Temporal API/Admin docs and roadmap.

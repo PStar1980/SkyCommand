@@ -120,3 +120,16 @@ Run the database seed/build step after applying this patch so the new dedicated 
 ## Next slice
 
 Phase 10.4 added the Admin-Web Workflow Console. The next slice should persist workflow launch metadata into PostgreSQL for local reporting, auditability, and dashboard rollups.
+
+
+## Phase 10.5 template endpoints
+
+Workflow definitions are now database-backed through `worker.temporal_workflow_definitions`, `worker.temporal_workflow_parameters`, and `worker.vw_temporal_workflow_definitions`. The API falls back to the original FRED definition only if the template tables have not been installed yet.
+
+Generic approved-template start endpoint:
+
+```text
+POST /api/temporal/workflow-definitions/:workflowCode/start
+```
+
+For Phase 10.5, `fred-ingestion` is the only workflow code with a start adapter. Unknown or not-yet-wired workflow templates remain blocked by the API.

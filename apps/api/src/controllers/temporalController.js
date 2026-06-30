@@ -110,6 +110,23 @@ async function getWorkflow(req, res) {
   }
 }
 
+
+async function startWorkflowFromDefinition(req, res) {
+  try {
+    const payload = await temporalService.startWorkflowFromDefinition({
+      workflowCode: req.params.workflowCode,
+      body: buildRequestPayload(req),
+    });
+
+    res.status(202).json({
+      ok: true,
+      ...payload,
+    });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function startFredIngestionWorkflow(req, res) {
   try {
     const payload = await temporalService.startFredIngestionWorkflow(buildRequestPayload(req));
@@ -155,5 +172,6 @@ module.exports = {
   listWorkflowDefinitions,
   listWorkflows,
   startFredIngestionWorkflow,
+  startWorkflowFromDefinition,
   terminateWorkflow,
 };
