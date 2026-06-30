@@ -223,3 +223,15 @@ SkyWeb Analytics owns:
 - Added generic approved-template start support at `/api/temporal/workflow-definitions/:workflowCode/start`; Phase 10.5 wires `fred-ingestion` to the existing FRED workflow adapter.
 - Updated the Admin-Web Temporal Workflow Console to render template summaries, parameter chips, defaults, placeholders, and help text from database-backed template metadata.
 - Added `docs/SkyServer_Temporal_Workflow_Templates.md` and updated Temporal API/Admin docs and roadmap.
+
+
+## Phase 10.6 — Temporal Workflow Run Records
+
+- Added `worker.temporal_workflow_run_records` to persist SkyServer-owned Temporal workflow launch and action summaries.
+- Added `worker.vw_temporal_workflow_run_records` with workflow definition and user metadata for API/Admin-Web consumption.
+- Updated the Temporal API start paths to record workflow code/type, workflow ID, Temporal run ID, namespace, task queue, run source, normalized launch input, starter, and request context.
+- Updated workflow list/detail API calls to refresh stored run-record status snapshots from Temporal visibility/describe results when available.
+- Added `/api/temporal/workflow-run-records` for direct inspection of SkyServer Temporal run records.
+- Updated cancel/terminate API actions to store request metadata in the run-record table.
+- Updated Admin-Web Temporal Workflow Console to show whether a run is live from Temporal, merged with SkyServer DB metadata, or DB-only after local Temporal history is gone.
+- Updated Temporal docs and README with Phase 10.6 run-record behavior and existing-database migration guidance.

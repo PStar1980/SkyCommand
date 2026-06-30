@@ -181,7 +181,8 @@ SkyServer/
 │   │       │   ├── 00028__skyweb_dashboard_indicator_items.sql
 │   │       │   ├── 00029__skyweb_alert_rules.sql
 │   │       │   ├── 00031__skyweb_alert_notifications.sql
-│   │       │   └── 00033__temporal_workflow_templates.sql
+│   │       │   ├── 00033__temporal_workflow_templates.sql
+│   │       │   └── 00035__temporal_workflow_run_records.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

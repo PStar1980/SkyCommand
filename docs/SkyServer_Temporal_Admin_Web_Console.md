@@ -156,3 +156,10 @@ The next slice should add local run metadata/audit persistence so the Admin dash
 The console now reads approved workflow templates from the SkyServer database instead of relying only on in-code API constants. Template metadata comes from `worker.vw_temporal_workflow_definitions` and includes the workflow code, workflow type, task queue configuration key, default/max concurrency, permission codes, and visible parameter schema.
 
 The current manual-start form still targets the FRED workflow adapter, but the page is now ready to display additional approved workflow templates as they are seeded and wired to server-side start adapters.
+
+
+## Phase 10.6 run-record behavior
+
+The Recent Runs table now merges Temporal visibility with SkyServer PostgreSQL run records. Runs started through Admin-Web/API are stored in `worker.temporal_workflow_run_records` with the normalized launch input and the user who started the run.
+
+If local Temporal dev history is lost after a machine restart, Admin-Web can still display the SkyServer run record as `SkyServer DB`. That record is only a launch/status summary; full workflow event history still belongs to Temporal.

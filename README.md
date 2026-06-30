@@ -120,6 +120,8 @@ Admin-Web calls `/api/temporal`; it never connects to Temporal directly.
 
 Phase 10.5 adds database-backed workflow template metadata under the `worker` schema so Admin-Web can render approved workflow configuration from PostgreSQL while SkyServer Core/API still controls which workflow adapters may actually start.
 
+Phase 10.6 adds a SkyServer-owned Temporal run-record index under `worker.temporal_workflow_run_records`. Admin-Web now merges Temporal visibility with this PostgreSQL summary layer, so operator-started workflow launches remain visible as audit records even if a local Temporal dev server is restarted without persistent history.
+
 ## Local Development
 
 Install dependencies from the repository root:

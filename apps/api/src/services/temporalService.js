@@ -15,6 +15,20 @@ const MAX_FRED_CONCURRENCY = 10;
 const DEFAULT_LIST_LIMIT = 25;
 const MAX_LIST_LIMIT = 100;
 const DEFAULT_FRED_WORKFLOW_CODE = 'fred-ingestion';
+const RUN_RECORD_TABLE_PATTERN = /temporal_workflow_run_records|vw_temporal_workflow_run_records/i;
+const RUN_RECORD_STATUS_VALUES = new Set([
+  'RUNNING',
+  'COMPLETED',
+  'FAILED',
+  'CANCELED',
+  'CANCELLED',
+  'TERMINATED',
+  'CONTINUED_AS_NEW',
+  'TIMED_OUT',
+  'UNKNOWN',
+  'CANCEL_REQUESTED',
+  'TERMINATE_REQUESTED',
+]);
 
 const FALLBACK_WORKFLOW_DEFINITIONS = [
   {
@@ -319,6 +333,434 @@ function isMissingTemplateTableError(error) {
   return error?.code === '42P01' || /temporal_workflow_definitions/i.test(error?.message || '');
 }
 
+function isMissingRunRecordTableError(error) {
+  return error?.code === '42P01' || RUN_RECORD_TABLE_PATTERN.test(error?.message || '');
+}
+
+function getActorUserId(actor) {
+  return actor?.userId || actor?.user_id || null;
+}
+
+function getSafeJson(value, fallback = {}) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (Array.isArray(value) || typeof value !== 'object') {
+    return fallback;
+  }
+
+  return value;
+}
+
+function normalizeRequestContext(context = {}) {
+  return {
+    ipAddress: context.ipAddress || null,
+    userAgent: context.userAgent || null,
+  };
+}
+
+function normalizeRunRecordStatus(value) {
+  const normalized = getWorkflowStatusLabel(value).toUpperCase();
+
+  if (RUN_RECORD_STATUS_VALUES.has(normalized)) {
+    return normalized;
+  }
+
+  return 'UNKNOWN';
+}
+
+function normalizeStatusFilter(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+
+  if (!normalized) {
+    return '';
+  }
+
+  return RUN_RECORD_STATUS_VALUES.has(normalized) ? normalized : normalized.replace(/[^A-Z_]/g, '');
+}
+
+function normalizeRunRecordRow(row) {
+  const record = camelizeRow(row);
+
+  return {
+    runRecordId: record.runRecordId,
+    definitionId: record.definitionId,
+    workflowCode: record.workflowCode,
+    workflowType: record.workflowType,
+    displayName: record.displayName,
+    workflowId: record.workflowId,
+    runId: record.temporalRunId,
+    temporalRunId: record.temporalRunId,
+    namespace: record.namespace,
+    taskQueue: record.taskQueue,
+    runSource: record.runSource,
+    status: record.status,
+    launchInput: record.launchInput || {},
+    requestContext: record.requestContext || {},
+    metadata: record.metadata || {},
+    historyLength: record.historyLength,
+    startTime: record.temporalStartedAt || record.createdAt,
+    executionTime: record.temporalExecutionAt,
+    closeTime: record.temporalClosedAt,
+    lastSeenInTemporalAt: record.lastSeenInTemporalAt,
+    startedByUserId: record.startedByUserId,
+    startedByEmail: record.startedByEmail,
+    startedByDisplayName: record.startedByDisplayName,
+    cancelRequestedAt: record.cancelRequestedAt,
+    cancelRequestedByUserId: record.cancelRequestedByUserId,
+    cancelRequestedByEmail: record.cancelRequestedByEmail,
+    cancelRequestedByDisplayName: record.cancelRequestedByDisplayName,
+    terminateRequestedAt: record.terminateRequestedAt,
+    terminateRequestedByUserId: record.terminateRequestedByUserId,
+    terminateRequestedByEmail: record.terminateRequestedByEmail,
+    terminateRequestedByDisplayName: record.terminateRequestedByDisplayName,
+    terminateReason: record.terminateReason,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
+function buildRunRecordKey({ namespace, workflowId, runId, temporalRunId } = {}) {
+  return `${namespace || ''}:${workflowId || ''}:${runId || temporalRunId || ''}`;
+}
+
+function runRecordToWorkflowInfo(record, { missingFromTemporal = true } = {}) {
+  return {
+    workflowId: record.workflowId,
+    runId: record.runId || record.temporalRunId,
+    workflowCode: record.workflowCode,
+    workflowType: record.workflowType,
+    taskQueue: record.taskQueue,
+    status: record.status || 'UNKNOWN',
+    startTime: record.startTime || record.createdAt,
+    executionTime: record.executionTime,
+    closeTime: record.closeTime,
+    historyLength: record.historyLength,
+    source: missingFromTemporal ? 'skyserver_db' : 'temporal',
+    missingFromTemporal,
+    skyserverRecord: record,
+    raw: {
+      source: 'skyserver_db',
+      missingFromTemporal,
+      record,
+    },
+  };
+}
+
+function getWorkflowTimestamp(workflow, key) {
+  const value = workflow?.[key];
+
+  if (!value) {
+    return null;
+  }
+
+  return value;
+}
+
+function buildRunRecordMetadata({ input = {}, workflow = null, source = 'api' } = {}) {
+  return {
+    source,
+    selectedIndicators: Array.isArray(input.indicators) ? input.indicators : [],
+    selectedIndicatorCount: Array.isArray(input.indicators) ? input.indicators.length : 0,
+    concurrency: input.concurrency || null,
+    timeoutMs: input.timeoutMs || null,
+    historyLength: workflow?.historyLength || null,
+  };
+}
+
+async function upsertWorkflowRunRecord({
+  definition = {},
+  config = {},
+  workflow = {},
+  input = {},
+  taskQueue,
+  actor = null,
+  context = {},
+  status = 'RUNNING',
+  metadata = {},
+} = {}) {
+  if (!workflow.workflowId) {
+    return null;
+  }
+
+  const normalizedStatus = normalizeRunRecordStatus(status || workflow.status || 'RUNNING');
+  const workflowCode = definition.workflowCode || input.workflowCode || workflow.workflowCode || DEFAULT_FRED_WORKFLOW_CODE;
+  const workflowType = definition.workflowType || workflow.workflowType;
+
+  if (!workflowType) {
+    return null;
+  }
+
+  try {
+    const result = await dbQuery(
+      `
+        INSERT INTO worker.temporal_workflow_run_records (
+          definition_id,
+          workflow_code,
+          workflow_type,
+          workflow_id,
+          temporal_run_id,
+          namespace,
+          task_queue,
+          run_source,
+          status,
+          launch_input,
+          request_context,
+          metadata,
+          history_length,
+          temporal_started_at,
+          temporal_execution_at,
+          temporal_closed_at,
+          last_seen_in_temporal_at,
+          started_by_user_id
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15, $16,
+          CURRENT_TIMESTAMP, $17
+        )
+        ON CONFLICT (namespace, workflow_id, (COALESCE(temporal_run_id, '')))
+        DO UPDATE SET
+          definition_id = COALESCE(worker.temporal_workflow_run_records.definition_id, EXCLUDED.definition_id),
+          workflow_code = EXCLUDED.workflow_code,
+          workflow_type = EXCLUDED.workflow_type,
+          task_queue = COALESCE(EXCLUDED.task_queue, worker.temporal_workflow_run_records.task_queue),
+          run_source = COALESCE(NULLIF(EXCLUDED.run_source, ''), worker.temporal_workflow_run_records.run_source),
+          status = EXCLUDED.status,
+          launch_input = CASE
+            WHEN EXCLUDED.launch_input <> '{}'::jsonb THEN EXCLUDED.launch_input
+            ELSE worker.temporal_workflow_run_records.launch_input
+          END,
+          request_context = CASE
+            WHEN EXCLUDED.request_context <> '{}'::jsonb THEN EXCLUDED.request_context
+            ELSE worker.temporal_workflow_run_records.request_context
+          END,
+          metadata = worker.temporal_workflow_run_records.metadata || EXCLUDED.metadata,
+          history_length = COALESCE(EXCLUDED.history_length, worker.temporal_workflow_run_records.history_length),
+          temporal_started_at = COALESCE(EXCLUDED.temporal_started_at, worker.temporal_workflow_run_records.temporal_started_at),
+          temporal_execution_at = COALESCE(EXCLUDED.temporal_execution_at, worker.temporal_workflow_run_records.temporal_execution_at),
+          temporal_closed_at = COALESCE(EXCLUDED.temporal_closed_at, worker.temporal_workflow_run_records.temporal_closed_at),
+          last_seen_in_temporal_at = CURRENT_TIMESTAMP,
+          started_by_user_id = COALESCE(worker.temporal_workflow_run_records.started_by_user_id, EXCLUDED.started_by_user_id)
+        RETURNING *
+      `,
+      [
+        definition.definitionId || null,
+        workflowCode,
+        workflowType,
+        workflow.workflowId,
+        workflow.runId || workflow.temporalRunId || null,
+        workflow.namespace || config.namespace || 'default',
+        taskQueue || workflow.taskQueue || definition.taskQueue || config.taskQueue || null,
+        input.runSource || definition.runSourceDefault || workflow.runSource || 'api_manual',
+        normalizedStatus,
+        JSON.stringify(getSafeJson(input)),
+        JSON.stringify(normalizeRequestContext(context)),
+        JSON.stringify(getSafeJson(metadata)),
+        workflow.historyLength || null,
+        getWorkflowTimestamp(workflow, 'startTime') || new Date().toISOString(),
+        getWorkflowTimestamp(workflow, 'executionTime'),
+        getWorkflowTimestamp(workflow, 'closeTime'),
+        getActorUserId(actor),
+      ],
+    );
+
+    return normalizeRunRecordRow(result.rows[0]);
+  } catch (error) {
+    if (isMissingRunRecordTableError(error)) {
+      return null;
+    }
+
+    console.warn('[SkyServer Temporal API] Failed to persist workflow run record:', error.message);
+    return null;
+  }
+}
+
+async function listWorkflowRunRecords(query = {}) {
+  const limit = getListLimit(query.limit);
+  const clauses = [];
+  const values = [];
+  const workflowCode = String(query.workflowCode || '').trim();
+  const workflowType = String(query.workflowType || query.type || '').trim();
+  const status = normalizeStatusFilter(query.status);
+
+  if (workflowCode) {
+    values.push(workflowCode);
+    clauses.push(`workflow_code = $${values.length}`);
+  }
+
+  if (workflowType) {
+    values.push(workflowType);
+    clauses.push(`workflow_type = $${values.length}`);
+  }
+
+  if (status) {
+    values.push(status);
+    clauses.push(`status = $${values.length}`);
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+
+  try {
+    values.push(limit);
+    const result = await dbQuery(
+      `
+        SELECT *
+        FROM worker.vw_temporal_workflow_run_records
+        ${whereClause}
+        ORDER BY COALESCE(temporal_started_at, created_at) DESC, created_at DESC
+        LIMIT $${values.length}
+      `,
+      values,
+    );
+
+    const items = result.rows.map(normalizeRunRecordRow);
+
+    return {
+      total: items.length,
+      limit,
+      items,
+    };
+  } catch (error) {
+    if (isMissingRunRecordTableError(error)) {
+      return {
+        total: 0,
+        limit,
+        items: [],
+      };
+    }
+
+    throw error;
+  }
+}
+
+async function getWorkflowRunRecord({ workflowId, runId } = {}) {
+  if (!workflowId) {
+    return null;
+  }
+
+  try {
+    const result = await dbQuery(
+      `
+        SELECT *
+        FROM worker.vw_temporal_workflow_run_records
+        WHERE workflow_id = $1
+          AND ($2::text IS NULL OR temporal_run_id = $2)
+        ORDER BY COALESCE(temporal_started_at, created_at) DESC, created_at DESC
+        LIMIT 1
+      `,
+      [workflowId, runId || null],
+    );
+
+    return result.rows[0] ? normalizeRunRecordRow(result.rows[0]) : null;
+  } catch (error) {
+    if (isMissingRunRecordTableError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+function mergeWorkflowItemsWithRunRecords({ items = [], records = [], namespace, limit }) {
+  const merged = new Map();
+  const recordsByKey = new Map();
+  const recordsByWorkflowId = new Map();
+
+  for (const record of records) {
+    const key = buildRunRecordKey({
+      namespace: record.namespace || namespace,
+      workflowId: record.workflowId,
+      runId: record.runId || record.temporalRunId,
+    });
+    recordsByKey.set(key, record);
+
+    if (!recordsByWorkflowId.has(record.workflowId)) {
+      recordsByWorkflowId.set(record.workflowId, record);
+    }
+  }
+
+  for (const item of items) {
+    const key = buildRunRecordKey({
+      namespace,
+      workflowId: item.workflowId,
+      runId: item.runId,
+    });
+    const record = recordsByKey.get(key) || recordsByWorkflowId.get(item.workflowId) || null;
+
+    merged.set(key, {
+      ...item,
+      workflowCode: item.workflowCode || record?.workflowCode,
+      source: 'temporal',
+      missingFromTemporal: false,
+      skyserverRecord: record,
+    });
+  }
+
+  for (const record of records) {
+    const key = buildRunRecordKey({
+      namespace: record.namespace || namespace,
+      workflowId: record.workflowId,
+      runId: record.runId || record.temporalRunId,
+    });
+
+    if (!merged.has(key)) {
+      merged.set(key, runRecordToWorkflowInfo(record, { missingFromTemporal: true }));
+    }
+  }
+
+  return [...merged.values()]
+    .sort((left, right) => {
+      const leftTime = new Date(left.startTime || left.executionTime || left.skyserverRecord?.createdAt || 0).getTime();
+      const rightTime = new Date(right.startTime || right.executionTime || right.skyserverRecord?.createdAt || 0).getTime();
+      return rightTime - leftTime;
+    })
+    .slice(0, limit);
+}
+
+async function updateWorkflowRunRecordAction({ workflowId, runId, action, actor = null, reason = null } = {}) {
+  if (!workflowId) {
+    return null;
+  }
+
+  const actionIsTerminate = action === 'terminate';
+  const status = actionIsTerminate ? 'TERMINATE_REQUESTED' : 'CANCEL_REQUESTED';
+  const timestampColumn = actionIsTerminate ? 'terminate_requested_at' : 'cancel_requested_at';
+  const userColumn = actionIsTerminate ? 'terminate_requested_by_user_id' : 'cancel_requested_by_user_id';
+  const reasonSql = actionIsTerminate ? ', terminate_reason = $5' : '';
+  const values = [workflowId, runId || null, status, getActorUserId(actor)];
+
+  if (actionIsTerminate) {
+    values.push(reason || null);
+  }
+
+  try {
+    const result = await dbQuery(
+      `
+        UPDATE worker.temporal_workflow_run_records
+        SET status = $3,
+            ${timestampColumn} = CURRENT_TIMESTAMP,
+            ${userColumn} = $4
+            ${reasonSql}
+        WHERE workflow_id = $1
+          AND ($2::text IS NULL OR temporal_run_id = $2)
+        RETURNING *
+      `,
+      values,
+    );
+
+    return result.rows[0] ? normalizeRunRecordRow(result.rows[0]) : null;
+  } catch (error) {
+    if (isMissingRunRecordTableError(error)) {
+      return null;
+    }
+
+    console.warn('[SkyServer Temporal API] Failed to update workflow action record:', error.message);
+    return null;
+  }
+}
+
 async function getDatabaseWorkflowDefinitions({ enabledOnly = true, visibleOnly = false } = {}) {
   const temporalConfig = getTemporalConfig();
   const clauses = [];
@@ -360,6 +802,7 @@ async function getDatabaseWorkflowDefinitions({ enabledOnly = true, visibleOnly 
     normalizeFallbackDefinition(definition, temporalConfig),
   );
 }
+
 
 async function getWorkflowDefinition(workflowCode = DEFAULT_FRED_WORKFLOW_CODE) {
   const normalizedWorkflowCode = String(workflowCode || DEFAULT_FRED_WORKFLOW_CODE).trim();
@@ -435,7 +878,7 @@ function getFredTimeoutMs(value, definition) {
   );
 }
 
-async function startFredIngestionWorkflow(body = {}, providedDefinition = null) {
+async function startFredIngestionWorkflow(body = {}, providedDefinition = null, actionContext = {}) {
   const definition = providedDefinition || (await getWorkflowDefinition(DEFAULT_FRED_WORKFLOW_CODE));
 
   if (definition.workflowType !== 'fredIngestionWorkflow') {
@@ -463,21 +906,43 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null) 
     concurrency,
   };
 
+  const startedAt = new Date().toISOString();
   const handle = await client.workflow.start(definition.workflowType, {
     taskQueue,
     workflowId,
     args: [input],
   });
 
+  const workflow = {
+    workflowId: handle.workflowId,
+    runId: handle.firstExecutionRunId,
+    workflowCode: definition.workflowCode,
+    workflowType: definition.workflowType,
+    taskQueue,
+    namespace: config.namespace,
+    status: 'RUNNING',
+    startTime: startedAt,
+    startedAt,
+  };
+
+  const runRecord = await upsertWorkflowRunRecord({
+    definition,
+    config,
+    workflow,
+    input,
+    taskQueue,
+    actor: actionContext.actor,
+    context: actionContext.context,
+    status: 'RUNNING',
+    metadata: buildRunRecordMetadata({ input, workflow, source: 'api_start' }),
+  });
+
   return {
     workflow: {
-      workflowId: handle.workflowId,
-      runId: handle.firstExecutionRunId,
-      workflowCode: definition.workflowCode,
-      workflowType: definition.workflowType,
-      taskQueue,
-      namespace: config.namespace,
-      startedAt: new Date().toISOString(),
+      ...workflow,
+      skyserverRecord: runRecord,
+      source: 'temporal',
+      missingFromTemporal: false,
     },
     definition: {
       workflowCode: definition.workflowCode,
@@ -485,14 +950,15 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null) 
       displayName: definition.displayName,
     },
     input,
+    runRecord,
   };
 }
 
-async function startWorkflowFromDefinition({ workflowCode, body = {} } = {}) {
+async function startWorkflowFromDefinition({ workflowCode, body = {}, actor = null, context = {} } = {}) {
   const definition = await getWorkflowDefinition(workflowCode);
 
   if (definition.workflowCode === DEFAULT_FRED_WORKFLOW_CODE) {
-    return startFredIngestionWorkflow(body, definition);
+    return startFredIngestionWorkflow(body, definition, { actor, context });
   }
 
   throw new ServiceError('Workflow template does not have a start adapter yet.', 501, {
@@ -505,35 +971,77 @@ async function listWorkflows(query = {}) {
   const { client, config } = await createTemporalClient();
   const limit = getListLimit(query.limit);
   const listQuery = { ...query };
+  let selectedDefinition = null;
 
   if (!listQuery.query && !listQuery.workflowType && !listQuery.type) {
     try {
-      const definition = await getWorkflowDefinition(listQuery.workflowCode || DEFAULT_FRED_WORKFLOW_CODE);
-      listQuery.workflowType = definition.workflowType;
+      selectedDefinition = await getWorkflowDefinition(listQuery.workflowCode || DEFAULT_FRED_WORKFLOW_CODE);
+      listQuery.workflowType = selectedDefinition.workflowType;
     } catch (error) {
       listQuery.workflowType = 'fredIngestionWorkflow';
+    }
+  } else if (listQuery.workflowCode) {
+    try {
+      selectedDefinition = await getWorkflowDefinition(listQuery.workflowCode);
+    } catch (error) {
+      selectedDefinition = null;
     }
   }
 
   const temporalQuery = getWorkflowListQuery(listQuery);
-  const items = [];
+  const temporalItems = [];
 
   for await (const workflowInfo of client.workflow.list({
     query: temporalQuery,
     pageSize: Math.min(limit, 50),
   })) {
-    items.push(normalizeWorkflowInfo(workflowInfo));
+    const normalizedWorkflow = normalizeWorkflowInfo(workflowInfo);
+    temporalItems.push(normalizedWorkflow);
 
-    if (items.length >= limit) {
+    const definition = selectedDefinition || {
+      workflowCode: listQuery.workflowCode || DEFAULT_FRED_WORKFLOW_CODE,
+      workflowType: normalizedWorkflow.workflowType,
+    };
+
+    await upsertWorkflowRunRecord({
+      definition,
+      config,
+      workflow: {
+        ...normalizedWorkflow,
+        namespace: config.namespace,
+      },
+      input: {},
+      taskQueue: normalizedWorkflow.taskQueue || definition.taskQueue || config.taskQueue,
+      status: normalizedWorkflow.status,
+      metadata: buildRunRecordMetadata({ workflow: normalizedWorkflow, source: 'temporal_visibility' }),
+    });
+
+    if (temporalItems.length >= limit) {
       break;
     }
   }
+
+  const recordFilters = {
+    limit,
+    status: query.status,
+    workflowCode: listQuery.workflowCode || selectedDefinition?.workflowCode,
+    workflowType: listQuery.workflowType,
+  };
+  const recordPayload = await listWorkflowRunRecords(recordFilters);
+  const items = mergeWorkflowItemsWithRunRecords({
+    items: temporalItems,
+    records: recordPayload.items,
+    namespace: config.namespace,
+    limit,
+  });
 
   return {
     namespace: config.namespace,
     query: temporalQuery,
     total: items.length,
     limit,
+    temporalCount: temporalItems.length,
+    recordCount: recordPayload.items.length,
     items,
   };
 }
@@ -545,19 +1053,57 @@ async function getWorkflow({ workflowId, runId } = {}) {
 
   const { client, config } = await createTemporalClient();
   const handle = client.workflow.getHandle(workflowId, runId || undefined);
-  const description = await handle.describe();
 
-  return {
-    namespace: config.namespace,
-    workflow: normalizeWorkflowInfo({
+  try {
+    const description = await handle.describe();
+    const workflow = normalizeWorkflowInfo({
       workflowId,
       runId,
       ...description,
-    }),
-  };
+    });
+
+    const runRecord = await upsertWorkflowRunRecord({
+      definition: {
+        workflowCode: DEFAULT_FRED_WORKFLOW_CODE,
+        workflowType: workflow.workflowType,
+      },
+      config,
+      workflow: {
+        ...workflow,
+        namespace: config.namespace,
+      },
+      input: {},
+      taskQueue: workflow.taskQueue || config.taskQueue,
+      status: workflow.status,
+      metadata: buildRunRecordMetadata({ workflow, source: 'temporal_describe' }),
+    });
+
+    return {
+      namespace: config.namespace,
+      workflow: {
+        ...workflow,
+        workflowCode: runRecord?.workflowCode || DEFAULT_FRED_WORKFLOW_CODE,
+        source: 'temporal',
+        missingFromTemporal: false,
+        skyserverRecord: runRecord,
+      },
+    };
+  } catch (error) {
+    const runRecord = await getWorkflowRunRecord({ workflowId, runId });
+
+    if (runRecord) {
+      return {
+        namespace: config.namespace,
+        workflow: runRecordToWorkflowInfo(runRecord, { missingFromTemporal: true }),
+        warning: 'Workflow was not found in Temporal visibility/history; returned SkyServer run record only.',
+      };
+    }
+
+    throw error;
+  }
 }
 
-async function cancelWorkflow({ workflowId, runId } = {}) {
+async function cancelWorkflow({ workflowId, runId, actor = null } = {}) {
   if (!workflowId) {
     throw new ServiceError('workflowId is required.', 400);
   }
@@ -567,16 +1113,24 @@ async function cancelWorkflow({ workflowId, runId } = {}) {
 
   await handle.cancel();
 
+  const runRecord = await updateWorkflowRunRecordAction({
+    workflowId,
+    runId,
+    action: 'cancel',
+    actor,
+  });
+
   return {
     namespace: config.namespace,
     workflowId,
     runId: runId || null,
     requestedAt: new Date().toISOString(),
     action: 'cancel',
+    runRecord,
   };
 }
 
-async function terminateWorkflow({ workflowId, runId, reason } = {}) {
+async function terminateWorkflow({ workflowId, runId, reason, actor = null } = {}) {
   if (!workflowId) {
     throw new ServiceError('workflowId is required.', 400);
   }
@@ -584,7 +1138,17 @@ async function terminateWorkflow({ workflowId, runId, reason } = {}) {
   const { client, config } = await createTemporalClient();
   const handle = client.workflow.getHandle(workflowId, runId || undefined);
 
-  await handle.terminate(reason || 'Terminated from SkyServer Temporal API.');
+  const normalizedReason = reason || 'Terminated from SkyServer Temporal API.';
+
+  await handle.terminate(normalizedReason);
+
+  const runRecord = await updateWorkflowRunRecordAction({
+    workflowId,
+    runId,
+    action: 'terminate',
+    actor,
+    reason: normalizedReason,
+  });
 
   return {
     namespace: config.namespace,
@@ -592,7 +1156,8 @@ async function terminateWorkflow({ workflowId, runId, reason } = {}) {
     runId: runId || null,
     requestedAt: new Date().toISOString(),
     action: 'terminate',
-    reason: reason || 'Terminated from SkyServer Temporal API.',
+    reason: normalizedReason,
+    runRecord,
   };
 }
 
@@ -601,6 +1166,7 @@ module.exports = {
   getHealth,
   getWorkflow,
   listWorkflowDefinitions,
+  listWorkflowRunRecords,
   listWorkflows,
   startFredIngestionWorkflow,
   startWorkflowFromDefinition,

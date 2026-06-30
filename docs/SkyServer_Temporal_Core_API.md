@@ -21,7 +21,8 @@ All routes require a valid SkyServer bearer token.
 | --- | --- | --- |
 | `GET` | `/api/temporal/health` | Checks Temporal connectivity and reports configured namespace/task queue. |
 | `GET` | `/api/temporal/workflow-definitions` | Returns approved workflow templates currently exposed by SkyServer. |
-| `GET` | `/api/temporal/workflows` | Lists Temporal workflow executions. Defaults to `fredIngestionWorkflow`. |
+| `GET` | `/api/temporal/workflows` | Lists Temporal workflow executions and merges SkyServer DB run records when available. Defaults to `fredIngestionWorkflow`. |
+| `GET` | `/api/temporal/workflow-run-records` | Lists SkyServer-owned Temporal workflow run records from PostgreSQL. |
 | `GET` | `/api/temporal/workflows/:workflowId` | Describes one Temporal workflow execution. Optional `runId` query parameter. |
 | `POST` | `/api/temporal/workflows/fred-ingestion/start` | Starts the approved FRED ingestion workflow asynchronously. |
 | `POST` | `/api/temporal/workflows/:workflowId/cancel` | Requests cooperative cancellation of a workflow. |
@@ -133,3 +134,21 @@ POST /api/temporal/workflow-definitions/:workflowCode/start
 ```
 
 For Phase 10.5, `fred-ingestion` is the only workflow code with a start adapter. Unknown or not-yet-wired workflow templates remain blocked by the API.
+
+
+## SkyServer run records
+
+Phase 10.6 adds a lightweight PostgreSQL run index for Temporal workflow launches:
+
+```text
+worker.temporal_workflow_run_records
+worker.vw_temporal_workflow_run_records
+```
+
+The API records launches started through SkyServer Core/API and refreshes the stored status whenever workflows are listed or described through `/api/temporal`. This gives Admin-Web an audit-friendly summary layer without copying Temporal's full event history into SkyServer.
+
+Apply to an existing database with:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migrations/00035__temporal_workflow_run_records.sql
+```

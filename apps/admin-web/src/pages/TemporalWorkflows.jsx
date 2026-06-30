@@ -70,7 +70,13 @@ function statusClass(status) {
     return 'sky-pill-danger';
   }
 
-  if (normalizedStatus === 'RUNNING' || normalizedStatus === 'CANCELING') {
+  if (
+    normalizedStatus === 'RUNNING' ||
+    normalizedStatus === 'STARTED' ||
+    normalizedStatus === 'CANCELING' ||
+    normalizedStatus === 'CANCEL_REQUESTED' ||
+    normalizedStatus === 'TERMINATE_REQUESTED'
+  ) {
     return 'sky-pill-warning';
   }
 
@@ -93,7 +99,13 @@ function statusDotClass(status) {
     return 'sky-status-dot-danger';
   }
 
-  if (normalizedStatus === 'RUNNING' || normalizedStatus === 'CANCELING') {
+  if (
+    normalizedStatus === 'RUNNING' ||
+    normalizedStatus === 'STARTED' ||
+    normalizedStatus === 'CANCELING' ||
+    normalizedStatus === 'CANCEL_REQUESTED' ||
+    normalizedStatus === 'TERMINATE_REQUESTED'
+  ) {
     return 'sky-status-dot-warning';
   }
 
@@ -114,6 +126,28 @@ function parseIndicators(value) {
 
 function getWorkflowKey(workflow) {
   return `${workflow?.workflowId || ''}:${workflow?.runId || ''}`;
+}
+
+function getWorkflowSourceLabel(workflow) {
+  if (workflow?.missingFromTemporal) {
+    return 'SkyServer DB';
+  }
+
+  if (workflow?.skyserverRecord) {
+    return 'Temporal + DB';
+  }
+
+  return 'Temporal';
+}
+
+function getStartedByLabel(workflow) {
+  const record = workflow?.skyserverRecord;
+
+  return record?.startedByDisplayName || record?.startedByEmail || '—';
+}
+
+function getRunSourceLabel(workflow) {
+  return workflow?.skyserverRecord?.runSource || workflow?.runSource || '—';
 }
 
 function workflowIsRunning(workflow) {
@@ -644,6 +678,16 @@ function TemporalWorkflows() {
                     <dd className="col-8 sky-detail-value">
                       {formatNumber(selectedWorkflow.historyLength)}
                     </dd>
+                    <dt className="col-4 sky-detail-label">Source</dt>
+                    <dd className="col-8 sky-detail-value">{getWorkflowSourceLabel(selectedWorkflow)}</dd>
+                    <dt className="col-4 sky-detail-label">Run source</dt>
+                    <dd className="col-8 sky-detail-value sky-mono">{getRunSourceLabel(selectedWorkflow)}</dd>
+                    <dt className="col-4 sky-detail-label">Started by</dt>
+                    <dd className="col-8 sky-detail-value">{getStartedByLabel(selectedWorkflow)}</dd>
+                    <dt className="col-4 sky-detail-label">DB sync</dt>
+                    <dd className="col-8 sky-detail-value">
+                      {formatDate(selectedWorkflow.skyserverRecord?.lastSeenInTemporalAt || selectedWorkflow.skyserverRecord?.updatedAt)}
+                    </dd>
                   </dl>
 
                   <div className="d-flex flex-wrap gap-2 mb-3">
@@ -727,20 +771,21 @@ function TemporalWorkflows() {
                     <th>Type</th>
                     <th>Started</th>
                     <th>Closed</th>
+                    <th>Source</th>
                     <th>History</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="7">
                         <div className="sky-empty-state">Loading Temporal workflows...</div>
                       </td>
                     </tr>
                   )}
                   {!loading && workflows.length === 0 && (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="7">
                         <div className="sky-empty-state">No workflow runs found for this filter.</div>
                       </td>
                     </tr>
@@ -761,10 +806,20 @@ function TemporalWorkflows() {
                             {getStatusLabel(workflow.status)}
                           </span>
                         </td>
-                        <td className="sky-mono text-break">{workflow.workflowId || '—'}</td>
+                        <td>
+                          <div className="sky-mono text-break">{workflow.workflowId || '—'}</div>
+                          <div className="small sky-muted">
+                            {workflow.skyserverRecord ? `by ${getStartedByLabel(workflow)}` : 'not recorded yet'}
+                          </div>
+                        </td>
                         <td>{workflow.workflowType || '—'}</td>
                         <td>{formatDate(workflow.startTime || workflow.executionTime)}</td>
                         <td>{formatDate(workflow.closeTime)}</td>
+                        <td>
+                          <span className={`sky-pill ${workflow.missingFromTemporal ? 'sky-pill-info' : 'sky-pill-success'}`}>
+                            {getWorkflowSourceLabel(workflow)}
+                          </span>
+                        </td>
                         <td>{formatNumber(workflow.historyLength)}</td>
                       </tr>
                     ))}
