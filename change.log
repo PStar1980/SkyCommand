@@ -209,6 +209,11 @@ SkyWeb Analytics owns:
 - Updated the Phase 10 roadmap and README to mark the Admin-Web workflow console slice complete.
 
 
+## Phase 10.5a — Temporal Workflow Template Seed Hotfix
+
+- Cast `allowed_values` seed literals to `jsonb` so `00034__temporal_workflow_template_seed.sql` can insert into `worker.temporal_workflow_parameters.allowed_values` on existing PostgreSQL databases.
+- Preserved the Phase 10.5 template schema and FRED workflow configuration behavior.
+
 ## Phase 10.5 — Temporal Workflow Templates + Configuration
 
 - Added `worker.temporal_workflow_definitions` and `worker.temporal_workflow_parameters` for approved Temporal workflow template metadata.
