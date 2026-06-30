@@ -559,6 +559,30 @@
   text-decoration: none;
 }
 
+.sky-navbar-primary-nav {
+  gap: 0.15rem;
+}
+
+.sky-navbar-primary-nav .nav-link {
+  border-radius: 999px;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+}
+
+.sky-navbar-primary-nav .nav-link.active,
+.sky-navbar-primary-nav .show > .nav-link {
+  background: rgba(72, 167, 255, 0.1);
+  color: #ffffff;
+}
+
+.sky-dropdown-section-label {
+  color: #83a4d7;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .sky-card hr {
   opacity: 0.28;
 }

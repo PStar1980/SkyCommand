@@ -211,7 +211,7 @@ function getAdminParameters(definition) {
     .sort((left, right) => (left.displayOrder || 0) - (right.displayOrder || 0));
 }
 
-function TemporalWorkflows() {
+function TemporalWorkflows({ mode = 'history' }) {
   const { hasPermission } = useAuth();
   const canStart = hasPermission('TEMPORAL_WORKFLOW_START') || hasPermission('INGESTION_RUN_FRED');
   const canCancel = hasPermission('TEMPORAL_WORKFLOW_CANCEL');
@@ -442,16 +442,21 @@ function TemporalWorkflows() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey]);
 
+  const isHistoryMode = mode === 'history';
+  const activeWorkflows = workflows.filter(workflowIsRunning);
+  const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
+  const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
+  const pageSubtitle = isHistoryMode
+    ? 'Inspect recent Temporal workflow runs, review SkyServer run records, and manage active executions through SkyServer Core.'
+    : 'Start approved Temporal workflow templates through SkyServer Core instead of the CLI.';
+
   return (
     <div>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Automation · Temporal</div>
-          <h1 className="sky-page-title">Workflow Console</h1>
-          <p className="sky-page-subtitle">
-            Start approved Temporal workflows, inspect recent runs, and manage active executions
-            through SkyServer Core instead of the CLI.
-          </p>
+          <div className="sky-page-kicker">{pageKicker}</div>
+          <h1 className="sky-page-title">{pageTitle}</h1>
+          <p className="sky-page-subtitle">{pageSubtitle}</p>
         </div>
         <button
           className="btn sky-btn-ghost"
@@ -555,6 +560,7 @@ function TemporalWorkflows() {
 
       <div className="row g-4">
         <div className="col-xl-4">
+          {!isHistoryMode && (
           <div className="sky-card mb-4">
             <div className="sky-card-header">
               <div className="sky-page-kicker">Manual start</div>
@@ -635,6 +641,10 @@ function TemporalWorkflows() {
             </form>
           </div>
 
+
+          )}
+
+          {isHistoryMode && (
           <div className="sky-card sky-sticky-detail-card">
             <div className="sky-card-header">
               <div className="sky-page-kicker">Run detail</div>
@@ -724,9 +734,79 @@ function TemporalWorkflows() {
               )}
             </div>
           </div>
+          )}
         </div>
 
         <div className="col-xl-8">
+          {!isHistoryMode && (
+          <div className="sky-card">
+            <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+              <div>
+                <div className="sky-page-kicker">Active runs</div>
+                <h2 className="h5 mb-0">Running workflows</h2>
+              </div>
+              <span className="sky-pill sky-pill-info">
+                {formatNumber(activeWorkflows.length)} running
+              </span>
+            </div>
+
+            <div className="table-responsive sky-table-card">
+              <table className="table table-sm table-hover sky-table align-middle">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Workflow ID</th>
+                    <th>Type</th>
+                    <th>Started</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && (
+                    <tr>
+                      <td colSpan="5">
+                        <div className="sky-empty-state">Loading active workflows...</div>
+                      </td>
+                    </tr>
+                  )}
+                  {!loading && activeWorkflows.length === 0 && (
+                    <tr>
+                      <td colSpan="5">
+                        <div className="sky-empty-state">No running workflows right now.</div>
+                      </td>
+                    </tr>
+                  )}
+                  {!loading &&
+                    activeWorkflows.map((workflow) => (
+                      <tr className="sky-clickable-row" key={getWorkflowKey(workflow)}>
+                        <td>
+                          <span className={`sky-pill ${statusClass(workflow.status)}`}>
+                            {getStatusLabel(workflow.status)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="sky-mono text-break">{workflow.workflowId || '—'}</div>
+                          <div className="small sky-muted">
+                            {workflow.skyserverRecord ? `by ${getStartedByLabel(workflow)}` : 'not recorded yet'}
+                          </div>
+                        </td>
+                        <td>{workflow.workflowType || '—'}</td>
+                        <td>{formatDate(workflow.startTime || workflow.executionTime)}</td>
+                        <td>
+                          <span className={`sky-pill ${workflow.missingFromTemporal ? 'sky-pill-info' : 'sky-pill-success'}`}>
+                            {getWorkflowSourceLabel(workflow)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          )}
+
+          {isHistoryMode && (
           <div className="sky-card">
             <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
               <div>
@@ -827,10 +907,20 @@ function TemporalWorkflows() {
               </table>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
+function TemporalStartWorkflow() {
+  return <TemporalWorkflows mode="start" />;
+}
+
+function TemporalWorkflowHistory() {
+  return <TemporalWorkflows mode="history" />;
+}
+
+export { TemporalStartWorkflow, TemporalWorkflowHistory };
 export default TemporalWorkflows;

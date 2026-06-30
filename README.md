@@ -41,12 +41,12 @@ Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The
 | Surface | Purpose |
 | --- | --- |
 | Admin-Web Dashboard | Private command center for API/DB health, ingestion status, automation status, tools, sessions, scripts, and audits |
-| Tools | Permission-filtered operational tool launcher with dynamic parameters and execution logging |
+| Tools | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging |
+| Workflows | Temporal start and workflow-history surfaces for durable workflow operations |
+| Automation | Scheduler/listener control surfaces, including the scheduler-to-Temporal bridge |
 | Ingestion Status | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics |
-| Automation | Scheduler/listener control surfaces plus the Temporal Workflow Console for durable workflow starts, run inspection, cancellation, and future event-driven automation |
-| Access Control | User, role, permission, session, and password administration |
-| Script Executions | Browser-triggered and worker-triggered execution history with stdout/stderr traceability |
-| Audit Events | Authentication, authorization, and operational audit trail |
+| Access Control | User, role, permission, session, password administration, and User History audit review |
+| Tools History | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability |
 | SkyWeb APIs | Public/member macro, profile, preference, dashboard, alert, and alert-evaluation support for SkyWeb Analytics |
 
 ## Architecture
@@ -62,7 +62,7 @@ flowchart LR
     Worker --> Tools
     Ingestion["Ingestion Scripts<br/>FRED + BoC + StatCan + Manual"] --> Db
     SkyWeb["SkyWeb Analytics<br/>React + ASP.NET Core"] -->|evaluate alerts only| Api
-    Api -->|workflow control plane| Temporal["Temporal Pilot<br/>Phase 10.5"]
+    Api -->|workflow control plane| Temporal["Temporal Pilot<br/>Phase 10.8"]
     Temporal --> TemporalWorker["Temporal Worker<br/>FRED indicator activities"]
     TemporalWorker --> Ingestion
 ```
@@ -98,25 +98,27 @@ SkyServer and SkyWeb now have a clean boundary:
 
 SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
 
-## Temporal Workflow Console
+## Temporal Workflow Pages
 
-Phase 10.4 adds the first Admin-Web cockpit for Temporal-backed workflows. Open it from:
+Phase 10.8 splits the Admin-Web Temporal cockpit into dedicated workflow pages. Open them from:
 
 ```text
-Automation -> Temporal Workflows
+Workflows -> Start Workflow
+Workflows -> Workflow History
 ```
 
-The console can:
+The workflow pages can:
 
 - display Temporal health, namespace, and task queue;
 - show database-backed approved workflow templates and parameter schemas;
 - start the approved FRED ingestion workflow with selected indicators or the full indicator set;
 - set workflow concurrency from the UI;
-- list recent workflow runs;
-- inspect workflow details;
+- list active workflow runs from the start page;
+- list recent workflow runs from Workflow History;
+- inspect workflow details from Workflow History;
 - request cancellation or termination according to RBAC permissions.
 
-Admin-Web calls `/api/temporal`; it never connects to Temporal directly.
+Admin-Web calls `/api/temporal`; it never connects to Temporal directly. Legacy `/automation/temporal` and `/temporal` links redirect to `/workflows/history`.
 
 Phase 10.5 adds database-backed workflow template metadata under the `worker` schema so Admin-Web can render approved workflow configuration from PostgreSQL while SkyServer Core/API still controls which workflow adapters may actually start.
 
