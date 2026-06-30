@@ -235,3 +235,13 @@ SkyWeb Analytics owns:
 - Updated cancel/terminate API actions to store request metadata in the run-record table.
 - Updated Admin-Web Temporal Workflow Console to show whether a run is live from Temporal, merged with SkyServer DB metadata, or DB-only after local Temporal history is gone.
 - Updated Temporal docs and README with Phase 10.6 run-record behavior and existing-database migration guidance.
+
+
+## Phase 10.7 — Scheduler-to-Temporal Bridge
+
+- Added `apps/worker/src/jobs/scheduledTemporalWorkflowRunner.js` to translate worker schedule parameters into approved Temporal workflow start requests.
+- Updated the schedule runner so `temporal_workflow_start` is intercepted as a Temporal bridge operation instead of being launched as a normal script process.
+- Added `00036__temporal_schedule_bridge_seed.sql` to register the worker-visible **Start Temporal Workflow** bridge tool and its scheduler parameters.
+- Scheduled Temporal starts now use `runSource: scheduler` and persist scheduler context into Temporal run-record metadata.
+- Schedule run history now records the Temporal workflow ID, run ID, workflow type, task queue, namespace, and SkyServer run-record ID when a scheduled start succeeds.
+- Updated Temporal docs, roadmap, and README notes for scheduled workflow starts.

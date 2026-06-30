@@ -141,3 +141,36 @@ The next workflow templates can be added with metadata first, then adapters late
 - AI/data/reporting workflows.
 
 The future Postgres run-history/audit layer should be added separately so template configuration and execution history stay cleanly separated.
+
+
+## Phase 10.7 scheduled workflow starts
+
+A new seed registers a worker-visible bridge tool:
+
+```text
+packages/db_build/src/seeds/00036__temporal_schedule_bridge_seed.sql
+```
+
+Seeded tool:
+
+```text
+tool_code: temporal_workflow_start
+label: Start Temporal Workflow
+permission_code: TEMPORAL_WORKFLOW_START
+worker-visible: yes
+```
+
+This tool is intercepted by the worker schedule runner. It is not executed as a normal Node child-process script during scheduled runs. Instead, the worker calls the same approved-template start service used by Admin-Web/API.
+
+Supported scheduler parameters for the bridge tool:
+
+| Parameter | Required | Notes |
+| --- | --- | --- |
+| `workflowCode` | Yes | Approved workflow template code. Defaults to `fred-ingestion`. |
+| `indicators` | No | Comma/space/newline separated FRED indicators. Blank runs the full configured set. |
+| `concurrency` | No | Optional workflow concurrency. FRED defaults to 3 and caps at 10. |
+| `workflowId` | No | Optional Temporal workflow ID override. |
+| `timeoutMs` | No | Optional activity timeout in milliseconds. |
+| `inputJson` | No | Advanced JSON object merged into the workflow start body before scheduler context is added. |
+
+Scheduled starts use `runSource: scheduler` and include scheduler context in the Temporal launch input/metadata.

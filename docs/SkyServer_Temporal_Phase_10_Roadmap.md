@@ -14,8 +14,9 @@ Introduce Temporal as SkyServer's durable workflow orchestration engine while pr
 | 10.4 | Complete | Add Admin-Web workflow console for Temporal health, FRED manual starts, run summaries, detail inspection, cancel, and terminate controls |
 | 10.5 | Complete | Add database-backed approved workflow templates and parameter schemas for configurable Admin-Web starts |
 | 10.6 | Complete | Persist workflow launch summaries into PostgreSQL for Admin-Web reporting and auditability |
-| 10.7 | Planned | Add alert-evaluation workflow chaining after successful macro ingestion |
-| 10.8 | Planned | Define migration rules for scheduler/listener jobs that should become Temporal workflows |
+| 10.7 | Complete | Add a worker scheduler bridge that can start approved Temporal workflow templates on one-time or interval schedules |
+| 10.8 | Planned | Add alert-evaluation workflow chaining after successful macro ingestion |
+| 10.9 | Planned | Define migration rules for scheduler/listener jobs that should become Temporal workflows |
 
 ## Migration rules
 
@@ -70,3 +71,12 @@ Phase 10.6 adds `worker.temporal_workflow_run_records` and `worker.vw_temporal_w
 This is not a replacement for Temporal event history. Temporal remains the durable execution/event-history engine. SkyServer now stores the operator-facing launch summary: workflow code/type, workflow ID, Temporal run ID, namespace, task queue, run source, normalized input, starter, cancel/terminate request metadata, and the latest status snapshot observed through Temporal visibility/detail calls.
 
 Admin-Web can now show recorded workflow runs even when a local `temporal server start-dev` instance has restarted and lost its in-memory/dev visibility history.
+
+
+## Phase 10.7 — Scheduler-to-Temporal Bridge
+
+Phase 10.7 adds a worker-visible scheduler bridge tool named `temporal_workflow_start`. Existing `worker.schedules` records can now trigger approved Temporal workflow templates without requiring the browser or Postman to press the start button.
+
+The schedule runner detects this bridge tool and calls SkyServer's Temporal service directly instead of launching a legacy script process. The first supported template is `fred-ingestion`, so a schedule can start `fredIngestionWorkflow` with optional indicators, concurrency, workflow ID override, timeout, and advanced JSON input.
+
+Scheduled workflow starts are recorded with `runSource: scheduler` and include scheduler context in the Temporal run record metadata: schedule ID/code/name, schedule run ID, worker node ID/name, and queue/start timestamps. The `worker.schedule_runs` row is marked successful once Temporal accepts the workflow start request; Temporal remains responsible for the workflow's durable execution lifecycle.

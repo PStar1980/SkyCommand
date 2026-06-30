@@ -362,6 +362,8 @@ POST   /api/temporal/workflows/:workflowId/terminate
 
 The browser/Admin-Web should call SkyServer API rather than Temporal directly, preserving the SkyServer auth/RBAC boundary and giving us a clean location for future audit and workflow-run persistence.
 
+Phase 10.7 also lets the existing SkyServer worker scheduler start approved Temporal workflow templates through the worker-visible `temporal_workflow_start` bridge tool. A scheduler run records that Temporal accepted the workflow start, while Temporal continues to own the durable workflow execution lifecycle.
+
 ## Browser-Triggered Script Safety
 
 SkyServer allows browser-triggered tool execution through Admin-Web, so guardrails are central:

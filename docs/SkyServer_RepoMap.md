@@ -119,6 +119,7 @@ SkyServer/
 │       └── src/
 │           ├── index.js
 │           ├── jobs/
+│           │   ├── scheduledTemporalWorkflowRunner.js
 │           │   ├── scheduledToolRunner.js
 │           │   ├── workerNodeService.js
 │           │   └── workerToolExecutionService.js
@@ -191,7 +192,8 @@ SkyServer/
 │   │           ├── 00024__skyweb_auth_seed.sql
 │   │           ├── 00030__skyweb_alert_worker_seed.sql
 │   │           ├── 00032__temporal_auth_seed.sql
-│   │           └── 00034__temporal_workflow_template_seed.sql
+│   │           ├── 00034__temporal_workflow_template_seed.sql
+│   │           └── 00036__temporal_schedule_bridge_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
