@@ -1,0 +1,111 @@
+const authService = require('../services/authService');
+const workflowExecutorService = require('../services/workflowExecutorService');
+
+async function listDefinitions(req, res, next) {
+  try {
+    const result = await workflowExecutorService.listWorkflowDefinitions({
+      visibleOnly: true,
+      enabledOnly: true,
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getDefinition(req, res, next) {
+  try {
+    const result = await workflowExecutorService.getWorkflowDefinition(req.params.workflowCode);
+
+    res.json({
+      ok: true,
+      definition: result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function startWorkflow(req, res, next) {
+  try {
+    const context = authService.getRequestContext(req);
+    const body = req.body || {};
+    const result = await workflowExecutorService.executeWorkflow({
+      workflowCode: req.params.workflowCode,
+      input: body.input || body,
+      user: req.user,
+      session: req.session,
+      permissions: req.permissions || [],
+      context,
+    });
+
+    res.status(result.ok ? 200 : 500).json({
+      ok: result.ok,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function listRuns(req, res, next) {
+  try {
+    const result = await workflowExecutorService.listWorkflowRuns(req.query || {});
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getRun(req, res, next) {
+  try {
+    const result = await workflowExecutorService.getWorkflowRun(req.params.workflowRunRecordId);
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+module.exports = {
+  getDefinition,
+  getRun,
+  listDefinitions,
+  listRuns,
+  startWorkflow,
+};

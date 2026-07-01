@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.5 — Temporal workflow templates and configuration
+**Active status:** Phase 10.10 — SkyServer workflow executor v1
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -42,7 +42,7 @@ Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The
 | --- | --- |
 | Admin-Web Dashboard | Private command center for API/DB health, ingestion status, automation status, tools, sessions, scripts, and audits |
 | Tools | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging |
-| Workflows | Temporal start and workflow-history surfaces for durable workflow operations |
+| Workflows | SkyServer workflow start/history surfaces, with lower-level Temporal runtime pages preserved for diagnostics |
 | Automation | Scheduler/listener control surfaces, including the scheduler-to-Temporal bridge |
 | Ingestion Status | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics |
 | Access Control | User, role, permission, session, password administration, and User History audit review |
@@ -62,7 +62,7 @@ flowchart LR
     Worker --> Tools
     Ingestion["Ingestion Scripts<br/>FRED + BoC + StatCan + Manual"] --> Db
     SkyWeb["SkyWeb Analytics<br/>React + ASP.NET Core"] -->|evaluate alerts only| Api
-    Api -->|workflow control plane| Temporal["Temporal Pilot<br/>Phase 10.8"]
+    Api -->|workflow executor + runtime control| Temporal["Temporal Pilot<br/>Phase 10.10"]
     Temporal --> TemporalWorker["Temporal Worker<br/>FRED indicator activities"]
     TemporalWorker --> Ingestion
 ```
@@ -98,9 +98,9 @@ SkyServer and SkyWeb now have a clean boundary:
 
 SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
 
-## Temporal Workflow Pages
+## Workflow Pages
 
-Phase 10.8 splits the Admin-Web Temporal cockpit into dedicated workflow pages. Open them from:
+Phase 10.10 shifts the Workflows menu to the higher-level SkyServer workflow model. Open the main pages from:
 
 ```text
 Workflows -> Start Workflow
@@ -109,14 +109,15 @@ Workflows -> Workflow History
 
 The workflow pages can:
 
-- display Temporal health, namespace, and task queue;
-- show database-backed approved workflow templates and parameter schemas;
-- start the approved FRED ingestion workflow with selected indicators or the full indicator set;
-- set workflow concurrency from the UI;
-- list active workflow runs from the start page;
-- list recent workflow runs from Workflow History;
-- inspect workflow details from Workflow History;
-- request cancellation or termination according to RBAC permissions.
+- show approved SkyServer workflow definitions backed by `worker.workflow_definitions`;
+- inspect the published node timeline for a workflow definition;
+- start a workflow definition manually through `/api/workflows`;
+- override node parameters with JSON using `nodeInputs`;
+- store workflow-level and node-level run records in PostgreSQL;
+- list recent SkyServer workflow runs from Workflow History;
+- inspect node outcomes for each workflow run.
+
+Lower-level Temporal runtime diagnostics remain available at `/workflows/temporal/start` and `/workflows/temporal/history`.
 
 Admin-Web calls `/api/temporal`; it never connects to Temporal directly. Legacy `/automation/temporal` and `/temporal` links redirect to `/workflows/history`.
 
@@ -448,4 +449,15 @@ Existing database patch commands:
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00037__fred_ingestion_tool_upgrade_seed.sql
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migrations/00038__workflow_builder_foundation.sql
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00039__workflow_builder_foundation_seed.sql
+```
+
+
+## Phase 10.10 — SkyServer Workflow Executor v1
+
+Phase 10.10 makes the workflow-builder foundation runnable. SkyServer workflows now compose lower-level primitives, starting with `TOOL` nodes and `TEMPORAL_WORKFLOW` nodes. The seeded `macro-refresh-pipeline` can run the upgraded FRED ingestion tool and then evaluate SkyWeb alerts while writing workflow and node run records to PostgreSQL.
+
+Existing DB update:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00040__workflow_executor_v1_seed.sql
 ```

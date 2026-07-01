@@ -21,6 +21,7 @@ import Tools from './pages/Tools.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
 import SchedulerControl from './pages/SchedulerControl.jsx';
 import { TemporalStartWorkflow, TemporalWorkflowHistory } from './pages/TemporalWorkflows.jsx';
+import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import './index.css';
 import './App.css';
 
@@ -95,7 +96,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               path="workflows/start"
               element={
                 <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
-                  <TemporalStartWorkflow />
+                  <WorkflowStart />
                 </ProtectedRoute>
               }
             />
@@ -103,12 +104,28 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               path="workflows/history"
               element={
                 <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
+                  <WorkflowHistory />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workflows/temporal/start"
+              element={
+                <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
+                  <TemporalStartWorkflow />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workflows/temporal/history"
+              element={
+                <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
                   <TemporalWorkflowHistory />
                 </ProtectedRoute>
               }
             />
-            <Route path="automation/temporal" element={<Navigate replace to="/workflows/history" />} />
-            <Route path="temporal" element={<Navigate replace to="/workflows/history" />} />
+            <Route path="automation/temporal" element={<Navigate replace to="/workflows/temporal/history" />} />
+            <Route path="temporal" element={<Navigate replace to="/workflows/temporal/history" />} />
 
             <Route
               path="configuration/repositories"

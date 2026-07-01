@@ -101,3 +101,42 @@ Admin creates/configures/monitors them.
 ```
 
 The next executable slice should be a simple sequential SkyServer workflow executor, starting with `TOOL` and `TEMPORAL_WORKFLOW` node types.
+
+## Phase 10.10 — SkyServer Workflow Executor v1
+
+Phase 10.10 changes the next layer from hardcoded Temporal workflow chaining to the higher-level SkyServer workflow model.
+
+Implemented direction:
+
+```text
+Tool / API / Agent / Child Workflow / Temporal Template
+        -> Workflow Node
+        -> SkyServer Workflow Definition
+        -> Published Workflow Version
+        -> Workflow Run + Node Runs
+```
+
+Executor v1 supports the first two runnable node types:
+
+- `TOOL`: executes an existing `core.tools` primitive through SkyServer's permission-aware tool execution service.
+- `TEMPORAL_WORKFLOW`: starts an approved Temporal template through the existing Temporal service.
+
+This keeps the foundational principle intact:
+
+```text
+Tools remain primitives.
+Workflows compose primitives.
+Temporal is one execution/runtime lane, not the user-facing source of every primitive.
+```
+
+New API surface:
+
+```text
+GET  /api/workflows/definitions
+GET  /api/workflows/definitions/:workflowCode
+POST /api/workflows/definitions/:workflowCode/start
+GET  /api/workflows/runs
+GET  /api/workflows/runs/:workflowRunRecordId
+```
+
+Admin-Web `Workflows -> Start Workflow` and `Workflows -> Workflow History` now use the SkyServer workflow executor surfaces, while lower-level Temporal diagnostics remain available through `/workflows/temporal/start` and `/workflows/temporal/history`.

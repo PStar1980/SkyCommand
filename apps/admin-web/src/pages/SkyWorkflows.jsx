@@ -1,0 +1,638 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
+import workflowService from '../services/workflowService';
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'RUNNING', label: 'Running' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'FAILED', label: 'Failed' },
+  { value: 'CANCELED', label: 'Canceled' },
+  { value: 'TERMINATED', label: 'Terminated' },
+];
+
+function formatDate(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+function formatDuration(ms) {
+  const value = Number(ms);
+
+  if (!Number.isFinite(value)) {
+    return '—';
+  }
+
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+
+  return `${(value / 1000).toFixed(1)} s`;
+}
+
+function statusClass(status) {
+  const normalized = String(status || '').toUpperCase();
+
+  if (normalized === 'COMPLETED' || normalized === 'SUCCESS') {
+    return 'sky-pill-success';
+  }
+
+  if (normalized === 'FAILED' || normalized === 'TERMINATED') {
+    return 'sky-pill-danger';
+  }
+
+  if (normalized === 'RUNNING' || normalized === 'QUEUED') {
+    return 'sky-pill-warning';
+  }
+
+  return 'sky-pill-info';
+}
+
+function jsonPreview(value) {
+  if (!value) {
+    return '{}';
+  }
+
+  return JSON.stringify(value, null, 2);
+}
+
+function parseJsonInput(value) {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed) {
+    return {};
+  }
+
+  return JSON.parse(trimmed);
+}
+
+function getDefaultInput(definition) {
+  if (!definition?.workflowCode) {
+    return '{}';
+  }
+
+  if (definition.workflowCode === 'macro-refresh-pipeline') {
+    return JSON.stringify(
+      {
+        nodeInputs: {
+          fred_ingestion: {
+            indicators: 'GDP, UNRATE, DGS10',
+            concurrency: '10',
+          },
+          evaluate_skyweb_alerts: {
+            maxRules: '500',
+            activeOnly: 'true',
+          },
+        },
+      },
+      null,
+      2,
+    );
+  }
+
+  return JSON.stringify({ nodeInputs: {} }, null, 2);
+}
+
+function WorkflowDefinitionCard({ definition, selected, onSelect }) {
+  return (
+    <button
+      className={`sky-tool-card text-start w-100 ${selected ? 'active' : ''}`}
+      onClick={() => onSelect(definition)}
+      type="button"
+    >
+      <div className="d-flex justify-content-between align-items-start gap-2">
+        <div>
+          <div className="fw-bold">{definition.displayName}</div>
+          <div className="small sky-mono sky-muted">{definition.workflowCode}</div>
+        </div>
+        <span className={`sky-pill ${statusClass(definition.status)}`}>{definition.status}</span>
+      </div>
+      <p className="small sky-muted mb-2 mt-2">{definition.description || 'No description.'}</p>
+      <div className="d-flex flex-wrap gap-2">
+        <span className="sky-pill sky-pill-info">v{definition.publishedVersionNumber || '—'}</span>
+        <span className="sky-pill sky-pill-info">
+          {definition.publishedNodeCount || 0} node(s)
+        </span>
+        <span className="sky-pill sky-pill-info">
+          {definition.publishedEdgeCount || 0} edge(s)
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
+  const runsByNodeKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
+
+  return (
+    <div className="d-flex flex-column gap-2">
+      {nodes.map((node, index) => {
+        const nodeKey = node.nodeKey;
+        const nodeRun = runsByNodeKey.get(nodeKey) || (node.status ? node : null);
+        const nodeTypeCode = node.nodeTypeCode || nodeRun?.nodeTypeCode || 'NODE';
+        const targetCode = node.targetCode || nodeRun?.targetCode || 'No target';
+        const displayName = node.displayName || nodeKey || 'Workflow node';
+        const description = node.description || nodeRun?.output?.summary || 'No description';
+
+        return (
+          <div className="sky-worker-command-card" key={node.workflowNodeId || node.workflowNodeRunRecordId || nodeKey}>
+            <div className="d-flex justify-content-between gap-3">
+              <div>
+                <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode}</div>
+                <div className="fw-bold">{displayName}</div>
+                <div className="small sky-muted">
+                  {targetCode} · {description}
+                </div>
+              </div>
+              <span className={`sky-pill ${statusClass(nodeRun?.status || 'QUEUED')}`}>
+                {nodeRun?.status || 'READY'}
+              </span>
+            </div>
+            {nodeRun?.output?.summary && (
+              <div className="small sky-muted mt-2">{nodeRun.output.summary}</div>
+            )}
+            {nodeRun?.errorMessage && (
+              <div className="alert alert-danger mt-2 mb-0 py-2">{nodeRun.errorMessage}</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SkyWorkflows({ mode = 'start' }) {
+  const { hasPermission } = useAuth();
+  const canStart = hasPermission('TEMPORAL_WORKFLOW_START') || hasPermission('WORKER_SCHEDULE_RUN');
+
+  const [definitions, setDefinitions] = useState([]);
+  const [selectedDefinition, setSelectedDefinition] = useState(null);
+  const [selectedDefinitionDetail, setSelectedDefinitionDetail] = useState(null);
+  const [runs, setRuns] = useState([]);
+  const [selectedRunDetail, setSelectedRunDetail] = useState(null);
+  const [filters, setFilters] = useState({ status: '', limit: '25' });
+  const [inputJson, setInputJson] = useState('{}');
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  const selectedRun = selectedRunDetail?.run || null;
+  const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
+  const isHistoryMode = mode === 'history';
+
+  const runStats = useMemo(() => {
+    const completed = runs.filter((run) => run.status === 'COMPLETED').length;
+    const running = runs.filter((run) => run.status === 'RUNNING' || run.status === 'QUEUED').length;
+    const failed = runs.filter((run) => run.status === 'FAILED' || run.status === 'TERMINATED').length;
+
+    return { completed, running, failed };
+  }, [runs]);
+
+  async function loadDefinitions({ keepSelection = true } = {}) {
+    const result = await workflowService.listDefinitions();
+    const items = result.items || [];
+    setDefinitions(items);
+
+    const nextSelection =
+      (keepSelection && selectedDefinition
+        ? items.find((item) => item.workflowCode === selectedDefinition.workflowCode)
+        : null) || items[0] || null;
+
+    setSelectedDefinition(nextSelection);
+
+    if (nextSelection) {
+      const detail = await workflowService.getDefinition(nextSelection.workflowCode);
+      setSelectedDefinitionDetail(detail.definition);
+      setInputJson(getDefaultInput(detail.definition));
+    } else {
+      setSelectedDefinitionDetail(null);
+      setInputJson('{}');
+    }
+  }
+
+  async function loadRuns(nextFilters = filters, { keepSelection = true } = {}) {
+    const result = await workflowService.listRuns(nextFilters);
+    const items = result.items || [];
+    setRuns(items);
+
+    if (keepSelection && selectedRun?.workflowRunRecordId) {
+      const stillVisible = items.find(
+        (item) => item.workflowRunRecordId === selectedRun.workflowRunRecordId,
+      );
+
+      if (stillVisible) {
+        await loadRunDetail(stillVisible.workflowRunRecordId);
+        return;
+      }
+    }
+
+    if (!keepSelection) {
+      setSelectedRunDetail(null);
+    }
+  }
+
+  async function loadPage({ keepSelection = true } = {}) {
+    setLoading(true);
+    setError('');
+
+    try {
+      await loadDefinitions({ keepSelection });
+      await loadRuns(filters, { keepSelection });
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load workflows.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadDefinitionDetail(definition) {
+    setError('');
+    setSelectedDefinition(definition);
+
+    try {
+      const detail = await workflowService.getDefinition(definition.workflowCode);
+      setSelectedDefinitionDetail(detail.definition);
+      setInputJson(getDefaultInput(detail.definition));
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load workflow definition.');
+    }
+  }
+
+  async function loadRunDetail(workflowRunRecordId) {
+    if (!workflowRunRecordId) {
+      return;
+    }
+
+    setError('');
+
+    try {
+      const detail = await workflowService.getRun(workflowRunRecordId);
+      setSelectedRunDetail(detail);
+
+      if (detail.run?.workflowCode) {
+        const definitionDetail = await workflowService.getDefinition(detail.run.workflowCode);
+        setSelectedDefinitionDetail(definitionDetail.definition);
+      }
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load workflow run detail.');
+    }
+  }
+
+  async function handleStartWorkflow(event) {
+    event.preventDefault();
+
+    if (!selectedDefinitionDetail || !canStart) {
+      return;
+    }
+
+    setStarting(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const input = parseJsonInput(inputJson);
+      const result = await workflowService.startWorkflow(selectedDefinitionDetail.workflowCode, {
+        input: {
+          ...input,
+          runSource: 'manual',
+          triggerType: 'MANUAL',
+        },
+      });
+
+      setMessage(result.ok ? result.run?.summary || 'Workflow completed.' : result.error || 'Workflow failed.');
+      setSelectedRunDetail({ run: result.run, nodeRuns: result.nodeRuns || [] });
+      await loadRuns(filters, { keepSelection: false });
+    } catch (startError) {
+      setError(startError.message || 'Failed to start workflow.');
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  function updateFilter(name, value) {
+    const nextFilters = { ...filters, [name]: value };
+    setFilters(nextFilters);
+    loadRuns(nextFilters, { keepSelection: false });
+  }
+
+  useEffect(() => {
+    loadPage({ keepSelection: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
+  const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
+  const pageSubtitle = isHistoryMode
+    ? 'Inspect SkyServer workflow runs, node outcomes, and the executor ledger.'
+    : 'Start approved SkyServer workflow definitions built from tools, Temporal templates, APIs, agents, and future node types.';
+
+  return (
+    <div>
+      <header className="sky-page-header">
+        <div>
+          <div className="sky-page-kicker">{pageKicker}</div>
+          <h1 className="sky-page-title">{pageTitle}</h1>
+          <p className="sky-page-subtitle">{pageSubtitle}</p>
+        </div>
+        <button
+          className="btn sky-btn-ghost"
+          disabled={loading || starting}
+          onClick={() => loadPage()}
+          type="button"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </header>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+      {message && <div className="alert alert-success">{message}</div>}
+
+      <section className="sky-worker-hero mb-4">
+        <div>
+          <div className="sky-page-kicker">Workflow builder foundation</div>
+          <h2 className="h4 mb-2">Composable execution lane</h2>
+          <p className="sky-muted mb-3">
+            SkyServer workflows compose lower-level primitives. Tools remain first-class building
+            blocks, while Temporal templates can be plugged in as one node type instead of turning
+            every primitive into a separate workflow.
+          </p>
+          <div className="sky-worker-command-strip">
+            <div className="sky-worker-command-card">
+              <div className="sky-page-kicker">Definitions</div>
+              <div className="sky-worker-command-value">{definitions.length}</div>
+            </div>
+            <div className="sky-worker-command-card">
+              <div className="sky-page-kicker">Running</div>
+              <div className="sky-worker-command-value">{runStats.running}</div>
+            </div>
+            <div className="sky-worker-command-card">
+              <div className="sky-page-kicker">Failed</div>
+              <div className="sky-worker-command-value">{runStats.failed}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="sky-card">
+          <div className="sky-card-header">
+            <div className="sky-page-kicker">Selected definition</div>
+            <h3 className="h5 mb-0">{selectedDefinitionDetail?.displayName || 'No workflow selected'}</h3>
+          </div>
+          <div className="sky-card-body">
+            <p className="sky-muted mb-3">{selectedDefinitionDetail?.description || 'Select a workflow definition to inspect it.'}</p>
+            <div className="row g-2">
+              <div className="col-4">
+                <div className="sky-mini-metric">
+                  <div className="sky-page-kicker">Version</div>
+                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.publishedVersionNumber || '—'}</div>
+                </div>
+              </div>
+              <div className="col-4">
+                <div className="sky-mini-metric">
+                  <div className="sky-page-kicker">Nodes</div>
+                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.nodes?.length || 0}</div>
+                </div>
+              </div>
+              <div className="col-4">
+                <div className="sky-mini-metric">
+                  <div className="sky-page-kicker">Edges</div>
+                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.edges?.length || 0}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="row g-4">
+        <div className="col-xl-4">
+          {!isHistoryMode && (
+            <section className="sky-card mb-4">
+              <div className="sky-card-header">
+                <div className="sky-page-kicker">Approved definitions</div>
+                <h2 className="h5 mb-0">Start from template</h2>
+              </div>
+              <div className="sky-card-body d-flex flex-column gap-3">
+                {definitions.map((definition) => (
+                  <WorkflowDefinitionCard
+                    definition={definition}
+                    key={definition.workflowCode}
+                    onSelect={loadDefinitionDetail}
+                    selected={selectedDefinition?.workflowCode === definition.workflowCode}
+                  />
+                ))}
+                {!loading && definitions.length === 0 && (
+                  <div className="sky-empty-state">No active workflow definitions are available.</div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {isHistoryMode && (
+            <section className="sky-card sky-sticky-detail-card">
+              <div className="sky-card-header">
+                <div className="sky-page-kicker">Run detail</div>
+                <h2 className="h5 mb-0">Selected workflow</h2>
+              </div>
+              <div className="sky-card-body">
+                {!selectedRun ? (
+                  <div className="sky-empty-state py-4">Select a workflow run to inspect it.</div>
+                ) : (
+                  <>
+                    <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+                      <span className={`sky-pill ${statusClass(selectedRun.status)}`}>{selectedRun.status}</span>
+                      <span className="small sky-muted">{formatDuration(selectedRun.metadata?.durationMs)}</span>
+                    </div>
+                    <dl className="row small mb-3">
+                      <dt className="col-4 sky-detail-label">Workflow</dt>
+                      <dd className="col-8 sky-detail-value">{selectedRun.workflowDisplayName || selectedRun.workflowCode}</dd>
+                      <dt className="col-4 sky-detail-label">Run</dt>
+                      <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.workflowRunRecordId}</dd>
+                      <dt className="col-4 sky-detail-label">Started</dt>
+                      <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
+                      <dt className="col-4 sky-detail-label">Completed</dt>
+                      <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
+                      <dt className="col-4 sky-detail-label">Source</dt>
+                      <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
+                      <dt className="col-4 sky-detail-label">Started by</dt>
+                      <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
+                    </dl>
+                    <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
+                    <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <div className="col-xl-8">
+          {!isHistoryMode && (
+            <>
+              <section className="sky-card mb-4">
+                <div className="sky-card-header">
+                  <div className="sky-page-kicker">Execution plan</div>
+                  <h2 className="h5 mb-0">Node timeline</h2>
+                </div>
+                <div className="sky-card-body">
+                  <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || []} />
+                </div>
+              </section>
+
+              <section className="sky-card">
+                <div className="sky-card-header">
+                  <div className="sky-page-kicker">Manual start</div>
+                  <h2 className="h5 mb-0">Run selected workflow</h2>
+                </div>
+                <form className="sky-card-body" onSubmit={handleStartWorkflow}>
+                  <div className="mb-3">
+                    <label className="form-label" htmlFor="workflowInputJson">
+                      Input JSON
+                    </label>
+                    <textarea
+                      className="form-control sky-form-control sky-mono"
+                      id="workflowInputJson"
+                      onChange={(event) => setInputJson(event.target.value)}
+                      rows={10}
+                      value={inputJson}
+                    />
+                    <div className="form-text">
+                      Use nodeInputs by node key to override primitive parameters. Blank object uses
+                      the published node defaults.
+                    </div>
+                  </div>
+                  <button
+                    className="btn sky-btn-primary"
+                    disabled={starting || !selectedDefinitionDetail || !canStart}
+                    type="submit"
+                  >
+                    {starting ? 'Running workflow...' : 'Start workflow'}
+                  </button>
+                  {!canStart && (
+                    <div className="small sky-muted mt-2">
+                      TEMPORAL_WORKFLOW_START or WORKER_SCHEDULE_RUN permission is required.
+                    </div>
+                  )}
+                </form>
+              </section>
+            </>
+          )}
+
+          {isHistoryMode && (
+            <>
+              <section className="sky-card mb-4">
+                <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+                  <div>
+                    <div className="sky-page-kicker">Recent runs</div>
+                    <h2 className="h5 mb-0">SkyServer workflow runs</h2>
+                  </div>
+                  <div className="sky-inline-filter-form">
+                    <select
+                      className="form-select sky-form-control"
+                      onChange={(event) => updateFilter('status', event.target.value)}
+                      value={filters.status}
+                    >
+                      {STATUS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="form-select sky-form-control"
+                      onChange={(event) => updateFilter('limit', event.target.value)}
+                      value={filters.limit}
+                    >
+                      <option value="10">10</option>
+                      <option value="25">25</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="table-responsive sky-table-card">
+                  <table className="table table-sm table-hover sky-table align-middle">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Workflow</th>
+                        <th>Started</th>
+                        <th>Completed</th>
+                        <th>Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && (
+                        <tr>
+                          <td colSpan="5"><div className="sky-empty-state">Loading workflow runs...</div></td>
+                        </tr>
+                      )}
+                      {!loading && runs.length === 0 && (
+                        <tr>
+                          <td colSpan="5"><div className="sky-empty-state">No workflow runs found.</div></td>
+                        </tr>
+                      )}
+                      {!loading && runs.map((run) => (
+                        <tr
+                          className={`sky-clickable-row ${selectedRun?.workflowRunRecordId === run.workflowRunRecordId ? 'sky-selected-row' : ''}`}
+                          key={run.workflowRunRecordId}
+                          onClick={() => loadRunDetail(run.workflowRunRecordId)}
+                        >
+                          <td><span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span></td>
+                          <td>
+                            <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
+                            <div className="small sky-mono sky-muted">{run.workflowCode}</div>
+                          </td>
+                          <td>{formatDate(run.startedAt || run.createdAt)}</td>
+                          <td>{formatDate(run.completedAt)}</td>
+                          <td>{formatDuration(run.metadata?.durationMs)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="sky-card">
+                <div className="sky-card-header">
+                  <div className="sky-page-kicker">Node runs</div>
+                  <h2 className="h5 mb-0">Timeline</h2>
+                </div>
+                <div className="sky-card-body">
+                  {selectedNodeRuns.length === 0 ? (
+                    <div className="sky-empty-state">Select a run to inspect node outcomes.</div>
+                  ) : (
+                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} />
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkflowStart() {
+  return <SkyWorkflows mode="start" />;
+}
+
+function WorkflowHistory() {
+  return <SkyWorkflows mode="history" />;
+}
+
+export { WorkflowHistory, WorkflowStart };
+export default SkyWorkflows;
