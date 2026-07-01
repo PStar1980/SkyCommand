@@ -327,7 +327,15 @@ function buildNodeParameters(node, requestInput = {}) {
   };
 }
 
-async function insertWorkflowRun({ definition, input, user, context }) {
+async function insertWorkflowRun({
+  definition,
+  input,
+  user,
+  context,
+  status = 'RUNNING',
+  metadata = {},
+} = {}) {
+  const safeInput = getSafeObject(input);
   const result = await query(
     `
       INSERT INTO worker.workflow_run_records (
@@ -344,7 +352,7 @@ async function insertWorkflowRun({ definition, input, user, context }) {
         started_at,
         metadata
       )
-      VALUES ($1, $2, $3, $4, $5, $6, 'RUNNING', $7::jsonb, $8::jsonb, $9, CURRENT_TIMESTAMP, $10::jsonb)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, CURRENT_TIMESTAMP, $11::jsonb)
       RETURNING *
     `,
     [
@@ -352,9 +360,10 @@ async function insertWorkflowRun({ definition, input, user, context }) {
       definition.publishedVersionId,
       definition.workflowCode,
       definition.publishedVersionNumber,
-      input.runSource || 'manual',
-      input.triggerType || 'MANUAL',
-      JSON.stringify(getSafeObject(input)),
+      safeInput.runSource || 'manual',
+      safeInput.triggerType || 'MANUAL',
+      status,
+      JSON.stringify(safeInput),
       JSON.stringify({
         ipAddress: context?.ipAddress || null,
         userAgent: context?.userAgent || null,
@@ -364,6 +373,7 @@ async function insertWorkflowRun({ definition, input, user, context }) {
         executor: 'skyserver_workflow_executor_v1',
         nodeCount: definition.nodes.length,
         edgeCount: definition.edges.length,
+        ...getSafeObject(metadata),
       }),
     ],
   );
@@ -388,7 +398,54 @@ async function updateWorkflowRun({ workflowRunRecordId, status, summary, metadat
   return result.rows[0] ? normalizeRunRow(result.rows[0]) : null;
 }
 
-async function insertNodeRun({ workflowRunRecordId, node }) {
+async function linkWorkflowRunToTemporal({
+  workflowRunRecordId,
+  temporalWorkflowId,
+  temporalRunId,
+  summary = null,
+  metadata = {},
+} = {}) {
+  const result = await query(
+    `
+      UPDATE worker.workflow_run_records
+      SET temporal_workflow_id = COALESCE($2, temporal_workflow_id),
+          temporal_run_id = COALESCE($3, temporal_run_id),
+          status = 'RUNNING',
+          summary = COALESCE($4, summary),
+          started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+          metadata = metadata || $5::jsonb
+      WHERE workflow_run_record_id = $1
+      RETURNING *
+    `,
+    [
+      workflowRunRecordId,
+      temporalWorkflowId || null,
+      temporalRunId || null,
+      summary || null,
+      JSON.stringify(getSafeObject(metadata)),
+    ],
+  );
+
+  return result.rows[0] ? normalizeRunRow(result.rows[0]) : null;
+}
+
+async function insertNodeRun({ workflowRunRecordId, node, attemptCount = 1, metadata = {} }) {
+  const existing = await query(
+    `
+      SELECT *
+      FROM worker.workflow_node_run_records
+      WHERE workflow_run_record_id = $1
+        AND node_key = $2
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [workflowRunRecordId, node.nodeKey],
+  );
+
+  if (existing.rows[0]) {
+    return normalizeNodeRunRow(existing.rows[0]);
+  }
+
   const result = await query(
     `
       INSERT INTO worker.workflow_node_run_records (
@@ -402,7 +459,7 @@ async function insertNodeRun({ workflowRunRecordId, node }) {
         started_at,
         metadata
       )
-      VALUES ($1, $2, $3, $4, $5, 'RUNNING', 1, CURRENT_TIMESTAMP, $6::jsonb)
+      VALUES ($1, $2, $3, $4, $5, 'RUNNING', $6, CURRENT_TIMESTAMP, $7::jsonb)
       RETURNING *
     `,
     [
@@ -411,10 +468,12 @@ async function insertNodeRun({ workflowRunRecordId, node }) {
       node.nodeKey,
       node.nodeTypeCode,
       node.targetCode,
+      attemptCount,
       JSON.stringify({
         displayName: node.displayName,
         targetKind: node.targetKind,
         displayOrder: node.displayOrder,
+        ...getSafeObject(metadata),
       }),
     ],
   );
@@ -444,6 +503,64 @@ async function updateNodeRun({ nodeRunRecordId, status, output = {}, errorMessag
   );
 
   return result.rows[0] ? normalizeNodeRunRow(result.rows[0]) : null;
+}
+
+
+async function startWorkflowNodeRun({ workflowRunRecordId, node, attemptCount = 1, metadata = {} }) {
+  return insertNodeRun({ workflowRunRecordId, node, attemptCount, metadata });
+}
+
+async function markWorkflowNodeAttempt({ nodeRunRecordId, attemptCount = 1, metadata = {} }) {
+  const result = await query(
+    `
+      UPDATE worker.workflow_node_run_records
+      SET status = 'RUNNING',
+          attempt_count = GREATEST(attempt_count, $2),
+          metadata = metadata || $3::jsonb
+      WHERE workflow_node_run_record_id = $1
+      RETURNING *
+    `,
+    [nodeRunRecordId, attemptCount, JSON.stringify(getSafeObject(metadata))],
+  );
+
+  return result.rows[0] ? normalizeNodeRunRow(result.rows[0]) : null;
+}
+
+async function completeWorkflowNodeRun({ nodeRunRecordId, output = {}, metadata = {} }) {
+  return updateNodeRun({
+    nodeRunRecordId,
+    status: TERMINAL_SUCCESS_STATUS,
+    output,
+    metadata,
+  });
+}
+
+async function failWorkflowNodeRun({ nodeRunRecordId, output = {}, errorMessage = null, metadata = {} }) {
+  return updateNodeRun({
+    nodeRunRecordId,
+    status: TERMINAL_FAILURE_STATUS,
+    output,
+    errorMessage,
+    metadata,
+  });
+}
+
+async function completeWorkflowRun({ workflowRunRecordId, summary, metadata = {} }) {
+  return updateWorkflowRun({
+    workflowRunRecordId,
+    status: TERMINAL_SUCCESS_STATUS,
+    summary,
+    metadata,
+  });
+}
+
+async function failWorkflowRun({ workflowRunRecordId, summary, metadata = {} }) {
+  return updateWorkflowRun({
+    workflowRunRecordId,
+    status: TERMINAL_FAILURE_STATUS,
+    summary,
+    metadata,
+  });
 }
 
 async function runToolNode({ node, parameters, user, session, permissions, context }) {
@@ -531,6 +648,118 @@ async function executeNode({ node, parameters, user, session, permissions, conte
   }
 
   throw new WorkflowServiceError(`Node type has no executor adapter: ${node.nodeTypeCode}`, 501);
+}
+
+
+async function executeWorkflowNode({ node, parameters, user, session, permissions = [], context = {} }) {
+  return executeNode({
+    node,
+    parameters,
+    user,
+    session,
+    permissions,
+    context,
+  });
+}
+
+
+async function startWorkflowWithTemporal({
+  workflowCode,
+  input = {},
+  user,
+  session,
+  permissions = [],
+  context = {},
+} = {}) {
+  const definition = await getWorkflowDefinition(workflowCode);
+
+  assertPermission({
+    permissionCode: definition.startPermissionCode,
+    permissions,
+    action: 'start_workflow',
+  });
+
+  if (definition.status !== 'ACTIVE') {
+    throw new WorkflowServiceError('Workflow definition is not active.', 409, {
+      workflowCode: definition.workflowCode,
+      status: definition.status,
+    });
+  }
+
+  if (definition.nodes.length === 0) {
+    throw new WorkflowServiceError('Workflow definition has no enabled nodes.', 409, {
+      workflowCode: definition.workflowCode,
+    });
+  }
+
+  const run = await insertWorkflowRun({
+    definition,
+    input,
+    user,
+    context,
+    status: 'QUEUED',
+    metadata: {
+      executor: 'skyserver_workflow_executor_temporal_v1',
+      temporalBacked: true,
+      queuedByApi: true,
+    },
+  });
+
+  try {
+    const temporalStart = await temporalService.startSkyserverWorkflowExecutorWorkflow({
+      workflowCode: definition.workflowCode,
+      workflowRunRecordId: run.workflowRunRecordId,
+      input,
+      actor: user,
+      session,
+      permissions,
+      context,
+    });
+
+    const linkedRun = await linkWorkflowRunToTemporal({
+      workflowRunRecordId: run.workflowRunRecordId,
+      temporalWorkflowId: temporalStart.workflow.workflowId,
+      temporalRunId: temporalStart.workflow.runId,
+      summary: `Workflow ${definition.displayName} started through Temporal-backed SkyServer executor.`,
+      metadata: {
+        executor: 'skyserver_workflow_executor_temporal_v1',
+        temporalBacked: true,
+        temporalWorkflowType: temporalStart.workflow.workflowType,
+        temporalTaskQueue: temporalStart.workflow.taskQueue,
+        temporalNamespace: temporalStart.workflow.namespace,
+      },
+    });
+
+    return {
+      ok: true,
+      started: true,
+      async: true,
+      run: linkedRun || run,
+      definition,
+      nodeRuns: [],
+      temporalWorkflow: temporalStart.workflow,
+      message: `Workflow ${definition.displayName} started through Temporal. Refresh Workflow History to follow node progress.`,
+    };
+  } catch (error) {
+    const failedRun = await updateWorkflowRun({
+      workflowRunRecordId: run.workflowRunRecordId,
+      status: TERMINAL_FAILURE_STATUS,
+      summary: `Workflow ${definition.displayName} failed to start in Temporal: ${error.message || String(error)}`,
+      metadata: {
+        executor: 'skyserver_workflow_executor_temporal_v1',
+        temporalBacked: true,
+        startFailure: true,
+        errorMessage: error.message || String(error),
+      },
+    });
+
+    throw new WorkflowServiceError('Failed to start Temporal-backed workflow executor.', 500, {
+      workflowCode: definition.workflowCode,
+      workflowRunRecordId: run.workflowRunRecordId,
+      run: failedRun,
+      error: error.message || String(error),
+    });
+  }
 }
 
 async function executeWorkflow({ workflowCode, input = {}, user, session, permissions = [], context = {} } = {}) {
@@ -711,9 +940,18 @@ async function getWorkflowRun(workflowRunRecordId) {
 
 module.exports = {
   WorkflowServiceError,
+  completeWorkflowNodeRun,
+  completeWorkflowRun,
   executeWorkflow,
+  executeWorkflowNode,
+  failWorkflowNodeRun,
+  failWorkflowRun,
   getWorkflowDefinition,
   getWorkflowRun,
+  linkWorkflowRunToTemporal,
   listWorkflowDefinitions,
   listWorkflowRuns,
+  markWorkflowNodeAttempt,
+  startWorkflowNodeRun,
+  startWorkflowWithTemporal,
 };

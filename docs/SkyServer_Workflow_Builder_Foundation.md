@@ -191,3 +191,37 @@ SkyServer workflows compose primitives.
 Temporal templates remain one possible node type.
 Scheduler/listeners can later trigger SkyServer workflows instead of only tools or Temporal templates.
 ```
+
+---
+
+## Phase 10.11 — Temporal-backed executor
+
+Phase 10.11 keeps the same workflow-builder object model but changes the default runtime:
+
+```text
+Admin-Web
+  -> SkyServer API
+  -> Temporal skyserverWorkflowExecutorWorkflow
+  -> Temporal activities
+  -> existing tool execution service
+  -> workflow/node run records
+```
+
+This means a SkyServer workflow is still a configurable graph of nodes, but Temporal now provides the durable execution shell around that graph.
+
+### Runtime distinction
+
+| Object | Purpose |
+| --- | --- |
+| `worker.workflow_definitions` | SkyServer/user-facing workflow container |
+| `worker.workflow_nodes` | Composable nodes such as `TOOL` or `TEMPORAL_WORKFLOW` |
+| `core.tools` | Existing executable primitives |
+| `skyserverWorkflowExecutorWorkflow` | Generic Temporal runtime that interprets the SkyServer workflow graph |
+| `worker.workflow_run_records` | SkyServer-friendly run ledger and Admin-Web history source |
+| `worker.workflow_node_run_records` | Node timeline/outcome ledger |
+
+### API behavior
+
+`POST /api/workflows/definitions/:workflowCode/start` defaults to Temporal-backed execution and returns once the Temporal workflow has started. The run continues asynchronously and can be followed from Workflow History.
+
+For local debugging only, the previous inline API executor can still be selected with `executorMode: "inline"`.
