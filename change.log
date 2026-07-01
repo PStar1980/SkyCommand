@@ -292,3 +292,9 @@ SkyWeb Analytics owns:
 - Added `00038__workflow_builder_foundation.sql` for SkyServer workflow definitions, versions, nodes, edges, workflow run records, and node run records.
 - Added `00039__workflow_builder_foundation_seed.sql` to seed the workflow node type palette and a metadata-only `macro-refresh-pipeline` example.
 - Added `docs/SkyServer_Workflow_Builder_Foundation.md` and updated Temporal architecture/template/roadmap docs.
+
+## Phase 10.10c — Workflow Builder Seed Idempotency Hotfix
+
+- Updated `00039__workflow_builder_foundation_seed.sql` so the seeded `macro-refresh-pipeline` edge uses `ON CONFLICT` against the workflow edge uniqueness constraint.
+- Preserved the stable `fred_to_alerts` edge key while allowing existing databases with an already-seeded FRED -> alerts edge to rerun the seed cleanly.
+- Kept the seed safe for both existing-database patching and clean `db_build` rebuilds.

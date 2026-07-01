@@ -328,6 +328,14 @@ WITH definition_upsert AS (
   USING version_ref v
   WHERE e.workflow_version_id = v.workflow_version_id
     AND e.edge_key = 'fred_to_alerts'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM fred_node f
+      CROSS JOIN alerts_node a
+      WHERE f.workflow_node_id = e.from_node_id
+        AND a.workflow_node_id = e.to_node_id
+        AND e.edge_type = 'SEQUENTIAL'
+    )
   RETURNING e.workflow_edge_id
 )
 INSERT INTO worker.workflow_edges (
@@ -348,6 +356,13 @@ SELECT
   10,
   '{"label":"then"}'::jsonb
 FROM fred_node
-CROSS JOIN alerts_node;
+CROSS JOIN alerts_node
+ON CONFLICT (workflow_version_id, from_node_id, to_node_id, edge_type)
+DO UPDATE SET
+  edge_key = EXCLUDED.edge_key,
+  display_order = EXCLUDED.display_order,
+  condition_expression = NULL,
+  config = EXCLUDED.config,
+  updated_at = CURRENT_TIMESTAMP;
 
 COMMIT;
