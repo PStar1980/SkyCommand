@@ -59,6 +59,7 @@ SkyServer/
 │   │       │   ├── Login.jsx
 │   │       │   ├── SchedulerControl.jsx
 │   │       │   ├── ScriptExecutions.jsx
+│   │       │   ├── SkyWorkflows.jsx
 │   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── Tools.jsx
 │   │       │   └── WorkerControl.jsx
@@ -69,7 +70,8 @@ SkyServer/
 │   │           ├── ingestionService.js
 │   │           ├── temporalService.js
 │   │           ├── toolService.js
-│   │           └── workerService.js
+│   │           ├── workerService.js
+│   │           └── workflowService.js
 │   ├── api/
 │   │   └── src/
 │   │       ├── index.js
@@ -83,7 +85,8 @@ SkyServer/
 │   │       │   ├── skywebController.js
 │   │       │   ├── temporalController.js
 │   │       │   ├── toolsController.js
-│   │       │   └── workerController.js
+│   │       │   ├── workerController.js
+│   │       │   └── workflowController.js
 │   │       ├── middleware/
 │   │       │   ├── authMiddleware.js
 │   │       │   └── permissionMiddleware.js
@@ -97,7 +100,8 @@ SkyServer/
 │   │       │   ├── skyweb.routes.js
 │   │       │   ├── temporal.routes.js
 │   │       │   ├── tools.routes.js
-│   │       │   └── worker.routes.js
+│   │       │   ├── worker.routes.js
+│   │       │   └── workflow.routes.js
 │   │       └── services/
 │   │           ├── adminActionService.js
 │   │           ├── adminReadService.js
@@ -114,7 +118,8 @@ SkyServer/
 │   │           ├── skywebSavedViewsService.js
 │   │           ├── temporalService.js
 │   │           ├── toolManifestService.js
-│   │           └── workerService.js
+│   │           ├── workerService.js
+│   │           └── workflowExecutorService.js
 │   └── worker/
 │       └── src/
 │           ├── index.js
@@ -197,7 +202,8 @@ SkyServer/
 │   │           ├── 00034__temporal_workflow_template_seed.sql
 │   │           ├── 00036__temporal_schedule_bridge_seed.sql
 │   │           ├── 00037__fred_ingestion_tool_upgrade_seed.sql
-│   │           └── 00039__workflow_builder_foundation_seed.sql
+│   │           ├── 00039__workflow_builder_foundation_seed.sql
+│   │           └── 00040__workflow_executor_v1_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

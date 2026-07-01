@@ -112,3 +112,82 @@ TEMPORAL_WORKFLOW
 ```
 
 The visual workflow designer should come after the metadata and executor are stable.
+
+---
+
+## Phase 10.10 — Workflow Executor v1
+
+Phase 10.10 makes the Phase 10.9 metadata foundation runnable through the SkyServer API and Admin-Web.
+
+The first executor is intentionally simple and safe:
+
+```text
+SkyServer workflow definition
+  -> published workflow version
+  -> enabled nodes ordered by display_order
+  -> execute supported node adapters sequentially
+  -> write workflow run + node run records
+```
+
+Supported node types in executor v1:
+
+| Node type | Behavior |
+| --- | --- |
+| `TOOL` | Runs an existing `core.tools` primitive through the same permission-aware API tool execution service used by Admin-Web Tools. |
+| `TEMPORAL_WORKFLOW` | Starts an approved Temporal workflow template through the existing Temporal service. v1 records the start result but does not wait for the child Temporal workflow to complete. |
+
+Unsupported node types are deliberately rejected by executor v1. They remain in the palette for future builder support but are not silently skipped.
+
+### New API surface
+
+```text
+GET  /api/workflows/definitions
+GET  /api/workflows/definitions/:workflowCode
+POST /api/workflows/definitions/:workflowCode/start
+GET  /api/workflows/runs
+GET  /api/workflows/runs/:workflowRunRecordId
+```
+
+### Admin-Web behavior
+
+`Workflows -> Start Workflow` now targets SkyServer workflow definitions instead of only raw Temporal templates.
+
+The seeded `macro-refresh-pipeline` definition can now run as:
+
+```text
+Run FRED ingestion tool
+  -> Evaluate SkyWeb alerts tool
+```
+
+Node parameters can be overridden with input JSON:
+
+```json
+{
+  "nodeInputs": {
+    "fred_ingestion": {
+      "indicators": "GDP, UNRATE, DGS10",
+      "concurrency": "10"
+    },
+    "evaluate_skyweb_alerts": {
+      "maxRules": "500",
+      "activeOnly": "true"
+    }
+  }
+}
+```
+
+The run ledger is stored in:
+
+```text
+worker.workflow_run_records
+worker.workflow_node_run_records
+```
+
+This keeps a clean hierarchy:
+
+```text
+Tools remain primitives.
+SkyServer workflows compose primitives.
+Temporal templates remain one possible node type.
+Scheduler/listeners can later trigger SkyServer workflows instead of only tools or Temporal templates.
+```

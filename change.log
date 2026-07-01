@@ -1,3 +1,13 @@
+## Phase 10.10 — SkyServer Workflow Executor v1
+
+- Added `/api/workflows` endpoints for SkyServer workflow definitions, workflow starts, run history, and run detail.
+- Added `workflowExecutorService`, which executes published SkyServer workflow definitions sequentially by node `display_order`.
+- Added executor adapters for `TOOL` nodes and `TEMPORAL_WORKFLOW` nodes.
+- Kept existing tools as first-class primitives by executing `TOOL` nodes through the same permission-aware script execution service used by Admin-Web Tools.
+- Added Admin-Web Start Workflow and Workflow History pages for SkyServer workflow definitions and node-level run timelines.
+- Preserved raw Temporal pages under `/workflows/temporal/start` and `/workflows/temporal/history` for lower-level runtime diagnostics.
+- Added seed `00040__workflow_executor_v1_seed.sql` to mark the `macro-refresh-pipeline` foundation workflow as executor-v1 runnable and default its FRED node concurrency to 10.
+
 ## Phase 10.8 — Workflow Navigation Split
 
 - Moved Temporal workflow navigation out of Automation and into a new top-level Workflows menu.
