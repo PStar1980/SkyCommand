@@ -487,3 +487,30 @@ Existing DB update:
 ```powershell
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00040__workflow_executor_v1_seed.sql
 ```
+
+## Phase 10.11 — Temporal-backed SkyServer Workflow Executor
+
+Phase 10.11 moves SkyServer workflow execution onto Temporal while keeping the workflow-builder hierarchy clean:
+
+```text
+SkyServer workflow definition
+  -> Temporal skyserverWorkflowExecutorWorkflow
+  -> node activities
+  -> existing core.tools primitives / Temporal template nodes
+  -> workflow + node run records in PostgreSQL
+```
+
+`POST /api/workflows/definitions/:workflowCode/start` now starts the Temporal-backed executor by default. The API returns `202 Accepted` after Temporal accepts the workflow; use **Workflows -> Workflow History** to follow node progress and completion.
+
+The older inline executor remains available as a development fallback by sending:
+
+```json
+{
+  "executorMode": "inline",
+  "input": {
+    "nodeInputs": {}
+  }
+}
+```
+
+No database migration or seed is required for Phase 10.11. Existing workflow run tables from Phase 10.9/10.10 are reused, and run records now store `temporal_workflow_id`, `temporal_run_id`, and `metadata.executor = skyserver_workflow_executor_temporal_v1`.

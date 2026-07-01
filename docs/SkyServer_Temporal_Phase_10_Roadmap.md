@@ -145,3 +145,27 @@ Admin-Web `Workflows -> Start Workflow` and `Workflows -> Workflow History` now 
 ## Phase 10.10a — Workflow Executor Permission Hotfix
 
 Added first-class SkyServer workflow permissions and corrected the alert-evaluation tool permission boundary. SkyServer workflow starts now use `WORKFLOW_START`, workflow read surfaces use `WORKFLOW_READ`, and the SkyWeb alert evaluation operational tool uses `SKYWEB_ALERT_EVALUATE` inside the SkyServer Admin app scope.
+
+
+## Phase 10.11 — Temporal-backed SkyServer Workflow Executor
+
+Status: implemented.
+
+This phase turns the SkyServer workflow executor into a Temporal-backed runtime instead of leaving it as an inline API process. SkyServer workflow definitions remain stored in PostgreSQL and continue to compose lower-level primitives, but execution now flows through `skyserverWorkflowExecutorWorkflow` on the Temporal worker.
+
+```text
+SkyServer Admin
+  -> SkyServer API
+  -> Temporal skyserverWorkflowExecutorWorkflow
+  -> workflow node activities
+  -> core.tools / Temporal template adapters
+  -> SkyServer workflow and node run records
+```
+
+Key behavior:
+
+- Tools remain primitives; they are not renamed into workflows.
+- SkyServer workflows remain the user/config-level orchestration objects.
+- Temporal provides durable execution, activity scheduling, retry boundaries, and visibility for the generic executor workflow.
+- Workflow History remains SkyServer's operator ledger and now links runs to Temporal workflow/run IDs.
+- The inline executor remains available only as an explicit development fallback via `executorMode: "inline"`.

@@ -330,9 +330,18 @@ function SkyWorkflows({ mode = 'start' }) {
         },
       });
 
-      setMessage(result.ok ? result.run?.summary || 'Workflow completed.' : result.error || 'Workflow failed.');
+      setMessage(
+        result.started
+          ? result.message || result.run?.summary || 'Workflow started through Temporal.'
+          : result.ok
+            ? result.run?.summary || 'Workflow completed.'
+            : result.error || 'Workflow failed.',
+      );
       setSelectedRunDetail({ run: result.run, nodeRuns: result.nodeRuns || [] });
       await loadRuns(filters, { keepSelection: false });
+      if (result.run?.workflowRunRecordId) {
+        await loadRunDetail(result.run.workflowRunRecordId);
+      }
     } catch (startError) {
       setError(formatApiError(startError, 'Failed to start workflow.'));
     } finally {
@@ -486,6 +495,12 @@ function SkyWorkflows({ mode = 'start' }) {
                       <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
                       <dt className="col-4 sky-detail-label">Started by</dt>
                       <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
+                      <dt className="col-4 sky-detail-label">Executor</dt>
+                      <dd className="col-8 sky-detail-value sky-mono">{selectedRun.metadata?.executor || '—'}</dd>
+                      <dt className="col-4 sky-detail-label">Temporal workflow</dt>
+                      <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalWorkflowId || '—'}</dd>
+                      <dt className="col-4 sky-detail-label">Temporal run</dt>
+                      <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalRunId || '—'}</dd>
                     </dl>
                     <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
                     <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>

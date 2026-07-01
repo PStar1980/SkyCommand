@@ -42,17 +42,23 @@ async function startWorkflow(req, res, next) {
   try {
     const context = authService.getRequestContext(req);
     const body = req.body || {};
-    const result = await workflowExecutorService.executeWorkflow({
+    const input = body.input || body;
+    const executorMode = String(body.executorMode || input.executorMode || 'temporal').trim().toLowerCase();
+    const execute = executorMode === 'inline'
+      ? workflowExecutorService.executeWorkflow
+      : workflowExecutorService.startWorkflowWithTemporal;
+    const result = await execute({
       workflowCode: req.params.workflowCode,
-      input: body.input || body,
+      input,
       user: req.user,
       session: req.session,
       permissions: req.permissions || [],
       context,
     });
 
-    res.status(result.ok ? 200 : 500).json({
+    res.status(result.started ? 202 : result.ok ? 200 : 500).json({
       ok: result.ok,
+      executorMode,
       ...result,
     });
   } catch (error) {

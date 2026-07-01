@@ -957,6 +957,65 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null, 
   };
 }
 
+async function startSkyserverWorkflowExecutorWorkflow({
+  workflowCode,
+  workflowRunRecordId,
+  input = {},
+  actor = null,
+  session = null,
+  permissions = [],
+  context = {},
+} = {}) {
+  const normalizedWorkflowCode = String(workflowCode || '').trim();
+
+  if (!normalizedWorkflowCode) {
+    throw new ServiceError('workflowCode is required.', 400);
+  }
+
+  if (!workflowRunRecordId) {
+    throw new ServiceError('workflowRunRecordId is required.', 400);
+  }
+
+  const { config, client } = await createTemporalClient();
+  const workflowId = buildWorkflowId(
+    `skyserver-workflow-${normalizedWorkflowCode}`,
+    input.workflowId || input.skyserverWorkflowId,
+  );
+  const startedAt = new Date().toISOString();
+  const workflowInput = serializeTemporalValue({
+    workflowCode: normalizedWorkflowCode,
+    workflowRunRecordId,
+    input: getSafeJson(input),
+    user: actor || null,
+    session: session || null,
+    permissions: Array.isArray(permissions) ? permissions : [],
+    context: normalizeRequestContext(context),
+  });
+
+  const handle = await client.workflow.start('skyserverWorkflowExecutorWorkflow', {
+    taskQueue: config.taskQueue,
+    workflowId,
+    args: [workflowInput],
+  });
+
+  return {
+    workflow: {
+      workflowId: handle.workflowId,
+      runId: handle.firstExecutionRunId,
+      workflowCode: normalizedWorkflowCode,
+      workflowType: 'skyserverWorkflowExecutorWorkflow',
+      taskQueue: config.taskQueue,
+      namespace: config.namespace,
+      status: 'RUNNING',
+      startTime: startedAt,
+      startedAt,
+      source: 'temporal',
+      missingFromTemporal: false,
+    },
+    input: workflowInput,
+  };
+}
+
 async function startWorkflowFromDefinition({ workflowCode, body = {}, actor = null, context = {} } = {}) {
   const definition = await getWorkflowDefinition(workflowCode);
 
@@ -1172,6 +1231,7 @@ module.exports = {
   listWorkflowRunRecords,
   listWorkflows,
   startFredIngestionWorkflow,
+  startSkyserverWorkflowExecutorWorkflow,
   startWorkflowFromDefinition,
   terminateWorkflow,
 };

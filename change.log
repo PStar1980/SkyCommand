@@ -298,3 +298,12 @@ SkyWeb Analytics owns:
 - Updated `00039__workflow_builder_foundation_seed.sql` so the seeded `macro-refresh-pipeline` edge uses `ON CONFLICT` against the workflow edge uniqueness constraint.
 - Preserved the stable `fred_to_alerts` edge key while allowing existing databases with an already-seeded FRED -> alerts edge to rerun the seed cleanly.
 - Kept the seed safe for both existing-database patching and clean `db_build` rebuilds.
+
+## Phase 10.11 — Temporal-backed SkyServer Workflow Executor
+
+- Added `skyserverWorkflowExecutorWorkflow` as a generic Temporal workflow that executes published SkyServer workflow definitions from `worker.workflow_definitions`.
+- Added SkyServer workflow activities for loading workflow metadata, linking run records to Temporal workflow IDs, executing node adapters, and updating workflow/node run ledgers.
+- Updated `/api/workflows/definitions/:workflowCode/start` to start the Temporal-backed executor by default while retaining the inline executor as an explicit `executorMode: "inline"` fallback.
+- Preserved the hierarchy where `core.tools` remain executable primitives and SkyServer workflows compose those primitives, while Temporal provides the durable runtime.
+- Updated Workflow History detail to show the executor and Temporal workflow/run IDs for SkyServer workflow runs.
+- Updated validation coverage for the new Temporal workflow and activity files.

@@ -260,10 +260,12 @@ SkyServer/
 │           ├── worker.js
 │           ├── activities/
 │           │   ├── fredActivities.js
-│           │   └── index.js
+│           │   ├── index.js
+│           │   └── skyserverWorkflowActivities.js
 │           └── workflows/
 │               ├── fredIngestionWorkflow.js
-│               └── index.js
+│               ├── index.js
+│               └── skyserverWorkflowExecutorWorkflow.js
 ├── scripts/
 │   ├── db/
 │   │   ├── functions/
