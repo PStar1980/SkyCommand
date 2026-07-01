@@ -140,3 +140,8 @@ GET  /api/workflows/runs/:workflowRunRecordId
 ```
 
 Admin-Web `Workflows -> Start Workflow` and `Workflows -> Workflow History` now use the SkyServer workflow executor surfaces, while lower-level Temporal diagnostics remain available through `/workflows/temporal/start` and `/workflows/temporal/history`.
+
+
+## Phase 10.10a — Workflow Executor Permission Hotfix
+
+Added first-class SkyServer workflow permissions and corrected the alert-evaluation tool permission boundary. SkyServer workflow starts now use `WORKFLOW_START`, workflow read surfaces use `WORKFLOW_READ`, and the SkyWeb alert evaluation operational tool uses `SKYWEB_ALERT_EVALUATE` inside the SkyServer Admin app scope.
