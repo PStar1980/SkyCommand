@@ -2,21 +2,122 @@ require('dotenv').config({
   path: require('path').join(__dirname, '../../../.env'),
 });
 
-const path = require('path');
+const { randomUUID } = require('crypto');
+const {
+  runFredIndicatorBatch,
+  parsePositiveInteger,
+  DEFAULT_FRED_CONCURRENCY,
+  MAX_FRED_CONCURRENCY,
+} = require('./fred/fredBatchRunner');
 
-const { runPipeline } = require('./core/runPipeline');
-const { getIndicators } = require('./sources/indicators');
-const { downloadFredCSV } = require('./sources/fred');
-const { normalizeFredCSV } = require('./transform/csvNormalizer');
-const { copyIntoTable } = require('./loaders/copyLoader');
+const cliArgs = process.argv.slice(2);
 
-const tempDir = path.join(__dirname, 'tmp');
+function getArgValue(name) {
+  const prefix = `--${name}=`;
+  const arg = cliArgs.find((value) => value.startsWith(prefix));
 
-runPipeline({
-  name: 'FRED',
-  getIndicators: () => getIndicators('FRED'),
-  download: downloadFredCSV,
-  normalize: normalizeFredCSV,
-  load: copyIntoTable,
-  tempDir,
+  return arg ? arg.slice(prefix.length) : null;
+}
+
+function hasFlag(name) {
+  return cliArgs.includes(`--${name}`);
+}
+
+function getRepeatedArgValues(name) {
+  const prefix = `--${name}=`;
+
+  return cliArgs.filter((value) => value.startsWith(prefix)).map((value) => value.slice(prefix.length));
+}
+
+function getPositionalArgs() {
+  return cliArgs.filter((value) => !String(value || '').startsWith('--'));
+}
+
+function looksNumeric(value) {
+  return /^\d+$/.test(String(value || '').trim());
+}
+
+function getRequestedIndicators() {
+  const values = [];
+
+  values.push(...getRepeatedArgValues('indicator'));
+
+  const indicatorsArg = getArgValue('indicators');
+
+  if (indicatorsArg) {
+    values.push(indicatorsArg);
+  }
+
+  const positionalArgs = getPositionalArgs();
+  const firstPositional = positionalArgs[0];
+
+  if (firstPositional && !looksNumeric(firstPositional)) {
+    values.push(firstPositional);
+  }
+
+  return values;
+}
+
+function getConcurrency() {
+  const explicitConcurrency = getArgValue('concurrency') || process.env.FRED_INGESTION_CONCURRENCY;
+
+  if (explicitConcurrency) {
+    return parsePositiveInteger(explicitConcurrency, DEFAULT_FRED_CONCURRENCY, MAX_FRED_CONCURRENCY);
+  }
+
+  const positionalArgs = getPositionalArgs();
+  const numericPositional = positionalArgs.find((value) => looksNumeric(value));
+
+  return parsePositiveInteger(numericPositional, DEFAULT_FRED_CONCURRENCY, MAX_FRED_CONCURRENCY);
+}
+
+function getRunId() {
+  const explicitRunId = getArgValue('run-id') || process.env.FRED_INGESTION_RUN_ID;
+
+  if (explicitRunId) {
+    return explicitRunId;
+  }
+
+  return `fred-tool-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
+}
+
+function printResult(result) {
+  const summary = result.summary || {};
+
+  console.log('');
+  console.log('FRED ingestion summary');
+  console.log('------------------------------------------------------------');
+  console.log(`  mode: ${result.mode || 'indicator_batch'}`);
+  console.log(`  selected indicators: ${result.selectedIndicators ? 'yes' : 'no'}`);
+  console.log(`  concurrency: ${result.concurrency || 'unknown'}`);
+  console.log(`  batches: ${result.batchCount ?? 'unknown'}`);
+  console.log(`  total: ${summary.total ?? 0}`);
+  console.log(`  succeeded: ${summary.succeeded ?? 0}`);
+  console.log(`  failed: ${summary.failed ?? 0}`);
+
+  if (hasFlag('json')) {
+    console.log('');
+    console.log(JSON.stringify(result, null, 2));
+  }
+}
+
+async function main() {
+  const result = await runFredIndicatorBatch({
+    indicators: getRequestedIndicators(),
+    concurrency: getConcurrency(),
+    runId: getRunId(),
+    cleanupQuiet: true,
+  });
+
+  printResult(result);
+
+  if (!result.ok && !hasFlag('allow-failures')) {
+    process.exitCode = 1;
+  }
+}
+
+main().catch((error) => {
+  console.error('[FRED] Ingestion failed');
+  console.error(error.stack || error.message || String(error));
+  process.exit(1);
 });

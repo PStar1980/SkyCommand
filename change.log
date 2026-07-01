@@ -255,3 +255,15 @@ SkyWeb Analytics owns:
 - Scheduled Temporal starts now use `runSource: scheduler` and persist scheduler context into Temporal run-record metadata.
 - Schedule run history now records the Temporal workflow ID, run ID, workflow type, task queue, namespace, and SkyServer run-record ID when a scheduled start succeeds.
 - Updated Temporal docs, roadmap, and README notes for scheduled workflow starts.
+
+## Phase 10.9 — FRED Tool Primitive Upgrade + Workflow Builder Foundation
+
+- Added `packages/ingestion/src/fred/fredBatchRunner.js` as a shared FRED indicator-batch runner used by both the regular ingestion tool and Temporal activities.
+- Upgraded `packages/ingestion/src/loadFREDMacroData.js` to support selected indicators and concurrency without requiring Temporal.
+- Added CLI support for `--indicators`, repeated `--indicator`, `--concurrency`, `--run-id`, `--json`, and `--allow-failures`.
+- Updated Temporal FRED activities to reuse the shared FRED batch/indicator logic instead of maintaining a separate ingestion implementation.
+- Added `00037__fred_ingestion_tool_upgrade_seed.sql` to make the existing `ingestion_fred` tool parameterized with `indicators` and `concurrency`.
+- Updated the base core config seed so fresh builds also register the FRED tool parameters.
+- Added `00038__workflow_builder_foundation.sql` for SkyServer workflow definitions, versions, nodes, edges, workflow run records, and node run records.
+- Added `00039__workflow_builder_foundation_seed.sql` to seed the workflow node type palette and a metadata-only `macro-refresh-pipeline` example.
+- Added `docs/SkyServer_Workflow_Builder_Foundation.md` and updated Temporal architecture/template/roadmap docs.

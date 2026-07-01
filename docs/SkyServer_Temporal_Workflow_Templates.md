@@ -174,3 +174,20 @@ Supported scheduler parameters for the bridge tool:
 | `inputJson` | No | Advanced JSON object merged into the workflow start body before scheduler context is added. |
 
 Scheduled starts use `runSource: scheduler` and include scheduler context in the Temporal launch input/metadata.
+
+---
+
+## Phase 10.9 Note — Template vs Builder Definition
+
+`worker.temporal_workflow_definitions` stores approved Temporal workflow templates. These are server-side adapters to known Temporal workflow types.
+
+The future workflow builder uses separate SkyServer workflow objects:
+
+```text
+worker.workflow_definitions
+worker.workflow_versions
+worker.workflow_nodes
+worker.workflow_edges
+```
+
+That distinction prevents duplication. Existing `core.tools` entries remain primitive actions that can be referenced by workflow nodes. A Temporal template is only one possible node target, not the only way to build workflows.

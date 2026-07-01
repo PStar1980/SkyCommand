@@ -432,3 +432,20 @@ Practical rules:
 - **Primary development branch:** `dev`
 - **Main branch:** `main`
 - **License:** ISC
+
+### Phase 10.9 — Tool Primitive Upgrade + Workflow Builder Foundation
+
+Phase 10.9 keeps the tool/workflow hierarchy clean:
+
+- Upgrades the existing FRED ingestion tool to support selected indicators and batched concurrency without requiring Temporal.
+- Adds workflow-builder foundation tables under `worker.*` for definitions, versions, nodes, edges, run records, and node run records.
+- Seeds a workflow node type palette: `TOOL`, `API_CALL`, `AGENT`, `WORKFLOW`, `TEMPORAL_WORKFLOW`, `CONDITION`, `WAIT`, `HUMAN_APPROVAL`, and `DATA_TRANSFORM`.
+- Seeds a metadata-only `macro-refresh-pipeline` example that composes existing tool primitives.
+
+Existing database patch commands:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00037__fred_ingestion_tool_upgrade_seed.sql
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migrations/00038__workflow_builder_foundation.sql
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00039__workflow_builder_foundation_seed.sql
+```

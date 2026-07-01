@@ -1269,3 +1269,24 @@ These links are included for later technical verification and implementation pla
 - Temporal workflows concept: https://docs.temporal.io/workflows
 - Airflow overview: https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/overview.html
 - BullMQ docs: https://docs.bullmq.io/
+
+---
+
+## Phase 10.9 Clarification — Tools vs Workflows
+
+The long-term SkyServer workflow model keeps tools and workflows separate:
+
+```text
+core.tools
+  = executable primitives
+
+worker.workflow_definitions
+  = orchestration containers composed from nodes
+
+worker.workflow_nodes
+  = references to primitives such as TOOL, API_CALL, AGENT, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, WAIT, or HUMAN_APPROVAL
+```
+
+A one-node workflow is allowed, but it is a convenience wrapper, not the conceptual foundation. Multi-step workflows should compose lower-level primitives rather than forcing every primitive to become its own user-facing Temporal workflow.
+
+Temporal remains the durable execution engine. SkyServer remains the builder, control plane, audit ledger, and operator UI.

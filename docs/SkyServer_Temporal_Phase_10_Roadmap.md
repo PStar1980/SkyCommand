@@ -80,3 +80,24 @@ Phase 10.7 adds a worker-visible scheduler bridge tool named `temporal_workflow_
 The schedule runner detects this bridge tool and calls SkyServer's Temporal service directly instead of launching a legacy script process. The first supported template is `fred-ingestion`, so a schedule can start `fredIngestionWorkflow` with optional indicators, concurrency, workflow ID override, timeout, and advanced JSON input.
 
 Scheduled workflow starts are recorded with `runSource: scheduler` and include scheduler context in the Temporal run record metadata: schedule ID/code/name, schedule run ID, worker node ID/name, and queue/start timestamps. The `worker.schedule_runs` row is marked successful once Temporal accepts the workflow start request; Temporal remains responsible for the workflow's durable execution lifecycle.
+
+---
+
+## Phase 10.9 — Tool Primitive Upgrade + Workflow Builder Foundation
+
+Phase 10.9 adjusts the roadmap before deeper workflow chaining:
+
+1. Upgrade the existing FRED ingestion **tool** so the improved indicator-level batching/concurrency is not locked inside the Temporal workflow only.
+2. Add SkyServer workflow-builder metadata tables so future workflows can compose tools, APIs, agents, waits, conditions, human approvals, child workflows, and approved Temporal templates as nodes.
+
+This means:
+
+```text
+Tools remain primitives.
+Workflows compose primitives.
+Temporal executes durable orchestration.
+Scheduler/listeners trigger workflows.
+Admin creates/configures/monitors them.
+```
+
+The next executable slice should be a simple sequential SkyServer workflow executor, starting with `TOOL` and `TEMPORAL_WORKFLOW` node types.

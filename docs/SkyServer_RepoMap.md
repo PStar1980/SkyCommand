@@ -137,6 +137,7 @@ SkyServer/
 │   ├── SkyServer_Temporal_Phase_10_Roadmap.md
 │   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
 │   ├── SkyServer_Temporal_Workflow_Templates.md
+│   ├── SkyServer_Workflow_Builder_Foundation.md
 │   └── assets/
 │       ├── auth_schema_ERD.png
 │       ├── core_schema_ERD.png
@@ -183,7 +184,8 @@ SkyServer/
 │   │       │   ├── 00029__skyweb_alert_rules.sql
 │   │       │   ├── 00031__skyweb_alert_notifications.sql
 │   │       │   ├── 00033__temporal_workflow_templates.sql
-│   │       │   └── 00035__temporal_workflow_run_records.sql
+│   │       │   ├── 00035__temporal_workflow_run_records.sql
+│   │       │   └── 00038__workflow_builder_foundation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -193,7 +195,9 @@ SkyServer/
 │   │           ├── 00030__skyweb_alert_worker_seed.sql
 │   │           ├── 00032__temporal_auth_seed.sql
 │   │           ├── 00034__temporal_workflow_template_seed.sql
-│   │           └── 00036__temporal_schedule_bridge_seed.sql
+│   │           ├── 00036__temporal_schedule_bridge_seed.sql
+│   │           ├── 00037__fred_ingestion_tool_upgrade_seed.sql
+│   │           └── 00039__workflow_builder_foundation_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
@@ -218,6 +222,8 @@ SkyServer/
 │   │       ├── discovery/
 │   │       │   ├── discoverStatCanMetadata.js
 │   │       │   └── resolveStatCanVectors.js
+│   │       ├── fred/
+│   │       │   └── fredBatchRunner.js
 │   │       ├── loaders/
 │   │       │   ├── copyLoader.js
 │   │       │   └── manualCopyLoader.js
