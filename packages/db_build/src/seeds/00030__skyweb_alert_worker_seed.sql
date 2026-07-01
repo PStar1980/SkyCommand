@@ -7,6 +7,80 @@
 
 BEGIN;
 
+-- Ensure the Admin-owned operational permission exists before the
+-- SkyWeb alert evaluation tool references it. This seed is intentionally
+-- self-contained so it works both during full db_build and when rerun
+-- manually against an existing database.
+INSERT INTO core.applications (app_code, title, manifest_version, description, active)
+VALUES (
+  'SKYSERVER_ADMIN',
+  'SkyServer Admin',
+  '1.0.0',
+  'Private administrative web console for SkyServer control-plane operations.',
+  TRUE
+)
+ON CONFLICT (app_code) DO UPDATE
+SET title = EXCLUDED.title,
+    manifest_version = EXCLUDED.manifest_version,
+    description = EXCLUDED.description,
+    active = EXCLUDED.active,
+    updated_at = CURRENT_TIMESTAMP;
+
+WITH admin_app AS (
+  SELECT app_id
+  FROM core.applications
+  WHERE app_code = 'SKYSERVER_ADMIN'
+  LIMIT 1
+), permission_seed AS (
+  SELECT
+    admin_app.app_id,
+    'SKYWEB_ALERT_EVALUATE'::TEXT AS permission_code,
+    'skyweb_alerts'::TEXT AS resource,
+    'evaluate'::TEXT AS action,
+    'Run the SkyWeb alert evaluation operational tool from SkyServer Admin, Scheduler, or workflows.'::TEXT AS description,
+    TRUE AS active
+  FROM admin_app
+)
+INSERT INTO auth.permissions (app_id, permission_code, resource, action, description, active)
+SELECT
+  app_id,
+  permission_code,
+  resource,
+  action,
+  description,
+  active
+FROM permission_seed
+ON CONFLICT (permission_code)
+DO UPDATE SET
+  app_id = EXCLUDED.app_id,
+  resource = EXCLUDED.resource,
+  action = EXCLUDED.action,
+  description = EXCLUDED.description,
+  active = EXCLUDED.active,
+  updated_at = CURRENT_TIMESTAMP;
+
+WITH granted_roles(role_code) AS (
+  VALUES
+    ('SUPER_ADMIN'),
+    ('ADMIN'),
+    ('OPERATOR')
+)
+INSERT INTO auth.role_permissions (role_id, permission_id, active)
+SELECT
+  r.role_id,
+  p.permission_id,
+  TRUE
+FROM auth.roles r
+JOIN granted_roles gr
+  ON gr.role_code = r.role_code
+JOIN auth.permissions p
+  ON p.permission_code = 'SKYWEB_ALERT_EVALUATE'
+ AND p.app_id = r.app_id
+ON CONFLICT (role_id, permission_id)
+DO UPDATE SET
+  active = TRUE,
+  granted_at = CURRENT_TIMESTAMP;
+
 INSERT INTO core.tool_categories (app_id, category_code, name, label, description, display_order, enabled)
 SELECT
   a.app_id,
