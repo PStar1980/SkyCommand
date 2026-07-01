@@ -1,16 +1,15 @@
-const fs = require('fs');
 const path = require('path');
 
-const { getIndicators } = require('../../../ingestion/src/sources/indicators');
-const { downloadFredCSV } = require('../../../ingestion/src/sources/fred');
-const { normalizeFredCSV } = require('../../../ingestion/src/transform/csvNormalizer');
-const { copyIntoTable } = require('../../../ingestion/src/loaders/copyLoader');
-const { parsePositiveInteger } = require('../config');
+const {
+  listFredIndicators,
+  loadFredIndicator,
+  normalizeIndicatorCode,
+  parsePositiveInteger,
+} = require('../../../ingestion/src/fred/fredBatchRunner');
 
 const SKY_SERVER_ROOT = path.resolve(__dirname, '../../../..');
 const DEFAULT_FRED_ACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 const OUTPUT_TAIL_LENGTH = 12000;
-const MAX_FRED_INDICATORS_PER_RUN = 250;
 
 function tail(value, maxLength = OUTPUT_TAIL_LENGTH) {
   const text = String(value || '');
@@ -20,67 +19,6 @@ function tail(value, maxLength = OUTPUT_TAIL_LENGTH) {
   }
 
   return text.slice(text.length - maxLength);
-}
-
-function normalizeIndicatorCode(value) {
-  const code = String(value || '').trim().toUpperCase();
-
-  if (!/^[A-Z0-9_]+$/.test(code)) {
-    throw new Error(`Invalid FRED indicator code: ${value}`);
-  }
-
-  return code;
-}
-
-function normalizeIndicatorCodes(values = []) {
-  const seen = new Set();
-  const codes = [];
-
-  for (const value of values) {
-    const code = normalizeIndicatorCode(value);
-
-    if (!seen.has(code)) {
-      seen.add(code);
-      codes.push(code);
-    }
-  }
-
-  return codes;
-}
-
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-function cleanupTempDir(dir) {
-  if (!dir || !fs.existsSync(dir)) {
-    return;
-  }
-
-  fs.rmSync(dir, {
-    recursive: true,
-    force: true,
-  });
-}
-
-function getFredTempDir(workflowId, indicatorCode) {
-  const safeWorkflowId = String(workflowId || 'manual')
-    .replace(/[^A-Za-z0-9_-]/g, '_')
-    .slice(0, 120);
-  const safeIndicatorCode = normalizeIndicatorCode(indicatorCode);
-
-  return path.join(
-    SKY_SERVER_ROOT,
-    'packages',
-    'ingestion',
-    'src',
-    'tmp',
-    'temporal-fred',
-    safeWorkflowId,
-    safeIndicatorCode,
-  );
 }
 
 function runNodeScript(scriptPath, args = [], options = {}) {
@@ -161,65 +99,26 @@ function runNodeScript(scriptPath, args = [], options = {}) {
 }
 
 async function listFredIndicatorsActivity(input = {}) {
-  const selectedIndicators = Array.isArray(input.indicators)
-    ? normalizeIndicatorCodes(input.indicators)
-    : [];
-
-  if (selectedIndicators.length > 0) {
-    return {
-      ok: true,
-      source: 'FRED',
-      selected: true,
-      count: selectedIndicators.length,
-      indicators: selectedIndicators.slice(0, MAX_FRED_INDICATORS_PER_RUN),
-    };
-  }
-
-  const indicators = normalizeIndicatorCodes(getIndicators('FRED')).slice(
-    0,
-    MAX_FRED_INDICATORS_PER_RUN,
-  );
-
-  return {
-    ok: true,
-    source: 'FRED',
-    selected: false,
-    count: indicators.length,
-    indicators,
-  };
+  return listFredIndicators({
+    indicators: input.indicators || [],
+  });
 }
 
 async function loadFredIndicatorActivity(input = {}) {
   const indicatorCode = normalizeIndicatorCode(input.indicatorCode);
-  const workflowId = input.workflowId || 'manual_temporal_pilot';
-  const startedAt = new Date();
-  const tempDir = getFredTempDir(workflowId, indicatorCode);
 
   console.log(`🔥 [Temporal:FRED] Processing ${indicatorCode}`);
 
-  ensureDir(tempDir);
+  const result = await loadFredIndicator({
+    indicatorCode,
+    runId: input.workflowId || 'manual_temporal_pilot',
+    workflowId: input.workflowId || 'manual_temporal_pilot',
+    cleanupQuiet: true,
+  });
 
-  try {
-    const filePath = await downloadFredCSV(indicatorCode, tempDir);
+  console.log(`✅ [Temporal:FRED] Loaded ${indicatorCode}`);
 
-    normalizeFredCSV(filePath, indicatorCode);
-    copyIntoTable(indicatorCode, filePath);
-
-    const finishedAt = new Date();
-
-    console.log(`✅ [Temporal:FRED] Loaded ${indicatorCode}`);
-
-    return {
-      ok: true,
-      source: 'FRED',
-      indicatorCode,
-      startedAt: startedAt.toISOString(),
-      finishedAt: finishedAt.toISOString(),
-      durationMs: finishedAt.getTime() - startedAt.getTime(),
-    };
-  } finally {
-    cleanupTempDir(tempDir);
-  }
+  return result;
 }
 
 async function loadFredMacroDataActivity(input = {}) {
@@ -235,8 +134,17 @@ async function loadFredMacroDataActivity(input = {}) {
     DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
     24 * 60 * 60 * 1000,
   );
+  const args = [];
 
-  const result = await runNodeScript(scriptPath, [], {
+  if (Array.isArray(input.indicators) && input.indicators.length > 0) {
+    args.push(`--indicators=${input.indicators.join(',')}`);
+  }
+
+  if (input.concurrency || input.batchSize) {
+    args.push(`--concurrency=${input.concurrency || input.batchSize}`);
+  }
+
+  const result = await runNodeScript(scriptPath, args, {
     timeoutMs,
     env: {
       TEMPORAL_WORKFLOW_ID: input.workflowId || '',
