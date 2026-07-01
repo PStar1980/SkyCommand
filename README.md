@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.10 — SkyServer workflow executor v1
+**Active status:** Phase 10.10a — SkyServer workflow executor permission hotfix
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -100,7 +100,7 @@ SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplic
 
 ## Workflow Pages
 
-Phase 10.10 shifts the Workflows menu to the higher-level SkyServer workflow model. Open the main pages from:
+Phase 10.10 shifts the Workflows menu to the higher-level SkyServer workflow model. Phase 10.10a adds first-class SkyServer workflow permissions and separates Admin-owned alert evaluation from public SkyWeb alert-write permissions. Open the main pages from:
 
 ```text
 Workflows -> Start Workflow
@@ -451,6 +451,18 @@ psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migratio
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00039__workflow_builder_foundation_seed.sql
 ```
 
+
+## Phase 10.10a — Workflow Executor Permission Hotfix
+
+Phase 10.10a adds first-class SkyServer workflow permissions (`WORKFLOW_READ`, `WORKFLOW_START`, `WORKFLOW_CANCEL`) and updates the `macro-refresh-pipeline` definition to use the SkyServer workflow permission model instead of Temporal-specific permissions. It also assigns the SkyWeb alert evaluation worker tool to the Admin-owned `SKYWEB_ALERT_EVALUATE` operational permission so workflow tool nodes can run safely inside the SkyServer Admin app scope.
+
+Existing databases should run:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00041__workflow_executor_permission_hotfix.sql
+```
+
+Sign out and back in after running the seed so the session token includes the new permissions.
 
 ## Phase 10.10 — SkyServer Workflow Executor v1
 

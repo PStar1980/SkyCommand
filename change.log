@@ -1,3 +1,12 @@
+## Phase 10.10a — Workflow Executor Permission Hotfix
+
+- Added first-class SkyServer workflow permissions: `WORKFLOW_READ`, `WORKFLOW_START`, and `WORKFLOW_CANCEL`.
+- Updated workflow API route guards to prefer SkyServer workflow permissions while retaining Temporal/Scheduler permissions as compatibility fallbacks.
+- Updated the seeded `macro-refresh-pipeline` workflow definition to use `WORKFLOW_START` / `WORKFLOW_CANCEL` instead of Temporal-specific permissions.
+- Added `SKYWEB_ALERT_EVALUATE` as the Admin-owned operational permission for the SkyWeb alert evaluation worker tool, avoiding cross-application permission-scope leakage from the public SkyWeb app.
+- Updated Admin-Web Workflow Start permission checks and API error display so missing permission details are easier to diagnose.
+- Added seed `00041__workflow_executor_permission_hotfix.sql` for existing databases.
+
 ## Phase 10.10 — SkyServer Workflow Executor v1
 
 - Added `/api/workflows` endpoints for SkyServer workflow definitions, workflow starts, run history, and run detail.

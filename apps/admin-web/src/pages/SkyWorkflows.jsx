@@ -78,6 +78,21 @@ function parseJsonInput(value) {
   return JSON.parse(trimmed);
 }
 
+function formatApiError(error, fallback = 'Request failed.') {
+  const missingPermissions = error?.details?.missingPermissions;
+  const permissionCode = error?.details?.permissionCode;
+
+  if (Array.isArray(missingPermissions) && missingPermissions.length > 0) {
+    return `${error.message || fallback} Missing permission(s): ${missingPermissions.join(', ')}.`;
+  }
+
+  if (permissionCode) {
+    return `${error.message || fallback} Required permission: ${permissionCode}.`;
+  }
+
+  return error?.message || fallback;
+}
+
 function getDefaultInput(definition) {
   if (!definition?.workflowCode) {
     return '{}';
@@ -175,7 +190,10 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
 
 function SkyWorkflows({ mode = 'start' }) {
   const { hasPermission } = useAuth();
-  const canStart = hasPermission('TEMPORAL_WORKFLOW_START') || hasPermission('WORKER_SCHEDULE_RUN');
+  const canStart =
+    hasPermission('WORKFLOW_START') ||
+    hasPermission('TEMPORAL_WORKFLOW_START') ||
+    hasPermission('WORKER_SCHEDULE_RUN');
 
   const [definitions, setDefinitions] = useState([]);
   const [selectedDefinition, setSelectedDefinition] = useState(null);
@@ -252,7 +270,7 @@ function SkyWorkflows({ mode = 'start' }) {
       await loadDefinitions({ keepSelection });
       await loadRuns(filters, { keepSelection });
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load workflows.');
+      setError(formatApiError(loadError, 'Failed to load workflows.'));
     } finally {
       setLoading(false);
     }
@@ -267,7 +285,7 @@ function SkyWorkflows({ mode = 'start' }) {
       setSelectedDefinitionDetail(detail.definition);
       setInputJson(getDefaultInput(detail.definition));
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load workflow definition.');
+      setError(formatApiError(loadError, 'Failed to load workflow definition.'));
     }
   }
 
@@ -287,7 +305,7 @@ function SkyWorkflows({ mode = 'start' }) {
         setSelectedDefinitionDetail(definitionDetail.definition);
       }
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load workflow run detail.');
+      setError(formatApiError(loadError, 'Failed to load workflow run detail.'));
     }
   }
 
@@ -316,7 +334,7 @@ function SkyWorkflows({ mode = 'start' }) {
       setSelectedRunDetail({ run: result.run, nodeRuns: result.nodeRuns || [] });
       await loadRuns(filters, { keepSelection: false });
     } catch (startError) {
-      setError(startError.message || 'Failed to start workflow.');
+      setError(formatApiError(startError, 'Failed to start workflow.'));
     } finally {
       setStarting(false);
     }

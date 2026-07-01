@@ -151,9 +151,9 @@ WITH definition_upsert AS (
     'ACTIVE',
     TRUE,
     TRUE,
-    'TEMPORAL_WORKFLOW_START',
-    'TEMPORAL_WORKFLOW_CANCEL',
-    '{"phase":"10.9","builderFoundation":true,"executionStatus":"metadata_only"}'::jsonb
+    'WORKFLOW_START',
+    'WORKFLOW_CANCEL',
+    '{"phase":"10.9","builderFoundation":true,"executionStatus":"metadata_only","startPermissionAlternates":["TEMPORAL_WORKFLOW_START","WORKER_SCHEDULE_RUN"]}'::jsonb
   )
   ON CONFLICT (workflow_code)
   DO UPDATE SET

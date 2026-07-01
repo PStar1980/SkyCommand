@@ -69,7 +69,7 @@ SELECT
   r.repo_id,
   'packages/skyweb/src/evaluateSkyWebAlerts.js',
   'node',
-  'SKYWEB_ALERT_WRITE',
+  'SKYWEB_ALERT_EVALUATE',
   'medium',
   FALSE,
   NULL,
