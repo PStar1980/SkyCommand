@@ -1,3 +1,9 @@
+## Phase 10.10b — SkyWeb Alert Worker Seed Idempotency Hotfix
+
+- Made `00030__skyweb_alert_worker_seed.sql` self-contained by seeding the Admin-owned `SKYWEB_ALERT_EVALUATE` permission before the `skyweb_alerts_evaluate` tool references it.
+- Granted `SKYWEB_ALERT_EVALUATE` to Admin, Operator, and Super Admin roles when the SkyWeb alert worker seed is run manually against an existing database.
+- Fixed full db_build seed ordering so `00030` no longer depends on the later `00041` permission hotfix seed.
+
 ## Phase 10.10a — Workflow Executor Permission Hotfix
 
 - Added first-class SkyServer workflow permissions: `WORKFLOW_READ`, `WORKFLOW_START`, and `WORKFLOW_CANCEL`.

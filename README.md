@@ -452,6 +452,20 @@ psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00
 ```
 
 
+
+## Phase 10.10b — SkyWeb Alert Worker Seed Idempotency Hotfix
+
+Phase 10.10b makes the SkyWeb alert worker seed self-contained. The `skyweb_alerts_evaluate` tool now gets its Admin-owned `SKYWEB_ALERT_EVALUATE` permission from `00030__skyweb_alert_worker_seed.sql` before the tool row references that permission. This keeps both existing-database patching and full `db_build` execution in the correct order.
+
+Existing databases that hit the `tools_permission_code_fkey` error should rerun:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00030__skyweb_alert_worker_seed.sql
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00041__workflow_executor_permission_hotfix.sql
+```
+
+Then restart the API/Web and sign out/back in so the session token includes the updated permissions.
+
 ## Phase 10.10a — Workflow Executor Permission Hotfix
 
 Phase 10.10a adds first-class SkyServer workflow permissions (`WORKFLOW_READ`, `WORKFLOW_START`, `WORKFLOW_CANCEL`) and updates the `macro-refresh-pipeline` definition to use the SkyServer workflow permission model instead of Temporal-specific permissions. It also assigns the SkyWeb alert evaluation worker tool to the Admin-owned `SKYWEB_ALERT_EVALUATE` operational permission so workflow tool nodes can run safely inside the SkyServer Admin app scope.
