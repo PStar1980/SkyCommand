@@ -316,11 +316,17 @@ SkyWeb Analytics owns:
 - Updated Workflow History to show a Temporal Runtime diagnostics panel, runtime badges, Temporal UI link, history event count, activity completion counts, and richer node run metadata such as attempts, duration, tool execution IDs, and Temporal-backed activity markers.
 - Kept SkyServer Workflow History as the primary domain-aware cockpit while preserving Temporal UI as the low-level execution debugger.
 
+
+## Phase 10.13a — Scheduler Trigger Type Hotfix
+
+- Fixed the `skyserver_workflow_start` scheduler bridge to pass `triggerType: SCHEDULER`, matching the existing `worker.workflow_run_records.trigger_type` check constraint.
+- This allows scheduled SkyServer workflow starts to create workflow run records and appear in Workflow History.
+
 ## Phase 10.13 — Scheduler-to-SkyServer Workflow Bridge
 
 - Added `apps/worker/src/jobs/scheduledSkyserverWorkflowRunner.js` to translate worker schedule parameters into SkyServer workflow start requests.
 - Added the worker-visible `skyserver_workflow_start` bridge tool through `00042__skyserver_workflow_schedule_bridge_seed.sql`.
 - Updated the schedule runner so `skyserver_workflow_start` starts approved SkyServer workflow definitions through the Temporal-backed executor instead of spawning a script process.
-- Scheduled SkyServer workflow starts use `runSource: scheduler`, `triggerType: SCHEDULE`, and persist schedule/run/worker context into the workflow input.
+- Scheduled SkyServer workflow starts use `runSource: scheduler`, `triggerType: SCHEDULER`, and persist schedule/run/worker context into the workflow input.
 - Schedule run metadata now records the SkyServer workflow run record ID, business workflow code/name, Temporal executor workflow ID/run ID, namespace, and task queue.
 - Updated validation coverage to include the scheduled SkyServer workflow runner.
