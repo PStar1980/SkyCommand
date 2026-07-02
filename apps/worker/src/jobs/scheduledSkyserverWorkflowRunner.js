@@ -78,7 +78,7 @@ function buildScheduledSkyserverWorkflowStart({ schedule, scheduleRun, workerNod
   const input = {
     ...inputJson,
     runSource: 'scheduler',
-    triggerType: 'SCHEDULE',
+    triggerType: 'SCHEDULER',
     schedulerContext: {
       scheduleId: schedule.scheduleId,
       scheduleCode: schedule.scheduleCode,
@@ -137,7 +137,7 @@ async function runScheduledSkyserverWorkflow({ schedule, scheduleRun, workerNode
       workflowDisplayName: run.workflowDisplayName || definition.displayName || startRequest.workflowCode,
       status: run.status || 'RUNNING',
       runSource: run.runSource || 'scheduler',
-      triggerType: run.triggerType || 'SCHEDULE',
+      triggerType: run.triggerType || 'SCHEDULER',
       temporalWorkflowId: run.temporalWorkflowId || temporalWorkflow.workflowId,
       temporalRunId: run.temporalRunId || temporalWorkflow.runId,
       temporalWorkflowType: temporalWorkflow.workflowType,
