@@ -307,3 +307,11 @@ SkyWeb Analytics owns:
 - Preserved the hierarchy where `core.tools` remain executable primitives and SkyServer workflows compose those primitives, while Temporal provides the durable runtime.
 - Updated Workflow History detail to show the executor and Temporal workflow/run IDs for SkyServer workflow runs.
 - Updated validation coverage for the new Temporal workflow and activity files.
+
+## Phase 10.12 — SkyServer Temporal Detail Integration
+
+- Added Temporal runtime detail enrichment to SkyServer workflow run detail responses.
+- Added Temporal describe/history summary support for SkyServer workflow runs with Temporal workflow/run IDs, including status, namespace, task queue, event counts, activity counts, workflow task counts, latest event previews, and Temporal UI deep links.
+- Added `TEMPORAL_UI_BASE_URL` configuration with a local default of `http://localhost:8233` for Admin-Web diagnostic links.
+- Updated Workflow History to show a Temporal Runtime diagnostics panel, runtime badges, Temporal UI link, history event count, activity completion counts, and richer node run metadata such as attempts, duration, tool execution IDs, and Temporal-backed activity markers.
+- Kept SkyServer Workflow History as the primary domain-aware cockpit while preserving Temporal UI as the low-level execution debugger.

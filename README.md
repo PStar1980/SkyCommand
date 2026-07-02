@@ -514,3 +514,25 @@ The older inline executor remains available as a development fallback by sending
 ```
 
 No database migration or seed is required for Phase 10.11. Existing workflow run tables from Phase 10.9/10.10 are reused, and run records now store `temporal_workflow_id`, `temporal_run_id`, and `metadata.executor = skyserver_workflow_executor_temporal_v1`.
+
+## Phase 10.12 — Workflow History Temporal Runtime Details
+
+Phase 10.12 enriches `Workflows -> Workflow History` with Temporal runtime diagnostics for SkyServer workflow runs executed by the Temporal-backed executor.
+
+Run detail now shows:
+
+- Temporal workflow ID and run ID
+- Temporal status, workflow type, namespace, and task queue
+- Temporal history/event counts
+- activity scheduled/completed/failed counts
+- workflow task counts
+- latest Temporal event preview
+- direct link to Temporal UI
+
+Set the Temporal UI base URL locally with:
+
+```text
+TEMPORAL_UI_BASE_URL=http://localhost:8233
+```
+
+No DB migration or seed is required for this phase.

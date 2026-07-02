@@ -42,6 +42,29 @@ function formatDuration(ms) {
   return `${(value / 1000).toFixed(1)} s`;
 }
 
+function getDateDiffMs(start, end) {
+  const startDate = start ? new Date(start) : null;
+  const endDate = end ? new Date(end) : null;
+
+  if (!startDate || !endDate || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+
+  return Math.max(0, endDate.getTime() - startDate.getTime());
+}
+
+function getRunDurationMs(run) {
+  return run?.metadata?.durationMs || getDateDiffMs(run?.startedAt || run?.createdAt, run?.completedAt);
+}
+
+function getNodeRunDurationMs(nodeRun) {
+  return nodeRun?.metadata?.durationMs || getDateDiffMs(nodeRun?.startedAt || nodeRun?.createdAt, nodeRun?.completedAt);
+}
+
+function getTemporalRuntime(runDetail) {
+  return runDetail?.temporalRuntime || runDetail?.run?.temporalRuntime || null;
+}
+
 function statusClass(status) {
   const normalized = String(status || '').toUpperCase();
 
@@ -148,6 +171,22 @@ function WorkflowDefinitionCard({ definition, selected, onSelect }) {
   );
 }
 
+function getNodeOutputSummary(output = {}) {
+  if (output.summary) {
+    return output.summary;
+  }
+
+  if (output.kind === 'temporal_workflow_start') {
+    return `Started Temporal workflow ${output.workflowId || output.workflowCode || ''}`.trim();
+  }
+
+  if (output.kind === 'tool_execution') {
+    return `${output.toolCode || 'Tool'} finished with ${output.status || 'UNKNOWN'}`;
+  }
+
+  return '';
+}
+
 function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
   const runsByNodeKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
 
@@ -159,7 +198,9 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
         const nodeTypeCode = node.nodeTypeCode || nodeRun?.nodeTypeCode || 'NODE';
         const targetCode = node.targetCode || nodeRun?.targetCode || 'No target';
         const displayName = node.displayName || nodeKey || 'Workflow node';
-        const description = node.description || nodeRun?.output?.summary || 'No description';
+        const description = node.description || getNodeOutputSummary(nodeRun?.output) || 'No description';
+        const durationMs = getNodeRunDurationMs(nodeRun);
+        const outputSummary = getNodeOutputSummary(nodeRun?.output);
 
         return (
           <div className="sky-worker-command-card" key={node.workflowNodeId || node.workflowNodeRunRecordId || nodeKey}>
@@ -175,8 +216,25 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
                 {nodeRun?.status || 'READY'}
               </span>
             </div>
-            {nodeRun?.output?.summary && (
-              <div className="small sky-muted mt-2">{nodeRun.output.summary}</div>
+
+            {nodeRun && (
+              <div className="d-flex flex-wrap gap-2 mt-3 small">
+                <span className="sky-pill sky-pill-info">Attempts {nodeRun.attemptCount ?? 0}</span>
+                <span className="sky-pill sky-pill-info">Started {formatDate(nodeRun.startedAt || nodeRun.createdAt)}</span>
+                <span className="sky-pill sky-pill-info">Duration {formatDuration(durationMs)}</span>
+                {nodeRun.metadata?.temporalBacked && (
+                  <span className="sky-pill sky-pill-success">Temporal activity</span>
+                )}
+              </div>
+            )}
+
+            {outputSummary && (
+              <div className="small sky-muted mt-2">{outputSummary}</div>
+            )}
+            {nodeRun?.output?.executionId && (
+              <div className="small sky-muted mt-1">
+                Execution <span className="sky-mono">{nodeRun.output.executionId}</span>
+              </div>
             )}
             {nodeRun?.errorMessage && (
               <div className="alert alert-danger mt-2 mb-0 py-2">{nodeRun.errorMessage}</div>
@@ -185,6 +243,127 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
         );
       })}
     </div>
+  );
+}
+
+function TemporalRuntimePanel({ runtime }) {
+  if (!runtime) {
+    return (
+      <section className="sky-card mb-4">
+        <div className="sky-card-header">
+          <div className="sky-page-kicker">Temporal runtime</div>
+          <h2 className="h5 mb-0">Execution diagnostics</h2>
+        </div>
+        <div className="sky-card-body">
+          <div className="sky-empty-state">Select a Temporal-backed run to inspect runtime details.</div>
+        </div>
+      </section>
+    );
+  }
+
+  const history = runtime.history || {};
+  const activityCounts = history.activityCounts || {};
+  const workflowTaskCounts = history.workflowTaskCounts || {};
+  const latestEvents = history.latestEvents || [];
+
+  return (
+    <section className="sky-card mb-4">
+      <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Temporal runtime</div>
+          <h2 className="h5 mb-0">Execution diagnostics</h2>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${statusClass(runtime.status || 'UNKNOWN')}`}>{runtime.status || 'UNKNOWN'}</span>
+          {runtime.uiUrl && (
+            <a className="btn btn-sm sky-btn-ghost" href={runtime.uiUrl} rel="noreferrer" target="_blank">
+              Open in Temporal UI
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="sky-card-body">
+        {runtime.warnings?.length > 0 && (
+          <div className="alert alert-warning py-2">
+            {runtime.warnings.join(' ')}
+          </div>
+        )}
+
+        <div className="row g-2 mb-3">
+          <div className="col-md-3 col-6">
+            <div className="sky-mini-metric">
+              <div className="sky-page-kicker">Namespace</div>
+              <div className="sky-mini-metric-value sky-mono small">{runtime.namespace || '—'}</div>
+            </div>
+          </div>
+          <div className="col-md-3 col-6">
+            <div className="sky-mini-metric">
+              <div className="sky-page-kicker">Task queue</div>
+              <div className="sky-mini-metric-value sky-mono small">{runtime.taskQueue || '—'}</div>
+            </div>
+          </div>
+          <div className="col-md-3 col-6">
+            <div className="sky-mini-metric">
+              <div className="sky-page-kicker">History events</div>
+              <div className="sky-mini-metric-value">{history.eventCount || runtime.historyLength || '—'}</div>
+            </div>
+          </div>
+          <div className="col-md-3 col-6">
+            <div className="sky-mini-metric">
+              <div className="sky-page-kicker">Activities</div>
+              <div className="sky-mini-metric-value">{activityCounts.completed || 0}/{activityCounts.scheduled || 0}</div>
+            </div>
+          </div>
+        </div>
+
+        <dl className="row small mb-3">
+          <dt className="col-md-3 sky-detail-label">Workflow type</dt>
+          <dd className="col-md-9 sky-detail-value sky-mono text-break">{runtime.workflowType || '—'}</dd>
+          <dt className="col-md-3 sky-detail-label">Workflow ID</dt>
+          <dd className="col-md-9 sky-detail-value sky-mono text-break">{runtime.workflowId || '—'}</dd>
+          <dt className="col-md-3 sky-detail-label">Run ID</dt>
+          <dd className="col-md-9 sky-detail-value sky-mono text-break">{runtime.runId || '—'}</dd>
+        </dl>
+
+        <div className="d-flex flex-wrap gap-2 mb-3 small">
+          <span className="sky-pill sky-pill-info">Workflow tasks {workflowTaskCounts.completed || 0}/{workflowTaskCounts.scheduled || 0}</span>
+          <span className="sky-pill sky-pill-success">Activities completed {activityCounts.completed || 0}</span>
+          {(activityCounts.failed || activityCounts.timedOut || activityCounts.canceled) > 0 && (
+            <span className="sky-pill sky-pill-danger">
+              Activity issues {(activityCounts.failed || 0) + (activityCounts.timedOut || 0) + (activityCounts.canceled || 0)}
+            </span>
+          )}
+          {history.truncated && <span className="sky-pill sky-pill-warning">History preview truncated</span>}
+        </div>
+
+        {latestEvents.length > 0 ? (
+          <div className="table-responsive sky-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Type</th>
+                  <th>Time</th>
+                  <th>Summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                {latestEvents.map((event) => (
+                  <tr key={`${event.eventId}-${event.eventType}`}>
+                    <td className="sky-mono">{event.eventId || '—'}</td>
+                    <td className="sky-mono small">{event.eventType}</td>
+                    <td>{formatDate(event.eventTime)}</td>
+                    <td>{event.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="sky-empty-state">No Temporal event preview available.</div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -209,6 +388,7 @@ function SkyWorkflows({ mode = 'start' }) {
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
+  const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const isHistoryMode = mode === 'history';
 
   const runStats = useMemo(() => {
@@ -480,7 +660,7 @@ function SkyWorkflows({ mode = 'start' }) {
                   <>
                     <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
                       <span className={`sky-pill ${statusClass(selectedRun.status)}`}>{selectedRun.status}</span>
-                      <span className="small sky-muted">{formatDuration(selectedRun.metadata?.durationMs)}</span>
+                      <span className="small sky-muted">{formatDuration(getRunDurationMs(selectedRun))}</span>
                     </div>
                     <dl className="row small mb-3">
                       <dt className="col-4 sky-detail-label">Workflow</dt>
@@ -501,6 +681,22 @@ function SkyWorkflows({ mode = 'start' }) {
                       <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalWorkflowId || '—'}</dd>
                       <dt className="col-4 sky-detail-label">Temporal run</dt>
                       <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalRunId || '—'}</dd>
+                      <dt className="col-4 sky-detail-label">Temporal status</dt>
+                      <dd className="col-8 sky-detail-value">
+                        <span className={`sky-pill ${statusClass(selectedTemporalRuntime?.status || selectedRun.status)}`}>
+                          {selectedTemporalRuntime?.status || selectedRun.status || '—'}
+                        </span>
+                      </dd>
+                      <dt className="col-4 sky-detail-label">History events</dt>
+                      <dd className="col-8 sky-detail-value">{selectedTemporalRuntime?.history?.eventCount || selectedTemporalRuntime?.historyLength || '—'}</dd>
+                      {selectedTemporalRuntime?.uiUrl && (
+                        <>
+                          <dt className="col-4 sky-detail-label">Temporal UI</dt>
+                          <dd className="col-8 sky-detail-value">
+                            <a href={selectedTemporalRuntime.uiUrl} rel="noreferrer" target="_blank">Open diagnostics</a>
+                          </dd>
+                        </>
+                      )}
                     </dl>
                     <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
                     <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>
@@ -604,17 +800,18 @@ function SkyWorkflows({ mode = 'start' }) {
                         <th>Started</th>
                         <th>Completed</th>
                         <th>Duration</th>
+                        <th>Runtime</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loading && (
                         <tr>
-                          <td colSpan="5"><div className="sky-empty-state">Loading workflow runs...</div></td>
+                          <td colSpan="6"><div className="sky-empty-state">Loading workflow runs...</div></td>
                         </tr>
                       )}
                       {!loading && runs.length === 0 && (
                         <tr>
-                          <td colSpan="5"><div className="sky-empty-state">No workflow runs found.</div></td>
+                          <td colSpan="6"><div className="sky-empty-state">No workflow runs found.</div></td>
                         </tr>
                       )}
                       {!loading && runs.map((run) => (
@@ -630,13 +827,22 @@ function SkyWorkflows({ mode = 'start' }) {
                           </td>
                           <td>{formatDate(run.startedAt || run.createdAt)}</td>
                           <td>{formatDate(run.completedAt)}</td>
-                          <td>{formatDuration(run.metadata?.durationMs)}</td>
+                          <td>{formatDuration(getRunDurationMs(run))}</td>
+                          <td>
+                            {run.temporalWorkflowId ? (
+                              <span className="sky-pill sky-pill-success">Temporal-backed</span>
+                            ) : (
+                              <span className="sky-pill sky-pill-info">Inline</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </section>
+
+              <TemporalRuntimePanel runtime={selectedTemporalRuntime} />
 
               <section className="sky-card">
                 <div className="sky-card-header">

@@ -225,3 +225,21 @@ This means a SkyServer workflow is still a configurable graph of nodes, but Temp
 `POST /api/workflows/definitions/:workflowCode/start` defaults to Temporal-backed execution and returns once the Temporal workflow has started. The run continues asynchronously and can be followed from Workflow History.
 
 For local debugging only, the previous inline API executor can still be selected with `executorMode: "inline"`.
+
+## Phase 10.12 Runtime Detail Notes
+
+SkyServer workflow runs are now enriched with Temporal runtime diagnostics when they were started by the Temporal-backed executor.
+
+The distinction remains important:
+
+```text
+SkyServer Workflow History
+  = domain-aware run ledger, node results, user/source metadata, friendly diagnostics
+
+Temporal UI
+  = raw Temporal execution history, event timeline, worker/task-queue diagnostics
+```
+
+The run detail API returns `temporalRuntime` when a workflow run has Temporal identifiers. Admin-Web uses that payload to show status, task queue, history/event counts, activity counts, latest events, and a deep link into the local Temporal UI.
+
+This keeps the product experience inside SkyServer while preserving direct Temporal inspection for low-level debugging.

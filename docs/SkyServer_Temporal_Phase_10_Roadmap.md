@@ -169,3 +169,29 @@ Key behavior:
 - Temporal provides durable execution, activity scheduling, retry boundaries, and visibility for the generic executor workflow.
 - Workflow History remains SkyServer's operator ledger and now links runs to Temporal workflow/run IDs.
 - The inline executor remains available only as an explicit development fallback via `executorMode: "inline"`.
+
+## Phase 10.12 — SkyServer Temporal Detail Integration
+
+Status: implemented.
+
+Phase 10.12 brings more Temporal runtime visibility into SkyServer Admin so operators do not need to jump into the generic Temporal UI for every routine inspection.
+
+When a SkyServer workflow run has `temporal_workflow_id` / `temporal_run_id`, the workflow run detail API now attempts to enrich the response with:
+
+- Temporal status, workflow type, namespace, and task queue
+- Temporal UI deep link
+- history/event count
+- activity scheduled/completed/failed/timed-out/canceled counts
+- workflow task counts
+- latest event preview
+- non-fatal warnings when Temporal describe/history is unavailable
+
+The Admin-Web `Workflows -> Workflow History` page now renders a **Temporal runtime** panel beside the SkyServer run ledger and node timeline. SkyServer remains the domain-aware operator cockpit; Temporal UI remains the raw event-history debugger.
+
+Configuration:
+
+```text
+TEMPORAL_UI_BASE_URL=http://localhost:8233
+```
+
+No database migration or seed is required for Phase 10.12.
