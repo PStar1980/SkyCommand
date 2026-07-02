@@ -2,8 +2,10 @@ const { query } = require('../../../../packages/db/src/connection');
 const { calculateNextRunAfterExecution } = require('../schedulers/scheduleCalculator');
 const { runWorkerTool } = require('./workerToolExecutionService');
 const { runScheduledTemporalWorkflow } = require('./scheduledTemporalWorkflowRunner');
+const { runScheduledSkyserverWorkflow } = require('./scheduledSkyserverWorkflowRunner');
 
 const TEMPORAL_WORKFLOW_START_TOOL_CODE = 'temporal_workflow_start';
+const SKYSERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
 
 function sanitizeSchedule(row) {
   return {
@@ -146,20 +148,29 @@ async function runClaimedSchedule(claim, workerNode) {
   );
 
   try {
-    const result =
-      schedule.toolCode === TEMPORAL_WORKFLOW_START_TOOL_CODE
-        ? await runScheduledTemporalWorkflow({
-            schedule,
-            scheduleRun,
-            workerNode,
-          })
-        : await runWorkerTool({
-            toolCode: schedule.toolCode,
-            parameters: schedule.parameters || {},
-            schedule,
-            scheduleRun,
-            workerNode,
-          });
+    let result;
+
+    if (schedule.toolCode === TEMPORAL_WORKFLOW_START_TOOL_CODE) {
+      result = await runScheduledTemporalWorkflow({
+        schedule,
+        scheduleRun,
+        workerNode,
+      });
+    } else if (schedule.toolCode === SKYSERVER_WORKFLOW_START_TOOL_CODE) {
+      result = await runScheduledSkyserverWorkflow({
+        schedule,
+        scheduleRun,
+        workerNode,
+      });
+    } else {
+      result = await runWorkerTool({
+        toolCode: schedule.toolCode,
+        parameters: schedule.parameters || {},
+        schedule,
+        scheduleRun,
+        workerNode,
+      });
+    }
 
     const finalStatus = result.status === 'SUCCESS' ? 'SUCCESS' : 'FAILED';
     const message = result.summary || `${schedule.toolCode} finished with ${finalStatus}.`;
@@ -183,6 +194,10 @@ async function runClaimedSchedule(claim, workerNode) {
                 namespace: result.workflow.namespace,
                 runRecordId: result.runRecord?.runRecordId || null,
               }
+            : null,
+        skyserverWorkflow:
+          result.skyserverWorkflow && schedule.toolCode === SKYSERVER_WORKFLOW_START_TOOL_CODE
+            ? result.skyserverWorkflow
             : null,
       },
     });

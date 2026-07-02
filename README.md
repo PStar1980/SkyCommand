@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.10a — SkyServer workflow executor permission hotfix
+**Active status:** Phase 10.13 — Scheduler-to-SkyServer Workflow Bridge
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -43,7 +43,7 @@ Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The
 | Admin-Web Dashboard | Private command center for API/DB health, ingestion status, automation status, tools, sessions, scripts, and audits |
 | Tools | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging |
 | Workflows | SkyServer workflow start/history surfaces, with lower-level Temporal runtime pages preserved for diagnostics |
-| Automation | Scheduler/listener control surfaces, including the scheduler-to-Temporal bridge |
+| Automation | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyServer workflows |
 | Ingestion Status | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics |
 | Access Control | User, role, permission, session, password administration, and User History audit review |
 | Tools History | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability |
@@ -536,3 +536,35 @@ TEMPORAL_UI_BASE_URL=http://localhost:8233
 ```
 
 No DB migration or seed is required for this phase.
+
+
+## Phase 10.13 — Scheduler-to-SkyServer Workflow Bridge
+
+Status: implemented.
+
+Phase 10.13 lets SkyServer's existing Scheduler start high-level SkyServer workflow definitions through the Temporal-backed executor.
+
+```text
+Automation Scheduler
+  -> worker-visible bridge tool: skyserver_workflow_start
+  -> SkyServer workflow definition: macro-refresh-pipeline
+  -> Temporal skyserverWorkflowExecutorWorkflow
+  -> workflow node activities
+  -> existing tool primitives
+  -> Workflow History + Temporal diagnostics
+```
+
+This keeps the hierarchy clean:
+
+- `core.tools` remain executable primitives.
+- `worker.workflow_definitions` remain business-level workflow blueprints.
+- `skyserverWorkflowExecutorWorkflow` provides durable Temporal-backed execution.
+- `worker.schedules` can now trigger those business workflows on a timer.
+
+Existing DB patch:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00042__skyserver_workflow_schedule_bridge_seed.sql
+```
+
+After running the seed, the Scheduler worker-tool dropdown includes **Start SkyServer Workflow**. Blank or default input starts `macro-refresh-pipeline` with its published node defaults; advanced users can pass `inputJson` with `nodeInputs` overrides.

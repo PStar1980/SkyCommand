@@ -195,3 +195,25 @@ TEMPORAL_UI_BASE_URL=http://localhost:8233
 ```
 
 No database migration or seed is required for Phase 10.12.
+
+
+## Phase 10.13 — Scheduler-to-SkyServer Workflow Bridge
+
+Phase 10.13 connects the existing worker Scheduler to SkyServer workflow definitions. The new worker-visible tool `skyserver_workflow_start` is a scheduler bridge, not a normal script. When a schedule fires, the worker starts an approved SkyServer workflow definition through the Temporal-backed executor.
+
+```text
+worker.schedule -> skyserver_workflow_start
+  -> workflowExecutorService.startWorkflowWithTemporal
+  -> skyserverWorkflowExecutorWorkflow
+  -> TOOL / TEMPORAL_WORKFLOW node activities
+  -> worker.workflow_run_records + worker.workflow_node_run_records
+```
+
+This is distinct from `temporal_workflow_start`:
+
+| Bridge tool | Starts | Best use |
+| --- | --- | --- |
+| `temporal_workflow_start` | Approved Temporal workflow template | Low-level Temporal-native subprocesses |
+| `skyserver_workflow_start` | Approved SkyServer workflow definition | Business-level composed workflows |
+
+The first seeded target is `macro-refresh-pipeline`, which composes the upgraded FRED ingestion tool primitive and SkyWeb alert evaluation tool.
