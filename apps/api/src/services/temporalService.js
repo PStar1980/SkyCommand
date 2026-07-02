@@ -1029,6 +1029,288 @@ async function startWorkflowFromDefinition({ workflowCode, body = {}, actor = nu
   });
 }
 
+const TEMPORAL_EVENT_TYPE_MAP = {
+  1: 'WORKFLOW_EXECUTION_STARTED',
+  2: 'WORKFLOW_EXECUTION_COMPLETED',
+  3: 'WORKFLOW_EXECUTION_FAILED',
+  4: 'WORKFLOW_EXECUTION_TIMED_OUT',
+  5: 'WORKFLOW_TASK_SCHEDULED',
+  6: 'WORKFLOW_TASK_STARTED',
+  7: 'WORKFLOW_TASK_COMPLETED',
+  8: 'WORKFLOW_TASK_TIMED_OUT',
+  9: 'WORKFLOW_TASK_FAILED',
+  10: 'ACTIVITY_TASK_SCHEDULED',
+  11: 'ACTIVITY_TASK_STARTED',
+  12: 'ACTIVITY_TASK_COMPLETED',
+  13: 'ACTIVITY_TASK_FAILED',
+  14: 'ACTIVITY_TASK_TIMED_OUT',
+  15: 'ACTIVITY_TASK_CANCEL_REQUESTED',
+  16: 'ACTIVITY_TASK_CANCELED',
+  17: 'TIMER_STARTED',
+  18: 'TIMER_FIRED',
+  19: 'TIMER_CANCELED',
+  20: 'WORKFLOW_EXECUTION_CANCELED',
+  23: 'START_CHILD_WORKFLOW_EXECUTION_INITIATED',
+  24: 'START_CHILD_WORKFLOW_EXECUTION_FAILED',
+  25: 'CHILD_WORKFLOW_EXECUTION_STARTED',
+  26: 'CHILD_WORKFLOW_EXECUTION_COMPLETED',
+  27: 'CHILD_WORKFLOW_EXECUTION_FAILED',
+  28: 'CHILD_WORKFLOW_EXECUTION_CANCELED',
+  29: 'CHILD_WORKFLOW_EXECUTION_TIMED_OUT',
+  30: 'CHILD_WORKFLOW_EXECUTION_TERMINATED',
+  33: 'MARKER_RECORDED',
+  34: 'WORKFLOW_EXECUTION_SIGNALED',
+  35: 'WORKFLOW_EXECUTION_TERMINATED',
+  36: 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW',
+};
+
+function buildTemporalUiWorkflowUrl({ baseUrl, namespace, workflowId, runId } = {}) {
+  if (!baseUrl || !workflowId) {
+    return null;
+  }
+
+  const normalizedBaseUrl = String(baseUrl).replace(/\/+$/, '');
+  const encodedNamespace = encodeURIComponent(namespace || 'default');
+  const encodedWorkflowId = encodeURIComponent(workflowId);
+  const encodedRunId = runId ? `/${encodeURIComponent(runId)}` : '';
+
+  return `${normalizedBaseUrl}/namespaces/${encodedNamespace}/workflows/${encodedWorkflowId}${encodedRunId}`;
+}
+
+function serializeTemporalTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'object') {
+    if (typeof value.toISOString === 'function') {
+      return value.toISOString();
+    }
+
+    const seconds = Number(value.seconds || value.secondsLow || 0);
+    const nanos = Number(value.nanos || 0);
+
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return new Date((seconds * 1000) + Math.floor(nanos / 1000000)).toISOString();
+    }
+  }
+
+  return null;
+}
+
+function normalizeTemporalEventType(event = {}) {
+  const rawType = event.eventType || event.event_type;
+
+  if (typeof rawType === 'string') {
+    return rawType.replace(/^EVENT_TYPE_/, '');
+  }
+
+  if (typeof rawType === 'number') {
+    return TEMPORAL_EVENT_TYPE_MAP[rawType] || `EVENT_TYPE_${rawType}`;
+  }
+
+  const attributeKey = Object.keys(event).find((key) => key.endsWith('EventAttributes'));
+
+  if (attributeKey) {
+    return attributeKey
+      .replace(/EventAttributes$/, '')
+      .replace(/([A-Z])/g, '_$1')
+      .replace(/^_/, '')
+      .toUpperCase();
+  }
+
+  return 'UNKNOWN';
+}
+
+function getTemporalEventAttributes(event = {}) {
+  const attributeKey = Object.keys(event).find((key) => key.endsWith('EventAttributes'));
+  return attributeKey ? event[attributeKey] || {} : {};
+}
+
+function getTemporalEventSummary(event = {}) {
+  const type = normalizeTemporalEventType(event);
+  const attributes = getTemporalEventAttributes(event);
+  const activityType = attributes.activityType?.name || attributes.activityType || null;
+  const workflowType = attributes.workflowType?.name || attributes.workflowType || null;
+
+  if (activityType) {
+    return `${type}: ${activityType}`;
+  }
+
+  if (workflowType) {
+    return `${type}: ${workflowType}`;
+  }
+
+  if (attributes.reason) {
+    return `${type}: ${attributes.reason}`;
+  }
+
+  if (attributes.message) {
+    return `${type}: ${attributes.message}`;
+  }
+
+  return type;
+}
+
+function summarizeTemporalHistoryEvents(events = []) {
+  const eventCounts = {};
+  const activityCounts = {
+    scheduled: 0,
+    started: 0,
+    completed: 0,
+    failed: 0,
+    timedOut: 0,
+    canceled: 0,
+  };
+  const workflowTaskCounts = {
+    scheduled: 0,
+    started: 0,
+    completed: 0,
+    failed: 0,
+    timedOut: 0,
+  };
+
+  for (const event of events) {
+    const type = normalizeTemporalEventType(event);
+    eventCounts[type] = (eventCounts[type] || 0) + 1;
+
+    if (type === 'ACTIVITY_TASK_SCHEDULED') {
+      activityCounts.scheduled += 1;
+    } else if (type === 'ACTIVITY_TASK_STARTED') {
+      activityCounts.started += 1;
+    } else if (type === 'ACTIVITY_TASK_COMPLETED') {
+      activityCounts.completed += 1;
+    } else if (type === 'ACTIVITY_TASK_FAILED') {
+      activityCounts.failed += 1;
+    } else if (type === 'ACTIVITY_TASK_TIMED_OUT') {
+      activityCounts.timedOut += 1;
+    } else if (type === 'ACTIVITY_TASK_CANCELED') {
+      activityCounts.canceled += 1;
+    } else if (type === 'WORKFLOW_TASK_SCHEDULED') {
+      workflowTaskCounts.scheduled += 1;
+    } else if (type === 'WORKFLOW_TASK_STARTED') {
+      workflowTaskCounts.started += 1;
+    } else if (type === 'WORKFLOW_TASK_COMPLETED') {
+      workflowTaskCounts.completed += 1;
+    } else if (type === 'WORKFLOW_TASK_FAILED') {
+      workflowTaskCounts.failed += 1;
+    } else if (type === 'WORKFLOW_TASK_TIMED_OUT') {
+      workflowTaskCounts.timedOut += 1;
+    }
+  }
+
+  const latestEvents = events.slice(-12).map((event) => ({
+    eventId: event.eventId ? String(event.eventId) : null,
+    eventTime: serializeTemporalTimestamp(event.eventTime),
+    eventType: normalizeTemporalEventType(event),
+    summary: getTemporalEventSummary(event),
+  }));
+
+  return {
+    eventCount: events.length,
+    eventCounts,
+    activityCounts,
+    workflowTaskCounts,
+    latestEvents,
+  };
+}
+
+async function getWorkflowRuntimeDetail({ workflowId, runId, includeHistory = true } = {}) {
+  if (!workflowId) {
+    return null;
+  }
+
+  const { config, client, connection } = await createTemporalClient();
+  const handle = client.workflow.getHandle(workflowId, runId || undefined);
+  let workflow = null;
+  let describeError = null;
+
+  try {
+    const description = await handle.describe();
+    workflow = normalizeWorkflowInfo({
+      workflowId,
+      runId,
+      ...description,
+    });
+  } catch (error) {
+    describeError = error;
+  }
+
+  const execution = {
+    workflowId,
+    ...(runId ? { runId } : {}),
+  };
+  let history = null;
+  let historyError = null;
+
+  if (includeHistory) {
+    try {
+      const events = [];
+      let nextPageToken;
+      let pageCount = 0;
+
+      do {
+        const response = await connection.workflowService.getWorkflowExecutionHistory({
+          namespace: config.namespace,
+          execution,
+          maximumPageSize: 200,
+          nextPageToken,
+        });
+
+        events.push(...(response.history?.events || []));
+        nextPageToken = response.nextPageToken;
+        pageCount += 1;
+      } while (nextPageToken && nextPageToken.length > 0 && pageCount < 5);
+
+      history = {
+        ...summarizeTemporalHistoryEvents(events),
+        truncated: Boolean(nextPageToken && nextPageToken.length > 0),
+      };
+    } catch (error) {
+      historyError = error;
+    }
+  }
+
+  if (!workflow && describeError && !history) {
+    throw describeError;
+  }
+
+  const runtime = {
+    available: Boolean(workflow || history),
+    namespace: config.namespace,
+    taskQueue: workflow?.taskQueue || config.taskQueue,
+    workflowId,
+    runId: workflow?.runId || runId || null,
+    workflowType: workflow?.workflowType || null,
+    status: workflow?.status || null,
+    startTime: workflow?.startTime || null,
+    executionTime: workflow?.executionTime || null,
+    closeTime: workflow?.closeTime || null,
+    historyLength: workflow?.historyLength || history?.eventCount || null,
+    uiUrl: buildTemporalUiWorkflowUrl({
+      baseUrl: config.uiBaseUrl,
+      namespace: config.namespace,
+      workflowId,
+      runId: workflow?.runId || runId,
+    }),
+    history,
+    warnings: [
+      describeError ? `Temporal describe failed: ${describeError.message || String(describeError)}` : null,
+      historyError ? `Temporal history fetch failed: ${historyError.message || String(historyError)}` : null,
+    ].filter(Boolean),
+  };
+
+  return runtime;
+}
+
 async function listWorkflows(query = {}) {
   const { client, config } = await createTemporalClient();
   const limit = getListLimit(query.limit);
@@ -1227,6 +1509,7 @@ module.exports = {
   cancelWorkflow,
   getHealth,
   getWorkflow,
+  getWorkflowRuntimeDetail,
   listWorkflowDefinitions,
   listWorkflowRunRecords,
   listWorkflows,

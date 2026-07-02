@@ -2,6 +2,7 @@ const DEFAULT_TEMPORAL_ADDRESS = 'localhost:7233';
 const DEFAULT_TEMPORAL_NAMESPACE = 'default';
 const DEFAULT_TEMPORAL_TASK_QUEUE = 'skyserver-local';
 const DEFAULT_FRED_WORKFLOW_ID_PREFIX = 'skyserver-fred-ingestion';
+const DEFAULT_TEMPORAL_UI_BASE_URL = 'http://localhost:8233';
 
 function getTemporalConfig() {
   return {
@@ -10,6 +11,7 @@ function getTemporalConfig() {
     taskQueue: process.env.TEMPORAL_TASK_QUEUE || DEFAULT_TEMPORAL_TASK_QUEUE,
     fredWorkflowIdPrefix:
       process.env.TEMPORAL_FRED_WORKFLOW_ID_PREFIX || DEFAULT_FRED_WORKFLOW_ID_PREFIX,
+    uiBaseUrl: process.env.TEMPORAL_UI_BASE_URL || DEFAULT_TEMPORAL_UI_BASE_URL,
   };
 }
 
@@ -32,6 +34,7 @@ module.exports = {
   DEFAULT_TEMPORAL_NAMESPACE,
   DEFAULT_TEMPORAL_TASK_QUEUE,
   DEFAULT_FRED_WORKFLOW_ID_PREFIX,
+  DEFAULT_TEMPORAL_UI_BASE_URL,
   getTemporalConfig,
   parsePositiveInteger,
 };

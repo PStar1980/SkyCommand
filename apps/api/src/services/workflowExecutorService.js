@@ -932,9 +932,31 @@ async function getWorkflowRun(workflowRunRecordId) {
     [workflowRunRecordId],
   );
 
+  let temporalRuntime = null;
+
+  if (run.temporalWorkflowId) {
+    try {
+      temporalRuntime = await temporalService.getWorkflowRuntimeDetail({
+        workflowId: run.temporalWorkflowId,
+        runId: run.temporalRunId,
+      });
+    } catch (error) {
+      temporalRuntime = {
+        available: false,
+        workflowId: run.temporalWorkflowId,
+        runId: run.temporalRunId,
+        warnings: [error.message || String(error)],
+      };
+    }
+  }
+
   return {
-    run,
+    run: {
+      ...run,
+      temporalRuntime,
+    },
     nodeRuns: nodeResult.rows.map(normalizeNodeRunRow),
+    temporalRuntime,
   };
 }
 
