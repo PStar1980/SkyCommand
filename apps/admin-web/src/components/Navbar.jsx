@@ -24,7 +24,7 @@ function Navbar() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
   const canViewTools = hasPermission('CORE_VIEW_TOOLS') || hasPermission('SCRIPT_EXECUTION_READ');
-  const canViewWorkflows = hasPermission('TEMPORAL_WORKFLOW_READ');
+  const canViewWorkflows = hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ');
   const canViewAutomation = hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
   const canViewData = hasPermission('INGESTION_VIEW_STATUS');
   const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
@@ -150,7 +150,14 @@ function Navbar() {
                       Workflows
                     </button>
                     <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      <li className="dropdown-header sky-dropdown-section-label">Temporal control plane</li>
+                      <li className="dropdown-header sky-dropdown-section-label">SkyServer workflows</li>
+                      {hasPermission('WORKFLOW_WRITE') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/workflows/create">
+                            Create Workflow
+                          </NavLink>
+                        </li>
+                      )}
                       <li>
                         <NavLink className={getDropdownItemClass} to="/workflows/start">
                           Start Workflow

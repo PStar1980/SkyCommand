@@ -265,3 +265,78 @@ This is distinct from `temporal_workflow_start`:
 | `skyserver_workflow_start` | Approved SkyServer workflow definition | Business-level composed workflows |
 
 The first seeded target is `macro-refresh-pipeline`, which composes the upgraded FRED ingestion tool primitive and SkyWeb alert evaluation tool.
+
+## Phase 10.14 — Create Workflow UI v1
+
+Phase 10.14 introduces the first Admin-Web creation surface for SkyServer workflow definitions.
+
+```text
+Workflows -> Create Workflow
+```
+
+The v1 builder is deliberately constrained:
+
+- sequential execution only;
+- `TOOL` nodes only;
+- no branching, drag-and-drop graph editor, approval gates, waits, API calls, agent nodes, child workflows, or Temporal template nodes yet;
+- one created workflow definition receives one version 1 graph;
+- version 1 can be published immediately so it appears in `Workflows -> Start Workflow`.
+
+### API additions
+
+```text
+GET  /api/workflows/builder/catalog
+POST /api/workflows/definitions
+```
+
+The catalog endpoint returns the workflow node type palette plus permission-filtered Admin-Web tool targets. The create endpoint writes:
+
+```text
+worker.workflow_definitions
+worker.workflow_versions
+worker.workflow_nodes
+worker.workflow_edges
+```
+
+Builder v1 assigns:
+
+```text
+start_permission_code = WORKFLOW_START
+cancel_permission_code = WORKFLOW_CANCEL
+```
+
+Creation requires:
+
+```text
+WORKFLOW_WRITE
+```
+
+### Builder v1 payload shape
+
+```json
+{
+  "workflowCode": "my-macro-pipeline",
+  "displayName": "My Macro Pipeline",
+  "description": "Sequential tool workflow created from Admin-Web.",
+  "publish": true,
+  "nodes": [
+    {
+      "nodeKey": "fred_ingestion",
+      "nodeTypeCode": "TOOL",
+      "displayName": "Run FRED ingestion",
+      "targetCode": "ingestion_fred",
+      "inputParameters": {
+        "concurrency": "10"
+      }
+    }
+  ]
+}
+```
+
+This keeps the long-term hierarchy intact:
+
+```text
+core.tools = primitives
+worker.workflow_definitions = business workflow blueprints
+skyserverWorkflowExecutorWorkflow = Temporal-backed runtime interpreter
+```

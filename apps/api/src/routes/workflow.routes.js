@@ -14,6 +14,18 @@ router.get(
 );
 
 router.get(
+  '/builder/catalog',
+  requireAnyPermission(['WORKFLOW_WRITE', 'WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ']),
+  workflowController.getBuilderCatalog,
+);
+
+router.post(
+  '/definitions',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.createDefinition,
+);
+
+router.get(
   '/runs',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
   workflowController.listRuns,

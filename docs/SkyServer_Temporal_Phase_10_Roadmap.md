@@ -217,3 +217,25 @@ This is distinct from `temporal_workflow_start`:
 | `skyserver_workflow_start` | Approved SkyServer workflow definition | Business-level composed workflows |
 
 The first seeded target is `macro-refresh-pipeline`, which composes the upgraded FRED ingestion tool primitive and SkyWeb alert evaluation tool.
+
+## Phase 10.14 — Create Workflow UI v1
+
+Phase 10.14 begins the workflow creation path inside SkyServer Admin. Rather than editing seed files, Admin-Web can create simple SkyServer workflow definitions from existing tool primitives.
+
+Scope:
+
+- Add `WORKFLOW_WRITE` permission for builder access.
+- Add builder catalog API for node types and permission-filtered tool targets.
+- Add create-definition API for sequential `TOOL` node workflows.
+- Add `Workflows -> Create Workflow` page.
+- Publish version 1 immediately when requested, making the workflow visible on `Workflows -> Start Workflow`.
+
+Out of scope for this phase:
+
+- visual graph canvas;
+- branch/condition execution;
+- API/agent/approval/wait node editors;
+- child SkyServer workflow nodes;
+- direct Temporal workflow template nodes from the builder.
+
+Those remain future phases after the v1 create/start/history loop is stable.

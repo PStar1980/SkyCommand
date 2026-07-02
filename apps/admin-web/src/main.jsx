@@ -21,6 +21,7 @@ import Tools from './pages/Tools.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
 import SchedulerControl from './pages/SchedulerControl.jsx';
 import { TemporalStartWorkflow, TemporalWorkflowHistory } from './pages/TemporalWorkflows.jsx';
+import WorkflowBuilder from './pages/WorkflowBuilder.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import './index.css';
 import './App.css';
@@ -93,9 +94,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
             <Route path="workflows" element={<Navigate replace to="/workflows/start" />} />
             <Route
+              path="workflows/create"
+              element={
+                <ProtectedRoute permissionCode="WORKFLOW_WRITE">
+                  <WorkflowBuilder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="workflows/start"
               element={
-                <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
+                <ProtectedRoute permissionCode="WORKFLOW_READ">
                   <WorkflowStart />
                 </ProtectedRoute>
               }
@@ -103,7 +112,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route
               path="workflows/history"
               element={
-                <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
+                <ProtectedRoute permissionCode="WORKFLOW_READ">
                   <WorkflowHistory />
                 </ProtectedRoute>
               }
