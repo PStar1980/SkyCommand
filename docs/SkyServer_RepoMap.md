@@ -124,6 +124,7 @@ SkyServer/
 │       └── src/
 │           ├── index.js
 │           ├── jobs/
+│           │   ├── scheduledSkyserverWorkflowRunner.js
 │           │   ├── scheduledTemporalWorkflowRunner.js
 │           │   ├── scheduledToolRunner.js
 │           │   ├── workerNodeService.js
@@ -204,7 +205,8 @@ SkyServer/
 │   │           ├── 00037__fred_ingestion_tool_upgrade_seed.sql
 │   │           ├── 00039__workflow_builder_foundation_seed.sql
 │   │           ├── 00040__workflow_executor_v1_seed.sql
-│   │           └── 00041__workflow_executor_permission_hotfix.sql
+│   │           ├── 00041__workflow_executor_permission_hotfix.sql
+│   │           └── 00042__skyserver_workflow_schedule_bridge_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
