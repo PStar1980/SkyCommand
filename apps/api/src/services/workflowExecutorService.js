@@ -1,12 +1,15 @@
-const { query } = require('../../../../packages/db/src/connection');
+const { pool, query } = require('../../../../packages/db/src/connection');
 const scriptExecutionService = require('./scriptExecutionService');
 const temporalService = require('./temporalService');
+const toolManifestService = require('./toolManifestService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'TEMPORAL_WORKFLOW']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
+const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
+const DEFAULT_CANCEL_PERMISSION = 'WORKFLOW_CANCEL';
 
 class WorkflowServiceError extends Error {
   constructor(message, statusCode = 500, details = {}) {
@@ -70,6 +73,53 @@ function getSafeObject(value, fallback = {}) {
   }
 
   return value;
+}
+
+function getSafeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeWorkflowCode(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function normalizeNodeKey(value, fallback = 'node') {
+  const normalized = normalizeWorkflowCode(value).replace(/-/g, '_');
+
+  return normalized || fallback;
+}
+
+function assertJsonObject(value, fieldName) {
+  if (!value || Array.isArray(value) || typeof value !== 'object') {
+    throw new WorkflowServiceError(`${fieldName} must be a JSON object.`, 400, {
+      fieldName,
+    });
+  }
+
+  return value;
+}
+
+function buildDefinitionSnapshot({ definition, nodes = [], edges = [], status = 'DRAFT' }) {
+  return {
+    workflowCode: definition.workflowCode,
+    displayName: definition.displayName,
+    description: definition.description || null,
+    status,
+    graphVersion: '1.0',
+    nodes: nodes.map((node) => ({
+      nodeKey: node.nodeKey,
+      nodeTypeCode: node.nodeTypeCode,
+      displayName: node.displayName,
+      targetCode: node.targetCode || null,
+      displayOrder: node.displayOrder,
+    })),
+    edges,
+  };
 }
 
 function truncateText(value, maxLength = 8000) {
@@ -195,7 +245,7 @@ function normalizeNodeRunRow(row) {
   };
 }
 
-async function listWorkflowDefinitions({ visibleOnly = true, enabledOnly = true } = {}) {
+async function listWorkflowDefinitions({ visibleOnly = true, enabledOnly = true, publishedOnly = true } = {}) {
   const clauses = [];
 
   if (visibleOnly) {
@@ -204,6 +254,10 @@ async function listWorkflowDefinitions({ visibleOnly = true, enabledOnly = true 
 
   if (enabledOnly) {
     clauses.push('enabled = TRUE');
+  }
+
+  if (publishedOnly) {
+    clauses.push('published_version_number IS NOT NULL');
   }
 
   const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -630,6 +684,375 @@ async function runTemporalWorkflowNode({ node, parameters, user, context }) {
   };
 }
 
+async function listBuilderCatalog({ permissions = [] } = {}) {
+  const [nodeTypeResult, toolManifest] = await Promise.all([
+    query(
+      `
+        SELECT
+          node_type_code,
+          display_name,
+          description,
+          category,
+          target_kind,
+          icon,
+          requires_target,
+          enabled,
+          config
+        FROM worker.workflow_node_types
+        WHERE enabled = TRUE
+        ORDER BY category, display_name
+      `,
+    ),
+    toolManifestService.listToolsForUser({ permissions }),
+  ]);
+
+  const nodeTypes = nodeTypeResult.rows.map((row) => {
+    const item = camelizeRow(row);
+    const config = item.config || {};
+
+    return {
+      nodeTypeCode: item.nodeTypeCode,
+      displayName: item.displayName,
+      description: item.description,
+      category: item.category,
+      targetKind: item.targetKind,
+      icon: item.icon,
+      requiresTarget: toBoolean(item.requiresTarget),
+      enabled: toBoolean(item.enabled),
+      initiallySupported: toBoolean(config.initiallySupported),
+      config,
+    };
+  });
+
+  const toolTargets = [];
+
+  for (const category of toolManifest.categories || []) {
+    for (const tool of category.tools || []) {
+      toolTargets.push({
+        nodeTypeCode: 'TOOL',
+        targetKind: 'core.tools',
+        targetCode: tool.toolCode,
+        targetRefId: tool.toolId,
+        displayName: tool.label || tool.name || tool.toolCode,
+        description: tool.description,
+        categoryCode: category.categoryCode,
+        categoryLabel: category.label,
+        permissionCode: tool.permissionCode,
+        riskCode: tool.riskCode,
+        requiresConfirmation: tool.requiresConfirmation,
+        parameters: tool.parameters || [],
+      });
+    }
+  }
+
+  return {
+    nodeTypes,
+    supportedNodeTypes: nodeTypes.filter((nodeType) => nodeType.initiallySupported),
+    toolTargets,
+  };
+}
+
+function normalizeCreateNodeInput(node, index, seenKeys) {
+  const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
+
+  if (nodeTypeCode !== 'TOOL') {
+    throw new WorkflowServiceError('Workflow Builder v1 only supports TOOL nodes.', 400, {
+      nodeTypeCode,
+      supportedNodeTypes: ['TOOL'],
+    });
+  }
+
+  const targetCode = String(node.targetCode || node.toolCode || '').trim();
+
+  if (!targetCode) {
+    throw new WorkflowServiceError('Each TOOL node requires targetCode.', 400, {
+      index,
+    });
+  }
+
+  const nodeKeyBase = normalizeNodeKey(node.nodeKey || node.displayName || targetCode, `node_${index + 1}`);
+  let nodeKey = nodeKeyBase;
+  let suffix = 2;
+
+  while (seenKeys.has(nodeKey)) {
+    nodeKey = `${nodeKeyBase}_${suffix}`;
+    suffix += 1;
+  }
+
+  seenKeys.add(nodeKey);
+
+  return {
+    nodeKey,
+    nodeTypeCode,
+    displayName: String(node.displayName || node.label || targetCode).trim(),
+    description: String(node.description || '').trim() || null,
+    targetCode,
+    inputParameters: getSafeObject(node.inputParameters),
+    retryPolicy: getSafeObject(node.retryPolicy),
+    timeoutMs: node.timeoutMs ? Number.parseInt(node.timeoutMs, 10) : null,
+    positionX: Number.isFinite(Number(node.positionX)) ? Number(node.positionX) : 80 + index * 280,
+    positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
+    displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
+    enabled: node.enabled !== false,
+    config: getSafeObject(node.config, { builderCard: 'tool' }),
+  };
+}
+
+async function createWorkflowDefinition({ payload = {}, user, permissions = [] } = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_WRITE',
+    permissions,
+    action: 'create_workflow',
+  });
+
+  const workflowCode = normalizeWorkflowCode(payload.workflowCode || payload.displayName);
+  const displayName = String(payload.displayName || '').trim();
+  const description = String(payload.description || '').trim() || null;
+  const publish = payload.publish !== false;
+  const visibleInAdmin = payload.visibleInAdmin !== false;
+  const enabled = payload.enabled !== false;
+  const nodesInput = getSafeArray(payload.nodes);
+
+  if (!workflowCode) {
+    throw new WorkflowServiceError('workflowCode or displayName is required.', 400);
+  }
+
+  if (!displayName) {
+    throw new WorkflowServiceError('displayName is required.', 400);
+  }
+
+  if (nodesInput.length === 0) {
+    throw new WorkflowServiceError('At least one TOOL node is required.', 400);
+  }
+
+  const seenKeys = new Set();
+  const nodes = nodesInput.map((node, index) => normalizeCreateNodeInput(node, index, seenKeys));
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const existing = await client.query(
+      `
+        SELECT workflow_definition_id
+        FROM worker.workflow_definitions
+        WHERE workflow_code = $1
+        LIMIT 1
+      `,
+      [workflowCode],
+    );
+
+    if (existing.rows[0]) {
+      throw new WorkflowServiceError('Workflow code already exists.', 409, {
+        workflowCode,
+      });
+    }
+
+    const toolResult = await client.query(
+      `
+        SELECT tool_id, tool_code, label, description
+        FROM core.tools
+        WHERE tool_code = ANY($1::text[])
+          AND enabled = TRUE
+      `,
+      [[...new Set(nodes.map((node) => node.targetCode))]],
+    );
+    const toolsByCode = new Map(toolResult.rows.map((row) => [row.tool_code, row]));
+    const missingTools = nodes
+      .map((node) => node.targetCode)
+      .filter((targetCode) => !toolsByCode.has(targetCode));
+
+    if (missingTools.length > 0) {
+      throw new WorkflowServiceError('One or more tool targets were not found or are disabled.', 400, {
+        missingTools,
+      });
+    }
+
+    const definitionResult = await client.query(
+      `
+        INSERT INTO worker.workflow_definitions (
+          workflow_code,
+          display_name,
+          description,
+          status,
+          visible_in_admin,
+          enabled,
+          start_permission_code,
+          cancel_permission_code,
+          config,
+          created_by_user_id,
+          updated_by_user_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $10)
+        RETURNING *
+      `,
+      [
+        workflowCode,
+        displayName,
+        description,
+        publish ? 'ACTIVE' : 'DRAFT',
+        visibleInAdmin,
+        enabled,
+        DEFAULT_START_PERMISSION,
+        DEFAULT_CANCEL_PERMISSION,
+        JSON.stringify({
+          createdBy: 'workflow_builder_v1',
+          builderVersion: '10.14',
+          supportedNodeTypes: ['TOOL'],
+        }),
+        user?.userId || null,
+      ],
+    );
+    const definition = normalizeDefinitionRow(definitionResult.rows[0]);
+
+    const versionResult = await client.query(
+      `
+        INSERT INTO worker.workflow_versions (
+          workflow_definition_id,
+          version_number,
+          version_label,
+          status,
+          graph_version,
+          definition_snapshot,
+          created_by_user_id,
+          published_by_user_id,
+          published_at
+        )
+        VALUES ($1, 1, $2, $3, '1.0', '{}'::jsonb, $4, $5, CASE WHEN $3 = 'PUBLISHED' THEN CURRENT_TIMESTAMP ELSE NULL END)
+        RETURNING *
+      `,
+      [
+        definition.workflowDefinitionId,
+        publish ? 'Builder v1 published version' : 'Builder v1 draft version',
+        publish ? 'PUBLISHED' : 'DRAFT',
+        user?.userId || null,
+        publish ? user?.userId || null : null,
+      ],
+    );
+    const workflowVersionId = versionResult.rows[0].workflow_version_id;
+    const insertedNodes = [];
+
+    for (const node of nodes) {
+      const tool = toolsByCode.get(node.targetCode);
+      const nodeResult = await client.query(
+        `
+          INSERT INTO worker.workflow_nodes (
+            workflow_version_id,
+            node_key,
+            node_type_code,
+            display_name,
+            description,
+            target_code,
+            target_ref_id,
+            input_parameters,
+            retry_policy,
+            timeout_ms,
+            position_x,
+            position_y,
+            display_order,
+            enabled,
+            config
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15::jsonb)
+          RETURNING *
+        `,
+        [
+          workflowVersionId,
+          node.nodeKey,
+          node.nodeTypeCode,
+          node.displayName,
+          node.description,
+          node.targetCode,
+          tool.tool_id,
+          JSON.stringify(assertJsonObject(node.inputParameters, `nodes[${insertedNodes.length}].inputParameters`)),
+          JSON.stringify(getSafeObject(node.retryPolicy)),
+          node.timeoutMs,
+          node.positionX,
+          node.positionY,
+          node.displayOrder,
+          node.enabled,
+          JSON.stringify(getSafeObject(node.config)),
+        ],
+      );
+
+      insertedNodes.push(normalizeNodeRow({
+        ...nodeResult.rows[0],
+        workflow_definition_id: definition.workflowDefinitionId,
+        workflow_code: definition.workflowCode,
+        workflow_display_name: definition.displayName,
+        version_number: 1,
+        version_status: publish ? 'PUBLISHED' : 'DRAFT',
+        node_type_display_name: 'Run Tool',
+        node_type_category: 'ACTION',
+        target_kind: 'core.tools',
+      }));
+    }
+
+    const edges = [];
+
+    for (let index = 0; index < insertedNodes.length - 1; index += 1) {
+      const fromNode = insertedNodes[index];
+      const toNode = insertedNodes[index + 1];
+      const edgeResult = await client.query(
+        `
+          INSERT INTO worker.workflow_edges (
+            workflow_version_id,
+            edge_key,
+            from_node_id,
+            to_node_id,
+            edge_type,
+            display_order,
+            config
+          )
+          VALUES ($1, $2, $3, $4, 'SEQUENTIAL', $5, $6::jsonb)
+          RETURNING *
+        `,
+        [
+          workflowVersionId,
+          `${fromNode.nodeKey}_to_${toNode.nodeKey}`,
+          fromNode.workflowNodeId,
+          toNode.workflowNodeId,
+          (index + 1) * 10,
+          JSON.stringify({ label: 'then', createdBy: 'workflow_builder_v1' }),
+        ],
+      );
+      edges.push(camelizeRow(edgeResult.rows[0]));
+    }
+
+    await client.query(
+      `
+        UPDATE worker.workflow_versions
+        SET definition_snapshot = $2::jsonb
+        WHERE workflow_version_id = $1
+      `,
+      [
+        workflowVersionId,
+        JSON.stringify(buildDefinitionSnapshot({
+          definition,
+          nodes: insertedNodes,
+          edges,
+          status: publish ? 'PUBLISHED' : 'DRAFT',
+        })),
+      ],
+    );
+
+    await client.query('COMMIT');
+
+    return getWorkflowDefinition(workflowCode).catch(() => ({
+      ...definition,
+      publishedVersionId: publish ? workflowVersionId : null,
+      latestVersionId: workflowVersionId,
+      nodes: insertedNodes,
+      edges,
+    }));
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function executeNode({ node, parameters, user, session, permissions, context }) {
   if (!SUPPORTED_NODE_TYPES.has(node.nodeTypeCode)) {
     throw new WorkflowServiceError(`Unsupported workflow node type in executor v1: ${node.nodeTypeCode}`, 501, {
@@ -964,12 +1387,14 @@ module.exports = {
   WorkflowServiceError,
   completeWorkflowNodeRun,
   completeWorkflowRun,
+  createWorkflowDefinition,
   executeWorkflow,
   executeWorkflowNode,
   failWorkflowNodeRun,
   failWorkflowRun,
   getWorkflowDefinition,
   getWorkflowRun,
+  listBuilderCatalog,
   linkWorkflowRunToTemporal,
   listWorkflowDefinitions,
   listWorkflowRuns,

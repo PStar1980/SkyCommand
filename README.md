@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.13 — Scheduler-to-SkyServer Workflow Bridge
+**Active status:** Phase 10.14 — Create Workflow UI v1
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -42,7 +42,7 @@ Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The
 | --- | --- |
 | Admin-Web Dashboard | Private command center for API/DB health, ingestion status, automation status, tools, sessions, scripts, and audits |
 | Tools | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging |
-| Workflows | SkyServer workflow start/history surfaces, with lower-level Temporal runtime pages preserved for diagnostics |
+| Workflows | SkyServer workflow create/start/history surfaces, with lower-level Temporal runtime pages preserved for diagnostics |
 | Automation | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyServer workflows |
 | Ingestion Status | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics |
 | Access Control | User, role, permission, session, password administration, and User History audit review |
@@ -105,11 +105,13 @@ Phase 10.10 shifts the Workflows menu to the higher-level SkyServer workflow mod
 ```text
 Workflows -> Start Workflow
 Workflows -> Workflow History
+Workflows -> Create Workflow
 ```
 
 The workflow pages can:
 
 - show approved SkyServer workflow definitions backed by `worker.workflow_definitions`;
+- create simple sequential tool-node workflow definitions from Admin-Web;
 - inspect the published node timeline for a workflow definition;
 - start a workflow definition manually through `/api/workflows`;
 - override node parameters with JSON using `nodeInputs`;
@@ -568,3 +570,31 @@ psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00
 ```
 
 After running the seed, the Scheduler worker-tool dropdown includes **Start SkyServer Workflow**. Blank or default input starts `macro-refresh-pipeline` with its published node defaults; advanced users can pass `inputJson` with `nodeInputs` overrides.
+
+## Phase 10.14 — Create Workflow UI v1
+
+Status: implemented.
+
+Phase 10.14 adds the first Admin-Web workflow creation surface. The new page lives under:
+
+```text
+Workflows -> Create Workflow
+```
+
+Builder v1 is intentionally narrow and safe:
+
+- creates SkyServer workflow definitions in `worker.workflow_definitions`;
+- creates version 1 in `worker.workflow_versions`;
+- supports sequential `TOOL` nodes only;
+- stores node default parameters in `worker.workflow_nodes.input_parameters`;
+- creates sequential edges between adjacent nodes;
+- can publish version 1 immediately so the workflow appears under **Start Workflow**;
+- uses `WORKFLOW_WRITE` for creation and keeps `WORKFLOW_START` / `WORKFLOW_READ` for execution and inspection.
+
+Existing DB patch:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00043__workflow_builder_permissions_seed.sql
+```
+
+After running the seed, sign out and back in so Admin-Web receives the `WORKFLOW_WRITE` permission. The builder is the first step toward the future visual designer; advanced node types such as `API_CALL`, `AGENT`, child `WORKFLOW`, `TEMPORAL_WORKFLOW`, `CONDITION`, `WAIT`, and `HUMAN_APPROVAL` remain in the node type palette but are not editable in this first UI pass.

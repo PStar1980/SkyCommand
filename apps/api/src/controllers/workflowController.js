@@ -38,6 +38,47 @@ async function getDefinition(req, res, next) {
   }
 }
 
+async function getBuilderCatalog(req, res, next) {
+  try {
+    const result = await workflowExecutorService.listBuilderCatalog({
+      permissions: req.permissions || [],
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function createDefinition(req, res, next) {
+  try {
+    const definition = await workflowExecutorService.createWorkflowDefinition({
+      payload: req.body || {},
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.status(201).json({
+      ok: true,
+      definition,
+      message: `Workflow ${definition.displayName} created${definition.publishedVersionId ? ' and published' : ''}.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
 async function startWorkflow(req, res, next) {
   try {
     const context = authService.getRequestContext(req);
@@ -109,6 +150,8 @@ async function getRun(req, res, next) {
 }
 
 module.exports = {
+  createDefinition,
+  getBuilderCatalog,
   getDefinition,
   getRun,
   listDefinitions,

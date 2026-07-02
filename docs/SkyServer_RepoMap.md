@@ -62,7 +62,8 @@ SkyServer/
 │   │       │   ├── SkyWorkflows.jsx
 │   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── Tools.jsx
-│   │       │   └── WorkerControl.jsx
+│   │       │   ├── WorkerControl.jsx
+│   │       │   └── WorkflowBuilder.jsx
 │   │       └── services/
 │   │           ├── adminService.js
 │   │           ├── api.js
@@ -206,7 +207,8 @@ SkyServer/
 │   │           ├── 00039__workflow_builder_foundation_seed.sql
 │   │           ├── 00040__workflow_executor_v1_seed.sql
 │   │           ├── 00041__workflow_executor_permission_hotfix.sql
-│   │           └── 00042__skyserver_workflow_schedule_bridge_seed.sql
+│   │           ├── 00042__skyserver_workflow_schedule_bridge_seed.sql
+│   │           └── 00043__workflow_builder_permissions_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

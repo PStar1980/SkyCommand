@@ -330,3 +330,12 @@ SkyWeb Analytics owns:
 - Scheduled SkyServer workflow starts use `runSource: scheduler`, `triggerType: SCHEDULER`, and persist schedule/run/worker context into the workflow input.
 - Schedule run metadata now records the SkyServer workflow run record ID, business workflow code/name, Temporal executor workflow ID/run ID, namespace, and task queue.
 - Updated validation coverage to include the scheduled SkyServer workflow runner.
+
+## Phase 10.14 — Create Workflow UI v1
+
+- Added `WORKFLOW_WRITE` permission through `00043__workflow_builder_permissions_seed.sql`, granted to `SUPER_ADMIN` and `ADMIN` roles.
+- Added workflow-builder API support with `GET /api/workflows/builder/catalog` and `POST /api/workflows/definitions`.
+- Added server-side creation of workflow definitions, version 1 graph snapshots, TOOL nodes, and sequential edges.
+- Added Admin-Web `Workflows -> Create Workflow` with metadata entry, tool-node timeline composition, node default input JSON, publish toggle, and preview cards.
+- Updated Workflows navigation and routing so Create, Start, and History are first-class SkyServer workflow pages.
+- Kept Builder v1 intentionally scoped to sequential TOOL-node workflows while preserving the broader node palette for future phases.

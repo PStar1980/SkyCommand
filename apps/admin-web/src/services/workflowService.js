@@ -8,6 +8,14 @@ function getDefinition(workflowCode) {
   return api.get(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}`);
 }
 
+function getBuilderCatalog() {
+  return api.get('/api/workflows/builder/catalog');
+}
+
+function createDefinition(payload = {}) {
+  return api.post('/api/workflows/definitions', payload);
+}
+
 function startWorkflow(workflowCode, payload = {}) {
   return api.post(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/start`, payload);
 }
@@ -21,6 +29,8 @@ function getRun(workflowRunRecordId) {
 }
 
 const workflowService = {
+  createDefinition,
+  getBuilderCatalog,
   getDefinition,
   getRun,
   listDefinitions,
