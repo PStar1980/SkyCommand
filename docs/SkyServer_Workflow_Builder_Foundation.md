@@ -340,3 +340,18 @@ core.tools = primitives
 worker.workflow_definitions = business workflow blueprints
 skyserverWorkflowExecutorWorkflow = Temporal-backed runtime interpreter
 ```
+
+## Phase 10.15 — Workflow lifecycle management
+
+Phase 10.15 adds the first management surface for workflow definitions. It does not expand the runtime node palette; instead, it makes the existing workflow-builder foundation maintainable.
+
+Supported lifecycle actions:
+
+- edit workflow metadata and visibility;
+- enable/disable definitions;
+- archive old definitions while preserving run history;
+- clone a workflow into a new definition;
+- inspect version history;
+- create and optionally publish a new sequential TOOL-node version.
+
+A published vNext version retires previously published versions for that definition. Workflow runs keep their original `workflow_version_id`, so historical runs remain tied to the version that executed.

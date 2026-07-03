@@ -598,3 +598,35 @@ psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00
 ```
 
 After running the seed, sign out and back in so Admin-Web receives the `WORKFLOW_WRITE` permission. The builder is the first step toward the future visual designer; advanced node types such as `API_CALL`, `AGENT`, child `WORKFLOW`, `TEMPORAL_WORKFLOW`, `CONDITION`, `WAIT`, and `HUMAN_APPROVAL` remain in the node type palette but are not editable in this first UI pass.
+
+## Phase 10.15 — Workflow Management + Edit v1
+
+Status: implemented.
+
+Phase 10.15 adds lifecycle management for SkyServer workflow definitions under:
+
+```text
+Workflows -> Manage Workflows
+```
+
+The management page supports:
+
+- viewing all workflow definitions, including disabled or archived definitions;
+- editing workflow metadata, status, enabled state, and Admin visibility;
+- archiving a workflow without deleting its run history;
+- cloning an existing workflow into a new definition;
+- reviewing published/draft/retired version history;
+- creating a new sequential TOOL-node version from the latest graph;
+- publishing vNext immediately so it becomes the runnable version under **Start Workflow**.
+
+The backend exposes the management operations through the workflow API:
+
+```text
+GET   /api/workflows/definitions/:workflowCode/manage
+PATCH /api/workflows/definitions/:workflowCode
+POST  /api/workflows/definitions/:workflowCode/archive
+POST  /api/workflows/definitions/:workflowCode/clone
+POST  /api/workflows/definitions/:workflowCode/versions
+```
+
+No new DB migration or seed is required for this phase. It relies on the existing `WORKFLOW_WRITE` permission introduced in Phase 10.14.

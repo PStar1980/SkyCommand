@@ -1053,6 +1053,536 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
   }
 }
 
+
+async function getWorkflowDefinitionByCode(workflowCode) {
+  const normalizedWorkflowCode = String(workflowCode || '').trim();
+
+  if (!normalizedWorkflowCode) {
+    throw new WorkflowServiceError('workflowCode is required.', 400);
+  }
+
+  const result = await query(
+    `
+      SELECT *
+      FROM worker.vw_workflow_definitions
+      WHERE workflow_code = $1
+      LIMIT 1
+    `,
+    [normalizedWorkflowCode],
+  );
+
+  const definition = result.rows[0] ? normalizeDefinitionRow(result.rows[0]) : null;
+
+  if (!definition) {
+    throw new WorkflowServiceError('Workflow definition was not found.', 404, {
+      workflowCode: normalizedWorkflowCode,
+    });
+  }
+
+  return definition;
+}
+
+async function listWorkflowVersions(workflowDefinitionId) {
+  const result = await query(
+    `
+      SELECT
+        v.workflow_version_id,
+        v.workflow_definition_id,
+        v.version_number,
+        v.version_label,
+        v.status,
+        v.graph_version,
+        v.definition_snapshot,
+        v.created_by_user_id,
+        creator.email AS created_by_email,
+        creator.display_name AS created_by_display_name,
+        v.published_by_user_id,
+        publisher.email AS published_by_email,
+        publisher.display_name AS published_by_display_name,
+        v.published_at,
+        v.created_at,
+        v.updated_at,
+        COUNT(DISTINCT n.workflow_node_id)::INTEGER AS node_count,
+        COUNT(DISTINCT e.workflow_edge_id)::INTEGER AS edge_count
+      FROM worker.workflow_versions v
+      LEFT JOIN worker.workflow_nodes n
+        ON n.workflow_version_id = v.workflow_version_id
+      LEFT JOIN worker.workflow_edges e
+        ON e.workflow_version_id = v.workflow_version_id
+      LEFT JOIN auth.users creator
+        ON creator.user_id = v.created_by_user_id
+      LEFT JOIN auth.users publisher
+        ON publisher.user_id = v.published_by_user_id
+      WHERE v.workflow_definition_id = $1
+      GROUP BY
+        v.workflow_version_id,
+        creator.email,
+        creator.display_name,
+        publisher.email,
+        publisher.display_name
+      ORDER BY v.version_number DESC
+    `,
+    [workflowDefinitionId],
+  );
+
+  return result.rows.map((row) => {
+    const item = camelizeRow(row);
+
+    return {
+      workflowVersionId: item.workflowVersionId,
+      workflowDefinitionId: item.workflowDefinitionId,
+      versionNumber: item.versionNumber,
+      versionLabel: item.versionLabel,
+      status: item.status,
+      graphVersion: item.graphVersion,
+      definitionSnapshot: item.definitionSnapshot || {},
+      createdByUserId: item.createdByUserId,
+      createdByEmail: item.createdByEmail,
+      createdByDisplayName: item.createdByDisplayName,
+      publishedByUserId: item.publishedByUserId,
+      publishedByEmail: item.publishedByEmail,
+      publishedByDisplayName: item.publishedByDisplayName,
+      publishedAt: item.publishedAt,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      nodeCount: item.nodeCount || 0,
+      edgeCount: item.edgeCount || 0,
+    };
+  });
+}
+
+async function getWorkflowVersionGraph(workflowVersionId) {
+  if (!workflowVersionId) {
+    return null;
+  }
+
+  const [nodes, edges] = await Promise.all([
+    getWorkflowNodes(workflowVersionId),
+    getWorkflowEdges(workflowVersionId),
+  ]);
+
+  return {
+    workflowVersionId,
+    nodes,
+    edges,
+  };
+}
+
+async function getWorkflowDefinitionForManage(workflowCode) {
+  const definition = await getWorkflowDefinitionByCode(workflowCode);
+  const [versions, latestGraph, publishedGraph] = await Promise.all([
+    listWorkflowVersions(definition.workflowDefinitionId),
+    getWorkflowVersionGraph(definition.latestVersionId),
+    getWorkflowVersionGraph(definition.publishedVersionId),
+  ]);
+
+  return {
+    ...definition,
+    versions,
+    latestGraph,
+    publishedGraph,
+    nodes: publishedGraph?.nodes || latestGraph?.nodes || [],
+    edges: publishedGraph?.edges || latestGraph?.edges || [],
+  };
+}
+
+function normalizeWorkflowStatus(value, fallback = 'ACTIVE') {
+  const status = String(value || fallback).trim().toUpperCase();
+  const allowed = new Set(['DRAFT', 'ACTIVE', 'ARCHIVED']);
+
+  if (!allowed.has(status)) {
+    throw new WorkflowServiceError('Invalid workflow status.', 400, {
+      status,
+      allowed: [...allowed],
+    });
+  }
+
+  return status;
+}
+
+async function updateWorkflowDefinition({ workflowCode, payload = {}, user, permissions = [] } = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_WRITE',
+    permissions,
+    action: 'update_workflow',
+  });
+
+  const existing = await getWorkflowDefinitionByCode(workflowCode);
+  const displayName = Object.prototype.hasOwnProperty.call(payload, 'displayName')
+    ? String(payload.displayName || '').trim()
+    : existing.displayName;
+
+  if (!displayName) {
+    throw new WorkflowServiceError('displayName is required.', 400);
+  }
+
+  const nextStatus = Object.prototype.hasOwnProperty.call(payload, 'status')
+    ? normalizeWorkflowStatus(payload.status, existing.status)
+    : existing.status;
+  const nextEnabled = Object.prototype.hasOwnProperty.call(payload, 'enabled')
+    ? toBoolean(payload.enabled)
+    : existing.enabled;
+  const nextVisible = Object.prototype.hasOwnProperty.call(payload, 'visibleInAdmin')
+    ? toBoolean(payload.visibleInAdmin)
+    : existing.visibleInAdmin;
+
+  await query(
+    `
+      UPDATE worker.workflow_definitions
+      SET display_name = $2,
+          description = $3,
+          status = $4,
+          enabled = $5,
+          visible_in_admin = $6,
+          updated_by_user_id = $7,
+          config = config || $8::jsonb
+      WHERE workflow_code = $1
+    `,
+    [
+      existing.workflowCode,
+      displayName,
+      Object.prototype.hasOwnProperty.call(payload, 'description')
+        ? String(payload.description || '').trim() || null
+        : existing.description,
+      nextStatus,
+      nextEnabled,
+      nextVisible,
+      user?.userId || null,
+      JSON.stringify({ updatedBy: 'workflow_manager_v1' }),
+    ],
+  );
+
+  return getWorkflowDefinitionForManage(existing.workflowCode);
+}
+
+async function archiveWorkflowDefinition({ workflowCode, user, permissions = [] } = {}) {
+  return updateWorkflowDefinition({
+    workflowCode,
+    payload: {
+      status: 'ARCHIVED',
+      enabled: false,
+      visibleInAdmin: true,
+    },
+    user,
+    permissions,
+  });
+}
+
+function versionNodesToCreateInput(nodes = []) {
+  return nodes.map((node) => ({
+    nodeKey: node.nodeKey,
+    nodeTypeCode: node.nodeTypeCode,
+    displayName: node.displayName,
+    description: node.description || '',
+    targetCode: node.targetCode,
+    inputParameters: getSafeObject(node.inputParameters),
+    retryPolicy: getSafeObject(node.retryPolicy),
+    timeoutMs: node.timeoutMs,
+    positionX: node.positionX,
+    positionY: node.positionY,
+    displayOrder: node.displayOrder,
+    enabled: node.enabled !== false,
+    config: getSafeObject(node.config, { builderCard: 'tool' }),
+  }));
+}
+
+async function validateToolTargets(client, nodes) {
+  const targetCodes = [...new Set(nodes.map((node) => node.targetCode))];
+  const toolResult = await client.query(
+    `
+      SELECT tool_id, tool_code, label, description
+      FROM core.tools
+      WHERE tool_code = ANY($1::text[])
+        AND enabled = TRUE
+    `,
+    [targetCodes],
+  );
+  const toolsByCode = new Map(toolResult.rows.map((row) => [row.tool_code, row]));
+  const missingTools = targetCodes.filter((targetCode) => !toolsByCode.has(targetCode));
+
+  if (missingTools.length > 0) {
+    throw new WorkflowServiceError('One or more tool targets were not found or are disabled.', 400, {
+      missingTools,
+    });
+  }
+
+  return toolsByCode;
+}
+
+async function insertWorkflowVersionGraph({
+  client,
+  definition,
+  versionNumber,
+  versionLabel,
+  status,
+  nodes,
+  user,
+} = {}) {
+  const publish = status === 'PUBLISHED';
+  const toolsByCode = await validateToolTargets(client, nodes);
+  const versionResult = await client.query(
+    `
+      INSERT INTO worker.workflow_versions (
+        workflow_definition_id,
+        version_number,
+        version_label,
+        status,
+        graph_version,
+        definition_snapshot,
+        created_by_user_id,
+        published_by_user_id,
+        published_at
+      )
+      VALUES ($1, $2, $3, $4, '1.0', '{}'::jsonb, $5, $6, CASE WHEN $4 = 'PUBLISHED' THEN CURRENT_TIMESTAMP ELSE NULL END)
+      RETURNING *
+    `,
+    [
+      definition.workflowDefinitionId,
+      versionNumber,
+      versionLabel || `Workflow version ${versionNumber}`,
+      status,
+      user?.userId || null,
+      publish ? user?.userId || null : null,
+    ],
+  );
+  const workflowVersionId = versionResult.rows[0].workflow_version_id;
+  const insertedNodes = [];
+
+  for (const node of nodes) {
+    const tool = toolsByCode.get(node.targetCode);
+    const nodeResult = await client.query(
+      `
+        INSERT INTO worker.workflow_nodes (
+          workflow_version_id,
+          node_key,
+          node_type_code,
+          display_name,
+          description,
+          target_code,
+          target_ref_id,
+          input_parameters,
+          retry_policy,
+          timeout_ms,
+          position_x,
+          position_y,
+          display_order,
+          enabled,
+          config
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15::jsonb)
+        RETURNING *
+      `,
+      [
+        workflowVersionId,
+        node.nodeKey,
+        node.nodeTypeCode,
+        node.displayName,
+        node.description,
+        node.targetCode,
+        tool.tool_id,
+        JSON.stringify(assertJsonObject(node.inputParameters, `${node.nodeKey}.inputParameters`)),
+        JSON.stringify(getSafeObject(node.retryPolicy)),
+        node.timeoutMs,
+        node.positionX,
+        node.positionY,
+        node.displayOrder,
+        node.enabled,
+        JSON.stringify(getSafeObject(node.config)),
+      ],
+    );
+
+    insertedNodes.push(normalizeNodeRow({
+      ...nodeResult.rows[0],
+      workflow_definition_id: definition.workflowDefinitionId,
+      workflow_code: definition.workflowCode,
+      workflow_display_name: definition.displayName,
+      version_number: versionNumber,
+      version_status: status,
+      node_type_display_name: 'Run Tool',
+      node_type_category: 'ACTION',
+      target_kind: 'core.tools',
+    }));
+  }
+
+  const edges = [];
+
+  for (let index = 0; index < insertedNodes.length - 1; index += 1) {
+    const fromNode = insertedNodes[index];
+    const toNode = insertedNodes[index + 1];
+    const edgeResult = await client.query(
+      `
+        INSERT INTO worker.workflow_edges (
+          workflow_version_id,
+          edge_key,
+          from_node_id,
+          to_node_id,
+          edge_type,
+          display_order,
+          config
+        )
+        VALUES ($1, $2, $3, $4, 'SEQUENTIAL', $5, $6::jsonb)
+        RETURNING *
+      `,
+      [
+        workflowVersionId,
+        `${fromNode.nodeKey}_to_${toNode.nodeKey}`,
+        fromNode.workflowNodeId,
+        toNode.workflowNodeId,
+        (index + 1) * 10,
+        JSON.stringify({ label: 'then', createdBy: 'workflow_manager_v1' }),
+      ],
+    );
+    edges.push(camelizeRow(edgeResult.rows[0]));
+  }
+
+  await client.query(
+    `
+      UPDATE worker.workflow_versions
+      SET definition_snapshot = $2::jsonb
+      WHERE workflow_version_id = $1
+    `,
+    [
+      workflowVersionId,
+      JSON.stringify(buildDefinitionSnapshot({
+        definition,
+        nodes: insertedNodes,
+        edges,
+        status,
+      })),
+    ],
+  );
+
+  return {
+    workflowVersionId,
+    nodes: insertedNodes,
+    edges,
+  };
+}
+
+async function createWorkflowVersion({ workflowCode, payload = {}, user, permissions = [] } = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_WRITE',
+    permissions,
+    action: 'create_workflow_version',
+  });
+
+  const definition = await getWorkflowDefinitionByCode(workflowCode);
+  const sourceVersionId = payload.sourceWorkflowVersionId || definition.latestVersionId || definition.publishedVersionId;
+  const sourceGraph = sourceVersionId ? await getWorkflowVersionGraph(sourceVersionId) : null;
+  const rawNodes = getSafeArray(payload.nodes).length > 0
+    ? getSafeArray(payload.nodes)
+    : versionNodesToCreateInput(sourceGraph?.nodes || []);
+
+  if (rawNodes.length === 0) {
+    throw new WorkflowServiceError('At least one TOOL node is required for a workflow version.', 400);
+  }
+
+  const seenKeys = new Set();
+  const normalizedNodes = rawNodes.map((node, index) => normalizeCreateNodeInput(node, index, seenKeys));
+  const publish = payload.publish !== false;
+  const status = publish ? 'PUBLISHED' : 'DRAFT';
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const versionNumberResult = await client.query(
+      `
+        SELECT COALESCE(MAX(version_number), 0) + 1 AS next_version_number
+        FROM worker.workflow_versions
+        WHERE workflow_definition_id = $1
+      `,
+      [definition.workflowDefinitionId],
+    );
+    const versionNumber = Number(versionNumberResult.rows[0]?.next_version_number || 1);
+
+    if (publish) {
+      await client.query(
+        `
+          UPDATE worker.workflow_versions
+          SET status = 'RETIRED'
+          WHERE workflow_definition_id = $1
+            AND status = 'PUBLISHED'
+        `,
+        [definition.workflowDefinitionId],
+      );
+    }
+
+    await insertWorkflowVersionGraph({
+      client,
+      definition,
+      versionNumber,
+      versionLabel: payload.versionLabel || (publish ? `Published v${versionNumber}` : `Draft v${versionNumber}`),
+      status,
+      nodes: normalizedNodes,
+      user,
+    });
+
+    await client.query(
+      `
+        UPDATE worker.workflow_definitions
+        SET status = CASE WHEN $2 = TRUE THEN 'ACTIVE' ELSE status END,
+            enabled = CASE WHEN $2 = TRUE THEN TRUE ELSE enabled END,
+            visible_in_admin = TRUE,
+            updated_by_user_id = $3,
+            config = config || $4::jsonb
+        WHERE workflow_definition_id = $1
+      `,
+      [
+        definition.workflowDefinitionId,
+        publish,
+        user?.userId || null,
+        JSON.stringify({ lastVersionCreatedBy: 'workflow_manager_v1' }),
+      ],
+    );
+
+    await client.query('COMMIT');
+    return getWorkflowDefinitionForManage(definition.workflowCode);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function cloneWorkflowDefinition({ workflowCode, payload = {}, user, permissions = [] } = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_WRITE',
+    permissions,
+    action: 'clone_workflow',
+  });
+
+  const source = await getWorkflowDefinitionForManage(workflowCode);
+  const sourceNodes = source.publishedGraph?.nodes || source.latestGraph?.nodes || [];
+  const cloneCode = normalizeWorkflowCode(payload.workflowCode || `${source.workflowCode}-copy`);
+  const cloneName = String(payload.displayName || `${source.displayName} Copy`).trim();
+
+  if (!cloneCode) {
+    throw new WorkflowServiceError('Clone workflowCode is required.', 400);
+  }
+
+  if (!cloneName) {
+    throw new WorkflowServiceError('Clone displayName is required.', 400);
+  }
+
+  return createWorkflowDefinition({
+    payload: {
+      workflowCode: cloneCode,
+      displayName: cloneName,
+      description: Object.prototype.hasOwnProperty.call(payload, 'description')
+        ? String(payload.description || '').trim()
+        : source.description,
+      publish: payload.publish !== false,
+      visibleInAdmin: true,
+      enabled: true,
+      nodes: versionNodesToCreateInput(sourceNodes),
+    },
+    user,
+    permissions,
+  });
+}
+
 async function executeNode({ node, parameters, user, session, permissions, context }) {
   if (!SUPPORTED_NODE_TYPES.has(node.nodeTypeCode)) {
     throw new WorkflowServiceError(`Unsupported workflow node type in executor v1: ${node.nodeTypeCode}`, 501, {
@@ -1387,12 +1917,16 @@ module.exports = {
   WorkflowServiceError,
   completeWorkflowNodeRun,
   completeWorkflowRun,
+  archiveWorkflowDefinition,
+  cloneWorkflowDefinition,
   createWorkflowDefinition,
+  createWorkflowVersion,
   executeWorkflow,
   executeWorkflowNode,
   failWorkflowNodeRun,
   failWorkflowRun,
   getWorkflowDefinition,
+  getWorkflowDefinitionForManage,
   getWorkflowRun,
   listBuilderCatalog,
   linkWorkflowRunToTemporal,
@@ -1401,4 +1935,5 @@ module.exports = {
   markWorkflowNodeAttempt,
   startWorkflowNodeRun,
   startWorkflowWithTemporal,
+  updateWorkflowDefinition,
 };

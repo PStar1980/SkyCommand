@@ -63,7 +63,8 @@ SkyServer/
 │   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── Tools.jsx
 │   │       │   ├── WorkerControl.jsx
-│   │       │   └── WorkflowBuilder.jsx
+│   │       │   ├── WorkflowBuilder.jsx
+│   │       │   └── WorkflowManager.jsx
 │   │       └── services/
 │   │           ├── adminService.js
 │   │           ├── api.js
