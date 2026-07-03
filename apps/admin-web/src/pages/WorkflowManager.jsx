@@ -74,7 +74,7 @@ function StatusPill({ status }) {
   const normalized = String(status || 'UNKNOWN').toUpperCase();
   const className = normalized === 'ACTIVE' || normalized === 'PUBLISHED' || normalized === 'COMPLETED'
     ? 'sky-pill-success'
-    : normalized === 'ARCHIVED' || normalized === 'RETIRED'
+    : normalized === 'INACTIVE' || normalized === 'ARCHIVED' || normalized === 'RETIRED'
       ? 'sky-pill-danger'
       : 'sky-pill-info';
 
@@ -97,10 +97,8 @@ function WorkflowListCard({ definition, selected, onSelect }) {
       </div>
       <p className="small sky-muted mt-2 mb-2">{definition.description || 'No description.'}</p>
       <div className="d-flex flex-wrap gap-2">
-        <span className="sky-pill sky-pill-info">v{definition.latestVersionNumber || '—'} latest</span>
-        <span className="sky-pill sky-pill-info">v{definition.publishedVersionNumber || '—'} published</span>
-        <span className="sky-pill sky-pill-info">{definition.latestNodeCount || 0} node(s)</span>
-        {!definition.enabled && <span className="sky-pill sky-pill-danger">disabled</span>}
+        <span className="sky-pill sky-pill-info">{definition.publishedNodeCount || definition.latestNodeCount || 0} node(s)</span>
+        <span className="sky-pill sky-pill-info">{definition.publishedEdgeCount || definition.latestEdgeCount || 0} edge(s)</span>
       </div>
     </button>
   );
@@ -204,7 +202,7 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
             parameters={selectedTool?.parameters || []}
           />
           <div className="form-text mt-2">
-            Stored as node default tool parameters from the manifest configuration. Start Workflow uses these published defaults.
+            Stored as node default tool parameters from the manifest configuration. Start Workflow uses these defaults.
           </div>
         </div>
       </div>
@@ -221,11 +219,8 @@ function WorkflowManager() {
     displayName: '',
     description: '',
     status: 'ACTIVE',
-    enabled: true,
-    visibleInAdmin: true,
   });
   const [cloneForm, setCloneForm] = useState({ workflowCode: '', displayName: '', description: '', publish: true });
-  const [versionForm, setVersionForm] = useState({ publish: true, versionLabel: '' });
   const [editorNodes, setEditorNodes] = useState([{ ...EMPTY_NODE }]);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -256,6 +251,7 @@ function WorkflowManager() {
           visibleOnly: 'false',
           enabledOnly: 'false',
           publishedOnly: 'false',
+          activeOnly: 'false',
         }),
         workflowService.getBuilderCatalog(),
       ]);
@@ -300,8 +296,6 @@ function WorkflowManager() {
         displayName: definition.displayName || '',
         description: definition.description || '',
         status: definition.status || 'ACTIVE',
-        enabled: definition.enabled !== false,
-        visibleInAdmin: definition.visibleInAdmin !== false,
       });
       setCloneForm({
         workflowCode: `${definition.workflowCode}-copy`,
@@ -309,11 +303,7 @@ function WorkflowManager() {
         description: definition.description || '',
         publish: true,
       });
-      setVersionForm({
-        publish: true,
-        versionLabel: `Version ${(definition.latestVersionNumber || 0) + 1}`,
-      });
-      setEditorNodes(graphNodesToEditorNodes(definition.latestGraph?.nodes || definition.publishedGraph?.nodes || []));
+      setEditorNodes(graphNodesToEditorNodes(definition.publishedGraph?.nodes || definition.latestGraph?.nodes || []));
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow detail.'));
     } finally {
@@ -421,8 +411,8 @@ function WorkflowManager() {
     }
   }
 
-  async function handleArchive() {
-    if (!detail || !window.confirm(`Archive workflow ${detail.displayName}? Existing run history will remain.`)) {
+  async function handleDeleteWorkflow() {
+    if (!detail || !window.confirm(`Delete workflow ${detail.displayName}? Run history remains, but the workflow definition and graph will be removed.`)) {
       return;
     }
 
@@ -431,11 +421,12 @@ function WorkflowManager() {
     setMessage('');
 
     try {
-      const result = await workflowService.archiveDefinition(detail.workflowCode);
-      setMessage(result.message || 'Workflow archived.');
-      await loadDefinitions(detail.workflowCode);
-    } catch (archiveError) {
-      setError(formatApiError(archiveError, 'Failed to archive workflow.'));
+      const result = await workflowService.deleteDefinition(detail.workflowCode);
+      setMessage(result.message || 'Workflow deleted.');
+      setDetail(null);
+      await loadDefinitions('');
+    } catch (deleteError) {
+      setError(formatApiError(deleteError, 'Failed to delete workflow.'));
     } finally {
       setSaving(false);
     }
@@ -469,7 +460,7 @@ function WorkflowManager() {
     }
   }
 
-  async function handleCreateVersion(event) {
+  async function handleSaveGraph(event) {
     event.preventDefault();
 
     if (!detail) {
@@ -482,15 +473,13 @@ function WorkflowManager() {
 
     try {
       const payload = {
-        publish: versionForm.publish,
-        versionLabel: String(versionForm.versionLabel || '').trim(),
         nodes: validateEditorNodes(),
       };
-      const result = await workflowService.createVersion(detail.workflowCode, payload);
-      setMessage(result.message || 'Workflow version created.');
+      const result = await workflowService.replaceGraph(detail.workflowCode, payload);
+      setMessage(result.message || 'Workflow graph saved.');
       await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
-    } catch (versionError) {
-      setError(formatApiError(versionError, 'Failed to create workflow version.'));
+    } catch (graphError) {
+      setError(formatApiError(graphError, 'Failed to save workflow graph.'));
     } finally {
       setSaving(false);
     }
@@ -506,7 +495,7 @@ function WorkflowManager() {
           <h1 className="sky-page-title">Manage Workflows</h1>
           <p className="sky-page-subtitle">
             Review SkyServer workflow definitions, update metadata, clone business workflows,
-            archive old definitions, and publish new sequential tool-node versions.
+            delete old definitions, and save the current sequential tool-node graph.
           </p>
         </div>
         <button className="btn sky-btn-ghost" disabled={loading || saving} onClick={() => loadDefinitions()} type="button">
@@ -530,7 +519,7 @@ function WorkflowManager() {
           <div className="sky-page-kicker">Workflow lifecycle</div>
           <h2 className="h4 mb-2">Definition control center</h2>
           <p className="sky-muted mb-3">
-            The v1 management layer keeps workflow definitions maintainable before advanced node types and the visual graph editor arrive.
+            Manage the current workflow graph and lifecycle before advanced node types and the visual graph editor arrive.
           </p>
           <div className="sky-worker-command-strip">
             <div className="sky-worker-command-card">
@@ -553,13 +542,12 @@ function WorkflowManager() {
             <h3 className="h5 mb-0">{selectedDefinition?.displayName || 'No workflow selected'}</h3>
           </div>
           <div className="sky-card-body">
-            <p className="sky-muted mb-3">{selectedDefinition?.description || 'Select a workflow to inspect its versions and lifecycle controls.'}</p>
+            <p className="sky-muted mb-3">{selectedDefinition?.description || 'Select a workflow to inspect its graph and lifecycle controls.'}</p>
             {selectedDefinition && (
               <div className="d-flex flex-wrap gap-2">
                 <StatusPill status={selectedDefinition.status} />
-                <span className="sky-pill sky-pill-info">v{selectedDefinition.latestVersionNumber || '—'} latest</span>
-                <span className="sky-pill sky-pill-success">v{selectedDefinition.publishedVersionNumber || '—'} published</span>
-                <span className="sky-pill sky-pill-info">{selectedDefinition.latestNodeCount || 0} node(s)</span>
+                <span className="sky-pill sky-pill-info">{selectedDefinition.publishedNodeCount || selectedDefinition.latestNodeCount || 0} node(s)</span>
+                <span className="sky-pill sky-pill-info">{selectedDefinition.publishedEdgeCount || selectedDefinition.latestEdgeCount || 0} edge(s)</span>
               </div>
             )}
           </div>
@@ -594,8 +582,8 @@ function WorkflowManager() {
             <div className="sky-card-body d-flex flex-column gap-2">
               <span className="sky-pill sky-pill-success">Edit metadata</span>
               <span className="sky-pill sky-pill-success">Clone workflow</span>
-              <span className="sky-pill sky-pill-success">Create/publish vNext</span>
-              <span className="sky-pill sky-pill-success">Archive workflow</span>
+              <span className="sky-pill sky-pill-success">Save current graph</span>
+              <span className="sky-pill sky-pill-success">Delete workflow</span>
               <span className="sky-pill sky-pill-info">Sequential TOOL nodes only</span>
             </div>
           </section>
@@ -656,40 +644,16 @@ function WorkflowManager() {
                         onChange={(event) => setMetadataForm((current) => ({ ...current, status: event.target.value }))}
                         value={metadataForm.status}
                       >
-                        <option value="DRAFT">DRAFT</option>
                         <option value="ACTIVE">ACTIVE</option>
-                        <option value="ARCHIVED">ARCHIVED</option>
+                        <option value="INACTIVE">INACTIVE</option>
                       </select>
-                    </div>
-                    <div className="col-lg-4 d-flex align-items-end">
-                      <div className="form-check form-switch">
-                        <input
-                          checked={metadataForm.enabled}
-                          className="form-check-input"
-                          id="managerEnabled"
-                          onChange={(event) => setMetadataForm((current) => ({ ...current, enabled: event.target.checked }))}
-                          type="checkbox"
-                        />
-                        <label className="form-check-label" htmlFor="managerEnabled">Enabled</label>
-                      </div>
-                    </div>
-                    <div className="col-lg-4 d-flex align-items-end">
-                      <div className="form-check form-switch">
-                        <input
-                          checked={metadataForm.visibleInAdmin}
-                          className="form-check-input"
-                          id="managerVisible"
-                          onChange={(event) => setMetadataForm((current) => ({ ...current, visibleInAdmin: event.target.checked }))}
-                          type="checkbox"
-                        />
-                        <label className="form-check-label" htmlFor="managerVisible">Visible in Admin</label>
-                      </div>
+                      <div className="form-text sky-muted">Inactive workflows are hidden from Start Workflow and blocked from scheduled execution.</div>
                     </div>
                   </div>
 
                   <div className="d-flex flex-wrap justify-content-between gap-2 mt-4">
-                    <button className="btn btn-outline-danger" disabled={saving || detail.status === 'ARCHIVED'} onClick={handleArchive} type="button">
-                      Archive workflow
+                    <button className="btn btn-outline-danger" disabled={saving} onClick={handleDeleteWorkflow} type="button">
+                      Delete workflow
                     </button>
                     <button className="btn sky-btn-primary" disabled={saving || detailLoading} type="submit">
                       {saving ? 'Saving...' : 'Save metadata'}
@@ -697,76 +661,15 @@ function WorkflowManager() {
                   </div>
                 </form>
               </section>
-
-              <section className="sky-card">
-                <div className="sky-card-header">
-                  <div className="sky-page-kicker">Versions</div>
-                  <h2 className="h5 mb-0">Published and draft history</h2>
-                </div>
-                <div className="table-responsive">
-                  <table className="table table-dark table-hover align-middle mb-0 sky-table">
-                    <thead>
-                      <tr>
-                        <th>Version</th>
-                        <th>Status</th>
-                        <th>Nodes</th>
-                        <th>Edges</th>
-                        <th>Published</th>
-                        <th>Updated</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(detail.versions || []).map((version) => (
-                        <tr key={version.workflowVersionId}>
-                          <td>
-                            <div className="fw-bold">v{version.versionNumber}</div>
-                            <div className="small sky-muted">{version.versionLabel || 'No label'}</div>
-                          </td>
-                          <td><StatusPill status={version.status} /></td>
-                          <td>{version.nodeCount}</td>
-                          <td>{version.edgeCount}</td>
-                          <td>{formatDateTime(version.publishedAt)}</td>
-                          <td>{formatDateTime(version.updatedAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
               <section className="sky-card">
                 <div className="sky-card-header d-flex flex-wrap justify-content-between gap-3">
                   <div>
-                    <div className="sky-page-kicker">Version editor</div>
-                    <h2 className="h5 mb-0">Create vNext from latest graph</h2>
+                    <div className="sky-page-kicker">Workflow graph</div>
+                    <h2 className="h5 mb-0">Edit current sequential graph</h2>
                   </div>
                   <button className="btn btn-sm sky-btn-ghost" onClick={addEditorNode} type="button">Add tool node</button>
                 </div>
-                <form className="sky-card-body" onSubmit={handleCreateVersion}>
-                  <div className="row g-3 mb-3">
-                    <div className="col-lg-6">
-                      <label className="form-label" htmlFor="versionLabel">Version label</label>
-                      <input
-                        className="form-control sky-form-control"
-                        id="versionLabel"
-                        onChange={(event) => setVersionForm((current) => ({ ...current, versionLabel: event.target.value }))}
-                        value={versionForm.versionLabel}
-                      />
-                    </div>
-                    <div className="col-lg-6 d-flex align-items-end">
-                      <div className="form-check form-switch">
-                        <input
-                          checked={versionForm.publish}
-                          className="form-check-input"
-                          id="publishVersion"
-                          onChange={(event) => setVersionForm((current) => ({ ...current, publish: event.target.checked }))}
-                          type="checkbox"
-                        />
-                        <label className="form-check-label" htmlFor="publishVersion">Publish this version immediately</label>
-                      </div>
-                    </div>
-                  </div>
-
+                <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   <div className="d-flex flex-column gap-3">
                     {editorNodes.map((node, index) => (
                       <EditableNodeCard
@@ -785,7 +688,7 @@ function WorkflowManager() {
 
                   <div className="d-flex justify-content-end mt-4">
                     <button className="btn sky-btn-primary" disabled={saving || editorNodes.length === 0} type="submit">
-                      {saving ? 'Creating version...' : 'Create version'}
+                      {saving ? 'Saving workflow...' : 'Save workflow graph'}
                     </button>
                   </div>
                 </form>

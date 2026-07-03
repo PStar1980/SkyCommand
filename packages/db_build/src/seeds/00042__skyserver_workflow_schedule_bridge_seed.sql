@@ -142,12 +142,12 @@ WITH core_app AS (
   VALUES
     (
       'workflowCode',
-      'Workflow Code',
-      'string',
-      'Approved SkyServer workflow definition code, for example macro-refresh-pipeline.',
+      'Workflow',
+      'select',
+      'Choose an active SkyServer workflow definition.',
       TRUE,
       'macro-refresh-pipeline',
-      NULL,
+      'skyserver_workflows',
       10
     ),
     (
@@ -164,9 +164,9 @@ WITH core_app AS (
       'inputJson',
       'Workflow Input JSON',
       'string',
-      'Optional JSON object passed to the SkyServer workflow. Include nodeInputs to override node parameters.',
+      'Optional JSON object passed to the SkyServer workflow. Leave blank to use the workflow node defaults configured in Manage Workflows.',
       FALSE,
-      '{"nodeInputs":{"fred_ingestion":{"concurrency":"10"},"evaluate_skyweb_alerts":{"maxRules":"500","activeOnly":"true"}}}',
+      NULL,
       NULL,
       30
     )

@@ -122,7 +122,6 @@ function WorkflowDefinitionCard({ definition, selected, onSelect }) {
       </div>
       <p className="small sky-muted mb-2 mt-2">{definition.description || 'No description.'}</p>
       <div className="d-flex flex-wrap gap-2">
-        <span className="sky-pill sky-pill-info">v{definition.publishedVersionNumber || '—'}</span>
         <span className="sky-pill sky-pill-info">
           {definition.publishedNodeCount || 0} node(s)
         </span>
@@ -428,6 +427,19 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
+
+  async function handleDefinitionSelect(workflowCode) {
+    const definition = definitions.find((item) => item.workflowCode === workflowCode) || null;
+
+    if (!definition) {
+      setSelectedDefinition(null);
+      setSelectedDefinitionDetail(null);
+      return;
+    }
+
+    await loadDefinitionDetail(definition);
+  }
+
   async function loadRunDetail(workflowRunRecordId) {
     if (!workflowRunRecordId) {
       return;
@@ -559,8 +571,8 @@ function SkyWorkflows({ mode = 'start' }) {
             <div className="row g-2">
               <div className="col-4">
                 <div className="sky-mini-metric">
-                  <div className="sky-page-kicker">Version</div>
-                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.publishedVersionNumber || '—'}</div>
+                  <div className="sky-page-kicker">Status</div>
+                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.status || '—'}</div>
                 </div>
               </div>
               <div className="col-4">
@@ -583,21 +595,41 @@ function SkyWorkflows({ mode = 'start' }) {
       <div className="row g-4">
         <div className="col-xl-4">
           {!isHistoryMode && (
-            <section className="sky-card mb-4">
+            <section className="sky-card mb-4 sky-sticky-detail-card">
               <div className="sky-card-header">
-                <div className="sky-page-kicker">Approved definitions</div>
-                <h2 className="h5 mb-0">Start from template</h2>
+                <div className="sky-page-kicker">Workflow launcher</div>
+                <h2 className="h5 mb-0">Choose workflow</h2>
               </div>
-              <div className="sky-card-body d-flex flex-column gap-3">
-                {definitions.map((definition) => (
-                  <WorkflowDefinitionCard
-                    definition={definition}
-                    key={definition.workflowCode}
-                    onSelect={loadDefinitionDetail}
-                    selected={selectedDefinition?.workflowCode === definition.workflowCode}
-                  />
-                ))}
-                {!loading && definitions.length === 0 && (
+              <div className="sky-card-body">
+                {definitions.length > 0 ? (
+                  <>
+                    <label className="form-label" htmlFor="workflowStartDefinition">Active workflow</label>
+                    <select
+                      className="form-select sky-form-control mb-3"
+                      id="workflowStartDefinition"
+                      onChange={(event) => handleDefinitionSelect(event.target.value)}
+                      value={selectedDefinition?.workflowCode || ''}
+                    >
+                      {definitions.map((definition) => (
+                        <option key={definition.workflowCode} value={definition.workflowCode}>
+                          {definition.displayName} ({definition.workflowCode})
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="sky-worker-command-card">
+                      <div className="sky-page-kicker">Selected workflow</div>
+                      <div className="fw-bold">{selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}</div>
+                      <div className="small sky-muted sky-mono mb-2">{selectedDefinition?.workflowCode}</div>
+                      <p className="small sky-muted mb-3">{selectedDefinitionDetail?.description || 'No description.'}</p>
+                      <div className="d-flex flex-wrap gap-2">
+                        <span className="sky-pill sky-pill-success">{selectedDefinitionDetail?.status || 'ACTIVE'}</span>
+                        <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.nodes?.length || 0} node(s)</span>
+                        <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.edges?.length || 0} edge(s)</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
                   <div className="sky-empty-state">No active workflow definitions are available.</div>
                 )}
               </div>
@@ -684,8 +716,8 @@ function SkyWorkflows({ mode = 'start' }) {
                 </div>
                 <form className="sky-card-body" onSubmit={handleStartWorkflow}>
                   <div className="sky-empty-state text-start mb-3">
-                    This workflow will run with the published node parameter defaults configured in
-                    Create Workflow / Manage Workflows. Update the workflow version to change node
+                    This workflow will run with the node parameter defaults configured in
+                    Create Workflow / Manage Workflows. Update the workflow graph to change node
                     inputs before launch.
                   </div>
                   <button

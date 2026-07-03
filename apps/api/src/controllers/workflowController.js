@@ -15,6 +15,7 @@ async function listDefinitions(req, res, next) {
       visibleOnly: parseBooleanQuery(req.query?.visibleOnly, true),
       enabledOnly: parseBooleanQuery(req.query?.enabledOnly, true),
       publishedOnly: parseBooleanQuery(req.query?.publishedOnly, true),
+      activeOnly: parseBooleanQuery(req.query?.activeOnly, true),
     });
 
     res.json({
@@ -175,6 +176,60 @@ async function createVersion(req, res, next) {
   }
 }
 
+
+async function deleteDefinition(req, res, next) {
+  try {
+    const deleted = await workflowExecutorService.deleteWorkflowDefinition({
+      workflowCode: req.params.workflowCode,
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.json({
+      ok: true,
+      deleted,
+      message: `Workflow ${deleted.displayName} deleted.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function replaceDefinitionGraph(req, res, next) {
+  try {
+    const definition = await workflowExecutorService.replaceWorkflowGraph({
+      workflowCode: req.params.workflowCode,
+      payload: req.body || {},
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.json({
+      ok: true,
+      definition,
+      message: `Workflow ${definition.displayName} graph saved.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
 async function getBuilderCatalog(req, res, next) {
   try {
     const result = await workflowExecutorService.listBuilderCatalog({
@@ -291,12 +346,14 @@ module.exports = {
   cloneDefinition,
   createDefinition,
   createVersion,
+  deleteDefinition,
   getBuilderCatalog,
   getDefinition,
   getManagedDefinition,
   getRun,
   listDefinitions,
   listRuns,
+  replaceDefinitionGraph,
   startWorkflow,
   updateDefinition,
 };

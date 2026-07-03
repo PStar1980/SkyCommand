@@ -78,6 +78,10 @@ function isRepositoryParameter(parameter) {
   return parameter.param_type_code === 'repo' || parameter.option_source_code === 'repositories';
 }
 
+function isSkyserverWorkflowParameter(parameter) {
+  return parameter.option_source_code === 'skyserver_workflows';
+}
+
 function groupToolsByCategory(rows, toolsByCode = new Map()) {
   const categoriesByCode = new Map();
 
@@ -272,6 +276,26 @@ async function getStaticOptionsForTools(toolCodes) {
   return result.rows;
 }
 
+async function getSkyserverWorkflowOptions() {
+  const result = await query(
+    `
+      SELECT workflow_code, display_name
+      FROM worker.vw_workflow_definitions
+      WHERE status = 'ACTIVE'
+        AND enabled = TRUE
+        AND visible_in_admin = TRUE
+        AND published_version_id IS NOT NULL
+      ORDER BY display_name, workflow_code
+    `,
+  );
+
+  return result.rows.map((row) => ({
+    label: `${row.display_name} (${row.workflow_code})`,
+    value: row.workflow_code,
+    displayOrder: 100,
+  }));
+}
+
 async function getRepositoryOptions() {
   const result = await query(
     `
@@ -331,6 +355,7 @@ async function hydrateToolsParameters(tools) {
   const parametersByToolCode = new Map(toolCodes.map((toolCode) => [toolCode, []]));
 
   let repositoryOptions = null;
+  let skyserverWorkflowOptions = null;
 
   for (const parameter of parameterRows) {
     const key = `${parameter.tool_code}:${parameter.parameter_name}`;
@@ -342,6 +367,14 @@ async function hydrateToolsParameters(tools) {
       }
 
       options = repositoryOptions;
+    }
+
+    if (isSkyserverWorkflowParameter(parameter)) {
+      if (!skyserverWorkflowOptions) {
+        skyserverWorkflowOptions = await getSkyserverWorkflowOptions();
+      }
+
+      options = skyserverWorkflowOptions;
     }
 
     if (!parametersByToolCode.has(parameter.tool_code)) {

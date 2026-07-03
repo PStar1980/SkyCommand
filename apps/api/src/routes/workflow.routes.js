@@ -68,6 +68,19 @@ router.post(
   workflowController.createVersion,
 );
 
+
+router.put(
+  '/definitions/:workflowCode/graph',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.replaceDefinitionGraph,
+);
+
+router.delete(
+  '/definitions/:workflowCode',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.deleteDefinition,
+);
+
 router.get(
   '/definitions/:workflowCode',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
