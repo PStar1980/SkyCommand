@@ -37,6 +37,37 @@ router.get(
   workflowController.getRun,
 );
 
+
+router.get(
+  '/definitions/:workflowCode/manage',
+  requireAnyPermission(['WORKFLOW_WRITE', 'WORKFLOW_READ']),
+  workflowController.getManagedDefinition,
+);
+
+router.patch(
+  '/definitions/:workflowCode',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.updateDefinition,
+);
+
+router.post(
+  '/definitions/:workflowCode/archive',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.archiveDefinition,
+);
+
+router.post(
+  '/definitions/:workflowCode/clone',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.cloneDefinition,
+);
+
+router.post(
+  '/definitions/:workflowCode/versions',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.createVersion,
+);
+
 router.get(
   '/definitions/:workflowCode',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),

@@ -22,6 +22,7 @@ import AutomationListeners from './pages/AutomationListeners.jsx';
 import SchedulerControl from './pages/SchedulerControl.jsx';
 import { TemporalStartWorkflow, TemporalWorkflowHistory } from './pages/TemporalWorkflows.jsx';
 import WorkflowBuilder from './pages/WorkflowBuilder.jsx';
+import WorkflowManager from './pages/WorkflowManager.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import './index.css';
 import './App.css';
@@ -98,6 +99,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="WORKFLOW_WRITE">
                   <WorkflowBuilder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workflows/manage"
+              element={
+                <ProtectedRoute permissionCode="WORKFLOW_WRITE">
+                  <WorkflowManager />
                 </ProtectedRoute>
               }
             />

@@ -158,6 +158,13 @@ function Navbar() {
                           </NavLink>
                         </li>
                       )}
+                      {hasPermission('WORKFLOW_WRITE') && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/workflows/manage">
+                            Manage Workflows
+                          </NavLink>
+                        </li>
+                      )}
                       <li>
                         <NavLink className={getDropdownItemClass} to="/workflows/start">
                           Start Workflow

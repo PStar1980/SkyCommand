@@ -339,3 +339,12 @@ SkyWeb Analytics owns:
 - Added Admin-Web `Workflows -> Create Workflow` with metadata entry, tool-node timeline composition, node default input JSON, publish toggle, and preview cards.
 - Updated Workflows navigation and routing so Create, Start, and History are first-class SkyServer workflow pages.
 - Kept Builder v1 intentionally scoped to sequential TOOL-node workflows while preserving the broader node palette for future phases.
+
+## Phase 10.15 — Workflow Management + Edit v1
+
+- Added workflow-management API support for listing all workflow definitions, reading management detail, updating metadata/status/visibility, archiving definitions, cloning workflows, and creating new workflow versions.
+- Added `GET /api/workflows/definitions/:workflowCode/manage`, `PATCH /api/workflows/definitions/:workflowCode`, `POST /api/workflows/definitions/:workflowCode/archive`, `POST /api/workflows/definitions/:workflowCode/clone`, and `POST /api/workflows/definitions/:workflowCode/versions`.
+- Added Admin-Web `Workflows -> Manage Workflows` as the first workflow lifecycle control page.
+- Manage Workflows shows definition cards, lifecycle metrics, metadata editing, version history, archive controls, clone controls, and a vNext sequential TOOL-node editor.
+- Version editor can publish a new version immediately, retiring prior published versions while keeping run history intact.
+- Kept Phase 10.15 intentionally limited to sequential TOOL-node graphs so the lifecycle layer stays stable before API/agent/child-workflow nodes and visual graph editing.
