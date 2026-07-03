@@ -30,11 +30,11 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.14 — Create Workflow UI v1
+**Active status:** Phase 10.16 — Parameterized Workflow Nodes + BoC/StatCan Batch Upgrades
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
-Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while the FRED workflow proves durable execution, retries, workflow history, per-indicator ingestion visibility, and Admin-Web control-plane operation.
+Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while SkyServer workflows now compose tool primitives, execute through a Temporal-backed generic executor, and expose domain-aware workflow history and Temporal diagnostics in Admin-Web.
 
 ## Core Product Surfaces
 
@@ -103,18 +103,19 @@ SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplic
 Phase 10.10 shifts the Workflows menu to the higher-level SkyServer workflow model. Phase 10.10a adds first-class SkyServer workflow permissions and separates Admin-owned alert evaluation from public SkyWeb alert-write permissions. Open the main pages from:
 
 ```text
+Workflows -> Create Workflow
+Workflows -> Manage Workflows
 Workflows -> Start Workflow
 Workflows -> Workflow History
-Workflows -> Create Workflow
 ```
 
 The workflow pages can:
 
 - show approved SkyServer workflow definitions backed by `worker.workflow_definitions`;
-- create simple sequential tool-node workflow definitions from Admin-Web;
+- create and manage simple sequential tool-node workflow definitions from Admin-Web;
+- configure TOOL-node parameters using the same manifest metadata used by the Tools page;
 - inspect the published node timeline for a workflow definition;
-- start a workflow definition manually through `/api/workflows`;
-- override node parameters with JSON using `nodeInputs`;
+- start a workflow definition manually through `/api/workflows` using published node defaults;
 - store workflow-level and node-level run records in PostgreSQL;
 - list recent SkyServer workflow runs from Workflow History;
 - inspect node outcomes for each workflow run.

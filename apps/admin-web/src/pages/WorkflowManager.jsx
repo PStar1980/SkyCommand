@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ToolParameterEditor, {
+  cleanToolParameterValues,
+  getInitialToolParameterValues,
+} from '../components/ToolParameterEditor.jsx';
 import workflowService from '../services/workflowService';
 
 const EMPTY_NODE = {
@@ -8,7 +12,7 @@ const EMPTY_NODE = {
   description: '',
   nodeTypeCode: 'TOOL',
   targetCode: '',
-  inputJson: '{}',
+  inputParameters: {},
 };
 
 function slugify(value, separator = '-') {
@@ -22,22 +26,6 @@ function slugify(value, separator = '-') {
 
 function nodeKeyFrom(value) {
   return slugify(value, '_') || 'node';
-}
-
-function parseJson(value, fieldName) {
-  const trimmed = String(value || '').trim();
-
-  if (!trimmed) {
-    return {};
-  }
-
-  const parsed = JSON.parse(trimmed);
-
-  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-    throw new Error(`${fieldName} must be a JSON object.`);
-  }
-
-  return parsed;
 }
 
 function formatApiError(error, fallback = 'Request failed.') {
@@ -71,19 +59,6 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
-function buildInputTemplate(tool) {
-  const parameters = tool?.parameters || [];
-  const input = {};
-
-  for (const parameter of parameters) {
-    if (parameter.defaultValue !== undefined && parameter.defaultValue !== null && parameter.defaultValue !== '') {
-      input[parameter.parameterName] = parameter.defaultValue;
-    }
-  }
-
-  return JSON.stringify(input, null, 2);
-}
-
 function graphNodesToEditorNodes(nodes = []) {
   return nodes.map((node, index) => ({
     nodeKey: node.nodeKey || `node_${index + 1}`,
@@ -91,7 +66,7 @@ function graphNodesToEditorNodes(nodes = []) {
     description: node.description || '',
     nodeTypeCode: 'TOOL',
     targetCode: node.targetCode || '',
-    inputJson: JSON.stringify(node.inputParameters || {}, null, 2),
+    inputParameters: node.inputParameters || {},
   }));
 }
 
@@ -156,7 +131,7 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
       displayName: nextDisplayName,
       nodeKey: nextNodeKey,
       description: node.description || tool?.description || '',
-      inputJson: node.inputJson === '{}' ? buildInputTemplate(tool) : node.inputJson,
+      inputParameters: getInitialToolParameterValues(tool, tool?.targetCode === node.targetCode ? node.inputParameters : {}),
     });
   }
 
@@ -221,14 +196,16 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
           />
         </div>
         <div className="col-12">
-          <label className="form-label" htmlFor={`manager-node-${index}-input`}>Default input JSON</label>
-          <textarea
-            className="form-control sky-form-control sky-mono"
-            id={`manager-node-${index}-input`}
-            onChange={(event) => patch({ inputJson: event.target.value })}
-            rows={4}
-            value={node.inputJson}
+          <div className="sky-page-kicker mb-2">Tool parameters</div>
+          <ToolParameterEditor
+            idPrefix={`manager-node-${index}-parameter`}
+            onChange={(inputParameters) => patch({ inputParameters })}
+            parameterValues={node.inputParameters || {}}
+            parameters={selectedTool?.parameters || []}
           />
+          <div className="form-text mt-2">
+            Stored as node default tool parameters from the manifest configuration. Start Workflow uses these published defaults.
+          </div>
         </div>
       </div>
     </div>
@@ -412,7 +389,7 @@ function WorkflowManager() {
         displayName,
         description: String(node.description || '').trim(),
         targetCode,
-        inputParameters: parseJson(node.inputJson, `Node ${index + 1} input JSON`),
+        inputParameters: cleanToolParameterValues(node.inputParameters),
         displayOrder: (index + 1) * 10,
         config: {
           builderCard: 'tool',

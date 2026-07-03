@@ -239,3 +239,12 @@ Out of scope for this phase:
 - direct Temporal workflow template nodes from the builder.
 
 Those remain future phases after the v1 create/start/history loop is stable.
+
+---
+
+## Phase 10.16 — Parameterized Workflow Nodes + BoC/StatCan Batch Upgrades
+
+- Use manifest-driven tool parameter controls inside Create/Manage Workflow node editors.
+- Remove raw Input JSON from Start Workflow; starts now use the published node defaults.
+- Upgrade BoC and StatCan ingestion tool primitives with `indicators` and `concurrency` parameters.
+- Keep tool parameters centralized in `core.tool_parameters` so Tools, Scheduler, and Workflow Builder share the same configuration source.

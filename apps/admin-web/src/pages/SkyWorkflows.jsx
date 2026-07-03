@@ -91,16 +91,6 @@ function jsonPreview(value) {
   return JSON.stringify(value, null, 2);
 }
 
-function parseJsonInput(value) {
-  const trimmed = String(value || '').trim();
-
-  if (!trimmed) {
-    return {};
-  }
-
-  return JSON.parse(trimmed);
-}
-
 function formatApiError(error, fallback = 'Request failed.') {
   const missingPermissions = error?.details?.missingPermissions;
   const permissionCode = error?.details?.permissionCode;
@@ -114,33 +104,6 @@ function formatApiError(error, fallback = 'Request failed.') {
   }
 
   return error?.message || fallback;
-}
-
-function getDefaultInput(definition) {
-  if (!definition?.workflowCode) {
-    return '{}';
-  }
-
-  if (definition.workflowCode === 'macro-refresh-pipeline') {
-    return JSON.stringify(
-      {
-        nodeInputs: {
-          fred_ingestion: {
-            indicators: 'GDP, UNRATE, DGS10',
-            concurrency: '10',
-          },
-          evaluate_skyweb_alerts: {
-            maxRules: '500',
-            activeOnly: 'true',
-          },
-        },
-      },
-      null,
-      2,
-    );
-  }
-
-  return JSON.stringify({ nodeInputs: {} }, null, 2);
 }
 
 function WorkflowDefinitionCard({ definition, selected, onSelect }) {
@@ -380,7 +343,6 @@ function SkyWorkflows({ mode = 'start' }) {
   const [runs, setRuns] = useState([]);
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
   const [filters, setFilters] = useState({ status: '', limit: '25' });
-  const [inputJson, setInputJson] = useState('{}');
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
@@ -414,10 +376,8 @@ function SkyWorkflows({ mode = 'start' }) {
     if (nextSelection) {
       const detail = await workflowService.getDefinition(nextSelection.workflowCode);
       setSelectedDefinitionDetail(detail.definition);
-      setInputJson(getDefaultInput(detail.definition));
     } else {
       setSelectedDefinitionDetail(null);
-      setInputJson('{}');
     }
   }
 
@@ -463,7 +423,6 @@ function SkyWorkflows({ mode = 'start' }) {
     try {
       const detail = await workflowService.getDefinition(definition.workflowCode);
       setSelectedDefinitionDetail(detail.definition);
-      setInputJson(getDefaultInput(detail.definition));
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow definition.'));
     }
@@ -501,10 +460,8 @@ function SkyWorkflows({ mode = 'start' }) {
     setMessage('');
 
     try {
-      const input = parseJsonInput(inputJson);
       const result = await workflowService.startWorkflow(selectedDefinitionDetail.workflowCode, {
         input: {
-          ...input,
           runSource: 'manual',
           triggerType: 'MANUAL',
         },
@@ -726,21 +683,10 @@ function SkyWorkflows({ mode = 'start' }) {
                   <h2 className="h5 mb-0">Run selected workflow</h2>
                 </div>
                 <form className="sky-card-body" onSubmit={handleStartWorkflow}>
-                  <div className="mb-3">
-                    <label className="form-label" htmlFor="workflowInputJson">
-                      Input JSON
-                    </label>
-                    <textarea
-                      className="form-control sky-form-control sky-mono"
-                      id="workflowInputJson"
-                      onChange={(event) => setInputJson(event.target.value)}
-                      rows={10}
-                      value={inputJson}
-                    />
-                    <div className="form-text">
-                      Use nodeInputs by node key to override primitive parameters. Blank object uses
-                      the published node defaults.
-                    </div>
+                  <div className="sky-empty-state text-start mb-3">
+                    This workflow will run with the published node parameter defaults configured in
+                    Create Workflow / Manage Workflows. Update the workflow version to change node
+                    inputs before launch.
                   </div>
                   <button
                     className="btn sky-btn-primary"

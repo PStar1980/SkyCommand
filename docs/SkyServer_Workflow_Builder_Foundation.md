@@ -355,3 +355,41 @@ Supported lifecycle actions:
 - create and optionally publish a new sequential TOOL-node version.
 
 A published vNext version retires previously published versions for that definition. Workflow runs keep their original `workflow_version_id`, so historical runs remain tied to the version that executed.
+
+---
+
+## Phase 10.16 — Parameterized TOOL nodes
+
+Phase 10.16 removes raw runtime JSON from the Start Workflow page and moves parameter ownership into the workflow definition/version lifecycle.
+
+### Admin-Web behavior
+
+- `Workflows -> Create Workflow` renders TOOL-node parameter fields from `core.tool_parameters` metadata.
+- `Workflows -> Manage Workflows` uses the same parameter controls when creating vNext versions.
+- `Workflows -> Start Workflow` starts the selected published workflow with its stored node defaults instead of asking for raw `nodeInputs` JSON.
+- Runtime node inputs are still stored as JSONB in `worker.workflow_nodes.input_parameters`, but the operator edits them through manifest-driven form controls.
+
+This matches the Tools page pattern and keeps the hierarchy clean:
+
+```text
+core.tool_parameters
+  -> Tools page parameter entry
+  -> Workflow node parameter entry
+  -> worker.workflow_nodes.input_parameters
+  -> Temporal-backed SkyServer workflow executor
+```
+
+### Ingestion primitive upgrades
+
+BoC and StatCan ingestion now match the FRED primitive pattern:
+
+```powershell
+node packages/ingestion/src/loadBoCMacroData.js --indicators=V39079,V39052 --concurrency=2
+node packages/ingestion/src/loadStatCanMacroData.js --indicators=CAD_CPI_ALL_ITEMS,CAD_UNEMPLOYMENT_RATE --concurrency=2
+```
+
+The existing database upgrade seed is:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00044__boc_statcan_ingestion_tool_upgrade_seed.sql
+```
