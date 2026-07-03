@@ -18,4 +18,5 @@ runPipeline({
   load: copyManualIntoTable,
   tempDir,
   getCode: (job) => job.name || `${job.schema || 'public'}.${job.table}`,
+  concurrency: 1,
 });

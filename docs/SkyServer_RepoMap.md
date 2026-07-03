@@ -42,7 +42,8 @@ SkyServer/
 │   │       ├── main.jsx
 │   │       ├── components/
 │   │       │   ├── Navbar.jsx
-│   │       │   └── ProtectedRoute.jsx
+│   │       │   ├── ProtectedRoute.jsx
+│   │       │   └── ToolParameterEditor.jsx
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── pages/
@@ -209,7 +210,8 @@ SkyServer/
 │   │           ├── 00040__workflow_executor_v1_seed.sql
 │   │           ├── 00041__workflow_executor_permission_hotfix.sql
 │   │           ├── 00042__skyserver_workflow_schedule_bridge_seed.sql
-│   │           └── 00043__workflow_builder_permissions_seed.sql
+│   │           ├── 00043__workflow_builder_permissions_seed.sql
+│   │           └── 00044__boc_statcan_ingestion_tool_upgrade_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
@@ -230,6 +232,7 @@ SkyServer/
 │   │       │   ├── statcanIndicators.js
 │   │       │   └── statcanVectors.js
 │   │       ├── core/
+│   │       │   ├── cliOptions.js
 │   │       │   └── runPipeline.js
 │   │       ├── discovery/
 │   │       │   ├── discoverStatCanMetadata.js

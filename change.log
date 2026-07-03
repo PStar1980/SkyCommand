@@ -348,3 +348,12 @@ SkyWeb Analytics owns:
 - Manage Workflows shows definition cards, lifecycle metrics, metadata editing, version history, archive controls, clone controls, and a vNext sequential TOOL-node editor.
 - Version editor can publish a new version immediately, retiring prior published versions while keeping run history intact.
 - Kept Phase 10.15 intentionally limited to sequential TOOL-node graphs so the lifecycle layer stays stable before API/agent/child-workflow nodes and visual graph editing.
+
+## Phase 10.16 — Parameterized Workflow Nodes + BoC/StatCan Batch Upgrades
+
+- Removed the raw Input JSON editor from Start Workflow so manual starts use the published node defaults configured through Create/Manage Workflows.
+- Added a shared Admin-Web `ToolParameterEditor` component so workflow TOOL nodes collect parameters using the same tool manifest metadata as the Tools page.
+- Updated Create Workflow and Manage Workflows node editors to store structured `inputParameters` from tool parameter controls instead of requiring hand-authored JSON.
+- Upgraded Bank of Canada and Statistics Canada ingestion scripts to support selected indicators and batched concurrency, matching the FRED ingestion primitive pattern.
+- Added `00044__boc_statcan_ingestion_tool_upgrade_seed.sql` and updated the base core config seed so BoC/StatCan tool manifests expose `Indicators` and `Concurrency` parameters on existing and fresh databases.
+- Added shared CLI helpers and improved validation coverage for BoC/StatCan ingestion scripts and the shared pipeline runner.
