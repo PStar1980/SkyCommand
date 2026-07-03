@@ -4,6 +4,24 @@ const path = require('path');
 
 const { STATCAN_VECTORS } = require('../config/statcanVectors');
 
+const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 430, 500, 502, 503, 504]);
+const DEFAULT_MAX_ATTEMPTS = 4;
+const DEFAULT_RETRY_DELAY_MS = 750;
+
+const parsePositiveInteger = (value, fallback, max = 20) => {
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.min(parsed, max);
+};
+
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
 const normalizeVectorId = (vectorId) => {
   if (vectorId === null || vectorId === undefined || vectorId === '') {
     return null;
@@ -158,6 +176,60 @@ const applyTransform = (rows, transform = 'level') => {
   throw new Error(`Unsupported StatCan transform: ${transform}`);
 };
 
+const getRetrySettings = () => ({
+  maxAttempts: parsePositiveInteger(
+    process.env.STATCAN_REQUEST_MAX_ATTEMPTS,
+    DEFAULT_MAX_ATTEMPTS,
+    10,
+  ),
+  retryDelayMs: parsePositiveInteger(
+    process.env.STATCAN_RETRY_DELAY_MS,
+    DEFAULT_RETRY_DELAY_MS,
+    10000,
+  ),
+});
+
+const getHttpStatus = (error) => error?.response?.status || error?.status || null;
+
+const getErrorMessage = (error) => {
+  const status = getHttpStatus(error);
+  const baseMessage = error?.message || String(error || 'unknown error');
+
+  return status ? `${baseMessage} (HTTP ${status})` : baseMessage;
+};
+
+const fetchStatCanVector = async ({ requestUrl, indicatorCode }) => {
+  const { maxAttempts, retryDelayMs } = getRetrySettings();
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await axios({
+        url: requestUrl,
+        method: 'GET',
+        timeout: 60000,
+      });
+    } catch (error) {
+      lastError = error;
+
+      const status = getHttpStatus(error);
+      const retryable = RETRYABLE_HTTP_STATUSES.has(status);
+
+      if (!retryable || attempt >= maxAttempts) {
+        break;
+      }
+
+      const delayMs = retryDelayMs * attempt;
+      console.warn(
+        `⚠️ [StatCan] ${indicatorCode} request failed with HTTP ${status}; retry ${attempt + 1}/${maxAttempts} in ${delayMs}ms`,
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw new Error(getErrorMessage(lastError));
+};
+
 const downloadStatCanVectorCSV = async (indicatorCode, outputDir) => {
   const config = STATCAN_VECTORS[indicatorCode];
 
@@ -185,11 +257,7 @@ const downloadStatCanVectorCSV = async (indicatorCode, outputDir) => {
     `&startRefPeriod=${startRefPeriod}` +
     `&endReferencePeriod=${endReferencePeriod}`;
 
-  const response = await axios({
-    url: requestUrl,
-    method: 'GET',
-    timeout: 60000,
-  });
+  const response = await fetchStatCanVector({ requestUrl, indicatorCode });
 
   const vectorObject = unwrapVectorResponse(response.data);
   const points = getVectorDataPoints(vectorObject);
