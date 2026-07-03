@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.16 — Parameterized Workflow Nodes + BoC/StatCan Batch Upgrades
+**Active status:** Phase 10.17 — Workflow Lifecycle Simplification
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -570,7 +570,7 @@ Existing DB patch:
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00042__skyserver_workflow_schedule_bridge_seed.sql
 ```
 
-After running the seed, the Scheduler worker-tool dropdown includes **Start SkyServer Workflow**. Blank or default input starts `macro-refresh-pipeline` with its published node defaults; advanced users can pass `inputJson` with `nodeInputs` overrides.
+After running the seed, the Scheduler worker-tool dropdown includes **Start SkyServer Workflow**. Blank/default input starts the selected active workflow with its configured node defaults. The Scheduler tool now exposes active SkyServer workflows through a select-backed workflow parameter.
 
 ## Phase 10.14 — Create Workflow UI v1
 
@@ -589,7 +589,7 @@ Builder v1 is intentionally narrow and safe:
 - supports sequential `TOOL` nodes only;
 - stores node default parameters in `worker.workflow_nodes.input_parameters`;
 - creates sequential edges between adjacent nodes;
-- can publish version 1 immediately so the workflow appears under **Start Workflow**;
+- can make the workflow active immediately so it appears under **Start Workflow**;
 - uses `WORKFLOW_WRITE` for creation and keeps `WORKFLOW_START` / `WORKFLOW_READ` for execution and inspection.
 
 Existing DB patch:
@@ -618,7 +618,7 @@ The management page supports:
 - cloning an existing workflow into a new definition;
 - reviewing published/draft/retired version history;
 - creating a new sequential TOOL-node version from the latest graph;
-- publishing vNext immediately so it becomes the runnable version under **Start Workflow**.
+- saving the current sequential graph so it becomes the runnable workflow under **Start Workflow**.
 
 The backend exposes the management operations through the workflow API:
 
@@ -631,3 +631,15 @@ POST  /api/workflows/definitions/:workflowCode/versions
 ```
 
 No new DB migration or seed is required for this phase. It relies on the existing `WORKFLOW_WRITE` permission introduced in Phase 10.14.
+
+
+## Phase 10.17 — Workflow Lifecycle Simplification
+
+Phase 10.17 simplifies workflow operations around a single active workflow graph from the user perspective. **Workflows -> Start Workflow** now uses an active-workflow dropdown and no longer accepts runtime JSON overrides. **Workflows -> Manage Workflows** now focuses on metadata, ACTIVE/INACTIVE status, current graph edits, clone, and delete. Inactive workflows are hidden from Start Workflow and blocked by the workflow executor.
+
+Existing DB patch:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migrations/00045__workflow_lifecycle_simplification.sql
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00042__skyserver_workflow_schedule_bridge_seed.sql
+```

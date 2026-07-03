@@ -1,3 +1,12 @@
+
+## Phase 10.17 — Workflow Lifecycle Simplification
+
+- Simplified the user-facing workflow lifecycle to **ACTIVE / INACTIVE** instead of draft/archive/version-heavy controls.
+- Added hard delete support for workflow definitions from Manage Workflows while preserving historical workflow run records where possible.
+- Updated Workflows -> Start Workflow to use an active-workflow dropdown and remove runtime input JSON entry.
+- Updated Manage Workflows so graph edits save the current sequential TOOL-node graph instead of exposing vNext/version publishing controls.
+- Updated Scheduler bridge tool metadata so Start SkyServer Workflow can present active SkyServer workflows through a select-backed parameter option source.
+- Added migration `00045__workflow_lifecycle_simplification.sql` for existing databases.
 ## Phase 10.16a — StatCan Concurrency / Retry Hotfix
 
 - Tuned the upgraded StatCan ingestion primitive to use a safer default concurrency of 2 and source-specific max concurrency of 3.

@@ -194,7 +194,8 @@ SkyServer/
 │   │       │   ├── 00031__skyweb_alert_notifications.sql
 │   │       │   ├── 00033__temporal_workflow_templates.sql
 │   │       │   ├── 00035__temporal_workflow_run_records.sql
-│   │       │   └── 00038__workflow_builder_foundation.sql
+│   │       │   ├── 00038__workflow_builder_foundation.sql
+│   │       │   └── 00045__workflow_lifecycle_simplification.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

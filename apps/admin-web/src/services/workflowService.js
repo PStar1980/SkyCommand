@@ -28,6 +28,14 @@ function archiveDefinition(workflowCode) {
   return api.post(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/archive`, {});
 }
 
+function deleteDefinition(workflowCode) {
+  return api.delete(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}`);
+}
+
+function replaceGraph(workflowCode, payload = {}) {
+  return api.put(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/graph`, payload);
+}
+
 function cloneDefinition(workflowCode, payload = {}) {
   return api.post(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/clone`, payload);
 }
@@ -53,12 +61,14 @@ const workflowService = {
   cloneDefinition,
   createDefinition,
   createVersion,
+  deleteDefinition,
   getBuilderCatalog,
   getDefinition,
   getManagedDefinition,
   getRun,
   listDefinitions,
   listRuns,
+  replaceGraph,
   startWorkflow,
   updateDefinition,
 };

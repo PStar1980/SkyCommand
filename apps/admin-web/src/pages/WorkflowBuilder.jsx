@@ -154,7 +154,7 @@ function WorkflowBuilderNodeCard({
             parameters={selectedTool?.parameters || []}
           />
           <div className="form-text mt-2">
-            Stored as node default tool parameters from the manifest configuration. Start Workflow uses these published defaults.
+            Stored as node default tool parameters from the manifest configuration. Start Workflow uses these defaults.
           </div>
         </div>
       </div>
@@ -350,7 +350,7 @@ function WorkflowBuilder() {
           <h1 className="sky-page-title">Create Workflow</h1>
           <p className="sky-page-subtitle">
             Build a simple sequential SkyServer workflow from existing tool primitives. This v1 builder
-            creates one published workflow version that can be started manually or scheduled.
+            creates one active workflow graph that can be started manually or scheduled.
           </p>
         </div>
         <button className="btn sky-btn-ghost" disabled={loading || saving} onClick={loadCatalog} type="button">
@@ -377,7 +377,7 @@ function WorkflowBuilder() {
           <h2 className="h4 mb-2">Sequential tool-node composer</h2>
           <p className="sky-muted mb-3">
             This first builder keeps the hierarchy clean: tools stay as reusable primitives,
-            SkyServer workflows compose the primitives, and Temporal executes the published workflow.
+            SkyServer workflows compose the primitives, and Temporal executes the active workflow graph.
           </p>
           <div className="sky-worker-command-strip">
             <div className="sky-worker-command-card">
@@ -404,7 +404,7 @@ function WorkflowBuilder() {
             <p className="sky-muted mb-3">{form.description || 'No workflow description yet.'}</p>
             <div className="d-flex flex-wrap gap-2">
               <span className="sky-pill sky-pill-info sky-mono">{slugify(form.workflowCode || form.displayName) || 'workflow-code'}</span>
-              <span className="sky-pill sky-pill-success">{form.publish ? 'Publish v1' : 'Draft only'}</span>
+              <span className="sky-pill sky-pill-success">{form.publish ? 'Active on create' : 'Create inactive'}</span>
               <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
               <span className="sky-pill sky-pill-info">{Math.max(0, nodes.length - 1)} edge(s)</span>
             </div>
@@ -460,7 +460,7 @@ function WorkflowBuilder() {
                     type="checkbox"
                   />
                   <label className="form-check-label" htmlFor="publishWorkflow">
-                    Publish version 1 immediately
+                    Make workflow active immediately
                   </label>
                 </div>
                 <button className="btn sky-btn-primary w-100" disabled={saving || loading} type="submit">

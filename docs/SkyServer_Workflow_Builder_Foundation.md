@@ -393,3 +393,27 @@ The existing database upgrade seed is:
 ```powershell
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00044__boc_statcan_ingestion_tool_upgrade_seed.sql
 ```
+
+---
+
+## Phase 10.17 — Simplified workflow lifecycle
+
+Phase 10.17 keeps the existing internal graph tables but simplifies the Admin experience:
+
+```text
+Workflow definition
+  -> status: ACTIVE / INACTIVE
+  -> one current graph from the user perspective
+  -> Start Workflow uses configured node defaults
+```
+
+User-facing changes:
+
+- Start Workflow uses an active workflow dropdown.
+- Runtime input JSON is removed from the Start Workflow page.
+- Manage Workflows exposes ACTIVE / INACTIVE status only.
+- Inactive workflows are hidden from Start Workflow and are blocked from execution.
+- Manage Workflows can delete workflow definitions when they have no queued/running executions.
+- Graph editing saves the current sequential TOOL-node graph instead of exposing version-publishing controls.
+
+The internal `worker.workflow_versions` table remains an implementation detail for current graph storage and historical compatibility.
