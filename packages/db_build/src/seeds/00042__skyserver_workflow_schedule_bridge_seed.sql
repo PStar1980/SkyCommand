@@ -7,7 +7,25 @@
 
 BEGIN;
 
-WITH core_app AS (
+WITH option_source_seed AS (
+  INSERT INTO core.option_sources (
+    option_source_code,
+    option_source_name,
+    description,
+    active
+  )
+  VALUES (
+    'skyserver_workflows',
+    'SkyServer Workflows',
+    'Active, enabled, Admin-visible SkyServer workflow definitions that have a published current graph.',
+    TRUE
+  )
+  ON CONFLICT (option_source_code)
+  DO UPDATE SET
+    option_source_name = EXCLUDED.option_source_name,
+    description = EXCLUDED.description,
+    active = EXCLUDED.active
+), core_app AS (
   SELECT app_id
   FROM core.applications
   WHERE app_code = 'SKYSERVER_CORE'
