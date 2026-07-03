@@ -18,6 +18,8 @@ const { copyIntoTable } = require('./loaders/copyLoader');
 
 const tempDir = path.join(__dirname, 'tmp', 'statcan-batch');
 const cliArgs = process.argv.slice(2);
+const STATCAN_DEFAULT_CONCURRENCY = 2;
+const STATCAN_MAX_CONCURRENCY = 3;
 
 async function main() {
   const result = await runPipeline({
@@ -28,7 +30,10 @@ async function main() {
     load: copyIntoTable,
     tempDir,
     indicators: getRequestedIndicators(cliArgs),
-    concurrency: getConcurrency(cliArgs, 'STATCAN_INGESTION_CONCURRENCY', 3),
+    concurrency: getConcurrency(cliArgs, 'STATCAN_INGESTION_CONCURRENCY', STATCAN_DEFAULT_CONCURRENCY),
+    maxConcurrency:
+      Number.parseInt(process.env.STATCAN_INGESTION_MAX_CONCURRENCY || STATCAN_MAX_CONCURRENCY, 10)
+      || STATCAN_MAX_CONCURRENCY,
     runId: getRunId(cliArgs, 'STATCAN_INGESTION_RUN_ID', 'statcan-tool'),
     cleanupQuiet: true,
   });

@@ -70,9 +70,9 @@ WITH target_tools AS (
       'concurrency',
       'Concurrency',
       'number',
-      'Optional batch concurrency. Defaults to 3 and caps at 10.',
+      'Optional batch concurrency. Defaults to 2 and caps at 3 to stay friendly with the StatCan WDS API.',
       FALSE,
-      '3',
+      '2',
       NULL,
       20
     )

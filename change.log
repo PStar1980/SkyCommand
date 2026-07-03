@@ -1,3 +1,10 @@
+## Phase 10.16a — StatCan Concurrency / Retry Hotfix
+
+- Tuned the upgraded StatCan ingestion primitive to use a safer default concurrency of 2 and source-specific max concurrency of 3.
+- Added retry/backoff handling for retryable StatCan WDS HTTP failures, including HTTP 430 responses observed during higher-concurrency workflow runs.
+- Updated the StatCan ingestion tool manifest prompt/defaults so workflow node parameter forms steer users toward the safer concurrency range.
+- Added StatCan ingestion tuning variables to `.env.example`.
+
 ## Phase 10.10b — SkyWeb Alert Worker Seed Idempotency Hotfix
 
 - Made `00030__skyweb_alert_worker_seed.sql` self-contained by seeding the Admin-owned `SKYWEB_ALERT_EVALUATE` permission before the `skyweb_alerts_evaluate` tool references it.
