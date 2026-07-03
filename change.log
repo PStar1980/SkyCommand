@@ -1,3 +1,9 @@
+## 2026-07-03 - Phase 10.17a Scheduler Workflow Option Source Hotfix
+
+- Patched `00042__skyserver_workflow_schedule_bridge_seed.sql` to seed the `skyserver_workflows` option source before assigning it to the Scheduler bridge tool parameter.
+- Fixes existing-DB patch runs where `core.tool_parameters.option_source_code = skyserver_workflows` violated the `core.option_sources` foreign key.
+- Keeps full `db_build` and incremental patch workflows aligned.
+
 
 ## Phase 10.17 — Workflow Lifecycle Simplification
 
