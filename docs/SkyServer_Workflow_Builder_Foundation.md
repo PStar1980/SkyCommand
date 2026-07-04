@@ -417,3 +417,26 @@ User-facing changes:
 - Graph editing saves the current sequential TOOL-node graph instead of exposing version-publishing controls.
 
 The internal `worker.workflow_versions` table remains an implementation detail for current graph storage and historical compatibility.
+
+---
+
+## Phase 10.18 — Scheduler target split
+
+Phase 10.18 keeps the existing `skyserver_workflow_start` scheduler bridge but makes the Admin-Web Scheduler easier to operate. The schedule form now separates the conceptual target type from the selected object:
+
+```text
+Schedule Type: Tool
+  -> Target: worker-visible core.tools entry
+
+Schedule Type: Workflow
+  -> Target: active SkyServer workflow definition
+```
+
+Workflow schedules still execute through the same durable path:
+
+```text
+Scheduler -> skyserver_workflow_start -> Temporal-backed SkyServer workflow executor
+```
+
+The bridge tool remains an implementation detail. Operators choose active workflows directly, while tool schedules continue to use manifest-driven parameter controls from `core.tool_parameters`.
+

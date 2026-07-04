@@ -248,3 +248,15 @@ Those remain future phases after the v1 create/start/history loop is stable.
 - Remove raw Input JSON from Start Workflow; starts now use the published node defaults.
 - Upgrade BoC and StatCan ingestion tool primitives with `indicators` and `concurrency` parameters.
 - Keep tool parameters centralized in `core.tool_parameters` so Tools, Scheduler, and Workflow Builder share the same configuration source.
+
+---
+
+## Phase 10.18 — Scheduler target split
+
+Phase 10.18 improves the Scheduler UX after the workflow bridge was proven. The Scheduler form now asks for a high-level schedule target type first:
+
+- `Tool` for worker-visible tool primitives;
+- `Workflow` for active SkyServer workflow definitions.
+
+Selecting `Workflow` shows active SkyServer workflows instead of exposing the `skyserver_workflow_start` bridge alongside normal tools. The runtime remains unchanged: scheduled workflows still start through the Temporal-backed SkyServer workflow executor.
+

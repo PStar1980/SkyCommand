@@ -643,3 +643,10 @@ Existing DB patch:
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migrations/00045__workflow_lifecycle_simplification.sql
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00042__skyserver_workflow_schedule_bridge_seed.sql
 ```
+
+
+## Phase 10.18 — Scheduler Target Split
+
+Phase 10.18 cleans up the Scheduler target-selection experience. **Automation -> Scheduler** now separates the target type from the target object: choose `Tool` to schedule a worker-visible tool primitive, or choose `Workflow` to schedule an active SkyServer workflow definition. Workflow schedules continue to use the `skyserver_workflow_start` bridge internally, but the bridge is hidden behind a cleaner workflow picker.
+
+No database migration or seed is required for this UI-focused phase.
