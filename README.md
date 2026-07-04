@@ -650,3 +650,13 @@ psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00
 Phase 10.18 cleans up the Scheduler target-selection experience. **Automation -> Scheduler** now separates the target type from the target object: choose `Tool` to schedule a worker-visible tool primitive, or choose `Workflow` to schedule an active SkyServer workflow definition. Workflow schedules continue to use the `skyserver_workflow_start` bridge internally, but the bridge is hidden behind a cleaner workflow picker.
 
 No database migration or seed is required for this UI-focused phase.
+
+### Temporal Phase 10.19 — API_CALL workflow nodes
+
+SkyServer workflows now support `API_CALL` nodes alongside `TOOL` nodes. API calls are configured from Create/Manage Workflows and executed by the Temporal-backed SkyServer workflow executor as activities. Workflow History captures HTTP status, duration, response preview, and node-level success/failure metadata.
+
+Apply the existing-DB seed after upgrading:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00046__workflow_api_node_support_seed.sql
+```
