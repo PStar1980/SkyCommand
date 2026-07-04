@@ -379,3 +379,11 @@ SkyWeb Analytics owns:
 - Upgraded Bank of Canada and Statistics Canada ingestion scripts to support selected indicators and batched concurrency, matching the FRED ingestion primitive pattern.
 - Added `00044__boc_statcan_ingestion_tool_upgrade_seed.sql` and updated the base core config seed so BoC/StatCan tool manifests expose `Indicators` and `Concurrency` parameters on existing and fresh databases.
 - Added shared CLI helpers and improved validation coverage for BoC/StatCan ingestion scripts and the shared pipeline runner.
+
+## Phase 10.18 — Scheduler Target Split
+
+- Split the Scheduler creation form into a two-step target selector: Schedule Type (`Tool` or `Workflow`) and Target (`Tool` picker or active SkyServer workflow picker).
+- Scheduler workflow starts now use an explicit active-workflow dropdown instead of exposing the `skyserver_workflow_start` bridge tool in the same list as normal worker tools.
+- Normal tool schedules continue to render manifest-driven target parameters, while workflow schedules only require the selected active workflow and use that workflow's configured node defaults.
+- Updated Active Schedules and Schedule Detail views to show target kind, display label, and target code so tool schedules and workflow schedules are visually distinct.
+

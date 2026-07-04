@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
+import workflowService from '../services/workflowService';
+
+const SCHEDULE_TARGET_TYPE_OPTIONS = [
+  { value: 'TOOL', label: 'Tool' },
+  { value: 'WORKFLOW', label: 'Workflow' },
+];
 
 const SCHEDULE_TYPE_OPTIONS = [
   { value: 'ONCE', label: 'One-time run' },
   { value: 'INTERVAL', label: 'Recurring interval' },
 ];
+
+const SKY_SERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
 
 const INTERVAL_UNIT_OPTIONS = [
   { value: 'MINUTE', label: 'Minute(s)' },
@@ -249,6 +257,36 @@ function buildScheduleCode(toolCode) {
   return `${safeToolCode}_${timestamp}`;
 }
 
+function isWorkflowBridgeTool(tool) {
+  return tool?.toolCode === SKY_SERVER_WORKFLOW_START_TOOL_CODE;
+}
+
+function getDefaultTool(tools = []) {
+  return tools.find((tool) => !isWorkflowBridgeTool(tool)) || tools[0] || null;
+}
+
+function getDefaultWorkflow(workflows = []) {
+  return workflows[0] || null;
+}
+
+function getWorkflowCode(workflow) {
+  return workflow?.workflowCode || workflow?.workflow_code || '';
+}
+
+function getWorkflowDisplayName(workflow) {
+  return workflow?.displayName || workflow?.display_name || workflow?.workflowCode || workflow?.workflow_code || '';
+}
+
+function buildWorkflowScheduleName(workflow) {
+  const displayName = getWorkflowDisplayName(workflow);
+  return displayName ? `${displayName} schedule` : 'SkyServer workflow schedule';
+}
+
+function getScheduleTargetType(scheduleOrForm) {
+  return scheduleOrForm?.toolCode === SKY_SERVER_WORKFLOW_START_TOOL_CODE ? 'WORKFLOW' : 'TOOL';
+}
+
+
 function getInitialParameterValues(tool) {
   return (tool?.parameters || []).reduce((accumulator, parameter) => {
     if (parameter.defaultValue !== undefined && parameter.defaultValue !== null) {
@@ -284,13 +322,23 @@ function cleanParameterValues(values = {}, tool = null) {
   );
 }
 
-function createBlankScheduleForm(tool = null) {
+function createBlankScheduleForm({ targetType = 'TOOL', tool = null, workflow = null } = {}) {
+  const workflowCode = getWorkflowCode(workflow);
+  const toolCode = targetType === 'WORKFLOW' ? SKY_SERVER_WORKFLOW_START_TOOL_CODE : tool?.toolCode || '';
+  const parameters = getInitialParameterValues(tool);
+
+  if (targetType === 'WORKFLOW' && workflowCode) {
+    parameters.workflowCode = workflowCode;
+  }
+
   return {
     scheduleId: '',
-    scheduleCode: buildScheduleCode(tool?.toolCode),
-    scheduleName: tool ? `${tool.label} schedule` : '',
+    targetType,
+    scheduleCode: buildScheduleCode(targetType === 'WORKFLOW' ? workflowCode || toolCode : tool?.toolCode),
+    scheduleName:
+      targetType === 'WORKFLOW' ? buildWorkflowScheduleName(workflow) : tool ? `${tool.label} schedule` : '',
     description: '',
-    toolCode: tool?.toolCode || '',
+    toolCode,
     scheduleType: 'ONCE',
     timezone: DEFAULT_TIMEZONE,
     runAt: getDefaultRunAt(),
@@ -299,15 +347,17 @@ function createBlankScheduleForm(tool = null) {
     enabled: true,
     maxConcurrentRuns: '1',
     misfirePolicy: 'RUN_ONCE',
-    parameters: getInitialParameterValues(tool),
+    parameters,
   };
 }
 
 function createScheduleFormFromRecord(schedule, tools = []) {
   const tool = tools.find((item) => item.toolCode === schedule.toolCode) || null;
+  const targetType = getScheduleTargetType(schedule);
 
   return {
     scheduleId: schedule.scheduleId || '',
+    targetType,
     scheduleCode: schedule.scheduleCode || '',
     scheduleName: schedule.scheduleName || '',
     description: schedule.description || '',
@@ -330,6 +380,29 @@ function createScheduleFormFromRecord(schedule, tools = []) {
 function getSelectedTool(tools, toolCode) {
   return tools.find((tool) => tool.toolCode === toolCode) || null;
 }
+
+function getSelectedWorkflow(workflows = [], workflowCode = '') {
+  return workflows.find((workflow) => getWorkflowCode(workflow) === workflowCode) || null;
+}
+
+function getScheduleTargetLabel(schedule, workflows = []) {
+  if (getScheduleTargetType(schedule) === 'WORKFLOW') {
+    const workflowCode = schedule.parameters?.workflowCode || '';
+    const workflow = getSelectedWorkflow(workflows, workflowCode);
+    return workflow ? getWorkflowDisplayName(workflow) : workflowCode || 'SkyServer workflow';
+  }
+
+  return schedule.toolLabel || schedule.toolCode;
+}
+
+function getScheduleTargetCode(schedule) {
+  if (getScheduleTargetType(schedule) === 'WORKFLOW') {
+    return schedule.parameters?.workflowCode || schedule.toolCode;
+  }
+
+  return schedule.toolCode;
+}
+
 
 function getJsonPreview(value) {
   try {
@@ -390,6 +463,7 @@ function SchedulerControl() {
 
   const [health, setHealth] = useState(null);
   const [tools, setTools] = useState([]);
+  const [activeWorkflows, setActiveWorkflows] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [scheduleTotal, setScheduleTotal] = useState(0);
   const [runs, setRuns] = useState([]);
@@ -418,9 +492,22 @@ function SchedulerControl() {
   const [notice, setNotice] = useState('');
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
+  const workflowBridgeTool = useMemo(
+    () => tools.find((tool) => isWorkflowBridgeTool(tool)) || null,
+    [tools],
+  );
+  const workerTools = useMemo(
+    () => tools.filter((tool) => !isWorkflowBridgeTool(tool)),
+    [tools],
+  );
   const selectedTool = useMemo(
     () => getSelectedTool(tools, scheduleForm.toolCode),
     [scheduleForm.toolCode, tools],
+  );
+  const selectedWorkflowCode = scheduleForm.parameters?.workflowCode || '';
+  const selectedWorkflow = useMemo(
+    () => getSelectedWorkflow(activeWorkflows, selectedWorkflowCode),
+    [activeWorkflows, selectedWorkflowCode],
   );
   const statCards = useMemo(() => buildStatCards(health, tools), [health, tools]);
 
@@ -434,8 +521,18 @@ function SchedulerControl() {
         return currentForm;
       }
 
-      return createBlankScheduleForm(nextTools[0]);
+      return createBlankScheduleForm({ tool: getDefaultTool(nextTools) });
     });
+  }
+
+  async function loadActiveWorkflows() {
+    const result = await workflowService.listDefinitions({
+      activeOnly: true,
+      enabledOnly: true,
+      visibleOnly: true,
+      publishedOnly: true,
+    });
+    setActiveWorkflows(result.items || []);
   }
 
   async function loadHealth() {
@@ -498,6 +595,7 @@ function SchedulerControl() {
       await Promise.all([
         loadHealth(),
         loadWorkerTools(),
+        loadActiveWorkflows(),
         loadSchedules(),
         loadRuns(),
         loadNodes(),
@@ -565,9 +663,9 @@ function SchedulerControl() {
     }
   }
 
-  function resetForm(tool = tools[0] || null) {
+  function resetForm(tool = getDefaultTool(tools)) {
     setFormMode('create');
-    setScheduleForm(createBlankScheduleForm(tool));
+    setScheduleForm(createBlankScheduleForm({ tool }));
     setNotice('');
     setError('');
   }
@@ -599,16 +697,75 @@ function SchedulerControl() {
     }));
   }
 
+  function handleTargetTypeChange(targetType) {
+    if (targetType === 'WORKFLOW') {
+      const workflow = getDefaultWorkflow(activeWorkflows);
+      const workflowCode = getWorkflowCode(workflow);
+      const parameters = getInitialParameterValues(workflowBridgeTool);
+
+      if (workflowCode) {
+        parameters.workflowCode = workflowCode;
+      }
+
+      setScheduleForm((currentForm) => ({
+        ...currentForm,
+        targetType,
+        toolCode: SKY_SERVER_WORKFLOW_START_TOOL_CODE,
+        scheduleCode:
+          formMode === 'create'
+            ? buildScheduleCode(workflowCode || SKY_SERVER_WORKFLOW_START_TOOL_CODE)
+            : currentForm.scheduleCode,
+        scheduleName:
+          formMode === 'create' ? buildWorkflowScheduleName(workflow) : currentForm.scheduleName,
+        parameters,
+      }));
+      return;
+    }
+
+    const nextTool = getDefaultTool(tools);
+
+    setScheduleForm((currentForm) => ({
+      ...currentForm,
+      targetType: 'TOOL',
+      toolCode: nextTool?.toolCode || '',
+      scheduleCode:
+        formMode === 'create' ? buildScheduleCode(nextTool?.toolCode) : currentForm.scheduleCode,
+      scheduleName:
+        formMode === 'create' && nextTool ? `${nextTool.label} schedule` : currentForm.scheduleName,
+      parameters: getInitialParameterValues(nextTool),
+    }));
+  }
+
   function handleToolChange(toolCode) {
     const nextTool = getSelectedTool(tools, toolCode);
 
     setScheduleForm((currentForm) => ({
       ...currentForm,
+      targetType: 'TOOL',
       toolCode,
       scheduleCode: formMode === 'create' ? buildScheduleCode(toolCode) : currentForm.scheduleCode,
       scheduleName:
         formMode === 'create' && nextTool ? `${nextTool.label} schedule` : currentForm.scheduleName,
       parameters: getInitialParameterValues(nextTool),
+    }));
+  }
+
+  function handleWorkflowChange(workflowCode) {
+    const workflow = getSelectedWorkflow(activeWorkflows, workflowCode);
+    const parameters = getInitialParameterValues(workflowBridgeTool);
+
+    if (workflowCode) {
+      parameters.workflowCode = workflowCode;
+    }
+
+    setScheduleForm((currentForm) => ({
+      ...currentForm,
+      targetType: 'WORKFLOW',
+      toolCode: SKY_SERVER_WORKFLOW_START_TOOL_CODE,
+      scheduleCode: formMode === 'create' ? buildScheduleCode(workflowCode) : currentForm.scheduleCode,
+      scheduleName:
+        formMode === 'create' ? buildWorkflowScheduleName(workflow) : currentForm.scheduleName,
+      parameters,
     }));
   }
 
@@ -643,7 +800,17 @@ function SchedulerControl() {
       return;
     }
 
-    if (!scheduleForm.toolCode) {
+    if (scheduleForm.targetType === 'WORKFLOW') {
+      if (!workflowBridgeTool) {
+        setError('The Start SkyServer Workflow scheduler bridge is not configured.');
+        return;
+      }
+
+      if (!scheduleForm.parameters?.workflowCode) {
+        setError('Select an active workflow.');
+        return;
+      }
+    } else if (!scheduleForm.toolCode) {
       setError('Select a worker-visible tool.');
       return;
     }
@@ -934,7 +1101,7 @@ function SchedulerControl() {
                   {formMode === 'edit' ? 'Edit schedule' : 'Create schedule'}
                 </h2>
                 <div className="small sky-muted">
-                  Choose a worker-visible tool and define when it should run.
+                  Choose whether to schedule a tool or workflow, then define when it should run.
                 </div>
               </div>
               <button
@@ -955,33 +1122,99 @@ function SchedulerControl() {
               )}
 
               <form onSubmit={handleScheduleSubmit}>
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="workerToolCode">
-                    Worker tool
-                  </label>
-                  <select
-                    className="form-select sky-form-control"
-                    disabled={!canWriteSchedules || saving || tools.length === 0}
-                    id="workerToolCode"
-                    onChange={(event) => handleToolChange(event.target.value)}
-                    required
-                    value={scheduleForm.toolCode}
-                  >
-                    <option value="">Select worker tool</option>
-                    {tools.map((tool) => (
-                      <option key={tool.toolId || tool.toolCode} value={tool.toolCode}>
-                        {tool.label} ({tool.toolCode})
-                      </option>
-                    ))}
-                  </select>
-                  {selectedTool && (
+                <div className="row g-3">
+                  <div className="col-md-5">
+                    <label className="form-label" htmlFor="scheduleTargetType">
+                      Schedule Type
+                    </label>
+                    <select
+                      className="form-select sky-form-control"
+                      disabled={!canWriteSchedules || saving}
+                      id="scheduleTargetType"
+                      onChange={(event) => handleTargetTypeChange(event.target.value)}
+                      value={scheduleForm.targetType || 'TOOL'}
+                    >
+                      {SCHEDULE_TARGET_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                     <div className="form-text sky-muted">
-                      <span className={`sky-pill ${riskClass(selectedTool.riskCode)}`}>
-                        {selectedTool.riskCode || 'risk'}
-                      </span>{' '}
-                      {selectedTool.description}
+                      Tools run worker-visible primitives. Workflows run active SkyServer workflows.
                     </div>
-                  )}
+                  </div>
+
+                  <div className="col-md-7">
+                    {scheduleForm.targetType === 'WORKFLOW' ? (
+                      <>
+                        <label className="form-label" htmlFor="workflowTargetCode">
+                          Workflow
+                        </label>
+                        <select
+                          className="form-select sky-form-control"
+                          disabled={
+                            !canWriteSchedules ||
+                            saving ||
+                            !workflowBridgeTool ||
+                            activeWorkflows.length === 0
+                          }
+                          id="workflowTargetCode"
+                          onChange={(event) => handleWorkflowChange(event.target.value)}
+                          required
+                          value={selectedWorkflowCode}
+                        >
+                          <option value="">Select active workflow</option>
+                          {activeWorkflows.map((workflow) => (
+                            <option key={getWorkflowCode(workflow)} value={getWorkflowCode(workflow)}>
+                              {getWorkflowDisplayName(workflow)} ({getWorkflowCode(workflow)})
+                            </option>
+                          ))}
+                        </select>
+                        {selectedWorkflow ? (
+                          <div className="form-text sky-muted">
+                            <span className="sky-pill sky-pill-success">workflow</span>{' '}
+                            {selectedWorkflow.description || 'SkyServer workflow definition'}
+                          </div>
+                        ) : (
+                          <div className="form-text text-warning">
+                            {workflowBridgeTool
+                              ? 'No active workflows are available.'
+                              : 'Start SkyServer Workflow bridge tool is not configured.'}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <label className="form-label" htmlFor="workerToolCode">
+                          Tool
+                        </label>
+                        <select
+                          className="form-select sky-form-control"
+                          disabled={!canWriteSchedules || saving || workerTools.length === 0}
+                          id="workerToolCode"
+                          onChange={(event) => handleToolChange(event.target.value)}
+                          required
+                          value={scheduleForm.toolCode}
+                        >
+                          <option value="">Select worker tool</option>
+                          {workerTools.map((tool) => (
+                            <option key={tool.toolId || tool.toolCode} value={tool.toolCode}>
+                              {tool.label} ({tool.toolCode})
+                            </option>
+                          ))}
+                        </select>
+                        {selectedTool && (
+                          <div className="form-text sky-muted">
+                            <span className={`sky-pill ${riskClass(selectedTool.riskCode)}`}>
+                              {selectedTool.riskCode || 'risk'}
+                            </span>{' '}
+                            {selectedTool.description}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="row g-3">
@@ -1033,7 +1266,7 @@ function SchedulerControl() {
                 <div className="row g-3 mt-1">
                   <div className="col-md-6">
                     <label className="form-label" htmlFor="scheduleType">
-                      Schedule Type
+                      Timing
                     </label>
                     <select
                       className="form-select sky-form-control"
@@ -1159,9 +1392,9 @@ function SchedulerControl() {
                   </label>
                 </div>
 
-                {selectedTool?.parameters?.length > 0 && (
+                {scheduleForm.targetType !== 'WORKFLOW' && selectedTool?.parameters?.length > 0 && (
                   <div className="mt-4">
-                    <div className="sky-page-kicker">Tool parameters</div>
+                    <div className="sky-page-kicker">Target parameters</div>
                     <div className="sky-worker-param-grid">
                       {selectedTool.parameters.map((parameter) => (
                         <div key={parameter.parameterId || parameter.parameterName}>
@@ -1185,7 +1418,7 @@ function SchedulerControl() {
                 <div className="d-flex flex-wrap gap-2 mt-4">
                   <button
                     className="btn sky-btn-primary"
-                    disabled={!canWriteSchedules || saving || tools.length === 0}
+                    disabled={!canWriteSchedules || saving || (scheduleForm.targetType === 'WORKFLOW' ? !selectedWorkflow : workerTools.length === 0)}
                     type="submit"
                   >
                     {saving
@@ -1265,7 +1498,7 @@ function SchedulerControl() {
                   <thead>
                     <tr>
                       <th>Schedule</th>
-                      <th>Tool</th>
+                      <th>Target</th>
                       <th>Type</th>
                       <th>Next Run</th>
                       <th>Status</th>
@@ -1288,10 +1521,23 @@ function SchedulerControl() {
                           <div className="small sky-muted sky-mono">{schedule.scheduleCode}</div>
                         </td>
                         <td>
-                          <div className="fw-bold sky-detail-value">
-                            {schedule.toolLabel || schedule.toolCode}
+                          <div className="d-flex flex-column gap-1 align-items-start">
+                            <span
+                              className={`sky-pill ${
+                                getScheduleTargetType(schedule) === 'WORKFLOW'
+                                  ? 'sky-pill-success'
+                                  : 'sky-pill-info'
+                              }`}
+                            >
+                              {getScheduleTargetType(schedule)}
+                            </span>
+                            <div className="fw-bold sky-detail-value">
+                              {getScheduleTargetLabel(schedule, activeWorkflows)}
+                            </div>
+                            <div className="small sky-muted sky-mono">
+                              {getScheduleTargetCode(schedule)}
+                            </div>
                           </div>
-                          <div className="small sky-muted sky-mono">{schedule.toolCode}</div>
                         </td>
                         <td>{schedule.scheduleType}</td>
                         <td>{formatDate(schedule.nextRunAt)}</td>
@@ -1396,9 +1642,23 @@ function SchedulerControl() {
                       </div>
                     </dd>
 
-                    <dt className="col-sm-4 sky-detail-label">Tool</dt>
+                    <dt className="col-sm-4 sky-detail-label">Target</dt>
                     <dd className="col-sm-8 sky-detail-value">
-                      {selectedSchedule.toolLabel || selectedSchedule.toolCode}
+                      <div className="d-flex flex-column gap-1 align-items-start">
+                        <span
+                          className={`sky-pill ${
+                            getScheduleTargetType(selectedSchedule) === 'WORKFLOW'
+                              ? 'sky-pill-success'
+                              : 'sky-pill-info'
+                          }`}
+                        >
+                          {getScheduleTargetType(selectedSchedule)}
+                        </span>
+                        <span>{getScheduleTargetLabel(selectedSchedule, activeWorkflows)}</span>
+                        <span className="small sky-muted sky-mono">
+                          {getScheduleTargetCode(selectedSchedule)}
+                        </span>
+                      </div>
                     </dd>
 
                     <dt className="col-sm-4 sky-detail-label">Type</dt>
@@ -1530,7 +1790,7 @@ function SchedulerControl() {
                     onChange={(event) => updateRunFilter('toolCode', event.target.value)}
                     value={runFilters.toolCode}
                   >
-                    <option value="">All tools</option>
+                    <option value="">All targets</option>
                     {tools.map((tool) => (
                       <option key={tool.toolCode} value={tool.toolCode}>
                         {tool.label}
