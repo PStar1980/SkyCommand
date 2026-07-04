@@ -1,3 +1,10 @@
+
+## Phase 10.19a - API_CALL SkyServer Internal Auth Hotfix
+- Added environment-backed SkyServer internal API auth for API_CALL workflow nodes.
+- API_CALL nodes can now select auth mode AUTO, NONE, or SKYSERVER_INTERNAL.
+- Protected local SkyServer API endpoints can be called from Temporal activities without storing bearer tokens in workflow definitions.
+- Added internal-service auth middleware path guarded by SKYSERVER_INTERNAL_API_TOKEN.
+
 ## 2026-07-03 - Phase 10.17a Scheduler Workflow Option Source Hotfix
 
 - Patched `00042__skyserver_workflow_schedule_bridge_seed.sql` to seed the `skyserver_workflows` option source before assigning it to the Scheduler bridge tool parameter.

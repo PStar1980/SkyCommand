@@ -14,6 +14,7 @@ const DEFAULT_API_PARAMETERS = {
   successCodes: '200,201,202,204',
   timeoutMs: '30000',
   maxResponseBytes: '32768',
+  authMode: 'AUTO',
 };
 
 const EMPTY_NODE = {
@@ -133,6 +134,20 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
         />
       </div>
       <div className="col-lg-4">
+        <label className="form-label" htmlFor={`${idPrefix}-authMode`}>Auth mode</label>
+        <select
+          className="form-select sky-form-control"
+          id={`${idPrefix}-authMode`}
+          onChange={(event) => patch({ authMode: event.target.value })}
+          value={values.authMode || 'AUTO'}
+        >
+          <option value="AUTO">Auto</option>
+          <option value="NONE">No auth</option>
+          <option value="SKYSERVER_INTERNAL">SkyServer internal</option>
+        </select>
+        <div className="form-text">Auto adds SkyServer internal auth for local SkyServer API calls when configured.</div>
+      </div>
+      <div className="col-lg-4">
         <label className="form-label" htmlFor={`${idPrefix}-successCodes`}>Success codes</label>
         <input
           className="form-control sky-form-control sky-mono"
@@ -184,7 +199,7 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
         />
       </div>
       <div className="form-text sky-muted">
-        API nodes run as Temporal activities. Secrets should stay in environment-backed connection profiles later; v1 is for safe local/dev HTTP automation.
+        API nodes run as Temporal activities. SkyServer internal auth uses SKYSERVER_INTERNAL_API_TOKEN from the environment; do not paste secrets into headers JSON.
       </div>
     </div>
   );
