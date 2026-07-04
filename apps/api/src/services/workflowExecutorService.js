@@ -1,3 +1,4 @@
+const axios = require('axios');
 const { pool, query } = require('../../../../packages/db/src/connection');
 const scriptExecutionService = require('./scriptExecutionService');
 const temporalService = require('./temporalService');
@@ -5,7 +6,7 @@ const toolManifestService = require('./toolManifestService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
-const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'TEMPORAL_WORKFLOW']);
+const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'TEMPORAL_WORKFLOW']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
 const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
@@ -130,6 +131,126 @@ function truncateText(value, maxLength = 8000) {
   }
 
   return `${text.slice(0, maxLength)}\n\n[SkyServer Workflow Executor] Output truncated at ${maxLength} characters.`;
+}
+
+
+function truncateJsonPreview(value, maxLength = 8000) {
+  let text = '';
+
+  if (typeof value === 'string') {
+    text = value;
+  } else {
+    try {
+      text = JSON.stringify(value, null, 2);
+    } catch (error) {
+      text = String(value);
+    }
+  }
+
+  return truncateText(text, maxLength);
+}
+
+function parseJsonText(value, fallback, fieldName) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  if (typeof value === 'object') {
+    return value;
+  }
+
+  try {
+    return JSON.parse(String(value));
+  } catch (error) {
+    throw new WorkflowServiceError(`${fieldName} must be valid JSON.`, 400, {
+      fieldName,
+      parseError: error.message,
+    });
+  }
+}
+
+function parseSuccessCodes(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => Number.parseInt(item, 10)).filter((item) => Number.isFinite(item));
+  }
+
+  const raw = value === undefined || value === null || value === '' ? '200,201,202,204' : String(value);
+  const codes = raw
+    .split(/[,\s]+/)
+    .map((item) => Number.parseInt(item, 10))
+    .filter((item) => Number.isFinite(item) && item >= 100 && item <= 599);
+
+  return codes.length > 0 ? codes : [200, 201, 202, 204];
+}
+
+function normalizeHttpMethod(value) {
+  const method = String(value || 'GET').trim().toUpperCase();
+  const allowed = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']);
+
+  if (!allowed.has(method)) {
+    throw new WorkflowServiceError('Unsupported API_CALL HTTP method.', 400, {
+      method,
+      allowed: [...allowed],
+    });
+  }
+
+  return method;
+}
+
+function normalizeApiUrl(value) {
+  const raw = String(value || '').trim();
+
+  if (!raw) {
+    throw new WorkflowServiceError('API_CALL url is required.', 400);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (error) {
+    throw new WorkflowServiceError('API_CALL url must be a valid absolute URL.', 400, {
+      url: raw,
+      parseError: error.message,
+    });
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new WorkflowServiceError('API_CALL only supports http and https URLs.', 400, {
+      protocol: parsed.protocol,
+    });
+  }
+
+  return parsed.toString();
+}
+
+function normalizePositiveNumber(value, fallback, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.min(parsed, max);
+}
+
+function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
+  const map = {
+    API_CALL: 'Call API',
+    TEMPORAL_WORKFLOW: 'Start Temporal Workflow',
+    TOOL: 'Run Tool',
+  };
+
+  return map[nodeTypeCode] || fallback;
+}
+
+function getNodeTargetKindForType(nodeTypeCode) {
+  const map = {
+    API_CALL: 'api.endpoint',
+    TEMPORAL_WORKFLOW: 'worker.temporal_workflow_definitions',
+    TOOL: 'core.tools',
+  };
+
+  return map[nodeTypeCode] || null;
 }
 
 function normalizeDefinitionRow(row) {
@@ -656,6 +777,77 @@ async function runToolNode({ node, parameters, user, session, permissions, conte
   return output;
 }
 
+
+async function runApiCallNode({ node, parameters }) {
+  const method = normalizeHttpMethod(parameters.method);
+  const url = normalizeApiUrl(parameters.url || node.targetCode);
+  const headers = parseJsonText(parameters.headersJson ?? parameters.headers, {}, 'headersJson');
+  const body = parseJsonText(parameters.bodyJson ?? parameters.body, null, 'bodyJson');
+  const successCodes = parseSuccessCodes(parameters.successCodes);
+  const timeoutMs = normalizePositiveNumber(parameters.timeoutMs || node.timeoutMs, 30000, 300000);
+  const maxResponseBytes = normalizePositiveNumber(parameters.maxResponseBytes, 32768, 1048576);
+  const startedAtMs = Date.now();
+
+  const requestConfig = {
+    method,
+    url,
+    headers,
+    timeout: timeoutMs,
+    maxContentLength: maxResponseBytes,
+    maxBodyLength: maxResponseBytes,
+    validateStatus: () => true,
+  };
+
+  if (!['GET', 'HEAD'].includes(method) && body !== null) {
+    requestConfig.data = body;
+  }
+
+  let response;
+  try {
+    response = await axios(requestConfig);
+  } catch (error) {
+    const details = {
+      kind: 'api_call',
+      method,
+      url,
+      status: 'FAILED',
+      durationMs: Date.now() - startedAtMs,
+      errorCode: error.code || null,
+      message: error.message || String(error),
+    };
+
+    throw new WorkflowServiceError(`API call failed: ${details.message}`, 500, details);
+  }
+
+  const durationMs = Date.now() - startedAtMs;
+  const responsePreview = truncateJsonPreview(response.data, maxResponseBytes);
+  const responseSizeBytes = Buffer.byteLength(responsePreview || '', 'utf8');
+  const success = successCodes.includes(response.status);
+  const output = {
+    kind: 'api_call',
+    method,
+    url,
+    status: success ? 'SUCCESS' : 'FAILED',
+    statusCode: response.status,
+    statusText: response.statusText,
+    durationMs,
+    responseSizeBytes,
+    successCodes,
+    summary: `API ${method} ${url} returned ${response.status} in ${durationMs} ms`,
+    responsePreview,
+  };
+
+  if (!success) {
+    throw new WorkflowServiceError(
+      `API call returned unexpected status ${response.status}.`,
+      response.status >= 400 ? response.status : 500,
+      output,
+    );
+  }
+
+  return output;
+}
+
 async function runTemporalWorkflowNode({ node, parameters, user, context }) {
   const workflowCode = node.targetCode || parameters.workflowCode;
 
@@ -760,22 +952,37 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
 function normalizeCreateNodeInput(node, index, seenKeys) {
   const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
 
-  if (nodeTypeCode !== 'TOOL') {
-    throw new WorkflowServiceError('Workflow Builder v1 only supports TOOL nodes.', 400, {
+  if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode) || nodeTypeCode === 'TEMPORAL_WORKFLOW') {
+    throw new WorkflowServiceError('Workflow Builder currently supports TOOL and API_CALL nodes.', 400, {
       nodeTypeCode,
-      supportedNodeTypes: ['TOOL'],
+      supportedNodeTypes: ['TOOL', 'API_CALL'],
     });
   }
 
-  const targetCode = String(node.targetCode || node.toolCode || '').trim();
+  const inputParameters = getSafeObject(node.inputParameters);
+  const targetCode = String(
+    node.targetCode ||
+    node.toolCode ||
+    (nodeTypeCode === 'API_CALL' ? inputParameters.url || node.url || '' : ''),
+  ).trim();
 
-  if (!targetCode) {
+  if (nodeTypeCode === 'TOOL' && !targetCode) {
     throw new WorkflowServiceError('Each TOOL node requires targetCode.', 400, {
       index,
     });
   }
 
-  const nodeKeyBase = normalizeNodeKey(node.nodeKey || node.displayName || targetCode, `node_${index + 1}`);
+  if (nodeTypeCode === 'API_CALL') {
+    normalizeApiUrl(inputParameters.url || targetCode);
+    normalizeHttpMethod(inputParameters.method || 'GET');
+    parseJsonText(inputParameters.headersJson ?? inputParameters.headers, {}, `nodes[${index}].headersJson`);
+    parseJsonText(inputParameters.bodyJson ?? inputParameters.body, null, `nodes[${index}].bodyJson`);
+  }
+
+  const nodeKeyBase = normalizeNodeKey(
+    node.nodeKey || node.displayName || targetCode || `${nodeTypeCode.toLowerCase()}_${index + 1}`,
+    `node_${index + 1}`,
+  );
   let nodeKey = nodeKeyBase;
   let suffix = 2;
 
@@ -789,19 +996,20 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   return {
     nodeKey,
     nodeTypeCode,
-    displayName: String(node.displayName || node.label || targetCode).trim(),
+    displayName: String(node.displayName || node.label || targetCode || getNodeDisplayNameForType(nodeTypeCode)).trim(),
     description: String(node.description || '').trim() || null,
-    targetCode,
-    inputParameters: getSafeObject(node.inputParameters),
+    targetCode: targetCode || null,
+    inputParameters,
     retryPolicy: getSafeObject(node.retryPolicy),
     timeoutMs: node.timeoutMs ? Number.parseInt(node.timeoutMs, 10) : null,
     positionX: Number.isFinite(Number(node.positionX)) ? Number(node.positionX) : 80 + index * 280,
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
     enabled: node.enabled !== false,
-    config: getSafeObject(node.config, { builderCard: 'tool' }),
+    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : 'tool' }),
   };
 }
+
 
 async function createWorkflowDefinition({ payload = {}, user, permissions = [] } = {}) {
   assertPermission({
@@ -827,7 +1035,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
   }
 
   if (nodesInput.length === 0) {
-    throw new WorkflowServiceError('At least one TOOL node is required.', 400);
+    throw new WorkflowServiceError('At least one supported workflow node is required.', 400);
   }
 
   const seenKeys = new Set();
@@ -853,25 +1061,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
       });
     }
 
-    const toolResult = await client.query(
-      `
-        SELECT tool_id, tool_code, label, description
-        FROM core.tools
-        WHERE tool_code = ANY($1::text[])
-          AND enabled = TRUE
-      `,
-      [[...new Set(nodes.map((node) => node.targetCode))]],
-    );
-    const toolsByCode = new Map(toolResult.rows.map((row) => [row.tool_code, row]));
-    const missingTools = nodes
-      .map((node) => node.targetCode)
-      .filter((targetCode) => !toolsByCode.has(targetCode));
-
-    if (missingTools.length > 0) {
-      throw new WorkflowServiceError('One or more tool targets were not found or are disabled.', 400, {
-        missingTools,
-      });
-    }
+    const toolsByCode = await validateWorkflowTargets(client, nodes);
 
     const definitionResult = await client.query(
       `
@@ -902,8 +1092,8 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         DEFAULT_CANCEL_PERMISSION,
         JSON.stringify({
           createdBy: 'workflow_builder_v1',
-          builderVersion: '10.17',
-          supportedNodeTypes: ['TOOL'],
+          builderVersion: '10.19',
+          supportedNodeTypes: ['TOOL', 'API_CALL'],
         }),
         user?.userId || null,
       ],
@@ -938,7 +1128,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
     const insertedNodes = [];
 
     for (const node of nodes) {
-      const tool = toolsByCode.get(node.targetCode);
+      const tool = node.nodeTypeCode === 'TOOL' ? toolsByCode.get(node.targetCode) : null;
       const nodeResult = await client.query(
         `
           INSERT INTO worker.workflow_nodes (
@@ -968,7 +1158,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
           node.displayName,
           node.description,
           node.targetCode,
-          tool.tool_id,
+          tool?.tool_id || null,
           JSON.stringify(assertJsonObject(node.inputParameters, `nodes[${insertedNodes.length}].inputParameters`)),
           JSON.stringify(getSafeObject(node.retryPolicy)),
           node.timeoutMs,
@@ -987,9 +1177,9 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         workflow_display_name: definition.displayName,
         version_number: 1,
         version_status: publish ? 'PUBLISHED' : 'DRAFT',
-        node_type_display_name: 'Run Tool',
-        node_type_category: 'ACTION',
-        target_kind: 'core.tools',
+        node_type_display_name: getNodeDisplayNameForType(node.nodeTypeCode),
+        node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : 'ACTION',
+        target_kind: getNodeTargetKindForType(node.nodeTypeCode),
       }));
     }
 
@@ -1328,8 +1518,17 @@ function versionNodesToCreateInput(nodes = []) {
   }));
 }
 
-async function validateToolTargets(client, nodes) {
-  const targetCodes = [...new Set(nodes.map((node) => node.targetCode))];
+async function validateWorkflowTargets(client, nodes) {
+  const toolTargetCodes = [...new Set(
+    nodes
+      .filter((node) => node.nodeTypeCode === 'TOOL')
+      .map((node) => node.targetCode),
+  )];
+
+  if (toolTargetCodes.length === 0) {
+    return new Map();
+  }
+
   const toolResult = await client.query(
     `
       SELECT tool_id, tool_code, label, description
@@ -1337,10 +1536,10 @@ async function validateToolTargets(client, nodes) {
       WHERE tool_code = ANY($1::text[])
         AND enabled = TRUE
     `,
-    [targetCodes],
+    [toolTargetCodes],
   );
   const toolsByCode = new Map(toolResult.rows.map((row) => [row.tool_code, row]));
-  const missingTools = targetCodes.filter((targetCode) => !toolsByCode.has(targetCode));
+  const missingTools = toolTargetCodes.filter((targetCode) => !toolsByCode.has(targetCode));
 
   if (missingTools.length > 0) {
     throw new WorkflowServiceError('One or more tool targets were not found or are disabled.', 400, {
@@ -1350,6 +1549,7 @@ async function validateToolTargets(client, nodes) {
 
   return toolsByCode;
 }
+
 
 async function insertWorkflowVersionGraph({
   client,
@@ -1362,7 +1562,7 @@ async function insertWorkflowVersionGraph({
   existingWorkflowVersionId = null,
 } = {}) {
   const publish = status === 'PUBLISHED';
-  const toolsByCode = await validateToolTargets(client, nodes);
+  const toolsByCode = await validateWorkflowTargets(client, nodes);
   let workflowVersionId = existingWorkflowVersionId;
 
   if (!workflowVersionId) {
@@ -1397,7 +1597,7 @@ async function insertWorkflowVersionGraph({
   const insertedNodes = [];
 
   for (const node of nodes) {
-    const tool = toolsByCode.get(node.targetCode);
+    const tool = node.nodeTypeCode === 'TOOL' ? toolsByCode.get(node.targetCode) : null;
     const nodeResult = await client.query(
       `
         INSERT INTO worker.workflow_nodes (
@@ -1427,7 +1627,7 @@ async function insertWorkflowVersionGraph({
         node.displayName,
         node.description,
         node.targetCode,
-        tool.tool_id,
+        tool?.tool_id || null,
         JSON.stringify(assertJsonObject(node.inputParameters, `${node.nodeKey}.inputParameters`)),
         JSON.stringify(getSafeObject(node.retryPolicy)),
         node.timeoutMs,
@@ -1446,9 +1646,9 @@ async function insertWorkflowVersionGraph({
       workflow_display_name: definition.displayName,
       version_number: versionNumber,
       version_status: status,
-      node_type_display_name: 'Run Tool',
-      node_type_category: 'ACTION',
-      target_kind: 'core.tools',
+      node_type_display_name: getNodeDisplayNameForType(node.nodeTypeCode),
+      node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : 'ACTION',
+      target_kind: getNodeTargetKindForType(node.nodeTypeCode),
     }));
   }
 
@@ -1519,7 +1719,7 @@ async function replaceWorkflowGraph({ workflowCode, payload = {}, user, permissi
   const rawNodes = getSafeArray(payload.nodes);
 
   if (rawNodes.length === 0) {
-    throw new WorkflowServiceError('At least one TOOL node is required for a workflow graph.', 400);
+    throw new WorkflowServiceError('At least one supported workflow node is required for a workflow graph.', 400);
   }
 
   const seenKeys = new Set();
@@ -1634,7 +1834,7 @@ async function createWorkflowVersion({ workflowCode, payload = {}, user, permiss
     : versionNodesToCreateInput(sourceGraph?.nodes || []);
 
   if (rawNodes.length === 0) {
-    throw new WorkflowServiceError('At least one TOOL node is required for a workflow version.', 400);
+    throw new WorkflowServiceError('At least one supported workflow node is required for a workflow version.', 400);
   }
 
   const seenKeys = new Set();
@@ -1754,6 +1954,10 @@ async function executeNode({ node, parameters, user, session, permissions, conte
 
   if (node.nodeTypeCode === 'TOOL') {
     return runToolNode({ node, parameters, user, session, permissions, context });
+  }
+
+  if (node.nodeTypeCode === 'API_CALL') {
+    return runApiCallNode({ node, parameters, user, session, permissions, context });
   }
 
   if (node.nodeTypeCode === 'TEMPORAL_WORKFLOW') {
