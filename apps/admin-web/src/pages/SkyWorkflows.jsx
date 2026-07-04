@@ -142,6 +142,10 @@ function getNodeOutputSummary(output = {}) {
     return `Started Temporal workflow ${output.workflowId || output.workflowCode || ''}`.trim();
   }
 
+  if (output.kind === 'api_call') {
+    return output.summary || `API ${output.method || ''} ${output.url || ''} returned ${output.statusCode || 'unknown status'}`.trim();
+  }
+
   if (output.kind === 'tool_execution') {
     return `${output.toolCode || 'Tool'} finished with ${output.status || 'UNKNOWN'}`;
   }

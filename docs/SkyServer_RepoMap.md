@@ -212,7 +212,8 @@ SkyServer/
 │   │           ├── 00041__workflow_executor_permission_hotfix.sql
 │   │           ├── 00042__skyserver_workflow_schedule_bridge_seed.sql
 │   │           ├── 00043__workflow_builder_permissions_seed.sql
-│   │           └── 00044__boc_statcan_ingestion_tool_upgrade_seed.sql
+│   │           ├── 00044__boc_statcan_ingestion_tool_upgrade_seed.sql
+│   │           └── 00046__workflow_api_node_support_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

@@ -260,3 +260,20 @@ Phase 10.18 improves the Scheduler UX after the workflow bridge was proven. The 
 
 Selecting `Workflow` shows active SkyServer workflows instead of exposing the `skyserver_workflow_start` bridge alongside normal tools. The runtime remains unchanged: scheduled workflows still start through the Temporal-backed SkyServer workflow executor.
 
+
+## Phase 10.19 — API_CALL node support v1
+
+Status: implemented.
+
+The SkyServer workflow builder now supports `API_CALL` nodes in addition to `TOOL` nodes. API calls are executed inside the Temporal-backed SkyServer workflow executor as activities, so the same run ledger, node timeline, Temporal diagnostics, retry shell, and failure handling apply.
+
+This expands the workflow hierarchy from tool-only pipelines into integration workflows:
+
+```text
+SkyServer workflow
+  -> TOOL node
+  -> API_CALL node
+  -> future AGENT / WORKFLOW / TEMPORAL_WORKFLOW / CONDITION nodes
+```
+
+V1 API nodes support method, URL, headers JSON, body JSON, expected success codes, timeout, and response preview limits. Secrets and reusable connection profiles remain a future hardening step.

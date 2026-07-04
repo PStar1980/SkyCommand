@@ -440,3 +440,34 @@ Scheduler -> skyserver_workflow_start -> Temporal-backed SkyServer workflow exec
 
 The bridge tool remains an implementation detail. Operators choose active workflows directly, while tool schedules continue to use manifest-driven parameter controls from `core.tool_parameters`.
 
+
+---
+
+## Phase 10.19 — API_CALL node support v1
+
+Phase 10.19 adds the second supported business-node type to the SkyServer workflow model.
+
+Supported node types now include:
+
+| Node type | Behavior |
+| --- | --- |
+| `TOOL` | Runs an existing `core.tools` primitive through SkyServer's permission-aware tool execution service. |
+| `API_CALL` | Calls a configured HTTP/HTTPS endpoint through the Temporal-backed workflow executor activity path. |
+
+API nodes store their configuration in `worker.workflow_nodes.input_parameters`:
+
+```json
+{
+  "method": "GET",
+  "url": "http://localhost:7171/api/temporal/health",
+  "headersJson": "{}",
+  "bodyJson": "",
+  "successCodes": "200,201,202,204",
+  "timeoutMs": "30000",
+  "maxResponseBytes": "32768"
+}
+```
+
+At runtime, the generic `skyserverWorkflowExecutorWorkflow` executes API nodes as Temporal activities. The node output records HTTP method, URL, status code, duration, response preview, response size, and success/failure state. This keeps API calls inside the same SkyServer workflow run ledger and Temporal diagnostics path as tool nodes.
+
+The v1 API node is intentionally basic. Future phases should add connection profiles, environment-backed secrets, allow/deny lists, and reusable approved API targets before broad external use.

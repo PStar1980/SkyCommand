@@ -6,6 +6,16 @@ import ToolParameterEditor, {
 } from '../components/ToolParameterEditor.jsx';
 import workflowService from '../services/workflowService';
 
+const DEFAULT_API_PARAMETERS = {
+  method: 'GET',
+  url: '',
+  headersJson: '{}',
+  bodyJson: '',
+  successCodes: '200,201,202,204',
+  timeoutMs: '30000',
+  maxResponseBytes: '32768',
+};
+
 const EMPTY_NODE = {
   nodeKey: '',
   displayName: '',
@@ -64,10 +74,46 @@ function graphNodesToEditorNodes(nodes = []) {
     nodeKey: node.nodeKey || `node_${index + 1}`,
     displayName: node.displayName || '',
     description: node.description || '',
-    nodeTypeCode: 'TOOL',
+    nodeTypeCode: node.nodeTypeCode || 'TOOL',
     targetCode: node.targetCode || '',
-    inputParameters: node.inputParameters || {},
+    inputParameters: node.nodeTypeCode === 'API_CALL'
+      ? { ...DEFAULT_API_PARAMETERS, ...(node.inputParameters || {}) }
+      : node.inputParameters || {},
   }));
+}
+
+function parseJsonInput(value, fieldName, allowBlank = true) {
+  const text = String(value || '').trim();
+
+  if (!text && allowBlank) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text || '{}');
+  } catch (error) {
+    throw new Error(`${fieldName} must be valid JSON: ${error.message}`);
+  }
+}
+
+function cleanApiParameters(values = {}) {
+  const parameters = {
+    ...DEFAULT_API_PARAMETERS,
+    ...(values || {}),
+  };
+
+  parseJsonInput(parameters.headersJson || '{}', 'API headers JSON', false);
+  if (parameters.bodyJson) {
+    parseJsonInput(parameters.bodyJson, 'API body JSON');
+  }
+
+  if (!String(parameters.url || '').trim()) {
+    throw new Error('API nodes require a URL.');
+  }
+
+  return Object.fromEntries(
+    Object.entries(parameters).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  );
 }
 
 function StatusPill({ status }) {
@@ -112,11 +158,120 @@ function ToolTargetOption({ tool }) {
   );
 }
 
+function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
+  const values = { ...DEFAULT_API_PARAMETERS, ...(parameters || {}) };
+
+  function patch(changes) {
+    onChange({ ...values, ...changes });
+  }
+
+  return (
+    <div className="row g-3">
+      <div className="col-lg-4">
+        <label className="form-label" htmlFor={`${idPrefix}-method`}>Method</label>
+        <select
+          className="form-select sky-form-control"
+          id={`${idPrefix}-method`}
+          onChange={(event) => patch({ method: event.target.value })}
+          value={values.method || 'GET'}
+        >
+          {['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].map((method) => (
+            <option key={method} value={method}>{method}</option>
+          ))}
+        </select>
+      </div>
+      <div className="col-lg-8">
+        <label className="form-label" htmlFor={`${idPrefix}-url`}>URL</label>
+        <input
+          className="form-control sky-form-control sky-mono"
+          id={`${idPrefix}-url`}
+          onChange={(event) => patch({ url: event.target.value })}
+          placeholder="http://localhost:7171/api/temporal/health"
+          value={values.url || ''}
+        />
+      </div>
+      <div className="col-lg-4">
+        <label className="form-label" htmlFor={`${idPrefix}-successCodes`}>Success codes</label>
+        <input
+          className="form-control sky-form-control sky-mono"
+          id={`${idPrefix}-successCodes`}
+          onChange={(event) => patch({ successCodes: event.target.value })}
+          value={values.successCodes || ''}
+        />
+      </div>
+      <div className="col-lg-4">
+        <label className="form-label" htmlFor={`${idPrefix}-timeout`}>Timeout ms</label>
+        <input
+          className="form-control sky-form-control sky-mono"
+          id={`${idPrefix}-timeout`}
+          onChange={(event) => patch({ timeoutMs: event.target.value })}
+          type="number"
+          value={values.timeoutMs || ''}
+        />
+      </div>
+      <div className="col-lg-4">
+        <label className="form-label" htmlFor={`${idPrefix}-maxBytes`}>Preview bytes</label>
+        <input
+          className="form-control sky-form-control sky-mono"
+          id={`${idPrefix}-maxBytes`}
+          onChange={(event) => patch({ maxResponseBytes: event.target.value })}
+          type="number"
+          value={values.maxResponseBytes || ''}
+        />
+      </div>
+      <div className="col-12">
+        <label className="form-label" htmlFor={`${idPrefix}-headers`}>Headers JSON</label>
+        <textarea
+          className="form-control sky-form-control sky-mono"
+          id={`${idPrefix}-headers`}
+          onChange={(event) => patch({ headersJson: event.target.value })}
+          rows={3}
+          value={values.headersJson ?? '{}'}
+        />
+      </div>
+      <div className="col-12">
+        <label className="form-label" htmlFor={`${idPrefix}-body`}>Body JSON</label>
+        <textarea
+          className="form-control sky-form-control sky-mono"
+          id={`${idPrefix}-body`}
+          onChange={(event) => patch({ bodyJson: event.target.value })}
+          placeholder="Leave blank for GET/HEAD requests."
+          rows={4}
+          value={values.bodyJson ?? ''}
+        />
+      </div>
+    </div>
+  );
+}
+
 function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
+  const nodeTypeCode = node.nodeTypeCode || 'TOOL';
 
   function patch(changes) {
     onChange(index, { ...node, ...changes });
+  }
+
+  function handleNodeTypeChange(nextType) {
+    if (nextType === 'API_CALL') {
+      patch({
+        nodeTypeCode: 'API_CALL',
+        targetCode: '',
+        displayName: node.displayName || 'Call API',
+        nodeKey: node.nodeKey || `api_call_${index + 1}`,
+        description: node.description || 'Calls a configured HTTP endpoint.',
+        inputParameters: { ...DEFAULT_API_PARAMETERS },
+      });
+      return;
+    }
+
+    patch({
+      nodeTypeCode: 'TOOL',
+      targetCode: '',
+      displayName: '',
+      description: '',
+      inputParameters: {},
+    });
   }
 
   function handleTargetChange(targetCode) {
@@ -137,9 +292,9 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · Tool</div>
+          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : 'Tool'}</div>
           <div className="fw-bold">{node.displayName || selectedTool?.displayName || 'Workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {node.targetCode || 'target tool'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : node.targetCode || 'target tool'}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -149,23 +304,37 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
       </div>
 
       <div className="row g-3">
-        <div className="col-lg-6">
-          <label className="form-label" htmlFor={`manager-node-${index}-tool`}>Tool target</label>
+        <div className="col-lg-4">
+          <label className="form-label" htmlFor={`manager-node-${index}-type`}>Node type</label>
           <select
             className="form-select sky-form-control"
-            id={`manager-node-${index}-tool`}
-            onChange={(event) => handleTargetChange(event.target.value)}
-            value={node.targetCode}
+            id={`manager-node-${index}-type`}
+            onChange={(event) => handleNodeTypeChange(event.target.value)}
+            value={nodeTypeCode}
           >
-            <option value="">Select tool...</option>
-            {toolTargets.map((tool) => <ToolTargetOption key={tool.targetCode} tool={tool} />)}
+            <option value="TOOL">Tool</option>
+            <option value="API_CALL">API call</option>
           </select>
-          {selectedTool && (
-            <div className="form-text">
-              {selectedTool.categoryLabel} · risk {selectedTool.riskCode || 'n/a'} · permission {selectedTool.permissionCode || 'none'}
-            </div>
-          )}
         </div>
+        {nodeTypeCode === 'TOOL' && (
+          <div className="col-lg-8">
+            <label className="form-label" htmlFor={`manager-node-${index}-tool`}>Tool target</label>
+            <select
+              className="form-select sky-form-control"
+              id={`manager-node-${index}-tool`}
+              onChange={(event) => handleTargetChange(event.target.value)}
+              value={node.targetCode}
+            >
+              <option value="">Select tool...</option>
+              {toolTargets.map((tool) => <ToolTargetOption key={tool.targetCode} tool={tool} />)}
+            </select>
+            {selectedTool && (
+              <div className="form-text">
+                {selectedTool.categoryLabel} · risk {selectedTool.riskCode || 'n/a'} · permission {selectedTool.permissionCode || 'none'}
+              </div>
+            )}
+          </div>
+        )}
         <div className="col-lg-6">
           <label className="form-label" htmlFor={`manager-node-${index}-key`}>Node key</label>
           <input
@@ -184,7 +353,7 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
             value={node.displayName}
           />
         </div>
-        <div className="col-lg-6">
+        <div className="col-12">
           <label className="form-label" htmlFor={`manager-node-${index}-description`}>Description</label>
           <input
             className="form-control sky-form-control"
@@ -194,21 +363,35 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
           />
         </div>
         <div className="col-12">
-          <div className="sky-page-kicker mb-2">Tool parameters</div>
-          <ToolParameterEditor
-            idPrefix={`manager-node-${index}-parameter`}
-            onChange={(inputParameters) => patch({ inputParameters })}
-            parameterValues={node.inputParameters || {}}
-            parameters={selectedTool?.parameters || []}
-          />
-          <div className="form-text mt-2">
-            Stored as node default tool parameters from the manifest configuration. Start Workflow uses these defaults.
-          </div>
+          {nodeTypeCode === 'API_CALL' ? (
+            <>
+              <div className="sky-page-kicker mb-2">API call parameters</div>
+              <ApiParameterEditor
+                idPrefix={`manager-node-${index}-api`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameters={node.inputParameters || {}}
+              />
+            </>
+          ) : (
+            <>
+              <div className="sky-page-kicker mb-2">Tool parameters</div>
+              <ToolParameterEditor
+                idPrefix={`manager-node-${index}-parameter`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameterValues={node.inputParameters || {}}
+                parameters={selectedTool?.parameters || []}
+              />
+              <div className="form-text mt-2">
+                Stored as node default tool parameters from the manifest configuration. Start Workflow uses these defaults.
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 
 function WorkflowManager() {
   const [catalog, setCatalog] = useState({ toolTargets: [] });
@@ -326,10 +509,19 @@ function WorkflowManager() {
     setEditorNodes((current) => current.map((node, nodeIndex) => (nodeIndex === index ? nextNode : node)));
   }
 
-  function addEditorNode() {
+  function addEditorNode(nodeTypeCode = 'TOOL') {
     setEditorNodes((current) => [
       ...current,
-      { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
+      nodeTypeCode === 'API_CALL'
+        ? {
+          ...EMPTY_NODE,
+          nodeTypeCode: 'API_CALL',
+          nodeKey: `api_call_${current.length + 1}`,
+          displayName: 'Call API',
+          description: 'Calls a configured HTTP endpoint.',
+          inputParameters: { ...DEFAULT_API_PARAMETERS },
+        }
+        : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
     ]);
   }
 
@@ -355,16 +547,12 @@ function WorkflowManager() {
     const seenKeys = new Set();
 
     return editorNodes.map((node, index) => {
+      const nodeTypeCode = node.nodeTypeCode || 'TOOL';
       const nodeKey = nodeKeyFrom(node.nodeKey || node.displayName || node.targetCode || `node_${index + 1}`);
       const displayName = String(node.displayName || '').trim();
-      const targetCode = String(node.targetCode || '').trim();
 
       if (!displayName) {
         throw new Error(`Node ${index + 1} requires a display name.`);
-      }
-
-      if (!targetCode) {
-        throw new Error(`Node ${index + 1} requires a tool target.`);
       }
 
       if (seenKeys.has(nodeKey)) {
@@ -372,6 +560,29 @@ function WorkflowManager() {
       }
 
       seenKeys.add(nodeKey);
+
+      if (nodeTypeCode === 'API_CALL') {
+        const inputParameters = cleanApiParameters(node.inputParameters);
+        return {
+          nodeKey,
+          nodeTypeCode: 'API_CALL',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode: inputParameters.url,
+          inputParameters,
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'api',
+            updatedBy: 'workflow_manager_ui_v2',
+          },
+        };
+      }
+
+      const targetCode = String(node.targetCode || '').trim();
+
+      if (!targetCode) {
+        throw new Error(`Node ${index + 1} requires a tool target.`);
+      }
 
       return {
         nodeKey,
@@ -383,11 +594,12 @@ function WorkflowManager() {
         displayOrder: (index + 1) * 10,
         config: {
           builderCard: 'tool',
-          updatedBy: 'workflow_manager_ui_v1',
+          updatedBy: 'workflow_manager_ui_v2',
         },
       };
     });
   }
+
 
   async function handleMetadataSubmit(event) {
     event.preventDefault();
@@ -495,7 +707,7 @@ function WorkflowManager() {
           <h1 className="sky-page-title">Manage Workflows</h1>
           <p className="sky-page-subtitle">
             Review SkyServer workflow definitions, update metadata, clone business workflows,
-            delete old definitions, and save the current sequential tool-node graph.
+            delete old definitions, and save the current sequential workflow graph.
           </p>
         </div>
         <button className="btn sky-btn-ghost" disabled={loading || saving} onClick={() => loadDefinitions()} type="button">
@@ -519,7 +731,7 @@ function WorkflowManager() {
           <div className="sky-page-kicker">Workflow lifecycle</div>
           <h2 className="h4 mb-2">Definition control center</h2>
           <p className="sky-muted mb-3">
-            Manage the current workflow graph and lifecycle before advanced node types and the visual graph editor arrive.
+            Manage the current workflow graph and lifecycle before branching, approvals, agents, and the visual graph editor arrive.
           </p>
           <div className="sky-worker-command-strip">
             <div className="sky-worker-command-card">
@@ -584,7 +796,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Clone workflow</span>
               <span className="sky-pill sky-pill-success">Save current graph</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
-              <span className="sky-pill sky-pill-info">Sequential TOOL nodes only</span>
+              <span className="sky-pill sky-pill-info">Sequential TOOL + API nodes</span>
             </div>
           </section>
         </div>
@@ -667,7 +879,7 @@ function WorkflowManager() {
                     <div className="sky-page-kicker">Workflow graph</div>
                     <h2 className="h5 mb-0">Edit current sequential graph</h2>
                   </div>
-                  <button className="btn btn-sm sky-btn-ghost" onClick={addEditorNode} type="button">Add tool node</button>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   <div className="d-flex flex-column gap-3">

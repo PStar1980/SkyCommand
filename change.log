@@ -387,3 +387,12 @@ SkyWeb Analytics owns:
 - Normal tool schedules continue to render manifest-driven target parameters, while workflow schedules only require the selected active workflow and use that workflow's configured node defaults.
 - Updated Active Schedules and Schedule Detail views to show target kind, display label, and target code so tool schedules and workflow schedules are visually distinct.
 
+
+## Phase 10.19 — API_CALL Workflow Node Support v1
+
+- Added `API_CALL` to the supported SkyServer workflow node execution set alongside `TOOL` nodes.
+- Added Temporal-backed API call execution through the generic SkyServer workflow executor activity path using Axios with method, URL, headers JSON, body JSON, timeout, max response preview bytes, and expected success codes.
+- Updated Create Workflow and Manage Workflows so operators can add either Tool nodes or API Call nodes to the current sequential graph.
+- API nodes validate JSON headers/body before save, store their defaults in `worker.workflow_nodes.input_parameters`, and execute through Workflow History / Temporal diagnostics like other workflow nodes.
+- Added `00046__workflow_api_node_support_seed.sql` to mark `API_CALL` as an actively supported builder node type for existing and fresh databases.
+- Workflow History summaries now recognize API call node output and display HTTP status/duration summaries.
