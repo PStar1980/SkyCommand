@@ -183,6 +183,104 @@ function parseSuccessCodes(value) {
   return codes.length > 0 ? codes : [200, 201, 202, 204];
 }
 
+
+function normalizeApiAuthMode(value) {
+  const normalized = String(value || 'AUTO')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    '': 'AUTO',
+    AUTO: 'AUTO',
+    AUTOMATIC: 'AUTO',
+    NO_AUTH: 'NONE',
+    NONE: 'NONE',
+    INTERNAL: 'SKYSERVER_INTERNAL',
+    INTERNAL_SERVICE: 'SKYSERVER_INTERNAL',
+    SKY_SERVER_INTERNAL: 'SKYSERVER_INTERNAL',
+    SKYSERVER_INTERNAL: 'SKYSERVER_INTERNAL',
+  };
+
+  const authMode = aliases[normalized] || normalized;
+  const allowed = new Set(['AUTO', 'NONE', 'SKYSERVER_INTERNAL']);
+
+  if (!allowed.has(authMode)) {
+    throw new WorkflowServiceError('Unsupported API_CALL auth mode.', 400, {
+      authMode: value,
+      allowed: [...allowed],
+    });
+  }
+
+  return authMode;
+}
+
+function getInternalApiToken() {
+  return String(process.env.SKYSERVER_INTERNAL_API_TOKEN || '').trim();
+}
+
+function isLocalSkyServerUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (error) {
+    return false;
+  }
+
+  const host = String(parsed.hostname || '').toLowerCase();
+  const allowedHosts = new Set(['localhost', '127.0.0.1', '::1']);
+
+  if (!allowedHosts.has(host)) {
+    return false;
+  }
+
+  const apiPort = String(process.env.API_PORT || process.env.ADMIN_PORT || 7171);
+  const parsedPort = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
+
+  return parsedPort === apiPort;
+}
+
+function applyApiAuthHeaders({ headers, authMode, url }) {
+  const outputHeaders = { ...(headers || {}) };
+
+  if (authMode === 'NONE') {
+    return outputHeaders;
+  }
+
+  if (authMode === 'AUTO') {
+    const token = getInternalApiToken();
+
+    if (token && isLocalSkyServerUrl(url)) {
+      outputHeaders['x-skyserver-internal-token'] = token;
+    }
+
+    return outputHeaders;
+  }
+
+  if (authMode === 'SKYSERVER_INTERNAL') {
+    if (!isLocalSkyServerUrl(url)) {
+      throw new WorkflowServiceError('SkyServer internal API auth can only be used for the local SkyServer API.', 400, {
+        url,
+        authMode,
+      });
+    }
+
+    const token = getInternalApiToken();
+
+    if (!token) {
+      throw new WorkflowServiceError('SKYSERVER_INTERNAL_API_TOKEN is required for SkyServer internal API auth.', 500, {
+        authMode,
+        envVar: 'SKYSERVER_INTERNAL_API_TOKEN',
+      });
+    }
+
+    outputHeaders['x-skyserver-internal-token'] = token;
+    return outputHeaders;
+  }
+
+  return outputHeaders;
+}
+
 function normalizeHttpMethod(value) {
   const method = String(value || 'GET').trim().toUpperCase();
   const allowed = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']);
@@ -781,7 +879,9 @@ async function runToolNode({ node, parameters, user, session, permissions, conte
 async function runApiCallNode({ node, parameters }) {
   const method = normalizeHttpMethod(parameters.method);
   const url = normalizeApiUrl(parameters.url || node.targetCode);
-  const headers = parseJsonText(parameters.headersJson ?? parameters.headers, {}, 'headersJson');
+  const authMode = normalizeApiAuthMode(parameters.authMode || 'AUTO');
+  const configuredHeaders = parseJsonText(parameters.headersJson ?? parameters.headers, {}, 'headersJson');
+  const headers = applyApiAuthHeaders({ headers: configuredHeaders, authMode, url });
   const body = parseJsonText(parameters.bodyJson ?? parameters.body, null, 'bodyJson');
   const successCodes = parseSuccessCodes(parameters.successCodes);
   const timeoutMs = normalizePositiveNumber(parameters.timeoutMs || node.timeoutMs, 30000, 300000);
@@ -810,6 +910,7 @@ async function runApiCallNode({ node, parameters }) {
       kind: 'api_call',
       method,
       url,
+      authMode,
       status: 'FAILED',
       durationMs: Date.now() - startedAtMs,
       errorCode: error.code || null,
@@ -827,6 +928,7 @@ async function runApiCallNode({ node, parameters }) {
     kind: 'api_call',
     method,
     url,
+    authMode,
     status: success ? 'SUCCESS' : 'FAILED',
     statusCode: response.status,
     statusText: response.statusText,
@@ -975,6 +1077,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   if (nodeTypeCode === 'API_CALL') {
     normalizeApiUrl(inputParameters.url || targetCode);
     normalizeHttpMethod(inputParameters.method || 'GET');
+    normalizeApiAuthMode(inputParameters.authMode || 'AUTO');
     parseJsonText(inputParameters.headersJson ?? inputParameters.headers, {}, `nodes[${index}].headersJson`);
     parseJsonText(inputParameters.bodyJson ?? inputParameters.body, null, `nodes[${index}].bodyJson`);
   }

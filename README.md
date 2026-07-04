@@ -660,3 +660,7 @@ Apply the existing-DB seed after upgrading:
 ```powershell
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00046__workflow_api_node_support_seed.sql
 ```
+
+### Workflow API_CALL internal auth
+
+API_CALL workflow nodes support an `authMode` value of `AUTO`, `NONE`, or `SKYSERVER_INTERNAL`. For protected local SkyServer API endpoints, use `AUTO` or set `authMode` to `SKYSERVER_INTERNAL` and configure `SKYSERVER_INTERNAL_API_TOKEN` with the same value for the API and Temporal worker processes. The internal token is injected by the activity at runtime and is not stored in workflow node headers.
