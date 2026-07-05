@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.17 — Workflow Lifecycle Simplification
+**Active status:** Phase 10.20 — Child SkyServer Workflow Nodes
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -664,3 +664,26 @@ psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00
 ### Workflow API_CALL internal auth
 
 API_CALL workflow nodes support an `authMode` value of `AUTO`, `NONE`, or `SKYSERVER_INTERNAL`. For protected local SkyServer API endpoints, use `AUTO` or set `authMode` to `SKYSERVER_INTERNAL` and configure `SKYSERVER_INTERNAL_API_TOKEN` with the same value for the API and Temporal worker processes. The internal token is injected by the activity at runtime and is not stored in workflow node headers.
+
+
+## Phase 10.20 — Child SkyServer Workflow Nodes
+
+Phase 10.20 adds `WORKFLOW` nodes to the supported SkyServer workflow builder palette. A parent SkyServer workflow can now compose another active SkyServer workflow as a child node. The parent execution still runs through the generic Temporal-backed executor, but child workflow nodes are started as Temporal child executions and the parent waits for completion.
+
+Supported behavior:
+
+```text
+Parent SkyServer workflow
+  -> WORKFLOW node
+  -> child SkyServer workflow
+  -> Temporal child execution
+  -> parent node completion
+```
+
+Create/Manage Workflows now offer an **Add child workflow** action. Direct self-recursion and recursive workflow cycles are blocked so workflow composition remains safe.
+
+Existing DB patch:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00047__workflow_child_node_support_seed.sql
+```

@@ -6,7 +6,7 @@ const toolManifestService = require('./toolManifestService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
-const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'TEMPORAL_WORKFLOW']);
+const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
 const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
@@ -336,6 +336,7 @@ function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
     API_CALL: 'Call API',
     TEMPORAL_WORKFLOW: 'Start Temporal Workflow',
     TOOL: 'Run Tool',
+    WORKFLOW: 'Run Child Workflow',
   };
 
   return map[nodeTypeCode] || fallback;
@@ -346,6 +347,7 @@ function getNodeTargetKindForType(nodeTypeCode) {
     API_CALL: 'api.endpoint',
     TEMPORAL_WORKFLOW: 'worker.temporal_workflow_definitions',
     TOOL: 'core.tools',
+    WORKFLOW: 'worker.workflow_definitions',
   };
 
   return map[nodeTypeCode] || null;
@@ -984,7 +986,7 @@ async function runTemporalWorkflowNode({ node, parameters, user, context }) {
 }
 
 async function listBuilderCatalog({ permissions = [] } = {}) {
-  const [nodeTypeResult, toolManifest] = await Promise.all([
+  const [nodeTypeResult, toolManifest, workflowTargetResult] = await Promise.all([
     query(
       `
         SELECT
@@ -1003,6 +1005,24 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
       `,
     ),
     toolManifestService.listToolsForUser({ permissions }),
+    query(
+      `
+        SELECT
+          workflow_definition_id,
+          workflow_code,
+          display_name,
+          description,
+          status,
+          published_node_count,
+          published_edge_count
+        FROM worker.vw_workflow_definitions
+        WHERE enabled = TRUE
+          AND visible_in_admin = TRUE
+          AND status = 'ACTIVE'
+          AND published_version_id IS NOT NULL
+        ORDER BY display_name, workflow_code
+      `,
+    ),
   ]);
 
   const nodeTypes = nodeTypeResult.rows.map((row) => {
@@ -1044,10 +1064,27 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     }
   }
 
+  const workflowTargets = workflowTargetResult.rows.map((row) => {
+    const item = camelizeRow(row);
+
+    return {
+      nodeTypeCode: 'WORKFLOW',
+      targetKind: 'worker.workflow_definitions',
+      targetCode: item.workflowCode,
+      targetRefId: item.workflowDefinitionId,
+      displayName: item.displayName,
+      description: item.description,
+      status: item.status,
+      nodeCount: item.publishedNodeCount || 0,
+      edgeCount: item.publishedEdgeCount || 0,
+    };
+  });
+
   return {
     nodeTypes,
     supportedNodeTypes: nodeTypes.filter((nodeType) => nodeType.initiallySupported),
     toolTargets,
+    workflowTargets,
   };
 }
 
@@ -1055,9 +1092,9 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
 
   if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode) || nodeTypeCode === 'TEMPORAL_WORKFLOW') {
-    throw new WorkflowServiceError('Workflow Builder currently supports TOOL and API_CALL nodes.', 400, {
+    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, and WORKFLOW nodes.', 400, {
       nodeTypeCode,
-      supportedNodeTypes: ['TOOL', 'API_CALL'],
+      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW'],
     });
   }
 
@@ -1065,11 +1102,18 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   const targetCode = String(
     node.targetCode ||
     node.toolCode ||
+    node.workflowCode ||
     (nodeTypeCode === 'API_CALL' ? inputParameters.url || node.url || '' : ''),
   ).trim();
 
   if (nodeTypeCode === 'TOOL' && !targetCode) {
     throw new WorkflowServiceError('Each TOOL node requires targetCode.', 400, {
+      index,
+    });
+  }
+
+  if (nodeTypeCode === 'WORKFLOW' && !targetCode) {
+    throw new WorkflowServiceError('Each WORKFLOW node requires a child workflow targetCode.', 400, {
       index,
     });
   }
@@ -1109,7 +1153,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
     enabled: node.enabled !== false,
-    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : 'tool' }),
+    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : 'tool' }),
   };
 }
 
@@ -1164,7 +1208,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
       });
     }
 
-    const toolsByCode = await validateWorkflowTargets(client, nodes);
+    const toolsByCode = await validateWorkflowTargets(client, nodes, { parentWorkflowCode: workflowCode });
 
     const definitionResult = await client.query(
       `
@@ -1195,8 +1239,8 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         DEFAULT_CANCEL_PERMISSION,
         JSON.stringify({
           createdBy: 'workflow_builder_v1',
-          builderVersion: '10.19',
-          supportedNodeTypes: ['TOOL', 'API_CALL'],
+          builderVersion: '10.20',
+          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW'],
         }),
         user?.userId || null,
       ],
@@ -1281,7 +1325,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         version_number: 1,
         version_status: publish ? 'PUBLISHED' : 'DRAFT',
         node_type_display_name: getNodeDisplayNameForType(node.nodeTypeCode),
-        node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : 'ACTION',
+        node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : node.nodeTypeCode === 'WORKFLOW' ? 'WORKFLOW' : 'ACTION',
         target_kind: getNodeTargetKindForType(node.nodeTypeCode),
       }));
     }
@@ -1621,33 +1665,119 @@ function versionNodesToCreateInput(nodes = []) {
   }));
 }
 
-async function validateWorkflowTargets(client, nodes) {
+async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = null } = {}) {
   const toolTargetCodes = [...new Set(
     nodes
       .filter((node) => node.nodeTypeCode === 'TOOL')
       .map((node) => node.targetCode),
   )];
+  const workflowTargetCodes = [...new Set(
+    nodes
+      .filter((node) => node.nodeTypeCode === 'WORKFLOW')
+      .map((node) => node.targetCode),
+  )];
+  const normalizedParentWorkflowCode = String(parentWorkflowCode || '').trim();
 
-  if (toolTargetCodes.length === 0) {
-    return new Map();
+  if (normalizedParentWorkflowCode && workflowTargetCodes.includes(normalizedParentWorkflowCode)) {
+    throw new WorkflowServiceError('A workflow cannot directly contain itself as a child workflow node.', 400, {
+      workflowCode: normalizedParentWorkflowCode,
+    });
   }
 
-  const toolResult = await client.query(
-    `
-      SELECT tool_id, tool_code, label, description
-      FROM core.tools
-      WHERE tool_code = ANY($1::text[])
-        AND enabled = TRUE
-    `,
-    [toolTargetCodes],
-  );
-  const toolsByCode = new Map(toolResult.rows.map((row) => [row.tool_code, row]));
-  const missingTools = toolTargetCodes.filter((targetCode) => !toolsByCode.has(targetCode));
+  let toolsByCode = new Map();
 
-  if (missingTools.length > 0) {
-    throw new WorkflowServiceError('One or more tool targets were not found or are disabled.', 400, {
-      missingTools,
-    });
+  if (toolTargetCodes.length > 0) {
+    const toolResult = await client.query(
+      `
+        SELECT tool_id, tool_code, label, description
+        FROM core.tools
+        WHERE tool_code = ANY($1::text[])
+          AND enabled = TRUE
+      `,
+      [toolTargetCodes],
+    );
+    toolsByCode = new Map(toolResult.rows.map((row) => [row.tool_code, row]));
+    const missingTools = toolTargetCodes.filter((targetCode) => !toolsByCode.has(targetCode));
+
+    if (missingTools.length > 0) {
+      throw new WorkflowServiceError('One or more tool targets were not found or are disabled.', 400, {
+        missingTools,
+      });
+    }
+  }
+
+  if (workflowTargetCodes.length > 0) {
+    const workflowResult = await client.query(
+      `
+        SELECT workflow_code
+        FROM worker.vw_workflow_definitions
+        WHERE workflow_code = ANY($1::text[])
+          AND enabled = TRUE
+          AND visible_in_admin = TRUE
+          AND status = 'ACTIVE'
+          AND published_version_id IS NOT NULL
+      `,
+      [workflowTargetCodes],
+    );
+    const workflowsByCode = new Map(workflowResult.rows.map((row) => [row.workflow_code, row]));
+    const missingWorkflows = workflowTargetCodes.filter((targetCode) => !workflowsByCode.has(targetCode));
+
+    if (missingWorkflows.length > 0) {
+      throw new WorkflowServiceError('One or more child workflow targets were not found, inactive, or unpublished.', 400, {
+        missingWorkflows,
+      });
+    }
+
+    if (normalizedParentWorkflowCode) {
+      const cycleResult = await client.query(
+        `
+          WITH RECURSIVE workflow_walk AS (
+            SELECT
+              d.workflow_code,
+              ARRAY[d.workflow_code]::text[] AS path
+            FROM worker.vw_workflow_definitions d
+            WHERE d.workflow_code = ANY($1::text[])
+              AND d.enabled = TRUE
+              AND d.visible_in_admin = TRUE
+              AND d.status = 'ACTIVE'
+              AND d.published_version_id IS NOT NULL
+
+            UNION ALL
+
+            SELECT
+              child.workflow_code,
+              workflow_walk.path || child.workflow_code
+            FROM workflow_walk
+            JOIN worker.vw_workflow_definitions parent
+              ON parent.workflow_code = workflow_walk.workflow_code
+            JOIN worker.workflow_nodes node
+              ON node.workflow_version_id = parent.published_version_id
+             AND node.node_type_code = 'WORKFLOW'
+             AND node.enabled = TRUE
+            JOIN worker.vw_workflow_definitions child
+              ON child.workflow_code = node.target_code
+             AND child.enabled = TRUE
+             AND child.visible_in_admin = TRUE
+             AND child.status = 'ACTIVE'
+             AND child.published_version_id IS NOT NULL
+            WHERE NOT child.workflow_code = ANY(workflow_walk.path)
+          )
+          SELECT workflow_code, path
+          FROM workflow_walk
+          WHERE workflow_code = $2
+          LIMIT 1
+        `,
+        [workflowTargetCodes, normalizedParentWorkflowCode],
+      );
+
+      if (cycleResult.rowCount > 0) {
+        throw new WorkflowServiceError('Child workflow relationship would create a workflow cycle.', 400, {
+          workflowCode: normalizedParentWorkflowCode,
+          childWorkflowTargets: workflowTargetCodes,
+          cyclePath: cycleResult.rows[0].path,
+        });
+      }
+    }
   }
 
   return toolsByCode;
@@ -1665,7 +1795,7 @@ async function insertWorkflowVersionGraph({
   existingWorkflowVersionId = null,
 } = {}) {
   const publish = status === 'PUBLISHED';
-  const toolsByCode = await validateWorkflowTargets(client, nodes);
+  const toolsByCode = await validateWorkflowTargets(client, nodes, { parentWorkflowCode: definition.workflowCode });
   let workflowVersionId = existingWorkflowVersionId;
 
   if (!workflowVersionId) {
@@ -1750,7 +1880,7 @@ async function insertWorkflowVersionGraph({
       version_number: versionNumber,
       version_status: status,
       node_type_display_name: getNodeDisplayNameForType(node.nodeTypeCode),
-      node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : 'ACTION',
+      node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : node.nodeTypeCode === 'WORKFLOW' ? 'WORKFLOW' : 'ACTION',
       target_kind: getNodeTargetKindForType(node.nodeTypeCode),
     }));
   }
@@ -2046,6 +2176,116 @@ async function cloneWorkflowDefinition({ workflowCode, payload = {}, user, permi
   });
 }
 
+
+async function createChildWorkflowRun({
+  parentWorkflowRunRecordId,
+  parentWorkflowCode,
+  parentNodeKey,
+  childWorkflowCode,
+  input = {},
+  user,
+  context = {},
+  permissions = [],
+} = {}) {
+  const normalizedChildWorkflowCode = String(childWorkflowCode || '').trim();
+  const workflowStack = Array.isArray(context.workflowStack) ? context.workflowStack : [];
+
+  if (!normalizedChildWorkflowCode) {
+    throw new WorkflowServiceError('Child workflowCode is required.', 400);
+  }
+
+  if (normalizedChildWorkflowCode === String(parentWorkflowCode || '').trim()) {
+    throw new WorkflowServiceError('A workflow cannot directly run itself as a child workflow.', 400, {
+      parentWorkflowCode,
+      childWorkflowCode: normalizedChildWorkflowCode,
+      parentNodeKey,
+    });
+  }
+
+  if (workflowStack.includes(normalizedChildWorkflowCode)) {
+    throw new WorkflowServiceError('Child workflow cycle detected.', 400, {
+      workflowStack,
+      childWorkflowCode: normalizedChildWorkflowCode,
+      parentNodeKey,
+    });
+  }
+
+  const definition = await getWorkflowDefinition(normalizedChildWorkflowCode);
+
+  assertPermission({
+    permissionCode: definition.startPermissionCode,
+    permissions,
+    action: 'start_child_workflow',
+  });
+
+  const childInput = {
+    ...getSafeObject(input),
+    runSource: 'child_workflow',
+    triggerType: 'CHILD_WORKFLOW',
+    parentWorkflowRunRecordId,
+    parentWorkflowCode: parentWorkflowCode || null,
+    parentNodeKey: parentNodeKey || null,
+  };
+
+  const run = await insertWorkflowRun({
+    definition,
+    input: childInput,
+    user,
+    context,
+    status: 'QUEUED',
+    metadata: {
+      executor: 'skyserver_workflow_executor_temporal_v1',
+      temporalBacked: true,
+      childWorkflow: true,
+      parentWorkflowRunRecordId: parentWorkflowRunRecordId || null,
+      parentWorkflowCode: parentWorkflowCode || null,
+      parentNodeKey: parentNodeKey || null,
+    },
+  });
+
+  return {
+    definition,
+    run,
+    input: childInput,
+  };
+}
+
+async function runChildWorkflowNode({ node, parameters, user, session, permissions, context }) {
+  const childWorkflowCode = String(parameters.workflowCode || node.targetCode || '').trim();
+
+  if (!childWorkflowCode) {
+    throw new WorkflowServiceError('Child workflow node target_code is required.', 400, {
+      nodeKey: node.nodeKey,
+    });
+  }
+
+  const result = await startWorkflowWithTemporal({
+    workflowCode: childWorkflowCode,
+    input: {
+      ...parameters,
+      runSource: 'child_workflow',
+      triggerType: 'CHILD_WORKFLOW',
+      parentWorkflowRunRecordId: context?.workflowRunRecordId || null,
+      parentNodeKey: node.nodeKey,
+    },
+    user,
+    session,
+    permissions,
+    context,
+  });
+
+  return {
+    kind: 'child_workflow_start',
+    workflowCode: childWorkflowCode,
+    workflowRunRecordId: result.run?.workflowRunRecordId,
+    temporalWorkflowId: result.temporalWorkflow?.workflowId,
+    temporalRunId: result.temporalWorkflow?.runId,
+    status: result.run?.status || 'RUNNING',
+    summary: `Started child SkyServer workflow ${childWorkflowCode}.`,
+    note: 'Inline fallback starts child workflows asynchronously. Temporal-backed parent workflows wait for child completion.',
+  };
+}
+
 async function executeNode({ node, parameters, user, session, permissions, context }) {
   if (!SUPPORTED_NODE_TYPES.has(node.nodeTypeCode)) {
     throw new WorkflowServiceError(`Unsupported workflow node type in executor v1: ${node.nodeTypeCode}`, 501, {
@@ -2061,6 +2301,10 @@ async function executeNode({ node, parameters, user, session, permissions, conte
 
   if (node.nodeTypeCode === 'API_CALL') {
     return runApiCallNode({ node, parameters, user, session, permissions, context });
+  }
+
+  if (node.nodeTypeCode === 'WORKFLOW') {
+    return runChildWorkflowNode({ node, parameters, user, session, permissions, context });
   }
 
   if (node.nodeTypeCode === 'TEMPORAL_WORKFLOW') {
@@ -2387,6 +2631,7 @@ module.exports = {
   archiveWorkflowDefinition,
   cloneWorkflowDefinition,
   deleteWorkflowDefinition,
+  createChildWorkflowRun,
   createWorkflowDefinition,
   createWorkflowVersion,
   replaceWorkflowGraph,

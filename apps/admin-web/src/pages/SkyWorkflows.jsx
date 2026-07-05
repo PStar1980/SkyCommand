@@ -146,6 +146,14 @@ function getNodeOutputSummary(output = {}) {
     return output.summary || `API ${output.method || ''} ${output.url || ''} returned ${output.statusCode || 'unknown status'}`.trim();
   }
 
+  if (output.kind === 'child_workflow_execution') {
+    return `Child workflow ${output.workflowDisplayName || output.workflowCode || ''} completed successfully.`.trim();
+  }
+
+  if (output.kind === 'child_workflow_start') {
+    return `Started child SkyServer workflow ${output.workflowDisplayName || output.workflowCode || ''}.`.trim();
+  }
+
   if (output.kind === 'tool_execution') {
     return `${output.toolCode || 'Tool'} finished with ${output.status || 'UNKNOWN'}`;
   }
@@ -200,6 +208,16 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
             {nodeRun?.output?.executionId && (
               <div className="small sky-muted mt-1">
                 Execution <span className="sky-mono">{nodeRun.output.executionId}</span>
+              </div>
+            )}
+            {nodeRun?.output?.workflowRunRecordId && (
+              <div className="small sky-muted mt-1">
+                Child run <span className="sky-mono">{nodeRun.output.workflowRunRecordId}</span>
+              </div>
+            )}
+            {nodeRun?.output?.temporalWorkflowId && (
+              <div className="small sky-muted mt-1">
+                Child Temporal workflow <span className="sky-mono">{nodeRun.output.temporalWorkflowId}</span>
               </div>
             )}
             {nodeRun?.errorMessage && (

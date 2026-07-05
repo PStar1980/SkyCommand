@@ -471,3 +471,23 @@ API nodes store their configuration in `worker.workflow_nodes.input_parameters`:
 At runtime, the generic `skyserverWorkflowExecutorWorkflow` executes API nodes as Temporal activities. The node output records HTTP method, URL, status code, duration, response preview, response size, and success/failure state. This keeps API calls inside the same SkyServer workflow run ledger and Temporal diagnostics path as tool nodes.
 
 The v1 API node is intentionally basic. Future phases should add connection profiles, environment-backed secrets, allow/deny lists, and reusable approved API targets before broad external use.
+
+## Phase 10.20 — Child workflow composition
+
+Phase 10.20 adds `WORKFLOW` nodes to the supported builder palette. This turns SkyServer workflow definitions into reusable business blocks instead of forcing every automation to remain one flat graph.
+
+```text
+Workflow A
+  Node 1: TOOL
+  Node 2: WORKFLOW -> Workflow B
+  Node 3: API_CALL
+```
+
+At runtime, the parent workflow is executed by `skyserverWorkflowExecutorWorkflow`. When the executor reaches a `WORKFLOW` node, it creates a child SkyServer workflow run record and starts a Temporal child execution of the same generic executor for the child definition. The parent waits for the child to finish, then records the child run and Temporal workflow identifiers on the parent node output.
+
+Safety rules:
+
+- child targets must be active, enabled, visible SkyServer workflows;
+- direct self-recursion is blocked in the UI/API;
+- recursive child workflow cycles are blocked during graph save;
+- runtime cycle checks protect against stale or externally modified graphs.

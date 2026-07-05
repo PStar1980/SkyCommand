@@ -990,6 +990,7 @@ async function startSkyserverWorkflowExecutorWorkflow({
     session: session || null,
     permissions: Array.isArray(permissions) ? permissions : [],
     context: normalizeRequestContext(context),
+    taskQueue: config.taskQueue,
   });
 
   const handle = await client.workflow.start('skyserverWorkflowExecutorWorkflow', {

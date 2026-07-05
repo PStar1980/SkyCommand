@@ -277,3 +277,20 @@ SkyServer workflow
 ```
 
 V1 API nodes support method, URL, headers JSON, body JSON, expected success codes, timeout, and response preview limits. Secrets and reusable connection profiles remain a future hardening step.
+
+## Phase 10.20 — Child SkyServer workflow nodes
+
+Phase 10.20 enables `WORKFLOW` as a supported SkyServer workflow node type. Parent workflows can now compose active child SkyServer workflow definitions while still running under the generic Temporal-backed executor.
+
+Execution path:
+
+```text
+Parent SkyServer workflow
+  -> skyserverWorkflowExecutorWorkflow
+  -> WORKFLOW node
+  -> Temporal child execution of skyserverWorkflowExecutorWorkflow
+  -> child SkyServer workflow run ledger
+  -> parent node completion
+```
+
+The builder and manager surfaces expose active child workflow targets through a dropdown. Direct self-recursion and recursive workflow cycles are blocked before graph save, and runtime cycle checks remain in place for safety.
