@@ -1,3 +1,11 @@
+## Phase 10.20 - Child SkyServer Workflow Nodes
+- Added WORKFLOW nodes as supported Workflow Builder nodes for composing active SkyServer workflows inside parent workflows.
+- Create/Manage Workflows can now add child workflow nodes from active SkyServer workflow targets while blocking direct self-recursion.
+- Added recursive cycle detection so saving a workflow graph cannot create child workflow loops through existing active graphs.
+- Temporal-backed workflow execution now runs child SkyServer workflows as Temporal child executions and waits for completion before completing the parent node.
+- Workflow History node timelines now surface child workflow run and child Temporal workflow identifiers.
+- Added seed `00047__workflow_child_node_support_seed.sql` for existing databases.
+
 
 ## Phase 10.19a - API_CALL SkyServer Internal Auth Hotfix
 - Added environment-backed SkyServer internal API auth for API_CALL workflow nodes.

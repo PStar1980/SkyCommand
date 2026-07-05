@@ -1,4 +1,4 @@
-const { ApplicationFailure, proxyActivities, sleep, workflowInfo } = require('@temporalio/workflow');
+const { ApplicationFailure, executeChild, proxyActivities, sleep, workflowInfo } = require('@temporalio/workflow');
 
 const definitionActivities = proxyActivities({
   startToCloseTimeout: '2 minutes',
@@ -33,6 +33,21 @@ function getSafeObject(value, fallback = {}) {
   }
 
   return value;
+}
+
+function getSafeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeWorkflowIdPart(value, fallback = 'workflow') {
+  const normalized = String(value || fallback)
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 180);
+
+  return normalized || fallback;
 }
 
 function buildNodeParameters(node, requestInput = {}) {
@@ -82,6 +97,153 @@ function serializeError(error) {
     name: error?.name || 'Error',
     details: getSafeObject(error?.details, {}),
   };
+}
+
+
+async function executeChildWorkflowNodeWithRetries({
+  definition,
+  node,
+  parameters,
+  nodeRun,
+  user,
+  session,
+  permissions,
+  context,
+  temporalWorkflowId,
+  temporalRunId,
+  workflowRunRecordId,
+  taskQueue,
+}) {
+  const retryPolicy = getNodeRetryPolicy(node);
+  const childWorkflowCode = String(parameters.workflowCode || node.targetCode || '').trim();
+  const baseWorkflowStack = getSafeArray(context.workflowStack).includes(definition.workflowCode)
+    ? getSafeArray(context.workflowStack)
+    : [...getSafeArray(context.workflowStack), definition.workflowCode];
+  let lastError = null;
+
+  if (!childWorkflowCode) {
+    throw ApplicationFailure.create({
+      message: 'Child workflow target is required.',
+      type: 'SkyServerChildWorkflowInputError',
+      nonRetryable: true,
+    });
+  }
+
+  for (let attempt = 1; attempt <= retryPolicy.maximumAttempts; attempt += 1) {
+    await ledgerActivities.markSkyserverWorkflowNodeAttemptActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      attemptCount: attempt,
+      metadata: {
+        retryPolicy,
+        childWorkflowCode,
+      },
+    });
+
+    try {
+      const parentContext = {
+        ...getSafeObject(context),
+        workflowStack: baseWorkflowStack,
+      };
+      const childContext = {
+        ...parentContext,
+        parentWorkflowCode: definition.workflowCode,
+        parentWorkflowRunRecordId: workflowRunRecordId,
+        parentNodeKey: node.nodeKey,
+        workflowStack: [...baseWorkflowStack, childWorkflowCode],
+      };
+      const childInput = {
+        ...getSafeObject(parameters),
+        runSource: 'child_workflow',
+        triggerType: 'CHILD_WORKFLOW',
+        parentWorkflowRunRecordId: workflowRunRecordId,
+        parentWorkflowCode: definition.workflowCode,
+        parentNodeKey: node.nodeKey,
+      };
+      const childRun = await ledgerActivities.startChildSkyserverWorkflowRunActivity({
+        parentWorkflowRunRecordId: workflowRunRecordId,
+        parentWorkflowCode: definition.workflowCode,
+        parentNodeKey: node.nodeKey,
+        childWorkflowCode,
+        input: childInput,
+        user,
+        context: parentContext,
+        permissions,
+      });
+      const childWorkflowId = normalizeWorkflowIdPart(
+        `${temporalWorkflowId}-${node.nodeKey}-child-${attempt}`,
+        `child-${node.nodeKey}`,
+      );
+
+      const childResult = await executeChild(skyserverWorkflowExecutorWorkflow, {
+        workflowId: childWorkflowId,
+        taskQueue: taskQueue || undefined,
+        args: [{
+          workflowCode: childRun.definition.workflowCode,
+          workflowRunRecordId: childRun.run.workflowRunRecordId,
+          input: childInput,
+          user,
+          session,
+          permissions,
+          context: childContext,
+          taskQueue,
+        }],
+      });
+
+      const output = {
+        kind: 'child_workflow_execution',
+        status: 'SUCCESS',
+        workflowCode: childRun.definition.workflowCode,
+        workflowDisplayName: childRun.definition.displayName,
+        workflowRunRecordId: childRun.run.workflowRunRecordId,
+        temporalWorkflowId: childResult.temporalWorkflowId,
+        temporalRunId: childResult.temporalRunId,
+        childSummary: childResult.summary,
+        childNodeCount: childResult.nodeRuns?.length || 0,
+        summary: `Child workflow ${childRun.definition.displayName} completed successfully.`,
+      };
+
+      const completedNodeRun = await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
+        nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+        output,
+        metadata: {
+          parameters,
+          attemptCount: attempt,
+          retryPolicy,
+          childWorkflowCode,
+          childWorkflowRunRecordId: childRun.run.workflowRunRecordId,
+        },
+      });
+
+      return completedNodeRun;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < retryPolicy.maximumAttempts) {
+        await sleep(retryPolicy.initialIntervalSeconds * 1000 * attempt);
+      }
+    }
+  }
+
+  const normalizedError = serializeError(lastError);
+  await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
+    nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+    output: normalizedError.details || {},
+    errorMessage: normalizedError.message,
+    metadata: {
+      parameters,
+      retryPolicy,
+      childWorkflowCode,
+      attemptCount: retryPolicy.maximumAttempts,
+      errorName: normalizedError.name,
+    },
+  });
+
+  throw ApplicationFailure.create({
+    message: normalizedError.message,
+    type: normalizedError.name || 'SkyServerChildWorkflowFailure',
+    nonRetryable: true,
+    details: [normalizedError],
+  });
 }
 
 async function executeNodeWithRetries({
@@ -217,18 +379,33 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         },
       });
 
-      const completedNodeRun = await executeNodeWithRetries({
-        node,
-        parameters,
-        nodeRun,
-        user: input.user || null,
-        session: input.session || null,
-        permissions: input.permissions || [],
-        context: input.context || {},
-        temporalWorkflowId,
-        temporalRunId,
-        workflowRunRecordId,
-      });
+      const completedNodeRun = node.nodeTypeCode === 'WORKFLOW'
+        ? await executeChildWorkflowNodeWithRetries({
+          definition,
+          node,
+          parameters,
+          nodeRun,
+          user: input.user || null,
+          session: input.session || null,
+          permissions: input.permissions || [],
+          context: input.context || {},
+          temporalWorkflowId,
+          temporalRunId,
+          workflowRunRecordId,
+          taskQueue: input.taskQueue,
+        })
+        : await executeNodeWithRetries({
+          node,
+          parameters,
+          nodeRun,
+          user: input.user || null,
+          session: input.session || null,
+          permissions: input.permissions || [],
+          context: input.context || {},
+          temporalWorkflowId,
+          temporalRunId,
+          workflowRunRecordId,
+        });
 
       nodeRuns.push(completedNodeRun);
     }

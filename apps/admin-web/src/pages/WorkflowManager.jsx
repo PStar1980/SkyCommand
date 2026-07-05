@@ -159,6 +159,14 @@ function ToolTargetOption({ tool }) {
   );
 }
 
+function WorkflowTargetOption({ workflow }) {
+  return (
+    <option value={workflow.targetCode}>
+      {workflow.displayName} ({workflow.targetCode})
+    </option>
+  );
+}
+
 function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   const values = { ...DEFAULT_API_PARAMETERS, ...(parameters || {}) };
 
@@ -259,8 +267,9 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   );
 }
 
-function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMoveUp, onRemove }) {
+function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
+  const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
   const nodeTypeCode = node.nodeTypeCode || 'TOOL';
 
   function patch(changes) {
@@ -276,6 +285,18 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
         nodeKey: node.nodeKey || `api_call_${index + 1}`,
         description: node.description || 'Calls a configured HTTP endpoint.',
         inputParameters: { ...DEFAULT_API_PARAMETERS },
+      });
+      return;
+    }
+
+    if (nextType === 'WORKFLOW') {
+      patch({
+        nodeTypeCode: 'WORKFLOW',
+        targetCode: '',
+        displayName: node.displayName || 'Run Child Workflow',
+        nodeKey: node.nodeKey || `child_workflow_${index + 1}`,
+        description: node.description || 'Runs another active SkyServer workflow and waits for completion.',
+        inputParameters: {},
       });
       return;
     }
@@ -303,13 +324,27 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
     });
   }
 
+  function handleWorkflowTargetChange(targetCode) {
+    const workflow = workflowTargets.find((item) => item.targetCode === targetCode);
+    const nextDisplayName = node.displayName || workflow?.displayName || targetCode;
+    const nextNodeKey = node.nodeKey || nodeKeyFrom(nextDisplayName || targetCode);
+
+    patch({
+      targetCode,
+      displayName: nextDisplayName,
+      nodeKey: nextNodeKey,
+      description: node.description || workflow?.description || 'Runs a child SkyServer workflow.',
+      inputParameters: {},
+    });
+  }
+
   return (
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : 'Tool'}</div>
-          <div className="fw-bold">{node.displayName || selectedTool?.displayName || 'Workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : node.targetCode || 'target tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : 'Tool'}</div>
+          <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || 'Workflow node'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : node.targetCode || 'target tool'}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -329,6 +364,7 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
           >
             <option value="TOOL">Tool</option>
             <option value="API_CALL">API call</option>
+            <option value="WORKFLOW">Child workflow</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -346,6 +382,25 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
             {selectedTool && (
               <div className="form-text">
                 {selectedTool.categoryLabel} · risk {selectedTool.riskCode || 'n/a'} · permission {selectedTool.permissionCode || 'none'}
+              </div>
+            )}
+          </div>
+        )}
+        {nodeTypeCode === 'WORKFLOW' && (
+          <div className="col-lg-8">
+            <label className="form-label" htmlFor={`manager-node-${index}-workflow`}>Child workflow target</label>
+            <select
+              className="form-select sky-form-control"
+              id={`manager-node-${index}-workflow`}
+              onChange={(event) => handleWorkflowTargetChange(event.target.value)}
+              value={node.targetCode}
+            >
+              <option value="">Select active workflow...</option>
+              {workflowTargets.map((workflow) => <WorkflowTargetOption key={workflow.targetCode} workflow={workflow} />)}
+            </select>
+            {selectedWorkflow && (
+              <div className="form-text">
+                {selectedWorkflow.nodeCount || 0} node(s) · {selectedWorkflow.edgeCount || 0} edge(s) · active child workflow
               </div>
             )}
           </div>
@@ -387,6 +442,13 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
                 parameters={node.inputParameters || {}}
               />
             </>
+          ) : nodeTypeCode === 'WORKFLOW' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Child workflow behavior</div>
+              <div className="sky-empty-state text-start">
+                The parent workflow starts the selected SkyServer workflow as a Temporal child execution and waits for it to complete. Child workflow inputs come from that workflow's saved node defaults.
+              </div>
+            </>
           ) : (
             <>
               <div className="sky-page-kicker mb-2">Tool parameters</div>
@@ -409,7 +471,7 @@ function EditableNodeCard({ index, node, toolTargets, onChange, onMoveDown, onMo
 
 
 function WorkflowManager() {
-  const [catalog, setCatalog] = useState({ toolTargets: [] });
+  const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [] });
   const [definitions, setDefinitions] = useState([]);
   const [selectedCode, setSelectedCode] = useState('');
   const [detail, setDetail] = useState(null);
@@ -439,6 +501,13 @@ function WorkflowManager() {
     [catalog.toolTargets],
   );
 
+  const workflowTargets = useMemo(
+    () => [...(catalog.workflowTargets || [])]
+      .filter((workflow) => workflow.targetCode !== selectedCode)
+      .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))),
+    [catalog.workflowTargets, selectedCode],
+  );
+
   async function loadDefinitions(nextSelectedCode = selectedCode) {
     setLoading(true);
     setError('');
@@ -458,6 +527,7 @@ function WorkflowManager() {
       setCatalog({
         nodeTypes: catalogResult.nodeTypes || [],
         toolTargets: catalogResult.toolTargets || [],
+        workflowTargets: catalogResult.workflowTargets || [],
       });
 
       const selectedExists = items.some((item) => item.workflowCode === nextSelectedCode);
@@ -536,7 +606,16 @@ function WorkflowManager() {
           description: 'Calls a configured HTTP endpoint.',
           inputParameters: { ...DEFAULT_API_PARAMETERS },
         }
-        : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
+        : nodeTypeCode === 'WORKFLOW'
+          ? {
+            ...EMPTY_NODE,
+            nodeTypeCode: 'WORKFLOW',
+            nodeKey: `child_workflow_${current.length + 1}`,
+            displayName: 'Run Child Workflow',
+            description: 'Runs another active SkyServer workflow and waits for completion.',
+            inputParameters: {},
+          }
+          : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
     ]);
   }
 
@@ -589,6 +668,32 @@ function WorkflowManager() {
           config: {
             builderCard: 'api',
             updatedBy: 'workflow_manager_ui_v2',
+          },
+        };
+      }
+
+      if (nodeTypeCode === 'WORKFLOW') {
+        const targetCode = String(node.targetCode || '').trim();
+
+        if (!targetCode) {
+          throw new Error(`Node ${index + 1} requires a child workflow target.`);
+        }
+
+        if (targetCode === selectedCode) {
+          throw new Error('A workflow cannot contain itself as a child workflow.');
+        }
+
+        return {
+          nodeKey,
+          nodeTypeCode: 'WORKFLOW',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode,
+          inputParameters: {},
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'workflow',
+            updatedBy: 'workflow_manager_ui_v3',
           },
         };
       }
@@ -746,7 +851,7 @@ function WorkflowManager() {
           <div className="sky-page-kicker">Workflow lifecycle</div>
           <h2 className="h4 mb-2">Definition control center</h2>
           <p className="sky-muted mb-3">
-            Manage the current workflow graph and lifecycle before branching, approvals, agents, and the visual graph editor arrive.
+            Manage the current workflow graph and lifecycle before branching, approvals, agents, and the visual graph editor arrive. Child workflows let reusable business flows compose cleanly.
           </p>
           <div className="sky-worker-command-strip">
             <div className="sky-worker-command-card">
@@ -760,6 +865,10 @@ function WorkflowManager() {
             <div className="sky-worker-command-card">
               <div className="sky-page-kicker">Tool targets</div>
               <div className="sky-worker-command-value">{toolTargets.length}</div>
+            </div>
+            <div className="sky-worker-command-card">
+              <div className="sky-page-kicker">Workflow targets</div>
+              <div className="sky-worker-command-value">{workflowTargets.length}</div>
             </div>
           </div>
         </div>
@@ -811,7 +920,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Clone workflow</span>
               <span className="sky-pill sky-pill-success">Save current graph</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
-              <span className="sky-pill sky-pill-info">Sequential TOOL + API nodes</span>
+              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD nodes</span>
             </div>
           </section>
         </div>
@@ -894,7 +1003,7 @@ function WorkflowManager() {
                     <div className="sky-page-kicker">Workflow graph</div>
                     <h2 className="h5 mb-0">Edit current sequential graph</h2>
                   </div>
-                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button></div>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   <div className="d-flex flex-column gap-3">
@@ -908,9 +1017,10 @@ function WorkflowManager() {
                         onMoveUp={() => moveEditorNode(index, -1)}
                         onRemove={() => removeEditorNode(index)}
                         toolTargets={toolTargets}
+                        workflowTargets={workflowTargets}
                       />
                     ))}
-                    {editorNodes.length === 0 && <div className="sky-empty-state">Add at least one tool node.</div>}
+                    {editorNodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}
                   </div>
 
                   <div className="d-flex justify-content-end mt-4">

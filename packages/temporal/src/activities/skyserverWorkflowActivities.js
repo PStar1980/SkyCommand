@@ -40,6 +40,21 @@ async function linkSkyserverWorkflowRunToTemporalActivity(input = {}) {
   });
 }
 
+
+async function startChildSkyserverWorkflowRunActivity(input = {}) {
+  console.log(`[Temporal:SkyWorkflow] Preparing child workflow ${input.childWorkflowCode} from node ${input.parentNodeKey}`);
+  return workflowExecutorService.createChildWorkflowRun({
+    parentWorkflowRunRecordId: input.parentWorkflowRunRecordId,
+    parentWorkflowCode: input.parentWorkflowCode,
+    parentNodeKey: input.parentNodeKey,
+    childWorkflowCode: input.childWorkflowCode,
+    input: input.input || {},
+    user: input.user || null,
+    context: input.context || {},
+    permissions: input.permissions || [],
+  });
+}
+
 async function startSkyserverWorkflowNodeRunActivity(input = {}) {
   console.log(`[Temporal:SkyWorkflow] Starting node ${input.node?.nodeKey} (${input.node?.nodeTypeCode} -> ${input.node?.targetCode})`);
   return workflowExecutorService.startWorkflowNodeRun({
@@ -157,5 +172,6 @@ module.exports = {
   linkSkyserverWorkflowRunToTemporalActivity,
   loadSkyserverWorkflowDefinitionActivity,
   markSkyserverWorkflowNodeAttemptActivity,
+  startChildSkyserverWorkflowRunActivity,
   startSkyserverWorkflowNodeRunActivity,
 };
