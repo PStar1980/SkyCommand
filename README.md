@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.20 — Child SkyServer Workflow Nodes
+**Active status:** Phase 10.21 — Parent/Child Workflow History Navigation
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -687,3 +687,21 @@ Existing DB patch:
 ```powershell
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00047__workflow_child_node_support_seed.sql
 ```
+
+## Phase 10.21 — Parent/Child Workflow History Navigation
+
+Phase 10.21 improves the operator experience for nested SkyServer workflows. Workflow History now exposes parent and child run relationships directly in SkyServer instead of requiring operators to infer hierarchy from raw JSON or Temporal event history.
+
+New history behavior:
+
+```text
+Parent workflow run
+  -> API_CALL / TOOL nodes
+  -> WORKFLOW node
+      -> child SkyServer workflow run
+          -> child node runs
+```
+
+Run details now include parent links, child counts, clickable child workflow run links in node timelines, and a **Run Tree** panel that shows nested workflow execution as a business-level hierarchy. Temporal UI remains available as a deep diagnostics console, but SkyServer now owns the domain-aware parent/child navigation experience.
+
+No database migration or seed is required for this phase; parent/child relationships are derived from existing workflow run input/metadata and child node outputs.

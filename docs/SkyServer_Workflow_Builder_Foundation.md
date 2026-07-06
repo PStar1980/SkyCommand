@@ -491,3 +491,19 @@ Safety rules:
 - direct self-recursion is blocked in the UI/API;
 - recursive child workflow cycles are blocked during graph save;
 - runtime cycle checks protect against stale or externally modified graphs.
+
+## Phase 10.21 — Nested run history navigation
+
+Phase 10.21 makes nested workflow execution understandable from SkyServer Admin. Parent and child workflow runs remain separate ledger records, but Workflow History now connects them into a navigable family tree.
+
+The run detail API derives relationships from the existing run input and metadata fields:
+
+```text
+parentWorkflowRunRecordId
+parentWorkflowCode
+parentNodeKey
+triggerType = CHILD_WORKFLOW
+runSource = child_workflow
+```
+
+Admin-Web now shows parent links, child badges, child workflow run links from WORKFLOW node output, and a Run Tree panel. This avoids hiding orchestration structure inside raw JSON and gives operators a clear view of how nested SkyServer workflows unfolded.
