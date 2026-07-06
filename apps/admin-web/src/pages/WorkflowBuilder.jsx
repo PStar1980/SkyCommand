@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ConditionParameterEditor, {
+  cleanConditionParameterValues,
+  DEFAULT_CONDITION_PARAMETERS,
+  getConditionExpressionSummary,
+} from '../components/ConditionParameterEditor.jsx';
 import ToolParameterEditor, {
   cleanToolParameterValues,
   getInitialToolParameterValues,
@@ -316,6 +321,18 @@ function WorkflowBuilderNodeCard({
       return;
     }
 
+    if (nextType === 'CONDITION') {
+      patch({
+        nodeTypeCode: 'CONDITION',
+        targetCode: '',
+        displayName: node.displayName || 'Evaluate Condition',
+        nodeKey: node.nodeKey || `condition_${index + 1}`,
+        description: node.description || 'Evaluates a safe condition and controls whether the remaining workflow continues.',
+        inputParameters: { ...DEFAULT_CONDITION_PARAMETERS },
+      });
+      return;
+    }
+
     patch({
       nodeTypeCode: 'TOOL',
       targetCode: '',
@@ -372,9 +389,9 @@ function WorkflowBuilderNodeCard({
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : 'Tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : 'Tool'}</div>
           <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'New workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : node.targetCode || 'target tool'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : node.targetCode || 'target tool'}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -396,6 +413,7 @@ function WorkflowBuilderNodeCard({
             <option value="API_CALL">API call</option>
             <option value="WORKFLOW">Child workflow</option>
             <option value="TEMPORAL_WORKFLOW">Temporal workflow template</option>
+            <option value="CONDITION">Condition / branch</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -512,6 +530,18 @@ function WorkflowBuilderNodeCard({
                 Runs the approved Temporal-native template as a child execution and waits for completion. Use this for specialized durable subprocesses.
               </div>
             </>
+          ) : nodeTypeCode === 'CONDITION' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Condition parameters</div>
+              <ConditionParameterEditor
+                idPrefix={`node-${index}-condition`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameters={node.inputParameters || {}}
+              />
+              <div className="form-text mt-2">
+                Reads workflow input, previous node output, or a named node output. False can stop successfully, fail, or continue.
+              </div>
+            </>
           ) : (
             <>
               <div className="sky-page-kicker mb-2">Tool parameters</div>
@@ -603,6 +633,14 @@ function WorkflowBuilder() {
         };
       }
 
+      if (node.nodeTypeCode === 'CONDITION') {
+        return {
+          displayName: node.displayName || 'Condition node',
+          description: node.description || 'Evaluates a condition before continuing.',
+          code: getConditionExpressionSummary(node.inputParameters),
+        };
+      }
+
       const tool = toolTargets.find((item) => item.targetCode === node.targetCode);
       return {
         displayName: node.displayName || tool?.displayName || 'Tool node',
@@ -683,7 +721,16 @@ function WorkflowBuilder() {
               description: 'Runs an approved Temporal-native workflow template and waits for completion.',
               inputParameters: {},
             }
-            : {
+            : nodeTypeCode === 'CONDITION'
+              ? {
+                ...EMPTY_NODE,
+                nodeTypeCode: 'CONDITION',
+                nodeKey: `condition_${current.length + 1}`,
+                displayName: 'Evaluate Condition',
+                description: 'Evaluates a safe condition and controls whether the remaining workflow continues.',
+                inputParameters: { ...DEFAULT_CONDITION_PARAMETERS },
+              }
+              : {
             ...EMPTY_NODE,
             nodeKey: `node_${current.length + 1}`,
           },
@@ -791,6 +838,22 @@ function WorkflowBuilder() {
         };
       }
 
+      if (nodeTypeCode === 'CONDITION') {
+        return {
+          nodeKey,
+          nodeTypeCode: 'CONDITION',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode: '',
+          inputParameters: cleanConditionParameterValues(node.inputParameters),
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'condition',
+            createdBy: 'workflow_builder_ui_v5',
+          },
+        };
+      }
+
       const targetCode = String(node.targetCode || '').trim();
       if (!targetCode) {
         throw new Error(`Node ${index + 1} requires a tool target.`);
@@ -858,7 +921,7 @@ function WorkflowBuilder() {
           <div className="sky-page-kicker">Workflows · Create</div>
           <h1 className="sky-page-title">Create Workflow</h1>
           <p className="sky-page-subtitle">
-            Build a sequential SkyServer workflow from tools, API calls, child workflows, and Temporal templates. SkyServer owns the business graph;
+            Build a sequential SkyServer workflow from tools, API calls, child workflows, Temporal templates, and condition gates. SkyServer owns the business graph;
             Temporal executes it durably.
           </p>
         </div>
@@ -885,12 +948,12 @@ function WorkflowBuilder() {
           <div className="sky-page-kicker">Workflow builder v2</div>
           <h2 className="h4 mb-2">Sequential node composer</h2>
           <p className="sky-muted mb-3">
-            Tools remain reusable primitives, API calls become integration nodes, child workflows compose reusable business processes, Temporal templates plug in specialized durable subprocesses, and Temporal runs the active graph.
+            Tools remain reusable primitives, API calls become integration nodes, child workflows compose reusable business processes, Temporal templates plug in specialized durable subprocesses, condition gates control flow, and Temporal runs the active graph.
           </p>
           <div className="sky-worker-command-strip">
             <div className="sky-worker-command-card">
               <div className="sky-page-kicker">Supported now</div>
-              <div className="sky-worker-command-value">TOOL + API + CHILD + TEMPORAL</div>
+              <div className="sky-worker-command-value">TOOL + API + CHILD + TEMPORAL + CONDITION</div>
             </div>
             <div className="sky-worker-command-card">
               <div className="sky-page-kicker">Tool targets</div>
@@ -994,7 +1057,7 @@ function WorkflowBuilder() {
                 <div className="d-flex flex-wrap gap-2">
                   {(catalog.nodeTypes || []).map((nodeType) => (
                     <span
-                      className={`sky-pill ${['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'].includes(nodeType.nodeTypeCode) ? 'sky-pill-success' : 'sky-pill-info'}`}
+                      className={`sky-pill ${['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION'].includes(nodeType.nodeTypeCode) ? 'sky-pill-success' : 'sky-pill-info'}`}
                       key={nodeType.nodeTypeCode}
                       title={nodeType.description || ''}
                     >
@@ -1011,13 +1074,14 @@ function WorkflowBuilder() {
               <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                 <div>
                   <div className="sky-page-kicker">Node timeline</div>
-                  <h2 className="h5 mb-0">Sequential execution plan</h2>
+                  <h2 className="h5 mb-0">Sequential execution plan with condition gates</h2>
                 </div>
                 <div className="d-flex flex-wrap gap-2">
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('TOOL')} type="button">Add tool node</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('API_CALL')} type="button">Add API node</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('WORKFLOW')} type="button">Add child workflow</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button>
+                  <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('CONDITION')} type="button">Add condition</button>
                 </div>
               </div>
               <div className="sky-card-body d-flex flex-column gap-3">

@@ -6,11 +6,12 @@ const toolManifestService = require('./toolManifestService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
-const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW']);
+const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
 const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
 const DEFAULT_CANCEL_PERMISSION = 'WORKFLOW_CANCEL';
+const DEFAULT_CONDITION_ON_FALSE = 'STOP_SUCCESS';
 
 class WorkflowServiceError extends Error {
   constructor(message, statusCode = 500, details = {}) {
@@ -183,6 +184,443 @@ function parseSuccessCodes(value) {
   return codes.length > 0 ? codes : [200, 201, 202, 204];
 }
 
+function normalizeConditionOperator(value) {
+  const normalized = String(value || 'truthy')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    '': 'TRUTHY',
+    TRUE: 'TRUTHY',
+    IS_TRUE: 'TRUTHY',
+    TRUTHY: 'TRUTHY',
+    FALSE: 'FALSY',
+    IS_FALSE: 'FALSY',
+    FALSY: 'FALSY',
+    EXISTS: 'EXISTS',
+    NOT_EXISTS: 'NOT_EXISTS',
+    MISSING: 'NOT_EXISTS',
+    EQUALS: 'EQUALS',
+    EQUAL: 'EQUALS',
+    EQ: 'EQUALS',
+    NOT_EQUALS: 'NOT_EQUALS',
+    NOT_EQUAL: 'NOT_EQUALS',
+    NE: 'NOT_EQUALS',
+    CONTAINS: 'CONTAINS',
+    NOT_CONTAINS: 'NOT_CONTAINS',
+    GREATER_THAN: 'GREATER_THAN',
+    GT: 'GREATER_THAN',
+    GREATER_OR_EQUAL: 'GREATER_OR_EQUAL',
+    GTE: 'GREATER_OR_EQUAL',
+    LESS_THAN: 'LESS_THAN',
+    LT: 'LESS_THAN',
+    LESS_OR_EQUAL: 'LESS_OR_EQUAL',
+    LTE: 'LESS_OR_EQUAL',
+  };
+  const operator = aliases[normalized] || normalized;
+  const allowed = new Set([
+    'TRUTHY',
+    'FALSY',
+    'EXISTS',
+    'NOT_EXISTS',
+    'EQUALS',
+    'NOT_EQUALS',
+    'CONTAINS',
+    'NOT_CONTAINS',
+    'GREATER_THAN',
+    'GREATER_OR_EQUAL',
+    'LESS_THAN',
+    'LESS_OR_EQUAL',
+  ]);
+
+  if (!allowed.has(operator)) {
+    throw new WorkflowServiceError('Unsupported CONDITION operator.', 400, {
+      operator: value,
+      allowed: [...allowed],
+    });
+  }
+
+  return operator;
+}
+
+function normalizeConditionOnFalse(value) {
+  const normalized = String(value || DEFAULT_CONDITION_ON_FALSE)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    '': DEFAULT_CONDITION_ON_FALSE,
+    STOP: 'STOP_SUCCESS',
+    STOP_SUCCESS: 'STOP_SUCCESS',
+    SKIP_REMAINING: 'STOP_SUCCESS',
+    FAIL: 'FAIL_WORKFLOW',
+    FAIL_WORKFLOW: 'FAIL_WORKFLOW',
+    CONTINUE: 'CONTINUE',
+    CONTINUE_ANYWAY: 'CONTINUE',
+  };
+  const action = aliases[normalized] || normalized;
+  const allowed = new Set(['STOP_SUCCESS', 'FAIL_WORKFLOW', 'CONTINUE']);
+
+  if (!allowed.has(action)) {
+    throw new WorkflowServiceError('Unsupported CONDITION onFalse action.', 400, {
+      onFalse: value,
+      allowed: [...allowed],
+    });
+  }
+
+  return action;
+}
+
+function normalizeConditionValueType(value) {
+  const normalized = String(value || 'AUTO').trim().toUpperCase();
+  const allowed = new Set(['AUTO', 'STRING', 'NUMBER', 'BOOLEAN', 'JSON']);
+
+  if (!allowed.has(normalized)) {
+    throw new WorkflowServiceError('Unsupported CONDITION value type.', 400, {
+      valueType: value,
+      allowed: [...allowed],
+    });
+  }
+
+  return normalized;
+}
+
+function hasOwnValue(source, propertyName) {
+  return Object.prototype.hasOwnProperty.call(source || {}, propertyName);
+}
+
+function isBlankValue(value) {
+  return value === undefined || value === null || String(value).trim() === '';
+}
+
+function parseConditionTypedValue(value, valueType = 'AUTO') {
+  const normalizedType = normalizeConditionValueType(valueType);
+
+  if (normalizedType === 'STRING') {
+    return value === undefined || value === null ? '' : String(value);
+  }
+
+  if (normalizedType === 'NUMBER') {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+      throw new WorkflowServiceError('CONDITION number value must be numeric.', 400, { value });
+    }
+
+    return parsed;
+  }
+
+  if (normalizedType === 'BOOLEAN') {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    const normalized = String(value || '').trim().toLowerCase();
+
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) {
+      return true;
+    }
+
+    if (['false', '0', 'no', 'n', 'off', ''].includes(normalized)) {
+      return false;
+    }
+
+    throw new WorkflowServiceError('CONDITION boolean value must be true or false.', 400, { value });
+  }
+
+  if (normalizedType === 'JSON') {
+    if (typeof value === 'object') {
+      return value;
+    }
+
+    try {
+      return JSON.parse(String(value || 'null'));
+    } catch (error) {
+      throw new WorkflowServiceError('CONDITION JSON value must be valid JSON.', 400, {
+        value,
+        parseError: error.message,
+      });
+    }
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const text = value.trim();
+
+  if (text === '') {
+    return '';
+  }
+
+  const lower = text.toLowerCase();
+
+  if (lower === 'true') {
+    return true;
+  }
+
+  if (lower === 'false') {
+    return false;
+  }
+
+  if (lower === 'null') {
+    return null;
+  }
+
+  if (/^-?\d+(\.\d+)?$/.test(text)) {
+    const numeric = Number(text);
+
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+
+  return text;
+}
+
+function normalizeConditionParameters(parameters = {}) {
+  const input = getSafeObject(parameters);
+  const operator = normalizeConditionOperator(input.operator || input.conditionOperator);
+  const onFalse = normalizeConditionOnFalse(input.onFalse || input.falseAction);
+  const leftPath = String(input.leftPath || input.sourcePath || input.path || '').trim();
+  const rightType = normalizeConditionValueType(input.rightType || input.valueType || 'AUTO');
+  const leftType = normalizeConditionValueType(input.leftType || 'AUTO');
+  const unaryOperators = new Set(['TRUTHY', 'FALSY', 'EXISTS', 'NOT_EXISTS']);
+  const hasLeftLiteral = hasOwnValue(input, 'leftValue') && !isBlankValue(input.leftValue);
+  const hasRightValue = hasOwnValue(input, 'rightValue') && !isBlankValue(input.rightValue);
+
+  if (!leftPath && !hasLeftLiteral) {
+    throw new WorkflowServiceError('CONDITION nodes require a leftPath or leftValue.', 400, {
+      fieldName: 'leftPath',
+    });
+  }
+
+  if (!unaryOperators.has(operator) && !hasRightValue) {
+    throw new WorkflowServiceError('CONDITION comparison operators require rightValue.', 400, {
+      fieldName: 'rightValue',
+      operator,
+    });
+  }
+
+  return {
+    ...input,
+    leftPath,
+    leftValue: hasLeftLiteral ? input.leftValue : input.leftValue,
+    leftType,
+    operator,
+    rightValue: hasRightValue ? input.rightValue : input.rightValue,
+    rightType,
+    caseSensitive: input.caseSensitive === true || input.caseSensitive === 'true' || input.caseSensitive === '1',
+    onFalse,
+  };
+}
+
+function getValueAtPath(source, path) {
+  const normalizedPath = String(path || '').trim();
+
+  if (!normalizedPath) {
+    return undefined;
+  }
+
+  const segments = normalizedPath
+    .replace(/\[(\w+)\]/g, '.$1')
+    .split('.')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  let current = source;
+
+  for (const segment of segments) {
+    if (current === undefined || current === null) {
+      return undefined;
+    }
+
+    if (Array.isArray(current) && /^\d+$/.test(segment)) {
+      current = current[Number(segment)];
+      continue;
+    }
+
+    if (typeof current === 'object' && Object.prototype.hasOwnProperty.call(current, segment)) {
+      current = current[segment];
+      continue;
+    }
+
+    return undefined;
+  }
+
+  return current;
+}
+
+function isConditionTruthy(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value !== 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    return !['', 'false', '0', 'no', 'off', 'null', 'undefined'].includes(normalized);
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (typeof value === 'object') {
+    return Object.keys(value).length > 0;
+  }
+
+  return Boolean(value);
+}
+
+function normalizeComparable(value, { caseSensitive = false } = {}) {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return caseSensitive ? value : value.toLowerCase();
+  }
+
+  try {
+    const text = JSON.stringify(value);
+    return caseSensitive ? text : text.toLowerCase();
+  } catch (error) {
+    const text = String(value);
+    return caseSensitive ? text : text.toLowerCase();
+  }
+}
+
+function compareConditionValues(leftValue, rightValue, operator, { caseSensitive = false } = {}) {
+  if (operator === 'TRUTHY') {
+    return isConditionTruthy(leftValue);
+  }
+
+  if (operator === 'FALSY') {
+    return !isConditionTruthy(leftValue);
+  }
+
+  if (operator === 'EXISTS') {
+    return leftValue !== undefined && leftValue !== null;
+  }
+
+  if (operator === 'NOT_EXISTS') {
+    return leftValue === undefined || leftValue === null;
+  }
+
+  if (['GREATER_THAN', 'GREATER_OR_EQUAL', 'LESS_THAN', 'LESS_OR_EQUAL'].includes(operator)) {
+    const leftNumber = Number(leftValue);
+    const rightNumber = Number(rightValue);
+
+    if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) {
+      return false;
+    }
+
+    if (operator === 'GREATER_THAN') {
+      return leftNumber > rightNumber;
+    }
+
+    if (operator === 'GREATER_OR_EQUAL') {
+      return leftNumber >= rightNumber;
+    }
+
+    if (operator === 'LESS_THAN') {
+      return leftNumber < rightNumber;
+    }
+
+    return leftNumber <= rightNumber;
+  }
+
+  if (operator === 'CONTAINS' || operator === 'NOT_CONTAINS') {
+    let contains = false;
+
+    if (Array.isArray(leftValue)) {
+      const comparableRight = normalizeComparable(rightValue, { caseSensitive });
+      contains = leftValue.some((item) => normalizeComparable(item, { caseSensitive }) === comparableRight);
+    } else {
+      const leftText = String(leftValue === undefined || leftValue === null ? '' : leftValue);
+      const rightText = String(rightValue === undefined || rightValue === null ? '' : rightValue);
+      contains = caseSensitive
+        ? leftText.includes(rightText)
+        : leftText.toLowerCase().includes(rightText.toLowerCase());
+    }
+
+    return operator === 'CONTAINS' ? contains : !contains;
+  }
+
+  const normalizedLeft = normalizeComparable(leftValue, { caseSensitive });
+  const normalizedRight = normalizeComparable(rightValue, { caseSensitive });
+  const equals = normalizedLeft === normalizedRight;
+
+  return operator === 'NOT_EQUALS' ? !equals : equals;
+}
+
+function serializeConditionValue(value) {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function evaluateConditionNode({ node, parameters = {}, context = {} }) {
+  const normalizedParameters = normalizeConditionParameters(parameters);
+  const evaluationContext = getSafeObject(context.conditionEvaluation, {});
+  const leftValueFromPath = normalizedParameters.leftPath
+    ? getValueAtPath(evaluationContext, normalizedParameters.leftPath)
+    : undefined;
+  const useLeftPathValue = normalizedParameters.leftPath && leftValueFromPath !== undefined;
+  const leftValue = useLeftPathValue
+    ? leftValueFromPath
+    : parseConditionTypedValue(normalizedParameters.leftValue, normalizedParameters.leftType);
+  const unaryOperators = new Set(['TRUTHY', 'FALSY', 'EXISTS', 'NOT_EXISTS']);
+  const rightValue = unaryOperators.has(normalizedParameters.operator)
+    ? undefined
+    : parseConditionTypedValue(normalizedParameters.rightValue, normalizedParameters.rightType);
+  const passed = compareConditionValues(leftValue, rightValue, normalizedParameters.operator, {
+    caseSensitive: normalizedParameters.caseSensitive,
+  });
+  const summary = passed
+    ? `Condition ${node.displayName || node.nodeKey} passed; continuing workflow.`
+    : `Condition ${node.displayName || node.nodeKey} did not pass; ${normalizedParameters.onFalse === 'STOP_SUCCESS' ? 'stopping workflow successfully' : normalizedParameters.onFalse === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
+
+  return {
+    kind: 'condition_evaluation',
+    status: passed ? 'PASSED' : 'FAILED',
+    passed,
+    operator: normalizedParameters.operator,
+    leftPath: normalizedParameters.leftPath || null,
+    leftValue: serializeConditionValue(leftValue),
+    leftExists: leftValue !== undefined && leftValue !== null,
+    rightValue: serializeConditionValue(rightValue),
+    rightType: normalizedParameters.rightType,
+    caseSensitive: normalizedParameters.caseSensitive,
+    onFalse: normalizedParameters.onFalse,
+    summary,
+  };
+}
+
 
 function normalizeApiAuthMode(value) {
   const normalized = String(value || 'AUTO')
@@ -334,6 +772,7 @@ function normalizePositiveNumber(value, fallback, max = Number.MAX_SAFE_INTEGER)
 function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
   const map = {
     API_CALL: 'Call API',
+    CONDITION: 'Evaluate Condition',
     TEMPORAL_WORKFLOW: 'Start Temporal Workflow',
     TOOL: 'Run Tool',
     WORKFLOW: 'Run Child Workflow',
@@ -345,6 +784,7 @@ function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
 function getNodeTargetKindForType(nodeTypeCode) {
   const map = {
     API_CALL: 'api.endpoint',
+    CONDITION: null,
     TEMPORAL_WORKFLOW: 'worker.temporal_workflow_definitions',
     TOOL: 'core.tools',
     WORKFLOW: 'worker.workflow_definitions',
@@ -356,6 +796,7 @@ function getNodeTargetKindForType(nodeTypeCode) {
 function getNodeCategoryForType(nodeTypeCode) {
   const map = {
     API_CALL: 'INTEGRATION',
+    CONDITION: 'CONTROL',
     TEMPORAL_WORKFLOW: 'WORKFLOW',
     TOOL: 'ACTION',
     WORKFLOW: 'WORKFLOW',
@@ -1147,9 +1588,9 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
 
   if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode)) {
-    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, and TEMPORAL_WORKFLOW nodes.', 400, {
+    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, and CONDITION nodes.', 400, {
       nodeTypeCode,
-      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'],
+      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION'],
     });
   }
 
@@ -1188,6 +1629,10 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     parseJsonText(inputParameters.bodyJson ?? inputParameters.body, null, `nodes[${index}].bodyJson`);
   }
 
+  if (nodeTypeCode === 'CONDITION') {
+    normalizeConditionParameters(inputParameters);
+  }
+
   const nodeKeyBase = normalizeNodeKey(
     node.nodeKey || node.displayName || targetCode || `${nodeTypeCode.toLowerCase()}_${index + 1}`,
     `node_${index + 1}`,
@@ -1215,7 +1660,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
     enabled: node.enabled !== false,
-    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : 'tool' }),
+    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : nodeTypeCode === 'CONDITION' ? 'condition' : 'tool' }),
   };
 }
 
@@ -1302,7 +1747,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         JSON.stringify({
           createdBy: 'workflow_builder_v1',
           builderVersion: '10.22',
-          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'],
+          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION'],
         }),
         user?.userId || null,
       ],
@@ -2407,6 +2852,10 @@ async function executeNode({ node, parameters, user, session, permissions, conte
     return runChildWorkflowNode({ node, parameters, user, session, permissions, context });
   }
 
+  if (node.nodeTypeCode === 'CONDITION') {
+    return evaluateConditionNode({ node, parameters, context });
+  }
+
   if (node.nodeTypeCode === 'TEMPORAL_WORKFLOW') {
     return runTemporalWorkflowNode({ node, parameters, user, context });
   }
@@ -2424,6 +2873,16 @@ async function executeWorkflowNode({ node, parameters, user, session, permission
     permissions,
     context,
   });
+}
+
+function getConditionOnFalseFromOutput(output = {}) {
+  return normalizeConditionOnFalse(output.onFalse || DEFAULT_CONDITION_ON_FALSE);
+}
+
+function buildConditionStopSummary({ definition, output, completedNodeCount, totalNodeCount }) {
+  const skippedNodeCount = Math.max(0, Number(totalNodeCount || 0) - Number(completedNodeCount || 0));
+
+  return `Workflow ${definition.displayName} stopped successfully by condition gate: ${output.summary || 'condition returned false'} (${skippedNodeCount} remaining node(s) skipped).`;
 }
 
 
@@ -2550,12 +3009,24 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
 
   const run = await insertWorkflowRun({ definition, input, user, context });
   const nodeRuns = [];
+  const nodeOutputsByKey = {};
+  let previousNodeOutput = null;
+  let conditionStop = null;
   const startedAtMs = Date.now();
 
   try {
     for (const node of definition.nodes) {
       const nodeRun = await insertNodeRun({ workflowRunRecordId: run.workflowRunRecordId, node });
       const parameters = buildNodeParameters(node, input);
+      const nodeContext = {
+        ...context,
+        conditionEvaluation: {
+          input,
+          nodes: nodeOutputsByKey,
+          previous: previousNodeOutput,
+          currentNodeKey: node.nodeKey,
+        },
+      };
 
       try {
         const output = await executeNode({
@@ -2564,7 +3035,7 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
           user,
           session,
           permissions,
-          context,
+          context: nodeContext,
         });
         const completedNodeRun = await updateNodeRun({
           nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
@@ -2573,6 +3044,21 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
           metadata: { parameters },
         });
         nodeRuns.push(completedNodeRun);
+        nodeOutputsByKey[node.nodeKey] = output;
+        previousNodeOutput = output;
+
+        if (node.nodeTypeCode === 'CONDITION' && output?.passed === false) {
+          const onFalse = getConditionOnFalseFromOutput(output);
+
+          if (onFalse === 'FAIL_WORKFLOW') {
+            throw new WorkflowServiceError(output.summary || 'Workflow condition failed.', 500, output);
+          }
+
+          if (onFalse === 'STOP_SUCCESS') {
+            conditionStop = { output, nodeKey: node.nodeKey };
+            break;
+          }
+        }
       } catch (nodeError) {
         const failedNodeRun = await updateNodeRun({
           nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
@@ -2588,7 +3074,14 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
       }
     }
 
-    const summary = `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
+    const summary = conditionStop
+      ? buildConditionStopSummary({
+        definition,
+        output: conditionStop.output,
+        completedNodeCount: nodeRuns.length,
+        totalNodeCount: definition.nodes.length,
+      })
+      : `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
     const completedRun = await updateWorkflowRun({
       workflowRunRecordId: run.workflowRunRecordId,
       status: TERMINAL_SUCCESS_STATUS,
@@ -2596,6 +3089,8 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
       metadata: {
         durationMs: Date.now() - startedAtMs,
         completedNodeCount: nodeRuns.length,
+        skippedNodeCount: conditionStop ? Math.max(0, definition.nodes.length - nodeRuns.length) : 0,
+        conditionStopNodeKey: conditionStop?.nodeKey || null,
       },
     });
 

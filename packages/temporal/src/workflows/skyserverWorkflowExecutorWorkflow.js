@@ -198,6 +198,32 @@ function buildTemporalResultPreview(value, maxLength = 4000) {
   }
 }
 
+function normalizeConditionOnFalseAction(value) {
+  const normalized = String(value || 'STOP_SUCCESS')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    '': 'STOP_SUCCESS',
+    STOP: 'STOP_SUCCESS',
+    STOP_SUCCESS: 'STOP_SUCCESS',
+    SKIP_REMAINING: 'STOP_SUCCESS',
+    FAIL: 'FAIL_WORKFLOW',
+    FAIL_WORKFLOW: 'FAIL_WORKFLOW',
+    CONTINUE: 'CONTINUE',
+    CONTINUE_ANYWAY: 'CONTINUE',
+  };
+
+  return aliases[normalized] || normalized;
+}
+
+function buildConditionStopSummary({ definition, output, completedNodeCount, totalNodeCount }) {
+  const skippedNodeCount = Math.max(0, Number(totalNodeCount || 0) - Number(completedNodeCount || 0));
+
+  return `Workflow ${definition.displayName} stopped successfully by condition gate: ${output?.summary || 'condition returned false'} (${skippedNodeCount} remaining node(s) skipped).`;
+}
+
 
 async function executeChildWorkflowNodeWithRetries({
   definition,
@@ -563,6 +589,9 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   const workflowRunRecordId = input.workflowRunRecordId;
   const requestInput = getSafeObject(input.input);
   const nodeRuns = [];
+  const nodeOutputsByKey = {};
+  let previousNodeOutput = null;
+  let conditionStop = null;
 
   if (!workflowCode) {
     throw ApplicationFailure.create({
@@ -598,6 +627,15 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   try {
     for (const node of definition.nodes) {
       const parameters = buildNodeParameters(node, requestInput);
+      const nodeContext = {
+        ...getSafeObject(input.context),
+        conditionEvaluation: {
+          input: requestInput,
+          nodes: nodeOutputsByKey,
+          previous: previousNodeOutput,
+          currentNodeKey: node.nodeKey,
+        },
+      };
       const nodeRun = await ledgerActivities.startSkyserverWorkflowNodeRunActivity({
         workflowRunRecordId,
         node,
@@ -643,7 +681,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           user: input.user || null,
           session: input.session || null,
           permissions: input.permissions || [],
-          context: input.context || {},
+          context: nodeContext,
           temporalWorkflowId,
           temporalRunId,
           workflowRunRecordId,
@@ -651,16 +689,45 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
       }
 
       nodeRuns.push(completedNodeRun);
+      nodeOutputsByKey[node.nodeKey] = completedNodeRun?.output || {};
+      previousNodeOutput = completedNodeRun?.output || {};
+
+      if (node.nodeTypeCode === 'CONDITION' && completedNodeRun?.output?.passed === false) {
+        const onFalse = normalizeConditionOnFalseAction(completedNodeRun.output.onFalse);
+
+        if (onFalse === 'FAIL_WORKFLOW') {
+          throw ApplicationFailure.create({
+            message: completedNodeRun.output.summary || 'Workflow condition failed.',
+            type: 'SkyServerWorkflowConditionFailed',
+            nonRetryable: true,
+            details: [{ nodeKey: node.nodeKey, output: completedNodeRun.output }],
+          });
+        }
+
+        if (onFalse === 'STOP_SUCCESS') {
+          conditionStop = { nodeKey: node.nodeKey, output: completedNodeRun.output };
+          break;
+        }
+      }
     }
 
     const durationMs = Date.now() - startedAtMs;
-    const summary = `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
+    const summary = conditionStop
+      ? buildConditionStopSummary({
+        definition,
+        output: conditionStop.output,
+        completedNodeCount: nodeRuns.length,
+        totalNodeCount: definition.nodes.length,
+      })
+      : `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
     const completedRun = await ledgerActivities.completeSkyserverWorkflowRunActivity({
       workflowRunRecordId,
       summary,
       metadata: {
         durationMs,
         completedNodeCount: nodeRuns.length,
+        skippedNodeCount: conditionStop ? Math.max(0, definition.nodes.length - nodeRuns.length) : 0,
+        conditionStopNodeKey: conditionStop?.nodeKey || null,
         temporalWorkflowId,
         temporalRunId,
       },

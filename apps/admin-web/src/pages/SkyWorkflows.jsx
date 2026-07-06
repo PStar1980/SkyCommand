@@ -171,6 +171,10 @@ function getNodeOutputSummary(output = {}) {
     return output.summary;
   }
 
+  if (output.kind === 'condition_evaluation') {
+    return `Condition ${output.passed ? 'passed' : 'did not pass'}; ${output.onFalse || 'STOP_SUCCESS'}.`;
+  }
+
   if (output.kind === 'temporal_workflow_execution') {
     return output.summary || `Temporal workflow template ${output.workflowDisplayName || output.workflowCode || ''} completed.`.trim();
   }
