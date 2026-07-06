@@ -280,6 +280,7 @@ function WorkflowBuilderNodeCard({
   toolTargets = [],
   workflowTargets = [],
   temporalWorkflowTargets = [],
+  approvalRoleTargets = [],
   onChange,
   onMoveDown,
   onMoveUp,
@@ -1233,6 +1234,7 @@ function WorkflowBuilder() {
                     toolTargets={toolTargets}
                     workflowTargets={workflowTargets}
                     temporalWorkflowTargets={temporalWorkflowTargets}
+                    approvalRoleTargets={approvalRoleTargets}
                   />
                 ))}
                 {nodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}

@@ -1,3 +1,8 @@
+## Phase 10.25.2 - Human Approval Manage Workflow Render Hotfix
+- Fixed Admin-Web Manage Workflows blank screen when opening a workflow definition containing a `HUMAN_APPROVAL` node.
+- Passed DB-backed approval role targets into workflow node cards in both Manage Workflows and Create Workflow.
+- Keeps the Human Approval role dropdown available when editing existing approval nodes after the 10.25.1 role hotfix.
+
 ## Phase 10.25 - Human Approval Workflow Nodes
 - Added `HUMAN_APPROVAL` as a supported SkyServer workflow node type for durable operator checkpoints.
 - Added Admin-Web Human Approval node configuration in Create Workflow and Manage Workflows.

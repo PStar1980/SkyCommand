@@ -334,7 +334,7 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   );
 }
 
-function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
+function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
@@ -1342,6 +1342,7 @@ function WorkflowManager() {
                         toolTargets={toolTargets}
                         workflowTargets={workflowTargets}
                         temporalWorkflowTargets={temporalWorkflowTargets}
+                        approvalRoleTargets={approvalRoleTargets}
                       />
                     ))}
                     {editorNodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}
