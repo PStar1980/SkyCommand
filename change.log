@@ -1,3 +1,11 @@
+## Phase 10.23 - Condition Workflow Nodes
+- Enabled CONDITION nodes in the SkyServer workflow builder and manager surfaces.
+- Added a reusable condition parameter editor for input/previous/named-node-output paths, typed comparisons, and false-action behavior.
+- Added condition evaluation to the inline and Temporal-backed workflow executors.
+- Condition false actions now support stopping successfully, failing the workflow, or continuing anyway.
+- Workflow run metadata records condition-stopped summaries, skipped node counts, and the condition gate node key.
+- Added seed `00049__workflow_condition_node_support_seed.sql` for existing databases.
+
 ## Phase 10.21 - Parent/Child Workflow History Navigation
 - Added parent/child relationship metadata to Workflow History run detail responses.
 - Workflow runs now expose parent run, child runs, root run, and a nested run tree built from SkyServer workflow run records.

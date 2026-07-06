@@ -521,3 +521,34 @@ Phase 10.22 adds `TEMPORAL_WORKFLOW` nodes as the advanced bridge from SkyServer
 The builder/manager surfaces obtain template targets from `worker.temporal_workflow_definitions`. Parameter forms are rendered from the template parameter metadata, and the executor records child Temporal workflow ID, run ID, task queue, result summary, and result preview on the node output.
 
 This keeps SkyServer workflows as the user-facing business graph while still allowing specialized Temporal-native orchestration to be injected where it makes architectural sense.
+
+## Phase 10.23 — Condition nodes
+
+Phase 10.23 enables `CONDITION` nodes as safe control gates inside the current sequential workflow executor.
+
+A condition node reads from the workflow evaluation context:
+
+```text
+input.*                 runtime workflow input
+previous.*              most recent completed node output
+nodes.<node_key>.*      named output from an earlier node
+```
+
+Supported operators:
+
+```text
+TRUTHY / FALSY / EXISTS / NOT_EXISTS
+EQUALS / NOT_EQUALS
+CONTAINS / NOT_CONTAINS
+GREATER_THAN / GREATER_OR_EQUAL / LESS_THAN / LESS_OR_EQUAL
+```
+
+Supported false actions:
+
+| Action | Behavior |
+| --- | --- |
+| `STOP_SUCCESS` | Complete the workflow successfully and mark remaining sequential nodes as skipped in the run summary. |
+| `FAIL_WORKFLOW` | Fail the workflow with a condition-failed error. |
+| `CONTINUE` | Record the false condition output but keep executing the remaining nodes. |
+
+This does not yet introduce arbitrary branching edges. It is the controlled first slice: a condition gate can decide whether the rest of the linear graph continues. The later visual workflow designer can build richer edge-based branching on top of this proven runtime behavior.
