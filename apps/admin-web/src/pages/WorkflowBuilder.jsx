@@ -597,6 +597,7 @@ function WorkflowBuilderNodeCard({
                 idPrefix={`node-${index}-approval`}
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameters={node.inputParameters || {}}
+                roleOptions={approvalRoleTargets}
               />
               <div className="form-text mt-2">
                 Creates a pending approval request and waits for a Temporal signal before continuing.
@@ -623,7 +624,7 @@ function WorkflowBuilderNodeCard({
 }
 
 function WorkflowBuilder() {
-  const [catalog, setCatalog] = useState({ nodeTypes: [], toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [] });
+  const [catalog, setCatalog] = useState({ nodeTypes: [], toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -663,6 +664,12 @@ function WorkflowBuilder() {
     () => [...(catalog.temporalWorkflowTargets || [])]
       .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))),
     [catalog.temporalWorkflowTargets],
+  );
+
+  const approvalRoleTargets = useMemo(
+    () => [...(catalog.approvalRoleTargets || [])]
+      .sort((a, b) => String(a.roleCode || '').localeCompare(String(b.roleCode || ''))),
+    [catalog.approvalRoleTargets],
   );
 
   const previewNodes = useMemo(
@@ -739,6 +746,7 @@ function WorkflowBuilder() {
         toolTargets: result.toolTargets || [],
         workflowTargets: result.workflowTargets || [],
         temporalWorkflowTargets: result.temporalWorkflowTargets || [],
+        approvalRoleTargets: result.approvalRoleTargets || [],
       });
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow builder catalog.'));
@@ -971,7 +979,7 @@ function WorkflowBuilder() {
           displayName,
           description: String(node.description || '').trim(),
           targetCode: '',
-          inputParameters: cleanHumanApprovalParameterValues(node.inputParameters),
+          inputParameters: cleanHumanApprovalParameterValues(node.inputParameters, approvalRoleTargets),
           displayOrder: (index + 1) * 10,
           config: {
             builderCard: 'human_approval',
