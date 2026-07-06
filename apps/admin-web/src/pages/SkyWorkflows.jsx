@@ -101,15 +101,15 @@ function flattenRunTree(tree, output = []) {
 function statusClass(status) {
   const normalized = String(status || '').toUpperCase();
 
-  if (normalized === 'COMPLETED' || normalized === 'SUCCESS') {
+  if (normalized === 'COMPLETED' || normalized === 'SUCCESS' || normalized === 'APPROVED') {
     return 'sky-pill-success';
   }
 
-  if (normalized === 'FAILED' || normalized === 'TERMINATED') {
+  if (normalized === 'FAILED' || normalized === 'TERMINATED' || normalized === 'REJECTED' || normalized === 'TIMED_OUT') {
     return 'sky-pill-danger';
   }
 
-  if (normalized === 'RUNNING' || normalized === 'QUEUED') {
+  if (normalized === 'RUNNING' || normalized === 'QUEUED' || normalized === 'PENDING') {
     return 'sky-pill-warning';
   }
 
@@ -191,6 +191,10 @@ function getNodeOutputSummary(output = {}) {
     return output.summary || `Waited ${output.requestedDurationMs || output.actualDurationMs || 0} ms.`;
   }
 
+  if (output.kind === 'human_approval') {
+    return output.summary || `Human approval ${output.status || output.decision || 'completed'}.`;
+  }
+
   if (output.kind === 'child_workflow_execution') {
     return `Child workflow ${output.workflowDisplayName || output.workflowCode || ''} completed successfully.`.trim();
   }
@@ -206,8 +210,10 @@ function getNodeOutputSummary(output = {}) {
   return '';
 }
 
-function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], onOpenRun }) {
+function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOpenRun }) {
   const runsByNodeKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
+  const approvalsByNodeRunId = new Map(approvals.map((approval) => [approval.workflowNodeRunRecordId, approval]));
+  const approvalsByNodeKey = new Map(approvals.map((approval) => [approval.nodeKey, approval]));
 
   return (
     <div className="d-flex flex-column gap-2">
@@ -220,6 +226,9 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], onOpenRun }) {
         const description = node.description || getNodeOutputSummary(nodeRun?.output) || 'No description';
         const durationMs = getNodeRunDurationMs(nodeRun);
         const outputSummary = getNodeOutputSummary(nodeRun?.output);
+        const approval = nodeRun
+          ? approvalsByNodeRunId.get(nodeRun.workflowNodeRunRecordId) || approvalsByNodeKey.get(nodeRun.nodeKey)
+          : approvalsByNodeKey.get(nodeKey);
 
         return (
           <div className="sky-worker-command-card" key={node.workflowNodeId || node.workflowNodeRunRecordId || nodeKey}>
@@ -249,6 +258,17 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], onOpenRun }) {
 
             {outputSummary && (
               <div className="small sky-muted mt-2">{outputSummary}</div>
+            )}
+            {approval && (
+              <div className="alert alert-secondary mt-3 mb-0 py-2">
+                <div className="d-flex flex-wrap align-items-center gap-2">
+                  <span className={`sky-pill ${statusClass(approval.status)}`}>{approval.status}</span>
+                  <span className="fw-semibold">{approval.approvalTitle}</span>
+                  <span className="small sky-muted">Requested {formatDate(approval.requestedAt)}</span>
+                  {approval.decidedAt && <span className="small sky-muted">Decided {formatDate(approval.decidedAt)}</span>}
+                </div>
+                {approval.decisionNote && <div className="small mt-1">Decision note: {approval.decisionNote}</div>}
+              </div>
             )}
             {nodeRun?.output?.executionId && (
               <div className="small sky-muted mt-1">
@@ -565,6 +585,7 @@ function SkyWorkflows({ mode = 'start' }) {
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
+  const selectedApprovals = selectedRunDetail?.approvals || [];
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const selectedRelations = selectedRunDetail?.relations || {};
   const selectedRunTree = selectedRunDetail?.runTree || selectedRelations.runTree || null;
@@ -899,6 +920,17 @@ function SkyWorkflows({ mode = 'start' }) {
                           </dd>
                         </>
                       )}
+                      {selectedApprovals.length > 0 && (
+                        <>
+                          <dt className="col-4 sky-detail-label">Approvals</dt>
+                          <dd className="col-8 sky-detail-value">
+                            <span className="sky-pill sky-pill-warning">
+                              {selectedApprovals.filter((approval) => approval.status === 'PENDING').length} pending
+                            </span>
+                            <span className="sky-pill sky-pill-info ms-1">{selectedApprovals.length} total</span>
+                          </dd>
+                        </>
+                      )}
                       <dt className="col-4 sky-detail-label">Started</dt>
                       <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
                       <dt className="col-4 sky-detail-label">Completed</dt>
@@ -1088,7 +1120,7 @@ function SkyWorkflows({ mode = 'start' }) {
                   {selectedNodeRuns.length === 0 ? (
                     <div className="sky-empty-state">Select a run to inspect node outcomes.</div>
                   ) : (
-                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} onOpenRun={loadRunDetail} />
+                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} approvals={selectedApprovals} onOpenRun={loadRunDetail} />
                   )}
                 </div>
               </section>

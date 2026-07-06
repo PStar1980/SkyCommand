@@ -584,3 +584,33 @@ Runtime behavior:
 The node output uses `kind: wait_delay` and records requested duration, actual elapsed duration, optional reason, and a summary for Workflow History.
 
 Wait nodes are capped at 24 hours per node in this phase. This keeps the UI and validation simple while still proving the durable timer path. Longer calendar/event-based waits can be layered on later with richer scheduling and signal semantics.
+
+---
+
+## Phase 10.25 — Human Approval Nodes
+
+Phase 10.25 promotes `HUMAN_APPROVAL` from palette placeholder to executable workflow control node.
+
+```text
+Workflow node
+  -> create durable approval request
+  -> wait for Temporal signal
+  -> approve / reject / timeout
+  -> continue, stop successfully, or fail
+```
+
+New database objects:
+
+```text
+packages/db_build/src/migrations/00051__workflow_human_approval_requests.sql
+packages/db_build/src/seeds/00052__workflow_human_approval_node_support_seed.sql
+```
+
+The approval queue lives under **Workflows -> Approvals** and uses these permissions:
+
+| Permission | Purpose |
+| --- | --- |
+| `WORKFLOW_APPROVAL_READ` | Read pending/completed approval requests |
+| `WORKFLOW_APPROVAL_DECIDE` | Approve or reject pending approval requests |
+
+Temporal-backed workflow runs wait on the `humanApprovalDecision` signal. Inline workflow execution rejects `HUMAN_APPROVAL` nodes because durable human wait states require Temporal.

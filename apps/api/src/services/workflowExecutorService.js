@@ -6,7 +6,7 @@ const toolManifestService = require('./toolManifestService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
-const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT']);
+const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
 const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
@@ -14,11 +14,19 @@ const DEFAULT_CANCEL_PERMISSION = 'WORKFLOW_CANCEL';
 const DEFAULT_CONDITION_ON_FALSE = 'STOP_SUCCESS';
 const DEFAULT_WAIT_DURATION_MS = 1000;
 const MAX_WAIT_DURATION_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_HUMAN_APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const MAX_HUMAN_APPROVAL_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
+const HUMAN_APPROVAL_DECISION_SIGNAL = 'humanApprovalDecision';
 const WAIT_UNIT_MULTIPLIERS_MS = {
   MILLISECONDS: 1,
   SECONDS: 1000,
   MINUTES: 60 * 1000,
   HOURS: 60 * 60 * 1000,
+};
+const HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS = {
+  MINUTES: 60 * 1000,
+  HOURS: 60 * 60 * 1000,
+  DAYS: 24 * 60 * 60 * 1000,
 };
 
 class WorkflowServiceError extends Error {
@@ -752,6 +760,290 @@ async function runWaitNode({ node, parameters }) {
   });
 }
 
+function normalizeHumanApprovalAction(value, fieldName = 'approval action') {
+  const normalized = String(value || 'STOP_SUCCESS')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    '': 'STOP_SUCCESS',
+    STOP: 'STOP_SUCCESS',
+    STOP_SUCCESS: 'STOP_SUCCESS',
+    SKIP_REMAINING: 'STOP_SUCCESS',
+    FAIL: 'FAIL_WORKFLOW',
+    FAIL_WORKFLOW: 'FAIL_WORKFLOW',
+    CONTINUE: 'CONTINUE',
+    CONTINUE_ANYWAY: 'CONTINUE',
+  };
+  const action = aliases[normalized] || normalized;
+  const allowed = new Set(['STOP_SUCCESS', 'FAIL_WORKFLOW', 'CONTINUE']);
+
+  if (!allowed.has(action)) {
+    throw new WorkflowServiceError(`Unsupported HUMAN_APPROVAL ${fieldName}.`, 400, {
+      action: value,
+      allowed: [...allowed],
+    });
+  }
+
+  return action;
+}
+
+function normalizeHumanApprovalTimeoutUnit(value) {
+  const normalized = String(value || 'HOURS')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    MINUTE: 'MINUTES',
+    MINUTES: 'MINUTES',
+    MIN: 'MINUTES',
+    HOUR: 'HOURS',
+    HOURS: 'HOURS',
+    HR: 'HOURS',
+    DAY: 'DAYS',
+    DAYS: 'DAYS',
+  };
+  const unit = aliases[normalized] || normalized;
+
+  if (!Object.prototype.hasOwnProperty.call(HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS, unit)) {
+    throw new WorkflowServiceError('Unsupported HUMAN_APPROVAL timeout unit.', 400, {
+      unit: value,
+      allowed: Object.keys(HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS),
+    });
+  }
+
+  return unit;
+}
+
+function parseHumanApprovalTimeoutMs(parameters = {}) {
+  const input = getSafeObject(parameters);
+  const rawTimeoutMs = input.timeoutMs ?? input.approvalTimeoutMs;
+
+  if (!isBlankValue(rawTimeoutMs)) {
+    const parsedTimeoutMs = Number(rawTimeoutMs);
+
+    if (!Number.isFinite(parsedTimeoutMs) || parsedTimeoutMs <= 0) {
+      throw new WorkflowServiceError('HUMAN_APPROVAL timeoutMs must be a positive number or blank.', 400, {
+        timeoutMs: rawTimeoutMs,
+      });
+    }
+
+    return Math.round(parsedTimeoutMs);
+  }
+
+  const rawDuration = input.timeoutDuration ?? input.duration;
+
+  if (isBlankValue(rawDuration)) {
+    return null;
+  }
+
+  const unit = normalizeHumanApprovalTimeoutUnit(input.timeoutUnit || input.unit || 'HOURS');
+  const parsedDuration = Number(rawDuration);
+
+  if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+    throw new WorkflowServiceError('HUMAN_APPROVAL timeout duration must be a positive number or blank.', 400, {
+      timeoutDuration: rawDuration,
+    });
+  }
+
+  return Math.round(parsedDuration * HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS[unit]);
+}
+
+function normalizeHumanApprovalParameters(parameters = {}, node = {}) {
+  const input = getSafeObject(parameters);
+  const approvalTitle = String(input.approvalTitle || input.title || node.displayName || 'Approval required').trim();
+  const approvalKey = normalizeNodeKey(input.approvalKey || node.nodeKey || 'approval', 'approval');
+  const timeoutMs = parseHumanApprovalTimeoutMs(input);
+
+  if (!approvalTitle) {
+    throw new WorkflowServiceError('HUMAN_APPROVAL nodes require approvalTitle.', 400, {
+      fieldName: 'approvalTitle',
+    });
+  }
+
+  if (timeoutMs && timeoutMs > MAX_HUMAN_APPROVAL_TIMEOUT_MS) {
+    throw new WorkflowServiceError('HUMAN_APPROVAL timeout is capped at 30 days.', 400, {
+      timeoutMs,
+      maxTimeoutMs: MAX_HUMAN_APPROVAL_TIMEOUT_MS,
+    });
+  }
+
+  return {
+    ...input,
+    approvalTitle,
+    title: approvalTitle,
+    instructions: String(input.instructions || input.prompt || '').trim().slice(0, 4000),
+    approvalKey,
+    requiredRoleCode: String(input.requiredRoleCode || input.requiredRole || '').trim().toUpperCase() || null,
+    onReject: normalizeHumanApprovalAction(input.onReject || input.rejectAction || 'STOP_SUCCESS', 'onReject action'),
+    onTimeout: normalizeHumanApprovalAction(input.onTimeout || input.timeoutAction || 'FAIL_WORKFLOW', 'onTimeout action'),
+    timeoutMs,
+    timeoutDuration: input.timeoutDuration ?? input.duration ?? null,
+    timeoutUnit: timeoutMs ? normalizeHumanApprovalTimeoutUnit(input.timeoutUnit || input.unit || 'HOURS') : null,
+  };
+}
+
+function normalizeApprovalDecision(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    APPROVE: 'APPROVED',
+    APPROVED: 'APPROVED',
+    YES: 'APPROVED',
+    REJECT: 'REJECTED',
+    REJECTED: 'REJECTED',
+    NO: 'REJECTED',
+    TIMEOUT: 'TIMED_OUT',
+    TIMED_OUT: 'TIMED_OUT',
+  };
+  const decision = aliases[normalized] || normalized;
+  const allowed = new Set(['APPROVED', 'REJECTED', 'TIMED_OUT']);
+
+  if (!allowed.has(decision)) {
+    throw new WorkflowServiceError('Unsupported approval decision.', 400, {
+      decision: value,
+      allowed: [...allowed],
+    });
+  }
+
+  return decision;
+}
+
+function getApprovalActionForDecision(decision, approvalParameters = {}) {
+  if (decision === 'APPROVED') {
+    return 'CONTINUE';
+  }
+
+  if (decision === 'REJECTED') {
+    return normalizeHumanApprovalAction(approvalParameters.onReject || 'STOP_SUCCESS', 'onReject action');
+  }
+
+  if (decision === 'TIMED_OUT') {
+    return normalizeHumanApprovalAction(approvalParameters.onTimeout || 'FAIL_WORKFLOW', 'onTimeout action');
+  }
+
+  return 'FAIL_WORKFLOW';
+}
+
+function normalizeApprovalRow(row) {
+  const item = camelizeRow(row);
+
+  return {
+    approvalRequestId: item.approvalRequestId,
+    workflowRunRecordId: item.workflowRunRecordId,
+    workflowNodeRunRecordId: item.workflowNodeRunRecordId,
+    workflowNodeId: item.workflowNodeId,
+    workflowCode: item.workflowCode,
+    workflowDisplayName: item.workflowDisplayName,
+    nodeKey: item.nodeKey,
+    nodeDisplayName: item.nodeDisplayName,
+    nodeTypeCode: item.nodeTypeCode,
+    approvalKey: item.approvalKey,
+    approvalTitle: item.approvalTitle,
+    instructions: item.instructions,
+    status: item.status,
+    requiredRoleCode: item.requiredRoleCode,
+    onReject: item.onReject,
+    onTimeout: item.onTimeout,
+    timeoutMs: item.timeoutMs,
+    temporalWorkflowId: item.temporalWorkflowId,
+    temporalRunId: item.temporalRunId,
+    signalName: item.signalName || HUMAN_APPROVAL_DECISION_SIGNAL,
+    requestedByUserId: item.requestedByUserId,
+    requestedByEmail: item.requestedByEmail,
+    requestedByDisplayName: item.requestedByDisplayName,
+    decidedByUserId: item.decidedByUserId,
+    decidedByEmail: item.decidedByEmail,
+    decidedByDisplayName: item.decidedByDisplayName,
+    decisionNote: item.decisionNote,
+    requestedAt: item.requestedAt,
+    decidedAt: item.decidedAt,
+    expiresAt: item.expiresAt,
+    metadata: item.metadata || {},
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+function getRoleSetFromPermissions(permissions = []) {
+  const roleSet = new Set();
+
+  for (const permission of permissions || []) {
+    const roles = permission.grantedThroughRoles || permission.granted_through_roles || [];
+
+    for (const role of roles || []) {
+      const normalized = String(role || '').trim().toUpperCase();
+
+      if (normalized) {
+        roleSet.add(normalized);
+      }
+    }
+  }
+
+  return roleSet;
+}
+
+function assertApprovalRole({ requiredRoleCode, permissions = [] } = {}) {
+  const normalizedRole = String(requiredRoleCode || '').trim().toUpperCase();
+
+  if (!normalizedRole) {
+    return;
+  }
+
+  const roleSet = getRoleSetFromPermissions(permissions);
+
+  if (!roleSet.has(normalizedRole) && !roleSet.has('SUPER_ADMIN')) {
+    throw new WorkflowServiceError('Approval requires a role the current user does not have.', 403, {
+      requiredRoleCode: normalizedRole,
+    });
+  }
+}
+
+function buildHumanApprovalOutput({ approval, decision, decisionNote = null, actor = null, timedOut = false } = {}) {
+  const normalizedDecision = normalizeApprovalDecision(decision);
+  const action = getApprovalActionForDecision(normalizedDecision, approval);
+  const actorName = actor?.displayName || actor?.email || approval?.decidedByDisplayName || approval?.decidedByEmail || null;
+  const title = approval?.approvalTitle || approval?.title || 'Approval required';
+  const summary = normalizedDecision === 'APPROVED'
+    ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
+    : normalizedDecision === 'REJECTED'
+      ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
+      : `Approval timed out for ${title}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
+
+  return {
+    kind: 'human_approval',
+    status: normalizedDecision,
+    approved: normalizedDecision === 'APPROVED',
+    rejected: normalizedDecision === 'REJECTED',
+    timedOut: timedOut || normalizedDecision === 'TIMED_OUT',
+    decision: normalizedDecision,
+    action,
+    approvalRequestId: approval?.approvalRequestId || null,
+    approvalKey: approval?.approvalKey || null,
+    approvalTitle: title,
+    instructions: approval?.instructions || null,
+    requiredRoleCode: approval?.requiredRoleCode || null,
+    temporalWorkflowId: approval?.temporalWorkflowId || null,
+    temporalRunId: approval?.temporalRunId || null,
+    decisionNote: decisionNote || approval?.decisionNote || null,
+    decidedByDisplayName: actorName,
+    decidedAt: approval?.decidedAt || new Date().toISOString(),
+    summary,
+  };
+}
+
+async function runHumanApprovalNodeInline() {
+  throw new WorkflowServiceError('HUMAN_APPROVAL nodes require Temporal-backed execution so SkyServer can wait for an approval signal durably.', 409, {
+    nodeTypeCode: 'HUMAN_APPROVAL',
+    requiredExecutorMode: 'temporal',
+  });
+}
+
 function normalizeApiAuthMode(value) {
   const normalized = String(value || 'AUTO')
     .trim()
@@ -903,6 +1195,7 @@ function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
   const map = {
     API_CALL: 'Call API',
     CONDITION: 'Evaluate Condition',
+    HUMAN_APPROVAL: 'Human Approval',
     WAIT: 'Wait / Delay',
     TEMPORAL_WORKFLOW: 'Start Temporal Workflow',
     TOOL: 'Run Tool',
@@ -916,6 +1209,7 @@ function getNodeTargetKindForType(nodeTypeCode) {
   const map = {
     API_CALL: 'api.endpoint',
     CONDITION: null,
+    HUMAN_APPROVAL: null,
     WAIT: null,
     TEMPORAL_WORKFLOW: 'worker.temporal_workflow_definitions',
     TOOL: 'core.tools',
@@ -929,6 +1223,7 @@ function getNodeCategoryForType(nodeTypeCode) {
   const map = {
     API_CALL: 'INTEGRATION',
     CONDITION: 'CONTROL',
+    HUMAN_APPROVAL: 'HUMAN',
     WAIT: 'CONTROL',
     TEMPORAL_WORKFLOW: 'WORKFLOW',
     TOOL: 'ACTION',
@@ -1721,9 +2016,9 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
 
   if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode)) {
-    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, and WAIT nodes.', 400, {
+    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, WAIT, and HUMAN_APPROVAL nodes.', 400, {
       nodeTypeCode,
-      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT'],
+      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL'],
     });
   }
 
@@ -1770,6 +2065,10 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     normalizeWaitParameters(inputParameters);
   }
 
+  if (nodeTypeCode === 'HUMAN_APPROVAL') {
+    normalizeHumanApprovalParameters(inputParameters, node);
+  }
+
   const nodeKeyBase = normalizeNodeKey(
     node.nodeKey || node.displayName || targetCode || `${nodeTypeCode.toLowerCase()}_${index + 1}`,
     `node_${index + 1}`,
@@ -1797,7 +2096,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
     enabled: node.enabled !== false,
-    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : nodeTypeCode === 'CONDITION' ? 'condition' : nodeTypeCode === 'WAIT' ? 'wait' : 'tool' }),
+    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : nodeTypeCode === 'CONDITION' ? 'condition' : nodeTypeCode === 'WAIT' ? 'wait' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'human_approval' : 'tool' }),
   };
 }
 
@@ -1883,8 +2182,8 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         DEFAULT_CANCEL_PERMISSION,
         JSON.stringify({
           createdBy: 'workflow_builder_v1',
-          builderVersion: '10.22',
-          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT'],
+          builderVersion: '10.25',
+          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL'],
         }),
         user?.userId || null,
       ],
@@ -2997,6 +3296,10 @@ async function executeNode({ node, parameters, user, session, permissions, conte
     return runWaitNode({ node, parameters, context });
   }
 
+  if (node.nodeTypeCode === 'HUMAN_APPROVAL') {
+    return runHumanApprovalNodeInline({ node, parameters, user, context });
+  }
+
   if (node.nodeTypeCode === 'TEMPORAL_WORKFLOW') {
     return runTemporalWorkflowNode({ node, parameters, user, context });
   }
@@ -3336,6 +3639,311 @@ async function getWorkflowNodeRunsForRun(workflowRunRecordId) {
   return result.rows.map(normalizeNodeRunRow);
 }
 
+
+async function getWorkflowApprovalRequestById(approvalRequestId) {
+  if (!approvalRequestId) {
+    return null;
+  }
+
+  const result = await query(
+    `
+      SELECT *
+      FROM worker.vw_workflow_approval_requests
+      WHERE approval_request_id = $1
+      LIMIT 1
+    `,
+    [approvalRequestId],
+  );
+
+  return result.rows[0] ? normalizeApprovalRow(result.rows[0]) : null;
+}
+
+async function createWorkflowApprovalRequest({
+  workflowRunRecordId,
+  workflowNodeRunRecordId,
+  node = {},
+  parameters = {},
+  user = null,
+  context = {},
+  temporalWorkflowId = null,
+  temporalRunId = null,
+} = {}) {
+  if (!workflowRunRecordId || !workflowNodeRunRecordId) {
+    throw new WorkflowServiceError('Approval requests require workflowRunRecordId and workflowNodeRunRecordId.', 400, {
+      workflowRunRecordId,
+      workflowNodeRunRecordId,
+    });
+  }
+
+  const approvalParameters = normalizeHumanApprovalParameters(parameters, node);
+  const existingResult = await query(
+    `
+      SELECT *
+      FROM worker.vw_workflow_approval_requests
+      WHERE workflow_node_run_record_id = $1
+        AND approval_key = $2
+      LIMIT 1
+    `,
+    [workflowNodeRunRecordId, approvalParameters.approvalKey],
+  );
+
+  if (existingResult.rows[0]) {
+    return normalizeApprovalRow(existingResult.rows[0]);
+  }
+
+  const expiresAt = approvalParameters.timeoutMs
+    ? new Date(Date.now() + approvalParameters.timeoutMs).toISOString()
+    : null;
+  const metadata = {
+    ...(getSafeObject(context) || {}),
+    nodeKey: node.nodeKey || null,
+    nodeTypeCode: node.nodeTypeCode || 'HUMAN_APPROVAL',
+    createdBy: 'skyserver_workflow_executor',
+  };
+
+  const insertResult = await query(
+    `
+      INSERT INTO worker.workflow_approval_requests (
+        workflow_run_record_id,
+        workflow_node_run_record_id,
+        workflow_node_id,
+        node_key,
+        approval_key,
+        approval_title,
+        instructions,
+        required_role_code,
+        on_reject,
+        on_timeout,
+        timeout_ms,
+        temporal_workflow_id,
+        temporal_run_id,
+        signal_name,
+        requested_by_user_id,
+        expires_at,
+        metadata
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)
+      RETURNING approval_request_id
+    `,
+    [
+      workflowRunRecordId,
+      workflowNodeRunRecordId,
+      node.workflowNodeId || null,
+      node.nodeKey || approvalParameters.approvalKey,
+      approvalParameters.approvalKey,
+      approvalParameters.approvalTitle,
+      approvalParameters.instructions || null,
+      approvalParameters.requiredRoleCode || null,
+      approvalParameters.onReject,
+      approvalParameters.onTimeout,
+      approvalParameters.timeoutMs,
+      temporalWorkflowId || context?.temporalWorkflowId || null,
+      temporalRunId || context?.temporalRunId || null,
+      HUMAN_APPROVAL_DECISION_SIGNAL,
+      user?.userId || null,
+      expiresAt,
+      JSON.stringify(metadata),
+    ],
+  );
+
+  return getWorkflowApprovalRequestById(insertResult.rows[0].approval_request_id);
+}
+
+async function resolveWorkflowApprovalRequest({
+  approvalRequestId,
+  decision,
+  decisionNote = null,
+  user = null,
+  metadata = {},
+} = {}) {
+  const normalizedDecision = normalizeApprovalDecision(decision);
+
+  if (!approvalRequestId) {
+    throw new WorkflowServiceError('approvalRequestId is required.', 400);
+  }
+
+  await query(
+    `
+      UPDATE worker.workflow_approval_requests
+      SET status = $2,
+          decision_note = COALESCE($3, decision_note),
+          decided_by_user_id = COALESCE($4, decided_by_user_id),
+          decided_at = COALESCE(decided_at, CURRENT_TIMESTAMP),
+          metadata = metadata || $5::jsonb,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE approval_request_id = $1
+    `,
+    [
+      approvalRequestId,
+      normalizedDecision,
+      decisionNote || null,
+      user?.userId || null,
+      JSON.stringify(getSafeObject(metadata)),
+    ],
+  );
+
+  const approval = await getWorkflowApprovalRequestById(approvalRequestId);
+
+  if (!approval) {
+    throw new WorkflowServiceError('Approval request was not found.', 404, {
+      approvalRequestId,
+    });
+  }
+
+  return approval;
+}
+
+async function listWorkflowApprovalRequests(filters = {}) {
+  const limit = parseLimit(filters.limit);
+  const clauses = [];
+  const values = [];
+  const status = String(filters.status || '').trim().toUpperCase();
+  const workflowRunRecordId = String(filters.workflowRunRecordId || '').trim();
+
+  if (status && status !== 'ALL') {
+    values.push(status);
+    clauses.push(`status = $${values.length}`);
+  }
+
+  if (workflowRunRecordId) {
+    values.push(workflowRunRecordId);
+    clauses.push(`workflow_run_record_id = $${values.length}`);
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  values.push(limit);
+
+  const result = await query(
+    `
+      SELECT *
+      FROM worker.vw_workflow_approval_requests
+      ${whereClause}
+      ORDER BY
+        CASE status WHEN 'PENDING' THEN 0 ELSE 1 END,
+        COALESCE(requested_at, created_at) DESC,
+        created_at DESC
+      LIMIT $${values.length}
+    `,
+    values,
+  );
+
+  return {
+    total: result.rows.length,
+    limit,
+    items: result.rows.map(normalizeApprovalRow),
+  };
+}
+
+async function getWorkflowApprovalRequestsForRun(workflowRunRecordId) {
+  if (!workflowRunRecordId) {
+    return [];
+  }
+
+  const result = await query(
+    `
+      SELECT *
+      FROM worker.vw_workflow_approval_requests
+      WHERE workflow_run_record_id = $1
+      ORDER BY COALESCE(requested_at, created_at), created_at
+    `,
+    [workflowRunRecordId],
+  );
+
+  return result.rows.map(normalizeApprovalRow);
+}
+
+async function decideWorkflowApprovalRequest({
+  approvalRequestId,
+  payload = {},
+  user,
+  permissions = [],
+  context = {},
+} = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_APPROVAL_DECIDE',
+    permissions,
+    action: 'decide_workflow_approval',
+  });
+
+  const approval = await getWorkflowApprovalRequestById(approvalRequestId);
+
+  if (!approval) {
+    throw new WorkflowServiceError('Approval request was not found.', 404, {
+      approvalRequestId,
+    });
+  }
+
+  if (approval.status !== 'PENDING') {
+    throw new WorkflowServiceError('Approval request has already been decided.', 409, {
+      approvalRequestId,
+      status: approval.status,
+    });
+  }
+
+  assertApprovalRole({
+    requiredRoleCode: approval.requiredRoleCode,
+    permissions,
+  });
+
+  const decision = normalizeApprovalDecision(payload.decision || payload.status);
+  const decisionNote = String(payload.decisionNote || payload.note || '').trim().slice(0, 4000) || null;
+
+  if (!approval.temporalWorkflowId) {
+    throw new WorkflowServiceError('Approval request is not linked to a Temporal workflow.', 409, {
+      approvalRequestId,
+    });
+  }
+
+  const actor = {
+    userId: user?.userId || null,
+    email: user?.email || null,
+    displayName: user?.displayName || user?.email || null,
+  };
+  const decidedAt = new Date().toISOString();
+  const signalPayload = {
+    approvalRequestId: approval.approvalRequestId,
+    workflowRunRecordId: approval.workflowRunRecordId,
+    workflowNodeRunRecordId: approval.workflowNodeRunRecordId,
+    nodeKey: approval.nodeKey,
+    approvalKey: approval.approvalKey,
+    decision,
+    decisionNote,
+    actor,
+    decidedAt,
+  };
+
+  const signalResult = await temporalService.signalWorkflow({
+    workflowId: approval.temporalWorkflowId,
+    runId: approval.temporalRunId,
+    signalName: approval.signalName || HUMAN_APPROVAL_DECISION_SIGNAL,
+    payload: signalPayload,
+  });
+
+  const resolved = await resolveWorkflowApprovalRequest({
+    approvalRequestId: approval.approvalRequestId,
+    decision,
+    decisionNote,
+    user,
+    metadata: {
+      decidedVia: 'api',
+      signalSent: true,
+      signalResult,
+      requestContext: getSafeObject(context),
+    },
+  });
+
+  return {
+    approval: resolved,
+    signal: signalResult,
+    output: buildHumanApprovalOutput({
+      approval: resolved,
+      decision,
+      decisionNote,
+      actor,
+    }),
+  };
+}
+
 async function listChildWorkflowRuns(parentWorkflowRunRecordId) {
   if (!parentWorkflowRunRecordId) {
     return [];
@@ -3442,9 +4050,10 @@ async function getWorkflowRun(workflowRunRecordId) {
     });
   }
 
-  const [nodeRuns, relations] = await Promise.all([
+  const [nodeRuns, relations, approvals] = await Promise.all([
     getWorkflowNodeRunsForRun(workflowRunRecordId),
     getWorkflowRunRelations(run),
+    getWorkflowApprovalRequestsForRun(workflowRunRecordId),
   ]);
 
   let temporalRuntime = null;
@@ -3471,6 +4080,7 @@ async function getWorkflowRun(workflowRunRecordId) {
       temporalRuntime,
     },
     nodeRuns,
+    approvals,
     relations,
     runTree: relations.runTree,
     temporalRuntime,
@@ -3495,6 +4105,10 @@ module.exports = {
   getWorkflowDefinition,
   getWorkflowDefinitionForManage,
   getWorkflowRun,
+  createWorkflowApprovalRequest,
+  decideWorkflowApprovalRequest,
+  listWorkflowApprovalRequests,
+  resolveWorkflowApprovalRequest,
   listBuilderCatalog,
   linkWorkflowRunToTemporal,
   listWorkflowDefinitions,

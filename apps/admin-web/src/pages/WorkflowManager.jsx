@@ -9,6 +9,11 @@ import ToolParameterEditor, {
   cleanToolParameterValues,
   getInitialToolParameterValues,
 } from '../components/ToolParameterEditor.jsx';
+import HumanApprovalParameterEditor, {
+  cleanHumanApprovalParameterValues,
+  DEFAULT_HUMAN_APPROVAL_PARAMETERS,
+  getHumanApprovalSummary,
+} from '../components/HumanApprovalParameterEditor.jsx';
 import WaitParameterEditor, {
   cleanWaitParameterValues,
   DEFAULT_WAIT_PARAMETERS,
@@ -93,7 +98,9 @@ function graphNodesToEditorNodes(nodes = []) {
         ? { ...DEFAULT_CONDITION_PARAMETERS, ...(node.inputParameters || {}) }
         : node.nodeTypeCode === 'WAIT'
           ? { ...DEFAULT_WAIT_PARAMETERS, ...(node.inputParameters || {}) }
-          : node.inputParameters || {},
+          : node.nodeTypeCode === 'HUMAN_APPROVAL'
+            ? { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS, ...(node.inputParameters || {}) }
+            : node.inputParameters || {},
   }));
 }
 
@@ -398,6 +405,18 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
       return;
     }
 
+    if (nextType === 'HUMAN_APPROVAL') {
+      patch({
+        nodeTypeCode: 'HUMAN_APPROVAL',
+        targetCode: '',
+        displayName: node.displayName || 'Human Approval',
+        nodeKey: node.nodeKey || `approval_${index + 1}`,
+        description: node.description || 'Pauses the workflow until an authorized user approves or rejects the request.',
+        inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
+      });
+      return;
+    }
+
     patch({
       nodeTypeCode: 'TOOL',
       targetCode: '',
@@ -453,9 +472,9 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : 'Tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'Human approval' : 'Tool'}</div>
           <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'Workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : nodeTypeCode === 'WAIT' ? formatWaitDuration(node.inputParameters) : node.targetCode || 'target tool'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : nodeTypeCode === 'WAIT' ? formatWaitDuration(node.inputParameters) : nodeTypeCode === 'HUMAN_APPROVAL' ? getHumanApprovalSummary(node.inputParameters) : node.targetCode || 'target tool'}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -479,6 +498,7 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
             <option value="TEMPORAL_WORKFLOW">Temporal workflow template</option>
             <option value="CONDITION">Condition / branch</option>
             <option value="WAIT">Wait / delay</option>
+            <option value="HUMAN_APPROVAL">Human approval</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -617,6 +637,18 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
               />
               <div className="form-text mt-2">
                 Reads workflow input, previous node output, or a named node output. False can stop successfully, fail, or continue.
+              </div>
+            </>
+          ) : nodeTypeCode === 'HUMAN_APPROVAL' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Human approval parameters</div>
+              <HumanApprovalParameterEditor
+                idPrefix={`manager-node-${index}-approval`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameters={node.inputParameters || {}}
+              />
+              <div className="form-text mt-2">
+                Creates a pending approval request and waits for a Temporal signal before continuing.
               </div>
             </>
           ) : (
@@ -819,7 +851,16 @@ function WorkflowManager() {
                   description: 'Pauses the workflow for a configured duration before continuing.',
                   inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
                 }
-                : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
+                : nodeTypeCode === 'HUMAN_APPROVAL'
+                  ? {
+                    ...EMPTY_NODE,
+                    nodeTypeCode: 'HUMAN_APPROVAL',
+                    nodeKey: `approval_${current.length + 1}`,
+                    displayName: 'Human Approval',
+                    description: 'Pauses the workflow until an authorized user approves or rejects the request.',
+                    inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
+                  }
+                  : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
     ]);
   }
 
@@ -952,6 +993,22 @@ function WorkflowManager() {
           config: {
             builderCard: 'wait',
             updatedBy: 'workflow_manager_ui_v6',
+          },
+        };
+      }
+
+      if (nodeTypeCode === 'HUMAN_APPROVAL') {
+        return {
+          nodeKey,
+          nodeTypeCode: 'HUMAN_APPROVAL',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode: '',
+          inputParameters: cleanHumanApprovalParameterValues(node.inputParameters),
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'human_approval',
+            updatedBy: 'workflow_manager_ui_v7',
           },
         };
       }
@@ -1178,7 +1235,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Clone workflow</span>
               <span className="sky-pill sky-pill-success">Save current graph</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
-              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT nodes</span>
+              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL nodes</span>
             </div>
           </section>
         </div>
@@ -1259,9 +1316,9 @@ function WorkflowManager() {
                 <div className="sky-card-header d-flex flex-wrap justify-content-between gap-3">
                   <div>
                     <div className="sky-page-kicker">Workflow graph</div>
-                    <h2 className="h5 mb-0">Edit current sequential graph with condition gates and waits</h2>
+                    <h2 className="h5 mb-0">Edit current sequential graph with condition gates, waits, and approvals</h2>
                   </div>
-                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button></div>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   <div className="d-flex flex-column gap-3">

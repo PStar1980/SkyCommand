@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.22 — Temporal Workflow Template Nodes
+**Active status:** Phase 10.25 — Human Approval Nodes
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -739,3 +739,21 @@ SkyServer workflows now support `WAIT` nodes as timer-style control nodes in the
 - Temporal-backed workflow runs use a durable workflow timer, so the wait does not run as a blocking activity.
 - Inline diagnostic execution has a local timeout fallback.
 - Wait node output is recorded as `kind: wait_delay` for Workflow History summaries.
+
+
+### Phase 10.25 — Human approval workflow nodes
+
+SkyServer workflows now support `HUMAN_APPROVAL` nodes as durable operator checkpoints in the sequential graph.
+
+- Admin-Web Create Workflow and Manage Workflows can add and configure Human Approval nodes.
+- Approval requests are stored in `worker.workflow_approval_requests` and exposed through `worker.vw_workflow_approval_requests`.
+- The Temporal-backed SkyServer workflow executor creates an approval request, waits for the `humanApprovalDecision` signal, then continues, stops successfully, or fails based on the node configuration.
+- Admin-Web adds **Workflows -> Approvals** so authorized users can approve or reject pending requests with a decision note.
+- Workflow History now includes approval summaries, approval status, decision note, and pending counts in run detail.
+
+Existing DB patch:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migrations/00051__workflow_human_approval_requests.sql
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00052__workflow_human_approval_node_support_seed.sql
+```

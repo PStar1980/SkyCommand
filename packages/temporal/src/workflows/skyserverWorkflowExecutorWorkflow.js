@@ -1,4 +1,4 @@
-const { ApplicationFailure, executeChild, proxyActivities, sleep, startChild, workflowInfo } = require('@temporalio/workflow');
+const { ApplicationFailure, condition, defineSignal, executeChild, proxyActivities, setHandler, sleep, startChild, workflowInfo } = require('@temporalio/workflow');
 
 const definitionActivities = proxyActivities({
   startToCloseTimeout: '2 minutes',
@@ -29,11 +29,19 @@ const nodeExecutionActivities = proxyActivities({
 
 const DEFAULT_WAIT_DURATION_MS = 1000;
 const MAX_WAIT_DURATION_MS = 24 * 60 * 60 * 1000;
+const MAX_HUMAN_APPROVAL_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
+const HUMAN_APPROVAL_DECISION_SIGNAL = 'humanApprovalDecision';
+const humanApprovalDecisionSignal = defineSignal(HUMAN_APPROVAL_DECISION_SIGNAL);
 const WAIT_UNIT_MULTIPLIERS_MS = {
   MILLISECONDS: 1,
   SECONDS: 1000,
   MINUTES: 60 * 1000,
   HOURS: 60 * 60 * 1000,
+};
+const HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS = {
+  MINUTES: 60 * 1000,
+  HOURS: 60 * 60 * 1000,
+  DAYS: 24 * 60 * 60 * 1000,
 };
 
 function getSafeObject(value, fallback = {}) {
@@ -410,6 +418,357 @@ function buildConditionStopSummary({ definition, output, completedNodeCount, tot
 }
 
 
+function createHumanApprovalInputFailure(message, details = {}) {
+  return ApplicationFailure.create({
+    message,
+    type: 'SkyServerHumanApprovalInputError',
+    nonRetryable: true,
+    details: [details],
+  });
+}
+
+function normalizeHumanApprovalAction(value, fallback = 'STOP_SUCCESS') {
+  const normalized = String(value || fallback)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    '': fallback,
+    STOP: 'STOP_SUCCESS',
+    STOP_SUCCESS: 'STOP_SUCCESS',
+    SKIP_REMAINING: 'STOP_SUCCESS',
+    FAIL: 'FAIL_WORKFLOW',
+    FAIL_WORKFLOW: 'FAIL_WORKFLOW',
+    CONTINUE: 'CONTINUE',
+    CONTINUE_ANYWAY: 'CONTINUE',
+  };
+  const action = aliases[normalized] || normalized;
+
+  if (!['STOP_SUCCESS', 'FAIL_WORKFLOW', 'CONTINUE'].includes(action)) {
+    throw createHumanApprovalInputFailure('Unsupported HUMAN_APPROVAL continuation action.', {
+      action: value,
+    });
+  }
+
+  return action;
+}
+
+function normalizeHumanApprovalTimeoutUnit(value) {
+  const normalized = String(value || 'HOURS')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    MINUTE: 'MINUTES',
+    MINUTES: 'MINUTES',
+    MIN: 'MINUTES',
+    HOUR: 'HOURS',
+    HOURS: 'HOURS',
+    HR: 'HOURS',
+    DAY: 'DAYS',
+    DAYS: 'DAYS',
+  };
+  const unit = aliases[normalized] || normalized;
+
+  if (!Object.prototype.hasOwnProperty.call(HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS, unit)) {
+    throw createHumanApprovalInputFailure('Unsupported HUMAN_APPROVAL timeout unit.', {
+      unit: value,
+      allowed: Object.keys(HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS),
+    });
+  }
+
+  return unit;
+}
+
+function parseHumanApprovalTimeoutMs(parameters = {}) {
+  const input = getSafeObject(parameters);
+  const rawTimeoutMs = input.timeoutMs ?? input.approvalTimeoutMs;
+
+  if (!isBlankValue(rawTimeoutMs)) {
+    const parsedTimeoutMs = Number(rawTimeoutMs);
+
+    if (!Number.isFinite(parsedTimeoutMs) || parsedTimeoutMs <= 0) {
+      throw createHumanApprovalInputFailure('HUMAN_APPROVAL timeoutMs must be a positive number or blank.', {
+        timeoutMs: rawTimeoutMs,
+      });
+    }
+
+    return Math.round(parsedTimeoutMs);
+  }
+
+  const rawDuration = input.timeoutDuration ?? input.duration;
+
+  if (isBlankValue(rawDuration)) {
+    return null;
+  }
+
+  const unit = normalizeHumanApprovalTimeoutUnit(input.timeoutUnit || input.unit || 'HOURS');
+  const parsedDuration = Number(rawDuration);
+
+  if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+    throw createHumanApprovalInputFailure('HUMAN_APPROVAL timeout duration must be a positive number or blank.', {
+      timeoutDuration: rawDuration,
+    });
+  }
+
+  return Math.round(parsedDuration * HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS[unit]);
+}
+
+function normalizeHumanApprovalParameters(parameters = {}, node = {}) {
+  const input = getSafeObject(parameters);
+  const approvalTitle = String(input.approvalTitle || input.title || node.displayName || 'Approval required').trim();
+  const approvalKey = normalizeWorkflowIdPart(input.approvalKey || node.nodeKey || 'approval', 'approval').replace(/-/g, '_');
+  const timeoutMs = parseHumanApprovalTimeoutMs(input);
+
+  if (!approvalTitle) {
+    throw createHumanApprovalInputFailure('HUMAN_APPROVAL nodes require approvalTitle.', {
+      fieldName: 'approvalTitle',
+    });
+  }
+
+  if (timeoutMs && timeoutMs > MAX_HUMAN_APPROVAL_TIMEOUT_MS) {
+    throw createHumanApprovalInputFailure('HUMAN_APPROVAL timeout is capped at 30 days.', {
+      timeoutMs,
+      maxTimeoutMs: MAX_HUMAN_APPROVAL_TIMEOUT_MS,
+    });
+  }
+
+  return {
+    ...input,
+    approvalTitle,
+    approvalKey,
+    instructions: String(input.instructions || input.prompt || '').trim().slice(0, 4000),
+    requiredRoleCode: String(input.requiredRoleCode || input.requiredRole || '').trim().toUpperCase() || null,
+    onReject: normalizeHumanApprovalAction(input.onReject || input.rejectAction || 'STOP_SUCCESS', 'STOP_SUCCESS'),
+    onTimeout: normalizeHumanApprovalAction(input.onTimeout || input.timeoutAction || 'FAIL_WORKFLOW', 'FAIL_WORKFLOW'),
+    timeoutMs,
+    timeoutDuration: input.timeoutDuration ?? input.duration ?? null,
+    timeoutUnit: timeoutMs ? normalizeHumanApprovalTimeoutUnit(input.timeoutUnit || input.unit || 'HOURS') : null,
+  };
+}
+
+function normalizeApprovalDecision(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    APPROVE: 'APPROVED',
+    APPROVED: 'APPROVED',
+    YES: 'APPROVED',
+    REJECT: 'REJECTED',
+    REJECTED: 'REJECTED',
+    NO: 'REJECTED',
+    TIMEOUT: 'TIMED_OUT',
+    TIMED_OUT: 'TIMED_OUT',
+  };
+  const decision = aliases[normalized] || normalized;
+
+  if (!['APPROVED', 'REJECTED', 'TIMED_OUT'].includes(decision)) {
+    throw createHumanApprovalInputFailure('Unsupported approval decision.', {
+      decision: value,
+    });
+  }
+
+  return decision;
+}
+
+function getApprovalActionForDecision(decision, approvalParameters = {}) {
+  if (decision === 'APPROVED') {
+    return 'CONTINUE';
+  }
+
+  if (decision === 'REJECTED') {
+    return normalizeHumanApprovalAction(approvalParameters.onReject || 'STOP_SUCCESS', 'STOP_SUCCESS');
+  }
+
+  if (decision === 'TIMED_OUT') {
+    return normalizeHumanApprovalAction(approvalParameters.onTimeout || 'FAIL_WORKFLOW', 'FAIL_WORKFLOW');
+  }
+
+  return 'FAIL_WORKFLOW';
+}
+
+function getApprovalDecisionLookupKeys(payload = {}) {
+  const item = getSafeObject(payload);
+
+  return [
+    item.approvalRequestId,
+    item.workflowNodeRunRecordId,
+    item.nodeKey,
+    item.approvalKey,
+  ]
+    .map((key) => String(key || '').trim())
+    .filter(Boolean);
+}
+
+function buildHumanApprovalOutput({ approval, approvalParameters, decisionPayload = {}, timedOut = false } = {}) {
+  const decision = normalizeApprovalDecision(decisionPayload.decision || (timedOut ? 'TIMED_OUT' : 'REJECTED'));
+  const action = getApprovalActionForDecision(decision, approvalParameters || approval || {});
+  const actor = getSafeObject(decisionPayload.actor, {});
+  const actorName = actor.displayName || actor.email || approval?.decidedByDisplayName || approval?.decidedByEmail || null;
+  const title = approval?.approvalTitle || approvalParameters?.approvalTitle || 'Approval required';
+  const decisionNote = decisionPayload.decisionNote || approval?.decisionNote || null;
+  const summary = decision === 'APPROVED'
+    ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
+    : decision === 'REJECTED'
+      ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
+      : `Approval timed out for ${title}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
+
+  return {
+    kind: 'human_approval',
+    status: decision,
+    approved: decision === 'APPROVED',
+    rejected: decision === 'REJECTED',
+    timedOut: timedOut || decision === 'TIMED_OUT',
+    decision,
+    action,
+    approvalRequestId: approval?.approvalRequestId || decisionPayload.approvalRequestId || null,
+    approvalKey: approval?.approvalKey || approvalParameters?.approvalKey || decisionPayload.approvalKey || null,
+    approvalTitle: title,
+    instructions: approval?.instructions || approvalParameters?.instructions || null,
+    requiredRoleCode: approval?.requiredRoleCode || approvalParameters?.requiredRoleCode || null,
+    temporalWorkflowId: approval?.temporalWorkflowId || null,
+    temporalRunId: approval?.temporalRunId || null,
+    decisionNote,
+    decidedByDisplayName: actorName,
+    decidedAt: decisionPayload.decidedAt || approval?.decidedAt || null,
+    summary,
+  };
+}
+
+function buildHumanApprovalStopSummary({ definition, output, completedNodeCount, totalNodeCount }) {
+  const skippedNodeCount = Math.max(0, Number(totalNodeCount || 0) - Number(completedNodeCount || 0));
+
+  return `Workflow ${definition.displayName} stopped successfully by human approval gate: ${output?.summary || 'approval did not continue'} (${skippedNodeCount} remaining node(s) skipped).`;
+}
+
+async function executeHumanApprovalNode({
+  node,
+  parameters,
+  nodeRun,
+  user,
+  context,
+  approvalDecisions,
+  temporalWorkflowId,
+  temporalRunId,
+  workflowRunRecordId,
+}) {
+  let approvalParameters = null;
+  let approval = null;
+
+  try {
+    await ledgerActivities.markSkyserverWorkflowNodeAttemptActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      attemptCount: 1,
+      metadata: {
+        humanApprovalNode: true,
+      },
+    });
+
+    approvalParameters = normalizeHumanApprovalParameters(parameters, node);
+    approval = await ledgerActivities.createSkyserverWorkflowApprovalRequestActivity({
+      workflowRunRecordId,
+      workflowNodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      node,
+      parameters: approvalParameters,
+      user,
+      context,
+      temporalWorkflowId,
+      temporalRunId,
+    });
+
+    const waitKeys = [
+      approval?.approvalRequestId,
+      approval?.workflowNodeRunRecordId,
+      approval?.nodeKey,
+      approval?.approvalKey,
+      nodeRun.workflowNodeRunRecordId,
+      node.nodeKey,
+      approvalParameters.approvalKey,
+    ]
+      .map((key) => String(key || '').trim())
+      .filter(Boolean);
+    const hasDecision = () => waitKeys.some((key) => Boolean(approvalDecisions[key]));
+    let completedBySignal = true;
+
+    if (approvalParameters.timeoutMs) {
+      completedBySignal = await condition(hasDecision, approvalParameters.timeoutMs);
+    } else {
+      await condition(hasDecision);
+    }
+
+    const receivedDecision = waitKeys.map((key) => approvalDecisions[key]).find(Boolean);
+    const decisionPayload = completedBySignal && receivedDecision
+      ? getSafeObject(receivedDecision)
+      : {
+        approvalRequestId: approval?.approvalRequestId,
+        workflowRunRecordId,
+        workflowNodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+        nodeKey: node.nodeKey,
+        approvalKey: approvalParameters.approvalKey,
+        decision: 'TIMED_OUT',
+        decisionNote: 'Approval request timed out.',
+        actor: null,
+      };
+    const decision = normalizeApprovalDecision(decisionPayload.decision);
+    const resolvedApproval = await ledgerActivities.resolveSkyserverWorkflowApprovalRequestActivity({
+      approvalRequestId: approval.approvalRequestId,
+      decision,
+      decisionNote: decisionPayload.decisionNote || null,
+      user: getSafeObject(decisionPayload.actor, {}),
+      metadata: {
+        humanApprovalNode: true,
+        resolvedByWorkflow: true,
+        timedOut: decision === 'TIMED_OUT',
+      },
+    });
+    const output = buildHumanApprovalOutput({
+      approval: resolvedApproval || approval,
+      approvalParameters,
+      decisionPayload,
+      timedOut: decision === 'TIMED_OUT',
+    });
+
+    return await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      output,
+      metadata: {
+        parameters,
+        humanApprovalNode: true,
+        approvalRequestId: approval.approvalRequestId,
+        approvalStatus: output.status,
+        approvalAction: output.action,
+      },
+    });
+  } catch (error) {
+    const normalizedError = serializeError(error);
+
+    await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      output: normalizedError.details || {},
+      errorMessage: normalizedError.message,
+      metadata: {
+        parameters,
+        humanApprovalNode: true,
+        approvalRequestId: approval?.approvalRequestId || null,
+        errorName: normalizedError.name,
+      },
+    });
+
+    throw ApplicationFailure.create({
+      message: normalizedError.message,
+      type: normalizedError.name || 'SkyServerHumanApprovalNodeFailure',
+      nonRetryable: true,
+      details: [normalizedError],
+    });
+  }
+}
+
+
 async function executeChildWorkflowNodeWithRetries({
   definition,
   node,
@@ -777,6 +1136,16 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   const nodeOutputsByKey = {};
   let previousNodeOutput = null;
   let conditionStop = null;
+  let approvalStop = null;
+  const approvalDecisions = {};
+
+  setHandler(humanApprovalDecisionSignal, (payload = {}) => {
+    const safePayload = getSafeObject(payload);
+
+    for (const key of getApprovalDecisionLookupKeys(safePayload)) {
+      approvalDecisions[key] = safePayload;
+    }
+  });
 
   if (!workflowCode) {
     throw ApplicationFailure.create({
@@ -839,6 +1208,18 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           parameters,
           nodeRun,
         });
+      } else if (node.nodeTypeCode === 'HUMAN_APPROVAL') {
+        completedNodeRun = await executeHumanApprovalNode({
+          node,
+          parameters,
+          nodeRun,
+          user: input.user || null,
+          context: nodeContext,
+          approvalDecisions,
+          temporalWorkflowId,
+          temporalRunId,
+          workflowRunRecordId,
+        });
       } else if (node.nodeTypeCode === 'WORKFLOW') {
         completedNodeRun = await executeChildWorkflowNodeWithRetries({
           definition,
@@ -900,6 +1281,24 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           break;
         }
       }
+
+      if (node.nodeTypeCode === 'HUMAN_APPROVAL' && completedNodeRun?.output?.status !== 'APPROVED') {
+        const action = completedNodeRun.output.action || 'FAIL_WORKFLOW';
+
+        if (action === 'FAIL_WORKFLOW') {
+          throw ApplicationFailure.create({
+            message: completedNodeRun.output.summary || 'Workflow human approval gate failed.',
+            type: 'SkyServerWorkflowApprovalFailed',
+            nonRetryable: true,
+            details: [{ nodeKey: node.nodeKey, output: completedNodeRun.output }],
+          });
+        }
+
+        if (action === 'STOP_SUCCESS') {
+          approvalStop = { nodeKey: node.nodeKey, output: completedNodeRun.output };
+          break;
+        }
+      }
     }
 
     const durationMs = Date.now() - startedAtMs;
@@ -910,15 +1309,23 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         completedNodeCount: nodeRuns.length,
         totalNodeCount: definition.nodes.length,
       })
-      : `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
+      : approvalStop
+        ? buildHumanApprovalStopSummary({
+          definition,
+          output: approvalStop.output,
+          completedNodeCount: nodeRuns.length,
+          totalNodeCount: definition.nodes.length,
+        })
+        : `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
     const completedRun = await ledgerActivities.completeSkyserverWorkflowRunActivity({
       workflowRunRecordId,
       summary,
       metadata: {
         durationMs,
         completedNodeCount: nodeRuns.length,
-        skippedNodeCount: conditionStop ? Math.max(0, definition.nodes.length - nodeRuns.length) : 0,
+        skippedNodeCount: (conditionStop || approvalStop) ? Math.max(0, definition.nodes.length - nodeRuns.length) : 0,
         conditionStopNodeKey: conditionStop?.nodeKey || null,
+        approvalStopNodeKey: approvalStop?.nodeKey || null,
         temporalWorkflowId,
         temporalRunId,
       },

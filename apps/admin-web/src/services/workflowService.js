@@ -52,6 +52,15 @@ function listRuns(filters = {}) {
   return api.get('/api/workflows/runs', { query: filters });
 }
 
+
+function listApprovals(filters = {}) {
+  return api.get('/api/workflows/approvals', { query: filters });
+}
+
+function decideApproval(approvalRequestId, payload = {}) {
+  return api.post(`/api/workflows/approvals/${encodeURIComponent(approvalRequestId)}/decision`, payload);
+}
+
 function getRun(workflowRunRecordId) {
   return api.get(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}`);
 }
@@ -66,6 +75,8 @@ const workflowService = {
   getDefinition,
   getManagedDefinition,
   getRun,
+  listApprovals,
+  decideApproval,
   listDefinitions,
   listRuns,
   replaceGraph,
