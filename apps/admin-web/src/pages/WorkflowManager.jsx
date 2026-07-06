@@ -9,6 +9,11 @@ import ToolParameterEditor, {
   cleanToolParameterValues,
   getInitialToolParameterValues,
 } from '../components/ToolParameterEditor.jsx';
+import WaitParameterEditor, {
+  cleanWaitParameterValues,
+  DEFAULT_WAIT_PARAMETERS,
+  formatWaitDuration,
+} from '../components/WaitParameterEditor.jsx';
 import workflowService from '../services/workflowService';
 
 const DEFAULT_API_PARAMETERS = {
@@ -86,7 +91,9 @@ function graphNodesToEditorNodes(nodes = []) {
       ? { ...DEFAULT_API_PARAMETERS, ...(node.inputParameters || {}) }
       : node.nodeTypeCode === 'CONDITION'
         ? { ...DEFAULT_CONDITION_PARAMETERS, ...(node.inputParameters || {}) }
-        : node.inputParameters || {},
+        : node.nodeTypeCode === 'WAIT'
+          ? { ...DEFAULT_WAIT_PARAMETERS, ...(node.inputParameters || {}) }
+          : node.inputParameters || {},
   }));
 }
 
@@ -379,6 +386,18 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
       return;
     }
 
+    if (nextType === 'WAIT') {
+      patch({
+        nodeTypeCode: 'WAIT',
+        targetCode: '',
+        displayName: node.displayName || 'Wait / Delay',
+        nodeKey: node.nodeKey || `wait_${index + 1}`,
+        description: node.description || 'Pauses the workflow for a configured duration before continuing.',
+        inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
+      });
+      return;
+    }
+
     patch({
       nodeTypeCode: 'TOOL',
       targetCode: '',
@@ -434,9 +453,9 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : 'Tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : 'Tool'}</div>
           <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'Workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : node.targetCode || 'target tool'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : nodeTypeCode === 'WAIT' ? formatWaitDuration(node.inputParameters) : node.targetCode || 'target tool'}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -459,6 +478,7 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
             <option value="WORKFLOW">Child workflow</option>
             <option value="TEMPORAL_WORKFLOW">Temporal workflow template</option>
             <option value="CONDITION">Condition / branch</option>
+            <option value="WAIT">Wait / delay</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -573,6 +593,18 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
               />
               <div className="form-text mt-2">
                 Runs the approved Temporal-native template as a child execution and waits for completion. Use this for specialized durable subprocesses.
+              </div>
+            </>
+          ) : nodeTypeCode === 'WAIT' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Wait / delay parameters</div>
+              <WaitParameterEditor
+                idPrefix={`manager-node-${index}-wait`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameters={node.inputParameters || {}}
+              />
+              <div className="form-text mt-2">
+                Pauses the workflow before the next sequential node. Temporal-backed executions use a durable timer instead of blocking the API request.
               </div>
             </>
           ) : nodeTypeCode === 'CONDITION' ? (
@@ -778,7 +810,16 @@ function WorkflowManager() {
                 description: 'Evaluates a safe condition and controls whether the remaining workflow continues.',
                 inputParameters: { ...DEFAULT_CONDITION_PARAMETERS },
               }
-              : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
+              : nodeTypeCode === 'WAIT'
+                ? {
+                  ...EMPTY_NODE,
+                  nodeTypeCode: 'WAIT',
+                  nodeKey: `wait_${current.length + 1}`,
+                  displayName: 'Wait / Delay',
+                  description: 'Pauses the workflow for a configured duration before continuing.',
+                  inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
+                }
+                : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
     ]);
   }
 
@@ -895,6 +936,22 @@ function WorkflowManager() {
           config: {
             builderCard: 'condition',
             updatedBy: 'workflow_manager_ui_v5',
+          },
+        };
+      }
+
+      if (nodeTypeCode === 'WAIT') {
+        return {
+          nodeKey,
+          nodeTypeCode: 'WAIT',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode: '',
+          inputParameters: cleanWaitParameterValues(node.inputParameters),
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'wait',
+            updatedBy: 'workflow_manager_ui_v6',
           },
         };
       }
@@ -1121,7 +1178,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Clone workflow</span>
               <span className="sky-pill sky-pill-success">Save current graph</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
-              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL nodes</span>
+              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT nodes</span>
             </div>
           </section>
         </div>
@@ -1202,9 +1259,9 @@ function WorkflowManager() {
                 <div className="sky-card-header d-flex flex-wrap justify-content-between gap-3">
                   <div>
                     <div className="sky-page-kicker">Workflow graph</div>
-                    <h2 className="h5 mb-0">Edit current sequential graph with condition gates</h2>
+                    <h2 className="h5 mb-0">Edit current sequential graph with condition gates and waits</h2>
                   </div>
-                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button></div>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   <div className="d-flex flex-column gap-3">

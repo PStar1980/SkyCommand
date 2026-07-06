@@ -187,6 +187,10 @@ function getNodeOutputSummary(output = {}) {
     return output.summary || `API ${output.method || ''} ${output.url || ''} returned ${output.statusCode || 'unknown status'}`.trim();
   }
 
+  if (output.kind === 'wait_delay') {
+    return output.summary || `Waited ${output.requestedDurationMs || output.actualDurationMs || 0} ms.`;
+  }
+
   if (output.kind === 'child_workflow_execution') {
     return `Child workflow ${output.workflowDisplayName || output.workflowCode || ''} completed successfully.`.trim();
   }

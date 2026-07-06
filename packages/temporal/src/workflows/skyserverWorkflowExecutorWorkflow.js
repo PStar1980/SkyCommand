@@ -27,6 +27,15 @@ const nodeExecutionActivities = proxyActivities({
   },
 });
 
+const DEFAULT_WAIT_DURATION_MS = 1000;
+const MAX_WAIT_DURATION_MS = 24 * 60 * 60 * 1000;
+const WAIT_UNIT_MULTIPLIERS_MS = {
+  MILLISECONDS: 1,
+  SECONDS: 1000,
+  MINUTES: 60 * 1000,
+  HOURS: 60 * 60 * 1000,
+};
+
 function getSafeObject(value, fallback = {}) {
   if (!value || Array.isArray(value) || typeof value !== 'object') {
     return fallback;
@@ -195,6 +204,182 @@ function buildTemporalResultPreview(value, maxLength = 4000) {
   } catch (error) {
     const text = String(value || '');
     return text.length > maxLength ? text.slice(0, maxLength) : text;
+  }
+}
+
+function isBlankValue(value) {
+  return value === undefined || value === null || String(value).trim() === '';
+}
+
+function createWaitInputFailure(message, details = {}) {
+  return ApplicationFailure.create({
+    message,
+    type: 'SkyServerWaitNodeInputError',
+    nonRetryable: true,
+    details: [details],
+  });
+}
+
+function normalizeWaitUnit(value) {
+  const normalized = String(value || 'SECONDS')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    MS: 'MILLISECONDS',
+    MILLISECOND: 'MILLISECONDS',
+    MILLISECONDS: 'MILLISECONDS',
+    SECOND: 'SECONDS',
+    SECONDS: 'SECONDS',
+    SEC: 'SECONDS',
+    S: 'SECONDS',
+    MINUTE: 'MINUTES',
+    MINUTES: 'MINUTES',
+    MIN: 'MINUTES',
+    M: 'MINUTES',
+    HOUR: 'HOURS',
+    HOURS: 'HOURS',
+    HR: 'HOURS',
+    H: 'HOURS',
+  };
+  const unit = aliases[normalized] || normalized;
+
+  if (!Object.prototype.hasOwnProperty.call(WAIT_UNIT_MULTIPLIERS_MS, unit)) {
+    throw createWaitInputFailure('Unsupported WAIT duration unit.', {
+      unit: value,
+      allowed: Object.keys(WAIT_UNIT_MULTIPLIERS_MS),
+    });
+  }
+
+  return unit;
+}
+
+function parseWaitDurationMs(parameters = {}) {
+  const input = getSafeObject(parameters);
+  const rawDurationMs = input.durationMs ?? input.waitMs ?? input.delayMs;
+
+  if (!isBlankValue(rawDurationMs)) {
+    const parsedDurationMs = Number(rawDurationMs);
+
+    if (!Number.isFinite(parsedDurationMs) || parsedDurationMs <= 0) {
+      throw createWaitInputFailure('WAIT durationMs must be a positive number.', {
+        durationMs: rawDurationMs,
+      });
+    }
+
+    return Math.round(parsedDurationMs);
+  }
+
+  const unit = normalizeWaitUnit(input.unit || input.durationUnit || 'SECONDS');
+  const rawDuration = input.duration ?? input.waitDuration ?? input.delayDuration ?? DEFAULT_WAIT_DURATION_MS / WAIT_UNIT_MULTIPLIERS_MS[unit];
+  const parsedDuration = Number(rawDuration);
+
+  if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+    throw createWaitInputFailure('WAIT duration must be a positive number.', {
+      duration: rawDuration,
+    });
+  }
+
+  return Math.round(parsedDuration * WAIT_UNIT_MULTIPLIERS_MS[unit]);
+}
+
+function normalizeWaitParameters(parameters = {}) {
+  const input = getSafeObject(parameters);
+  const unit = normalizeWaitUnit(input.unit || input.durationUnit || 'SECONDS');
+  const durationMs = parseWaitDurationMs({ ...input, unit });
+
+  if (durationMs > MAX_WAIT_DURATION_MS) {
+    throw createWaitInputFailure('WAIT nodes are capped at 24 hours.', {
+      durationMs,
+      maxDurationMs: MAX_WAIT_DURATION_MS,
+    });
+  }
+
+  const duration = !isBlankValue(input.duration)
+    ? Number(input.duration)
+    : durationMs / WAIT_UNIT_MULTIPLIERS_MS[unit];
+
+  return {
+    ...input,
+    duration,
+    unit,
+    durationMs,
+    reason: String(input.reason || input.note || '').trim().slice(0, 500),
+  };
+}
+
+function buildWaitNodeOutput({ node, waitParameters, startedAtMs, completedAtMs }) {
+  const actualDurationMs = Math.max(0, completedAtMs - startedAtMs);
+  const reason = waitParameters.reason || null;
+
+  return {
+    kind: 'wait_delay',
+    status: 'SUCCESS',
+    nodeKey: node.nodeKey,
+    duration: waitParameters.duration,
+    unit: waitParameters.unit,
+    requestedDurationMs: waitParameters.durationMs,
+    actualDurationMs,
+    reason,
+    summary: `Waited ${waitParameters.durationMs} ms${reason ? ` (${reason})` : ''}; continuing workflow.`,
+  };
+}
+
+async function executeWaitNode({ node, parameters, nodeRun }) {
+  let waitParameters = null;
+
+  try {
+    await ledgerActivities.markSkyserverWorkflowNodeAttemptActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      attemptCount: 1,
+      metadata: {
+        waitNode: true,
+      },
+    });
+
+    waitParameters = normalizeWaitParameters(parameters);
+    const startedAtMs = Date.now();
+
+    await sleep(waitParameters.durationMs);
+
+    const output = buildWaitNodeOutput({
+      node,
+      waitParameters,
+      startedAtMs,
+      completedAtMs: Date.now(),
+    });
+
+    return await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      output,
+      metadata: {
+        parameters,
+        waitNode: true,
+        waitDurationMs: waitParameters.durationMs,
+      },
+    });
+  } catch (error) {
+    const normalizedError = serializeError(error);
+
+    await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      output: normalizedError.details || {},
+      errorMessage: normalizedError.message,
+      metadata: {
+        parameters,
+        waitNode: true,
+        waitDurationMs: waitParameters?.durationMs || null,
+        errorName: normalizedError.name,
+      },
+    });
+
+    throw ApplicationFailure.create({
+      message: normalizedError.message,
+      type: normalizedError.name || 'SkyServerWaitNodeFailure',
+      nonRetryable: true,
+      details: [normalizedError],
+    });
   }
 }
 
@@ -648,7 +833,13 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
 
       let completedNodeRun;
 
-      if (node.nodeTypeCode === 'WORKFLOW') {
+      if (node.nodeTypeCode === 'WAIT') {
+        completedNodeRun = await executeWaitNode({
+          node,
+          parameters,
+          nodeRun,
+        });
+      } else if (node.nodeTypeCode === 'WORKFLOW') {
         completedNodeRun = await executeChildWorkflowNodeWithRetries({
           definition,
           node,

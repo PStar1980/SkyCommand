@@ -552,3 +552,35 @@ Supported false actions:
 | `CONTINUE` | Record the false condition output but keep executing the remaining nodes. |
 
 This does not yet introduce arbitrary branching edges. It is the controlled first slice: a condition gate can decide whether the rest of the linear graph continues. The later visual workflow designer can build richer edge-based branching on top of this proven runtime behavior.
+
+## Phase 10.24 — Wait / delay nodes
+
+Phase 10.24 enables `WAIT` nodes as safe delay gates inside the current sequential workflow executor.
+
+A wait node stores a configured duration in node input parameters:
+
+```json
+{
+  "duration": "5",
+  "unit": "SECONDS",
+  "durationMs": 5000,
+  "reason": "Optional operator note"
+}
+```
+
+Supported units:
+
+```text
+MILLISECONDS / SECONDS / MINUTES / HOURS
+```
+
+Runtime behavior:
+
+| Executor | Behavior |
+| --- | --- |
+| Temporal-backed SkyServer workflow executor | Uses a Temporal durable timer with `sleep(durationMs)`, then records a completed node output. |
+| Inline fallback executor | Uses a local Node.js timeout for short diagnostic runs. Temporal-backed execution remains the preferred path. |
+
+The node output uses `kind: wait_delay` and records requested duration, actual elapsed duration, optional reason, and a summary for Workflow History.
+
+Wait nodes are capped at 24 hours per node in this phase. This keeps the UI and validation simple while still proving the durable timer path. Longer calendar/event-based waits can be layered on later with richer scheduling and signal semantics.

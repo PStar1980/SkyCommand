@@ -44,7 +44,8 @@ SkyServer/
 │   │       │   ├── ConditionParameterEditor.jsx
 │   │       │   ├── Navbar.jsx
 │   │       │   ├── ProtectedRoute.jsx
-│   │       │   └── ToolParameterEditor.jsx
+│   │       │   ├── ToolParameterEditor.jsx
+│   │       │   └── WaitParameterEditor.jsx
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── pages/
@@ -217,7 +218,8 @@ SkyServer/
 │   │           ├── 00046__workflow_api_node_support_seed.sql
 │   │           ├── 00047__workflow_child_node_support_seed.sql
 │   │           ├── 00048__workflow_temporal_template_node_support_seed.sql
-│   │           └── 00049__workflow_condition_node_support_seed.sql
+│   │           ├── 00049__workflow_condition_node_support_seed.sql
+│   │           └── 00050__workflow_wait_node_support_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

@@ -6,12 +6,20 @@ const toolManifestService = require('./toolManifestService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
-const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION']);
+const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
 const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
 const DEFAULT_CANCEL_PERMISSION = 'WORKFLOW_CANCEL';
 const DEFAULT_CONDITION_ON_FALSE = 'STOP_SUCCESS';
+const DEFAULT_WAIT_DURATION_MS = 1000;
+const MAX_WAIT_DURATION_MS = 24 * 60 * 60 * 1000;
+const WAIT_UNIT_MULTIPLIERS_MS = {
+  MILLISECONDS: 1,
+  SECONDS: 1000,
+  MINUTES: 60 * 1000,
+  HOURS: 60 * 60 * 1000,
+};
 
 class WorkflowServiceError extends Error {
   constructor(message, statusCode = 500, details = {}) {
@@ -622,6 +630,128 @@ function evaluateConditionNode({ node, parameters = {}, context = {} }) {
 }
 
 
+function normalizeWaitUnit(value) {
+  const normalized = String(value || 'SECONDS')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]+/g, '_')
+    .replace(/^_|_$/g, '');
+  const aliases = {
+    MS: 'MILLISECONDS',
+    MILLISECOND: 'MILLISECONDS',
+    MILLISECONDS: 'MILLISECONDS',
+    SECOND: 'SECONDS',
+    SECONDS: 'SECONDS',
+    SEC: 'SECONDS',
+    S: 'SECONDS',
+    MINUTE: 'MINUTES',
+    MINUTES: 'MINUTES',
+    MIN: 'MINUTES',
+    M: 'MINUTES',
+    HOUR: 'HOURS',
+    HOURS: 'HOURS',
+    HR: 'HOURS',
+    H: 'HOURS',
+  };
+  const unit = aliases[normalized] || normalized;
+
+  if (!Object.prototype.hasOwnProperty.call(WAIT_UNIT_MULTIPLIERS_MS, unit)) {
+    throw new WorkflowServiceError('Unsupported WAIT duration unit.', 400, {
+      unit: value,
+      allowed: Object.keys(WAIT_UNIT_MULTIPLIERS_MS),
+    });
+  }
+
+  return unit;
+}
+
+function parseWaitDurationMs(parameters = {}) {
+  const input = getSafeObject(parameters);
+  const rawDurationMs = input.durationMs ?? input.waitMs ?? input.delayMs;
+
+  if (!isBlankValue(rawDurationMs)) {
+    const parsedDurationMs = Number(rawDurationMs);
+
+    if (!Number.isFinite(parsedDurationMs) || parsedDurationMs <= 0) {
+      throw new WorkflowServiceError('WAIT durationMs must be a positive number.', 400, {
+        durationMs: rawDurationMs,
+      });
+    }
+
+    return Math.round(parsedDurationMs);
+  }
+
+  const unit = normalizeWaitUnit(input.unit || input.durationUnit || 'SECONDS');
+  const rawDuration = input.duration ?? input.waitDuration ?? input.delayDuration ?? DEFAULT_WAIT_DURATION_MS / WAIT_UNIT_MULTIPLIERS_MS[unit];
+  const parsedDuration = Number(rawDuration);
+
+  if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+    throw new WorkflowServiceError('WAIT duration must be a positive number.', 400, {
+      duration: rawDuration,
+    });
+  }
+
+  return Math.round(parsedDuration * WAIT_UNIT_MULTIPLIERS_MS[unit]);
+}
+
+function normalizeWaitParameters(parameters = {}) {
+  const input = getSafeObject(parameters);
+  const unit = normalizeWaitUnit(input.unit || input.durationUnit || 'SECONDS');
+  const durationMs = parseWaitDurationMs({ ...input, unit });
+
+  if (durationMs > MAX_WAIT_DURATION_MS) {
+    throw new WorkflowServiceError('WAIT nodes are capped at 24 hours.', 400, {
+      durationMs,
+      maxDurationMs: MAX_WAIT_DURATION_MS,
+    });
+  }
+
+  const duration = !isBlankValue(input.duration)
+    ? Number(input.duration)
+    : durationMs / WAIT_UNIT_MULTIPLIERS_MS[unit];
+
+  return {
+    ...input,
+    duration,
+    unit,
+    durationMs,
+    reason: String(input.reason || input.note || '').trim().slice(0, 500),
+  };
+}
+
+function buildWaitNodeOutput({ node, waitParameters, startedAtMs, completedAtMs }) {
+  const actualDurationMs = Math.max(0, completedAtMs - startedAtMs);
+  const reason = waitParameters.reason || null;
+
+  return {
+    kind: 'wait_delay',
+    status: 'SUCCESS',
+    nodeKey: node.nodeKey,
+    duration: waitParameters.duration,
+    unit: waitParameters.unit,
+    requestedDurationMs: waitParameters.durationMs,
+    actualDurationMs,
+    reason,
+    summary: `Waited ${waitParameters.durationMs} ms${reason ? ` (${reason})` : ''}; continuing workflow.`,
+  };
+}
+
+async function runWaitNode({ node, parameters }) {
+  const waitParameters = normalizeWaitParameters(parameters);
+  const startedAtMs = Date.now();
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, waitParameters.durationMs);
+  });
+
+  return buildWaitNodeOutput({
+    node,
+    waitParameters,
+    startedAtMs,
+    completedAtMs: Date.now(),
+  });
+}
+
 function normalizeApiAuthMode(value) {
   const normalized = String(value || 'AUTO')
     .trim()
@@ -773,6 +903,7 @@ function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
   const map = {
     API_CALL: 'Call API',
     CONDITION: 'Evaluate Condition',
+    WAIT: 'Wait / Delay',
     TEMPORAL_WORKFLOW: 'Start Temporal Workflow',
     TOOL: 'Run Tool',
     WORKFLOW: 'Run Child Workflow',
@@ -785,6 +916,7 @@ function getNodeTargetKindForType(nodeTypeCode) {
   const map = {
     API_CALL: 'api.endpoint',
     CONDITION: null,
+    WAIT: null,
     TEMPORAL_WORKFLOW: 'worker.temporal_workflow_definitions',
     TOOL: 'core.tools',
     WORKFLOW: 'worker.workflow_definitions',
@@ -797,6 +929,7 @@ function getNodeCategoryForType(nodeTypeCode) {
   const map = {
     API_CALL: 'INTEGRATION',
     CONDITION: 'CONTROL',
+    WAIT: 'CONTROL',
     TEMPORAL_WORKFLOW: 'WORKFLOW',
     TOOL: 'ACTION',
     WORKFLOW: 'WORKFLOW',
@@ -1588,9 +1721,9 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
 
   if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode)) {
-    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, and CONDITION nodes.', 400, {
+    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, and WAIT nodes.', 400, {
       nodeTypeCode,
-      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION'],
+      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT'],
     });
   }
 
@@ -1633,6 +1766,10 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     normalizeConditionParameters(inputParameters);
   }
 
+  if (nodeTypeCode === 'WAIT') {
+    normalizeWaitParameters(inputParameters);
+  }
+
   const nodeKeyBase = normalizeNodeKey(
     node.nodeKey || node.displayName || targetCode || `${nodeTypeCode.toLowerCase()}_${index + 1}`,
     `node_${index + 1}`,
@@ -1660,7 +1797,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
     enabled: node.enabled !== false,
-    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : nodeTypeCode === 'CONDITION' ? 'condition' : 'tool' }),
+    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : nodeTypeCode === 'CONDITION' ? 'condition' : nodeTypeCode === 'WAIT' ? 'wait' : 'tool' }),
   };
 }
 
@@ -1747,7 +1884,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         JSON.stringify({
           createdBy: 'workflow_builder_v1',
           builderVersion: '10.22',
-          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION'],
+          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT'],
         }),
         user?.userId || null,
       ],
@@ -2854,6 +2991,10 @@ async function executeNode({ node, parameters, user, session, permissions, conte
 
   if (node.nodeTypeCode === 'CONDITION') {
     return evaluateConditionNode({ node, parameters, context });
+  }
+
+  if (node.nodeTypeCode === 'WAIT') {
+    return runWaitNode({ node, parameters, context });
   }
 
   if (node.nodeTypeCode === 'TEMPORAL_WORKFLOW') {
