@@ -14,12 +14,20 @@ export const DEFAULT_HUMAN_APPROVAL_PARAMETERS = {
   approvalTitle: 'Approval required',
   instructions: 'Review the workflow run before allowing the next node to continue.',
   approvalKey: '',
-  requiredRoleCode: 'ADMIN',
+  requiredRoleCode: 'SUPER_ADMIN',
   onReject: 'STOP_SUCCESS',
   timeoutDuration: '24',
   timeoutUnit: 'HOURS',
   onTimeout: 'FAIL_WORKFLOW',
 };
+
+function normalizeRoleCode(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
 
 function getApprovalActionLabel(value) {
   return APPROVAL_ACTION_OPTIONS.find((option) => option.value === value)?.label || value || 'Stop workflow successfully';
@@ -31,7 +39,7 @@ function compactObject(value = {}) {
   );
 }
 
-export function cleanHumanApprovalParameterValues(values = {}) {
+export function cleanHumanApprovalParameterValues(values = {}, roleOptions = []) {
   const parameters = {
     ...DEFAULT_HUMAN_APPROVAL_PARAMETERS,
     ...(values || {}),
@@ -39,11 +47,16 @@ export function cleanHumanApprovalParameterValues(values = {}) {
   const title = String(parameters.approvalTitle || parameters.title || '').trim();
   const instructions = String(parameters.instructions || parameters.prompt || '').trim();
   const approvalKey = String(parameters.approvalKey || '').trim();
-  const requiredRoleCode = String(parameters.requiredRoleCode || '').trim().toUpperCase();
+  const requiredRoleCode = normalizeRoleCode(parameters.requiredRoleCode || parameters.requiredRole);
   const timeoutDuration = String(parameters.timeoutDuration || '').trim();
+  const availableRoleCodes = new Set((roleOptions || []).map((role) => normalizeRoleCode(role.roleCode)).filter(Boolean));
 
   if (!title) {
     throw new Error('Human approval nodes require an approval title.');
+  }
+
+  if (requiredRoleCode && availableRoleCodes.size > 0 && !availableRoleCodes.has(requiredRoleCode)) {
+    throw new Error(`Human approval role ${requiredRoleCode} is not active in SkyServer Admin.`);
   }
 
   const output = {
@@ -83,11 +96,14 @@ export function getHumanApprovalSummary(parameters = {}) {
   return `${title}${timeoutText} · reject: ${getApprovalActionLabel(values.onReject)}`;
 }
 
-function HumanApprovalParameterEditor({ idPrefix, parameters = {}, onChange }) {
+function HumanApprovalParameterEditor({ idPrefix, parameters = {}, onChange, roleOptions = [] }) {
   const values = {
     ...DEFAULT_HUMAN_APPROVAL_PARAMETERS,
     ...(parameters || {}),
   };
+  const sortedRoleOptions = [...(roleOptions || [])].sort((a, b) => String(a.roleCode || '').localeCompare(String(b.roleCode || '')));
+  const selectedRoleCode = normalizeRoleCode(values.requiredRoleCode || values.requiredRole);
+  const selectedRoleExists = !selectedRoleCode || sortedRoleOptions.some((role) => normalizeRoleCode(role.roleCode) === selectedRoleCode);
 
   function patch(changes) {
     onChange({ ...values, ...changes });
@@ -129,14 +145,38 @@ function HumanApprovalParameterEditor({ idPrefix, parameters = {}, onChange }) {
       </div>
       <div className="col-lg-4">
         <label className="form-label" htmlFor={`${idPrefix}-role`}>Required role</label>
-        <input
-          className="form-control sky-form-control sky-mono"
-          id={`${idPrefix}-role`}
-          onChange={(event) => patch({ requiredRoleCode: event.target.value.toUpperCase() })}
-          placeholder="ADMIN"
-          value={values.requiredRoleCode || ''}
-        />
-        <div className="form-text">Optional role gate checked against granted roles.</div>
+        {sortedRoleOptions.length > 0 ? (
+          <select
+            className="form-select sky-form-control sky-mono"
+            id={`${idPrefix}-role`}
+            onChange={(event) => patch({ requiredRoleCode: event.target.value })}
+            value={selectedRoleCode}
+          >
+            <option value="">No role gate</option>
+            {!selectedRoleExists ? (
+              <option value={selectedRoleCode}>{selectedRoleCode} · inactive or missing</option>
+            ) : null}
+            {sortedRoleOptions.map((role) => (
+              <option key={role.roleCode} value={role.roleCode}>
+                {role.roleCode} · {role.roleName || role.displayName || role.roleCode}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className="form-control sky-form-control sky-mono"
+            id={`${idPrefix}-role`}
+            onChange={(event) => patch({ requiredRoleCode: normalizeRoleCode(event.target.value) })}
+            placeholder="SUPER_ADMIN"
+            value={selectedRoleCode}
+          />
+        )}
+        <div className="form-text">Optional role gate checked against active SkyServer Admin roles.</div>
+        {!selectedRoleExists ? (
+          <div className="form-text text-warning">
+            Configured role is not currently active in the role catalog. Pick an active role before saving.
+          </div>
+        ) : null}
       </div>
       <div className="col-lg-4">
         <label className="form-label" htmlFor={`${idPrefix}-reject`}>When rejected</label>

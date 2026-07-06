@@ -876,7 +876,7 @@ function normalizeHumanApprovalParameters(parameters = {}, node = {}) {
     title: approvalTitle,
     instructions: String(input.instructions || input.prompt || '').trim().slice(0, 4000),
     approvalKey,
-    requiredRoleCode: String(input.requiredRoleCode || input.requiredRole || '').trim().toUpperCase() || null,
+    requiredRoleCode: normalizeRoleCode(input.requiredRoleCode || input.requiredRole) || null,
     onReject: normalizeHumanApprovalAction(input.onReject || input.rejectAction || 'STOP_SUCCESS', 'onReject action'),
     onTimeout: normalizeHumanApprovalAction(input.onTimeout || input.timeoutAction || 'FAIL_WORKFLOW', 'onTimeout action'),
     timeoutMs,
@@ -970,18 +970,37 @@ function normalizeApprovalRow(row) {
   };
 }
 
+function normalizeRoleCode(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function parseGrantedRoleCodes(value) {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(parseGrantedRoleCodes);
+  }
+
+  return String(value)
+    .split(',')
+    .map((role) => normalizeRoleCode(role.replace(/[{}"']/g, '')))
+    .filter(Boolean);
+}
+
 function getRoleSetFromPermissions(permissions = []) {
   const roleSet = new Set();
 
   for (const permission of permissions || []) {
-    const roles = permission.grantedThroughRoles || permission.granted_through_roles || [];
+    const roles = parseGrantedRoleCodes(permission.grantedThroughRoles || permission.granted_through_roles);
 
-    for (const role of roles || []) {
-      const normalized = String(role || '').trim().toUpperCase();
-
-      if (normalized) {
-        roleSet.add(normalized);
-      }
+    for (const role of roles) {
+      roleSet.add(role);
     }
   }
 
@@ -989,7 +1008,7 @@ function getRoleSetFromPermissions(permissions = []) {
 }
 
 function assertApprovalRole({ requiredRoleCode, permissions = [] } = {}) {
-  const normalizedRole = String(requiredRoleCode || '').trim().toUpperCase();
+  const normalizedRole = normalizeRoleCode(requiredRoleCode);
 
   if (!normalizedRole) {
     return;
@@ -1889,7 +1908,7 @@ async function runTemporalWorkflowNode({ node, parameters, user, context }) {
 }
 
 async function listBuilderCatalog({ permissions = [] } = {}) {
-  const [nodeTypeResult, toolManifest, workflowTargetResult, temporalWorkflowTargetResult] = await Promise.all([
+  const [nodeTypeResult, toolManifest, workflowTargetResult, temporalWorkflowTargetResult, approvalRoleResult] = await Promise.all([
     query(
       `
         SELECT
@@ -1927,6 +1946,26 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
       `,
     ),
     temporalService.listWorkflowDefinitions().catch(() => ({ items: [] })),
+    query(
+      `
+        SELECT
+          r.role_id,
+          r.role_code,
+          r.role_name,
+          r.description,
+          r.is_system_role,
+          r.active,
+          app.app_code,
+          app.title AS app_title
+        FROM auth.roles r
+        JOIN core.applications app
+          ON app.app_id = r.app_id
+        WHERE app.app_code = 'SKYSERVER_ADMIN'
+          AND app.active = TRUE
+          AND r.active = TRUE
+        ORDER BY r.is_system_role DESC, r.role_code
+      `,
+    ),
   ]);
 
   const nodeTypes = nodeTypeResult.rows.map((row) => {
@@ -2003,12 +2042,28 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     config: definition.config || {},
   }));
 
+  const approvalRoleTargets = approvalRoleResult.rows.map((row) => {
+    const item = camelizeRow(row);
+
+    return {
+      roleId: item.roleId,
+      roleCode: item.roleCode,
+      roleName: item.roleName,
+      displayName: item.roleName || item.roleCode,
+      description: item.description,
+      isSystemRole: toBoolean(item.isSystemRole),
+      appCode: item.appCode,
+      appTitle: item.appTitle,
+    };
+  });
+
   return {
     nodeTypes,
     supportedNodeTypes: nodeTypes.filter((nodeType) => nodeType.initiallySupported),
     toolTargets,
     workflowTargets,
     temporalWorkflowTargets,
+    approvalRoleTargets,
   };
 }
 
@@ -2627,6 +2682,12 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
       .filter((node) => node.nodeTypeCode === 'TEMPORAL_WORKFLOW')
       .map((node) => node.targetCode),
   )];
+  const approvalRoleCodes = [...new Set(
+    nodes
+      .filter((node) => node.nodeTypeCode === 'HUMAN_APPROVAL')
+      .map((node) => normalizeRoleCode(node.inputParameters?.requiredRoleCode || node.inputParameters?.requiredRole))
+      .filter(Boolean),
+  )];
   const normalizedParentWorkflowCode = String(parentWorkflowCode || '').trim();
 
   if (normalizedParentWorkflowCode && workflowTargetCodes.includes(normalizedParentWorkflowCode)) {
@@ -2750,6 +2811,30 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
     if (missingTemporalWorkflows.length > 0) {
       throw new WorkflowServiceError('One or more Temporal workflow template targets were not found, disabled, or hidden.', 400, {
         missingTemporalWorkflows,
+      });
+    }
+  }
+
+  if (approvalRoleCodes.length > 0) {
+    const approvalRoleResult = await client.query(
+      `
+        SELECT r.role_code
+        FROM auth.roles r
+        JOIN core.applications app
+          ON app.app_id = r.app_id
+        WHERE app.app_code = 'SKYSERVER_ADMIN'
+          AND app.active = TRUE
+          AND r.active = TRUE
+          AND r.role_code = ANY($1::text[])
+      `,
+      [approvalRoleCodes],
+    );
+    const approvalRolesByCode = new Map(approvalRoleResult.rows.map((row) => [row.role_code, row]));
+    const missingApprovalRoles = approvalRoleCodes.filter((roleCode) => !approvalRolesByCode.has(roleCode));
+
+    if (missingApprovalRoles.length > 0) {
+      throw new WorkflowServiceError('One or more human approval roles were not found or are inactive.', 400, {
+        missingApprovalRoles,
       });
     }
   }
