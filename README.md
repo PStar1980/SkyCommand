@@ -729,3 +729,13 @@ Existing DB patch:
 ```powershell
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00048__workflow_temporal_template_node_support_seed.sql
 ```
+
+### Phase 10.24 — Wait / delay workflow nodes
+
+SkyServer workflows now support `WAIT` nodes as timer-style control nodes in the sequential graph.
+
+- Admin-Web Create Workflow and Manage Workflows can add and configure Wait / Delay nodes.
+- Wait nodes support duration + unit (`MILLISECONDS`, `SECONDS`, `MINUTES`, `HOURS`) and an optional history note.
+- Temporal-backed workflow runs use a durable workflow timer, so the wait does not run as a blocking activity.
+- Inline diagnostic execution has a local timeout fallback.
+- Wait node output is recorded as `kind: wait_delay` for Workflow History summaries.

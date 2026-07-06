@@ -315,3 +315,20 @@ Scope:
 - wait for child completion and persist workflow/run IDs plus result preview on the node run ledger.
 
 This keeps `WORKFLOW` nodes as the primary business-composition primitive, while `TEMPORAL_WORKFLOW` nodes act as a specialized durable subprocess escape hatch.
+
+## Phase 10.24 — Wait / delay workflow nodes
+
+Phase 10.24 adds the first timer-style control node to SkyServer workflows.
+
+`WAIT` nodes pause the current sequential graph for a configured duration before continuing. In Temporal-backed runs, the wait is implemented as a workflow-level durable timer, not as a long-running activity. This gives SkyServer the correct orchestration primitive for cooldowns, API pacing, staged workflow execution, and future human/signal pauses.
+
+Supported configuration:
+
+```text
+duration + unit
+units: MILLISECONDS, SECONDS, MINUTES, HOURS
+cap: 24 hours per node
+optional reason/note for history
+```
+
+The builder and manager now expose Add wait/delay, and Workflow History displays `wait_delay` summaries from node output.

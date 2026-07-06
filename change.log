@@ -437,3 +437,13 @@ SkyWeb Analytics owns:
 - Updated the Temporal-backed SkyServer workflow executor so `TEMPORAL_WORKFLOW` nodes start selected Temporal templates as child executions, wait for completion, and persist child Temporal workflow/run IDs and result previews on node output.
 - Added `00048__workflow_temporal_template_node_support_seed.sql` to mark Temporal workflow template nodes as supported for existing and fresh databases.
 - Updated Workflow History summaries so Temporal template node results appear clearly in node timelines and run detail output.
+
+## Phase 10.24 — Wait / Delay Workflow Nodes
+
+- Added `WAIT` to the supported SkyServer workflow node execution set alongside TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, and CONDITION.
+- Added `00050__workflow_wait_node_support_seed.sql` to enable Wait / Delay nodes in the workflow node palette for existing and fresh databases.
+- Added a reusable Admin-Web `WaitParameterEditor` with duration, unit, optional reason/note, preview milliseconds, and a 24-hour validation cap.
+- Updated Create Workflow and Manage Workflows so operators can add, edit, save, clone, and publish WAIT nodes in the current sequential graph.
+- Updated the Temporal-backed SkyServer workflow executor so WAIT nodes use workflow-level Temporal durable timers via `sleep(durationMs)` instead of a long-running activity.
+- Added inline fallback WAIT execution for diagnostic runs using a local Node.js timeout.
+- Added `wait_delay` node output summaries for Workflow History, including requested duration, actual elapsed duration, and optional reason.
