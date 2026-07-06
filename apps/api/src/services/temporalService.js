@@ -1475,6 +1475,30 @@ async function cancelWorkflow({ workflowId, runId, actor = null } = {}) {
   };
 }
 
+
+async function signalWorkflow({ workflowId, runId, signalName, payload = {} } = {}) {
+  if (!workflowId) {
+    throw new ServiceError('workflowId is required.', 400);
+  }
+
+  if (!signalName) {
+    throw new ServiceError('signalName is required.', 400);
+  }
+
+  const { client, config } = await createTemporalClient();
+  const handle = client.workflow.getHandle(workflowId, runId || undefined);
+
+  await handle.signal(signalName, serializeTemporalValue(payload));
+
+  return {
+    namespace: config.namespace,
+    workflowId,
+    runId: runId || null,
+    signalName,
+    signaledAt: new Date().toISOString(),
+  };
+}
+
 async function terminateWorkflow({ workflowId, runId, reason, actor = null } = {}) {
   if (!workflowId) {
     throw new ServiceError('workflowId is required.', 400);
@@ -1516,6 +1540,7 @@ module.exports = {
   listWorkflowRunRecords,
   listWorkflows,
   startFredIngestionWorkflow,
+  signalWorkflow,
   startSkyserverWorkflowExecutorWorkflow,
   startWorkflowFromDefinition,
   terminateWorkflow,

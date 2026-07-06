@@ -1,3 +1,13 @@
+## Phase 10.25 - Human Approval Workflow Nodes
+- Added `HUMAN_APPROVAL` as a supported SkyServer workflow node type for durable operator checkpoints.
+- Added Admin-Web Human Approval node configuration in Create Workflow and Manage Workflows.
+- Added `worker.workflow_approval_requests` plus `worker.vw_workflow_approval_requests` for approval request tracking, status, identity, and Temporal signal metadata.
+- Added API endpoints for listing approval requests and sending approve/reject decisions back to Temporal.
+- Updated the Temporal-backed SkyServer workflow executor to create approval requests, wait for the `humanApprovalDecision` signal, resolve the approval, and continue/stop/fail based on node configuration.
+- Added Workflows -> Approvals in Admin-Web, with pending approval cards, approve/reject actions, and decision notes.
+- Updated Workflow History to surface approval status and decision summaries in run detail.
+- Added seed `00052__workflow_human_approval_node_support_seed.sql` for HUMAN_APPROVAL node support and approval permissions.
+
 ## Phase 10.23 - Condition Workflow Nodes
 - Enabled CONDITION nodes in the SkyServer workflow builder and manager surfaces.
 - Added a reusable condition parameter editor for input/previous/named-node-output paths, typed comparisons, and false-action behavior.

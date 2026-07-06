@@ -341,6 +341,75 @@ async function getRun(req, res, next) {
   }
 }
 
+
+async function listApprovals(req, res, next) {
+  try {
+    const result = await workflowExecutorService.listWorkflowApprovalRequests(req.query || {});
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function decideApproval(req, res, next) {
+  try {
+    const context = authService.getRequestContext(req);
+    const result = await workflowExecutorService.decideWorkflowApprovalRequest({
+      approvalRequestId: req.params.approvalRequestId,
+      payload: req.body || {},
+      user: req.user,
+      permissions: req.permissions || [],
+      context,
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+      message: `Approval ${result.approval.status.toLowerCase()}.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function approveApproval(req, res, next) {
+  req.body = {
+    ...(req.body || {}),
+    decision: 'APPROVED',
+  };
+
+  return decideApproval(req, res, next);
+}
+
+async function rejectApproval(req, res, next) {
+  req.body = {
+    ...(req.body || {}),
+    decision: 'REJECTED',
+  };
+
+  return decideApproval(req, res, next);
+}
+
 module.exports = {
   archiveDefinition,
   cloneDefinition,
@@ -351,6 +420,10 @@ module.exports = {
   getDefinition,
   getManagedDefinition,
   getRun,
+  listApprovals,
+  decideApproval,
+  approveApproval,
+  rejectApproval,
   listDefinitions,
   listRuns,
   replaceDefinitionGraph,

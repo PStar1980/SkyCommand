@@ -170,12 +170,44 @@ async function failSkyserverWorkflowRunActivity(input = {}) {
   });
 }
 
+
+async function createSkyserverWorkflowApprovalRequestActivity(input = {}) {
+  console.log(`[Temporal:SkyWorkflow] Creating approval request for node ${input.node?.nodeKey}`);
+  return workflowExecutorService.createWorkflowApprovalRequest({
+    workflowRunRecordId: input.workflowRunRecordId,
+    workflowNodeRunRecordId: input.workflowNodeRunRecordId || input.nodeRunRecordId,
+    node: input.node || {},
+    parameters: input.parameters || {},
+    user: input.user || null,
+    context: input.context || {},
+    temporalWorkflowId: input.temporalWorkflowId || null,
+    temporalRunId: input.temporalRunId || null,
+  });
+}
+
+async function resolveSkyserverWorkflowApprovalRequestActivity(input = {}) {
+  console.log(`[Temporal:SkyWorkflow] Resolving approval request ${input.approvalRequestId}: ${input.decision}`);
+  return workflowExecutorService.resolveWorkflowApprovalRequest({
+    approvalRequestId: input.approvalRequestId,
+    decision: input.decision,
+    decisionNote: input.decisionNote || null,
+    user: input.user || null,
+    metadata: {
+      temporalBacked: true,
+      temporalActivity: 'resolveSkyserverWorkflowApprovalRequestActivity',
+      ...(input.metadata || {}),
+    },
+  });
+}
+
 module.exports = {
   completeSkyserverWorkflowNodeRunActivity,
   completeSkyserverWorkflowRunActivity,
+  createSkyserverWorkflowApprovalRequestActivity,
   executeSkyserverWorkflowNodeActivity,
   failSkyserverWorkflowNodeRunActivity,
   failSkyserverWorkflowRunActivity,
+  resolveSkyserverWorkflowApprovalRequestActivity,
   linkSkyserverWorkflowRunToTemporalActivity,
   loadSkyserverWorkflowDefinitionActivity,
   loadTemporalWorkflowDefinitionActivity,

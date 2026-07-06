@@ -332,3 +332,30 @@ optional reason/note for history
 ```
 
 The builder and manager now expose Add wait/delay, and Workflow History displays `wait_delay` summaries from node output.
+
+## Phase 10.25 — Human approval workflow nodes
+
+Phase 10.25 adds durable human approval checkpoints to the SkyServer workflow graph.
+
+`HUMAN_APPROVAL` nodes create an approval request in PostgreSQL, then the Temporal-backed executor waits for a `humanApprovalDecision` signal. The approver decision resolves the node as approved, rejected, or timed out. Rejection/timeout behavior can stop the workflow successfully, fail the workflow, or continue anyway based on node configuration.
+
+Scope delivered:
+
+- builder and manager support for Human Approval nodes;
+- durable approval request ledger and joined approval view;
+- API endpoints for listing approval requests and sending decisions;
+- Admin-Web approval queue under **Workflows -> Approvals**;
+- Temporal signal wait/resume support in `skyserverWorkflowExecutorWorkflow`;
+- Workflow History approval status and decision summaries.
+
+This completes the main sequential orchestration control set before the visual designer work:
+
+```text
+TOOL
+API_CALL
+WORKFLOW
+TEMPORAL_WORKFLOW
+CONDITION
+WAIT
+HUMAN_APPROVAL
+```

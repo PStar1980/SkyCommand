@@ -25,6 +25,31 @@ router.post(
   workflowController.createDefinition,
 );
 
+
+router.get(
+  '/approvals',
+  requireAnyPermission(['WORKFLOW_APPROVAL_READ', 'WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ']),
+  workflowController.listApprovals,
+);
+
+router.post(
+  '/approvals/:approvalRequestId/decision',
+  requireAnyPermission(['WORKFLOW_APPROVAL_DECIDE']),
+  workflowController.decideApproval,
+);
+
+router.post(
+  '/approvals/:approvalRequestId/approve',
+  requireAnyPermission(['WORKFLOW_APPROVAL_DECIDE']),
+  workflowController.approveApproval,
+);
+
+router.post(
+  '/approvals/:approvalRequestId/reject',
+  requireAnyPermission(['WORKFLOW_APPROVAL_DECIDE']),
+  workflowController.rejectApproval,
+);
+
 router.get(
   '/runs',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),

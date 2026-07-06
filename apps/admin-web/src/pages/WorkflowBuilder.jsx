@@ -9,6 +9,11 @@ import ToolParameterEditor, {
   cleanToolParameterValues,
   getInitialToolParameterValues,
 } from '../components/ToolParameterEditor.jsx';
+import HumanApprovalParameterEditor, {
+  cleanHumanApprovalParameterValues,
+  DEFAULT_HUMAN_APPROVAL_PARAMETERS,
+  getHumanApprovalSummary,
+} from '../components/HumanApprovalParameterEditor.jsx';
 import WaitParameterEditor, {
   cleanWaitParameterValues,
   DEFAULT_WAIT_PARAMETERS,
@@ -350,6 +355,18 @@ function WorkflowBuilderNodeCard({
       return;
     }
 
+    if (nextType === 'HUMAN_APPROVAL') {
+      patch({
+        nodeTypeCode: 'HUMAN_APPROVAL',
+        targetCode: '',
+        displayName: node.displayName || 'Human Approval',
+        nodeKey: node.nodeKey || `approval_${index + 1}`,
+        description: node.description || 'Pauses the workflow until an authorized user approves or rejects the request.',
+        inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
+      });
+      return;
+    }
+
     patch({
       nodeTypeCode: 'TOOL',
       targetCode: '',
@@ -406,9 +423,9 @@ function WorkflowBuilderNodeCard({
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : 'Tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'Human approval' : 'Tool'}</div>
           <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'New workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : nodeTypeCode === 'WAIT' ? formatWaitDuration(node.inputParameters) : node.targetCode || 'target tool'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : nodeTypeCode === 'WAIT' ? formatWaitDuration(node.inputParameters) : nodeTypeCode === 'HUMAN_APPROVAL' ? getHumanApprovalSummary(node.inputParameters) : node.targetCode || 'target tool'}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -432,6 +449,7 @@ function WorkflowBuilderNodeCard({
             <option value="TEMPORAL_WORKFLOW">Temporal workflow template</option>
             <option value="CONDITION">Condition / branch</option>
             <option value="WAIT">Wait / delay</option>
+            <option value="HUMAN_APPROVAL">Human approval</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -572,6 +590,18 @@ function WorkflowBuilderNodeCard({
                 Reads workflow input, previous node output, or a named node output. False can stop successfully, fail, or continue.
               </div>
             </>
+          ) : nodeTypeCode === 'HUMAN_APPROVAL' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Human approval parameters</div>
+              <HumanApprovalParameterEditor
+                idPrefix={`node-${index}-approval`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameters={node.inputParameters || {}}
+              />
+              <div className="form-text mt-2">
+                Creates a pending approval request and waits for a Temporal signal before continuing.
+              </div>
+            </>
           ) : (
             <>
               <div className="sky-page-kicker mb-2">Tool parameters</div>
@@ -679,6 +709,14 @@ function WorkflowBuilder() {
         };
       }
 
+      if (node.nodeTypeCode === 'HUMAN_APPROVAL') {
+        return {
+          displayName: node.displayName || 'Human approval node',
+          description: node.description || 'Waits for an authorized approval decision before continuing.',
+          code: getHumanApprovalSummary(node.inputParameters),
+        };
+      }
+
       const tool = toolTargets.find((item) => item.targetCode === node.targetCode);
       return {
         displayName: node.displayName || tool?.displayName || 'Tool node',
@@ -777,7 +815,16 @@ function WorkflowBuilder() {
                   description: 'Pauses the workflow for a configured duration before continuing.',
                   inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
                 }
-                : {
+                : nodeTypeCode === 'HUMAN_APPROVAL'
+                  ? {
+                    ...EMPTY_NODE,
+                    nodeTypeCode: 'HUMAN_APPROVAL',
+                    nodeKey: `approval_${current.length + 1}`,
+                    displayName: 'Human Approval',
+                    description: 'Pauses the workflow until an authorized user approves or rejects the request.',
+                    inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
+                  }
+                  : {
             ...EMPTY_NODE,
             nodeKey: `node_${current.length + 1}`,
           },
@@ -917,6 +964,22 @@ function WorkflowBuilder() {
         };
       }
 
+      if (nodeTypeCode === 'HUMAN_APPROVAL') {
+        return {
+          nodeKey,
+          nodeTypeCode: 'HUMAN_APPROVAL',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode: '',
+          inputParameters: cleanHumanApprovalParameterValues(node.inputParameters),
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'human_approval',
+            createdBy: 'workflow_builder_ui_v7',
+          },
+        };
+      }
+
       const targetCode = String(node.targetCode || '').trim();
       if (!targetCode) {
         throw new Error(`Node ${index + 1} requires a tool target.`);
@@ -984,7 +1047,7 @@ function WorkflowBuilder() {
           <div className="sky-page-kicker">Workflows · Create</div>
           <h1 className="sky-page-title">Create Workflow</h1>
           <p className="sky-page-subtitle">
-            Build a sequential SkyServer workflow from tools, API calls, child workflows, Temporal templates, condition gates, and wait/delay nodes. SkyServer owns the business graph;
+            Build a sequential SkyServer workflow from tools, API calls, child workflows, Temporal templates, condition gates, waits, and human approvals. SkyServer owns the business graph;
             Temporal executes it durably.
           </p>
         </div>
@@ -1011,12 +1074,12 @@ function WorkflowBuilder() {
           <div className="sky-page-kicker">Workflow builder v2</div>
           <h2 className="h4 mb-2">Sequential node composer</h2>
           <p className="sky-muted mb-3">
-            Tools remain reusable primitives, API calls become integration nodes, child workflows compose reusable business processes, Temporal templates plug in specialized durable subprocesses, condition gates control flow, wait nodes pause safely, and Temporal runs the active graph.
+            Tools remain reusable primitives, API calls become integration nodes, child workflows compose reusable business processes, Temporal templates plug in specialized durable subprocesses, condition gates control flow, wait nodes pause safely, human approvals place authorized users in the loop, and Temporal runs the active graph.
           </p>
           <div className="sky-worker-command-strip">
             <div className="sky-worker-command-card">
               <div className="sky-page-kicker">Supported now</div>
-              <div className="sky-worker-command-value">TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT</div>
+              <div className="sky-worker-command-value">TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL</div>
             </div>
             <div className="sky-worker-command-card">
               <div className="sky-page-kicker">Tool targets</div>
@@ -1120,7 +1183,7 @@ function WorkflowBuilder() {
                 <div className="d-flex flex-wrap gap-2">
                   {(catalog.nodeTypes || []).map((nodeType) => (
                     <span
-                      className={`sky-pill ${['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT'].includes(nodeType.nodeTypeCode) ? 'sky-pill-success' : 'sky-pill-info'}`}
+                      className={`sky-pill ${['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL'].includes(nodeType.nodeTypeCode) ? 'sky-pill-success' : 'sky-pill-info'}`}
                       key={nodeType.nodeTypeCode}
                       title={nodeType.description || ''}
                     >
@@ -1137,7 +1200,7 @@ function WorkflowBuilder() {
               <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                 <div>
                   <div className="sky-page-kicker">Node timeline</div>
-                  <h2 className="h5 mb-0">Sequential execution plan with condition gates and waits</h2>
+                  <h2 className="h5 mb-0">Sequential execution plan with condition gates, waits, and approvals</h2>
                 </div>
                 <div className="d-flex flex-wrap gap-2">
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('TOOL')} type="button">Add tool node</button>
@@ -1146,6 +1209,7 @@ function WorkflowBuilder() {
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('CONDITION')} type="button">Add condition</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('WAIT')} type="button">Add wait/delay</button>
+                  <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('HUMAN_APPROVAL')} type="button">Add approval</button>
                 </div>
               </div>
               <div className="sky-card-body d-flex flex-column gap-3">

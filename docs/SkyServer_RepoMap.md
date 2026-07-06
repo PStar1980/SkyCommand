@@ -42,6 +42,7 @@ SkyServer/
 │   │       ├── main.jsx
 │   │       ├── components/
 │   │       │   ├── ConditionParameterEditor.jsx
+│   │       │   ├── HumanApprovalParameterEditor.jsx
 │   │       │   ├── Navbar.jsx
 │   │       │   ├── ProtectedRoute.jsx
 │   │       │   ├── ToolParameterEditor.jsx
@@ -66,6 +67,7 @@ SkyServer/
 │   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── Tools.jsx
 │   │       │   ├── WorkerControl.jsx
+│   │       │   ├── WorkflowApprovals.jsx
 │   │       │   ├── WorkflowBuilder.jsx
 │   │       │   └── WorkflowManager.jsx
 │   │       └── services/
@@ -197,7 +199,8 @@ SkyServer/
 │   │       │   ├── 00033__temporal_workflow_templates.sql
 │   │       │   ├── 00035__temporal_workflow_run_records.sql
 │   │       │   ├── 00038__workflow_builder_foundation.sql
-│   │       │   └── 00045__workflow_lifecycle_simplification.sql
+│   │       │   ├── 00045__workflow_lifecycle_simplification.sql
+│   │       │   └── 00051__workflow_human_approval_requests.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -219,7 +222,8 @@ SkyServer/
 │   │           ├── 00047__workflow_child_node_support_seed.sql
 │   │           ├── 00048__workflow_temporal_template_node_support_seed.sql
 │   │           ├── 00049__workflow_condition_node_support_seed.sql
-│   │           └── 00050__workflow_wait_node_support_seed.sql
+│   │           ├── 00050__workflow_wait_node_support_seed.sql
+│   │           └── 00052__workflow_human_approval_node_support_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
