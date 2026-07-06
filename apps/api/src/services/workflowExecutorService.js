@@ -415,8 +415,28 @@ function normalizeNodeRow(row) {
   };
 }
 
+function getRunParentWorkflowRunRecordId(run = {}) {
+  return run?.input?.parentWorkflowRunRecordId
+    || run?.metadata?.parentWorkflowRunRecordId
+    || null;
+}
+
+function getRunParentNodeKey(run = {}) {
+  return run?.input?.parentNodeKey
+    || run?.metadata?.parentNodeKey
+    || null;
+}
+
 function normalizeRunRow(row) {
   const item = camelizeRow(row);
+  const input = item.input || {};
+  const metadata = item.metadata || {};
+  const parentWorkflowRunRecordId = getRunParentWorkflowRunRecordId({ input, metadata });
+  const parentNodeKey = getRunParentNodeKey({ input, metadata });
+  const childWorkflow = item.runSource === 'child_workflow'
+    || item.triggerType === 'CHILD_WORKFLOW'
+    || metadata.childWorkflow === true
+    || Boolean(parentWorkflowRunRecordId);
 
   return {
     workflowRunRecordId: item.workflowRunRecordId,
@@ -430,7 +450,7 @@ function normalizeRunRow(row) {
     status: item.status,
     temporalWorkflowId: item.temporalWorkflowId,
     temporalRunId: item.temporalRunId,
-    input: item.input || {},
+    input,
     requestContext: item.requestContext || {},
     summary: item.summary,
     startedByUserId: item.startedByUserId,
@@ -438,7 +458,10 @@ function normalizeRunRow(row) {
     startedByDisplayName: item.startedByDisplayName,
     startedAt: item.startedAt,
     completedAt: item.completedAt,
-    metadata: item.metadata || {},
+    metadata,
+    parentWorkflowRunRecordId,
+    parentNodeKey,
+    childWorkflow,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
@@ -2567,7 +2590,12 @@ async function listWorkflowRuns(filters = {}) {
   };
 }
 
-async function getWorkflowRun(workflowRunRecordId) {
+
+async function getWorkflowRunById(workflowRunRecordId) {
+  if (!workflowRunRecordId) {
+    return null;
+  }
+
   const result = await query(
     `
       SELECT *
@@ -2578,15 +2606,11 @@ async function getWorkflowRun(workflowRunRecordId) {
     [workflowRunRecordId],
   );
 
-  const run = result.rows[0] ? normalizeRunRow(result.rows[0]) : null;
+  return result.rows[0] ? normalizeRunRow(result.rows[0]) : null;
+}
 
-  if (!run) {
-    throw new WorkflowServiceError('Workflow run was not found.', 404, {
-      workflowRunRecordId,
-    });
-  }
-
-  const nodeResult = await query(
+async function getWorkflowNodeRunsForRun(workflowRunRecordId) {
+  const result = await query(
     `
       SELECT *
       FROM worker.workflow_node_run_records
@@ -2595,6 +2619,120 @@ async function getWorkflowRun(workflowRunRecordId) {
     `,
     [workflowRunRecordId],
   );
+
+  return result.rows.map(normalizeNodeRunRow);
+}
+
+async function listChildWorkflowRuns(parentWorkflowRunRecordId) {
+  if (!parentWorkflowRunRecordId) {
+    return [];
+  }
+
+  const result = await query(
+    `
+      SELECT *
+      FROM worker.vw_workflow_run_records
+      WHERE input->>'parentWorkflowRunRecordId' = $1
+         OR metadata->>'parentWorkflowRunRecordId' = $1
+      ORDER BY COALESCE(started_at, created_at), created_at
+    `,
+    [String(parentWorkflowRunRecordId)],
+  );
+
+  return result.rows.map(normalizeRunRow);
+}
+
+async function findWorkflowRunRoot(run, maxDepth = 10) {
+  let current = run;
+  const visited = new Set();
+
+  for (let depth = 0; depth < maxDepth; depth += 1) {
+    const parentId = getRunParentWorkflowRunRecordId(current);
+
+    if (!parentId || visited.has(parentId)) {
+      return current;
+    }
+
+    visited.add(parentId);
+    const parent = await getWorkflowRunById(parentId);
+
+    if (!parent) {
+      return current;
+    }
+
+    current = parent;
+  }
+
+  return current;
+}
+
+async function buildWorkflowRunTree(run, { depth = 0, maxDepth = 6, visited = new Set() } = {}) {
+  if (!run || visited.has(run.workflowRunRecordId)) {
+    return null;
+  }
+
+  visited.add(run.workflowRunRecordId);
+  const [nodeRuns, childRuns] = await Promise.all([
+    getWorkflowNodeRunsForRun(run.workflowRunRecordId),
+    depth >= maxDepth ? Promise.resolve([]) : listChildWorkflowRuns(run.workflowRunRecordId),
+  ]);
+
+  const children = [];
+
+  for (const childRun of childRuns) {
+    const childTree = await buildWorkflowRunTree(childRun, {
+      depth: depth + 1,
+      maxDepth,
+      visited,
+    });
+
+    if (childTree) {
+      children.push(childTree);
+    }
+  }
+
+  return {
+    run,
+    nodeRuns,
+    children,
+    parentWorkflowRunRecordId: getRunParentWorkflowRunRecordId(run),
+    parentNodeKey: getRunParentNodeKey(run),
+    depth,
+    truncated: depth >= maxDepth && childRuns.length > 0,
+  };
+}
+
+async function getWorkflowRunRelations(run) {
+  const parentWorkflowRunRecordId = getRunParentWorkflowRunRecordId(run);
+  const [parentRun, childRuns] = await Promise.all([
+    parentWorkflowRunRecordId ? getWorkflowRunById(parentWorkflowRunRecordId) : Promise.resolve(null),
+    listChildWorkflowRuns(run.workflowRunRecordId),
+  ]);
+  const rootRun = await findWorkflowRunRoot(run);
+  const runTree = await buildWorkflowRunTree(rootRun, { maxDepth: 6 });
+
+  return {
+    parentRun,
+    childRuns,
+    rootRun,
+    runTree,
+    selectedRunId: run.workflowRunRecordId,
+  };
+}
+
+async function getWorkflowRun(workflowRunRecordId) {
+  const run = await getWorkflowRunById(workflowRunRecordId);
+
+  if (!run) {
+    throw new WorkflowServiceError('Workflow run was not found.', 404, {
+      workflowRunRecordId,
+    });
+  }
+
+  const [nodeRuns, relations] = await Promise.all([
+    getWorkflowNodeRunsForRun(workflowRunRecordId),
+    getWorkflowRunRelations(run),
+  ]);
 
   let temporalRuntime = null;
 
@@ -2619,7 +2757,9 @@ async function getWorkflowRun(workflowRunRecordId) {
       ...run,
       temporalRuntime,
     },
-    nodeRuns: nodeResult.rows.map(normalizeNodeRunRow),
+    nodeRuns,
+    relations,
+    runTree: relations.runTree,
     temporalRuntime,
   };
 }

@@ -294,3 +294,9 @@ Parent SkyServer workflow
 ```
 
 The builder and manager surfaces expose active child workflow targets through a dropdown. Direct self-recursion and recursive workflow cycles are blocked before graph save, and runtime cycle checks remain in place for safety.
+
+## Phase 10.21 — Parent/Child Workflow History Navigation
+
+Phase 10.21 adds domain-aware nested workflow visibility to Workflow History. The API now returns parent run, child run, root run, and nested run tree metadata for selected SkyServer workflow runs. Admin-Web uses this to show child badges, parent back-links, child run links on WORKFLOW nodes, and a Run Tree panel.
+
+This keeps the custom SkyServer cockpit ahead of the generic Temporal UI: Temporal remains the raw event ledger, while SkyServer presents the business-level workflow family tree.

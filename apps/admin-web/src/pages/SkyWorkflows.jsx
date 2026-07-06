@@ -65,6 +65,39 @@ function getTemporalRuntime(runDetail) {
   return runDetail?.temporalRuntime || runDetail?.run?.temporalRuntime || null;
 }
 
+function getRunRelationLabel(run) {
+  if (!run) {
+    return null;
+  }
+
+  if (run.parentWorkflowRunRecordId || run.triggerType === 'CHILD_WORKFLOW' || run.runSource === 'child_workflow') {
+    return 'CHILD';
+  }
+
+  return null;
+}
+
+function getChildRunIdFromNodeRun(nodeRun) {
+  return nodeRun?.output?.childWorkflowRunRecordId
+    || nodeRun?.output?.workflowRunRecordId
+    || nodeRun?.metadata?.childWorkflowRunRecordId
+    || null;
+}
+
+function flattenRunTree(tree, output = []) {
+  if (!tree?.run) {
+    return output;
+  }
+
+  output.push(tree.run);
+
+  for (const child of tree.children || []) {
+    flattenRunTree(child, output);
+  }
+
+  return output;
+}
+
 function statusClass(status) {
   const normalized = String(status || '').toUpperCase();
 
@@ -161,7 +194,7 @@ function getNodeOutputSummary(output = {}) {
   return '';
 }
 
-function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
+function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], onOpenRun }) {
   const runsByNodeKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
 
   return (
@@ -210,9 +243,23 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
                 Execution <span className="sky-mono">{nodeRun.output.executionId}</span>
               </div>
             )}
-            {nodeRun?.output?.workflowRunRecordId && (
+            {getChildRunIdFromNodeRun(nodeRun) && (
+              <div className="small sky-muted mt-2 d-flex flex-wrap align-items-center gap-2">
+                <span>Child run <span className="sky-mono">{getChildRunIdFromNodeRun(nodeRun)}</span></span>
+                {onOpenRun && (
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    onClick={() => onOpenRun(getChildRunIdFromNodeRun(nodeRun))}
+                    type="button"
+                  >
+                    Open child run
+                  </button>
+                )}
+              </div>
+            )}
+            {nodeRun?.output?.workflowDisplayName && nodeRun?.output?.kind === 'child_workflow_execution' && (
               <div className="small sky-muted mt-1">
-                Child run <span className="sky-mono">{nodeRun.output.workflowRunRecordId}</span>
+                Child workflow <span className="fw-semibold">{nodeRun.output.workflowDisplayName}</span>
               </div>
             )}
             {nodeRun?.output?.temporalWorkflowId && (
@@ -227,6 +274,141 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [] }) {
         );
       })}
     </div>
+  );
+}
+
+
+function WorkflowRunTreeNode({ node, selectedRunId, onOpenRun }) {
+  if (!node?.run) {
+    return null;
+  }
+
+  const run = node.run;
+  const childNodesByParentKey = new Map();
+
+  for (const child of node.children || []) {
+    const key = child.parentNodeKey || child.run?.parentNodeKey || '__unknown__';
+    const current = childNodesByParentKey.get(key) || [];
+    current.push(child);
+    childNodesByParentKey.set(key, current);
+  }
+
+  return (
+    <div className={`sky-worker-command-card ${run.workflowRunRecordId === selectedRunId ? 'sky-selected-row' : ''}`}>
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+        <div>
+          <div className="sky-page-kicker">{node.depth === 0 ? 'Root workflow' : `Child workflow · depth ${node.depth}`}</div>
+          <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
+          <div className="small sky-mono sky-muted">{run.workflowCode}</div>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          {run.workflowRunRecordId === selectedRunId && <span className="sky-pill sky-pill-info">Selected</span>}
+          <span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span>
+        </div>
+      </div>
+
+      <div className="d-flex flex-wrap gap-2 mt-2 small">
+        <span className="sky-pill sky-pill-info">Started {formatDate(run.startedAt || run.createdAt)}</span>
+        <span className="sky-pill sky-pill-info">Duration {formatDuration(getRunDurationMs(run))}</span>
+        {run.temporalWorkflowId && <span className="sky-pill sky-pill-success">Temporal-backed</span>}
+        {run.childWorkflow && <span className="sky-pill sky-pill-warning">Child</span>}
+      </div>
+
+      <div className="d-flex flex-wrap align-items-center gap-2 mt-2 small">
+        <span className="sky-muted">Run <span className="sky-mono">{run.workflowRunRecordId}</span></span>
+        {run.workflowRunRecordId !== selectedRunId && onOpenRun && (
+          <button className="btn btn-sm sky-btn-ghost" onClick={() => onOpenRun(run.workflowRunRecordId)} type="button">
+            Open run
+          </button>
+        )}
+      </div>
+
+      {(node.nodeRuns || []).length > 0 && (
+        <div className="mt-3 d-flex flex-column gap-2">
+          {(node.nodeRuns || []).map((nodeRun, index) => {
+            const childNodes = childNodesByParentKey.get(nodeRun.nodeKey) || [];
+
+            return (
+              <div className="border rounded p-2" key={nodeRun.workflowNodeRunRecordId || `${run.workflowRunRecordId}-${nodeRun.nodeKey}`}>
+                <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                  <div>
+                    <div className="sky-page-kicker">Node {index + 1} · {nodeRun.nodeTypeCode}</div>
+                    <div className="fw-semibold">{nodeRun.metadata?.displayName || nodeRun.nodeKey}</div>
+                    <div className="small sky-muted">{nodeRun.targetCode || 'No target'}</div>
+                  </div>
+                  <span className={`sky-pill ${statusClass(nodeRun.status)}`}>{nodeRun.status}</span>
+                </div>
+                {getNodeOutputSummary(nodeRun.output) && (
+                  <div className="small sky-muted mt-1">{getNodeOutputSummary(nodeRun.output)}</div>
+                )}
+                {childNodes.length > 0 && (
+                  <div className="mt-2 ms-3 d-flex flex-column gap-2">
+                    {childNodes.map((child) => (
+                      <WorkflowRunTreeNode
+                        key={child.run.workflowRunRecordId}
+                        node={child}
+                        onOpenRun={onOpenRun}
+                        selectedRunId={selectedRunId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {(node.children || []).filter((child) => !child.parentNodeKey).length > 0 && (
+        <div className="mt-3 ms-3 d-flex flex-column gap-2">
+          {(node.children || []).filter((child) => !child.parentNodeKey).map((child) => (
+            <WorkflowRunTreeNode
+              key={child.run.workflowRunRecordId}
+              node={child}
+              onOpenRun={onOpenRun}
+              selectedRunId={selectedRunId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkflowRunTreePanel({ tree, selectedRunId, onOpenRun }) {
+  if (!tree?.run) {
+    return (
+      <section className="sky-card mb-4">
+        <div className="sky-card-header">
+          <div className="sky-page-kicker">Run tree</div>
+          <h2 className="h5 mb-0">Workflow family</h2>
+        </div>
+        <div className="sky-card-body">
+          <div className="sky-empty-state">Select a workflow run to inspect parent/child relationships.</div>
+        </div>
+      </section>
+    );
+  }
+
+  const flattened = flattenRunTree(tree, []);
+  const childCount = Math.max(0, flattened.length - 1);
+
+  return (
+    <section className="sky-card mb-4">
+      <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Run tree</div>
+          <h2 className="h5 mb-0">Workflow family</h2>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className="sky-pill sky-pill-info">{flattened.length} run(s)</span>
+          <span className="sky-pill sky-pill-info">{childCount} child run(s)</span>
+        </div>
+      </div>
+      <div className="sky-card-body">
+        <WorkflowRunTreeNode node={tree} onOpenRun={onOpenRun} selectedRunId={selectedRunId} />
+      </div>
+    </section>
   );
 }
 
@@ -372,6 +554,8 @@ function SkyWorkflows({ mode = 'start' }) {
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
+  const selectedRelations = selectedRunDetail?.relations || {};
+  const selectedRunTree = selectedRunDetail?.runTree || selectedRelations.runTree || null;
   const isHistoryMode = mode === 'history';
 
   const runStats = useMemo(() => {
@@ -678,6 +862,31 @@ function SkyWorkflows({ mode = 'start' }) {
                       <dd className="col-8 sky-detail-value">{selectedRun.workflowDisplayName || selectedRun.workflowCode}</dd>
                       <dt className="col-4 sky-detail-label">Run</dt>
                       <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.workflowRunRecordId}</dd>
+                      {selectedRelations.parentRun && (
+                        <>
+                          <dt className="col-4 sky-detail-label">Parent</dt>
+                          <dd className="col-8 sky-detail-value">
+                            <button
+                              className="btn btn-link btn-sm p-0 align-baseline"
+                              onClick={() => loadRunDetail(selectedRelations.parentRun.workflowRunRecordId)}
+                              type="button"
+                            >
+                              {selectedRelations.parentRun.workflowDisplayName || selectedRelations.parentRun.workflowCode}
+                            </button>
+                            {selectedRun.parentNodeKey && (
+                              <div className="small sky-muted sky-mono">via {selectedRun.parentNodeKey}</div>
+                            )}
+                          </dd>
+                        </>
+                      )}
+                      {(selectedRelations.childRuns || []).length > 0 && (
+                        <>
+                          <dt className="col-4 sky-detail-label">Children</dt>
+                          <dd className="col-8 sky-detail-value">
+                            <span className="sky-pill sky-pill-info">{selectedRelations.childRuns.length} child run(s)</span>
+                          </dd>
+                        </>
+                      )}
                       <dt className="col-4 sky-detail-label">Started</dt>
                       <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
                       <dt className="col-4 sky-detail-label">Completed</dt>
@@ -824,6 +1033,14 @@ function SkyWorkflows({ mode = 'start' }) {
                           <td>
                             <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
                             <div className="small sky-mono sky-muted">{run.workflowCode}</div>
+                            <div className="d-flex flex-wrap gap-1 mt-1">
+                              {getRunRelationLabel(run) && (
+                                <span className="sky-pill sky-pill-warning">{getRunRelationLabel(run)}</span>
+                              )}
+                              {run.metadata?.parentWorkflowRunRecordId && (
+                                <span className="sky-pill sky-pill-info">Has parent</span>
+                              )}
+                            </div>
                           </td>
                           <td>{formatDate(run.startedAt || run.createdAt)}</td>
                           <td>{formatDate(run.completedAt)}</td>
@@ -842,6 +1059,12 @@ function SkyWorkflows({ mode = 'start' }) {
                 </div>
               </section>
 
+              <WorkflowRunTreePanel
+                onOpenRun={loadRunDetail}
+                selectedRunId={selectedRun?.workflowRunRecordId}
+                tree={selectedRunTree}
+              />
+
               <TemporalRuntimePanel runtime={selectedTemporalRuntime} />
 
               <section className="sky-card">
@@ -853,7 +1076,7 @@ function SkyWorkflows({ mode = 'start' }) {
                   {selectedNodeRuns.length === 0 ? (
                     <div className="sky-empty-state">Select a run to inspect node outcomes.</div>
                   ) : (
-                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} />
+                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} onOpenRun={loadRunDetail} />
                   )}
                 </div>
               </section>
