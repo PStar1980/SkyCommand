@@ -1511,6 +1511,7 @@ module.exports = {
   getHealth,
   getWorkflow,
   getWorkflowRuntimeDetail,
+  getWorkflowDefinition,
   listWorkflowDefinitions,
   listWorkflowRunRecords,
   listWorkflows,

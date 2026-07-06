@@ -353,6 +353,17 @@ function getNodeTargetKindForType(nodeTypeCode) {
   return map[nodeTypeCode] || null;
 }
 
+function getNodeCategoryForType(nodeTypeCode) {
+  const map = {
+    API_CALL: 'INTEGRATION',
+    TEMPORAL_WORKFLOW: 'WORKFLOW',
+    TOOL: 'ACTION',
+    WORKFLOW: 'WORKFLOW',
+  };
+
+  return map[nodeTypeCode] || 'ACTION';
+}
+
 function normalizeDefinitionRow(row) {
   const item = camelizeRow(row);
 
@@ -1009,7 +1020,7 @@ async function runTemporalWorkflowNode({ node, parameters, user, context }) {
 }
 
 async function listBuilderCatalog({ permissions = [] } = {}) {
-  const [nodeTypeResult, toolManifest, workflowTargetResult] = await Promise.all([
+  const [nodeTypeResult, toolManifest, workflowTargetResult, temporalWorkflowTargetResult] = await Promise.all([
     query(
       `
         SELECT
@@ -1046,6 +1057,7 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
         ORDER BY display_name, workflow_code
       `,
     ),
+    temporalService.listWorkflowDefinitions().catch(() => ({ items: [] })),
   ]);
 
   const nodeTypes = nodeTypeResult.rows.map((row) => {
@@ -1103,21 +1115,41 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     };
   });
 
+  const temporalWorkflowTargets = (temporalWorkflowTargetResult.items || []).map((definition) => ({
+    nodeTypeCode: 'TEMPORAL_WORKFLOW',
+    targetKind: 'worker.temporal_workflow_definitions',
+    targetCode: definition.workflowCode,
+    targetRefId: definition.definitionId || null,
+    displayName: definition.displayName,
+    description: definition.description,
+    workflowType: definition.workflowType,
+    taskQueue: definition.taskQueue,
+    namespace: definition.namespace || null,
+    defaultConcurrency: definition.defaultConcurrency,
+    maxConcurrency: definition.maxConcurrency,
+    defaultTimeoutMs: definition.defaultTimeoutMs,
+    maxTimeoutMs: definition.maxTimeoutMs,
+    permissionCode: definition.startPermissionCode,
+    parameters: definition.parameters || [],
+    config: definition.config || {},
+  }));
+
   return {
     nodeTypes,
     supportedNodeTypes: nodeTypes.filter((nodeType) => nodeType.initiallySupported),
     toolTargets,
     workflowTargets,
+    temporalWorkflowTargets,
   };
 }
 
 function normalizeCreateNodeInput(node, index, seenKeys) {
   const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
 
-  if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode) || nodeTypeCode === 'TEMPORAL_WORKFLOW') {
-    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, and WORKFLOW nodes.', 400, {
+  if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode)) {
+    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, and TEMPORAL_WORKFLOW nodes.', 400, {
       nodeTypeCode,
-      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW'],
+      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'],
     });
   }
 
@@ -1126,6 +1158,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     node.targetCode ||
     node.toolCode ||
     node.workflowCode ||
+    node.temporalWorkflowCode ||
     (nodeTypeCode === 'API_CALL' ? inputParameters.url || node.url || '' : ''),
   ).trim();
 
@@ -1137,6 +1170,12 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
 
   if (nodeTypeCode === 'WORKFLOW' && !targetCode) {
     throw new WorkflowServiceError('Each WORKFLOW node requires a child workflow targetCode.', 400, {
+      index,
+    });
+  }
+
+  if (nodeTypeCode === 'TEMPORAL_WORKFLOW' && !targetCode) {
+    throw new WorkflowServiceError('Each TEMPORAL_WORKFLOW node requires an approved Temporal workflow template targetCode.', 400, {
       index,
     });
   }
@@ -1176,7 +1215,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
     enabled: node.enabled !== false,
-    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : 'tool' }),
+    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : 'tool' }),
   };
 }
 
@@ -1231,7 +1270,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
       });
     }
 
-    const toolsByCode = await validateWorkflowTargets(client, nodes, { parentWorkflowCode: workflowCode });
+    const { toolsByCode, workflowDefinitionsByCode, temporalDefinitionsByCode } = await validateWorkflowTargets(client, nodes, { parentWorkflowCode: workflowCode });
 
     const definitionResult = await client.query(
       `
@@ -1262,8 +1301,8 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         DEFAULT_CANCEL_PERMISSION,
         JSON.stringify({
           createdBy: 'workflow_builder_v1',
-          builderVersion: '10.20',
-          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW'],
+          builderVersion: '10.22',
+          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'],
         }),
         user?.userId || null,
       ],
@@ -1299,6 +1338,9 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
 
     for (const node of nodes) {
       const tool = node.nodeTypeCode === 'TOOL' ? toolsByCode.get(node.targetCode) : null;
+      const childWorkflow = node.nodeTypeCode === 'WORKFLOW' ? workflowDefinitionsByCode.get(node.targetCode) : null;
+      const temporalDefinition = node.nodeTypeCode === 'TEMPORAL_WORKFLOW' ? temporalDefinitionsByCode.get(node.targetCode) : null;
+      const targetRefId = tool?.tool_id || childWorkflow?.workflow_definition_id || temporalDefinition?.definition_id || null;
       const nodeResult = await client.query(
         `
           INSERT INTO worker.workflow_nodes (
@@ -1328,7 +1370,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
           node.displayName,
           node.description,
           node.targetCode,
-          tool?.tool_id || null,
+          targetRefId,
           JSON.stringify(assertJsonObject(node.inputParameters, `nodes[${insertedNodes.length}].inputParameters`)),
           JSON.stringify(getSafeObject(node.retryPolicy)),
           node.timeoutMs,
@@ -1348,7 +1390,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         version_number: 1,
         version_status: publish ? 'PUBLISHED' : 'DRAFT',
         node_type_display_name: getNodeDisplayNameForType(node.nodeTypeCode),
-        node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : node.nodeTypeCode === 'WORKFLOW' ? 'WORKFLOW' : 'ACTION',
+        node_type_category: getNodeCategoryForType(node.nodeTypeCode),
         target_kind: getNodeTargetKindForType(node.nodeTypeCode),
       }));
     }
@@ -1699,6 +1741,11 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
       .filter((node) => node.nodeTypeCode === 'WORKFLOW')
       .map((node) => node.targetCode),
   )];
+  const temporalWorkflowTargetCodes = [...new Set(
+    nodes
+      .filter((node) => node.nodeTypeCode === 'TEMPORAL_WORKFLOW')
+      .map((node) => node.targetCode),
+  )];
   const normalizedParentWorkflowCode = String(parentWorkflowCode || '').trim();
 
   if (normalizedParentWorkflowCode && workflowTargetCodes.includes(normalizedParentWorkflowCode)) {
@@ -1708,6 +1755,8 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
   }
 
   let toolsByCode = new Map();
+  let workflowDefinitionsByCode = new Map();
+  let temporalDefinitionsByCode = new Map();
 
   if (toolTargetCodes.length > 0) {
     const toolResult = await client.query(
@@ -1732,7 +1781,7 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
   if (workflowTargetCodes.length > 0) {
     const workflowResult = await client.query(
       `
-        SELECT workflow_code
+        SELECT workflow_definition_id, workflow_code
         FROM worker.vw_workflow_definitions
         WHERE workflow_code = ANY($1::text[])
           AND enabled = TRUE
@@ -1742,8 +1791,8 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
       `,
       [workflowTargetCodes],
     );
-    const workflowsByCode = new Map(workflowResult.rows.map((row) => [row.workflow_code, row]));
-    const missingWorkflows = workflowTargetCodes.filter((targetCode) => !workflowsByCode.has(targetCode));
+    workflowDefinitionsByCode = new Map(workflowResult.rows.map((row) => [row.workflow_code, row]));
+    const missingWorkflows = workflowTargetCodes.filter((targetCode) => !workflowDefinitionsByCode.has(targetCode));
 
     if (missingWorkflows.length > 0) {
       throw new WorkflowServiceError('One or more child workflow targets were not found, inactive, or unpublished.', 400, {
@@ -1803,7 +1852,32 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
     }
   }
 
-  return toolsByCode;
+  if (temporalWorkflowTargetCodes.length > 0) {
+    const temporalResult = await client.query(
+      `
+        SELECT definition_id, workflow_code, workflow_type, display_name
+        FROM worker.vw_temporal_workflow_definitions
+        WHERE workflow_code = ANY($1::text[])
+          AND enabled = TRUE
+          AND visible_in_admin = TRUE
+      `,
+      [temporalWorkflowTargetCodes],
+    );
+    temporalDefinitionsByCode = new Map(temporalResult.rows.map((row) => [row.workflow_code, row]));
+    const missingTemporalWorkflows = temporalWorkflowTargetCodes.filter((targetCode) => !temporalDefinitionsByCode.has(targetCode));
+
+    if (missingTemporalWorkflows.length > 0) {
+      throw new WorkflowServiceError('One or more Temporal workflow template targets were not found, disabled, or hidden.', 400, {
+        missingTemporalWorkflows,
+      });
+    }
+  }
+
+  return {
+    toolsByCode,
+    workflowDefinitionsByCode,
+    temporalDefinitionsByCode,
+  };
 }
 
 
@@ -1818,7 +1892,7 @@ async function insertWorkflowVersionGraph({
   existingWorkflowVersionId = null,
 } = {}) {
   const publish = status === 'PUBLISHED';
-  const toolsByCode = await validateWorkflowTargets(client, nodes, { parentWorkflowCode: definition.workflowCode });
+  const { toolsByCode, workflowDefinitionsByCode, temporalDefinitionsByCode } = await validateWorkflowTargets(client, nodes, { parentWorkflowCode: definition.workflowCode });
   let workflowVersionId = existingWorkflowVersionId;
 
   if (!workflowVersionId) {
@@ -1854,6 +1928,9 @@ async function insertWorkflowVersionGraph({
 
   for (const node of nodes) {
     const tool = node.nodeTypeCode === 'TOOL' ? toolsByCode.get(node.targetCode) : null;
+    const childWorkflow = node.nodeTypeCode === 'WORKFLOW' ? workflowDefinitionsByCode.get(node.targetCode) : null;
+    const temporalDefinition = node.nodeTypeCode === 'TEMPORAL_WORKFLOW' ? temporalDefinitionsByCode.get(node.targetCode) : null;
+    const targetRefId = tool?.tool_id || childWorkflow?.workflow_definition_id || temporalDefinition?.definition_id || null;
     const nodeResult = await client.query(
       `
         INSERT INTO worker.workflow_nodes (
@@ -1883,7 +1960,7 @@ async function insertWorkflowVersionGraph({
         node.displayName,
         node.description,
         node.targetCode,
-        tool?.tool_id || null,
+        targetRefId,
         JSON.stringify(assertJsonObject(node.inputParameters, `${node.nodeKey}.inputParameters`)),
         JSON.stringify(getSafeObject(node.retryPolicy)),
         node.timeoutMs,
@@ -1903,7 +1980,7 @@ async function insertWorkflowVersionGraph({
       version_number: versionNumber,
       version_status: status,
       node_type_display_name: getNodeDisplayNameForType(node.nodeTypeCode),
-      node_type_category: node.nodeTypeCode === 'API_CALL' ? 'INTEGRATION' : node.nodeTypeCode === 'WORKFLOW' ? 'WORKFLOW' : 'ACTION',
+      node_type_category: getNodeCategoryForType(node.nodeTypeCode),
       target_kind: getNodeTargetKindForType(node.nodeTypeCode),
     }));
   }

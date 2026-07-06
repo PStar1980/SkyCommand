@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.21 — Parent/Child Workflow History Navigation
+**Active status:** Phase 10.22 — Temporal Workflow Template Nodes
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -112,8 +112,9 @@ Workflows -> Workflow History
 The workflow pages can:
 
 - show approved SkyServer workflow definitions backed by `worker.workflow_definitions`;
-- create and manage simple sequential tool-node workflow definitions from Admin-Web;
-- configure TOOL-node parameters using the same manifest metadata used by the Tools page;
+- create and manage simple sequential workflow definitions from Admin-Web;
+- compose TOOL, API_CALL, WORKFLOW, and TEMPORAL_WORKFLOW_TEMPLATE nodes;
+- configure TOOL-node and Temporal-template parameters from stored manifest/template metadata;
 - inspect the published node timeline for a workflow definition;
 - start a workflow definition manually through `/api/workflows` using published node defaults;
 - store workflow-level and node-level run records in PostgreSQL;
@@ -705,3 +706,26 @@ Parent workflow run
 Run details now include parent links, child counts, clickable child workflow run links in node timelines, and a **Run Tree** panel that shows nested workflow execution as a business-level hierarchy. Temporal UI remains available as a deep diagnostics console, but SkyServer now owns the domain-aware parent/child navigation experience.
 
 No database migration or seed is required for this phase; parent/child relationships are derived from existing workflow run input/metadata and child node outputs.
+
+
+## Phase 10.22 — Temporal Workflow Template Nodes
+
+Phase 10.22 adds `TEMPORAL_WORKFLOW` nodes to the supported SkyServer workflow builder palette. These nodes are for approved Temporal-native workflow templates, such as the existing FRED ingestion Temporal workflow, when a specialized durable subprocess should be called directly from a SkyServer workflow graph.
+
+Supported behavior:
+
+```text
+SkyServer workflow
+  -> TEMPORAL_WORKFLOW node
+  -> approved Temporal workflow template
+  -> Temporal child execution
+  -> parent node completion
+```
+
+Create/Manage Workflows now offer an **Add Temporal template** action. Template targets come from `worker.temporal_workflow_definitions`, and template parameters are rendered from stored template metadata. At runtime, the generic `skyserverWorkflowExecutorWorkflow` starts the selected Temporal workflow template as a Temporal child execution, waits for completion, and stores the child Temporal workflow/run IDs plus result preview on the node output.
+
+Existing DB patch:
+
+```powershell
+psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00048__workflow_temporal_template_node_support_seed.sql
+```

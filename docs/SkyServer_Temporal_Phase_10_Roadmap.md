@@ -300,3 +300,18 @@ The builder and manager surfaces expose active child workflow targets through a 
 Phase 10.21 adds domain-aware nested workflow visibility to Workflow History. The API now returns parent run, child run, root run, and nested run tree metadata for selected SkyServer workflow runs. Admin-Web uses this to show child badges, parent back-links, child run links on WORKFLOW nodes, and a Run Tree panel.
 
 This keeps the custom SkyServer cockpit ahead of the generic Temporal UI: Temporal remains the raw event ledger, while SkyServer presents the business-level workflow family tree.
+
+
+## Phase 10.22 — Temporal Workflow Template Nodes
+
+Phase 10.22 completes the first advanced orchestration bridge by adding `TEMPORAL_WORKFLOW` nodes to SkyServer workflows. These nodes start approved Temporal-native workflow templates as child executions from inside the generic SkyServer workflow executor.
+
+Scope:
+
+- expose approved Temporal workflow templates in the builder catalog;
+- add Temporal template node controls to Create/Manage Workflows;
+- validate enabled/visible Temporal template targets on create/save;
+- start the selected Temporal workflow type as a child execution from `skyserverWorkflowExecutorWorkflow`;
+- wait for child completion and persist workflow/run IDs plus result preview on the node run ledger.
+
+This keeps `WORKFLOW` nodes as the primary business-composition primitive, while `TEMPORAL_WORKFLOW` nodes act as a specialized durable subprocess escape hatch.
