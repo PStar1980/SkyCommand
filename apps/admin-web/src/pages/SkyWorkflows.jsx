@@ -171,6 +171,10 @@ function getNodeOutputSummary(output = {}) {
     return output.summary;
   }
 
+  if (output.kind === 'temporal_workflow_execution') {
+    return output.summary || `Temporal workflow template ${output.workflowDisplayName || output.workflowCode || ''} completed.`.trim();
+  }
+
   if (output.kind === 'temporal_workflow_start') {
     return `Started Temporal workflow ${output.workflowId || output.workflowCode || ''}`.trim();
   }

@@ -167,6 +167,52 @@ function WorkflowTargetOption({ workflow }) {
   );
 }
 
+function TemporalWorkflowTargetOption({ template }) {
+  return (
+    <option value={template.targetCode}>
+      {template.displayName} ({template.targetCode})
+    </option>
+  );
+}
+
+function mapTemporalParameter(parameter = {}) {
+  const parameterName = parameter.parameterName || parameter.name;
+  const rawType = String(parameter.paramTypeCode || parameter.parameterType || parameter.type || 'STRING').toUpperCase();
+  const typeMap = {
+    BOOLEAN: 'boolean',
+    INTEGER: 'number',
+    NUMBER: 'number',
+    STRING_ARRAY: 'string',
+    ARRAY: 'string',
+    STRING: 'string',
+  };
+
+  return {
+    parameterId: parameter.parameterId || parameterName,
+    parameterName,
+    label: parameter.label || parameterName,
+    prompt: parameter.placeholder || parameter.helpText || parameter.description || parameterName,
+    paramTypeCode: typeMap[rawType] || 'string',
+    required: Boolean(parameter.required),
+    defaultValue: parameter.defaultValue,
+    options: Array.isArray(parameter.allowedValues)
+      ? parameter.allowedValues.map((value) => ({ value, label: String(value) }))
+      : [],
+  };
+}
+
+function getTemporalEditorParameters(template) {
+  return (template?.parameters || []).map(mapTemporalParameter).filter((parameter) => parameter.parameterName);
+}
+
+function getInitialTemporalParameterValues(template, existingValues = {}) {
+  return getInitialToolParameterValues({ parameters: getTemporalEditorParameters(template) }, existingValues);
+}
+
+function cleanTemporalParameterValues(values = {}) {
+  return cleanToolParameterValues(values);
+}
+
 function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   const values = { ...DEFAULT_API_PARAMETERS, ...(parameters || {}) };
 
@@ -267,9 +313,10 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   );
 }
 
-function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange, onMoveDown, onMoveUp, onRemove }) {
+function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
+  const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
   const nodeTypeCode = node.nodeTypeCode || 'TOOL';
 
   function patch(changes) {
@@ -296,6 +343,18 @@ function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange,
         displayName: node.displayName || 'Run Child Workflow',
         nodeKey: node.nodeKey || `child_workflow_${index + 1}`,
         description: node.description || 'Runs another active SkyServer workflow and waits for completion.',
+        inputParameters: {},
+      });
+      return;
+    }
+
+    if (nextType === 'TEMPORAL_WORKFLOW') {
+      patch({
+        nodeTypeCode: 'TEMPORAL_WORKFLOW',
+        targetCode: '',
+        displayName: node.displayName || 'Run Temporal Workflow Template',
+        nodeKey: node.nodeKey || `temporal_workflow_${index + 1}`,
+        description: node.description || 'Runs an approved Temporal-native workflow template and waits for completion.',
         inputParameters: {},
       });
       return;
@@ -338,13 +397,27 @@ function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange,
     });
   }
 
+  function handleTemporalWorkflowTargetChange(targetCode) {
+    const template = temporalWorkflowTargets.find((item) => item.targetCode === targetCode);
+    const nextDisplayName = node.displayName || template?.displayName || targetCode;
+    const nextNodeKey = node.nodeKey || nodeKeyFrom(nextDisplayName || targetCode);
+
+    patch({
+      targetCode,
+      displayName: nextDisplayName,
+      nodeKey: nextNodeKey,
+      description: node.description || template?.description || 'Runs an approved Temporal workflow template.',
+      inputParameters: getInitialTemporalParameterValues(template, node.inputParameters),
+    });
+  }
+
   return (
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : 'Tool'}</div>
-          <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || 'Workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : node.targetCode || 'target tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : 'Tool'}</div>
+          <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'Workflow node'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : node.targetCode || 'target tool'}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -365,6 +438,7 @@ function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange,
             <option value="TOOL">Tool</option>
             <option value="API_CALL">API call</option>
             <option value="WORKFLOW">Child workflow</option>
+            <option value="TEMPORAL_WORKFLOW">Temporal workflow template</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -401,6 +475,25 @@ function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange,
             {selectedWorkflow && (
               <div className="form-text">
                 {selectedWorkflow.nodeCount || 0} node(s) · {selectedWorkflow.edgeCount || 0} edge(s) · active child workflow
+              </div>
+            )}
+          </div>
+        )}
+        {nodeTypeCode === 'TEMPORAL_WORKFLOW' && (
+          <div className="col-lg-8">
+            <label className="form-label" htmlFor={`manager-node-${index}-temporal`}>Temporal workflow template</label>
+            <select
+              className="form-select sky-form-control"
+              id={`manager-node-${index}-temporal`}
+              onChange={(event) => handleTemporalWorkflowTargetChange(event.target.value)}
+              value={node.targetCode}
+            >
+              <option value="">Select approved Temporal template...</option>
+              {temporalWorkflowTargets.map((template) => <TemporalWorkflowTargetOption key={template.targetCode} template={template} />)}
+            </select>
+            {selectedTemporalWorkflow && (
+              <div className="form-text">
+                {selectedTemporalWorkflow.workflowType} · task queue {selectedTemporalWorkflow.taskQueue || 'default'}
               </div>
             )}
           </div>
@@ -449,6 +542,19 @@ function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange,
                 The parent workflow starts the selected SkyServer workflow as a Temporal child execution and waits for it to complete. Child workflow inputs come from that workflow's saved node defaults.
               </div>
             </>
+          ) : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Temporal template parameters</div>
+              <ToolParameterEditor
+                idPrefix={`manager-node-${index}-temporal-parameter`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameterValues={node.inputParameters || {}}
+                parameters={getTemporalEditorParameters(selectedTemporalWorkflow)}
+              />
+              <div className="form-text mt-2">
+                Runs the approved Temporal-native template as a child execution and waits for completion. Use this for specialized durable subprocesses.
+              </div>
+            </>
           ) : (
             <>
               <div className="sky-page-kicker mb-2">Tool parameters</div>
@@ -471,7 +577,7 @@ function EditableNodeCard({ index, node, toolTargets, workflowTargets, onChange,
 
 
 function WorkflowManager() {
-  const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [] });
+  const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [] });
   const [definitions, setDefinitions] = useState([]);
   const [selectedCode, setSelectedCode] = useState('');
   const [detail, setDetail] = useState(null);
@@ -508,6 +614,12 @@ function WorkflowManager() {
     [catalog.workflowTargets, selectedCode],
   );
 
+  const temporalWorkflowTargets = useMemo(
+    () => [...(catalog.temporalWorkflowTargets || [])]
+      .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))),
+    [catalog.temporalWorkflowTargets],
+  );
+
   async function loadDefinitions(nextSelectedCode = selectedCode) {
     setLoading(true);
     setError('');
@@ -528,6 +640,7 @@ function WorkflowManager() {
         nodeTypes: catalogResult.nodeTypes || [],
         toolTargets: catalogResult.toolTargets || [],
         workflowTargets: catalogResult.workflowTargets || [],
+        temporalWorkflowTargets: catalogResult.temporalWorkflowTargets || [],
       });
 
       const selectedExists = items.some((item) => item.workflowCode === nextSelectedCode);
@@ -615,7 +728,16 @@ function WorkflowManager() {
             description: 'Runs another active SkyServer workflow and waits for completion.',
             inputParameters: {},
           }
-          : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
+          : nodeTypeCode === 'TEMPORAL_WORKFLOW'
+            ? {
+              ...EMPTY_NODE,
+              nodeTypeCode: 'TEMPORAL_WORKFLOW',
+              nodeKey: `temporal_workflow_${current.length + 1}`,
+              displayName: 'Run Temporal Workflow Template',
+              description: 'Runs an approved Temporal-native workflow template and waits for completion.',
+              inputParameters: {},
+            }
+            : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
     ]);
   }
 
@@ -694,6 +816,28 @@ function WorkflowManager() {
           config: {
             builderCard: 'workflow',
             updatedBy: 'workflow_manager_ui_v3',
+          },
+        };
+      }
+
+      if (nodeTypeCode === 'TEMPORAL_WORKFLOW') {
+        const targetCode = String(node.targetCode || '').trim();
+
+        if (!targetCode) {
+          throw new Error(`Node ${index + 1} requires a Temporal workflow template target.`);
+        }
+
+        return {
+          nodeKey,
+          nodeTypeCode: 'TEMPORAL_WORKFLOW',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode,
+          inputParameters: cleanTemporalParameterValues(node.inputParameters),
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'temporal',
+            updatedBy: 'workflow_manager_ui_v4',
           },
         };
       }
@@ -920,7 +1064,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Clone workflow</span>
               <span className="sky-pill sky-pill-success">Save current graph</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
-              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD nodes</span>
+              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL nodes</span>
             </div>
           </section>
         </div>
@@ -1003,7 +1147,7 @@ function WorkflowManager() {
                     <div className="sky-page-kicker">Workflow graph</div>
                     <h2 className="h5 mb-0">Edit current sequential graph</h2>
                   </div>
-                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button></div>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   <div className="d-flex flex-column gap-3">
@@ -1018,6 +1162,7 @@ function WorkflowManager() {
                         onRemove={() => removeEditorNode(index)}
                         toolTargets={toolTargets}
                         workflowTargets={workflowTargets}
+                        temporalWorkflowTargets={temporalWorkflowTargets}
                       />
                     ))}
                     {editorNodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}

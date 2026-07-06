@@ -507,3 +507,17 @@ runSource = child_workflow
 ```
 
 Admin-Web now shows parent links, child badges, child workflow run links from WORKFLOW node output, and a Run Tree panel. This avoids hiding orchestration structure inside raw JSON and gives operators a clear view of how nested SkyServer workflows unfolded.
+
+
+## Phase 10.22 — Temporal workflow template nodes
+
+Phase 10.22 adds `TEMPORAL_WORKFLOW` nodes as the advanced bridge from SkyServer-native business workflows into approved Temporal-native subprocesses. This differs from `WORKFLOW` nodes:
+
+| Node type | Purpose | Runtime behavior |
+| --- | --- | --- |
+| `WORKFLOW` | Compose another SkyServer business workflow | Starts another `skyserverWorkflowExecutorWorkflow` child execution. |
+| `TEMPORAL_WORKFLOW` | Call an approved Temporal-native template | Starts the selected Temporal workflow type directly as a Temporal child execution. |
+
+The builder/manager surfaces obtain template targets from `worker.temporal_workflow_definitions`. Parameter forms are rendered from the template parameter metadata, and the executor records child Temporal workflow ID, run ID, task queue, result summary, and result preview on the node output.
+
+This keeps SkyServer workflows as the user-facing business graph while still allowing specialized Temporal-native orchestration to be injected where it makes architectural sense.

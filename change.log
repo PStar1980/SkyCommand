@@ -419,3 +419,13 @@ SkyWeb Analytics owns:
 - API nodes validate JSON headers/body before save, store their defaults in `worker.workflow_nodes.input_parameters`, and execute through Workflow History / Temporal diagnostics like other workflow nodes.
 - Added `00046__workflow_api_node_support_seed.sql` to mark `API_CALL` as an actively supported builder node type for existing and fresh databases.
 - Workflow History summaries now recognize API call node output and display HTTP status/duration summaries.
+
+
+## Phase 10.22 — Temporal Workflow Template Nodes
+
+- Added `TEMPORAL_WORKFLOW` to the supported SkyServer workflow node set for approved Temporal-native workflow templates.
+- Updated the workflow builder catalog to expose active `worker.temporal_workflow_definitions` as template targets with parameter metadata.
+- Updated Create Workflow and Manage Workflows so operators can add Temporal template nodes, select approved templates, and configure template parameters from stored schema metadata.
+- Updated the Temporal-backed SkyServer workflow executor so `TEMPORAL_WORKFLOW` nodes start selected Temporal templates as child executions, wait for completion, and persist child Temporal workflow/run IDs and result previews on node output.
+- Added `00048__workflow_temporal_template_node_support_seed.sql` to mark Temporal workflow template nodes as supported for existing and fresh databases.
+- Updated Workflow History summaries so Temporal template node results appear clearly in node timelines and run detail output.

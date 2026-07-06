@@ -1,4 +1,4 @@
-const { ApplicationFailure, executeChild, proxyActivities, sleep, workflowInfo } = require('@temporalio/workflow');
+const { ApplicationFailure, executeChild, proxyActivities, sleep, startChild, workflowInfo } = require('@temporalio/workflow');
 
 const definitionActivities = proxyActivities({
   startToCloseTimeout: '2 minutes',
@@ -97,6 +97,105 @@ function serializeError(error) {
     name: error?.name || 'Error',
     details: getSafeObject(error?.details, {}),
   };
+}
+
+
+function getPermissionSet(permissions = []) {
+  return new Set(
+    getSafeArray(permissions)
+      .map((permission) => permission.permissionCode || permission.permission_code)
+      .filter(Boolean),
+  );
+}
+
+function assertWorkflowPermission({ permissionCode, permissions, action }) {
+  if (!permissionCode) {
+    return;
+  }
+
+  const permissionSet = getPermissionSet(permissions);
+
+  if (!permissionSet.has(permissionCode)) {
+    throw ApplicationFailure.create({
+      message: `Permission denied for ${action || 'workflow action'}.`,
+      type: 'SkyServerWorkflowPermissionError',
+      nonRetryable: true,
+      details: [{ permissionCode, action }],
+    });
+  }
+}
+
+function normalizeStringArray(value) {
+  const rawValues = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(/[,\s]+/)
+      .map((item) => item.trim());
+  const seen = new Set();
+  const output = [];
+
+  for (const rawValue of rawValues) {
+    const normalized = String(rawValue || '').trim().toUpperCase();
+
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
+      output.push(normalized);
+    }
+  }
+
+  return output;
+}
+
+function normalizeTemplatePositiveInteger(value, fallback, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.min(parsed, max);
+}
+
+function buildTemporalTemplateInput({ template, parameters, workflowId }) {
+  const safeParameters = getSafeObject(parameters);
+  const input = {
+    ...safeParameters,
+    workflowId: safeParameters.workflowId || workflowId,
+    workflowCode: template.workflowCode,
+    runSource: safeParameters.runSource || 'skyserver_workflow_node',
+  };
+
+  if (Object.prototype.hasOwnProperty.call(input, 'indicators')) {
+    input.indicators = normalizeStringArray(input.indicators);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'concurrency') || template.defaultConcurrency) {
+    input.concurrency = normalizeTemplatePositiveInteger(
+      input.concurrency || input.batchSize,
+      template.defaultConcurrency || 3,
+      template.maxConcurrency || 10,
+    );
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'timeoutMs') || template.defaultTimeoutMs) {
+    input.timeoutMs = normalizeTemplatePositiveInteger(
+      input.timeoutMs,
+      template.defaultTimeoutMs || 1800000,
+      template.maxTimeoutMs || 86400000,
+    );
+  }
+
+  return input;
+}
+
+function buildTemporalResultPreview(value, maxLength = 4000) {
+  try {
+    const text = JSON.stringify(value || {}, null, 2);
+    return text.length > maxLength ? `${text.slice(0, maxLength)}\n\n[SkyServer Workflow Executor] Temporal result preview truncated.` : text;
+  } catch (error) {
+    const text = String(value || '');
+    return text.length > maxLength ? text.slice(0, maxLength) : text;
+  }
 }
 
 
@@ -246,6 +345,136 @@ async function executeChildWorkflowNodeWithRetries({
   });
 }
 
+async function executeTemporalWorkflowTemplateNodeWithRetries({
+  node,
+  parameters,
+  nodeRun,
+  permissions,
+  temporalWorkflowId,
+  workflowRunRecordId,
+  taskQueue,
+}) {
+  const retryPolicy = getNodeRetryPolicy(node);
+  const templateWorkflowCode = String(parameters.workflowCode || node.targetCode || '').trim();
+  let lastError = null;
+
+  if (!templateWorkflowCode) {
+    throw ApplicationFailure.create({
+      message: 'Temporal workflow template node target is required.',
+      type: 'SkyServerTemporalWorkflowInputError',
+      nonRetryable: true,
+    });
+  }
+
+  for (let attempt = 1; attempt <= retryPolicy.maximumAttempts; attempt += 1) {
+    await ledgerActivities.markSkyserverWorkflowNodeAttemptActivity({
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      attemptCount: attempt,
+      metadata: {
+        retryPolicy,
+        templateWorkflowCode,
+      },
+    });
+
+    try {
+      const template = await definitionActivities.loadTemporalWorkflowDefinitionActivity({
+        workflowCode: templateWorkflowCode,
+      });
+
+      assertWorkflowPermission({
+        permissionCode: template.startPermissionCode,
+        permissions,
+        action: 'start_temporal_workflow_template_node',
+      });
+
+      const childWorkflowId = normalizeWorkflowIdPart(
+        `${temporalWorkflowId}-${node.nodeKey}-temporal-${attempt}`,
+        `temporal-${node.nodeKey}`,
+      );
+      const childInput = buildTemporalTemplateInput({
+        template,
+        parameters,
+        workflowId: childWorkflowId,
+      });
+      const childHandle = await startChild(template.workflowType, {
+        workflowId: childWorkflowId,
+        taskQueue: template.taskQueue || taskQueue || undefined,
+        args: [childInput],
+      });
+      const childRunId = await childHandle.firstExecutionRunId;
+      const childResult = await childHandle.result();
+
+      if (childResult && childResult.ok === false) {
+        throw ApplicationFailure.create({
+          message: `Temporal workflow template ${template.displayName || template.workflowCode} completed with a failed result.`,
+          type: 'SkyServerTemporalWorkflowTemplateFailedResult',
+          nonRetryable: true,
+          details: [{ templateWorkflowCode, childResult }],
+        });
+      }
+
+      const output = {
+        kind: 'temporal_workflow_execution',
+        status: 'SUCCESS',
+        workflowCode: template.workflowCode,
+        workflowType: template.workflowType,
+        workflowDisplayName: template.displayName,
+        temporalWorkflowId: childHandle.workflowId,
+        temporalRunId: childRunId,
+        taskQueue: template.taskQueue || taskQueue || null,
+        namespace: template.namespace || null,
+        resultOk: childResult?.ok !== false,
+        resultSummary: childResult?.summary || null,
+        resultPreview: buildTemporalResultPreview(childResult),
+        summary: `Temporal workflow template ${template.displayName || template.workflowCode} completed successfully.`,
+      };
+
+      const completedNodeRun = await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
+        nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+        output,
+        metadata: {
+          parameters,
+          attemptCount: attempt,
+          retryPolicy,
+          templateWorkflowCode,
+          temporalTemplateWorkflowId: childHandle.workflowId,
+          temporalTemplateRunId: childRunId,
+          workflowRunRecordId,
+        },
+      });
+
+      return completedNodeRun;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < retryPolicy.maximumAttempts) {
+        await sleep(retryPolicy.initialIntervalSeconds * 1000 * attempt);
+      }
+    }
+  }
+
+  const normalizedError = serializeError(lastError);
+  await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
+    nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+    output: normalizedError.details || {},
+    errorMessage: normalizedError.message,
+    metadata: {
+      parameters,
+      retryPolicy,
+      templateWorkflowCode,
+      attemptCount: retryPolicy.maximumAttempts,
+      errorName: normalizedError.name,
+    },
+  });
+
+  throw ApplicationFailure.create({
+    message: normalizedError.message,
+    type: normalizedError.name || 'SkyServerTemporalWorkflowTemplateFailure',
+    nonRetryable: true,
+    details: [normalizedError],
+  });
+}
+
 async function executeNodeWithRetries({
   node,
   parameters,
@@ -379,8 +608,10 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         },
       });
 
-      const completedNodeRun = node.nodeTypeCode === 'WORKFLOW'
-        ? await executeChildWorkflowNodeWithRetries({
+      let completedNodeRun;
+
+      if (node.nodeTypeCode === 'WORKFLOW') {
+        completedNodeRun = await executeChildWorkflowNodeWithRetries({
           definition,
           node,
           parameters,
@@ -393,8 +624,19 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           temporalRunId,
           workflowRunRecordId,
           taskQueue: input.taskQueue,
-        })
-        : await executeNodeWithRetries({
+        });
+      } else if (node.nodeTypeCode === 'TEMPORAL_WORKFLOW') {
+        completedNodeRun = await executeTemporalWorkflowTemplateNodeWithRetries({
+          node,
+          parameters,
+          nodeRun,
+          permissions: input.permissions || [],
+          temporalWorkflowId,
+          workflowRunRecordId,
+          taskQueue: input.taskQueue,
+        });
+      } else {
+        completedNodeRun = await executeNodeWithRetries({
           node,
           parameters,
           nodeRun,
@@ -406,6 +648,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           temporalRunId,
           workflowRunRecordId,
         });
+      }
 
       nodeRuns.push(completedNodeRun);
     }

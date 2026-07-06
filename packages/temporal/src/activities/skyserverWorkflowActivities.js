@@ -1,4 +1,5 @@
 const workflowExecutorService = require('../../../../apps/api/src/services/workflowExecutorService');
+const temporalService = require('../../../../apps/api/src/services/temporalService');
 
 function getSafeObject(value, fallback = {}) {
   if (!value || Array.isArray(value) || typeof value !== 'object') {
@@ -16,6 +17,12 @@ function normalizeError(error) {
     details: getSafeObject(error?.details, {}),
     stack: error?.stack || null,
   };
+}
+
+
+async function loadTemporalWorkflowDefinitionActivity(input = {}) {
+  console.log(`[Temporal:SkyWorkflow] Loading Temporal workflow template ${input.workflowCode}`);
+  return temporalService.getWorkflowDefinition(input.workflowCode);
 }
 
 async function loadSkyserverWorkflowDefinitionActivity(input = {}) {
@@ -171,6 +178,7 @@ module.exports = {
   failSkyserverWorkflowRunActivity,
   linkSkyserverWorkflowRunToTemporalActivity,
   loadSkyserverWorkflowDefinitionActivity,
+  loadTemporalWorkflowDefinitionActivity,
   markSkyserverWorkflowNodeAttemptActivity,
   startChildSkyserverWorkflowRunActivity,
   startSkyserverWorkflowNodeRunActivity,
