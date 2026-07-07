@@ -351,7 +351,7 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   );
 }
 
-function EditableNodeCard({ index, node, highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
+function EditableNodeCard({ index, node, allNodes = [], highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
@@ -651,7 +651,7 @@ function EditableNodeCard({ index, node, highlighted = false, toolTargets = [], 
             <>
               <div className="sky-page-kicker mb-2">Condition parameters</div>
               <ConditionParameterEditor
-                branchTargetOptions={getForwardBranchTargetOptions(editorNodes, index)}
+                branchTargetOptions={getForwardBranchTargetOptions(allNodes, index)}
                 idPrefix={`manager-node-${index}-condition`}
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameters={node.inputParameters || {}}
@@ -1419,6 +1419,7 @@ function WorkflowManager() {
                     {editorNodes.map((node, index) => (
                       <EditableNodeCard
                         index={index}
+                        allNodes={editorNodes}
                         highlighted={selectedVisualNodeIndex === index}
                         key={`${index}-${node.nodeKey || node.targetCode}`}
                         node={node}
