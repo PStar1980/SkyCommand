@@ -377,3 +377,35 @@ Delivered scope:
 
 This is intentionally a visual foundation, not a full DAG editor. True branch edges and drag/reorder from the canvas should come after the sequential lane is stable.
 
+
+
+## Phase 10.27 — Visual node inspector
+
+Status: implemented.
+
+Phase 10.27 enhances the Manage Workflows visual map with a selected-node inspector panel. The inspector reads the same current editor graph and shows node-specific target and behavior details without changing save or runtime semantics.
+
+Delivered scope:
+
+- select a visual node and inspect node key/type/target;
+- show node-specific summaries for API calls, child workflows, Temporal templates, condition gates, waits, and human approvals;
+- navigate Previous / Next across the visual lane;
+- jump from the inspector to the existing editor card;
+- keep DB schema, graph JSON, and execution behavior unchanged.
+
+
+## Phase 10.28 — Visual drag reorder
+
+Status: implemented.
+
+Phase 10.28 turns the Manage Workflows visual map from preview-only into a safe reorder surface for the existing sequential lane. Operators can drag visual node blocks or use inspector Move left / Move right controls, then explicitly save the workflow graph to publish the new order.
+
+Delivered scope:
+
+- drag a visual node block onto another block to reorder the sequential lane;
+- update the existing editor cards immediately after a visual reorder;
+- keep **Save workflow graph** as the explicit publish action;
+- add button-driven Move left / Move right controls in the visual inspector;
+- avoid new DB schema, new executor behavior, or true branch-edge semantics.
+
+Phase 10.28 is still a sequential-lane designer. True conditional branch edges should remain a later phase after the visual editor and existing executor stay stable.

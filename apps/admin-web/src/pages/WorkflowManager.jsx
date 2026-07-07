@@ -899,19 +899,49 @@ function WorkflowManager() {
     setEditorNodes((current) => current.filter((_, nodeIndex) => nodeIndex !== index));
   }
 
-  function moveEditorNode(index, direction) {
-    setSelectedVisualNodeIndex(null);
-    setEditorNodes((current) => {
-      const next = [...current];
-      const targetIndex = index + direction;
+  function reorderEditorNode(sourceIndex, targetIndex, options = {}) {
+    const source = Number(sourceIndex);
+    const target = Number(targetIndex);
 
-      if (targetIndex < 0 || targetIndex >= next.length) {
+    if (
+      !Number.isInteger(source)
+      || !Number.isInteger(target)
+      || source < 0
+      || source >= editorNodes.length
+      || target < 0
+      || target >= editorNodes.length
+    ) {
+      return;
+    }
+
+    setEditorNodes((current) => {
+      if (source < 0 || source >= current.length || target < 0 || target >= current.length || source === target) {
         return current;
       }
 
-      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      const next = [...current];
+      const [movedNode] = next.splice(source, 1);
+      next.splice(target, 0, movedNode);
       return next;
     });
+
+    if (options.selectMovedNode) {
+      setSelectedVisualNodeIndex(target);
+    } else {
+      setSelectedVisualNodeIndex(null);
+    }
+  }
+
+  function moveEditorNode(index, direction, options = {}) {
+    reorderEditorNode(index, index + direction, options);
+  }
+
+  function handleVisualNodeReorder(sourceIndex, targetIndex) {
+    reorderEditorNode(sourceIndex, targetIndex, { selectMovedNode: true });
+  }
+
+  function handleVisualNodeMove(index, direction) {
+    moveEditorNode(index, direction, { selectMovedNode: true });
   }
 
   function validateEditorNodes() {
@@ -1268,6 +1298,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Save current graph</span>
               <span className="sky-pill sky-pill-success">Visual graph preview</span>
               <span className="sky-pill sky-pill-success">Visual node inspector</span>
+              <span className="sky-pill sky-pill-success">Visual drag reorder</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
               <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL nodes</span>
             </div>
@@ -1357,6 +1388,8 @@ function WorkflowManager() {
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   <WorkflowVisualGraph
                     nodes={editorNodes}
+                    onNodeMove={handleVisualNodeMove}
+                    onNodeReorder={handleVisualNodeReorder}
                     onNodeSelect={handleVisualNodeSelect}
                     selectedNodeIndex={selectedVisualNodeIndex}
                     temporalWorkflowTargets={temporalWorkflowTargets}
