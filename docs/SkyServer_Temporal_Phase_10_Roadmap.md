@@ -409,3 +409,22 @@ Delivered scope:
 - avoid new DB schema, new executor behavior, or true branch-edge semantics.
 
 Phase 10.28 is still a sequential-lane designer. True conditional branch edges should remain a later phase after the visual editor and existing executor stay stable.
+
+
+## Phase 10.29 — Condition branch edges v1
+
+Status: implemented.
+
+Phase 10.29 upgrades condition gates from inline stop/fail/continue checks into forward-only routing points. The existing sequential lane remains the default execution path, while configured branch targets can jump to a later node when a condition resolves true or false.
+
+Delivered scope:
+
+- add true/false branch target dropdowns to condition node configuration;
+- validate branch targets server-side so targets exist, are not self-references, and point forward in the current lane;
+- persist conditional edges using the existing `worker.workflow_edges.edge_type = 'CONDITIONAL'` model;
+- route inline and Temporal-backed workflow execution to selected branch targets;
+- preserve existing false-action behavior when no false branch target is set;
+- show branch labels in the visual workflow map and selected-node inspector;
+- avoid DB migration and avoid arbitrary free-form DAG editing.
+
+Branching v1 is intentionally forward-only. Full visual DAG editing, merge nodes, loop control, and richer branch layout should remain future phases after the routed execution model is stable.

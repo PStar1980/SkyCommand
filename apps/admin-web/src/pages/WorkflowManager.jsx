@@ -105,6 +105,22 @@ function graphNodesToEditorNodes(nodes = []) {
   }));
 }
 
+function getForwardBranchTargetOptions(nodes = [], currentIndex = 0) {
+  return nodes
+    .slice(currentIndex + 1)
+    .map((node, offset) => {
+      const originalIndex = currentIndex + offset + 1;
+      const nodeKey = nodeKeyFrom(node.nodeKey || node.displayName || node.targetCode || `node_${originalIndex + 1}`);
+      const displayName = String(node.displayName || nodeKey || `Node ${originalIndex + 1}`).trim();
+
+      return {
+        nodeKey,
+        label: `Node ${originalIndex + 1} · ${displayName} (${nodeKey})`,
+      };
+    })
+    .filter((target) => Boolean(target.nodeKey));
+}
+
 function parseJsonInput(value, fieldName, allowBlank = true) {
   const text = String(value || '').trim();
 
@@ -635,6 +651,7 @@ function EditableNodeCard({ index, node, highlighted = false, toolTargets = [], 
             <>
               <div className="sky-page-kicker mb-2">Condition parameters</div>
               <ConditionParameterEditor
+                branchTargetOptions={getForwardBranchTargetOptions(editorNodes, index)}
                 idPrefix={`manager-node-${index}-condition`}
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameters={node.inputParameters || {}}
@@ -1299,6 +1316,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Visual graph preview</span>
               <span className="sky-pill sky-pill-success">Visual node inspector</span>
               <span className="sky-pill sky-pill-success">Visual drag reorder</span>
+              <span className="sky-pill sky-pill-success">Condition branch edges</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
               <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL nodes</span>
             </div>

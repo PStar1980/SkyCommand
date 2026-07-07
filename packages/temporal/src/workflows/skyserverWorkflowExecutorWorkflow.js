@@ -417,6 +417,64 @@ function buildConditionStopSummary({ definition, output, completedNodeCount, tot
   return `Workflow ${definition.displayName} stopped successfully by condition gate: ${output?.summary || 'condition returned false'} (${skippedNodeCount} remaining node(s) skipped).`;
 }
 
+function normalizeConditionBranchTargetNodeKey(value) {
+  return String(value || '').trim();
+}
+
+function getConditionBranchTargetKeyFromOutput(output = {}) {
+  return normalizeConditionBranchTargetNodeKey(output.branchTargetNodeKey || output.nextNodeKey || output.targetNodeKey);
+}
+
+function buildWorkflowExecutionPlan(nodes = []) {
+  const orderedNodes = getSafeArray(nodes);
+  const nodeIndexByKey = new Map();
+
+  orderedNodes.forEach((node, index) => {
+    nodeIndexByKey.set(node.nodeKey, index);
+  });
+
+  return {
+    nodes: orderedNodes,
+    nodeIndexByKey,
+  };
+}
+
+function createConditionBranchFailure(message, details = {}) {
+  return ApplicationFailure.create({
+    message,
+    type: 'SkyServerWorkflowConditionBranchError',
+    nonRetryable: true,
+    details: [details],
+  });
+}
+
+function resolveConditionBranchIndex({ output, currentIndex, executionPlan }) {
+  const branchTargetNodeKey = getConditionBranchTargetKeyFromOutput(output);
+
+  if (!branchTargetNodeKey) {
+    return null;
+  }
+
+  const targetIndex = executionPlan.nodeIndexByKey.get(branchTargetNodeKey);
+
+  if (!Number.isInteger(targetIndex)) {
+    throw createConditionBranchFailure('Condition branch target was not found in the workflow graph.', {
+      branchTargetNodeKey,
+      output,
+    });
+  }
+
+  if (targetIndex <= currentIndex) {
+    throw createConditionBranchFailure('Condition branch target must point to a later node in the sequential lane.', {
+      branchTargetNodeKey,
+      currentIndex,
+      targetIndex,
+    });
+  }
+
+  return targetIndex;
+}
+
 
 function createHumanApprovalInputFailure(message, details = {}) {
   return ApplicationFailure.create({
@@ -1179,7 +1237,12 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   });
 
   try {
-    for (const node of definition.nodes) {
+    const executionPlan = buildWorkflowExecutionPlan(definition.nodes);
+    const conditionBranchRoutes = [];
+    let currentNodeIndex = 0;
+
+    while (currentNodeIndex < executionPlan.nodes.length) {
+      const node = executionPlan.nodes[currentNodeIndex];
       const parameters = buildNodeParameters(node, requestInput);
       const nodeContext = {
         ...getSafeObject(input.context),
@@ -1199,7 +1262,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           temporalRunId,
         },
       });
-
+      let nextNodeIndex = currentNodeIndex + 1;
       let completedNodeRun;
 
       if (node.nodeTypeCode === 'WAIT') {
@@ -1264,21 +1327,36 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
       nodeOutputsByKey[node.nodeKey] = completedNodeRun?.output || {};
       previousNodeOutput = completedNodeRun?.output || {};
 
-      if (node.nodeTypeCode === 'CONDITION' && completedNodeRun?.output?.passed === false) {
-        const onFalse = normalizeConditionOnFalseAction(completedNodeRun.output.onFalse);
+      if (node.nodeTypeCode === 'CONDITION') {
+        const branchTargetIndex = resolveConditionBranchIndex({
+          output: completedNodeRun?.output || {},
+          currentIndex: currentNodeIndex,
+          executionPlan,
+        });
 
-        if (onFalse === 'FAIL_WORKFLOW') {
-          throw ApplicationFailure.create({
-            message: completedNodeRun.output.summary || 'Workflow condition failed.',
-            type: 'SkyServerWorkflowConditionFailed',
-            nonRetryable: true,
-            details: [{ nodeKey: node.nodeKey, output: completedNodeRun.output }],
+        if (Number.isInteger(branchTargetIndex)) {
+          conditionBranchRoutes.push({
+            nodeKey: node.nodeKey,
+            branchLabel: completedNodeRun.output.branchLabel || (completedNodeRun.output.passed ? 'TRUE' : 'FALSE'),
+            targetNodeKey: completedNodeRun.output.branchTargetNodeKey,
           });
-        }
+          nextNodeIndex = branchTargetIndex;
+        } else if (completedNodeRun?.output?.passed === false) {
+          const onFalse = normalizeConditionOnFalseAction(completedNodeRun.output.onFalse);
 
-        if (onFalse === 'STOP_SUCCESS') {
-          conditionStop = { nodeKey: node.nodeKey, output: completedNodeRun.output };
-          break;
+          if (onFalse === 'FAIL_WORKFLOW') {
+            throw ApplicationFailure.create({
+              message: completedNodeRun.output.summary || 'Workflow condition failed.',
+              type: 'SkyServerWorkflowConditionFailed',
+              nonRetryable: true,
+              details: [{ nodeKey: node.nodeKey, output: completedNodeRun.output }],
+            });
+          }
+
+          if (onFalse === 'STOP_SUCCESS') {
+            conditionStop = { nodeKey: node.nodeKey, output: completedNodeRun.output };
+            break;
+          }
         }
       }
 
@@ -1299,6 +1377,8 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           break;
         }
       }
+
+      currentNodeIndex = nextNodeIndex;
     }
 
     const durationMs = Date.now() - startedAtMs;
@@ -1323,9 +1403,10 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
       metadata: {
         durationMs,
         completedNodeCount: nodeRuns.length,
-        skippedNodeCount: (conditionStop || approvalStop) ? Math.max(0, definition.nodes.length - nodeRuns.length) : 0,
+        skippedNodeCount: Math.max(0, definition.nodes.length - nodeRuns.length),
         conditionStopNodeKey: conditionStop?.nodeKey || null,
         approvalStopNodeKey: approvalStop?.nodeKey || null,
+        conditionBranchRoutes,
         temporalWorkflowId,
         temporalRunId,
       },

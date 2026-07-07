@@ -289,6 +289,10 @@ function normalizeConditionOnFalse(value) {
   return action;
 }
 
+function normalizeConditionBranchTargetNodeKey(value) {
+  return String(value || '').trim();
+}
+
 function normalizeConditionValueType(value) {
   const normalized = String(value || 'AUTO').trim().toUpperCase();
   const allowed = new Set(['AUTO', 'STRING', 'NUMBER', 'BOOLEAN', 'JSON']);
@@ -430,6 +434,8 @@ function normalizeConditionParameters(parameters = {}) {
     rightType,
     caseSensitive: input.caseSensitive === true || input.caseSensitive === 'true' || input.caseSensitive === '1',
     onFalse,
+    trueTargetNodeKey: normalizeConditionBranchTargetNodeKey(input.trueTargetNodeKey || input.trueTarget || input.onTrueTargetNodeKey),
+    falseTargetNodeKey: normalizeConditionBranchTargetNodeKey(input.falseTargetNodeKey || input.falseTarget || input.onFalseTargetNodeKey),
   };
 }
 
@@ -617,9 +623,15 @@ function evaluateConditionNode({ node, parameters = {}, context = {} }) {
   const passed = compareConditionValues(leftValue, rightValue, normalizedParameters.operator, {
     caseSensitive: normalizedParameters.caseSensitive,
   });
-  const summary = passed
-    ? `Condition ${node.displayName || node.nodeKey} passed; continuing workflow.`
-    : `Condition ${node.displayName || node.nodeKey} did not pass; ${normalizedParameters.onFalse === 'STOP_SUCCESS' ? 'stopping workflow successfully' : normalizedParameters.onFalse === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
+  const branchTargetNodeKey = passed
+    ? normalizedParameters.trueTargetNodeKey || null
+    : normalizedParameters.falseTargetNodeKey || null;
+  const branchLabel = passed ? 'TRUE' : 'FALSE';
+  const summary = branchTargetNodeKey
+    ? `Condition ${node.displayName || node.nodeKey} resolved ${branchLabel}; routing to ${branchTargetNodeKey}.`
+    : passed
+      ? `Condition ${node.displayName || node.nodeKey} passed; continuing workflow.`
+      : `Condition ${node.displayName || node.nodeKey} did not pass; ${normalizedParameters.onFalse === 'STOP_SUCCESS' ? 'stopping workflow successfully' : normalizedParameters.onFalse === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
 
   return {
     kind: 'condition_evaluation',
@@ -633,6 +645,11 @@ function evaluateConditionNode({ node, parameters = {}, context = {} }) {
     rightType: normalizedParameters.rightType,
     caseSensitive: normalizedParameters.caseSensitive,
     onFalse: normalizedParameters.onFalse,
+    trueTargetNodeKey: normalizedParameters.trueTargetNodeKey || null,
+    falseTargetNodeKey: normalizedParameters.falseTargetNodeKey || null,
+    branchTargetNodeKey,
+    branchLabel,
+    branchTaken: Boolean(branchTargetNodeKey),
     summary,
   };
 }
@@ -2155,6 +2172,97 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   };
 }
 
+async function insertWorkflowEdges({ client, workflowVersionId, insertedNodes = [], createdBy = 'workflow_builder_v1' } = {}) {
+  const edges = [];
+
+  for (let index = 0; index < insertedNodes.length - 1; index += 1) {
+    const fromNode = insertedNodes[index];
+    const toNode = insertedNodes[index + 1];
+    const edgeResult = await client.query(
+      `
+        INSERT INTO worker.workflow_edges (
+          workflow_version_id,
+          edge_key,
+          from_node_id,
+          to_node_id,
+          edge_type,
+          display_order,
+          config
+        )
+        VALUES ($1, $2, $3, $4, 'SEQUENTIAL', $5, $6::jsonb)
+        RETURNING *
+      `,
+      [
+        workflowVersionId,
+        `${fromNode.nodeKey}_to_${toNode.nodeKey}`,
+        fromNode.workflowNodeId,
+        toNode.workflowNodeId,
+        (index + 1) * 10,
+        JSON.stringify({ label: 'then', createdBy }),
+      ],
+    );
+    edges.push(camelizeRow(edgeResult.rows[0]));
+  }
+
+  const nodesByKey = new Map(insertedNodes.map((node) => [node.nodeKey, node]));
+
+  for (let index = 0; index < insertedNodes.length; index += 1) {
+    const fromNode = insertedNodes[index];
+
+    if (fromNode.nodeTypeCode !== 'CONDITION') {
+      continue;
+    }
+
+    const parameters = normalizeConditionParameters(fromNode.inputParameters || {});
+    const branchTargets = [
+      { branchLabel: 'TRUE', targetNodeKey: parameters.trueTargetNodeKey },
+      { branchLabel: 'FALSE', targetNodeKey: parameters.falseTargetNodeKey },
+    ].filter((branch) => Boolean(branch.targetNodeKey));
+
+    for (const branch of branchTargets) {
+      const toNode = nodesByKey.get(branch.targetNodeKey);
+
+      if (!toNode) {
+        continue;
+      }
+
+      const edgeResult = await client.query(
+        `
+          INSERT INTO worker.workflow_edges (
+            workflow_version_id,
+            edge_key,
+            from_node_id,
+            to_node_id,
+            edge_type,
+            condition_expression,
+            display_order,
+            config
+          )
+          VALUES ($1, $2, $3, $4, 'CONDITIONAL', $5, $6, $7::jsonb)
+          RETURNING *
+        `,
+        [
+          workflowVersionId,
+          `${fromNode.nodeKey}_${branch.branchLabel.toLowerCase()}_to_${toNode.nodeKey}`,
+          fromNode.workflowNodeId,
+          toNode.workflowNodeId,
+          branch.branchLabel,
+          (index + 1) * 10 + (branch.branchLabel === 'TRUE' ? 1 : 2),
+          JSON.stringify({
+            label: `${branch.branchLabel.toLowerCase()} branch`,
+            branch: branch.branchLabel,
+            conditionNodeKey: fromNode.nodeKey,
+            createdBy,
+          }),
+        ],
+      );
+      edges.push(camelizeRow(edgeResult.rows[0]));
+    }
+  }
+
+  return edges;
+}
+
 
 async function createWorkflowDefinition({ payload = {}, user, permissions = [] } = {}) {
   assertPermission({
@@ -2331,36 +2439,12 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
       }));
     }
 
-    const edges = [];
-
-    for (let index = 0; index < insertedNodes.length - 1; index += 1) {
-      const fromNode = insertedNodes[index];
-      const toNode = insertedNodes[index + 1];
-      const edgeResult = await client.query(
-        `
-          INSERT INTO worker.workflow_edges (
-            workflow_version_id,
-            edge_key,
-            from_node_id,
-            to_node_id,
-            edge_type,
-            display_order,
-            config
-          )
-          VALUES ($1, $2, $3, $4, 'SEQUENTIAL', $5, $6::jsonb)
-          RETURNING *
-        `,
-        [
-          workflowVersionId,
-          `${fromNode.nodeKey}_to_${toNode.nodeKey}`,
-          fromNode.workflowNodeId,
-          toNode.workflowNodeId,
-          (index + 1) * 10,
-          JSON.stringify({ label: 'then', createdBy: 'workflow_builder_v1' }),
-        ],
-      );
-      edges.push(camelizeRow(edgeResult.rows[0]));
-    }
+    const edges = await insertWorkflowEdges({
+      client,
+      workflowVersionId,
+      insertedNodes,
+      createdBy: 'workflow_builder_v1',
+    });
 
     await client.query(
       `
@@ -2666,7 +2750,62 @@ function versionNodesToCreateInput(nodes = []) {
   }));
 }
 
+function validateConditionBranchTargets(nodes = []) {
+  const nodeKeyToIndex = new Map();
+
+  nodes.forEach((node, index) => {
+    nodeKeyToIndex.set(node.nodeKey, index);
+  });
+
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+
+    if (node.nodeTypeCode !== 'CONDITION') {
+      continue;
+    }
+
+    const parameters = normalizeConditionParameters(node.inputParameters || {});
+    const trueTargetNodeKey = normalizeConditionBranchTargetNodeKey(parameters.trueTargetNodeKey);
+    const falseTargetNodeKey = normalizeConditionBranchTargetNodeKey(parameters.falseTargetNodeKey);
+    const branchTargets = [
+      ['TRUE', trueTargetNodeKey],
+      ['FALSE', falseTargetNodeKey],
+    ].filter(([, targetNodeKey]) => Boolean(targetNodeKey));
+
+    if (trueTargetNodeKey && falseTargetNodeKey && trueTargetNodeKey === falseTargetNodeKey) {
+      throw new WorkflowServiceError('Condition true and false branches must target different nodes in Branching v1.', 400, {
+        nodeKey: node.nodeKey,
+        targetNodeKey: trueTargetNodeKey,
+      });
+    }
+
+    for (const [branchLabel, targetNodeKey] of branchTargets) {
+      if (!nodeKeyToIndex.has(targetNodeKey)) {
+        throw new WorkflowServiceError('Condition branch target node was not found in this workflow graph.', 400, {
+          nodeKey: node.nodeKey,
+          branchLabel,
+          targetNodeKey,
+        });
+      }
+
+      const targetIndex = nodeKeyToIndex.get(targetNodeKey);
+
+      if (targetIndex <= index) {
+        throw new WorkflowServiceError('Condition branch targets must point to later nodes in the sequential lane.', 400, {
+          nodeKey: node.nodeKey,
+          branchLabel,
+          targetNodeKey,
+          currentDisplayOrder: index + 1,
+          targetDisplayOrder: targetIndex + 1,
+        });
+      }
+    }
+  }
+}
+
 async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = null } = {}) {
+  validateConditionBranchTargets(nodes);
+
   const toolTargetCodes = [...new Set(
     nodes
       .filter((node) => node.nodeTypeCode === 'TOOL')
@@ -2951,36 +3090,12 @@ async function insertWorkflowVersionGraph({
     }));
   }
 
-  const edges = [];
-
-  for (let index = 0; index < insertedNodes.length - 1; index += 1) {
-    const fromNode = insertedNodes[index];
-    const toNode = insertedNodes[index + 1];
-    const edgeResult = await client.query(
-      `
-        INSERT INTO worker.workflow_edges (
-          workflow_version_id,
-          edge_key,
-          from_node_id,
-          to_node_id,
-          edge_type,
-          display_order,
-          config
-        )
-        VALUES ($1, $2, $3, $4, 'SEQUENTIAL', $5, $6::jsonb)
-        RETURNING *
-      `,
-      [
-        workflowVersionId,
-        `${fromNode.nodeKey}_to_${toNode.nodeKey}`,
-        fromNode.workflowNodeId,
-        toNode.workflowNodeId,
-        (index + 1) * 10,
-        JSON.stringify({ label: 'then', createdBy: 'workflow_manager_v1' }),
-      ],
-    );
-    edges.push(camelizeRow(edgeResult.rows[0]));
-  }
+  const edges = await insertWorkflowEdges({
+    client,
+    workflowVersionId,
+    insertedNodes,
+    createdBy: 'workflow_manager_v1',
+  });
 
   await client.query(
     `
@@ -3414,6 +3529,51 @@ function buildConditionStopSummary({ definition, output, completedNodeCount, tot
   return `Workflow ${definition.displayName} stopped successfully by condition gate: ${output.summary || 'condition returned false'} (${skippedNodeCount} remaining node(s) skipped).`;
 }
 
+function getConditionBranchTargetKeyFromOutput(output = {}) {
+  return normalizeConditionBranchTargetNodeKey(output.branchTargetNodeKey || output.nextNodeKey || output.targetNodeKey);
+}
+
+function buildWorkflowExecutionPlan(nodes = []) {
+  const orderedNodes = getSafeArray(nodes);
+  const nodeIndexByKey = new Map();
+
+  orderedNodes.forEach((node, index) => {
+    nodeIndexByKey.set(node.nodeKey, index);
+  });
+
+  return {
+    nodes: orderedNodes,
+    nodeIndexByKey,
+  };
+}
+
+function resolveConditionBranchIndex({ output, currentIndex, executionPlan }) {
+  const branchTargetNodeKey = getConditionBranchTargetKeyFromOutput(output);
+
+  if (!branchTargetNodeKey) {
+    return null;
+  }
+
+  const targetIndex = executionPlan.nodeIndexByKey.get(branchTargetNodeKey);
+
+  if (!Number.isInteger(targetIndex)) {
+    throw new WorkflowServiceError('Condition branch target was not found in the workflow graph.', 500, {
+      branchTargetNodeKey,
+      output,
+    });
+  }
+
+  if (targetIndex <= currentIndex) {
+    throw new WorkflowServiceError('Condition branch target must point to a later node in the sequential lane.', 500, {
+      branchTargetNodeKey,
+      currentIndex,
+      targetIndex,
+    });
+  }
+
+  return targetIndex;
+}
+
 
 async function startWorkflowWithTemporal({
   workflowCode,
@@ -3544,7 +3704,12 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
   const startedAtMs = Date.now();
 
   try {
-    for (const node of definition.nodes) {
+    const executionPlan = buildWorkflowExecutionPlan(definition.nodes);
+    const conditionBranchRoutes = [];
+    let currentNodeIndex = 0;
+
+    while (currentNodeIndex < executionPlan.nodes.length) {
+      const node = executionPlan.nodes[currentNodeIndex];
       const nodeRun = await insertNodeRun({ workflowRunRecordId: run.workflowRunRecordId, node });
       const parameters = buildNodeParameters(node, input);
       const nodeContext = {
@@ -3556,6 +3721,7 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
           currentNodeKey: node.nodeKey,
         },
       };
+      let nextNodeIndex = currentNodeIndex + 1;
 
       try {
         const output = await executeNode({
@@ -3576,16 +3742,31 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
         nodeOutputsByKey[node.nodeKey] = output;
         previousNodeOutput = output;
 
-        if (node.nodeTypeCode === 'CONDITION' && output?.passed === false) {
-          const onFalse = getConditionOnFalseFromOutput(output);
+        if (node.nodeTypeCode === 'CONDITION') {
+          const branchTargetIndex = resolveConditionBranchIndex({
+            output,
+            currentIndex: currentNodeIndex,
+            executionPlan,
+          });
 
-          if (onFalse === 'FAIL_WORKFLOW') {
-            throw new WorkflowServiceError(output.summary || 'Workflow condition failed.', 500, output);
-          }
+          if (Number.isInteger(branchTargetIndex)) {
+            conditionBranchRoutes.push({
+              nodeKey: node.nodeKey,
+              branchLabel: output.branchLabel || (output.passed ? 'TRUE' : 'FALSE'),
+              targetNodeKey: output.branchTargetNodeKey,
+            });
+            nextNodeIndex = branchTargetIndex;
+          } else if (output?.passed === false) {
+            const onFalse = getConditionOnFalseFromOutput(output);
 
-          if (onFalse === 'STOP_SUCCESS') {
-            conditionStop = { output, nodeKey: node.nodeKey };
-            break;
+            if (onFalse === 'FAIL_WORKFLOW') {
+              throw new WorkflowServiceError(output.summary || 'Workflow condition failed.', 500, output);
+            }
+
+            if (onFalse === 'STOP_SUCCESS') {
+              conditionStop = { output, nodeKey: node.nodeKey };
+              break;
+            }
           }
         }
       } catch (nodeError) {
@@ -3601,6 +3782,8 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
         nodeRuns.push(failedNodeRun);
         throw nodeError;
       }
+
+      currentNodeIndex = nextNodeIndex;
     }
 
     const summary = conditionStop
@@ -3618,8 +3801,9 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
       metadata: {
         durationMs: Date.now() - startedAtMs,
         completedNodeCount: nodeRuns.length,
-        skippedNodeCount: conditionStop ? Math.max(0, definition.nodes.length - nodeRuns.length) : 0,
+        skippedNodeCount: conditionStop ? Math.max(0, definition.nodes.length - nodeRuns.length) : Math.max(0, definition.nodes.length - nodeRuns.length),
         conditionStopNodeKey: conditionStop?.nodeKey || null,
+        conditionBranchRoutes,
       },
     });
 

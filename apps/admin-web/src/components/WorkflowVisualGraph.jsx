@@ -84,6 +84,41 @@ function formatAction(value, fallback = '—') {
   return String(value || fallback).replace(/_/g, ' ').toLowerCase();
 }
 
+function getBranchTargetLabel(nodes = [], targetNodeKey = '') {
+  const target = nodes.find((node) => node.nodeKey === targetNodeKey);
+
+  return target?.displayName || targetNodeKey || 'next';
+}
+
+function getConditionBranchBadges(node = {}, nodes = []) {
+  if (normalizeNodeType(node.nodeTypeCode) !== 'CONDITION') {
+    return [];
+  }
+
+  const parameters = node.inputParameters || {};
+  const trueTargetNodeKey = String(parameters.trueTargetNodeKey || '').trim();
+  const falseTargetNodeKey = String(parameters.falseTargetNodeKey || '').trim();
+  const badges = [];
+
+  if (trueTargetNodeKey) {
+    badges.push({
+      label: 'TRUE',
+      value: getBranchTargetLabel(nodes, trueTargetNodeKey),
+      className: 'sky-pill-success',
+    });
+  }
+
+  if (falseTargetNodeKey) {
+    badges.push({
+      label: 'FALSE',
+      value: getBranchTargetLabel(nodes, falseTargetNodeKey),
+      className: 'sky-pill-warning',
+    });
+  }
+
+  return badges;
+}
+
 function getCatalogLabel(catalogs = {}, node = {}) {
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
 
@@ -127,11 +162,17 @@ function getNodeSummary(node, catalogs = {}) {
   return getCatalogLabel(catalogs, node);
 }
 
-function getNodeDetail(node) {
+function getNodeDetail(node, nodes = []) {
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
   const parameters = node.inputParameters || {};
 
   if (nodeTypeCode === 'CONDITION') {
+    const branchBadges = getConditionBranchBadges(node, nodes);
+
+    if (branchBadges.length > 0) {
+      return branchBadges.map((badge) => `${badge.label} → ${badge.value}`).join(' · ');
+    }
+
     return `False action: ${formatAction(parameters.onFalse, 'STOP_SUCCESS')}`;
   }
 
@@ -159,7 +200,7 @@ function getNodeDetail(node) {
   return node.description || 'Reusable tool primitive';
 }
 
-function getInspectorRows(node, catalogs = {}) {
+function getInspectorRows(node, catalogs = {}, nodes = []) {
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
   const parameters = node.inputParameters || {};
   const rows = [
@@ -191,9 +232,11 @@ function getInspectorRows(node, catalogs = {}) {
       ['Expression', getConditionExpressionSummary(parameters)],
       ['Left path', parameters.leftPath || '—'],
       ['Operator', parameters.operator || '—'],
-      ['Comparison value', parameters.compareValue || '—'],
+      ['Comparison value', parameters.rightValue || parameters.compareValue || '—'],
       ['Case sensitive', formatBooleanFlag(Boolean(parameters.caseSensitive))],
       ['When false', formatAction(parameters.onFalse, 'STOP_SUCCESS')],
+      ['True branch', parameters.trueTargetNodeKey ? getBranchTargetLabel(nodes, parameters.trueTargetNodeKey) : 'next sequential node'],
+      ['False branch', parameters.falseTargetNodeKey ? getBranchTargetLabel(nodes, parameters.falseTargetNodeKey) : 'false action'],
     );
     return rows;
   }
@@ -231,6 +274,7 @@ function WorkflowVisualNode({
   dropTarget,
   index,
   node,
+  nodes,
   catalogs,
   selected,
   onDragEnd,
@@ -244,7 +288,7 @@ function WorkflowVisualNode({
   const meta = getNodeTypeMeta(nodeTypeCode);
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${index + 1}`;
   const summary = getNodeSummary(node, catalogs);
-  const detail = getNodeDetail(node);
+  const detail = getNodeDetail(node, nodes);
 
   return (
     <button
@@ -269,6 +313,15 @@ function WorkflowVisualNode({
       <div className="sky-workflow-visual-key sky-mono">{node.nodeKey || `node_${index + 1}`}</div>
       <div className="sky-workflow-visual-summary sky-truncate">{summary}</div>
       <div className="sky-workflow-visual-detail sky-truncate">{detail}</div>
+      {getConditionBranchBadges(node, nodes).length > 0 ? (
+        <div className="sky-workflow-visual-branch-list">
+          {getConditionBranchBadges(node, nodes).map((branch) => (
+            <span className={`sky-pill ${branch.className}`} key={branch.label}>
+              {branch.label} → {branch.value}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {dragReorderEnabled ? <div className="sky-workflow-visual-drag-hint">Drag to reorder</div> : null}
     </button>
   );
@@ -306,7 +359,7 @@ function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = nul
   const node = nodes[selectedNodeIndex];
   const meta = getNodeTypeMeta(node.nodeTypeCode);
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${selectedNodeIndex + 1}`;
-  const rows = getInspectorRows(node, catalogs);
+  const rows = getInspectorRows(node, catalogs, nodes);
   const previousIndex = selectedNodeIndex - 1;
   const nextIndex = selectedNodeIndex + 1;
 
@@ -404,7 +457,8 @@ function WorkflowVisualGraph({
     workflowTargets,
     temporalWorkflowTargets,
   };
-  const totalEdges = Math.max(nodes.length - 1, 0);
+  const branchEdgeCount = nodes.reduce((count, node) => count + getConditionBranchBadges(node, nodes).length, 0);
+  const totalEdges = Math.max(nodes.length - 1, 0) + branchEdgeCount;
   const dragReorderEnabled = Boolean(onNodeReorder) && nodes.length > 1;
   const [draggedNodeIndex, setDraggedNodeIndex] = useState(null);
   const [dropTargetIndex, setDropTargetIndex] = useState(null);
@@ -477,6 +531,7 @@ function WorkflowVisualGraph({
           <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
           <span className="sky-pill sky-pill-info">{totalEdges} edge(s)</span>
           <span className="sky-pill sky-pill-success">Sequential lane</span>
+          {branchEdgeCount > 0 ? <span className="sky-pill sky-pill-warning">{branchEdgeCount} branch edge(s)</span> : null}
           {dragReorderEnabled ? <span className="sky-pill sky-pill-warning">Drag reorder</span> : null}
         </div>
       </div>
@@ -500,6 +555,7 @@ function WorkflowVisualGraph({
                   dropTarget={dropTargetIndex === index && draggedNodeIndex !== index}
                   index={index}
                   node={node}
+                  nodes={nodes}
                   onDragEnd={clearDragState}
                   onDragEnter={handleDragEnter}
                   onDragOver={handleDragOver}

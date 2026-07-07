@@ -1,3 +1,12 @@
+## Phase 10.29 - Condition Branch Edges v1
+- Added optional true/false branch target fields to CONDITION node parameters in Create Workflow and Manage Workflows.
+- Condition branch targets are forward-only and validated server-side to prevent missing targets, self-targets, and backward loops.
+- Workflow graph saves now persist conditional edges using the existing `CONDITIONAL` edge type alongside sequential edges.
+- Updated inline and Temporal-backed SkyServer workflow executors to route to selected condition branch targets after evaluation.
+- Condition output now records branch label, branch target node key, and branch-taken status for Workflow History/debugging.
+- Visual Workflow Graph now surfaces TRUE/FALSE branch badges and inspector rows for branch targets.
+- No DB migration or seed required.
+
 ## Phase 10.28 - Visual Drag Reorder
 - Added drag-and-drop reordering to the Admin-Web visual workflow map on Manage Workflows.
 - Visual node blocks can now be dragged onto another block to reorder the sequential execution lane before saving.
