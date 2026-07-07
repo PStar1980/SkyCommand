@@ -7,6 +7,8 @@ const DEFAULT_CONDITION_PARAMETERS = {
   rightType: 'AUTO',
   caseSensitive: false,
   onFalse: 'STOP_SUCCESS',
+  trueTargetNodeKey: '',
+  falseTargetNodeKey: '',
 };
 
 const CONDITION_OPERATORS = [
@@ -48,6 +50,8 @@ function normalizeConditionParameters(parameters = {}) {
     ...(parameters || {}),
     operator: String(parameters.operator || DEFAULT_CONDITION_PARAMETERS.operator).toUpperCase(),
     onFalse: String(parameters.onFalse || DEFAULT_CONDITION_PARAMETERS.onFalse).toUpperCase(),
+    trueTargetNodeKey: String(parameters.trueTargetNodeKey || parameters.trueTarget || '').trim(),
+    falseTargetNodeKey: String(parameters.falseTargetNodeKey || parameters.falseTarget || '').trim(),
     leftType: String(parameters.leftType || DEFAULT_CONDITION_PARAMETERS.leftType).toUpperCase(),
     rightType: String(parameters.rightType || DEFAULT_CONDITION_PARAMETERS.rightType).toUpperCase(),
     caseSensitive: parameters.caseSensitive === true || parameters.caseSensitive === 'true' || parameters.caseSensitive === '1',
@@ -71,6 +75,8 @@ function cleanConditionParameterValues(values = {}) {
     ? parameters.rightType
     : DEFAULT_CONDITION_PARAMETERS.rightType;
   const rightValue = String(parameters.rightValue ?? '').trim();
+  const trueTargetNodeKey = String(parameters.trueTargetNodeKey || '').trim();
+  const falseTargetNodeKey = String(parameters.falseTargetNodeKey || '').trim();
 
   if (!leftPath && !leftValue) {
     throw new Error('Condition nodes require a left path or left literal/fallback value.');
@@ -90,6 +96,8 @@ function cleanConditionParameterValues(values = {}) {
       rightType,
       caseSensitive: Boolean(parameters.caseSensitive),
       onFalse,
+      trueTargetNodeKey,
+      falseTargetNodeKey,
     }).filter(([, value]) => value !== undefined && value !== null && value !== ''),
   );
 }
@@ -106,7 +114,13 @@ function getConditionExpressionSummary(parameters = {}) {
   return `${left} ${operator?.label || 'compares to'} ${values.rightValue || 'value'}`;
 }
 
-function ConditionParameterEditor({ idPrefix = 'condition-parameter', parameters = {}, onChange }) {
+function getBranchTargetLabel(targetNodeKey, branchTargetOptions = []) {
+  const target = branchTargetOptions.find((item) => item.nodeKey === targetNodeKey);
+
+  return target?.label || targetNodeKey || 'next sequential node';
+}
+
+function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condition-parameter', parameters = {}, onChange }) {
   const values = normalizeConditionParameters(parameters);
   const unaryOperator = isUnaryOperator(values.operator);
 
@@ -214,9 +228,41 @@ function ConditionParameterEditor({ idPrefix = 'condition-parameter', parameters
           <label className="form-check-label" htmlFor={`${idPrefix}-caseSensitive`}>Case-sensitive string comparison</label>
         </div>
       </div>
+      <div className="col-lg-6">
+        <label className="form-label" htmlFor={`${idPrefix}-trueTargetNodeKey`}>When true, jump to</label>
+        <select
+          className="form-select sky-form-control"
+          id={`${idPrefix}-trueTargetNodeKey`}
+          onChange={(event) => patch({ trueTargetNodeKey: event.target.value })}
+          value={values.trueTargetNodeKey || ''}
+        >
+          <option value="">Next sequential node</option>
+          {branchTargetOptions.map((target) => (
+            <option key={target.nodeKey} value={target.nodeKey}>{target.label}</option>
+          ))}
+        </select>
+        <div className="form-text sky-muted">Optional forward branch. Blank keeps the normal sequential edge.</div>
+      </div>
+      <div className="col-lg-6">
+        <label className="form-label" htmlFor={`${idPrefix}-falseTargetNodeKey`}>When false, jump to</label>
+        <select
+          className="form-select sky-form-control"
+          id={`${idPrefix}-falseTargetNodeKey`}
+          onChange={(event) => patch({ falseTargetNodeKey: event.target.value })}
+          value={values.falseTargetNodeKey || ''}
+        >
+          <option value="">Use false action below</option>
+          {branchTargetOptions.map((target) => (
+            <option key={target.nodeKey} value={target.nodeKey}>{target.label}</option>
+          ))}
+        </select>
+        <div className="form-text sky-muted">Optional forward branch. When set, it overrides the false action.</div>
+      </div>
       <div className="col-12">
         <div className="sky-empty-state text-start py-3">
-          <span className="fw-semibold">Preview:</span> {getConditionExpressionSummary(values)}. If false: {CONDITION_FALSE_ACTIONS.find((action) => action.value === values.onFalse)?.label || values.onFalse}.
+          <span className="fw-semibold">Preview:</span> {getConditionExpressionSummary(values)}.
+          {' '}True: {getBranchTargetLabel(values.trueTargetNodeKey, branchTargetOptions)}.
+          {' '}False: {values.falseTargetNodeKey ? `jump to ${getBranchTargetLabel(values.falseTargetNodeKey, branchTargetOptions)}` : (CONDITION_FALSE_ACTIONS.find((action) => action.value === values.onFalse)?.label || values.onFalse)}.
         </div>
       </div>
     </div>

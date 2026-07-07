@@ -785,3 +785,17 @@ The Manage Workflows visual map can now reorder the existing sequential lane bef
 - Use Move left / Move right inspector controls for button-driven reorder.
 - Reordering updates the existing editor cards immediately, while **Save workflow graph** remains the explicit publish point.
 - The phase does not add true branch edges or change workflow execution semantics; it only changes the saved sequential node order after the operator saves.
+
+### Phase 10.29 — Condition branch edges v1
+
+SkyServer condition nodes can now route execution to a later node instead of only stopping, failing, or continuing sequentially.
+
+- Condition editors in Create Workflow and Manage Workflows now expose optional **When true, jump to** and **When false, jump to** target dropdowns.
+- Branch targets are limited to later nodes in the current sequential lane so Branching v1 cannot create self-targets or backward loops.
+- Saving a graph now persists conditional `worker.workflow_edges` alongside the normal sequential edges when branch targets are configured.
+- The inline executor and Temporal-backed executor route to the selected branch target after a condition resolves.
+- If no false branch target is configured, the existing false action behavior still applies: stop successfully, fail workflow, or continue anyway.
+- Workflow node output records the branch label, selected target node key, and branch summary for history/debugging.
+- The visual workflow map shows TRUE/FALSE branch badges and the inspector displays branch target details.
+- No DB migration is required; this uses the existing `CONDITIONAL` edge type and condition input parameters.
+

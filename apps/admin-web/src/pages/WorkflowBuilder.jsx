@@ -108,6 +108,22 @@ function cleanApiParameters(values = {}) {
   );
 }
 
+function getForwardBranchTargetOptions(nodes = [], currentIndex = 0) {
+  return nodes
+    .slice(currentIndex + 1)
+    .map((node, offset) => {
+      const originalIndex = currentIndex + offset + 1;
+      const nodeKey = nodeKeyFrom(node.nodeKey || node.displayName || node.targetCode || `node_${originalIndex + 1}`);
+      const displayName = String(node.displayName || nodeKey || `Node ${originalIndex + 1}`).trim();
+
+      return {
+        nodeKey,
+        label: `Node ${originalIndex + 1} · ${displayName} (${nodeKey})`,
+      };
+    })
+    .filter((target) => Boolean(target.nodeKey));
+}
+
 function ToolTargetOption({ tool }) {
   return (
     <option value={tool.targetCode}>
@@ -583,6 +599,7 @@ function WorkflowBuilderNodeCard({
             <>
               <div className="sky-page-kicker mb-2">Condition parameters</div>
               <ConditionParameterEditor
+                branchTargetOptions={getForwardBranchTargetOptions(nodes, index)}
                 idPrefix={`node-${index}-condition`}
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameters={node.inputParameters || {}}
