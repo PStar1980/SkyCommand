@@ -817,8 +817,13 @@ function WorkflowManager() {
     setEditorNodes((current) => current.map((node, nodeIndex) => (nodeIndex === index ? nextNode : node)));
   }
 
-  function handleVisualNodeSelect(index) {
+  function handleVisualNodeSelect(index, options = {}) {
     setSelectedVisualNodeIndex(index);
+
+    if (options.scrollToEditor === false) {
+      return;
+    }
+
     window.requestAnimationFrame(() => {
       document.getElementById(`workflow-editor-node-${index}`)?.scrollIntoView({
         behavior: 'smooth',
@@ -1262,6 +1267,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Clone workflow</span>
               <span className="sky-pill sky-pill-success">Save current graph</span>
               <span className="sky-pill sky-pill-success">Visual graph preview</span>
+              <span className="sky-pill sky-pill-success">Visual node inspector</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
               <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL nodes</span>
             </div>

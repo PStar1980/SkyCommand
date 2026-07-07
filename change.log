@@ -1,3 +1,10 @@
+## Phase 10.27 - Visual Node Inspector
+- Enhanced the Admin-Web visual workflow map with a selected-node inspector panel.
+- Inspector shows node key, node type, target/URL, condition expression, wait duration, approval role/timeout, and other behavior details based on node type.
+- Added Previous / Next / Jump to editor controls so operators can inspect the visual lane before editing the underlying card.
+- Updated Manage Workflows visual selection handling so inspector navigation can select nodes without forcing an editor scroll until requested.
+- No DB migration, seed, or executor behavior change required.
+
 ## Phase 10.26 - Visual Workflow Designer Foundation
 - Added a reusable Admin-Web WorkflowVisualGraph component for read-only sequential workflow visualization.
 - Manage Workflows now renders the current editable graph as connected visual node blocks above the existing card editor.
