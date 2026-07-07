@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.25 — Human Approval Nodes
+**Active status:** Phase 10.26 — Visual Workflow Designer Foundation
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -757,3 +757,14 @@ Existing DB patch:
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/migrations/00051__workflow_human_approval_requests.sql
 psql -h localhost -U postgres -d skyserver_dev -f packages/db_build/src/seeds/00052__workflow_human_approval_node_support_seed.sql
 ```
+
+
+### Phase 10.26 — Visual workflow designer foundation
+
+SkyServer Manage Workflows now includes a read-only visual workflow map above the existing sequential editor cards.
+
+- The visual map renders the current editable graph as connected node blocks.
+- Supported visual node types: `TOOL`, `API_CALL`, `WORKFLOW`, `TEMPORAL_WORKFLOW`, `CONDITION`, `WAIT`, and `HUMAN_APPROVAL`.
+- Sequential edges are drawn between nodes so operators can quickly read the execution lane before saving or starting a workflow.
+- Clicking a visual node scrolls to and highlights the matching editor card.
+- The card editor remains the source of truth for configuration and save behavior; this phase does not change DB schema or execution semantics.

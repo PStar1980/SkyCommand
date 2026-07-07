@@ -359,3 +359,21 @@ CONDITION
 WAIT
 HUMAN_APPROVAL
 ```
+
+## Phase 10.26 — Visual workflow designer foundation
+
+Status: implemented.
+
+Phase 10.26 adds the first visual workflow designer surface to **Workflows -> Manage** without changing the underlying executor model. The existing sequential editor cards remain the source of truth, while the new visual map provides a quick command-lane preview of the workflow graph.
+
+Delivered scope:
+
+- render workflow nodes as connected visual blocks;
+- show sequential edges between nodes;
+- label all currently supported node types: `TOOL`, `API_CALL`, `WORKFLOW`, `TEMPORAL_WORKFLOW`, `CONDITION`, `WAIT`, and `HUMAN_APPROVAL`;
+- show node summaries for targets, API calls, conditions, waits, and approval gates;
+- click a visual node to scroll to and highlight the matching editor card;
+- keep save behavior, graph JSON, DB schema, and runtime execution semantics unchanged.
+
+This is intentionally a visual foundation, not a full DAG editor. True branch edges and drag/reorder from the canvas should come after the sequential lane is stable.
+
