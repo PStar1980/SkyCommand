@@ -428,3 +428,21 @@ Delivered scope:
 - avoid DB migration and avoid arbitrary free-form DAG editing.
 
 Branching v1 is intentionally forward-only. Full visual DAG editing, merge nodes, loop control, and richer branch layout should remain future phases after the routed execution model is stable.
+
+
+## Phase 10.30 — Runtime status overlays
+
+Status: implemented.
+
+Phase 10.30 connects the visual workflow map to actual Workflow History runs. The designer remains editable only in Manage Workflows, while History gets a read-only runtime overlay for execution review.
+
+Delivered scope:
+
+- reuse the visual graph component in Workflow History for the selected run;
+- overlay node statuses from `worker.workflow_node_run_records` on the graph;
+- show run-level status, completed/active/failed/not-run counts, and Temporal-backed runtime status;
+- surface approval status, attempts, duration, output summaries, and error messages in the visual inspector;
+- highlight condition branch decisions from node output and annotate the edge after the condition node;
+- avoid DB migration, executor changes, and graph mutation from History.
+
+This phase is intentionally observability-only. Cancel/retry/terminate controls should remain a later operational phase.

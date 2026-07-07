@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
 const STATUS_OPTIONS = [
@@ -582,6 +583,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
@@ -589,6 +591,11 @@ function SkyWorkflows({ mode = 'start' }) {
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const selectedRelations = selectedRunDetail?.relations || {};
   const selectedRunTree = selectedRunDetail?.runTree || selectedRelations.runTree || null;
+  const runtimeVisualNodes = selectedRunDetail?.definitionGraph?.nodes?.length
+    ? selectedRunDetail.definitionGraph.nodes
+    : selectedDefinitionDetail?.nodes?.length
+      ? selectedDefinitionDetail.nodes
+      : selectedNodeRuns;
   const isHistoryMode = mode === 'history';
 
   const runStats = useMemo(() => {
@@ -747,6 +754,10 @@ function SkyWorkflows({ mode = 'start' }) {
     loadPage({ keepSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setSelectedRuntimeNodeIndex(null);
+  }, [selectedRun?.workflowRunRecordId]);
 
   const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
   const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
@@ -1100,6 +1111,29 @@ function SkyWorkflows({ mode = 'start' }) {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </section>
+
+
+              <section className="sky-card mb-4">
+                <div className="sky-card-body">
+                  {!selectedRun ? (
+                    <div className="sky-empty-state">Select a workflow run to view the runtime graph overlay.</div>
+                  ) : (
+                    <WorkflowVisualGraph
+                      approvals={selectedApprovals}
+                      headingKicker="Runtime status overlay"
+                      nodeRuns={selectedNodeRuns}
+                      nodes={runtimeVisualNodes}
+                      onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
+                      runStatus={selectedTemporalRuntime?.status || selectedRun.status}
+                      runtimeMode
+                      selectedNodeIndex={selectedRuntimeNodeIndex}
+                      subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
+                      temporalRuntime={selectedTemporalRuntime}
+                      title="Runtime workflow map"
+                    />
+                  )}
                 </div>
               </section>
 
