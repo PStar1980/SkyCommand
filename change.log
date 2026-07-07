@@ -1,3 +1,10 @@
+## Phase 10.26 - Visual Workflow Designer Foundation
+- Added a reusable Admin-Web WorkflowVisualGraph component for read-only sequential workflow visualization.
+- Manage Workflows now renders the current editable graph as connected visual node blocks above the existing card editor.
+- Visual blocks support TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, WAIT, and HUMAN_APPROVAL summaries.
+- Clicking a visual node scrolls to and highlights the matching editor card so the visual map can drive inspection without replacing the stable save controls.
+- No DB migration, seed, or executor behavior change required.
+
 ## Phase 10.25.2 - Human Approval Manage Workflow Render Hotfix
 - Fixed Admin-Web Manage Workflows blank screen when opening a workflow definition containing a `HUMAN_APPROVAL` node.
 - Passed DB-backed approval role targets into workflow node cards in both Manage Workflows and Create Workflow.

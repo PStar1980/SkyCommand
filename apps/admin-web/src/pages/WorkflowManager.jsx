@@ -19,6 +19,7 @@ import WaitParameterEditor, {
   DEFAULT_WAIT_PARAMETERS,
   formatWaitDuration,
 } from '../components/WaitParameterEditor.jsx';
+import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
 const DEFAULT_API_PARAMETERS = {
@@ -334,7 +335,7 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   );
 }
 
-function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
+function EditableNodeCard({ index, node, highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
@@ -469,7 +470,10 @@ function EditableNodeCard({ index, node, toolTargets = [], workflowTargets = [],
   }
 
   return (
-    <div className="sky-worker-command-card">
+    <div
+      className={`sky-worker-command-card ${highlighted ? 'sky-editor-node-highlight' : ''}`}
+      id={`workflow-editor-node-${index}`}
+    >
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
           <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'Human approval' : 'Tool'}</div>
@@ -690,6 +694,7 @@ function WorkflowManager() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [selectedVisualNodeIndex, setSelectedVisualNodeIndex] = useState(null);
 
   const toolTargets = useMemo(
     () => [...(catalog.toolTargets || [])].sort((a, b) => {
@@ -789,6 +794,7 @@ function WorkflowManager() {
         publish: true,
       });
       setEditorNodes(graphNodesToEditorNodes(definition.publishedGraph?.nodes || definition.latestGraph?.nodes || []));
+      setSelectedVisualNodeIndex(null);
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow detail.'));
     } finally {
@@ -811,7 +817,18 @@ function WorkflowManager() {
     setEditorNodes((current) => current.map((node, nodeIndex) => (nodeIndex === index ? nextNode : node)));
   }
 
+  function handleVisualNodeSelect(index) {
+    setSelectedVisualNodeIndex(index);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`workflow-editor-node-${index}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    });
+  }
+
   function addEditorNode(nodeTypeCode = 'TOOL') {
+    setSelectedVisualNodeIndex(null);
     setEditorNodes((current) => [
       ...current,
       nodeTypeCode === 'API_CALL'
@@ -873,10 +890,12 @@ function WorkflowManager() {
   }
 
   function removeEditorNode(index) {
+    setSelectedVisualNodeIndex(null);
     setEditorNodes((current) => current.filter((_, nodeIndex) => nodeIndex !== index));
   }
 
   function moveEditorNode(index, direction) {
+    setSelectedVisualNodeIndex(null);
     setEditorNodes((current) => {
       const next = [...current];
       const targetIndex = index + direction;
@@ -1174,7 +1193,7 @@ function WorkflowManager() {
           <div className="sky-page-kicker">Workflow lifecycle</div>
           <h2 className="h4 mb-2">Definition control center</h2>
           <p className="sky-muted mb-3">
-            Manage the current workflow graph and lifecycle before branching, approvals, agents, and the visual graph editor arrive. Child workflows let reusable business flows compose cleanly.
+            Manage the current workflow graph and lifecycle with a visual sequential map, approval gates, waits, and reusable child workflows.
           </p>
           <div className="sky-worker-command-strip">
             <div className="sky-worker-command-card">
@@ -1242,6 +1261,7 @@ function WorkflowManager() {
               <span className="sky-pill sky-pill-success">Edit metadata</span>
               <span className="sky-pill sky-pill-success">Clone workflow</span>
               <span className="sky-pill sky-pill-success">Save current graph</span>
+              <span className="sky-pill sky-pill-success">Visual graph preview</span>
               <span className="sky-pill sky-pill-success">Delete workflow</span>
               <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL nodes</span>
             </div>
@@ -1329,10 +1349,20 @@ function WorkflowManager() {
                   <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
-                  <div className="d-flex flex-column gap-3">
+                  <WorkflowVisualGraph
+                    nodes={editorNodes}
+                    onNodeSelect={handleVisualNodeSelect}
+                    selectedNodeIndex={selectedVisualNodeIndex}
+                    temporalWorkflowTargets={temporalWorkflowTargets}
+                    toolTargets={toolTargets}
+                    workflowTargets={workflowTargets}
+                  />
+
+                  <div className="d-flex flex-column gap-3 mt-4">
                     {editorNodes.map((node, index) => (
                       <EditableNodeCard
                         index={index}
+                        highlighted={selectedVisualNodeIndex === index}
                         key={`${index}-${node.nodeKey || node.targetCode}`}
                         node={node}
                         onChange={updateEditorNode}

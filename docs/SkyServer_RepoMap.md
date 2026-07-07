@@ -46,7 +46,8 @@ SkyServer/
 │   │       │   ├── Navbar.jsx
 │   │       │   ├── ProtectedRoute.jsx
 │   │       │   ├── ToolParameterEditor.jsx
-│   │       │   └── WaitParameterEditor.jsx
+│   │       │   ├── WaitParameterEditor.jsx
+│   │       │   └── WorkflowVisualGraph.jsx
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── pages/
