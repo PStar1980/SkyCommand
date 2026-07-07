@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.30 — Runtime Status Overlays
+**Active status:** Phase 10.31 — Run Controls
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -809,3 +809,14 @@ Workflow History now reuses the visual workflow map as a run-aware execution ove
 - Condition node runtime output highlights the branch decision and annotates the next edge with the branch label/target.
 - The overlay is read-only and does not change workflow graph saving, DB schema, or executor behavior.
 
+
+
+### Phase 10.31 — Run controls
+
+Workflow History now exposes operational controls for selected workflow runs.
+
+- Running or queued SkyServer workflow runs can be canceled from the run detail panel.
+- Running or queued Temporal-backed workflow runs can be terminated with a cleanup reason.
+- Failed, canceled, or terminated runs can be retried as a fresh Temporal-backed execution using the saved run input and current published workflow definition.
+- Run control requests update the SkyServer workflow ledger, finalize active node-run rows, cancel pending approval requests, and preserve Temporal warnings when a dev-server restart has already removed the Temporal execution.
+- No DB migration is required; the phase uses existing workflow run, node run, approval, and metadata columns.

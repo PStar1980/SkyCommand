@@ -341,6 +341,71 @@ async function getRun(req, res, next) {
   }
 }
 
+async function controlRun(req, res, next) {
+  try {
+    const result = await workflowExecutorService.requestWorkflowRunControlAction({
+      workflowRunRecordId: req.params.workflowRunRecordId,
+      action: req.params.action,
+      reason: req.body?.reason,
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+function cancelRun(req, res, next) {
+  req.params.action = 'cancel';
+  return controlRun(req, res, next);
+}
+
+function terminateRun(req, res, next) {
+  req.params.action = 'terminate';
+  return controlRun(req, res, next);
+}
+
+async function retryRun(req, res, next) {
+  try {
+    const context = authService.getRequestContext(req);
+    const result = await workflowExecutorService.retryWorkflowRun({
+      workflowRunRecordId: req.params.workflowRunRecordId,
+      user: req.user,
+      session: req.session,
+      permissions: req.permissions || [],
+      context,
+    });
+
+    res.status(202).json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
 
 async function listApprovals(req, res, next) {
   try {
@@ -420,6 +485,8 @@ module.exports = {
   getDefinition,
   getManagedDefinition,
   getRun,
+  controlRun,
+  cancelRun,
   listApprovals,
   decideApproval,
   approveApproval,
@@ -427,6 +494,8 @@ module.exports = {
   listDefinitions,
   listRuns,
   replaceDefinitionGraph,
+  retryRun,
   startWorkflow,
+  terminateRun,
   updateDefinition,
 };

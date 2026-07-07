@@ -140,6 +140,90 @@ function formatApiError(error, fallback = 'Request failed.') {
   return error?.message || fallback;
 }
 
+function isActiveRun(run) {
+  const status = String(run?.status || '').toUpperCase();
+  return status === 'RUNNING' || status === 'QUEUED';
+}
+
+function isRetryableRun(run) {
+  return ['FAILED', 'CANCELED', 'TERMINATED'].includes(String(run?.status || '').toUpperCase());
+}
+
+function WorkflowRunControls({
+  busyAction,
+  canCancel,
+  canTerminate,
+  canRetry,
+  onCancel,
+  onRetry,
+  onTerminate,
+  run,
+}) {
+  if (!run) {
+    return null;
+  }
+
+  const active = isActiveRun(run);
+  const retryable = isRetryableRun(run);
+  const busy = Boolean(busyAction);
+  const showControls = active || retryable;
+
+  if (!showControls) {
+    return null;
+  }
+
+  return (
+    <div className="sky-worker-command-card mb-3">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Run controls</div>
+          <div className="fw-bold">Operational command</div>
+          <p className="small sky-muted mb-0">
+            Cancel requests a graceful stop, terminate force-closes the Temporal execution, and retry starts a fresh run from the same workflow input.
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          {active && (
+            <button
+              className="btn btn-sm sky-btn-ghost"
+              disabled={!canCancel || busy}
+              onClick={onCancel}
+              type="button"
+            >
+              {busyAction === 'cancel' ? 'Canceling...' : 'Cancel run'}
+            </button>
+          )}
+          {active && (
+            <button
+              className="btn btn-sm btn-outline-danger"
+              disabled={!canTerminate || busy}
+              onClick={onTerminate}
+              type="button"
+            >
+              {busyAction === 'terminate' ? 'Terminating...' : 'Terminate'}
+            </button>
+          )}
+          {retryable && (
+            <button
+              className="btn btn-sm sky-btn-primary"
+              disabled={!canRetry || busy}
+              onClick={onRetry}
+              type="button"
+            >
+              {busyAction === 'retry' ? 'Starting retry...' : 'Retry run'}
+            </button>
+          )}
+        </div>
+      </div>
+      {((active && (!canCancel || !canTerminate)) || (retryable && !canRetry)) && (
+        <div className="small sky-muted mt-2">
+          Additional workflow or Temporal permissions may be required for unavailable actions.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WorkflowDefinitionCard({ definition, selected, onSelect }) {
   return (
     <button
@@ -572,6 +656,14 @@ function SkyWorkflows({ mode = 'start' }) {
     hasPermission('WORKFLOW_START') ||
     hasPermission('TEMPORAL_WORKFLOW_START') ||
     hasPermission('WORKER_SCHEDULE_RUN');
+  const canCancelRun =
+    hasPermission('WORKFLOW_CANCEL') ||
+    hasPermission('TEMPORAL_WORKFLOW_CANCEL') ||
+    hasPermission('WORKER_SCHEDULE_RUN');
+  const canTerminateRun =
+    hasPermission('WORKFLOW_CANCEL') ||
+    hasPermission('TEMPORAL_WORKFLOW_TERMINATE') ||
+    hasPermission('WORKER_ADMIN');
 
   const [definitions, setDefinitions] = useState([]);
   const [selectedDefinition, setSelectedDefinition] = useState(null);
@@ -581,6 +673,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [filters, setFilters] = useState({ status: '', limit: '25' });
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [runActionLoading, setRunActionLoading] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
@@ -744,6 +837,91 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
+  async function handleCancelRun() {
+    if (!selectedRun || !canCancelRun || !isActiveRun(selectedRun)) {
+      return;
+    }
+
+    const confirmed = window.confirm('Cancel this workflow run? Temporal will receive a graceful cancellation request when available.');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRunActionLoading('cancel');
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await workflowService.cancelRun(selectedRun.workflowRunRecordId, {
+        reason: 'Canceled from SkyServer Workflow History.',
+      });
+      setMessage(result.message || 'Workflow run canceled.');
+      await loadRuns(filters, { keepSelection: true });
+      await loadRunDetail(result.run?.workflowRunRecordId || selectedRun.workflowRunRecordId);
+    } catch (actionError) {
+      setError(formatApiError(actionError, 'Failed to cancel workflow run.'));
+    } finally {
+      setRunActionLoading('');
+    }
+  }
+
+  async function handleTerminateRun() {
+    if (!selectedRun || !canTerminateRun || !isActiveRun(selectedRun)) {
+      return;
+    }
+
+    const reason = window.prompt('Terminate this workflow run? Add a cleanup reason:', 'Terminated from SkyServer Workflow History.');
+
+    if (reason === null) {
+      return;
+    }
+
+    setRunActionLoading('terminate');
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await workflowService.terminateRun(selectedRun.workflowRunRecordId, { reason });
+      setMessage(result.message || 'Workflow run terminated.');
+      await loadRuns(filters, { keepSelection: true });
+      await loadRunDetail(result.run?.workflowRunRecordId || selectedRun.workflowRunRecordId);
+    } catch (actionError) {
+      setError(formatApiError(actionError, 'Failed to terminate workflow run.'));
+    } finally {
+      setRunActionLoading('');
+    }
+  }
+
+  async function handleRetryRun() {
+    if (!selectedRun || !canStart || !isRetryableRun(selectedRun)) {
+      return;
+    }
+
+    const confirmed = window.confirm('Retry this workflow run using the same saved input and current published workflow definition?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRunActionLoading('retry');
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await workflowService.retryRun(selectedRun.workflowRunRecordId);
+      setMessage(result.message || 'Workflow retry started.');
+      await loadRuns(filters, { keepSelection: false });
+      if (result.run?.workflowRunRecordId) {
+        await loadRunDetail(result.run.workflowRunRecordId);
+      }
+    } catch (actionError) {
+      setError(formatApiError(actionError, 'Failed to retry workflow run.'));
+    } finally {
+      setRunActionLoading('');
+    }
+  }
+
   function updateFilter(name, value) {
     const nextFilters = { ...filters, [name]: value };
     setFilters(nextFilters);
@@ -775,7 +953,7 @@ function SkyWorkflows({ mode = 'start' }) {
         </div>
         <button
           className="btn sky-btn-ghost"
-          disabled={loading || starting}
+          disabled={loading || starting || Boolean(runActionLoading)}
           onClick={() => loadPage()}
           type="button"
         >
@@ -973,6 +1151,16 @@ function SkyWorkflows({ mode = 'start' }) {
                         </>
                       )}
                     </dl>
+                    <WorkflowRunControls
+                      busyAction={runActionLoading}
+                      canCancel={canCancelRun}
+                      canRetry={canStart}
+                      canTerminate={canTerminateRun}
+                      onCancel={handleCancelRun}
+                      onRetry={handleRetryRun}
+                      onTerminate={handleTerminateRun}
+                      run={selectedRun}
+                    />
                     <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
                     <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>
                   </>

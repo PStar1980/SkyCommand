@@ -65,7 +65,21 @@ function getRun(workflowRunRecordId) {
   return api.get(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}`);
 }
 
+
+function cancelRun(workflowRunRecordId, payload = {}) {
+  return api.post(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/cancel`, payload);
+}
+
+function terminateRun(workflowRunRecordId, payload = {}) {
+  return api.post(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/terminate`, payload);
+}
+
+function retryRun(workflowRunRecordId, payload = {}) {
+  return api.post(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/retry`, payload);
+}
+
 const workflowService = {
+  cancelRun,
   archiveDefinition,
   cloneDefinition,
   createDefinition,
@@ -81,6 +95,8 @@ const workflowService = {
   listRuns,
   replaceGraph,
   startWorkflow,
+  terminateRun,
+  retryRun,
   updateDefinition,
 };
 
