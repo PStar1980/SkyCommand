@@ -1,3 +1,8 @@
+## Phase 10.29.1 - Condition Branch Render Hotfix
+- Fixed Admin-Web blank screen when adding or switching a node to `CONDITION` in Manage Workflows.
+- Passed the current workflow node list into Create Workflow and Manage Workflows node cards so condition branch target dropdowns can calculate forward branch options safely.
+- No DB migration, seed, or executor behavior change required.
+
 ## Phase 10.29 - Condition Branch Edges v1
 - Added optional true/false branch target fields to CONDITION node parameters in Create Workflow and Manage Workflows.
 - Condition branch targets are forward-only and validated server-side to prevent missing targets, self-targets, and backward loops.

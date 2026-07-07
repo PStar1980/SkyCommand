@@ -293,6 +293,7 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
 function WorkflowBuilderNodeCard({
   index,
   node,
+  allNodes = [],
   toolTargets = [],
   workflowTargets = [],
   temporalWorkflowTargets = [],
@@ -599,7 +600,7 @@ function WorkflowBuilderNodeCard({
             <>
               <div className="sky-page-kicker mb-2">Condition parameters</div>
               <ConditionParameterEditor
-                branchTargetOptions={getForwardBranchTargetOptions(nodes, index)}
+                branchTargetOptions={getForwardBranchTargetOptions(allNodes, index)}
                 idPrefix={`node-${index}-condition`}
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameters={node.inputParameters || {}}
@@ -1241,6 +1242,7 @@ function WorkflowBuilder() {
               <div className="sky-card-body d-flex flex-column gap-3">
                 {nodes.map((node, index) => (
                   <WorkflowBuilderNodeCard
+                    allNodes={nodes}
                     index={index}
                     key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`}
                     node={node}
