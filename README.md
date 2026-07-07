@@ -30,11 +30,11 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.28 — Visual Drag Reorder
+**Active status:** Phase 10.30 — Runtime Status Overlays
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
-Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while SkyServer workflows now compose tool primitives, execute through a Temporal-backed generic executor, expose domain-aware workflow history and Temporal diagnostics in Admin-Web, and include a visual Manage Workflows map with selected-node inspection and drag reorder of the sequential lane.
+Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while SkyServer workflows now compose tool primitives, execute through a Temporal-backed generic executor, expose domain-aware workflow history and Temporal diagnostics in Admin-Web, and include a visual Manage Workflows map with selected-node inspection, drag reorder of the sequential lane, condition branch edges, and run-aware status overlays in Workflow History.
 
 ## Core Product Surfaces
 
@@ -798,4 +798,14 @@ SkyServer condition nodes can now route execution to a later node instead of onl
 - Workflow node output records the branch label, selected target node key, and branch summary for history/debugging.
 - The visual workflow map shows TRUE/FALSE branch badges and the inspector displays branch target details.
 - No DB migration is required; this uses the existing `CONDITIONAL` edge type and condition input parameters.
+
+### Phase 10.30 — Runtime status overlays
+
+Workflow History now reuses the visual workflow map as a run-aware execution overlay.
+
+- The selected workflow run renders as a visual graph with node-level runtime status badges.
+- Completed, running, failed, pending approval, skipped/not-run, and terminated states are styled directly on the visual node blocks.
+- The visual inspector now includes runtime details such as attempts, duration, approval status, branch decisions, output summaries, and error messages.
+- Condition node runtime output highlights the branch decision and annotates the next edge with the branch label/target.
+- The overlay is read-only and does not change workflow graph saving, DB schema, or executor behavior.
 

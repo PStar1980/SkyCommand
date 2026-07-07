@@ -4319,10 +4319,11 @@ async function getWorkflowRun(workflowRunRecordId) {
     });
   }
 
-  const [nodeRuns, relations, approvals] = await Promise.all([
+  const [nodeRuns, relations, approvals, definitionGraph] = await Promise.all([
     getWorkflowNodeRunsForRun(workflowRunRecordId),
     getWorkflowRunRelations(run),
     getWorkflowApprovalRequestsForRun(workflowRunRecordId),
+    getWorkflowVersionGraph(run.workflowVersionId),
   ]);
 
   let temporalRuntime = null;
@@ -4350,6 +4351,7 @@ async function getWorkflowRun(workflowRunRecordId) {
     },
     nodeRuns,
     approvals,
+    definitionGraph,
     relations,
     runTree: relations.runTree,
     temporalRuntime,

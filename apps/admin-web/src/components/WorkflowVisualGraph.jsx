@@ -68,6 +68,242 @@ function getNodeTypeMeta(nodeTypeCode) {
   return metaByType[normalized] || metaByType.TOOL;
 }
 
+
+function normalizeRuntimeStatus(value, fallback = 'NOT_RUN') {
+  const normalized = String(value || fallback)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+
+  return normalized || fallback;
+}
+
+function getRuntimeStatusMeta(status) {
+  const normalized = normalizeRuntimeStatus(status);
+  const metaByStatus = {
+    COMPLETED: {
+      label: 'COMPLETED',
+      pillClassName: 'sky-pill-success',
+      nodeClassName: 'is-runtime-completed',
+      accentLabel: 'Completed',
+    },
+    SUCCESS: {
+      label: 'COMPLETED',
+      pillClassName: 'sky-pill-success',
+      nodeClassName: 'is-runtime-completed',
+      accentLabel: 'Completed',
+    },
+    APPROVED: {
+      label: 'APPROVED',
+      pillClassName: 'sky-pill-success',
+      nodeClassName: 'is-runtime-completed',
+      accentLabel: 'Approved',
+    },
+    RUNNING: {
+      label: 'RUNNING',
+      pillClassName: 'sky-pill-warning',
+      nodeClassName: 'is-runtime-running',
+      accentLabel: 'Running',
+    },
+    QUEUED: {
+      label: 'QUEUED',
+      pillClassName: 'sky-pill-warning',
+      nodeClassName: 'is-runtime-running',
+      accentLabel: 'Queued',
+    },
+    PENDING: {
+      label: 'PENDING',
+      pillClassName: 'sky-pill-warning',
+      nodeClassName: 'is-runtime-pending',
+      accentLabel: 'Pending',
+    },
+    PENDING_APPROVAL: {
+      label: 'WAITING APPROVAL',
+      pillClassName: 'sky-pill-warning',
+      nodeClassName: 'is-runtime-pending',
+      accentLabel: 'Waiting approval',
+    },
+    FAILED: {
+      label: 'FAILED',
+      pillClassName: 'sky-pill-danger',
+      nodeClassName: 'is-runtime-failed',
+      accentLabel: 'Failed',
+    },
+    REJECTED: {
+      label: 'REJECTED',
+      pillClassName: 'sky-pill-danger',
+      nodeClassName: 'is-runtime-failed',
+      accentLabel: 'Rejected',
+    },
+    TIMED_OUT: {
+      label: 'TIMED OUT',
+      pillClassName: 'sky-pill-danger',
+      nodeClassName: 'is-runtime-failed',
+      accentLabel: 'Timed out',
+    },
+    TERMINATED: {
+      label: 'TERMINATED',
+      pillClassName: 'sky-pill-danger',
+      nodeClassName: 'is-runtime-failed',
+      accentLabel: 'Terminated',
+    },
+    CANCELED: {
+      label: 'CANCELED',
+      pillClassName: 'sky-pill-danger',
+      nodeClassName: 'is-runtime-failed',
+      accentLabel: 'Canceled',
+    },
+    CANCELLED: {
+      label: 'CANCELED',
+      pillClassName: 'sky-pill-danger',
+      nodeClassName: 'is-runtime-failed',
+      accentLabel: 'Canceled',
+    },
+    SKIPPED: {
+      label: 'SKIPPED',
+      pillClassName: 'sky-pill-info',
+      nodeClassName: 'is-runtime-skipped',
+      accentLabel: 'Skipped',
+    },
+    NOT_RUN: {
+      label: 'NOT RUN',
+      pillClassName: 'sky-pill-info',
+      nodeClassName: 'is-runtime-not-run',
+      accentLabel: 'Not run',
+    },
+  };
+
+  return metaByStatus[normalized] || {
+    label: normalized.replace(/_/g, ' '),
+    pillClassName: 'sky-pill-info',
+    nodeClassName: 'is-runtime-unknown',
+    accentLabel: normalized.replace(/_/g, ' ').toLowerCase(),
+  };
+}
+
+function getDateDiffMs(start, end) {
+  const startDate = start ? new Date(start) : null;
+  const endDate = end ? new Date(end) : null;
+
+  if (!startDate || !endDate || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+
+  return Math.max(0, endDate.getTime() - startDate.getTime());
+}
+
+function formatRuntimeDuration(ms) {
+  const value = Number(ms);
+
+  if (!Number.isFinite(value)) {
+    return '—';
+  }
+
+  if (value < 1000) {
+    return `${Math.round(value)} ms`;
+  }
+
+  return `${(value / 1000).toFixed(1)} s`;
+}
+
+function getNodeRunDurationMs(nodeRun) {
+  return nodeRun?.metadata?.durationMs || getDateDiffMs(nodeRun?.startedAt || nodeRun?.createdAt, nodeRun?.completedAt);
+}
+
+function getNodeRunForNode(node = {}, nodeRuns = []) {
+  if (!nodeRuns.length) {
+    return null;
+  }
+
+  return nodeRuns.find((nodeRun) => nodeRun.nodeKey && nodeRun.nodeKey === node.nodeKey)
+    || nodeRuns.find((nodeRun) => node.workflowNodeId && nodeRun.workflowNodeId === node.workflowNodeId)
+    || null;
+}
+
+function getApprovalForNode({ node = {}, nodeRun = null, approvals = [] } = {}) {
+  if (!approvals.length) {
+    return null;
+  }
+
+  return approvals.find((approval) => nodeRun?.workflowNodeRunRecordId && approval.workflowNodeRunRecordId === nodeRun.workflowNodeRunRecordId)
+    || approvals.find((approval) => approval.nodeKey && approval.nodeKey === node.nodeKey)
+    || null;
+}
+
+function getRuntimeStatusForNode({ nodeRun = null, approval = null } = {}) {
+  if (approval?.status === 'PENDING') {
+    return 'PENDING_APPROVAL';
+  }
+
+  if (approval?.status === 'APPROVED' && nodeRun?.status === 'COMPLETED') {
+    return 'APPROVED';
+  }
+
+  if (approval?.status === 'REJECTED') {
+    return nodeRun?.status || 'REJECTED';
+  }
+
+  return nodeRun?.status || 'NOT_RUN';
+}
+
+function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null } = {}) {
+  const status = getRuntimeStatusForNode({ nodeRun, approval });
+  const meta = getRuntimeStatusMeta(status);
+  const durationMs = getNodeRunDurationMs(nodeRun);
+  const pieces = [];
+
+  if (nodeRun?.attemptCount !== undefined && nodeRun?.attemptCount !== null) {
+    pieces.push(`Attempts ${nodeRun.attemptCount}`);
+  }
+
+  if (durationMs !== null && durationMs !== undefined) {
+    pieces.push(`Duration ${formatRuntimeDuration(durationMs)}`);
+  }
+
+  if (approval?.status) {
+    pieces.push(`Approval ${String(approval.status).toLowerCase()}`);
+  }
+
+  if (nodeRun?.output?.branchTaken) {
+    pieces.push(`Branch ${nodeRun.output.branchLabel || ''}`.trim());
+  }
+
+  if (nodeRun?.errorMessage) {
+    pieces.push('Has error');
+  }
+
+  return {
+    ...meta,
+    status,
+    detail: pieces.join(' · ') || (nodeRun ? 'Runtime captured' : 'No node run recorded'),
+    nodeRun,
+    approval,
+    node,
+  };
+}
+
+function getRuntimeBranchOverlay({ fromNode = {}, nodeRun = null, nodes = [] } = {}) {
+  if (normalizeNodeType(fromNode.nodeTypeCode) !== 'CONDITION' || !nodeRun?.output) {
+    return null;
+  }
+
+  const output = nodeRun.output;
+  const branchLabel = String(output.branchLabel || (output.passed ? 'TRUE' : 'FALSE')).toUpperCase();
+  const branchTargetNodeKey = output.branchTargetNodeKey || null;
+
+  if (!branchLabel || branchLabel === 'NULL') {
+    return null;
+  }
+
+  return {
+    label: branchLabel,
+    target: branchTargetNodeKey ? getBranchTargetLabel(nodes, branchTargetNodeKey) : (output.passed ? 'next' : formatAction(output.onFalse, 'false action')),
+    branchTaken: Boolean(output.branchTaken),
+    className: branchLabel === 'TRUE' ? 'sky-pill-success' : 'sky-pill-warning',
+  };
+}
+
 function getApiSummary(node) {
   const parameters = node.inputParameters || {};
   const method = String(parameters.method || 'GET').toUpperCase();
@@ -269,13 +505,16 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
 }
 
 function WorkflowVisualNode({
+  approval,
   dragging,
   dragReorderEnabled,
   dropTarget,
   index,
   node,
+  nodeRun,
   nodes,
   catalogs,
+  runtimeMode,
   selected,
   onDragEnd,
   onDragEnter,
@@ -289,11 +528,12 @@ function WorkflowVisualNode({
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${index + 1}`;
   const summary = getNodeSummary(node, catalogs);
   const detail = getNodeDetail(node, nodes);
+  const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval }) : null;
 
   return (
     <button
       aria-label={`Select workflow node ${index + 1}: ${title}`}
-      className={`sky-workflow-visual-node ${meta.className} ${selected ? 'is-selected' : ''} ${dragging ? 'is-dragging' : ''} ${dropTarget ? 'is-drop-target' : ''}`}
+      className={`sky-workflow-visual-node ${meta.className} ${runtimeOverlay?.nodeClassName || ''} ${selected ? 'is-selected' : ''} ${dragging ? 'is-dragging' : ''} ${dropTarget ? 'is-drop-target' : ''}`}
       draggable={dragReorderEnabled}
       onClick={() => onSelect?.(index, { scrollToEditor: true })}
       onDragEnd={onDragEnd}
@@ -306,7 +546,10 @@ function WorkflowVisualNode({
     >
       <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
         <div className="sky-workflow-visual-marker" aria-hidden="true">{meta.marker}</div>
-        <span className={`sky-pill ${meta.pillClassName}`}>{meta.badge}</span>
+        <span className="d-flex flex-column align-items-end gap-1">
+          <span className={`sky-pill ${meta.pillClassName}`}>{meta.badge}</span>
+          {runtimeOverlay ? <span className={`sky-pill ${runtimeOverlay.pillClassName}`}>{runtimeOverlay.label}</span> : null}
+        </span>
       </div>
       <div className="sky-page-kicker mb-1">Node {index + 1} · {meta.label}</div>
       <div className="sky-workflow-visual-title">{title}</div>
@@ -322,22 +565,37 @@ function WorkflowVisualNode({
           ))}
         </div>
       ) : null}
+      {runtimeOverlay ? (
+        <div className="sky-workflow-runtime-overlay">
+          <div className="sky-page-kicker">Runtime</div>
+          <div>{runtimeOverlay.detail}</div>
+          {nodeRun?.errorMessage ? <div className="sky-workflow-runtime-error">{nodeRun.errorMessage}</div> : null}
+        </div>
+      ) : null}
       {dragReorderEnabled ? <div className="sky-workflow-visual-drag-hint">Drag to reorder</div> : null}
     </button>
   );
 }
 
-function WorkflowVisualEdge({ index }) {
+function WorkflowVisualEdge({ fromNode, index, nodeRun, nodes, runtimeMode }) {
+  const runtimeBranch = runtimeMode ? getRuntimeBranchOverlay({ fromNode, nodeRun, nodes }) : null;
+  const label = runtimeBranch
+    ? `${runtimeBranch.branchTaken ? 'taken ' : ''}${runtimeBranch.label} → ${runtimeBranch.target}`
+    : 'next';
+
   return (
-    <div className="sky-workflow-visual-edge" aria-label={`Sequential edge after node ${index + 1}`}>
+    <div
+      className={`sky-workflow-visual-edge ${runtimeBranch ? 'is-runtime-branch' : ''} ${runtimeBranch?.branchTaken ? 'is-runtime-branch-taken' : ''}`}
+      aria-label={`Sequential edge after node ${index + 1}`}
+    >
       <div className="sky-workflow-visual-edge-line" />
       <div className="sky-workflow-visual-edge-arrow">→</div>
-      <div className="sky-workflow-visual-edge-label">next</div>
+      <div className="sky-workflow-visual-edge-label">{label}</div>
     </div>
   );
 }
 
-function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = null, onNodeMove, onNodeSelect }) {
+function WorkflowVisualInspector({ approvals = [], catalogs, nodeRuns = [], nodes = [], runtimeMode = false, selectedNodeIndex = null, onNodeMove, onNodeSelect }) {
   const hasSelection = Number.isInteger(selectedNodeIndex)
     && selectedNodeIndex >= 0
     && selectedNodeIndex < nodes.length;
@@ -357,9 +615,21 @@ function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = nul
   }
 
   const node = nodes[selectedNodeIndex];
+  const nodeRun = getNodeRunForNode(node, nodeRuns);
+  const approval = getApprovalForNode({ node, nodeRun, approvals });
+  const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval }) : null;
   const meta = getNodeTypeMeta(node.nodeTypeCode);
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${selectedNodeIndex + 1}`;
   const rows = getInspectorRows(node, catalogs, nodes);
+  const runtimeRows = runtimeOverlay
+    ? [
+        ['Run status', runtimeOverlay.label],
+        ['Attempts', nodeRun?.attemptCount ?? '—'],
+        ['Duration', formatRuntimeDuration(getNodeRunDurationMs(nodeRun))],
+        ['Approval status', approval?.status || '—'],
+        ['Branch taken', nodeRun?.output?.branchTaken ? `${nodeRun.output.branchLabel || ''} → ${nodeRun.output.branchTargetNodeKey || 'next'}` : '—'],
+      ]
+    : [];
   const previousIndex = selectedNodeIndex - 1;
   const nextIndex = selectedNodeIndex + 1;
 
@@ -371,17 +641,34 @@ function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = nul
           <h4 className="h6 mb-1">{title}</h4>
           <p className="sky-muted mb-0">{getNodeSummary(node, catalogs)}</p>
         </div>
-        <span className={`sky-pill ${meta.pillClassName}`}>{meta.badge}</span>
+        <span className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${meta.pillClassName}`}>{meta.badge}</span>
+          {runtimeOverlay ? <span className={`sky-pill ${runtimeOverlay.pillClassName}`}>{runtimeOverlay.label}</span> : null}
+        </span>
       </div>
 
       <div className="sky-workflow-visual-inspector-grid">
-        {rows.map(([label, value]) => (
+        {[...rows, ...runtimeRows].map(([label, value]) => (
           <div className="sky-workflow-visual-inspector-row" key={label}>
             <div className="sky-page-kicker">{label}</div>
             <div className="sky-workflow-visual-inspector-value sky-mono">{String(value || '—')}</div>
           </div>
         ))}
       </div>
+
+      {runtimeOverlay?.nodeRun?.output?.summary ? (
+        <div className="sky-workflow-visual-inspector-note mt-3">
+          <div className="sky-page-kicker mb-1">Runtime summary</div>
+          <p className="mb-0">{runtimeOverlay.nodeRun.output.summary}</p>
+        </div>
+      ) : null}
+
+      {runtimeOverlay?.nodeRun?.errorMessage ? (
+        <div className="sky-workflow-visual-inspector-note sky-workflow-visual-inspector-error mt-3">
+          <div className="sky-page-kicker mb-1">Runtime error</div>
+          <p className="mb-0">{runtimeOverlay.nodeRun.errorMessage}</p>
+        </div>
+      ) : null}
 
       {node.description ? (
         <div className="sky-workflow-visual-inspector-note mt-3">
@@ -443,7 +730,15 @@ function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = nul
 }
 
 function WorkflowVisualGraph({
+  approvals = [],
+  headingKicker,
+  nodeRuns = [],
   nodes = [],
+  runStatus = '',
+  runtimeMode = false,
+  subtitle,
+  temporalRuntime = null,
+  title,
   toolTargets = [],
   workflowTargets = [],
   temporalWorkflowTargets = [],
@@ -460,6 +755,34 @@ function WorkflowVisualGraph({
   const branchEdgeCount = nodes.reduce((count, node) => count + getConditionBranchBadges(node, nodes).length, 0);
   const totalEdges = Math.max(nodes.length - 1, 0) + branchEdgeCount;
   const dragReorderEnabled = Boolean(onNodeReorder) && nodes.length > 1;
+  const runtimeOverlays = runtimeMode
+    ? nodes.map((node) => {
+        const nodeRun = getNodeRunForNode(node, nodeRuns);
+        const approval = getApprovalForNode({ node, nodeRun, approvals });
+        return getRuntimeOverlay({ node, nodeRun, approval });
+      })
+    : [];
+  const runtimeCounts = runtimeOverlays.reduce((counts, overlay) => {
+    const status = normalizeRuntimeStatus(overlay?.status);
+
+    if (['COMPLETED', 'SUCCESS', 'APPROVED'].includes(status)) {
+      counts.completed += 1;
+    } else if (['RUNNING', 'QUEUED', 'PENDING', 'PENDING_APPROVAL'].includes(status)) {
+      counts.active += 1;
+    } else if (['FAILED', 'REJECTED', 'TIMED_OUT', 'TERMINATED', 'CANCELED', 'CANCELLED'].includes(status)) {
+      counts.failed += 1;
+    } else {
+      counts.notRun += 1;
+    }
+
+    return counts;
+  }, { completed: 0, active: 0, failed: 0, notRun: 0 });
+  const runStatusMeta = runtimeMode ? getRuntimeStatusMeta(runStatus || temporalRuntime?.status || 'UNKNOWN') : null;
+  const resolvedHeadingKicker = headingKicker || (runtimeMode ? 'Runtime status overlay' : 'Visual designer foundation');
+  const resolvedTitle = title || (runtimeMode ? 'Runtime workflow map' : 'Sequential workflow map');
+  const resolvedSubtitle = subtitle || (runtimeMode
+    ? 'Run-aware visual map with node status, approval waits, failures, and condition branch decisions overlaid on the workflow graph.'
+    : 'Live visual preview with node inspection and drag reorder. Save the graph to publish the new sequential order.');
   const [draggedNodeIndex, setDraggedNodeIndex] = useState(null);
   const [dropTargetIndex, setDropTargetIndex] = useState(null);
 
@@ -521,17 +844,20 @@ function WorkflowVisualGraph({
     <div className="sky-workflow-visual-shell">
       <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Visual designer foundation</div>
-          <h3 className="h5 mb-1">Sequential workflow map</h3>
-          <p className="sky-muted mb-0">
-            Live visual preview with node inspection and drag reorder. Save the graph to publish the new sequential order.
-          </p>
+          <div className="sky-page-kicker">{resolvedHeadingKicker}</div>
+          <h3 className="h5 mb-1">{resolvedTitle}</h3>
+          <p className="sky-muted mb-0">{resolvedSubtitle}</p>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
           <span className="sky-pill sky-pill-info">{totalEdges} edge(s)</span>
           <span className="sky-pill sky-pill-success">Sequential lane</span>
           {branchEdgeCount > 0 ? <span className="sky-pill sky-pill-warning">{branchEdgeCount} branch edge(s)</span> : null}
+          {runtimeMode && runStatusMeta ? <span className={`sky-pill ${runStatusMeta.pillClassName}`}>Run {runStatusMeta.label}</span> : null}
+          {runtimeMode ? <span className="sky-pill sky-pill-success">{runtimeCounts.completed} completed</span> : null}
+          {runtimeMode && runtimeCounts.active > 0 ? <span className="sky-pill sky-pill-warning">{runtimeCounts.active} active</span> : null}
+          {runtimeMode && runtimeCounts.failed > 0 ? <span className="sky-pill sky-pill-danger">{runtimeCounts.failed} issue(s)</span> : null}
+          {runtimeMode && runtimeCounts.notRun > 0 ? <span className="sky-pill sky-pill-info">{runtimeCounts.notRun} not run</span> : null}
           {dragReorderEnabled ? <span className="sky-pill sky-pill-warning">Drag reorder</span> : null}
         </div>
       </div>
@@ -545,17 +871,25 @@ function WorkflowVisualGraph({
               Drag a visual block onto another block to move it into that position. The editor cards below update immediately; execution changes only after you save the workflow graph.
             </div>
           ) : null}
+          {runtimeMode ? (
+            <div className="sky-workflow-visual-runtime-note mb-3">
+              Runtime overlay is read-only. Completed, running, failed, pending approval, skipped, and branch-taken states come from the selected workflow run ledger.
+            </div>
+          ) : null}
           <div className="sky-workflow-visual-map" role="list" aria-label="Sequential workflow visual map">
             {nodes.map((node, index) => (
               <div className="sky-workflow-visual-step" key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`} role="listitem">
                 <WorkflowVisualNode
+                  approval={runtimeMode ? getApprovalForNode({ node, nodeRun: getNodeRunForNode(node, nodeRuns), approvals }) : null}
                   catalogs={catalogs}
                   dragging={draggedNodeIndex === index}
                   dragReorderEnabled={dragReorderEnabled}
                   dropTarget={dropTargetIndex === index && draggedNodeIndex !== index}
                   index={index}
                   node={node}
+                  nodeRun={runtimeMode ? getNodeRunForNode(node, nodeRuns) : null}
                   nodes={nodes}
+                  runtimeMode={runtimeMode}
                   onDragEnd={clearDragState}
                   onDragEnter={handleDragEnter}
                   onDragOver={handleDragOver}
@@ -564,14 +898,25 @@ function WorkflowVisualGraph({
                   onSelect={onNodeSelect}
                   selected={selectedNodeIndex === index}
                 />
-                {index < nodes.length - 1 ? <WorkflowVisualEdge index={index} /> : null}
+                {index < nodes.length - 1 ? (
+                  <WorkflowVisualEdge
+                    fromNode={node}
+                    index={index}
+                    nodeRun={runtimeMode ? getNodeRunForNode(node, nodeRuns) : null}
+                    nodes={nodes}
+                    runtimeMode={runtimeMode}
+                  />
+                ) : null}
               </div>
             ))}
           </div>
 
           <WorkflowVisualInspector
+            approvals={approvals}
             catalogs={catalogs}
+            nodeRuns={nodeRuns}
             nodes={nodes}
+            runtimeMode={runtimeMode}
             onNodeMove={onNodeMove}
             onNodeSelect={onNodeSelect}
             selectedNodeIndex={selectedNodeIndex}

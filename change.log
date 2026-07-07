@@ -1,3 +1,11 @@
+# Phase 10.30 — Runtime Status Overlays
+
+- Reused the visual workflow graph on Workflow History as a read-only runtime overlay for the selected run.
+- Added node-level runtime badges and styling for completed, running, pending approval, failed, terminated, skipped/not-run, and unknown node states.
+- Added runtime metrics to the visual inspector, including attempts, duration, approval status, branch decision, output summary, and node error text.
+- Highlighted condition branch decisions on the visual edge after the condition node when execution output records a selected branch.
+- Kept the overlay observability-only: no DB migration, no executor/runtime changes, and no graph mutation from History.
+
 ## Phase 10.29.1 - Condition Branch Render Hotfix
 - Fixed Admin-Web blank screen when adding or switching a node to `CONDITION` in Manage Workflows.
 - Passed the current workflow node list into Create Workflow and Manage Workflows node cards so condition branch target dropdowns can calculate forward branch options safely.
