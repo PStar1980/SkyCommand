@@ -1,3 +1,13 @@
+# Phase 10.31 — Run Controls
+
+- Added SkyServer workflow run control API endpoints for cancel, terminate, and retry from Workflow History.
+- Cancel and terminate requests now call Temporal when a linked workflow execution exists, then update the SkyServer workflow ledger.
+- Added safe local-ledger fallback when a Temporal execution is no longer available after local dev-server restarts.
+- Active workflow node runs are finalized as CANCELED or TERMINATED during run-control cleanup, and pending human approvals are canceled.
+- Failed, canceled, or terminated workflow runs can now be retried as a fresh Temporal-backed execution using the original saved input and retry lineage metadata.
+- Added permission-aware Workflow History controls for Cancel run, Terminate, and Retry run.
+- No DB migration required.
+
 # Phase 10.30 — Runtime Status Overlays
 
 - Reused the visual workflow graph on Workflow History as a read-only runtime overlay for the selected run.

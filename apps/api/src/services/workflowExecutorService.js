@@ -15,6 +15,8 @@ const DEFAULT_CONDITION_ON_FALSE = 'STOP_SUCCESS';
 const DEFAULT_WAIT_DURATION_MS = 1000;
 const MAX_WAIT_DURATION_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HUMAN_APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const ACTIVE_RUN_STATUSES = new Set(['QUEUED', 'RUNNING']);
+const RETRYABLE_RUN_STATUSES = new Set(['FAILED', 'CANCELED', 'TERMINATED']);
 const MAX_HUMAN_APPROVAL_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
 const HUMAN_APPROVAL_DECISION_SIGNAL = 'humanApprovalDecision';
 const WAIT_UNIT_MULTIPLIERS_MS = {
@@ -1780,6 +1782,276 @@ async function failWorkflowRun({ workflowRunRecordId, summary, metadata = {} }) 
     summary,
     metadata,
   });
+}
+
+
+function isActiveRunStatus(status) {
+  return ACTIVE_RUN_STATUSES.has(String(status || '').trim().toUpperCase());
+}
+
+function isRetryableRunStatus(status) {
+  return RETRYABLE_RUN_STATUSES.has(String(status || '').trim().toUpperCase());
+}
+
+function isTemporalWorkflowNotFoundError(error) {
+  const text = String(error?.message || error || '').toLowerCase();
+
+  return text.includes('not found') || text.includes('workflow not found') || text.includes('workflow execution already completed');
+}
+
+function buildRunControlSummary({ action, run, reason, temporalWarning }) {
+  const normalizedAction = String(action || '').toLowerCase();
+  const label = normalizedAction === 'terminate' ? 'terminated' : 'canceled';
+  const parts = [`Workflow ${run.workflowDisplayName || run.workflowCode} ${label} from SkyServer Workflow History.`];
+
+  if (reason) {
+    parts.push(`Reason: ${reason}`);
+  }
+
+  if (temporalWarning) {
+    parts.push(`Temporal warning: ${temporalWarning}`);
+  }
+
+  return parts.join(' ');
+}
+
+async function cancelPendingWorkflowApprovalsForRun({ workflowRunRecordId, user, reason, metadata = {} }) {
+  const result = await query(
+    `
+      UPDATE worker.workflow_approval_requests
+      SET status = 'CANCELED',
+          decided_at = COALESCE(decided_at, CURRENT_TIMESTAMP),
+          decided_by_user_id = COALESCE($2, decided_by_user_id),
+          decision_note = COALESCE(NULLIF($3, ''), decision_note),
+          metadata = metadata || $4::jsonb
+      WHERE workflow_run_record_id = $1
+        AND status = 'PENDING'
+      RETURNING *
+    `,
+    [
+      workflowRunRecordId,
+      user?.userId || null,
+      reason || 'Run control action canceled the pending approval request.',
+      JSON.stringify(getSafeObject(metadata)),
+    ],
+  );
+
+  return result.rows.map((row) => camelizeRow(row));
+}
+
+async function finalizeActiveNodeRunsForRun({ workflowRunRecordId, status, summary, metadata = {} }) {
+  const result = await query(
+    `
+      UPDATE worker.workflow_node_run_records
+      SET status = $2,
+          completed_at = CURRENT_TIMESTAMP,
+          error_message = COALESCE(error_message, $3),
+          metadata = metadata || $4::jsonb
+      WHERE workflow_run_record_id = $1
+        AND status IN ('QUEUED', 'RUNNING')
+      RETURNING *
+    `,
+    [workflowRunRecordId, status, summary || null, JSON.stringify(getSafeObject(metadata))],
+  );
+
+  return result.rows.map(normalizeNodeRunRow);
+}
+
+async function requestWorkflowRunControlAction({
+  workflowRunRecordId,
+  action,
+  reason = '',
+  user,
+} = {}) {
+  const normalizedAction = String(action || '').trim().toLowerCase();
+
+  if (!['cancel', 'terminate'].includes(normalizedAction)) {
+    throw new WorkflowServiceError('Unsupported workflow run control action.', 400, {
+      action,
+      allowed: ['cancel', 'terminate'],
+    });
+  }
+
+  const run = await getWorkflowRunById(workflowRunRecordId);
+
+  if (!run) {
+    throw new WorkflowServiceError('Workflow run was not found.', 404, {
+      workflowRunRecordId,
+    });
+  }
+
+  if (!isActiveRunStatus(run.status)) {
+    throw new WorkflowServiceError('Only queued or running workflow runs can be controlled.', 409, {
+      workflowRunRecordId,
+      status: run.status,
+      action: normalizedAction,
+    });
+  }
+
+  const requestedAt = new Date().toISOString();
+  const normalizedReason = String(reason || '').trim().slice(0, 1000);
+  let temporalResult = null;
+  let temporalWarning = null;
+
+  if (run.temporalWorkflowId) {
+    try {
+      temporalResult = normalizedAction === 'terminate'
+        ? await temporalService.terminateWorkflow({
+          workflowId: run.temporalWorkflowId,
+          runId: run.temporalRunId,
+          reason: normalizedReason || 'Terminated from SkyServer Workflow History run controls.',
+          actor: user,
+        })
+        : await temporalService.cancelWorkflow({
+          workflowId: run.temporalWorkflowId,
+          runId: run.temporalRunId,
+          actor: user,
+        });
+    } catch (error) {
+      if (!isTemporalWorkflowNotFoundError(error)) {
+        throw new WorkflowServiceError(`Temporal ${normalizedAction} request failed.`, 502, {
+          workflowRunRecordId,
+          temporalWorkflowId: run.temporalWorkflowId,
+          temporalRunId: run.temporalRunId,
+          error: error.message || String(error),
+        });
+      }
+
+      temporalWarning = `Temporal execution was not found; SkyServer ledger was updated locally. ${error.message || String(error)}`;
+    }
+  } else {
+    temporalWarning = 'Run has no linked Temporal workflow ID; SkyServer ledger was updated locally.';
+  }
+
+  const finalStatus = normalizedAction === 'terminate' ? 'TERMINATED' : 'CANCELED';
+  const controlMetadata = {
+    runControlAction: normalizedAction,
+    runControlStatus: finalStatus,
+    runControlRequestedAt: requestedAt,
+    runControlRequestedByUserId: user?.userId || null,
+    runControlRequestedByDisplayName: user?.displayName || user?.email || null,
+    runControlReason: normalizedReason || null,
+    temporalWorkflowId: run.temporalWorkflowId || null,
+    temporalRunId: run.temporalRunId || null,
+    temporalControlWarning: temporalWarning,
+    temporalControlResult: temporalResult
+      ? {
+        action: temporalResult.action,
+        workflowId: temporalResult.workflowId,
+        runId: temporalResult.runId,
+        requestedAt: temporalResult.requestedAt,
+        namespace: temporalResult.namespace,
+      }
+      : null,
+  };
+  const summary = buildRunControlSummary({
+    action: normalizedAction,
+    run,
+    reason: normalizedReason,
+    temporalWarning,
+  });
+  const [nodeRuns, approvals] = await Promise.all([
+    finalizeActiveNodeRunsForRun({
+      workflowRunRecordId: run.workflowRunRecordId,
+      status: finalStatus,
+      summary,
+      metadata: controlMetadata,
+    }),
+    cancelPendingWorkflowApprovalsForRun({
+      workflowRunRecordId: run.workflowRunRecordId,
+      user,
+      reason: summary,
+      metadata: controlMetadata,
+    }),
+  ]);
+  const updatedRun = await updateWorkflowRun({
+    workflowRunRecordId: run.workflowRunRecordId,
+    status: finalStatus,
+    summary,
+    metadata: controlMetadata,
+  });
+
+  return {
+    ok: true,
+    action: normalizedAction,
+    run: updatedRun,
+    nodeRuns,
+    approvals,
+    temporalResult,
+    warning: temporalWarning,
+    message: summary,
+  };
+}
+
+async function retryWorkflowRun({
+  workflowRunRecordId,
+  user,
+  session,
+  permissions = [],
+  context = {},
+} = {}) {
+  const run = await getWorkflowRunById(workflowRunRecordId);
+
+  if (!run) {
+    throw new WorkflowServiceError('Workflow run was not found.', 404, {
+      workflowRunRecordId,
+    });
+  }
+
+  if (!isRetryableRunStatus(run.status)) {
+    throw new WorkflowServiceError('Only failed, canceled, or terminated workflow runs can be retried.', 409, {
+      workflowRunRecordId,
+      status: run.status,
+    });
+  }
+
+  const retryInput = {
+    ...getSafeObject(run.input),
+    runSource: 'manual',
+    triggerType: 'MANUAL',
+    retryOfWorkflowRunRecordId: run.workflowRunRecordId,
+    retryOfWorkflowCode: run.workflowCode,
+    retryOfStatus: run.status,
+    retryRequestedAt: new Date().toISOString(),
+  };
+
+  delete retryInput.parentWorkflowRunRecordId;
+  delete retryInput.parentWorkflowCode;
+  delete retryInput.parentNodeKey;
+
+  const result = await startWorkflowWithTemporal({
+    workflowCode: run.workflowCode,
+    input: retryInput,
+    user,
+    session,
+    permissions,
+    context,
+  });
+
+  let retryRun = result.run;
+
+  if (retryRun?.workflowRunRecordId) {
+    retryRun = await updateWorkflowRun({
+      workflowRunRecordId: retryRun.workflowRunRecordId,
+      status: retryRun.status || 'RUNNING',
+      summary: `${retryRun.summary || result.message || 'Workflow retry started.'} Retry of run ${run.workflowRunRecordId}.`,
+      metadata: {
+        retryOfWorkflowRunRecordId: run.workflowRunRecordId,
+        retryOfWorkflowCode: run.workflowCode,
+        retryOfStatus: run.status,
+        retryRequestedByUserId: user?.userId || null,
+        retryRequestedAt: retryInput.retryRequestedAt,
+      },
+    });
+  }
+
+  return {
+    ...result,
+    retried: true,
+    originalRun: run,
+    run: retryRun || result.run,
+    message: `Retry started for ${run.workflowDisplayName || run.workflowCode}.`,
+  };
 }
 
 async function runToolNode({ node, parameters, user, session, permissions, context }) {
@@ -4373,6 +4645,8 @@ module.exports = {
   executeWorkflowNode,
   failWorkflowNodeRun,
   failWorkflowRun,
+  requestWorkflowRunControlAction,
+  retryWorkflowRun,
   getWorkflowDefinition,
   getWorkflowDefinitionForManage,
   getWorkflowRun,

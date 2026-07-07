@@ -446,3 +446,22 @@ Delivered scope:
 - avoid DB migration, executor changes, and graph mutation from History.
 
 This phase is intentionally observability-only. Cancel/retry/terminate controls should remain a later operational phase.
+
+
+## Phase 10.31 — Run controls
+
+Status: implemented.
+
+Phase 10.31 adds the first operational command surface to Workflow History. The selected run detail panel can now control live or failed executions without requiring manual SQL cleanup or direct Temporal CLI usage for normal cases.
+
+Delivered scope:
+
+- add SkyServer workflow-run API endpoints for cancel, terminate, and retry;
+- cancel or terminate linked Temporal executions when a Temporal workflow ID is present;
+- safely fall back to local ledger cleanup when a Temporal dev-server restart means the execution is no longer visible;
+- mark active node runs as `CANCELED` or `TERMINATED` and cancel pending approval requests during run control cleanup;
+- retry failed, canceled, or terminated runs as a new Temporal-backed execution using the original saved input plus retry lineage metadata;
+- add Workflow History buttons for Cancel run, Terminate, and Retry run with permission-aware disabling and success/error messages;
+- avoid DB migration by using the existing workflow run, node run, approval, and metadata columns.
+
+This phase moves SkyServer from passive observability into controlled operations. Future hardening can add deeper retry policies, per-node replay, and bulk cleanup tooling.

@@ -63,6 +63,25 @@ router.get(
 );
 
 
+router.post(
+  '/runs/:workflowRunRecordId/cancel',
+  requireAnyPermission(['WORKFLOW_CANCEL', 'TEMPORAL_WORKFLOW_CANCEL', 'WORKER_SCHEDULE_RUN']),
+  workflowController.cancelRun,
+);
+
+router.post(
+  '/runs/:workflowRunRecordId/terminate',
+  requireAnyPermission(['WORKFLOW_CANCEL', 'TEMPORAL_WORKFLOW_TERMINATE', 'WORKER_ADMIN']),
+  workflowController.terminateRun,
+);
+
+router.post(
+  '/runs/:workflowRunRecordId/retry',
+  requireAnyPermission(['WORKFLOW_START', 'TEMPORAL_WORKFLOW_START', 'WORKER_SCHEDULE_RUN']),
+  workflowController.retryRun,
+);
+
+
 router.get(
   '/definitions/:workflowCode/manage',
   requireAnyPermission(['WORKFLOW_WRITE', 'WORKFLOW_READ']),
