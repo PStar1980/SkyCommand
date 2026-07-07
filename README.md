@@ -30,11 +30,11 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.27 — Visual Node Inspector
+**Active status:** Phase 10.28 — Visual Drag Reorder
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
-Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while SkyServer workflows now compose tool primitives, execute through a Temporal-backed generic executor, expose domain-aware workflow history and Temporal diagnostics in Admin-Web, and include a visual Manage Workflows map with selected-node inspection.
+Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while SkyServer workflows now compose tool primitives, execute through a Temporal-backed generic executor, expose domain-aware workflow history and Temporal diagnostics in Admin-Web, and include a visual Manage Workflows map with selected-node inspection and drag reorder of the sequential lane.
 
 ## Core Product Surfaces
 
@@ -768,3 +768,20 @@ SkyServer Manage Workflows now includes a read-only visual workflow map above th
 - Sequential edges are drawn between nodes so operators can quickly read the execution lane before saving or starting a workflow.
 - Clicking a visual node scrolls to and highlights the matching editor card.
 - The card editor remains the source of truth for configuration and save behavior; this phase does not change DB schema or execution semantics.
+
+### Phase 10.27 — Visual node inspector
+
+The Manage Workflows visual map now includes an inspector panel for the selected visual node.
+
+- Clicking a visual node selects it and shows node-specific target, behavior, timeout, condition, wait, or approval details.
+- Previous / Next / Jump to editor controls let operators move through the visual lane before editing the detailed card below.
+- The inspector is read-only and does not change DB schema or runtime execution semantics.
+
+### Phase 10.28 — Visual drag reorder
+
+The Manage Workflows visual map can now reorder the existing sequential lane before save.
+
+- Drag a visual node block onto another block to move it within the sequential graph.
+- Use Move left / Move right inspector controls for button-driven reorder.
+- Reordering updates the existing editor cards immediately, while **Save workflow graph** remains the explicit publish point.
+- The phase does not add true branch edges or change workflow execution semantics; it only changes the saved sequential node order after the operator saves.

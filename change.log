@@ -1,3 +1,10 @@
+## Phase 10.28 - Visual Drag Reorder
+- Added drag-and-drop reordering to the Admin-Web visual workflow map on Manage Workflows.
+- Visual node blocks can now be dragged onto another block to reorder the sequential execution lane before saving.
+- Added Move left / Move right controls in the visual node inspector for keyboard/button-driven reorder.
+- Reordering updates the existing editor cards immediately while preserving Save workflow graph as the publish point.
+- No DB migration, seed, or executor behavior change required.
+
 ## Phase 10.27 - Visual Node Inspector
 - Enhanced the Admin-Web visual workflow map with a selected-node inspector panel.
 - Inspector shows node key, node type, target/URL, condition expression, wait duration, approval role/timeout, and other behavior details based on node type.

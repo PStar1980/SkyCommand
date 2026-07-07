@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { getConditionExpressionSummary } from './ConditionParameterEditor.jsx';
 import { getHumanApprovalSummary } from './HumanApprovalParameterEditor.jsx';
 import { formatWaitDuration } from './WaitParameterEditor.jsx';
@@ -224,7 +225,21 @@ function getInspectorRows(node, catalogs = {}) {
   return rows;
 }
 
-function WorkflowVisualNode({ index, node, catalogs, selected, onSelect }) {
+function WorkflowVisualNode({
+  dragging,
+  dragReorderEnabled,
+  dropTarget,
+  index,
+  node,
+  catalogs,
+  selected,
+  onDragEnd,
+  onDragEnter,
+  onDragOver,
+  onDragStart,
+  onDrop,
+  onSelect,
+}) {
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
   const meta = getNodeTypeMeta(nodeTypeCode);
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${index + 1}`;
@@ -234,8 +249,15 @@ function WorkflowVisualNode({ index, node, catalogs, selected, onSelect }) {
   return (
     <button
       aria-label={`Select workflow node ${index + 1}: ${title}`}
-      className={`sky-workflow-visual-node ${meta.className} ${selected ? 'is-selected' : ''}`}
+      className={`sky-workflow-visual-node ${meta.className} ${selected ? 'is-selected' : ''} ${dragging ? 'is-dragging' : ''} ${dropTarget ? 'is-drop-target' : ''}`}
+      draggable={dragReorderEnabled}
       onClick={() => onSelect?.(index, { scrollToEditor: true })}
+      onDragEnd={onDragEnd}
+      onDragEnter={(event) => onDragEnter?.(event, index)}
+      onDragOver={(event) => onDragOver?.(event, index)}
+      onDragStart={(event) => onDragStart?.(event, index)}
+      onDrop={(event) => onDrop?.(event, index)}
+      title={dragReorderEnabled ? 'Drag this node to reorder the sequential lane.' : undefined}
       type="button"
     >
       <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
@@ -247,6 +269,7 @@ function WorkflowVisualNode({ index, node, catalogs, selected, onSelect }) {
       <div className="sky-workflow-visual-key sky-mono">{node.nodeKey || `node_${index + 1}`}</div>
       <div className="sky-workflow-visual-summary sky-truncate">{summary}</div>
       <div className="sky-workflow-visual-detail sky-truncate">{detail}</div>
+      {dragReorderEnabled ? <div className="sky-workflow-visual-drag-hint">Drag to reorder</div> : null}
     </button>
   );
 }
@@ -261,7 +284,7 @@ function WorkflowVisualEdge({ index }) {
   );
 }
 
-function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = null, onNodeSelect }) {
+function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = null, onNodeMove, onNodeSelect }) {
   const hasSelection = Number.isInteger(selectedNodeIndex)
     && selectedNodeIndex >= 0
     && selectedNodeIndex < nodes.length;
@@ -333,6 +356,26 @@ function WorkflowVisualInspector({ catalogs, nodes = [], selectedNodeIndex = nul
           >
             Next
           </button>
+          {onNodeMove ? (
+            <>
+              <button
+                className="btn btn-sm sky-btn-ghost"
+                disabled={previousIndex < 0}
+                onClick={() => onNodeMove?.(selectedNodeIndex, -1)}
+                type="button"
+              >
+                Move left
+              </button>
+              <button
+                className="btn btn-sm sky-btn-ghost"
+                disabled={nextIndex >= nodes.length}
+                onClick={() => onNodeMove?.(selectedNodeIndex, 1)}
+                type="button"
+              >
+                Move right
+              </button>
+            </>
+          ) : null}
           <button
             className="btn btn-sm sky-btn-primary"
             onClick={() => onNodeSelect?.(selectedNodeIndex, { scrollToEditor: true })}
@@ -352,6 +395,8 @@ function WorkflowVisualGraph({
   workflowTargets = [],
   temporalWorkflowTargets = [],
   selectedNodeIndex = null,
+  onNodeMove,
+  onNodeReorder,
   onNodeSelect,
 }) {
   const catalogs = {
@@ -360,6 +405,63 @@ function WorkflowVisualGraph({
     temporalWorkflowTargets,
   };
   const totalEdges = Math.max(nodes.length - 1, 0);
+  const dragReorderEnabled = Boolean(onNodeReorder) && nodes.length > 1;
+  const [draggedNodeIndex, setDraggedNodeIndex] = useState(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState(null);
+
+  function clearDragState() {
+    setDraggedNodeIndex(null);
+    setDropTargetIndex(null);
+  }
+
+  function handleDragStart(event, index) {
+    if (!dragReorderEnabled) {
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+    setDraggedNodeIndex(index);
+    setDropTargetIndex(index);
+    onNodeSelect?.(index, { scrollToEditor: false });
+  }
+
+  function handleDragEnter(event, index) {
+    if (!dragReorderEnabled || draggedNodeIndex === null) {
+      return;
+    }
+
+    event.preventDefault();
+    setDropTargetIndex(index);
+  }
+
+  function handleDragOver(event, index) {
+    if (!dragReorderEnabled || draggedNodeIndex === null) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDropTargetIndex(index);
+  }
+
+  function handleDrop(event, targetIndex) {
+    if (!dragReorderEnabled) {
+      return;
+    }
+
+    event.preventDefault();
+    const sourceText = event.dataTransfer.getData('text/plain');
+    const sourceIndex = Number.isInteger(draggedNodeIndex) ? draggedNodeIndex : Number.parseInt(sourceText, 10);
+
+    clearDragState();
+
+    if (!Number.isInteger(sourceIndex) || sourceIndex === targetIndex) {
+      return;
+    }
+
+    onNodeReorder?.(sourceIndex, targetIndex);
+  }
 
   return (
     <div className="sky-workflow-visual-shell">
@@ -368,13 +470,14 @@ function WorkflowVisualGraph({
           <div className="sky-page-kicker">Visual designer foundation</div>
           <h3 className="h5 mb-1">Sequential workflow map</h3>
           <p className="sky-muted mb-0">
-            Live visual preview with node inspection. Click a block to select it, then jump to the matching editor card below.
+            Live visual preview with node inspection and drag reorder. Save the graph to publish the new sequential order.
           </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
           <span className="sky-pill sky-pill-info">{totalEdges} edge(s)</span>
           <span className="sky-pill sky-pill-success">Sequential lane</span>
+          {dragReorderEnabled ? <span className="sky-pill sky-pill-warning">Drag reorder</span> : null}
         </div>
       </div>
 
@@ -382,13 +485,26 @@ function WorkflowVisualGraph({
         <div className="sky-empty-state">Add nodes below to preview the workflow lane.</div>
       ) : (
         <>
+          {dragReorderEnabled ? (
+            <div className="sky-workflow-visual-reorder-note mb-3">
+              Drag a visual block onto another block to move it into that position. The editor cards below update immediately; execution changes only after you save the workflow graph.
+            </div>
+          ) : null}
           <div className="sky-workflow-visual-map" role="list" aria-label="Sequential workflow visual map">
             {nodes.map((node, index) => (
               <div className="sky-workflow-visual-step" key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`} role="listitem">
                 <WorkflowVisualNode
                   catalogs={catalogs}
+                  dragging={draggedNodeIndex === index}
+                  dragReorderEnabled={dragReorderEnabled}
+                  dropTarget={dropTargetIndex === index && draggedNodeIndex !== index}
                   index={index}
                   node={node}
+                  onDragEnd={clearDragState}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragStart={handleDragStart}
+                  onDrop={handleDrop}
                   onSelect={onNodeSelect}
                   selected={selectedNodeIndex === index}
                 />
@@ -400,6 +516,7 @@ function WorkflowVisualGraph({
           <WorkflowVisualInspector
             catalogs={catalogs}
             nodes={nodes}
+            onNodeMove={onNodeMove}
             onNodeSelect={onNodeSelect}
             selectedNodeIndex={selectedNodeIndex}
           />
