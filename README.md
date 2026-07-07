@@ -30,11 +30,11 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.26 — Visual Workflow Designer Foundation
+**Active status:** Phase 10.27 — Visual Node Inspector
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
-Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while SkyServer workflows now compose tool primitives, execute through a Temporal-backed generic executor, and expose domain-aware workflow history and Temporal diagnostics in Admin-Web.
+Phase 10 introduces a side-by-side **Temporal workflow orchestration** lane. The existing worker/tool infrastructure remains intact while SkyServer workflows now compose tool primitives, execute through a Temporal-backed generic executor, expose domain-aware workflow history and Temporal diagnostics in Admin-Web, and include a visual Manage Workflows map with selected-node inspection.
 
 ## Core Product Surfaces
 
