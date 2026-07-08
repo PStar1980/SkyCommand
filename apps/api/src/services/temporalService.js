@@ -1136,29 +1136,193 @@ function getTemporalEventAttributes(event = {}) {
   return attributeKey ? event[attributeKey] || {} : {};
 }
 
+function getTemporalFailureMessage(failure = {}) {
+  if (!failure || typeof failure !== 'object') {
+    return null;
+  }
+
+  const messages = [];
+  let current = failure;
+  let depth = 0;
+
+  while (current && typeof current === 'object' && depth < 4) {
+    const message = current.message
+      || current.applicationFailureInfo?.type
+      || current.timeoutFailureInfo?.timeoutType
+      || current.canceledFailureInfo?.details
+      || null;
+
+    if (message) {
+      messages.push(String(message));
+    }
+
+    current = current.cause;
+    depth += 1;
+  }
+
+  return messages.filter(Boolean).join(' → ') || null;
+}
+
+function getTemporalEventCategory(type) {
+  if (/FAILED|TIMED_OUT|TERMINATED/.test(type)) {
+    return 'danger';
+  }
+
+  if (/CANCELED|CANCEL_REQUESTED/.test(type)) {
+    return 'warning';
+  }
+
+  if (/COMPLETED|FIRED|STARTED|SIGNALED/.test(type)) {
+    return 'success';
+  }
+
+  return 'info';
+}
+
+function getTemporalAttributeText(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  if (value.name) {
+    return String(value.name);
+  }
+
+  if (value.workflowId || value.runId) {
+    return [value.workflowId, value.runId].filter(Boolean).join(' / ');
+  }
+
+  return null;
+}
+
+function getTemporalEventIdentity(attributes = {}) {
+  return attributes.activityId
+    || attributes.timerId
+    || attributes.signalName
+    || attributes.workflowExecution?.workflowId
+    || attributes.childWorkflowExecution?.workflowId
+    || attributes.initiatedEventId
+    || null;
+}
+
+function getTemporalEventTarget(attributes = {}) {
+  return attributes.activityType?.name
+    || attributes.activityType
+    || attributes.workflowType?.name
+    || attributes.workflowType
+    || attributes.taskQueue?.name
+    || attributes.taskQueue
+    || null;
+}
+
 function getTemporalEventSummary(event = {}) {
   const type = normalizeTemporalEventType(event);
   const attributes = getTemporalEventAttributes(event);
-  const activityType = attributes.activityType?.name || attributes.activityType || null;
-  const workflowType = attributes.workflowType?.name || attributes.workflowType || null;
+  const target = getTemporalEventTarget(attributes);
+  const identity = getTemporalEventIdentity(attributes);
+  const failureMessage = getTemporalFailureMessage(attributes.failure);
+  const reason = attributes.reason || attributes.message || null;
+  const retryState = attributes.retryState || attributes.retry_state || null;
 
-  if (activityType) {
-    return `${type}: ${activityType}`;
+  if (failureMessage) {
+    return `${type}${target ? ` · ${target}` : ''}${identity ? ` (${identity})` : ''}: ${failureMessage}${retryState ? ` · retry ${retryState}` : ''}`;
   }
 
-  if (workflowType) {
-    return `${type}: ${workflowType}`;
+  if (type === 'WORKFLOW_EXECUTION_STARTED') {
+    return `Workflow started${target ? ` · ${target}` : ''}${attributes.taskQueue?.name || attributes.taskQueue ? ` on ${getTemporalAttributeText(attributes.taskQueue)}` : ''}.`;
   }
 
-  if (attributes.reason) {
-    return `${type}: ${attributes.reason}`;
+  if (type === 'WORKFLOW_EXECUTION_COMPLETED') {
+    return 'Workflow completed successfully.';
   }
 
-  if (attributes.message) {
-    return `${type}: ${attributes.message}`;
+  if (type === 'WORKFLOW_EXECUTION_FAILED') {
+    return reason ? `Workflow failed: ${reason}` : 'Workflow failed.';
+  }
+
+  if (type === 'WORKFLOW_EXECUTION_CANCELED') {
+    return reason ? `Workflow canceled: ${reason}` : 'Workflow canceled.';
+  }
+
+  if (type === 'WORKFLOW_EXECUTION_TERMINATED') {
+    return reason ? `Workflow terminated: ${reason}` : 'Workflow terminated.';
+  }
+
+  if (type === 'WORKFLOW_EXECUTION_SIGNALED') {
+    return `Signal received${attributes.signalName ? ` · ${attributes.signalName}` : ''}.`;
+  }
+
+  if (type === 'ACTIVITY_TASK_SCHEDULED') {
+    return `Activity scheduled${target ? ` · ${target}` : ''}${identity ? ` (${identity})` : ''}.`;
+  }
+
+  if (type === 'ACTIVITY_TASK_STARTED') {
+    return `Activity started${identity ? ` · ${identity}` : ''}${attributes.attempt ? ` · attempt ${attributes.attempt}` : ''}.`;
+  }
+
+  if (type === 'ACTIVITY_TASK_COMPLETED') {
+    return `Activity completed${identity ? ` · ${identity}` : ''}.`;
+  }
+
+  if (type === 'ACTIVITY_TASK_FAILED') {
+    return `Activity failed${target ? ` · ${target}` : ''}${identity ? ` (${identity})` : ''}.`;
+  }
+
+  if (type === 'ACTIVITY_TASK_TIMED_OUT') {
+    return `Activity timed out${identity ? ` · ${identity}` : ''}.`;
+  }
+
+  if (type === 'TIMER_STARTED') {
+    return `Timer started${identity ? ` · ${identity}` : ''}${attributes.startToFireTimeout ? ` for ${attributes.startToFireTimeout}` : ''}.`;
+  }
+
+  if (type === 'TIMER_FIRED') {
+    return `Timer fired${identity ? ` · ${identity}` : ''}.`;
+  }
+
+  if (type.startsWith('CHILD_WORKFLOW_EXECUTION')) {
+    return `${type.replace(/_/g, ' ')}${target ? ` · ${target}` : ''}${identity ? ` (${identity})` : ''}.`;
+  }
+
+  if (target) {
+    return `${type}: ${target}${identity ? ` (${identity})` : ''}`;
+  }
+
+  if (reason) {
+    return `${type}: ${reason}`;
   }
 
   return type;
+}
+
+function getTemporalEventDiagnostic(event = {}) {
+  const type = normalizeTemporalEventType(event);
+  const attributes = getTemporalEventAttributes(event);
+  const failureMessage = getTemporalFailureMessage(attributes.failure);
+  const target = getTemporalEventTarget(attributes);
+  const identity = getTemporalEventIdentity(attributes);
+
+  return {
+    eventId: event.eventId ? String(event.eventId) : null,
+    eventTime: serializeTemporalTimestamp(event.eventTime),
+    eventType: type,
+    category: getTemporalEventCategory(type),
+    summary: getTemporalEventSummary(event),
+    target: getTemporalAttributeText(target),
+    identity: getTemporalAttributeText(identity),
+    failureMessage,
+    retryState: attributes.retryState || attributes.retry_state || null,
+    rawAttributeKeys: Object.keys(attributes || {}).sort(),
+  };
+}
+
+function isNotableTemporalEvent(event = {}) {
+  const type = normalizeTemporalEventType(event);
+  return /FAILED|TIMED_OUT|CANCELED|CANCEL_REQUESTED|TERMINATED|SIGNALED|CHILD_WORKFLOW|TIMER/.test(type);
 }
 
 function summarizeTemporalHistoryEvents(events = []) {
@@ -1178,9 +1342,12 @@ function summarizeTemporalHistoryEvents(events = []) {
     failed: 0,
     timedOut: 0,
   };
+  const signalCounts = {};
+  const issueEvents = [];
 
   for (const event of events) {
     const type = normalizeTemporalEventType(event);
+    const attributes = getTemporalEventAttributes(event);
     eventCounts[type] = (eventCounts[type] || 0) + 1;
 
     if (type === 'ACTIVITY_TASK_SCHEDULED') {
@@ -1205,22 +1372,129 @@ function summarizeTemporalHistoryEvents(events = []) {
       workflowTaskCounts.failed += 1;
     } else if (type === 'WORKFLOW_TASK_TIMED_OUT') {
       workflowTaskCounts.timedOut += 1;
+    } else if (type === 'WORKFLOW_EXECUTION_SIGNALED') {
+      const signalName = attributes.signalName || 'UNKNOWN_SIGNAL';
+      signalCounts[signalName] = (signalCounts[signalName] || 0) + 1;
+    }
+
+    if (/FAILED|TIMED_OUT|CANCELED|TERMINATED/.test(type)) {
+      issueEvents.push(getTemporalEventDiagnostic(event));
     }
   }
 
-  const latestEvents = events.slice(-12).map((event) => ({
-    eventId: event.eventId ? String(event.eventId) : null,
-    eventTime: serializeTemporalTimestamp(event.eventTime),
-    eventType: normalizeTemporalEventType(event),
-    summary: getTemporalEventSummary(event),
-  }));
+  const eventDiagnostics = events.map(getTemporalEventDiagnostic);
+  const latestEvents = eventDiagnostics.slice(-20);
+  const notableEvents = eventDiagnostics.filter((event) => isNotableTemporalEvent({
+    eventType: event.eventType,
+    eventId: event.eventId,
+  })).slice(-20);
 
   return {
     eventCount: events.length,
     eventCounts,
     activityCounts,
     workflowTaskCounts,
+    signalCounts,
+    issueSummary: {
+      failed: issueEvents.filter((event) => /FAILED/.test(event.eventType)).length,
+      timedOut: issueEvents.filter((event) => /TIMED_OUT/.test(event.eventType)).length,
+      canceled: issueEvents.filter((event) => /CANCELED/.test(event.eventType)).length,
+      terminated: issueEvents.filter((event) => /TERMINATED/.test(event.eventType)).length,
+      total: issueEvents.length,
+    },
     latestEvents,
+    notableEvents,
+    issueEvents: issueEvents.slice(-20),
+  };
+}
+
+function buildTemporalCliCommand({ command, address, namespace, workflowId, runId, reason } = {}) {
+  const parts = [
+    'temporal',
+    'workflow',
+    command,
+    '--address',
+    address || DEFAULT_TEMPORAL_ADDRESS,
+    '--namespace',
+    namespace || 'default',
+    '--workflow-id',
+    `"${workflowId}"`,
+  ];
+
+  if (runId) {
+    parts.push('--run-id', `"${runId}"`);
+  }
+
+  if (reason) {
+    parts.push('--reason', `"${reason}"`);
+  }
+
+  return parts.join(' ');
+}
+
+function buildTemporalDiagnostics({ config, workflow = {}, workflowId, runId, history = {} } = {}) {
+  const effectiveWorkflowId = workflow.workflowId || workflowId || null;
+  const effectiveRunId = workflow.runId || runId || null;
+
+  if (!effectiveWorkflowId) {
+    return null;
+  }
+
+  const workflowUrl = buildTemporalUiWorkflowUrl({
+    baseUrl: config.uiBaseUrl,
+    namespace: config.namespace,
+    workflowId: effectiveWorkflowId,
+    runId: effectiveRunId,
+  });
+  const historyUrl = workflowUrl ? `${workflowUrl}/history` : null;
+  const encodedQuery = encodeURIComponent(`WorkflowId="${effectiveWorkflowId}"`);
+  const queryUrl = config.uiBaseUrl
+    ? `${String(config.uiBaseUrl).replace(/\/+$/, '')}/namespaces/${encodeURIComponent(config.namespace || 'default')}/workflows?query=${encodedQuery}`
+    : null;
+
+  return {
+    address: config.address,
+    namespace: config.namespace,
+    taskQueue: workflow.taskQueue || config.taskQueue,
+    workflowId: effectiveWorkflowId,
+    runId: effectiveRunId,
+    workflowType: workflow.workflowType || null,
+    status: workflow.status || null,
+    workflowUrl,
+    historyUrl,
+    queryUrl,
+    eventCount: history?.eventCount || workflow.historyLength || null,
+    cliCommands: {
+      describe: buildTemporalCliCommand({
+        command: 'describe',
+        address: config.address,
+        namespace: config.namespace,
+        workflowId: effectiveWorkflowId,
+        runId: effectiveRunId,
+      }),
+      showHistory: buildTemporalCliCommand({
+        command: 'show',
+        address: config.address,
+        namespace: config.namespace,
+        workflowId: effectiveWorkflowId,
+        runId: effectiveRunId,
+      }),
+      cancel: buildTemporalCliCommand({
+        command: 'cancel',
+        address: config.address,
+        namespace: config.namespace,
+        workflowId: effectiveWorkflowId,
+        runId: effectiveRunId,
+      }),
+      terminate: buildTemporalCliCommand({
+        command: 'terminate',
+        address: config.address,
+        namespace: config.namespace,
+        workflowId: effectiveWorkflowId,
+        runId: effectiveRunId,
+        reason: 'Manual diagnostics cleanup from SkyServer Admin',
+      }),
+    },
   };
 }
 
@@ -1284,8 +1558,17 @@ async function getWorkflowRuntimeDetail({ workflowId, runId, includeHistory = tr
     throw describeError;
   }
 
+  const diagnostics = buildTemporalDiagnostics({
+    config,
+    workflow,
+    workflowId,
+    runId: workflow?.runId || runId,
+    history,
+  });
+
   const runtime = {
     available: Boolean(workflow || history),
+    address: config.address,
     namespace: config.namespace,
     taskQueue: workflow?.taskQueue || config.taskQueue,
     workflowId,
@@ -1296,12 +1579,18 @@ async function getWorkflowRuntimeDetail({ workflowId, runId, includeHistory = tr
     executionTime: workflow?.executionTime || null,
     closeTime: workflow?.closeTime || null,
     historyLength: workflow?.historyLength || history?.eventCount || null,
-    uiUrl: buildTemporalUiWorkflowUrl({
+    uiUrl: diagnostics?.workflowUrl || buildTemporalUiWorkflowUrl({
       baseUrl: config.uiBaseUrl,
       namespace: config.namespace,
       workflowId,
       runId: workflow?.runId || runId,
     }),
+    links: {
+      workflow: diagnostics?.workflowUrl || null,
+      history: diagnostics?.historyUrl || null,
+      query: diagnostics?.queryUrl || null,
+    },
+    diagnostics,
     history,
     warnings: [
       describeError ? `Temporal describe failed: ${describeError.message || String(describeError)}` : null,

@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.31.1 — Retry Policy Preservation Hotfix
+**Active status:** Phase 10.32 — Temporal Diagnostics Polish
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -824,3 +824,15 @@ Workflow History now exposes operational controls for selected workflow runs.
 ### Phase 10.31.1 — Retry policy preservation hotfix
 
 Phase 10.31.1 hardens the run-control era by making node retries visible and durable through workflow graph edits. Create Workflow and Manage Workflows now expose retry policy controls for executable nodes, preserve `retryPolicy` and `timeoutMs` on save, and keep manual retry attempt counters cumulative through retry lineage metadata. Seed `00053__workflow_retry_policy_hotfix.sql` restores macro ingestion retry/timeout defaults if earlier graph saves flattened them.
+
+
+### Phase 10.32 — Temporal diagnostics polish
+
+Workflow History now exposes a sharper Temporal diagnostics cockpit for selected Temporal-backed SkyServer workflow runs.
+
+- Run detail includes stable Temporal UI links for workflow detail, history, and workflow search.
+- Temporal workflow ID, run ID, workflow type, and service address are displayed as copyable diagnostic cards.
+- Operators can copy ready-to-run Temporal CLI commands for describe, history, cancel, and terminate.
+- Temporal history summaries now include issue, notable, and latest event tables with richer activity/signal/timer/child-workflow/failure descriptions.
+- Event previews surface failure messages and retry state when Temporal returns them, reducing the need to inspect raw workflow JSON first.
+- No DB migration or executor behavior change is required; this is an observability and operator-diagnostics improvement.

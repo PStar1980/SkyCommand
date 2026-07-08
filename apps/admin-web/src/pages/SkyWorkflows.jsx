@@ -117,12 +117,160 @@ function statusClass(status) {
   return 'sky-pill-info';
 }
 
+
+function eventCategoryClass(category) {
+  const normalized = String(category || '').toLowerCase();
+
+  if (normalized === 'success') {
+    return 'sky-pill-success';
+  }
+
+  if (normalized === 'danger') {
+    return 'sky-pill-danger';
+  }
+
+  if (normalized === 'warning') {
+    return 'sky-pill-warning';
+  }
+
+  return 'sky-pill-info';
+}
+
 function jsonPreview(value) {
   if (!value) {
     return '{}';
   }
 
   return JSON.stringify(value, null, 2);
+}
+
+
+function shortenIdentifier(value, head = 18, tail = 10) {
+  const text = String(value || '');
+
+  if (!text || text.length <= head + tail + 3) {
+    return text || '—';
+  }
+
+  return `${text.slice(0, head)}…${text.slice(-tail)}`;
+}
+
+function TemporalCopyButton({ label = 'Copy', value }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!value) {
+    return null;
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch (error) {
+      setCopied(false);
+      window.prompt('Copy value:', String(value));
+    }
+  }
+
+  return (
+    <button className="btn btn-sm sky-btn-ghost" onClick={handleCopy} type="button">
+      {copied ? 'Copied' : label}
+    </button>
+  );
+}
+
+function TemporalIdentifierCard({ href, label, value }) {
+  return (
+    <div className="sky-temporal-id-card">
+      <div className="sky-page-kicker">{label}</div>
+      <div className="sky-mono sky-temporal-id-value" title={value || ''}>{shortenIdentifier(value)}</div>
+      <div className="d-flex flex-wrap gap-2 mt-2">
+        <TemporalCopyButton label="Copy" value={value} />
+        {href && (
+          <a className="btn btn-sm sky-btn-ghost" href={href} rel="noreferrer" target="_blank">
+            Open
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TemporalCliCommands({ commands = {} }) {
+  const entries = [
+    ['Describe', commands.describe],
+    ['Show history', commands.showHistory],
+    ['Cancel', commands.cancel],
+    ['Terminate', commands.terminate],
+  ].filter(([, value]) => value);
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="sky-temporal-command-grid mb-3">
+      {entries.map(([label, command]) => (
+        <div className="sky-temporal-command-card" key={label}>
+          <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <div className="sky-page-kicker">{label}</div>
+            <TemporalCopyButton label="Copy command" value={command} />
+          </div>
+          <code className="sky-mono sky-temporal-command-text">{command}</code>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TemporalEventTable({ emptyText = 'No Temporal event preview available.', events = [], title }) {
+  if (!events || events.length === 0) {
+    return title ? (
+      <div className="mb-3">
+        <div className="sky-page-kicker mb-2">{title}</div>
+        <div className="sky-empty-state">{emptyText}</div>
+      </div>
+    ) : <div className="sky-empty-state">{emptyText}</div>;
+  }
+
+  return (
+    <div className="mb-3">
+      {title && <div className="sky-page-kicker mb-2">{title}</div>}
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Type</th>
+              <th>Time</th>
+              <th>Summary</th>
+              <th>Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event) => (
+              <tr key={`${event.eventId}-${event.eventType}-${event.eventTime}`}>
+                <td className="sky-mono">{event.eventId || '—'}</td>
+                <td>
+                  <span className={`sky-pill ${eventCategoryClass(event.category)}`}>{event.eventType}</span>
+                </td>
+                <td>{formatDate(event.eventTime)}</td>
+                <td>
+                  <div>{event.summary}</div>
+                  {event.failureMessage && <div className="small text-danger-emphasis mt-1">{event.failureMessage}</div>}
+                  {event.retryState && <div className="small sky-muted mt-1">Retry state: {event.retryState}</div>}
+                </td>
+                <td className="sky-mono small text-break">
+                  {event.target || event.identity || '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function formatApiError(error, fallback = 'Request failed.') {
@@ -545,9 +693,16 @@ function TemporalRuntimePanel({ runtime }) {
   }
 
   const history = runtime.history || {};
+  const diagnostics = runtime.diagnostics || {};
+  const links = runtime.links || {};
   const activityCounts = history.activityCounts || {};
   const workflowTaskCounts = history.workflowTaskCounts || {};
+  const signalCounts = history.signalCounts || {};
+  const issueSummary = history.issueSummary || {};
   const latestEvents = history.latestEvents || [];
+  const notableEvents = history.notableEvents || [];
+  const issueEvents = history.issueEvents || [];
+  const issueTotal = issueSummary.total || 0;
 
   return (
     <section className="sky-card mb-4">
@@ -558,9 +713,19 @@ function TemporalRuntimePanel({ runtime }) {
         </div>
         <div className="d-flex flex-wrap gap-2">
           <span className={`sky-pill ${statusClass(runtime.status || 'UNKNOWN')}`}>{runtime.status || 'UNKNOWN'}</span>
-          {runtime.uiUrl && (
-            <a className="btn btn-sm sky-btn-ghost" href={runtime.uiUrl} rel="noreferrer" target="_blank">
-              Open in Temporal UI
+          {(links.workflow || runtime.uiUrl) && (
+            <a className="btn btn-sm sky-btn-ghost" href={links.workflow || runtime.uiUrl} rel="noreferrer" target="_blank">
+              Open workflow
+            </a>
+          )}
+          {links.history && (
+            <a className="btn btn-sm sky-btn-ghost" href={links.history} rel="noreferrer" target="_blank">
+              Open history
+            </a>
+          )}
+          {links.query && (
+            <a className="btn btn-sm sky-btn-ghost" href={links.query} rel="noreferrer" target="_blank">
+              Search Temporal
             </a>
           )}
         </div>
@@ -593,20 +758,18 @@ function TemporalRuntimePanel({ runtime }) {
           </div>
           <div className="col-md-3 col-6">
             <div className="sky-mini-metric">
-              <div className="sky-page-kicker">Activities</div>
-              <div className="sky-mini-metric-value">{activityCounts.completed || 0}/{activityCounts.scheduled || 0}</div>
+              <div className="sky-page-kicker">Issues</div>
+              <div className="sky-mini-metric-value">{issueTotal}</div>
             </div>
           </div>
         </div>
 
-        <dl className="row small mb-3">
-          <dt className="col-md-3 sky-detail-label">Workflow type</dt>
-          <dd className="col-md-9 sky-detail-value sky-mono text-break">{runtime.workflowType || '—'}</dd>
-          <dt className="col-md-3 sky-detail-label">Workflow ID</dt>
-          <dd className="col-md-9 sky-detail-value sky-mono text-break">{runtime.workflowId || '—'}</dd>
-          <dt className="col-md-3 sky-detail-label">Run ID</dt>
-          <dd className="col-md-9 sky-detail-value sky-mono text-break">{runtime.runId || '—'}</dd>
-        </dl>
+        <div className="sky-temporal-id-grid mb-3">
+          <TemporalIdentifierCard label="Workflow ID" href={links.workflow || runtime.uiUrl} value={runtime.workflowId} />
+          <TemporalIdentifierCard label="Run ID" href={links.history || links.workflow || runtime.uiUrl} value={runtime.runId} />
+          <TemporalIdentifierCard label="Workflow type" value={runtime.workflowType} />
+          <TemporalIdentifierCard label="Address" value={runtime.address || diagnostics.address} />
+        </div>
 
         <div className="d-flex flex-wrap gap-2 mb-3 small">
           <span className="sky-pill sky-pill-info">Workflow tasks {workflowTaskCounts.completed || 0}/{workflowTaskCounts.scheduled || 0}</span>
@@ -616,35 +779,35 @@ function TemporalRuntimePanel({ runtime }) {
               Activity issues {(activityCounts.failed || 0) + (activityCounts.timedOut || 0) + (activityCounts.canceled || 0)}
             </span>
           )}
+          {Object.keys(signalCounts).map((signalName) => (
+            <span className="sky-pill sky-pill-info" key={signalName}>Signal {signalName}: {signalCounts[signalName]}</span>
+          ))}
           {history.truncated && <span className="sky-pill sky-pill-warning">History preview truncated</span>}
         </div>
 
-        {latestEvents.length > 0 ? (
-          <div className="table-responsive sky-table-card">
-            <table className="table table-sm sky-table align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Event</th>
-                  <th>Type</th>
-                  <th>Time</th>
-                  <th>Summary</th>
-                </tr>
-              </thead>
-              <tbody>
-                {latestEvents.map((event) => (
-                  <tr key={`${event.eventId}-${event.eventType}`}>
-                    <td className="sky-mono">{event.eventId || '—'}</td>
-                    <td className="sky-mono small">{event.eventType}</td>
-                    <td>{formatDate(event.eventTime)}</td>
-                    <td>{event.summary}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="sky-empty-state">No Temporal event preview available.</div>
+        <TemporalCliCommands commands={diagnostics.cliCommands} />
+
+        {issueEvents.length > 0 && (
+          <TemporalEventTable
+            emptyText="No issue events found."
+            events={issueEvents}
+            title="Issue events"
+          />
         )}
+
+        {notableEvents.length > 0 && (
+          <TemporalEventTable
+            emptyText="No notable Temporal events found."
+            events={notableEvents}
+            title="Notable events"
+          />
+        )}
+
+        <TemporalEventTable
+          emptyText="No Temporal event preview available."
+          events={latestEvents}
+          title="Latest events"
+        />
       </div>
     </section>
   );
