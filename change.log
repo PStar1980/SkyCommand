@@ -1,3 +1,13 @@
+# Phase 10.32 — Temporal Diagnostics Polish
+
+- Enriched Temporal runtime diagnostics returned with SkyServer workflow run detail.
+- Added stable Temporal links for workflow detail, history, and workflow search using the configured Temporal UI base URL.
+- Added copyable workflow ID, run ID, workflow type, and Temporal address cards in Workflow History diagnostics.
+- Added copyable Temporal CLI commands for describe, show history, cancel, and terminate.
+- Expanded Temporal event summaries with richer activity, signal, timer, child workflow, failure, retry-state, and workflow lifecycle details.
+- Added issue/notable/latest event tables in Admin-Web so operators can triage Temporal runs without opening raw JSON first.
+- No DB migration or executor behavior change required.
+
 # Phase 10.31.1 — Retry Policy Preservation Hotfix
 
 - Added configurable node retry policy controls in Create Workflow and Manage Workflows for tool, API, child workflow, and Temporal template nodes.

@@ -15,6 +15,9 @@ Introduce Temporal as SkyServer's durable workflow orchestration engine while pr
 | 10.5 | Complete | Add database-backed approved workflow templates and parameter schemas for configurable Admin-Web starts |
 | 10.6 | Complete | Persist workflow launch summaries into PostgreSQL for Admin-Web reporting and auditability |
 | 10.7 | Complete | Add a worker scheduler bridge that can start approved Temporal workflow templates on one-time or interval schedules |
+| 10.30 | Complete | Add run-aware visual graph overlays in Workflow History |
+| 10.31 | Complete | Add run controls for cancel, terminate, and retry from Workflow History |
+| 10.32 | Complete | Polish Temporal diagnostics with stable links, IDs, CLI commands, and event summaries |
 | 10.8 | Planned | Add alert-evaluation workflow chaining after successful macro ingestion |
 | 10.9 | Planned | Define migration rules for scheduler/listener jobs that should become Temporal workflows |
 
@@ -469,3 +472,8 @@ This phase moves SkyServer from passive observability into controlled operations
 ## Phase 10.31.1 — Retry policy preservation hotfix
 
 Phase 10.31.1 makes retry behavior operator-visible and prevents graph edits from erasing node-level resiliency. Executable nodes now expose maximum attempts, retry delay, and optional node timeout controls. Workflow retries started from History carry retry lineage offsets so the selected node attempt counter can continue from the prior failed/canceled/terminated run instead of appearing to reset.
+
+
+## Phase 10.32 — Temporal Diagnostics Polish
+
+Phase 10.32 improves the operator diagnostics layer around Temporal-backed SkyServer workflow runs. Workflow History now shows copyable Temporal identifiers, deep links into Temporal UI, ready-to-copy CLI commands, and richer event summaries grouped into issue, notable, and latest event previews. The phase does not change workflow execution semantics or database schema; it makes existing Temporal runtime data easier to inspect and act on from the SkyServer cockpit.

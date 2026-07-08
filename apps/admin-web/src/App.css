@@ -1382,3 +1382,39 @@
   background: rgba(255, 84, 128, 0.08);
   color: #ffd7e2;
 }
+
+.sky-temporal-id-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+
+.sky-temporal-id-card,
+.sky-temporal-command-card {
+  min-width: 0;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.85rem;
+  background: rgba(6, 11, 22, 0.5);
+  padding: 0.85rem;
+}
+
+.sky-temporal-id-value {
+  margin-top: 0.25rem;
+  color: #f6f9ff;
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.sky-temporal-command-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.sky-temporal-command-text {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: #cde4ff;
+  font-size: 0.78rem;
+}
