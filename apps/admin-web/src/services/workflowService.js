@@ -36,6 +36,22 @@ function replaceGraph(workflowCode, payload = {}) {
   return api.put(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/graph`, payload);
 }
 
+function createDraft(workflowCode, payload = {}) {
+  return api.post(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/drafts`, payload);
+}
+
+function saveDraftGraph(workflowCode, workflowVersionId, payload = {}) {
+  return api.put(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/versions/${encodeURIComponent(workflowVersionId)}/graph`, payload);
+}
+
+function publishDraft(workflowCode, workflowVersionId, payload = {}) {
+  return api.post(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/versions/${encodeURIComponent(workflowVersionId)}/publish`, payload);
+}
+
+function discardDraft(workflowCode, workflowVersionId) {
+  return api.delete(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/versions/${encodeURIComponent(workflowVersionId)}`);
+}
+
 function cloneDefinition(workflowCode, payload = {}) {
   return api.post(`/api/workflows/definitions/${encodeURIComponent(workflowCode)}/clone`, payload);
 }
@@ -81,6 +97,7 @@ function retryRun(workflowRunRecordId, payload = {}) {
 const workflowService = {
   cancelRun,
   archiveDefinition,
+  createDraft,
   cloneDefinition,
   createDefinition,
   createVersion,
@@ -91,9 +108,12 @@ const workflowService = {
   getRun,
   listApprovals,
   decideApproval,
+  discardDraft,
   listDefinitions,
   listRuns,
+  publishDraft,
   replaceGraph,
+  saveDraftGraph,
   startWorkflow,
   terminateRun,
   retryRun,

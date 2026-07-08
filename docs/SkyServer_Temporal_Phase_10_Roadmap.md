@@ -477,3 +477,22 @@ Phase 10.31.1 makes retry behavior operator-visible and prevents graph edits fro
 ## Phase 10.32 — Temporal Diagnostics Polish
 
 Phase 10.32 improves the operator diagnostics layer around Temporal-backed SkyServer workflow runs. Workflow History now shows copyable Temporal identifiers, deep links into Temporal UI, ready-to-copy CLI commands, and richer event summaries grouped into issue, notable, and latest event previews. The phase does not change workflow execution semantics or database schema; it makes existing Temporal runtime data easier to inspect and act on from the SkyServer cockpit.
+
+## Phase 10.33 — Workflow versioning guardrails before graph edits
+
+Status: implemented.
+
+Phase 10.33 protects live workflow definitions now that SkyServer supports Temporal-backed execution, visual graph editing, retry policy, branch routing, wait nodes, and human approval checkpoints. Published versions are now treated as read-only runtime artifacts. Operators create a draft, edit and save that draft, then explicitly publish it as the next current version.
+
+Delivered scope:
+
+- published workflow versions are read-only in Manage Workflows;
+- a draft can be created from the current published version before graph edits;
+- draft graph saves preserve the existing validation path for tool targets, child workflows, Temporal templates, condition branches, human approval roles, retry policy, and node timeout;
+- publish promotes a draft to `PUBLISHED` and retires the previous published version;
+- discard removes an unneeded draft without touching the live published workflow;
+- optimistic version checks block stale saves from older browser tabs;
+- publish warnings summarize running workflow runs, pending approvals, and active schedules before the operator promotes the draft;
+- existing runs remain pinned to their original `workflow_version_id`; new starts use the newly published version.
+
+This phase intentionally avoids visual diffing and advanced merge behavior. Those can be layered on after the draft/publish lifecycle is stable.

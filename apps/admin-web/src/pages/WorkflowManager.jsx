@@ -747,6 +747,7 @@ function WorkflowManager() {
     status: 'ACTIVE',
   });
   const [cloneForm, setCloneForm] = useState({ workflowCode: '', displayName: '', description: '', publish: true });
+  const [publishForm, setPublishForm] = useState({ changeNote: '' });
   const [editorNodes, setEditorNodes] = useState([{ ...EMPTY_NODE }]);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -852,7 +853,8 @@ function WorkflowManager() {
         description: definition.description || '',
         publish: true,
       });
-      setEditorNodes(graphNodesToEditorNodes(definition.publishedGraph?.nodes || definition.latestGraph?.nodes || []));
+      setEditorNodes(graphNodesToEditorNodes(definition.editGraph?.nodes || definition.draftGraph?.nodes || definition.publishedGraph?.nodes || definition.latestGraph?.nodes || []));
+      setPublishForm({ changeNote: '' });
       setSelectedVisualNodeIndex(null);
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow detail.'));
@@ -1232,10 +1234,33 @@ function WorkflowManager() {
     }
   }
 
+  async function handleCreateDraft() {
+    if (!detail) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await workflowService.createDraft(detail.workflowCode, {
+        sourceWorkflowVersionId: detail.publishedVersionId || detail.latestVersionId,
+      });
+      setMessage(result.message || 'Draft created. You can now edit safely without changing the published workflow.');
+      await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
+    } catch (draftError) {
+      setError(formatApiError(draftError, 'Failed to create workflow draft.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveGraph(event) {
     event.preventDefault();
 
-    if (!detail) {
+    if (!detail || !draftGraph) {
+      setError('Create a draft before saving graph edits. Published workflow versions are read-only.');
       return;
     }
 
@@ -1246,18 +1271,76 @@ function WorkflowManager() {
     try {
       const payload = {
         nodes: validateEditorNodes(),
+        baseWorkflowVersionId: draftGraph.workflowVersionId,
+        baseUpdatedAt: draftGraph.updatedAt,
       };
-      const result = await workflowService.replaceGraph(detail.workflowCode, payload);
-      setMessage(result.message || 'Workflow graph saved.');
+      const result = await workflowService.saveDraftGraph(detail.workflowCode, draftGraph.workflowVersionId, payload);
+      setMessage(result.message || 'Draft workflow graph saved. Publish the draft before new runs use it.');
       await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
     } catch (graphError) {
-      setError(formatApiError(graphError, 'Failed to save workflow graph.'));
+      setError(formatApiError(graphError, 'Failed to save workflow draft graph.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePublishDraft() {
+    if (!detail || !draftGraph) {
+      return;
+    }
+
+    const warningText = guardrails?.hasWarnings
+      ? `\n\nGuardrails:\n- ${(guardrails.warnings || []).join('\n- ')}\n\nExisting runs stay pinned to their original version. New starts will use this draft after publishing.`
+      : '\n\nExisting runs stay pinned to their original version. New starts will use this draft after publishing.';
+
+    if (!window.confirm(`Publish draft v${draftGraph.versionNumber} for ${detail.displayName}?${warningText}`)) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await workflowService.publishDraft(detail.workflowCode, draftGraph.workflowVersionId, {
+        baseWorkflowVersionId: draftGraph.workflowVersionId,
+        baseUpdatedAt: draftGraph.updatedAt,
+        changeNote: publishForm.changeNote,
+      });
+      setMessage(result.message || 'Draft published as the active workflow version.');
+      await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
+    } catch (publishError) {
+      setError(formatApiError(publishError, 'Failed to publish workflow draft.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDiscardDraft() {
+    if (!detail || !draftGraph || !window.confirm(`Discard draft v${draftGraph.versionNumber} for ${detail.displayName}?`)) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await workflowService.discardDraft(detail.workflowCode, draftGraph.workflowVersionId);
+      setMessage(result.message || 'Workflow draft discarded.');
+      await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
+    } catch (discardError) {
+      setError(formatApiError(discardError, 'Failed to discard workflow draft.'));
     } finally {
       setSaving(false);
     }
   }
 
   const selectedDefinition = definitions.find((definition) => definition.workflowCode === selectedCode);
+  const editing = detail?.editing || {};
+  const draftGraph = detail?.draftGraph || null;
+  const graphLocked = Boolean(detail && !draftGraph);
+  const guardrails = detail?.guardrails || {};
 
   return (
     <div>
@@ -1267,7 +1350,7 @@ function WorkflowManager() {
           <h1 className="sky-page-title">Manage Workflows</h1>
           <p className="sky-page-subtitle">
             Review SkyServer workflow definitions, update metadata, clone business workflows,
-            delete old definitions, and save the current sequential workflow graph.
+            delete old definitions, and publish graph edits through draft workflow versions.
           </p>
         </div>
         <button className="btn sky-btn-ghost" disabled={loading || saving} onClick={() => loadDefinitions()} type="button">
@@ -1358,7 +1441,9 @@ function WorkflowManager() {
             <div className="sky-card-body d-flex flex-column gap-2">
               <span className="sky-pill sky-pill-success">Edit metadata</span>
               <span className="sky-pill sky-pill-success">Clone workflow</span>
-              <span className="sky-pill sky-pill-success">Save current graph</span>
+              <span className="sky-pill sky-pill-success">Draft-before-edit guardrails</span>
+              <span className="sky-pill sky-pill-success">Save draft graph</span>
+              <span className="sky-pill sky-pill-success">Publish new version</span>
               <span className="sky-pill sky-pill-success">Visual graph preview</span>
               <span className="sky-pill sky-pill-success">Visual node inspector</span>
               <span className="sky-pill sky-pill-success">Visual drag reorder</span>
@@ -1444,16 +1529,124 @@ function WorkflowManager() {
               <section className="sky-card">
                 <div className="sky-card-header d-flex flex-wrap justify-content-between gap-3">
                   <div>
-                    <div className="sky-page-kicker">Workflow graph</div>
-                    <h2 className="h5 mb-0">Edit current sequential graph with condition gates, waits, and approvals</h2>
+                    <div className="sky-page-kicker">Version guardrails</div>
+                    <h2 className="h5 mb-0">Draft, validate, then publish</h2>
                   </div>
-                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button></div>
+                  <StatusPill status={editing.versionStatus || 'PUBLISHED'} />
+                </div>
+                <div className="sky-card-body">
+                  <div className="row g-3">
+                    <div className="col-lg-4">
+                      <div className="sky-worker-command-card h-100">
+                        <div className="sky-page-kicker">Published version</div>
+                        <div className="sky-worker-command-value">v{detail.publishedGraph?.versionNumber || detail.publishedVersionNumber || '—'}</div>
+                        <div className="small sky-muted">New workflow starts use this version until a draft is published.</div>
+                      </div>
+                    </div>
+                    <div className="col-lg-4">
+                      <div className="sky-worker-command-card h-100">
+                        <div className="sky-page-kicker">Editing version</div>
+                        <div className="sky-worker-command-value">{draftGraph ? `v${draftGraph.versionNumber}` : 'Read-only'}</div>
+                        <div className="small sky-muted">{draftGraph ? 'Draft edits are safe until published.' : 'Create a draft before graph edits are allowed.'}</div>
+                      </div>
+                    </div>
+                    <div className="col-lg-4">
+                      <div className="sky-worker-command-card h-100">
+                        <div className="sky-page-kicker">Operational warnings</div>
+                        <div className="d-flex flex-wrap gap-2 mt-1">
+                          <span className="sky-pill sky-pill-info">{guardrails.activeRuns || 0} running</span>
+                          <span className="sky-pill sky-pill-info">{guardrails.activeSchedules || 0} schedule(s)</span>
+                          <span className="sky-pill sky-pill-info">{guardrails.pendingApprovals || 0} approval(s)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {guardrails.hasWarnings && (
+                    <div className="alert alert-warning mt-3 mb-0">
+                      <div className="fw-bold mb-1">Publish guardrail warning</div>
+                      <ul className="mb-0">
+                        {(guardrails.warnings || []).map((warning) => <li key={warning}>{warning}</li>)}
+                        <li>Existing runs remain pinned to their original workflow version. New starts use the newly published version.</li>
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="mt-3">
+                    <label className="form-label" htmlFor="publishChangeNote">Publish change note</label>
+                    <textarea
+                      className="form-control sky-form-control"
+                      disabled={!draftGraph || saving}
+                      id="publishChangeNote"
+                      onChange={(event) => setPublishForm((current) => ({ ...current, changeNote: event.target.value }))}
+                      placeholder="Example: Added branch around FRED failure path and increased retry attempts."
+                      rows={2}
+                      value={publishForm.changeNote}
+                    />
+                  </div>
+
+                  <div className="d-flex flex-wrap gap-2 mt-3">
+                    <button className="btn sky-btn-primary" disabled={saving || Boolean(draftGraph)} onClick={handleCreateDraft} type="button">
+                      {draftGraph ? 'Draft active' : 'Create draft from published'}
+                    </button>
+                    <button className="btn sky-btn-ghost" disabled={saving || !draftGraph} onClick={handlePublishDraft} type="button">
+                      Publish draft
+                    </button>
+                    <button className="btn btn-outline-danger" disabled={saving || !draftGraph} onClick={handleDiscardDraft} type="button">
+                      Discard draft
+                    </button>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="sky-page-kicker mb-2">Version history</div>
+                    <div className="table-responsive">
+                      <table className="table table-sm sky-table align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Nodes</th>
+                            <th>Edges</th>
+                            <th>Created</th>
+                            <th>Published</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(detail.versions || []).map((version) => (
+                            <tr key={version.workflowVersionId}>
+                              <td className="sky-mono">v{version.versionNumber}</td>
+                              <td><StatusPill status={version.status} /></td>
+                              <td>{version.nodeCount || 0}</td>
+                              <td>{version.edgeCount || 0}</td>
+                              <td>{formatDateTime(version.createdAt)}</td>
+                              <td>{formatDateTime(version.publishedAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="sky-card">
+                <div className="sky-card-header d-flex flex-wrap justify-content-between gap-3">
+                  <div>
+                    <div className="sky-page-kicker">Workflow graph</div>
+                    <h2 className="h5 mb-0">{graphLocked ? 'Published graph preview' : 'Edit draft sequential graph with condition gates, waits, and approvals'}</h2>
+                  </div>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
+                  {graphLocked && (
+                    <div className="alert alert-info">
+                      Published workflow versions are read-only. Create a draft in Version Guardrails before editing nodes, retry policy, branches, waits, or approval gates.
+                    </div>
+                  )}
                   <WorkflowVisualGraph
                     nodes={editorNodes}
-                    onNodeMove={handleVisualNodeMove}
-                    onNodeReorder={handleVisualNodeReorder}
+                    onNodeMove={graphLocked ? undefined : handleVisualNodeMove}
+                    onNodeReorder={graphLocked ? undefined : handleVisualNodeReorder}
                     onNodeSelect={handleVisualNodeSelect}
                     selectedNodeIndex={selectedVisualNodeIndex}
                     temporalWorkflowTargets={temporalWorkflowTargets}
@@ -1461,32 +1654,36 @@ function WorkflowManager() {
                     workflowTargets={workflowTargets}
                   />
 
-                  <div className="d-flex flex-column gap-3 mt-4">
-                    {editorNodes.map((node, index) => (
-                      <EditableNodeCard
-                        index={index}
-                        allNodes={editorNodes}
-                        highlighted={selectedVisualNodeIndex === index}
-                        key={`${index}-${node.nodeKey || node.targetCode}`}
-                        node={node}
-                        onChange={updateEditorNode}
-                        onMoveDown={() => moveEditorNode(index, 1)}
-                        onMoveUp={() => moveEditorNode(index, -1)}
-                        onRemove={() => removeEditorNode(index)}
-                        toolTargets={toolTargets}
-                        workflowTargets={workflowTargets}
-                        temporalWorkflowTargets={temporalWorkflowTargets}
-                        approvalRoleTargets={approvalRoleTargets}
-                      />
-                    ))}
-                    {editorNodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}
-                  </div>
+                  {!graphLocked && (
+                    <>
+                      <div className="d-flex flex-column gap-3 mt-4">
+                        {editorNodes.map((node, index) => (
+                          <EditableNodeCard
+                            index={index}
+                            allNodes={editorNodes}
+                            highlighted={selectedVisualNodeIndex === index}
+                            key={`${index}-${node.nodeKey || node.targetCode}`}
+                            node={node}
+                            onChange={updateEditorNode}
+                            onMoveDown={() => moveEditorNode(index, 1)}
+                            onMoveUp={() => moveEditorNode(index, -1)}
+                            onRemove={() => removeEditorNode(index)}
+                            toolTargets={toolTargets}
+                            workflowTargets={workflowTargets}
+                            temporalWorkflowTargets={temporalWorkflowTargets}
+                            approvalRoleTargets={approvalRoleTargets}
+                          />
+                        ))}
+                        {editorNodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}
+                      </div>
 
-                  <div className="d-flex justify-content-end mt-4">
-                    <button className="btn sky-btn-primary" disabled={saving || editorNodes.length === 0} type="submit">
-                      {saving ? 'Saving workflow...' : 'Save workflow graph'}
-                    </button>
-                  </div>
+                      <div className="d-flex justify-content-end mt-4">
+                        <button className="btn sky-btn-primary" disabled={saving || editorNodes.length === 0} type="submit">
+                          {saving ? 'Saving draft...' : 'Save draft graph'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </form>
               </section>
 

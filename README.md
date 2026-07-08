@@ -836,3 +836,7 @@ Workflow History now exposes a sharper Temporal diagnostics cockpit for selected
 - Temporal history summaries now include issue, notable, and latest event tables with richer activity/signal/timer/child-workflow/failure descriptions.
 - Event previews surface failure messages and retry state when Temporal returns them, reducing the need to inspect raw workflow JSON first.
 - No DB migration or executor behavior change is required; this is an observability and operator-diagnostics improvement.
+
+### Temporal Phase 10.33 — Workflow versioning guardrails
+
+Manage Workflows now uses a safer draft-before-edit lifecycle. Published workflow versions are read-only, so graph changes are made in a draft version and only affect new executions after the draft is explicitly published. The UI shows version history, operational publish warnings, and a publish change note field. Server-side guardrails reject stale draft saves and preserve the existing runtime contract: each workflow run stays pinned to the version it started with.

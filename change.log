@@ -534,3 +534,12 @@ SkyWeb Analytics owns:
 - Updated the Temporal-backed SkyServer workflow executor so WAIT nodes use workflow-level Temporal durable timers via `sleep(durationMs)` instead of a long-running activity.
 - Added inline fallback WAIT execution for diagnostic runs using a local Node.js timeout.
 - Added `wait_delay` node output summaries for Workflow History, including requested duration, actual elapsed duration, and optional reason.
+
+## Phase 10.33 — Workflow Versioning Guardrails Before Graph Edits
+
+- Added draft-before-edit guardrails to Manage Workflows so published workflow versions are read-only by default.
+- Added API support for creating a draft from the current published workflow version, saving draft graph edits, publishing a draft as the new current version, and discarding drafts.
+- Added optimistic version freshness checks using workflow version IDs and updated timestamps so stale browser tabs cannot silently overwrite newer draft edits.
+- Added operational publish warnings for active workflow runs, pending approval requests, and active schedules targeting the workflow.
+- Updated Manage Workflows with a Version Guardrails panel, publish change note, version history table, read-only published graph preview, and draft-only graph editing controls.
+- Kept workflow execution semantics stable: new starts resolve the current published version, while existing runs remain pinned to the version they started with.
