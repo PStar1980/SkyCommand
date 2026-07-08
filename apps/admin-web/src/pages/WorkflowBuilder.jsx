@@ -19,6 +19,11 @@ import WaitParameterEditor, {
   DEFAULT_WAIT_PARAMETERS,
   formatWaitDuration,
 } from '../components/WaitParameterEditor.jsx';
+import WorkflowRetryPolicyEditor, {
+  cleanNodeTimeoutMs,
+  cleanRetryPolicyValues,
+  DEFAULT_RETRY_POLICY,
+} from '../components/WorkflowRetryPolicyEditor.jsx';
 import workflowService from '../services/workflowService';
 
 const DEFAULT_API_PARAMETERS = {
@@ -39,6 +44,8 @@ const EMPTY_NODE = {
   nodeTypeCode: 'TOOL',
   targetCode: '',
   inputParameters: {},
+  retryPolicy: { ...DEFAULT_RETRY_POLICY },
+  timeoutMs: '',
 };
 
 function slugify(value, separator = '-') {
@@ -86,6 +93,24 @@ function parseJsonInput(value, fieldName, allowBlank = true) {
   } catch (error) {
     throw new Error(`${fieldName} must be valid JSON: ${error.message}`);
   }
+}
+
+function supportsRetryPolicy(nodeTypeCode) {
+  return ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'].includes(String(nodeTypeCode || 'TOOL').toUpperCase());
+}
+
+function getRetryPolicyPayload(node = {}) {
+  if (!supportsRetryPolicy(node.nodeTypeCode)) {
+    return {
+      retryPolicy: {},
+      timeoutMs: null,
+    };
+  }
+
+  return {
+    retryPolicy: cleanRetryPolicyValues(node.retryPolicy),
+    timeoutMs: cleanNodeTimeoutMs(node.timeoutMs),
+  };
 }
 
 function cleanApiParameters(values = {}) {
@@ -637,6 +662,16 @@ function WorkflowBuilderNodeCard({
             </>
           )}
         </div>
+        {supportsRetryPolicy(nodeTypeCode) ? (
+          <div className="col-12">
+            <WorkflowRetryPolicyEditor
+              idPrefix={`node-${index}-retry`}
+              onChange={({ retryPolicy, timeoutMs }) => patch({ retryPolicy, timeoutMs })}
+              retryPolicy={node.retryPolicy || {}}
+              timeoutMs={node.timeoutMs ?? ''}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -903,6 +938,7 @@ function WorkflowBuilder() {
           description: String(node.description || '').trim(),
           targetCode: inputParameters.url,
           inputParameters,
+          ...getRetryPolicyPayload(node),
           displayOrder: (index + 1) * 10,
           config: {
             builderCard: 'api',
@@ -929,6 +965,7 @@ function WorkflowBuilder() {
           description: String(node.description || '').trim(),
           targetCode,
           inputParameters: {},
+          ...getRetryPolicyPayload(node),
           displayOrder: (index + 1) * 10,
           config: {
             builderCard: 'workflow',
@@ -951,6 +988,7 @@ function WorkflowBuilder() {
           description: String(node.description || '').trim(),
           targetCode,
           inputParameters: cleanTemporalParameterValues(node.inputParameters),
+          ...getRetryPolicyPayload(node),
           displayOrder: (index + 1) * 10,
           config: {
             builderCard: 'temporal',
@@ -1019,6 +1057,7 @@ function WorkflowBuilder() {
         description: String(node.description || '').trim(),
         targetCode,
         inputParameters: cleanToolParameterValues(node.inputParameters),
+        ...getRetryPolicyPayload(node),
         displayOrder: (index + 1) * 10,
         config: {
           builderCard: 'tool',

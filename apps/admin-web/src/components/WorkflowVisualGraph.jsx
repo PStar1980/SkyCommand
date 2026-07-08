@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getConditionExpressionSummary } from './ConditionParameterEditor.jsx';
 import { getHumanApprovalSummary } from './HumanApprovalParameterEditor.jsx';
 import { formatWaitDuration } from './WaitParameterEditor.jsx';
+import { getRetryPolicySummary } from './WorkflowRetryPolicyEditor.jsx';
 
 function normalizeNodeType(value) {
   return String(value || 'TOOL').trim().toUpperCase();
@@ -9,6 +10,10 @@ function normalizeNodeType(value) {
 
 function findByTargetCode(items = [], targetCode = '') {
   return (items || []).find((item) => item.targetCode === targetCode);
+}
+
+function formatNodeTimeout(value) {
+  return value ? `${value} ms` : 'default';
 }
 
 function getNodeTypeMeta(nodeTypeCode) {
@@ -451,6 +456,8 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
       ['Auth mode', parameters.authMode || 'AUTO'],
       ['Success codes', parameters.successCodes || '200,201,202,204'],
       ['Timeout', `${parameters.timeoutMs || '30000'} ms`],
+      ['Retry policy', getRetryPolicySummary(node.retryPolicy)],
+      ['Node timeout', formatNodeTimeout(node.timeoutMs)],
     );
     return rows;
   }
@@ -459,6 +466,8 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
     rows.push(
       ['Target', getCatalogLabel(catalogs, node)],
       ['Target code', node.targetCode || '—'],
+      ['Retry policy', getRetryPolicySummary(node.retryPolicy)],
+      ['Node timeout', formatNodeTimeout(node.timeoutMs)],
     );
     return rows;
   }
@@ -500,6 +509,8 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
   rows.push(
     ['Target', getCatalogLabel(catalogs, node)],
     ['Target code', node.targetCode || '—'],
+    ['Retry policy', getRetryPolicySummary(node.retryPolicy)],
+    ['Node timeout', formatNodeTimeout(node.timeoutMs)],
   );
   return rows;
 }

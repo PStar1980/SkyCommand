@@ -1,3 +1,12 @@
+# Phase 10.31.1 — Retry Policy Preservation Hotfix
+
+- Added configurable node retry policy controls in Create Workflow and Manage Workflows for tool, API, child workflow, and Temporal template nodes.
+- Preserved `retryPolicy` and `timeoutMs` when loading and saving existing workflow graphs so visual/card edits no longer flatten seeded retry behavior.
+- Added server-side normalization for workflow node retry policies and node timeout values.
+- Added manual retry lineage offsets so node attempt counters continue from the previous run when a failed/canceled/terminated run is retried from Workflow History.
+- Added retry policy and node timeout details to the visual workflow inspector.
+- Added seed `00053__workflow_retry_policy_hotfix.sql` to restore macro ingestion retry/timeout defaults that were flattened by earlier graph saves.
+
 # Phase 10.31 — Run Controls
 
 - Added SkyServer workflow run control API endpoints for cancel, terminate, and retry from Workflow History.
