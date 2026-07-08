@@ -89,6 +89,31 @@ function normalizePositiveInteger(value, fallback, max = 10) {
   return Math.min(parsed, max);
 }
 
+function normalizeNonNegativeInteger(value, fallback = 0, max = 100000) {
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return Math.min(parsed, max);
+}
+
+function getNodeAttemptOffset(requestInput = {}, nodeKey) {
+  const offsetByNodeKey = getSafeObject(requestInput.retryAttemptOffsetByNodeKey);
+  const nodeOffset = offsetByNodeKey[nodeKey];
+
+  if (nodeOffset !== undefined && nodeOffset !== null) {
+    return normalizeNonNegativeInteger(nodeOffset, 0);
+  }
+
+  return normalizeNonNegativeInteger(requestInput.retryAttemptOffset, 0);
+}
+
+function getDisplayedAttemptCount(attemptOffset = 0, internalAttempt = 1) {
+  return normalizeNonNegativeInteger(attemptOffset, 0) + normalizePositiveInteger(internalAttempt, 1, 100000);
+}
+
 function getNodeRetryPolicy(node = {}) {
   const retryPolicy = getSafeObject(node.retryPolicy);
   const maximumAttempts = normalizePositiveInteger(
@@ -832,6 +857,7 @@ async function executeChildWorkflowNodeWithRetries({
   node,
   parameters,
   nodeRun,
+  attemptOffset = 0,
   user,
   session,
   permissions,
@@ -857,12 +883,16 @@ async function executeChildWorkflowNodeWithRetries({
   }
 
   for (let attempt = 1; attempt <= retryPolicy.maximumAttempts; attempt += 1) {
+    const displayedAttemptCount = getDisplayedAttemptCount(attemptOffset, attempt);
     await ledgerActivities.markSkyserverWorkflowNodeAttemptActivity({
       nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-      attemptCount: attempt,
+      attemptCount: displayedAttemptCount,
       metadata: {
         retryPolicy,
         childWorkflowCode,
+        internalAttempt: attempt,
+        manualRetryAttemptOffset: attemptOffset,
+        displayedAttemptCount,
       },
     });
 
@@ -934,7 +964,9 @@ async function executeChildWorkflowNodeWithRetries({
         output,
         metadata: {
           parameters,
-          attemptCount: attempt,
+          attemptCount: displayedAttemptCount,
+          internalAttempt: attempt,
+          manualRetryAttemptOffset: attemptOffset,
           retryPolicy,
           childWorkflowCode,
           childWorkflowRunRecordId: childRun.run.workflowRunRecordId,
@@ -960,7 +992,9 @@ async function executeChildWorkflowNodeWithRetries({
       parameters,
       retryPolicy,
       childWorkflowCode,
-      attemptCount: retryPolicy.maximumAttempts,
+      attemptCount: getDisplayedAttemptCount(attemptOffset, retryPolicy.maximumAttempts),
+      internalAttempt: retryPolicy.maximumAttempts,
+      manualRetryAttemptOffset: attemptOffset,
       errorName: normalizedError.name,
     },
   });
@@ -977,6 +1011,7 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
   node,
   parameters,
   nodeRun,
+  attemptOffset = 0,
   permissions,
   temporalWorkflowId,
   workflowRunRecordId,
@@ -995,12 +1030,16 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
   }
 
   for (let attempt = 1; attempt <= retryPolicy.maximumAttempts; attempt += 1) {
+    const displayedAttemptCount = getDisplayedAttemptCount(attemptOffset, attempt);
     await ledgerActivities.markSkyserverWorkflowNodeAttemptActivity({
       nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-      attemptCount: attempt,
+      attemptCount: displayedAttemptCount,
       metadata: {
         retryPolicy,
         templateWorkflowCode,
+        internalAttempt: attempt,
+        manualRetryAttemptOffset: attemptOffset,
+        displayedAttemptCount,
       },
     });
 
@@ -1062,7 +1101,9 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
         output,
         metadata: {
           parameters,
-          attemptCount: attempt,
+          attemptCount: displayedAttemptCount,
+          internalAttempt: attempt,
+          manualRetryAttemptOffset: attemptOffset,
           retryPolicy,
           templateWorkflowCode,
           temporalTemplateWorkflowId: childHandle.workflowId,
@@ -1090,7 +1131,9 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
       parameters,
       retryPolicy,
       templateWorkflowCode,
-      attemptCount: retryPolicy.maximumAttempts,
+      attemptCount: getDisplayedAttemptCount(attemptOffset, retryPolicy.maximumAttempts),
+      internalAttempt: retryPolicy.maximumAttempts,
+      manualRetryAttemptOffset: attemptOffset,
       errorName: normalizedError.name,
     },
   });
@@ -1107,6 +1150,7 @@ async function executeNodeWithRetries({
   node,
   parameters,
   nodeRun,
+  attemptOffset = 0,
   user,
   session,
   permissions,
@@ -1119,11 +1163,15 @@ async function executeNodeWithRetries({
   let lastError = null;
 
   for (let attempt = 1; attempt <= retryPolicy.maximumAttempts; attempt += 1) {
+    const displayedAttemptCount = getDisplayedAttemptCount(attemptOffset, attempt);
     await ledgerActivities.markSkyserverWorkflowNodeAttemptActivity({
       nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-      attemptCount: attempt,
+      attemptCount: displayedAttemptCount,
       metadata: {
         retryPolicy,
+        internalAttempt: attempt,
+        manualRetryAttemptOffset: attemptOffset,
+        displayedAttemptCount,
       },
     });
 
@@ -1146,7 +1194,9 @@ async function executeNodeWithRetries({
         output,
         metadata: {
           parameters,
-          attemptCount: attempt,
+          attemptCount: displayedAttemptCount,
+          internalAttempt: attempt,
+          manualRetryAttemptOffset: attemptOffset,
           retryPolicy,
         },
       });
@@ -1169,7 +1219,9 @@ async function executeNodeWithRetries({
     metadata: {
       parameters,
       retryPolicy,
-      attemptCount: retryPolicy.maximumAttempts,
+      attemptCount: getDisplayedAttemptCount(attemptOffset, retryPolicy.maximumAttempts),
+      internalAttempt: retryPolicy.maximumAttempts,
+      manualRetryAttemptOffset: attemptOffset,
       errorName: normalizedError.name,
     },
   });
@@ -1253,13 +1305,16 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           currentNodeKey: node.nodeKey,
         },
       };
+      const nodeAttemptOffset = getNodeAttemptOffset(requestInput, node.nodeKey);
       const nodeRun = await ledgerActivities.startSkyserverWorkflowNodeRunActivity({
         workflowRunRecordId,
         node,
-        attemptCount: 1,
+        attemptCount: getDisplayedAttemptCount(nodeAttemptOffset, 1),
         metadata: {
           temporalWorkflowId,
           temporalRunId,
+          manualRetryAttemptOffset: nodeAttemptOffset,
+          displayedAttemptCount: getDisplayedAttemptCount(nodeAttemptOffset, 1),
         },
       });
       let nextNodeIndex = currentNodeIndex + 1;
@@ -1276,6 +1331,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           node,
           parameters,
           nodeRun,
+          attemptOffset: nodeAttemptOffset,
           user: input.user || null,
           context: nodeContext,
           approvalDecisions,
@@ -1289,6 +1345,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           node,
           parameters,
           nodeRun,
+          attemptOffset: nodeAttemptOffset,
           user: input.user || null,
           session: input.session || null,
           permissions: input.permissions || [],
@@ -1303,6 +1360,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           node,
           parameters,
           nodeRun,
+          attemptOffset: nodeAttemptOffset,
           permissions: input.permissions || [],
           temporalWorkflowId,
           workflowRunRecordId,
@@ -1313,6 +1371,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           node,
           parameters,
           nodeRun,
+          attemptOffset: nodeAttemptOffset,
           user: input.user || null,
           session: input.session || null,
           permissions: input.permissions || [],

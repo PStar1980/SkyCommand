@@ -1229,6 +1229,53 @@ function normalizePositiveNumber(value, fallback, max = Number.MAX_SAFE_INTEGER)
   return Math.min(parsed, max);
 }
 
+function normalizeWorkflowNodeRetryPolicy(value = {}) {
+  const retryPolicy = getSafeObject(value);
+  const hasRetryPolicy = Object.prototype.hasOwnProperty.call(retryPolicy, 'maximumAttempts')
+    || Object.prototype.hasOwnProperty.call(retryPolicy, 'maximum_attempts')
+    || Object.prototype.hasOwnProperty.call(retryPolicy, 'initialIntervalSeconds')
+    || Object.prototype.hasOwnProperty.call(retryPolicy, 'initial_interval_seconds');
+
+  if (!hasRetryPolicy) {
+    return {};
+  }
+
+  const maximumAttempts = normalizePositiveNumber(
+    retryPolicy.maximumAttempts || retryPolicy.maximum_attempts,
+    1,
+    10,
+  );
+  const initialIntervalSeconds = normalizePositiveNumber(
+    retryPolicy.initialIntervalSeconds || retryPolicy.initial_interval_seconds,
+    5,
+    3600,
+  );
+
+  return {
+    maximumAttempts,
+    initialIntervalSeconds,
+  };
+}
+
+function normalizeWorkflowNodeTimeoutMs(value) {
+  const text = String(value ?? '').trim();
+
+  if (!text) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(text, 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 86400000) {
+    throw new WorkflowServiceError('Workflow node timeoutMs must be blank or a positive number up to 24 hours.', 400, {
+      timeoutMs: value,
+      maxTimeoutMs: 86400000,
+    });
+  }
+
+  return parsed;
+}
+
 function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
   const map = {
     API_CALL: 'Call API',
@@ -1983,6 +2030,28 @@ async function requestWorkflowRunControlAction({
   };
 }
 
+
+function buildRetryAttemptOffsetByNodeKey(nodeRuns = []) {
+  return nodeRuns.reduce((accumulator, nodeRun) => {
+    const nodeKey = String(nodeRun?.nodeKey || '').trim();
+    const attemptCount = Number.parseInt(nodeRun?.attemptCount, 10);
+
+    if (nodeKey && Number.isFinite(attemptCount) && attemptCount > 0) {
+      accumulator[nodeKey] = Math.max(accumulator[nodeKey] || 0, attemptCount);
+    }
+
+    return accumulator;
+  }, {});
+}
+
+function getNextManualRetryAttemptNumber(run = {}) {
+  const metadata = getSafeObject(run.metadata);
+  const input = getSafeObject(run.input);
+  const current = Number.parseInt(metadata.retryAttemptNumber || input.retryAttemptNumber || 1, 10);
+
+  return Number.isFinite(current) && current > 0 ? current + 1 : 2;
+}
+
 async function retryWorkflowRun({
   workflowRunRecordId,
   user,
@@ -2005,6 +2074,10 @@ async function retryWorkflowRun({
     });
   }
 
+  const previousNodeRuns = await getWorkflowNodeRunsForRun(run.workflowRunRecordId);
+  const retryAttemptOffsetByNodeKey = buildRetryAttemptOffsetByNodeKey(previousNodeRuns);
+  const retryAttemptNumber = getNextManualRetryAttemptNumber(run);
+  const retryRequestedAt = new Date().toISOString();
   const retryInput = {
     ...getSafeObject(run.input),
     runSource: 'manual',
@@ -2012,7 +2085,9 @@ async function retryWorkflowRun({
     retryOfWorkflowRunRecordId: run.workflowRunRecordId,
     retryOfWorkflowCode: run.workflowCode,
     retryOfStatus: run.status,
-    retryRequestedAt: new Date().toISOString(),
+    retryAttemptNumber,
+    retryAttemptOffsetByNodeKey,
+    retryRequestedAt,
   };
 
   delete retryInput.parentWorkflowRunRecordId;
@@ -2040,7 +2115,9 @@ async function retryWorkflowRun({
         retryOfWorkflowCode: run.workflowCode,
         retryOfStatus: run.status,
         retryRequestedByUserId: user?.userId || null,
-        retryRequestedAt: retryInput.retryRequestedAt,
+        retryAttemptNumber,
+        retryAttemptOffsetByNodeKey,
+        retryRequestedAt,
       },
     });
   }
@@ -2434,8 +2511,8 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     description: String(node.description || '').trim() || null,
     targetCode: targetCode || null,
     inputParameters,
-    retryPolicy: getSafeObject(node.retryPolicy),
-    timeoutMs: node.timeoutMs ? Number.parseInt(node.timeoutMs, 10) : null,
+    retryPolicy: normalizeWorkflowNodeRetryPolicy(node.retryPolicy),
+    timeoutMs: normalizeWorkflowNodeTimeoutMs(node.timeoutMs),
     positionX: Number.isFinite(Number(node.positionX)) ? Number(node.positionX) : 80 + index * 280,
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,

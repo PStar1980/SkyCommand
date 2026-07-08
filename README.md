@@ -30,7 +30,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.31 — Run Controls
+**Active status:** Phase 10.31.1 — Retry Policy Preservation Hotfix
 
 SkyServer has completed the SkyWeb public-facing macro integration track. SkyWeb now has its post-cutover React + ASP.NET Core/C# analytics layer, while SkyServer remains the operational control plane for ingestion, automation, workers, repository tooling, and alert evaluation.
 
@@ -820,3 +820,7 @@ Workflow History now exposes operational controls for selected workflow runs.
 - Failed, canceled, or terminated runs can be retried as a fresh Temporal-backed execution using the saved run input and current published workflow definition.
 - Run control requests update the SkyServer workflow ledger, finalize active node-run rows, cancel pending approval requests, and preserve Temporal warnings when a dev-server restart has already removed the Temporal execution.
 - No DB migration is required; the phase uses existing workflow run, node run, approval, and metadata columns.
+
+### Phase 10.31.1 — Retry policy preservation hotfix
+
+Phase 10.31.1 hardens the run-control era by making node retries visible and durable through workflow graph edits. Create Workflow and Manage Workflows now expose retry policy controls for executable nodes, preserve `retryPolicy` and `timeoutMs` on save, and keep manual retry attempt counters cumulative through retry lineage metadata. Seed `00053__workflow_retry_policy_hotfix.sql` restores macro ingestion retry/timeout defaults if earlier graph saves flattened them.

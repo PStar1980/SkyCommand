@@ -465,3 +465,7 @@ Delivered scope:
 - avoid DB migration by using the existing workflow run, node run, approval, and metadata columns.
 
 This phase moves SkyServer from passive observability into controlled operations. Future hardening can add deeper retry policies, per-node replay, and bulk cleanup tooling.
+
+## Phase 10.31.1 — Retry policy preservation hotfix
+
+Phase 10.31.1 makes retry behavior operator-visible and prevents graph edits from erasing node-level resiliency. Executable nodes now expose maximum attempts, retry delay, and optional node timeout controls. Workflow retries started from History carry retry lineage offsets so the selected node attempt counter can continue from the prior failed/canceled/terminated run instead of appearing to reset.
