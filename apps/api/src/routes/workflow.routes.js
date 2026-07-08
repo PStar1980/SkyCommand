@@ -113,6 +113,31 @@ router.post(
 );
 
 
+router.post(
+  '/definitions/:workflowCode/drafts',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.createDraftVersion,
+);
+
+router.put(
+  '/definitions/:workflowCode/versions/:workflowVersionId/graph',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.saveDraftGraph,
+);
+
+router.post(
+  '/definitions/:workflowCode/versions/:workflowVersionId/publish',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.publishDraftVersion,
+);
+
+router.delete(
+  '/definitions/:workflowCode/versions/:workflowVersionId',
+  requireAnyPermission(['WORKFLOW_WRITE']),
+  workflowController.discardDraftVersion,
+);
+
+
 router.put(
   '/definitions/:workflowCode/graph',
   requireAnyPermission(['WORKFLOW_WRITE']),

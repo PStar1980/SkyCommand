@@ -2927,38 +2927,170 @@ async function listWorkflowVersions(workflowDefinitionId) {
   });
 }
 
+async function getWorkflowVersionMeta(workflowVersionId) {
+  if (!workflowVersionId) {
+    return null;
+  }
+
+  const result = await query(
+    `
+      SELECT
+        workflow_version_id,
+        workflow_definition_id,
+        version_number,
+        version_label,
+        status,
+        graph_version,
+        definition_snapshot,
+        created_by_user_id,
+        published_by_user_id,
+        published_at,
+        created_at,
+        updated_at
+      FROM worker.workflow_versions
+      WHERE workflow_version_id = $1
+      LIMIT 1
+    `,
+    [workflowVersionId],
+  );
+
+  return result.rows[0] ? camelizeRow(result.rows[0]) : null;
+}
+
 async function getWorkflowVersionGraph(workflowVersionId) {
   if (!workflowVersionId) {
     return null;
   }
 
-  const [nodes, edges] = await Promise.all([
+  const [version, nodes, edges] = await Promise.all([
+    getWorkflowVersionMeta(workflowVersionId),
     getWorkflowNodes(workflowVersionId),
     getWorkflowEdges(workflowVersionId),
   ]);
 
+  if (!version) {
+    return null;
+  }
+
   return {
-    workflowVersionId,
+    workflowVersionId: version.workflowVersionId,
+    workflowDefinitionId: version.workflowDefinitionId,
+    versionNumber: version.versionNumber,
+    versionLabel: version.versionLabel,
+    versionStatus: version.status,
+    graphVersion: version.graphVersion,
+    definitionSnapshot: version.definitionSnapshot || {},
+    publishedAt: version.publishedAt,
+    createdAt: version.createdAt,
+    updatedAt: version.updatedAt,
     nodes,
     edges,
   };
 }
 
+async function getLatestDraftWorkflowVersion(workflowDefinitionId) {
+  const result = await query(
+    `
+      SELECT workflow_version_id
+      FROM worker.workflow_versions
+      WHERE workflow_definition_id = $1
+        AND status = 'DRAFT'
+      ORDER BY version_number DESC
+      LIMIT 1
+    `,
+    [workflowDefinitionId],
+  );
+
+  return result.rows[0]?.workflow_version_id || null;
+}
+
+async function getWorkflowEditGuardrails(workflowDefinitionId) {
+  const [runResult, approvalResult, scheduleResult] = await Promise.all([
+    query(
+      `
+        SELECT COUNT(*)::INTEGER AS active_count
+        FROM worker.workflow_run_records
+        WHERE workflow_definition_id = $1
+          AND status IN ('QUEUED', 'RUNNING')
+      `,
+      [workflowDefinitionId],
+    ),
+    query(
+      `
+        SELECT COUNT(*)::INTEGER AS pending_count
+        FROM worker.workflow_approval_requests
+        WHERE workflow_definition_id = $1
+          AND status = 'PENDING'
+      `,
+      [workflowDefinitionId],
+    ).catch(() => ({ rows: [{ pending_count: 0 }] })),
+    query(
+      `
+        SELECT COUNT(*)::INTEGER AS active_count
+        FROM worker.schedules s
+        JOIN core.tools t
+          ON t.tool_id = s.tool_id
+        JOIN worker.workflow_definitions d
+          ON d.workflow_code = COALESCE(NULLIF(s.parameters ->> 'workflowCode', ''), NULLIF(s.parameters ->> 'workflow_code', ''))
+        WHERE d.workflow_definition_id = $1
+          AND t.tool_code = 'skyserver_workflow_start'
+          AND s.enabled = TRUE
+      `,
+      [workflowDefinitionId],
+    ).catch(() => ({ rows: [{ active_count: 0 }] })),
+  ]);
+
+  const activeRuns = Number(runResult.rows[0]?.active_count || 0);
+  const pendingApprovals = Number(approvalResult.rows[0]?.pending_count || 0);
+  const activeSchedules = Number(scheduleResult.rows[0]?.active_count || 0);
+
+  return {
+    activeRuns,
+    pendingApprovals,
+    activeSchedules,
+    hasWarnings: activeRuns > 0 || pendingApprovals > 0 || activeSchedules > 0,
+    warnings: [
+      activeRuns > 0 ? `${activeRuns} active workflow run(s) are still queued or running.` : null,
+      pendingApprovals > 0 ? `${pendingApprovals} pending approval request(s) are waiting for a decision.` : null,
+      activeSchedules > 0 ? `${activeSchedules} active schedule(s) can start this workflow.` : null,
+    ].filter(Boolean),
+  };
+}
+
 async function getWorkflowDefinitionForManage(workflowCode) {
   const definition = await getWorkflowDefinitionByCode(workflowCode);
-  const [versions, latestGraph, publishedGraph] = await Promise.all([
+  const draftVersionId = await getLatestDraftWorkflowVersion(definition.workflowDefinitionId);
+  const [versions, latestGraph, publishedGraph, draftGraph, guardrails] = await Promise.all([
     listWorkflowVersions(definition.workflowDefinitionId),
     getWorkflowVersionGraph(definition.latestVersionId),
     getWorkflowVersionGraph(definition.publishedVersionId),
+    getWorkflowVersionGraph(draftVersionId),
+    getWorkflowEditGuardrails(definition.workflowDefinitionId),
   ]);
+  const editGraph = draftGraph || publishedGraph || latestGraph;
 
   return {
     ...definition,
     versions,
     latestGraph,
     publishedGraph,
-    nodes: publishedGraph?.nodes || latestGraph?.nodes || [],
-    edges: publishedGraph?.edges || latestGraph?.edges || [],
+    draftGraph,
+    editGraph,
+    guardrails,
+    editing: {
+      mode: draftGraph ? 'DRAFT' : 'PUBLISHED_READONLY',
+      isDraft: Boolean(draftGraph),
+      workflowVersionId: editGraph?.workflowVersionId || null,
+      versionNumber: editGraph?.versionNumber || null,
+      versionStatus: editGraph?.versionStatus || null,
+      updatedAt: editGraph?.updatedAt || null,
+      publishedVersionId: publishedGraph?.workflowVersionId || null,
+      publishedVersionNumber: publishedGraph?.versionNumber || null,
+      draftVersionId: draftGraph?.workflowVersionId || null,
+      draftVersionNumber: draftGraph?.versionNumber || null,
+    },
+    nodes: editGraph?.nodes || [],
+    edges: editGraph?.edges || [],
   };
 }
 
@@ -3471,18 +3603,69 @@ async function insertWorkflowVersionGraph({
 }
 
 
-async function replaceWorkflowGraph({ workflowCode, payload = {}, user, permissions = [] } = {}) {
+function assertWorkflowVersionMatchesDefinition(version, definition, action) {
+  if (!version || version.workflowDefinitionId !== definition.workflowDefinitionId) {
+    throw new WorkflowServiceError('Workflow version does not belong to this workflow definition.', 404, {
+      action,
+      workflowCode: definition.workflowCode,
+      workflowVersionId: version?.workflowVersionId,
+    });
+  }
+}
+
+function assertVersionFresh({ version, payload = {}, action }) {
+  const expectedVersionId = String(payload.baseWorkflowVersionId || payload.workflowVersionId || '').trim();
+
+  if (expectedVersionId && expectedVersionId !== version.workflowVersionId) {
+    throw new WorkflowServiceError('Workflow version changed before this request was saved. Refresh before editing.', 409, {
+      action,
+      expectedVersionId,
+      currentVersionId: version.workflowVersionId,
+    });
+  }
+
+  if (payload.baseUpdatedAt && version.updatedAt) {
+    const expectedTime = new Date(payload.baseUpdatedAt).getTime();
+    const currentTime = new Date(version.updatedAt).getTime();
+
+    if (Number.isFinite(expectedTime) && Number.isFinite(currentTime) && currentTime > expectedTime + 1000) {
+      throw new WorkflowServiceError('Workflow draft changed since you opened it. Refresh before saving.', 409, {
+        action,
+        baseUpdatedAt: payload.baseUpdatedAt,
+        currentUpdatedAt: version.updatedAt,
+      });
+    }
+  }
+}
+
+async function createWorkflowDraftVersion({ workflowCode, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
     permissionCode: 'WORKFLOW_WRITE',
     permissions,
-    action: 'save_workflow_graph',
+    action: 'create_workflow_draft',
   });
 
   const definition = await getWorkflowDefinitionByCode(workflowCode);
-  const rawNodes = getSafeArray(payload.nodes);
+  const existingDraftVersionId = await getLatestDraftWorkflowVersion(definition.workflowDefinitionId);
+
+  if (existingDraftVersionId && payload.reuseExisting !== false) {
+    const managed = await getWorkflowDefinitionForManage(definition.workflowCode);
+    return {
+      ...managed,
+      draftReused: true,
+      message: `Existing draft v${managed.editing?.draftVersionNumber || ''} is ready for editing.`,
+    };
+  }
+
+  const sourceVersionId = payload.sourceWorkflowVersionId || definition.publishedVersionId || definition.latestVersionId;
+  const sourceGraph = sourceVersionId ? await getWorkflowVersionGraph(sourceVersionId) : null;
+  const rawNodes = versionNodesToCreateInput(sourceGraph?.nodes || []);
 
   if (rawNodes.length === 0) {
-    throw new WorkflowServiceError('At least one supported workflow node is required for a workflow graph.', 400);
+    throw new WorkflowServiceError('Cannot create a draft because the source workflow version has no nodes.', 400, {
+      workflowCode: definition.workflowCode,
+      sourceVersionId,
+    });
   }
 
   const seenKeys = new Set();
@@ -3492,83 +3675,49 @@ async function replaceWorkflowGraph({ workflowCode, payload = {}, user, permissi
   try {
     await client.query('BEGIN');
 
-    const versionResult = await client.query(
+    if (existingDraftVersionId && payload.reuseExisting === false) {
+      await client.query(
+        `
+          DELETE FROM worker.workflow_versions
+          WHERE workflow_version_id = $1
+            AND workflow_definition_id = $2
+            AND status = 'DRAFT'
+        `,
+        [existingDraftVersionId, definition.workflowDefinitionId],
+      );
+    }
+
+    const versionNumberResult = await client.query(
       `
-        SELECT workflow_version_id, version_number
+        SELECT COALESCE(MAX(version_number), 0) + 1 AS next_version_number
         FROM worker.workflow_versions
         WHERE workflow_definition_id = $1
-        ORDER BY version_number DESC
-        LIMIT 1
       `,
       [definition.workflowDefinitionId],
     );
+    const versionNumber = Number(versionNumberResult.rows[0]?.next_version_number || 1);
 
-    let workflowVersionId = versionResult.rows[0]?.workflow_version_id || null;
-    let versionNumber = Number(versionResult.rows[0]?.version_number || 1);
-
-    if (!workflowVersionId) {
-      const createdVersion = await client.query(
-        `
-          INSERT INTO worker.workflow_versions (
-            workflow_definition_id,
-            version_number,
-            version_label,
-            status,
-            graph_version,
-            definition_snapshot,
-            created_by_user_id,
-            published_by_user_id,
-            published_at
-          )
-          VALUES ($1, 1, 'Current workflow', 'PUBLISHED', '1.0', '{}'::jsonb, $2, $2, CURRENT_TIMESTAMP)
-          RETURNING workflow_version_id, version_number
-        `,
-        [definition.workflowDefinitionId, user?.userId || null],
-      );
-      workflowVersionId = createdVersion.rows[0].workflow_version_id;
-      versionNumber = Number(createdVersion.rows[0].version_number || 1);
-    } else {
-      await client.query(
-        `
-          UPDATE worker.workflow_versions
-          SET status = CASE WHEN workflow_version_id = $2 THEN 'PUBLISHED' ELSE 'RETIRED' END,
-              version_label = CASE WHEN workflow_version_id = $2 THEN 'Current workflow' ELSE version_label END,
-              published_by_user_id = CASE WHEN workflow_version_id = $2 THEN $3 ELSE published_by_user_id END,
-              published_at = CASE WHEN workflow_version_id = $2 THEN CURRENT_TIMESTAMP ELSE published_at END
-          WHERE workflow_definition_id = $1
-        `,
-        [definition.workflowDefinitionId, workflowVersionId, user?.userId || null],
-      );
-
-      await client.query('DELETE FROM worker.workflow_edges WHERE workflow_version_id = $1', [workflowVersionId]);
-      await client.query('DELETE FROM worker.workflow_nodes WHERE workflow_version_id = $1', [workflowVersionId]);
-    }
-
-    const graph = await insertWorkflowVersionGraph({
+    await insertWorkflowVersionGraph({
       client,
       definition,
       versionNumber,
-      versionLabel: 'Current workflow',
-      status: 'PUBLISHED',
+      versionLabel: payload.versionLabel || `Draft v${versionNumber}`,
+      status: 'DRAFT',
       nodes: normalizedNodes,
       user,
-      existingWorkflowVersionId: workflowVersionId,
     });
 
     await client.query(
       `
         UPDATE worker.workflow_definitions
-        SET status = CASE WHEN status = 'INACTIVE' THEN 'INACTIVE' ELSE 'ACTIVE' END,
-            enabled = CASE WHEN status = 'INACTIVE' THEN FALSE ELSE TRUE END,
-            visible_in_admin = TRUE,
-            updated_by_user_id = $2,
+        SET updated_by_user_id = $2,
             config = config || $3::jsonb
         WHERE workflow_definition_id = $1
       `,
       [
         definition.workflowDefinitionId,
         user?.userId || null,
-        JSON.stringify({ graphSavedBy: 'workflow_manager_ui_v2', singleVersionUi: true }),
+        JSON.stringify({ lastDraftCreatedBy: 'workflow_manager_guardrails_v1' }),
       ],
     );
 
@@ -3581,6 +3730,258 @@ async function replaceWorkflowGraph({ workflowCode, payload = {}, user, permissi
     client.release();
   }
 }
+
+async function saveWorkflowDraftGraph({ workflowCode, workflowVersionId, payload = {}, user, permissions = [] } = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_WRITE',
+    permissions,
+    action: 'save_workflow_draft_graph',
+  });
+
+  const definition = await getWorkflowDefinitionByCode(workflowCode);
+  const draftVersion = await getWorkflowVersionMeta(workflowVersionId);
+  assertWorkflowVersionMatchesDefinition(draftVersion, definition, 'save_workflow_draft_graph');
+
+  if (draftVersion.status !== 'DRAFT') {
+    throw new WorkflowServiceError('Published workflow versions are read-only. Create a draft before editing the graph.', 409, {
+      workflowCode: definition.workflowCode,
+      workflowVersionId,
+      versionStatus: draftVersion.status,
+    });
+  }
+
+  assertVersionFresh({ version: draftVersion, payload, action: 'save_workflow_draft_graph' });
+
+  const rawNodes = getSafeArray(payload.nodes);
+  if (rawNodes.length === 0) {
+    throw new WorkflowServiceError('At least one supported workflow node is required for a workflow draft.', 400);
+  }
+
+  const seenKeys = new Set();
+  const normalizedNodes = rawNodes.map((node, index) => normalizeCreateNodeInput(node, index, seenKeys));
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `
+        SELECT workflow_version_id
+        FROM worker.workflow_versions
+        WHERE workflow_version_id = $1
+          AND workflow_definition_id = $2
+          AND status = 'DRAFT'
+        FOR UPDATE
+      `,
+      [workflowVersionId, definition.workflowDefinitionId],
+    );
+
+    await client.query('DELETE FROM worker.workflow_edges WHERE workflow_version_id = $1', [workflowVersionId]);
+    await client.query('DELETE FROM worker.workflow_nodes WHERE workflow_version_id = $1', [workflowVersionId]);
+
+    await insertWorkflowVersionGraph({
+      client,
+      definition,
+      versionNumber: draftVersion.versionNumber,
+      versionLabel: payload.versionLabel || draftVersion.versionLabel || `Draft v${draftVersion.versionNumber}`,
+      status: 'DRAFT',
+      nodes: normalizedNodes,
+      user,
+      existingWorkflowVersionId: workflowVersionId,
+    });
+
+    await client.query(
+      `
+        UPDATE worker.workflow_versions
+        SET version_label = COALESCE(NULLIF($2, ''), version_label),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE workflow_version_id = $1
+      `,
+      [workflowVersionId, payload.versionLabel || null],
+    );
+
+    await client.query(
+      `
+        UPDATE worker.workflow_definitions
+        SET updated_by_user_id = $2,
+            config = config || $3::jsonb
+        WHERE workflow_definition_id = $1
+      `,
+      [
+        definition.workflowDefinitionId,
+        user?.userId || null,
+        JSON.stringify({ draftGraphSavedBy: 'workflow_manager_guardrails_v1' }),
+      ],
+    );
+
+    await client.query('COMMIT');
+    return getWorkflowDefinitionForManage(definition.workflowCode);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function publishWorkflowDraftVersion({ workflowCode, workflowVersionId, payload = {}, user, permissions = [] } = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_WRITE',
+    permissions,
+    action: 'publish_workflow_draft',
+  });
+
+  const definition = await getWorkflowDefinitionByCode(workflowCode);
+  const draftVersion = await getWorkflowVersionMeta(workflowVersionId);
+  assertWorkflowVersionMatchesDefinition(draftVersion, definition, 'publish_workflow_draft');
+
+  if (draftVersion.status !== 'DRAFT') {
+    throw new WorkflowServiceError('Only draft workflow versions can be published.', 409, {
+      workflowCode: definition.workflowCode,
+      workflowVersionId,
+      versionStatus: draftVersion.status,
+    });
+  }
+
+  assertVersionFresh({ version: draftVersion, payload, action: 'publish_workflow_draft' });
+
+  const guardrails = await getWorkflowEditGuardrails(definition.workflowDefinitionId);
+  const changeNote = String(payload.changeNote || payload.publishNote || '').trim() || null;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `
+        UPDATE worker.workflow_versions
+        SET status = 'RETIRED'
+        WHERE workflow_definition_id = $1
+          AND status = 'PUBLISHED'
+      `,
+      [definition.workflowDefinitionId],
+    );
+
+    await client.query(
+      `
+        UPDATE worker.workflow_versions
+        SET status = 'PUBLISHED',
+            version_label = COALESCE(NULLIF($3, ''), version_label, $4),
+            published_by_user_id = $2,
+            published_at = CURRENT_TIMESTAMP,
+            definition_snapshot = definition_snapshot || $5::jsonb,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE workflow_version_id = $1
+      `,
+      [
+        workflowVersionId,
+        user?.userId || null,
+        payload.versionLabel || null,
+        `Published v${draftVersion.versionNumber}`,
+        JSON.stringify({
+          publishedBy: 'workflow_manager_guardrails_v1',
+          changeNote,
+          guardrailsAtPublish: guardrails,
+        }),
+      ],
+    );
+
+    await client.query(
+      `
+        UPDATE worker.workflow_definitions
+        SET status = 'ACTIVE',
+            enabled = TRUE,
+            visible_in_admin = TRUE,
+            updated_by_user_id = $2,
+            config = config || $3::jsonb
+        WHERE workflow_definition_id = $1
+      `,
+      [
+        definition.workflowDefinitionId,
+        user?.userId || null,
+        JSON.stringify({ lastPublishedBy: 'workflow_manager_guardrails_v1', lastPublishNote: changeNote }),
+      ],
+    );
+
+    await client.query('COMMIT');
+    const managed = await getWorkflowDefinitionForManage(definition.workflowCode);
+    return {
+      ...managed,
+      guardrailsAtPublish: guardrails,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function discardWorkflowDraftVersion({ workflowCode, workflowVersionId, user, permissions = [] } = {}) {
+  assertPermission({
+    permissionCode: 'WORKFLOW_WRITE',
+    permissions,
+    action: 'discard_workflow_draft',
+  });
+
+  const definition = await getWorkflowDefinitionByCode(workflowCode);
+  const draftVersion = await getWorkflowVersionMeta(workflowVersionId);
+  assertWorkflowVersionMatchesDefinition(draftVersion, definition, 'discard_workflow_draft');
+
+  if (draftVersion.status !== 'DRAFT') {
+    throw new WorkflowServiceError('Only draft workflow versions can be discarded.', 409, {
+      workflowCode: definition.workflowCode,
+      workflowVersionId,
+      versionStatus: draftVersion.status,
+    });
+  }
+
+  await query(
+    `
+      DELETE FROM worker.workflow_versions
+      WHERE workflow_version_id = $1
+        AND workflow_definition_id = $2
+        AND status = 'DRAFT'
+    `,
+    [workflowVersionId, definition.workflowDefinitionId],
+  );
+
+  await query(
+    `
+      UPDATE worker.workflow_definitions
+      SET updated_by_user_id = $2,
+          config = config || $3::jsonb
+      WHERE workflow_definition_id = $1
+    `,
+    [
+      definition.workflowDefinitionId,
+      user?.userId || null,
+      JSON.stringify({ draftDiscardedBy: 'workflow_manager_guardrails_v1' }),
+    ],
+  );
+
+  return getWorkflowDefinitionForManage(definition.workflowCode);
+}
+
+async function replaceWorkflowGraph({ workflowCode, payload = {}, user, permissions = [] } = {}) {
+  const workflowVersionId = payload.workflowVersionId || payload.baseWorkflowVersionId;
+
+  if (!workflowVersionId) {
+    throw new WorkflowServiceError('Published workflow versions are read-only. Create a draft before saving graph edits.', 409, {
+      workflowCode,
+      requiredAction: 'CREATE_DRAFT',
+    });
+  }
+
+  return saveWorkflowDraftGraph({
+    workflowCode,
+    workflowVersionId,
+    payload,
+    user,
+    permissions,
+  });
+}
+
 
 async function createWorkflowVersion({ workflowCode, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
@@ -4713,7 +5114,9 @@ module.exports = {
   completeWorkflowRun,
   archiveWorkflowDefinition,
   cloneWorkflowDefinition,
+  createWorkflowDraftVersion,
   deleteWorkflowDefinition,
+  discardWorkflowDraftVersion,
   createChildWorkflowRun,
   createWorkflowDefinition,
   createWorkflowVersion,
@@ -4729,6 +5132,7 @@ module.exports = {
   getWorkflowRun,
   createWorkflowApprovalRequest,
   decideWorkflowApprovalRequest,
+  publishWorkflowDraftVersion,
   listWorkflowApprovalRequests,
   resolveWorkflowApprovalRequest,
   listBuilderCatalog,
@@ -4737,6 +5141,7 @@ module.exports = {
   listWorkflowRuns,
   markWorkflowNodeAttempt,
   startWorkflowNodeRun,
+  saveWorkflowDraftGraph,
   startWorkflowWithTemporal,
   updateWorkflowDefinition,
 };

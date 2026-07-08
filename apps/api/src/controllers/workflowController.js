@@ -230,6 +230,117 @@ async function replaceDefinitionGraph(req, res, next) {
   }
 }
 
+async function createDraftVersion(req, res, next) {
+  try {
+    const definition = await workflowExecutorService.createWorkflowDraftVersion({
+      workflowCode: req.params.workflowCode,
+      payload: req.body || {},
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.status(definition.draftReused ? 200 : 201).json({
+      ok: true,
+      definition,
+      message: definition.message || `Draft version created for ${definition.displayName}.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function saveDraftGraph(req, res, next) {
+  try {
+    const definition = await workflowExecutorService.saveWorkflowDraftGraph({
+      workflowCode: req.params.workflowCode,
+      workflowVersionId: req.params.workflowVersionId,
+      payload: req.body || {},
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.json({
+      ok: true,
+      definition,
+      message: `Draft graph for ${definition.displayName} saved. Publish the draft before new runs use it.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function publishDraftVersion(req, res, next) {
+  try {
+    const definition = await workflowExecutorService.publishWorkflowDraftVersion({
+      workflowCode: req.params.workflowCode,
+      workflowVersionId: req.params.workflowVersionId,
+      payload: req.body || {},
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.json({
+      ok: true,
+      definition,
+      guardrailsAtPublish: definition.guardrailsAtPublish,
+      message: `Workflow ${definition.displayName} draft published as the current version.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function discardDraftVersion(req, res, next) {
+  try {
+    const definition = await workflowExecutorService.discardWorkflowDraftVersion({
+      workflowCode: req.params.workflowCode,
+      workflowVersionId: req.params.workflowVersionId,
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+
+    res.json({
+      ok: true,
+      definition,
+      message: `Draft version discarded for ${definition.displayName}.`,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
 async function getBuilderCatalog(req, res, next) {
   try {
     const result = await workflowExecutorService.listBuilderCatalog({
@@ -479,8 +590,10 @@ module.exports = {
   archiveDefinition,
   cloneDefinition,
   createDefinition,
+  createDraftVersion,
   createVersion,
   deleteDefinition,
+  discardDraftVersion,
   getBuilderCatalog,
   getDefinition,
   getManagedDefinition,
@@ -493,8 +606,10 @@ module.exports = {
   rejectApproval,
   listDefinitions,
   listRuns,
+  publishDraftVersion,
   replaceDefinitionGraph,
   retryRun,
+  saveDraftGraph,
   startWorkflow,
   terminateRun,
   updateDefinition,
