@@ -24,6 +24,7 @@ import { TemporalStartWorkflow, TemporalWorkflowHistory } from './pages/Temporal
 import WorkflowBuilder from './pages/WorkflowBuilder.jsx';
 import WorkflowManager from './pages/WorkflowManager.jsx';
 import WorkflowApprovals from './pages/WorkflowApprovals.jsx';
+import WorkflowWorkerHealth from './pages/WorkflowWorkerHealth.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import './index.css';
 import './App.css';
@@ -132,6 +133,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="WORKFLOW_APPROVAL_READ">
                   <WorkflowApprovals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workflows/worker-health"
+              element={
+                <ProtectedRoute permissionCode="WORKFLOW_READ">
+                  <WorkflowWorkerHealth />
                 </ProtectedRoute>
               }
             />

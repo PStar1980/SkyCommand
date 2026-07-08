@@ -186,6 +186,13 @@ function Navbar() {
                           </NavLink>
                         </li>
                       )}
+                      {(hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ')) && (
+                        <li>
+                          <NavLink className={getDropdownItemClass} to="/workflows/worker-health">
+                            Worker Health
+                          </NavLink>
+                        </li>
+                      )}
                     </ul>
                   </li>
                 )}

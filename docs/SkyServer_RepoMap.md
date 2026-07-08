@@ -71,7 +71,8 @@ SkyServer/
 │   │       │   ├── WorkerControl.jsx
 │   │       │   ├── WorkflowApprovals.jsx
 │   │       │   ├── WorkflowBuilder.jsx
-│   │       │   └── WorkflowManager.jsx
+│   │       │   ├── WorkflowManager.jsx
+│   │       │   └── WorkflowWorkerHealth.jsx
 │   │       └── services/
 │   │           ├── adminService.js
 │   │           ├── api.js
@@ -128,7 +129,8 @@ SkyServer/
 │   │           ├── temporalService.js
 │   │           ├── toolManifestService.js
 │   │           ├── workerService.js
-│   │           └── workflowExecutorService.js
+│   │           ├── workflowExecutorService.js
+│   │           └── workflowHealthService.js
 │   └── worker/
 │       └── src/
 │           ├── index.js
@@ -202,7 +204,8 @@ SkyServer/
 │   │       │   ├── 00035__temporal_workflow_run_records.sql
 │   │       │   ├── 00038__workflow_builder_foundation.sql
 │   │       │   ├── 00045__workflow_lifecycle_simplification.sql
-│   │       │   └── 00051__workflow_human_approval_requests.sql
+│   │       │   ├── 00051__workflow_human_approval_requests.sql
+│   │       │   └── 00054__temporal_worker_heartbeats.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

@@ -496,3 +496,21 @@ Delivered scope:
 - existing runs remain pinned to their original `workflow_version_id`; new starts use the newly published version.
 
 This phase intentionally avoids visual diffing and advanced merge behavior. Those can be layered on after the draft/publish lifecycle is stable.
+
+## Phase 10.34 — Worker health dashboard / task queue status
+
+Status: implemented.
+
+Phase 10.34 adds operational visibility for the Temporal worker lane. SkyServer can now distinguish “Temporal server is reachable” from “a SkyServer worker is alive and polling the expected task queue.”
+
+Delivered scope:
+
+- add a durable Temporal worker heartbeat table and view;
+- have the local Temporal worker upsert process heartbeats while running;
+- expose a consolidated worker-health API endpoint under `/api/workflows/worker-health`;
+- describe the configured Temporal task queue and summarize pollers;
+- summarize workflow run pressure, stale running runs, recent failures, pending approvals, active workflow schedules, and published workflow definitions;
+- add a `Workflows -> Worker Health` Admin-Web page with health cards, heartbeat details, poller details, operator hints, and useful local CLI commands;
+- refresh the main Dashboard with high-level workflow control-plane metrics and better command tile wrapping.
+
+This phase is observability-only. It does not start, stop, or supervise worker processes; process lifecycle controls should remain a later hardening phase.
