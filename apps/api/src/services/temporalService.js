@@ -850,6 +850,113 @@ async function getHealth() {
   };
 }
 
+function normalizeTaskQueuePoller(poller, taskQueueType) {
+  const serialized = serializeTemporalValue(poller || {});
+
+  return {
+    identity: serialized.identity || serialized.workerIdentity || 'unknown-worker',
+    lastAccessTime: serialized.lastAccessTime || serialized.lastAccessTimestamp || null,
+    ratePerSecond: serialized.ratePerSecond || null,
+    taskQueueTypes: [taskQueueType],
+    raw: serialized,
+  };
+}
+
+async function describeTaskQueueForType({ connection, namespace, taskQueue, taskQueueType, label }) {
+  try {
+    const response = await connection.workflowService.describeTaskQueue({
+      namespace,
+      taskQueue: {
+        name: taskQueue,
+      },
+      taskQueueType,
+      includeTaskQueueStatus: true,
+    });
+    const serialized = serializeTemporalValue(response || {});
+    const pollers = Array.isArray(serialized.pollers)
+      ? serialized.pollers.map((poller) => normalizeTaskQueuePoller(poller, label))
+      : [];
+
+    return {
+      ok: true,
+      label,
+      taskQueueType,
+      pollerCount: pollers.length,
+      pollers,
+      backlogCountHint: serialized.taskQueueStatus?.backlogCountHint ?? null,
+      readLevel: serialized.taskQueueStatus?.readLevel ?? null,
+      ackLevel: serialized.taskQueueStatus?.ackLevel ?? null,
+      raw: serialized,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      label,
+      taskQueueType,
+      pollerCount: 0,
+      pollers: [],
+      error: error.message || String(error),
+    };
+  }
+}
+
+async function getTaskQueueDiagnostics(taskQueueName) {
+  const { config, connection } = await createTemporalClient();
+  const taskQueue = String(taskQueueName || config.taskQueue || '').trim() || config.taskQueue;
+  const [workflow, activity] = await Promise.all([
+    describeTaskQueueForType({
+      connection,
+      namespace: config.namespace,
+      taskQueue,
+      taskQueueType: 1,
+      label: 'WORKFLOW',
+    }),
+    describeTaskQueueForType({
+      connection,
+      namespace: config.namespace,
+      taskQueue,
+      taskQueueType: 2,
+      label: 'ACTIVITY',
+    }),
+  ]);
+  const pollerMap = new Map();
+
+  for (const poller of [...workflow.pollers, ...activity.pollers]) {
+    const key = poller.identity;
+    const existing = pollerMap.get(key);
+
+    if (existing) {
+      existing.taskQueueTypes = Array.from(
+        new Set([...(existing.taskQueueTypes || []), ...(poller.taskQueueTypes || [])]),
+      );
+      existing.lastAccessTime = existing.lastAccessTime || poller.lastAccessTime;
+    } else {
+      pollerMap.set(key, { ...poller });
+    }
+  }
+
+  const pollers = Array.from(pollerMap.values());
+  const issues = [workflow, activity]
+    .filter((item) => !item.ok)
+    .map((item) => `${item.label} task queue describe failed: ${item.error}`);
+
+  return {
+    address: config.address,
+    namespace: config.namespace,
+    taskQueue,
+    reachable: true,
+    healthy: pollers.length > 0,
+    pollerCount: pollers.length,
+    workflowPollerCount: workflow.pollerCount,
+    activityPollerCount: activity.pollerCount,
+    pollers,
+    workflow,
+    activity,
+    issues,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 async function listWorkflowDefinitions() {
   const config = getTemporalConfig();
   const items = await getDatabaseWorkflowDefinitions({ enabledOnly: true, visibleOnly: true });
@@ -1822,6 +1929,7 @@ async function terminateWorkflow({ workflowId, runId, reason, actor = null } = {
 module.exports = {
   cancelWorkflow,
   getHealth,
+  getTaskQueueDiagnostics,
   getWorkflow,
   getWorkflowRuntimeDetail,
   getWorkflowDefinition,

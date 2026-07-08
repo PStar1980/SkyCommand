@@ -5,6 +5,7 @@ import adminService from '../services/adminService';
 import api from '../services/api';
 import toolService from '../services/toolService';
 import workerService from '../services/workerService';
+import workflowService from '../services/workflowService';
 
 function formatDate(value) {
   if (!value) {
@@ -66,15 +67,15 @@ function formatDuration(value) {
 }
 
 function statusClass(status) {
-  if (status === 'SUCCESS' || status === 'CURRENT' || status === true) {
+  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED'].includes(status) || status === true) {
     return 'sky-pill-success';
   }
 
-  if (status === 'FAILED' || status === 'ERROR' || status === false) {
+  if (['FAILED', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
     return 'sky-pill-danger';
   }
 
-  if (status === 'STARTED' || status === 'RUNNING' || status === 'WARNING' || status === 'STALE') {
+  if (['STARTED', 'RUNNING', 'WARNING', 'STALE', 'DEGRADED', 'BUSY', 'QUEUED'].includes(status)) {
     return 'sky-pill-warning';
   }
 
@@ -82,15 +83,15 @@ function statusClass(status) {
 }
 
 function dotClass(status) {
-  if (status === 'SUCCESS' || status === 'CURRENT' || status === true) {
+  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED'].includes(status) || status === true) {
     return 'sky-status-dot-success';
   }
 
-  if (status === 'FAILED' || status === 'ERROR' || status === false) {
+  if (['FAILED', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
     return 'sky-status-dot-danger';
   }
 
-  if (status === 'STARTED' || status === 'RUNNING' || status === 'WARNING' || status === 'STALE') {
+  if (['STARTED', 'RUNNING', 'WARNING', 'STALE', 'DEGRADED', 'BUSY', 'QUEUED'].includes(status)) {
     return 'sky-status-dot-warning';
   }
 
@@ -248,6 +249,7 @@ function Dashboard() {
     },
     ingestion: null,
     worker: null,
+    workflowHealth: null,
     macro: null,
     coreSettings: null,
     authSettings: null,
@@ -310,6 +312,10 @@ function Dashboard() {
   const workerSchedules = workerHealth?.schedules || {};
   const workerNodes = workerHealth?.nodes || {};
   const workerRuns24h = workerHealth?.runs24h || {};
+  const workflowHealth = summary.workflowHealth || null;
+  const workflowRuns = workflowHealth?.runs || {};
+  const workflowTaskQueue = workflowHealth?.taskQueue || {};
+  const workflowWorker = workflowHealth?.worker || {};
   const macroIndicators = sumMacroIndicators(summary.macro?.indicatorCounts || []);
   const executionStatusCounts = countByStatus(recentExecutions);
   const sourceStatusCounts = countByStatus(sourceHealth);
@@ -326,6 +332,7 @@ function Dashboard() {
     if (
       summary.ingestion?.overallStatus === 'WARNING' ||
       summary.worker?.overallStatus === 'WARNING' ||
+      ['WARNING', 'DEGRADED', 'OFFLINE'].includes(workflowHealth?.overallStatus) ||
       failedExecutions.length > 0 ||
       failedAuditEvents.length > 0
     ) {
@@ -344,6 +351,7 @@ function Dashboard() {
     summary.dbHealth,
     summary.ingestion,
     summary.worker,
+    workflowHealth?.overallStatus,
   ]);
 
   const dashboardTasks = useMemo(
@@ -368,6 +376,13 @@ function Dashboard() {
           summary.worker?.overallStatus || '—',
           '/automation/scheduler',
           'WORKER_SCHEDULE_READ',
+          permissionCodes,
+        ),
+        buildDashboardTask(
+          'Workflows',
+          workflowHealth?.overallStatus || '—',
+          '/workflows/worker-health',
+          'WORKFLOW_READ',
           permissionCodes,
         ),
         buildDashboardTask(
@@ -398,6 +413,7 @@ function Dashboard() {
       summary.executions.total,
       summary.ingestion?.overallStatus,
       summary.worker?.overallStatus,
+      workflowHealth?.overallStatus,
       summary.sessions.total,
       visibleToolsCount,
     ],
@@ -443,6 +459,20 @@ function Dashboard() {
         status: workerHealth?.overallStatus || 'UNKNOWN',
       },
       {
+        label: 'Workflows',
+        value: loading ? '—' : workflowHealth?.overallStatus || '—',
+        help: loading
+          ? 'Loading Temporal worker health'
+          : `${workflowRuns.active || 0} active / ${workflowTaskQueue.pollerCount || 0} poller(s)`,
+        status: workflowHealth?.overallStatus || 'UNKNOWN',
+      },
+      {
+        label: 'Task queue',
+        value: loading ? '—' : workflowTaskQueue.healthy ? 'POLLING' : 'CHECK',
+        help: `${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'skyserver-local'} · ${workflowWorker.status || 'worker unknown'}`,
+        status: workflowTaskQueue.healthy ? 'CURRENT' : 'WARNING',
+      },
+      {
         label: 'Sessions',
         value: loading ? '—' : summary.sessions.total,
         help: 'Active authenticated sessions',
@@ -486,6 +516,13 @@ function Dashboard() {
       macroIndicators.total,
       runningExecutions.length,
       workerHealth,
+      workflowHealth,
+      workflowRuns.active,
+      workflowTaskQueue.pollerCount,
+      workflowTaskQueue.healthy,
+      workflowTaskQueue.taskQueue,
+      workflowTaskQueue.name,
+      workflowWorker.status,
       workerNodes.online,
       workerSchedules.enabled,
       summary.apiHealth,
@@ -523,6 +560,7 @@ function Dashboard() {
         sessionsResult,
         ingestionResult,
         workerResult,
+        workflowHealthResult,
         macroResult,
         coreSettingsResult,
         authSettingsResult,
@@ -548,6 +586,9 @@ function Dashboard() {
           : Promise.resolve(null),
         hasPermission('WORKER_SCHEDULE_READ')
           ? loadOptional('worker', () => workerService.getHealth())
+          : Promise.resolve(null),
+        hasPermission('WORKFLOW_READ')
+          ? loadOptional('workflow-health', () => workflowService.getWorkerHealth())
           : Promise.resolve(null),
         hasPermission('MACRO_VIEW_READ')
           ? loadOptional('macro', () => api.get('/api/macro/summary'))
@@ -579,6 +620,7 @@ function Dashboard() {
         },
         ingestion: ingestionResult,
         worker: workerResult,
+        workflowHealth: workflowHealthResult,
         macro: macroResult,
         coreSettings: coreSettingsResult,
         authSettings: authSettingsResult,
@@ -618,8 +660,8 @@ function Dashboard() {
           <h1 className="sky-page-title">SkyServer Admin</h1>
           <p className="sky-page-subtitle">
             Welcome back, {user?.displayName || user?.username || 'Operator'}. This is the private
-            cockpit for API health, database status, macro ingestion, tools, sessions, executions,
-            and audit activity.
+            cockpit for API health, database status, macro ingestion, workflow health, tools,
+            sessions, executions, and audit activity.
           </p>
         </div>
 
@@ -653,7 +695,8 @@ function Dashboard() {
             API {summary.apiHealth?.ok ? 'online' : 'unknown'} · Database{' '}
             {summary.dbHealth?.ok ? 'online' : 'unknown'} · Ingestion{' '}
             {summary.ingestion?.overallStatus || 'not loaded'} · Automation{' '}
-            {summary.worker?.overallStatus || 'not loaded'} · Permissions {permissionCount}
+            {summary.worker?.overallStatus || 'not loaded'} · Workflows{' '}
+            {workflowHealth?.overallStatus || 'not loaded'} · Permissions {permissionCount}
           </p>
         </div>
 
@@ -866,6 +909,69 @@ function Dashboard() {
                 <div className="sky-muted small">Macro summary requires MACRO_VIEW_READ.</div>
               )}
             </div>
+          </section>
+        </div>
+      </div>
+
+      <div className="row g-3 mt-1">
+        <div className="col-12">
+          <section className="sky-card sky-table-card">
+            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
+              <div>
+                <h2 className="h5 mb-0">Workflow control plane</h2>
+                <div className="small sky-muted">Temporal worker health, task queue polling, and workflow run pressure</div>
+              </div>
+              {hasPermission('WORKFLOW_READ') && (
+                <Link className="btn btn-sm sky-btn-ghost" to="/workflows/worker-health">
+                  Open worker health
+                </Link>
+              )}
+            </div>
+
+            {workflowHealth ? (
+              <div className="sky-card-body">
+                <div className="row g-3">
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Status</div>
+                      <div className="sky-mini-metric-value">{workflowHealth.overallStatus || '—'}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Pollers</div>
+                      <div className="sky-mini-metric-value">{workflowTaskQueue.pollerCount || 0}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Active runs</div>
+                      <div className="sky-mini-metric-value">{workflowRuns.active || 0}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-3 col-6">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Pending approvals</div>
+                      <div className="sky-mini-metric-value">{workflowHealth.approvals?.pending || 0}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="small sky-muted mt-3">
+                  Temporal {workflowHealth.temporal?.reachable ? 'online' : 'offline'} · Worker {workflowWorker.status || 'unknown'} · Completed 24h {workflowRuns.completedLast24h || 0} · Failed 24h {workflowRuns.failedLast24h || 0}
+                </div>
+                {(workflowHealth.hints || []).length > 0 && (
+                  <div className="alert alert-warning mt-3 mb-0">
+                    {(workflowHealth.hints || []).slice(0, 2).join(' ')}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="sky-empty-state">
+                {hasPermission('WORKFLOW_READ')
+                  ? 'Workflow worker health could not be loaded.'
+                  : 'Workflow health requires WORKFLOW_READ.'}
+              </div>
+            )}
           </section>
         </div>
       </div>

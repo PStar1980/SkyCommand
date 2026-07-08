@@ -840,3 +840,17 @@ Workflow History now exposes a sharper Temporal diagnostics cockpit for selected
 ### Temporal Phase 10.33 — Workflow versioning guardrails
 
 Manage Workflows now uses a safer draft-before-edit lifecycle. Published workflow versions are read-only, so graph changes are made in a draft version and only affect new executions after the draft is explicitly published. The UI shows version history, operational publish warnings, and a publish change note field. Server-side guardrails reject stale draft saves and preserve the existing runtime contract: each workflow run stays pinned to the version it started with.
+
+### Temporal Phase 10.34 — Worker health dashboard / task queue status
+
+SkyServer now includes a Temporal worker health cockpit for the workflow execution lane. The new `Workflows -> Worker Health` page checks Temporal reachability, configured namespace/task queue, active pollers, SkyServer worker heartbeats, workflow run pressure, pending approvals, and scheduled workflow starts.
+
+Delivered scope:
+
+- added `worker.temporal_worker_heartbeats` and `worker.vw_temporal_worker_heartbeats` through migration `00054__temporal_worker_heartbeats.sql`;
+- updated the Temporal worker to emit a process heartbeat with worker identity, task queue, namespace, PID, hostname, Temporal address, and last-seen timestamp;
+- added `GET /api/workflows/worker-health` for consolidated Temporal server, task queue, heartbeat, workflow run, approval, definition, and schedule health;
+- added `Workflows -> Worker Health` in Admin-Web with status cards, operator hints, heartbeat list, poller list, run-pressure metrics, and local CLI command reminders;
+- refreshed the main Dashboard with high-level workflow health, task queue status, and a Workflow control-plane panel;
+- adjusted dashboard task-strip layout so the command tiles wrap cleanly as the control plane grows.
+

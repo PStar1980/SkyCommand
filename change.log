@@ -543,3 +543,14 @@ SkyWeb Analytics owns:
 - Added operational publish warnings for active workflow runs, pending approval requests, and active schedules targeting the workflow.
 - Updated Manage Workflows with a Version Guardrails panel, publish change note, version history table, read-only published graph preview, and draft-only graph editing controls.
 - Kept workflow execution semantics stable: new starts resolve the current published version, while existing runs remain pinned to the version they started with.
+
+## Phase 10.34 — Worker Health Dashboard / Task Queue Status
+
+- Added migration `00054__temporal_worker_heartbeats.sql` for SkyServer Temporal worker heartbeat tracking.
+- Updated `packages/temporal/src/worker.js` to emit periodic heartbeat records with worker identity, namespace, task queue, PID, host, version, Temporal address, and freshness metadata.
+- Added `workflowHealthService` and `GET /api/workflows/worker-health` to combine Temporal server reachability, task queue pollers, worker heartbeat freshness, workflow run pressure, pending approvals, active workflow schedules, and definition counts.
+- Added Temporal task queue diagnostics to `temporalService` using Temporal task queue describe calls for workflow and activity pollers.
+- Added Admin-Web `Workflows -> Worker Health` with status cards, operator hints, heartbeat table, poller list, run-pressure metrics, and local commands.
+- Refreshed the main Dashboard with workflow control-plane status, task queue status, and a dedicated Workflow control-plane health panel.
+- Adjusted dashboard task tile layout to wrap better as more command-center links are added.
+- Updated validation to include `workflowHealthService.js` syntax checking.

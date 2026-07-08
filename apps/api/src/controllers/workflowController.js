@@ -1,5 +1,6 @@
 const authService = require('../services/authService');
 const workflowExecutorService = require('../services/workflowExecutorService');
+const workflowHealthService = require('../services/workflowHealthService');
 
 function parseBooleanQuery(value, fallback) {
   if (value === undefined || value === null || value === '') {
@@ -7,6 +8,27 @@ function parseBooleanQuery(value, fallback) {
   }
 
   return value === true || value === 'true' || value === '1';
+}
+
+async function getWorkerHealth(req, res, next) {
+  try {
+    const result = await workflowHealthService.getWorkflowWorkerHealth();
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
 }
 
 async function listDefinitions(req, res, next) {
@@ -597,6 +619,7 @@ module.exports = {
   getBuilderCatalog,
   getDefinition,
   getManagedDefinition,
+  getWorkerHealth,
   getRun,
   controlRun,
   cancelRun,

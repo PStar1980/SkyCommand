@@ -1,5 +1,9 @@
 import api from './api';
 
+function getWorkerHealth() {
+  return api.get('/api/workflows/worker-health');
+}
+
 function listDefinitions(filters = {}) {
   return api.get('/api/workflows/definitions', { query: filters });
 }
@@ -103,6 +107,7 @@ const workflowService = {
   createVersion,
   deleteDefinition,
   getBuilderCatalog,
+  getWorkerHealth,
   getDefinition,
   getManagedDefinition,
   getRun,

@@ -741,7 +741,7 @@
 
 .sky-dashboard-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
   gap: 1rem;
   align-items: stretch;
   border: 1px solid rgba(124, 144, 177, 0.2);
@@ -756,13 +756,13 @@
 
 .sky-dashboard-task-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(7.4rem, 1fr));
   gap: 0.65rem;
 }
 
 .sky-dashboard-task {
   display: block;
-  min-height: 5.6rem;
+  min-height: 5.15rem;
   border: 1px solid rgba(124, 144, 177, 0.18);
   border-radius: 0.9rem;
   background: rgba(6, 11, 22, 0.46);
@@ -788,7 +788,7 @@
 
 .sky-dashboard-task-value {
   color: #ffffff;
-  font-size: 1.45rem;
+  font-size: clamp(1.05rem, 1.4vw, 1.45rem);
   font-weight: 850;
   line-height: 1.1;
 }

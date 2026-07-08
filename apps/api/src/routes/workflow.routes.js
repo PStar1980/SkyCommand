@@ -7,6 +7,13 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+
+router.get(
+  '/worker-health',
+  requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
+  workflowController.getWorkerHealth,
+);
+
 router.get(
   '/definitions',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
