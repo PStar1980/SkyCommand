@@ -514,3 +514,23 @@ Delivered scope:
 - refresh the main Dashboard with high-level workflow control-plane metrics and better command tile wrapping.
 
 This phase is observability-only. It does not start, stop, or supervise worker processes; process lifecycle controls should remain a later hardening phase.
+
+## Phase 10.35 — Production hardening checklist
+
+Status: implemented.
+
+Phase 10.35 adds a pre-production truth mirror for the SkyServer control plane. It does not deploy SkyServer to production; it inspects whether the current environment, database, workflow graph, Temporal worker lane, auth surface, and operational practices look safe enough to move toward a durable deployment.
+
+Delivered scope:
+
+- add a production readiness API endpoint under `/api/admin/production-readiness`;
+- check environment and secret placeholders such as `NODE_ENV`, `JWT_SECRET`, `SKYSERVER_INTERNAL_API_TOKEN`, database target, Temporal address, and task queue;
+- reuse worker-health data to evaluate Temporal reachability, task queue pollers, worker heartbeat freshness, stale runs, and recent workflow failures;
+- verify required auth/core/worker workflow tables and views are present;
+- detect orphaned queued/running workflow records, pending approval rows missing parent runs, and running node rows missing parent runs;
+- check workflow safety for active definitions without published versions, unresolved approval roles, missing retry/timeout policy, backward conditional edges, and active workflow schedules pointing at inactive definitions;
+- check auth readiness for active `SUPER_ADMIN`, approval permissions, run-control permissions, and current operator workflow visibility;
+- add `Configuration -> Production Readiness` with section-level PASS/WARNING/FAIL/INFO checks and operator commands;
+- add a high-level readiness tile/card to the main Dashboard.
+
+This phase is intentionally inspection-only. It does not add process supervision, Docker/Kubernetes/NSSM/systemd deployment, production Temporal provisioning, or secrets-vault integration. Those should remain later deployment hardening phases after the checklist gives us a stable view of remaining gaps.

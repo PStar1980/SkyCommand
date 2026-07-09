@@ -9,6 +9,7 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import AuditEvents from './pages/AuditEvents.jsx';
 import AdminPrivileges from './pages/AdminPrivileges.jsx';
 import AdminRepositories from './pages/AdminRepositories.jsx';
+import ProductionReadiness from './pages/ProductionReadiness.jsx';
 import AdminRoles from './pages/AdminRoles.jsx';
 import AdminSessions from './pages/AdminSessions.jsx';
 import AdminUsers from './pages/AdminUsers.jsx';
@@ -162,6 +163,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
             <Route path="automation/temporal" element={<Navigate replace to="/workflows/temporal/history" />} />
             <Route path="temporal" element={<Navigate replace to="/workflows/temporal/history" />} />
+
+
+            <Route
+              path="configuration/production-readiness"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_REPOSITORY_READ">
+                  <ProductionReadiness />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="configuration/repositories"

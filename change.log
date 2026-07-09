@@ -554,3 +554,12 @@ SkyWeb Analytics owns:
 - Refreshed the main Dashboard with workflow control-plane status, task queue status, and a dedicated Workflow control-plane health panel.
 - Adjusted dashboard task tile layout to wrap better as more command-center links are added.
 - Updated validation to include `workflowHealthService.js` syntax checking.
+
+## Phase 10.35 — Production hardening checklist
+
+- Added production readiness API support with `GET /api/admin/production-readiness`.
+- Added `productionReadinessService` to inspect environment/secrets, Temporal worker health, database objects, workflow graph safety, auth/permission readiness, and operational hardening reminders.
+- Added Admin-Web `Configuration -> Production Readiness` with a pre-flight checklist, section-level PASS/WARNING/FAIL/INFO badges, top readiness items, worker summary cards, and local operator commands.
+- Added the Production Readiness link to the Configuration navigation menu.
+- Refreshed the main Dashboard with a high-level Readiness command tile and status card that summarize pass/warning/fail counts.
+- Kept this phase inspection-only: no process supervision, no Docker/Kubernetes/systemd/NSSM deployment, no secrets-vault integration, and no runtime execution behavior changes.

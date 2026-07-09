@@ -67,11 +67,11 @@ function formatDuration(value) {
 }
 
 function statusClass(status) {
-  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED'].includes(status) || status === true) {
+  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED', 'PASS'].includes(status) || status === true) {
     return 'sky-pill-success';
   }
 
-  if (['FAILED', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
+  if (['FAILED', 'FAIL', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
     return 'sky-pill-danger';
   }
 
@@ -83,11 +83,11 @@ function statusClass(status) {
 }
 
 function dotClass(status) {
-  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED'].includes(status) || status === true) {
+  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED', 'PASS'].includes(status) || status === true) {
     return 'sky-status-dot-success';
   }
 
-  if (['FAILED', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
+  if (['FAILED', 'FAIL', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
     return 'sky-status-dot-danger';
   }
 
@@ -250,6 +250,7 @@ function Dashboard() {
     ingestion: null,
     worker: null,
     workflowHealth: null,
+    productionReadiness: null,
     macro: null,
     coreSettings: null,
     authSettings: null,
@@ -313,6 +314,7 @@ function Dashboard() {
   const workerNodes = workerHealth?.nodes || {};
   const workerRuns24h = workerHealth?.runs24h || {};
   const workflowHealth = summary.workflowHealth || null;
+  const productionReadiness = summary.productionReadiness || null;
   const workflowRuns = workflowHealth?.runs || {};
   const workflowTaskQueue = workflowHealth?.taskQueue || {};
   const workflowWorker = workflowHealth?.worker || {};
@@ -333,6 +335,7 @@ function Dashboard() {
       summary.ingestion?.overallStatus === 'WARNING' ||
       summary.worker?.overallStatus === 'WARNING' ||
       ['WARNING', 'DEGRADED', 'OFFLINE'].includes(workflowHealth?.overallStatus) ||
+      ['WARNING', 'FAIL'].includes(productionReadiness?.overallStatus) ||
       failedExecutions.length > 0 ||
       failedAuditEvents.length > 0
     ) {
@@ -352,6 +355,7 @@ function Dashboard() {
     summary.ingestion,
     summary.worker,
     workflowHealth?.overallStatus,
+    productionReadiness?.overallStatus,
   ]);
 
   const dashboardTasks = useMemo(
@@ -386,6 +390,13 @@ function Dashboard() {
           permissionCodes,
         ),
         buildDashboardTask(
+          'Readiness',
+          productionReadiness?.overallStatus || '—',
+          '/configuration/production-readiness',
+          'ADMIN_REPOSITORY_READ',
+          permissionCodes,
+        ),
+        buildDashboardTask(
           'Inspect executions',
           summary.executions.total,
           '/tools/executions',
@@ -414,6 +425,7 @@ function Dashboard() {
       summary.ingestion?.overallStatus,
       summary.worker?.overallStatus,
       workflowHealth?.overallStatus,
+      productionReadiness?.overallStatus,
       summary.sessions.total,
       visibleToolsCount,
     ],
@@ -473,6 +485,14 @@ function Dashboard() {
         status: workflowTaskQueue.healthy ? 'CURRENT' : 'WARNING',
       },
       {
+        label: 'Readiness',
+        value: loading ? '—' : productionReadiness?.overallStatus || '—',
+        help: loading
+          ? 'Loading production checklist'
+          : `${productionReadiness?.counts?.pass || 0} pass / ${productionReadiness?.counts?.warning || 0} warning / ${productionReadiness?.counts?.fail || 0} fail`,
+        status: productionReadiness?.overallStatus || 'UNKNOWN',
+      },
+      {
         label: 'Sessions',
         value: loading ? '—' : summary.sessions.total,
         help: 'Active authenticated sessions',
@@ -523,6 +543,7 @@ function Dashboard() {
       workflowTaskQueue.taskQueue,
       workflowTaskQueue.name,
       workflowWorker.status,
+      productionReadiness,
       workerNodes.online,
       workerSchedules.enabled,
       summary.apiHealth,
@@ -561,6 +582,7 @@ function Dashboard() {
         ingestionResult,
         workerResult,
         workflowHealthResult,
+        productionReadinessResult,
         macroResult,
         coreSettingsResult,
         authSettingsResult,
@@ -589,6 +611,9 @@ function Dashboard() {
           : Promise.resolve(null),
         hasPermission('WORKFLOW_READ')
           ? loadOptional('workflow-health', () => workflowService.getWorkerHealth())
+          : Promise.resolve(null),
+        hasPermission('ADMIN_REPOSITORY_READ')
+          ? loadOptional('production-readiness', () => adminService.getProductionReadiness())
           : Promise.resolve(null),
         hasPermission('MACRO_VIEW_READ')
           ? loadOptional('macro', () => api.get('/api/macro/summary'))
@@ -621,6 +646,7 @@ function Dashboard() {
         ingestion: ingestionResult,
         worker: workerResult,
         workflowHealth: workflowHealthResult,
+        productionReadiness: productionReadinessResult,
         macro: macroResult,
         coreSettings: coreSettingsResult,
         authSettings: authSettingsResult,

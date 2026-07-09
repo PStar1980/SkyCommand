@@ -854,3 +854,17 @@ Delivered scope:
 - refreshed the main Dashboard with high-level workflow health, task queue status, and a Workflow control-plane panel;
 - adjusted dashboard task-strip layout so the command tiles wrap cleanly as the control plane grows.
 
+
+### Phase 10.35 — Production Readiness Checklist
+
+SkyServer Admin now includes a production-readiness checklist under `Configuration -> Production Readiness`. This page is a pre-flight inspection surface for the workflow control plane. It checks environment/secrets, Temporal worker health, database object presence, workflow graph safety, auth/permission readiness, and operational hardening reminders.
+
+The checklist is exposed by:
+
+```txt
+GET /api/admin/production-readiness
+```
+
+The page reports section-level `PASS`, `WARNING`, `FAIL`, and `INFO` checks, plus local operator commands for API, Admin-Web, Temporal, worker, task queue diagnostics, and DB health. The main dashboard also shows a compact Readiness tile/card so production-hardening gaps are visible from the command center.
+
+This phase is intentionally inspection-only. It does not start/stop processes, create Docker/Kubernetes/systemd/NSSM deployment assets, provision a production Temporal database, or integrate a secrets vault.
