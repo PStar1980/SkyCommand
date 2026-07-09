@@ -2,7 +2,10 @@
   color: #e7edf7;
   background: #0a0f1c;
   font-family:
-    Inter,
+    'Inter',
+    'Geist',
+    'Satoshi',
+    'Manrope',
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -10,6 +13,11 @@
     'Segoe UI',
     sans-serif;
   font-synthesis: none;
+  font-feature-settings:
+    'cv02' 1,
+    'cv03' 1,
+    'cv04' 1,
+    'cv11' 1;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
