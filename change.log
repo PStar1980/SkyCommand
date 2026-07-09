@@ -1,3 +1,11 @@
+# 2026-07-09 — UI Phase 11.1.1 Command Glass Visual Polish
+
+- Tuned the Command Glass sidebar density with a slightly wider rail, larger icon cells, stronger secondary-label contrast, and more breathing room between grouped navigation items.
+- Added a workbench layout class for workflow-heavy pages so Manage Workflows, Workflow History, Start/Create Workflow, Worker Health, and Production Readiness can use wider content space under the new app shell.
+- Refined the dashboard command hero so action tiles settle into a cleaner four-column command strip on desktop and scale down more predictably at narrower widths.
+- Added topbar status-dot polish and custom visual-graph scrollbar styling to reduce the rough default browser scrollbar feel on workflow maps.
+- Kept the patch visual/layout-only; no routes, API behavior, database schema, or workflow runtime behavior changed.
+
 # 2026-07-09 — UI Phase 11.1 Command Glass Shell
 
 - Replaced the crowded top navigation model with a left-side Command Glass navigation shell inspired by the selected dark SaaS dashboard references.
