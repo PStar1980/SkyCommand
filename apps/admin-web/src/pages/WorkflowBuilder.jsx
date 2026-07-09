@@ -253,9 +253,9 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
         >
           <option value="AUTO">Auto</option>
           <option value="NONE">No auth</option>
-          <option value="SKYSERVER_INTERNAL">SkyServer internal</option>
+          <option value="SKYSERVER_INTERNAL">SkyCommand internal</option>
         </select>
-        <div className="form-text">Auto adds SkyServer internal auth for local SkyServer API calls when configured.</div>
+        <div className="form-text">Auto adds SkyCommand internal auth for local SkyCommand API calls when configured.</div>
       </div>
       <div className="col-lg-4">
         <label className="form-label" htmlFor={`${idPrefix}-successCodes`}>Success codes</label>
@@ -309,7 +309,7 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
         />
       </div>
       <div className="form-text sky-muted">
-        API nodes run as Temporal activities. SkyServer internal auth uses SKYSERVER_INTERNAL_API_TOKEN from the environment; do not paste secrets into headers JSON.
+        API nodes run as Temporal activities. SkyCommand internal auth uses SKYSERVER_INTERNAL_API_TOKEN from the environment; do not paste secrets into headers JSON.
       </div>
     </div>
   );
@@ -356,7 +356,7 @@ function WorkflowBuilderNodeCard({
         targetCode: '',
         displayName: node.displayName || 'Run Child Workflow',
         nodeKey: node.nodeKey || `child_workflow_${index + 1}`,
-        description: node.description || 'Runs another active SkyServer workflow and waits for completion.',
+        description: node.description || 'Runs another active SkyCommand workflow and waits for completion.',
         inputParameters: {},
       });
       return;
@@ -443,7 +443,7 @@ function WorkflowBuilderNodeCard({
       targetCode,
       displayName: nextDisplayName,
       nodeKey: nextNodeKey,
-      description: node.description || workflow?.description || 'Runs a child SkyServer workflow.',
+      description: node.description || workflow?.description || 'Runs a child SkyCommand workflow.',
       inputParameters: {},
     });
   }
@@ -593,7 +593,7 @@ function WorkflowBuilderNodeCard({
             <>
               <div className="sky-page-kicker mb-2">Child workflow behavior</div>
               <div className="sky-empty-state text-start">
-                The parent workflow will start the selected SkyServer workflow as a Temporal child execution and wait for it to complete before continuing. Child workflow inputs come from that workflow's saved node defaults.
+                The parent workflow will start the selected SkyCommand workflow as a Temporal child execution and wait for it to complete before continuing. Child workflow inputs come from that workflow's saved node defaults.
               </div>
             </>
           ) : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? (
@@ -740,7 +740,7 @@ function WorkflowBuilder() {
         const workflow = workflowTargets.find((item) => item.targetCode === node.targetCode);
         return {
           displayName: node.displayName || workflow?.displayName || 'Child workflow node',
-          description: node.description || workflow?.description || 'Runs a child SkyServer workflow.',
+          description: node.description || workflow?.description || 'Runs a child SkyCommand workflow.',
           code: node.targetCode || 'WORKFLOW',
         };
       }
@@ -847,7 +847,7 @@ function WorkflowBuilder() {
             nodeTypeCode: 'WORKFLOW',
             nodeKey: `child_workflow_${current.length + 1}`,
             displayName: 'Run Child Workflow',
-            description: 'Runs another active SkyServer workflow and waits for completion.',
+            description: 'Runs another active SkyCommand workflow and waits for completion.',
             inputParameters: {},
           }
           : nodeTypeCode === 'TEMPORAL_WORKFLOW'
@@ -1113,7 +1113,7 @@ function WorkflowBuilder() {
           <div className="sky-page-kicker">Workflows · Create</div>
           <h1 className="sky-page-title">Create Workflow</h1>
           <p className="sky-page-subtitle">
-            Build a sequential SkyServer workflow from tools, API calls, child workflows, Temporal templates, condition gates, waits, and human approvals. SkyServer owns the business graph;
+            Build a sequential SkyCommand workflow from tools, API calls, child workflows, Temporal templates, condition gates, waits, and human approvals. SkyCommand owns the business graph;
             Temporal executes it durably.
           </p>
         </div>
@@ -1302,7 +1302,7 @@ function WorkflowBuilder() {
             <section className="sky-card">
               <div className="sky-card-header">
                 <div className="sky-page-kicker">Business preview</div>
-                <h2 className="h5 mb-0">What SkyServer will publish</h2>
+                <h2 className="h5 mb-0">What SkyCommand will publish</h2>
               </div>
               <div className="sky-card-body">
                 {previewNodes.length === 0 ? (

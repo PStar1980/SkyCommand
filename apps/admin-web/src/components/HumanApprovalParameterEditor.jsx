@@ -56,7 +56,7 @@ export function cleanHumanApprovalParameterValues(values = {}, roleOptions = [])
   }
 
   if (requiredRoleCode && availableRoleCodes.size > 0 && !availableRoleCodes.has(requiredRoleCode)) {
-    throw new Error(`Human approval role ${requiredRoleCode} is not active in SkyServer Admin.`);
+    throw new Error(`Human approval role ${requiredRoleCode} is not active in SkyCommand Admin.`);
   }
 
   const output = {
@@ -171,7 +171,7 @@ function HumanApprovalParameterEditor({ idPrefix, parameters = {}, onChange, rol
             value={selectedRoleCode}
           />
         )}
-        <div className="form-text">Optional role gate checked against active SkyServer Admin roles.</div>
+        <div className="form-text">Optional role gate checked against active SkyCommand Admin roles.</div>
         {!selectedRoleExists ? (
           <div className="form-text text-warning">
             Configured role is not currently active in the role catalog. Pick an active role before saving.

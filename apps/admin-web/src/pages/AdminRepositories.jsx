@@ -341,7 +341,7 @@ function AdminRepositories() {
 
     try {
       await adminService.deleteRepository(repository.repoId, {
-        reason: 'Deleted from SkyServer Admin repository configuration page.',
+        reason: 'Deleted from SkyCommand Admin repository configuration page.',
       });
       setSuccess(`Disabled repository ${repository.repoCode}.`);
       await loadRepositories(filters, '');

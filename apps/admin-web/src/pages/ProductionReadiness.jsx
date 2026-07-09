@@ -160,7 +160,7 @@ function ProductionReadiness() {
           <h1 className="sky-page-title">Production Readiness</h1>
           <p className="sky-page-subtitle">
             Inspect environment secrets, Temporal worker health, database objects, workflow graph safety,
-            authorization, and operational reminders before SkyServer leaves local-dev comfort.
+            authorization, and operational reminders before SkyCommand leaves local-dev comfort.
           </p>
         </div>
         <div className="text-md-end">

@@ -433,7 +433,7 @@ function getNodeOutputSummary(output = {}) {
   }
 
   if (output.kind === 'child_workflow_start') {
-    return `Started child SkyServer workflow ${output.workflowDisplayName || output.workflowCode || ''}.`.trim();
+    return `Started child SkyCommand workflow ${output.workflowDisplayName || output.workflowCode || ''}.`.trim();
   }
 
   if (output.kind === 'tool_execution') {
@@ -1017,7 +1017,7 @@ function SkyWorkflows({ mode = 'start' }) {
 
     try {
       const result = await workflowService.cancelRun(selectedRun.workflowRunRecordId, {
-        reason: 'Canceled from SkyServer Workflow History.',
+        reason: 'Canceled from SkyCommand Workflow History.',
       });
       setMessage(result.message || 'Workflow run canceled.');
       await loadRuns(filters, { keepSelection: true });
@@ -1034,7 +1034,7 @@ function SkyWorkflows({ mode = 'start' }) {
       return;
     }
 
-    const reason = window.prompt('Terminate this workflow run? Add a cleanup reason:', 'Terminated from SkyServer Workflow History.');
+    const reason = window.prompt('Terminate this workflow run? Add a cleanup reason:', 'Terminated from SkyCommand Workflow History.');
 
     if (reason === null) {
       return;
@@ -1103,8 +1103,8 @@ function SkyWorkflows({ mode = 'start' }) {
   const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
   const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
   const pageSubtitle = isHistoryMode
-    ? 'Inspect SkyServer workflow runs, node outcomes, and the executor ledger.'
-    : 'Start approved SkyServer workflow definitions built from tools, Temporal templates, APIs, agents, and future node types.';
+    ? 'Inspect SkyCommand workflow runs, node outcomes, and the executor ledger.'
+    : 'Start approved SkyCommand workflow definitions built from tools, Temporal templates, APIs, agents, and future node types.';
 
   return (
     <div>
@@ -1132,7 +1132,7 @@ function SkyWorkflows({ mode = 'start' }) {
           <div className="sky-page-kicker">Workflow builder foundation</div>
           <h2 className="h4 mb-2">Composable execution lane</h2>
           <p className="sky-muted mb-3">
-            SkyServer workflows compose lower-level primitives. Tools remain first-class building
+            SkyCommand workflows compose lower-level primitives. Tools remain first-class building
             blocks, while Temporal templates can be plugged in as one node type instead of turning
             every primitive into a separate workflow.
           </p>
@@ -1380,7 +1380,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <div>
                     <div className="sky-page-kicker">Recent runs</div>
-                    <h2 className="h5 mb-0">SkyServer workflow runs</h2>
+                    <h2 className="h5 mb-0">SkyCommand workflow runs</h2>
                   </div>
                   <div className="sky-inline-filter-form">
                     <select

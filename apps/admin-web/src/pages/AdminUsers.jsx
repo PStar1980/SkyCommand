@@ -627,7 +627,7 @@ function AdminUsers() {
                 </div>
                 <div className="col-md-5">
                   <label className="form-label" htmlFor="createRoles">
-                    SkyServer Admin roles
+                    SkyCommand Admin roles
                   </label>
                   <select
                     className="form-select sky-form-control"
@@ -1016,7 +1016,7 @@ function AdminUsers() {
 
                   <div>
                     <label className="form-label" htmlFor="editRoles">
-                      SkyServer Admin role assignments
+                      SkyCommand Admin role assignments
                     </label>
                     <select
                       className="form-select sky-form-control"

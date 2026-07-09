@@ -853,7 +853,7 @@ function WorkerControl() {
           <h1 className="sky-page-title">Worker</h1>
           <p className="sky-page-subtitle">
             Schedule worker-visible tools, queue immediate runs, monitor worker nodes, and inspect
-            schedule execution history from SkyServer Admin.
+            schedule execution history from SkyCommand Admin.
           </p>
         </div>
         <div className="text-md-end">
