@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import authService from '../services/authService';
 
@@ -10,21 +10,40 @@ const DEFAULT_PASSWORD_FORM = {
   revokeOtherSessions: true,
 };
 
-function getDropdownItemClass({ isActive }) {
-  return `dropdown-item ${isActive ? 'active' : ''}`;
+const PAGE_LABELS = {
+  '/dashboard': 'Dashboard',
+  '/tools/run': 'Run Tools',
+  '/tools/executions': 'Tools History',
+  '/workflows/create': 'Create Workflow',
+  '/workflows/manage': 'Manage Workflows',
+  '/workflows/start': 'Start Workflow',
+  '/workflows/history': 'Workflow History',
+  '/workflows/approvals': 'Approvals',
+  '/workflows/worker-health': 'Worker Health',
+  '/workflows/temporal/start': 'Temporal Start',
+  '/workflows/temporal/history': 'Temporal History',
+  '/automation/scheduler': 'Scheduler',
+  '/automation/listeners': 'Listeners',
+  '/data/ingestion': 'Ingestion Status',
+  '/configuration/production-readiness': 'Production Readiness',
+  '/configuration/repositories': 'Repositories',
+  '/admin/users': 'Users',
+  '/admin/sessions': 'Sessions',
+  '/admin/roles': 'Roles',
+  '/admin/privileges': 'Privileges',
+  '/access-control/user-history': 'User History',
+};
+
+function getNavLinkClass({ isActive }) {
+  return `sky-sidebar-link ${isActive ? 'active' : ''}`;
 }
 
-function Navbar() {
-  const navigate = useNavigate();
-  const { hasPermission, isAuthenticated, logout, refreshSession, user } = useAuth();
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [passwordForm, setPasswordForm] = useState(DEFAULT_PASSWORD_FORM);
-  const [passwordSaving, setPasswordSaving] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-
+function createNavGroups(hasPermission) {
   const canViewTools = hasPermission('CORE_VIEW_TOOLS') || hasPermission('SCRIPT_EXECUTION_READ');
-  const canViewWorkflows = hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ') || hasPermission('WORKFLOW_APPROVAL_READ');
+  const canViewWorkflows =
+    hasPermission('WORKFLOW_READ') ||
+    hasPermission('TEMPORAL_WORKFLOW_READ') ||
+    hasPermission('WORKFLOW_APPROVAL_READ');
   const canViewAutomation = hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
   const canViewData = hasPermission('INGESTION_VIEW_STATUS');
   const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
@@ -33,6 +52,219 @@ function Navbar() {
     hasPermission('ADMIN_ROLE_READ') ||
     hasPermission('ADMIN_PERMISSION_READ') ||
     hasPermission('AUDIT_READ');
+
+  return [
+    {
+      label: 'Command',
+      icon: '⌘',
+      visible: true,
+      items: [
+        {
+          label: 'Dashboard',
+          to: '/dashboard',
+          icon: '◈',
+          visible: true,
+          description: 'Operational pulse',
+        },
+        {
+          label: 'Worker Health',
+          to: '/workflows/worker-health',
+          icon: '●',
+          visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
+          description: 'Task queue and pollers',
+        },
+      ],
+    },
+    {
+      label: 'Tools',
+      icon: '◧',
+      visible: canViewTools,
+      items: [
+        {
+          label: 'Run Tools',
+          to: '/tools/run',
+          icon: '▶',
+          visible: hasPermission('CORE_VIEW_TOOLS'),
+          description: 'Reusable primitives',
+        },
+        {
+          label: 'Tools History',
+          to: '/tools/executions',
+          icon: '↺',
+          visible: hasPermission('SCRIPT_EXECUTION_READ'),
+          description: 'Tool run ledger',
+        },
+      ],
+    },
+    {
+      label: 'Workflows',
+      icon: '⟠',
+      visible: canViewWorkflows,
+      items: [
+        {
+          label: 'Start Workflow',
+          to: '/workflows/start',
+          icon: '▶',
+          visible: hasPermission('WORKFLOW_READ'),
+          description: 'Launch published flows',
+        },
+        {
+          label: 'Workflow History',
+          to: '/workflows/history',
+          icon: '◷',
+          visible: hasPermission('WORKFLOW_READ'),
+          description: 'Runs and diagnostics',
+        },
+        {
+          label: 'Manage Workflows',
+          to: '/workflows/manage',
+          icon: '▧',
+          visible: hasPermission('WORKFLOW_WRITE'),
+          description: 'Drafts and versions',
+        },
+        {
+          label: 'Create Workflow',
+          to: '/workflows/create',
+          icon: '+',
+          visible: hasPermission('WORKFLOW_WRITE'),
+          description: 'New process graph',
+        },
+        {
+          label: 'Approvals',
+          to: '/workflows/approvals',
+          icon: '☑',
+          visible: hasPermission('WORKFLOW_APPROVAL_READ'),
+          description: 'Human gates',
+        },
+        {
+          label: 'Temporal History',
+          to: '/workflows/temporal/history',
+          icon: 'T',
+          visible: hasPermission('TEMPORAL_WORKFLOW_READ'),
+          description: 'Native Temporal view',
+        },
+      ],
+    },
+    {
+      label: 'Automation',
+      icon: '◌',
+      visible: canViewAutomation,
+      items: [
+        {
+          label: 'Scheduler',
+          to: '/automation/scheduler',
+          icon: '◴',
+          visible: hasPermission('WORKER_SCHEDULE_READ'),
+          description: 'Timed starts',
+        },
+        {
+          label: 'Listeners',
+          to: '/automation/listeners',
+          icon: '◎',
+          visible: hasPermission('WORKER_LISTENER_READ'),
+          description: 'Event watchers',
+        },
+      ],
+    },
+    {
+      label: 'Data',
+      icon: '▦',
+      visible: canViewData,
+      items: [
+        {
+          label: 'Ingestion Status',
+          to: '/data/ingestion',
+          icon: '⇣',
+          visible: hasPermission('INGESTION_VIEW_STATUS'),
+          description: 'Macro sources',
+        },
+      ],
+    },
+    {
+      label: 'Configuration',
+      icon: '⚙',
+      visible: canViewConfiguration,
+      items: [
+        {
+          label: 'Production Readiness',
+          to: '/configuration/production-readiness',
+          icon: '✓',
+          visible: hasPermission('ADMIN_REPOSITORY_READ'),
+          description: 'Pre-flight audit',
+        },
+        {
+          label: 'Repositories',
+          to: '/configuration/repositories',
+          icon: '▣',
+          visible: hasPermission('ADMIN_REPOSITORY_READ'),
+          description: 'Repo paths',
+        },
+      ],
+    },
+    {
+      label: 'Access Control',
+      icon: '◉',
+      visible: canViewAccessControl,
+      items: [
+        {
+          label: 'Users',
+          to: '/admin/users',
+          icon: 'U',
+          visible: hasPermission('ADMIN_USER_READ'),
+          description: 'Identities',
+        },
+        {
+          label: 'Sessions',
+          to: '/admin/sessions',
+          icon: 'S',
+          visible: hasPermission('ADMIN_USER_READ'),
+          description: 'Active access',
+        },
+        {
+          label: 'Roles',
+          to: '/admin/roles',
+          icon: 'R',
+          visible: hasPermission('ADMIN_ROLE_READ'),
+          description: 'Role grants',
+        },
+        {
+          label: 'Privileges',
+          to: '/admin/privileges',
+          icon: 'P',
+          visible: hasPermission('ADMIN_PERMISSION_READ'),
+          description: 'Permission catalog',
+        },
+        {
+          label: 'User History',
+          to: '/access-control/user-history',
+          icon: '↯',
+          visible: hasPermission('AUDIT_READ'),
+          description: 'Audit trail',
+        },
+      ],
+    },
+  ]
+    .filter((group) => group.visible)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.visible),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+function Navbar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { hasPermission, isAuthenticated, logout, refreshSession, user } = useAuth();
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState(DEFAULT_PASSWORD_FORM);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const navGroups = useMemo(() => createNavGroups(hasPermission), [hasPermission]);
+  const currentPageLabel = PAGE_LABELS[location.pathname] || 'SkyServer Admin';
 
   function openPasswordModal() {
     setPasswordForm(DEFAULT_PASSWORD_FORM);
@@ -79,313 +311,144 @@ function Navbar() {
     }
   }
 
-  return (
-    <>
-      <nav className="navbar navbar-expand-lg navbar-dark sky-navbar sticky-top">
-        <div className="container-fluid">
-          <NavLink className="navbar-brand d-flex align-items-center gap-2 fw-bold" to="/">
+  if (!isAuthenticated) {
+    return (
+      <>
+        <nav className="sky-public-navbar">
+          <NavLink className="sky-public-brand" to="/">
             <span className="sky-brand-mark">⌁</span>
             <span>SkyServer Admin</span>
           </NavLink>
+          <NavLink className="btn btn-sm sky-btn-primary" to="/login">
+            Login
+          </NavLink>
+        </nav>
+      </>
+    );
+  }
 
+  return (
+    <>
+      <aside className={`sky-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+        <div className="sky-sidebar-glow" aria-hidden="true" />
+        <div className="sky-sidebar-brand-wrap">
+          <NavLink className="sky-sidebar-brand" to="/dashboard" onClick={() => setSidebarOpen(false)}>
+            <span className="sky-brand-mark">⌁</span>
+            <span>
+              <span className="sky-sidebar-brand-title">SkyServer</span>
+              <span className="sky-sidebar-brand-subtitle">Command Glass</span>
+            </span>
+          </NavLink>
           <button
-            aria-controls="skyAdminNavbar"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
-            className="navbar-toggler"
-            data-bs-target="#skyAdminNavbar"
-            data-bs-toggle="collapse"
+            aria-label="Close navigation"
+            className="btn btn-sm sky-sidebar-close"
+            onClick={() => setSidebarOpen(false)}
             type="button"
           >
-            <span className="navbar-toggler-icon" />
+            ×
           </button>
+        </div>
 
-          <div className="collapse navbar-collapse" id="skyAdminNavbar">
-            {isAuthenticated && (
-              <ul className="navbar-nav me-auto mb-2 mb-lg-0 sky-navbar-primary-nav">
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/dashboard">
-                    Dashboard
-                  </NavLink>
-                </li>
+        <div className="sky-sidebar-search" aria-label="Navigation scope">
+          <span className="sky-sidebar-search-icon">⌕</span>
+          <span>Control plane navigation</span>
+        </div>
 
-                {canViewTools && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Tools
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      <li className="dropdown-header sky-dropdown-section-label">Tool operations</li>
-                      {hasPermission('CORE_VIEW_TOOLS') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/tools/run">
-                            Run Tools
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('SCRIPT_EXECUTION_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/tools/executions">
-                            Tools History
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {canViewWorkflows && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Workflows
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      <li className="dropdown-header sky-dropdown-section-label">SkyServer workflows</li>
-                      {hasPermission('WORKFLOW_WRITE') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/workflows/create">
-                            Create Workflow
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('WORKFLOW_WRITE') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/workflows/manage">
-                            Manage Workflows
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('WORKFLOW_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/workflows/start">
-                            Start Workflow
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('WORKFLOW_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/workflows/history">
-                            Workflow History
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('WORKFLOW_APPROVAL_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/workflows/approvals">
-                            Approvals
-                          </NavLink>
-                        </li>
-                      )}
-                      {(hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ')) && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/workflows/worker-health">
-                            Worker Health
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {canViewAutomation && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Automation
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      <li className="dropdown-header sky-dropdown-section-label">Scheduler lane</li>
-                      {hasPermission('WORKER_SCHEDULE_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/automation/scheduler">
-                            Scheduler
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('WORKER_LISTENER_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/automation/listeners">
-                            Listener
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {canViewData && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Data
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      <li className="dropdown-header sky-dropdown-section-label">Data operations</li>
-                      {hasPermission('INGESTION_VIEW_STATUS') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/data/ingestion">
-                            Ingestion Status
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {canViewConfiguration && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Configuration
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      <li className="dropdown-header sky-dropdown-section-label">System setup</li>
-                      {hasPermission('ADMIN_REPOSITORY_READ') && (
-                        <li>
-                          <NavLink
-                            className={getDropdownItemClass}
-                            to="/configuration/production-readiness"
-                          >
-                            Production Readiness
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('ADMIN_REPOSITORY_READ') && (
-                        <li>
-                          <NavLink
-                            className={getDropdownItemClass}
-                            to="/configuration/repositories"
-                          >
-                            Repositories
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {canViewAccessControl && (
-                  <li className="nav-item dropdown">
-                    <button
-                      aria-expanded="false"
-                      className="nav-link dropdown-toggle btn btn-link sky-nav-dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      Access Control
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-dark sky-navbar-dropdown">
-                      <li className="dropdown-header sky-dropdown-section-label">Users and permissions</li>
-                      {hasPermission('ADMIN_USER_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/admin/users">
-                            Users
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('ADMIN_USER_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/admin/sessions">
-                            Sessions
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('ADMIN_ROLE_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/admin/roles">
-                            Roles
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('ADMIN_PERMISSION_READ') && (
-                        <li>
-                          <NavLink className={getDropdownItemClass} to="/admin/privileges">
-                            Privileges
-                          </NavLink>
-                        </li>
-                      )}
-                      {hasPermission('AUDIT_READ') && (
-                        <>
-                          <li>
-                            <hr className="dropdown-divider" />
-                          </li>
-                          <li>
-                            <NavLink
-                              className={getDropdownItemClass}
-                              to="/access-control/user-history"
-                            >
-                              User History
-                            </NavLink>
-                          </li>
-                        </>
-                      )}
-                    </ul>
-                  </li>
-                )}
-              </ul>
-            )}
-
-            <div className="d-flex align-items-center gap-2 ms-auto">
-              {isAuthenticated ? (
-                <div className="dropdown text-end">
-                  <button
-                    aria-expanded="false"
-                    className="btn btn-sm sky-account-menu-button dropdown-toggle"
-                    data-bs-toggle="dropdown"
-                    type="button"
+        <nav className="sky-sidebar-nav" aria-label="SkyServer navigation">
+          {navGroups.map((group) => (
+            <section className="sky-sidebar-group" key={group.label}>
+              <div className="sky-sidebar-group-label">
+                <span>{group.icon}</span>
+                <span>{group.label}</span>
+              </div>
+              <div className="sky-sidebar-group-items">
+                {group.items.map((item) => (
+                  <NavLink
+                    className={getNavLinkClass}
+                    key={item.to}
+                    onClick={() => setSidebarOpen(false)}
+                    to={item.to}
                   >
-                    <span className="d-block text-white fw-semibold">
-                      {user?.displayName || user?.username}
+                    <span className="sky-sidebar-link-icon">{item.icon}</span>
+                    <span className="sky-sidebar-link-copy">
+                      <span className="sky-sidebar-link-title">{item.label}</span>
+                      <span className="sky-sidebar-link-description">{item.description}</span>
                     </span>
-                    <span className="d-none d-md-block small sky-muted">{user?.email}</span>
-                  </button>
-                  <ul className="dropdown-menu dropdown-menu-dark dropdown-menu-end sky-navbar-dropdown">
-                    <li>
-                      <button className="dropdown-item" onClick={openPasswordModal} type="button">
-                        Change password
-                      </button>
-                    </li>
-                    <li>
-                      <hr className="dropdown-divider" />
-                    </li>
-                    <li>
-                      <button className="dropdown-item" onClick={handleLogout} type="button">
-                        Logout
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              ) : (
-                <NavLink className="btn btn-sm sky-btn-primary" to="/login">
-                  Login
-                </NavLink>
-              )}
+                  </NavLink>
+                ))}
+              </div>
+            </section>
+          ))}
+        </nav>
+
+        <div className="sky-sidebar-footer">
+          <div className="sky-sidebar-user-card">
+            <div className="sky-sidebar-avatar">{(user?.displayName || user?.username || 'S').charAt(0)}</div>
+            <div className="min-w-0">
+              <div className="sky-sidebar-user-name text-truncate">{user?.displayName || user?.username}</div>
+              <div className="sky-sidebar-user-email text-truncate">{user?.email}</div>
             </div>
           </div>
         </div>
-      </nav>
+      </aside>
+
+      {sidebarOpen && (
+        <button
+          aria-label="Close navigation overlay"
+          className="sky-sidebar-scrim"
+          onClick={() => setSidebarOpen(false)}
+          type="button"
+        />
+      )}
+
+      <header className="sky-topbar">
+        <div className="sky-topbar-left">
+          <button
+            aria-label="Open navigation"
+            className="btn btn-sm sky-topbar-menu-button"
+            onClick={() => setSidebarOpen(true)}
+            type="button"
+          >
+            ☰
+          </button>
+          <div>
+            <div className="sky-topbar-kicker">SkyServer Admin</div>
+            <div className="sky-topbar-title">{currentPageLabel}</div>
+          </div>
+        </div>
+
+        <div className="sky-topbar-status d-none d-lg-flex">
+          <span className="sky-pill sky-pill-info">Command Glass</span>
+          <span className="sky-pill sky-pill-success">Temporal-ready</span>
+        </div>
+
+        <div className="dropdown text-end">
+          <button
+            aria-expanded="false"
+            className="btn btn-sm sky-account-menu-button dropdown-toggle"
+            data-bs-toggle="dropdown"
+            type="button"
+          >
+            <span className="d-block text-white fw-semibold">{user?.displayName || user?.username}</span>
+            <span className="d-none d-md-block small sky-muted">{user?.email}</span>
+          </button>
+          <ul className="dropdown-menu dropdown-menu-dark dropdown-menu-end sky-navbar-dropdown">
+            <li>
+              <button className="dropdown-item" onClick={openPasswordModal} type="button">
+                Change password
+              </button>
+            </li>
+            <li>
+              <hr className="dropdown-divider" />
+            </li>
+            <li>
+              <button className="dropdown-item" onClick={handleLogout} type="button">
+                Logout
+              </button>
+            </li>
+          </ul>
+        </div>
+      </header>
 
       {passwordModalOpen && (
         <div className="sky-modal-backdrop" role="presentation">

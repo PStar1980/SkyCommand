@@ -32,9 +32,9 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 10.35 complete — Temporal implementation and production-readiness inspection are in place.
+**Active status:** Phase 11.1 underway — Temporal implementation is complete, production-readiness inspection is in place, and Admin-Web has begun the Command Glass UI refresh.
 
-SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, and readiness inspection.
+SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and Command Glass administration.
 
 Phase 10 moved Temporal from a local FRED pilot into a full SkyServer workflow execution lane. SkyServer workflows can now compose tools, API calls, child workflows, Temporal-native templates, condition gates, waits, human approvals, retry policies, versioned drafts, visual graph editing, runtime overlays, diagnostics, worker health, and production-readiness checks while preserving the existing worker/tool infrastructure.
 
@@ -42,7 +42,7 @@ Phase 10 moved Temporal from a local FRED pilot into a full SkyServer workflow e
 
 | Surface | Purpose |
 | --- | --- |
-| Admin-Web Dashboard | Private command center for API/DB health, ingestion, automation, workflows, task queue health, readiness, tools, sessions, scripts, and audits |
+| Admin-Web Dashboard | Private Command Glass dashboard for API/DB health, ingestion, automation, workflows, task queue health, readiness, tools, sessions, scripts, and audits |
 | Tools | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging |
 | Workflows | Versioned workflow builder, visual graph editor, start/history, approvals, run controls, Temporal diagnostics, and worker health |
 | Automation | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyServer workflows |
@@ -103,6 +103,13 @@ SkyServer and SkyWeb now have a clean boundary:
 | Future Temporal orchestration | Public/member API consumption |
 
 SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
+
+
+## Admin-Web UI Direction
+
+Phase 11 introduces the **Command Glass** UI direction for SkyServer Admin-Web. The design keeps the existing dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar is now reserved for page context, status pills, and the authenticated operator menu.
+
+The first UI slice is intentionally structural: it changes the app shell, sidebar, topbar, spacing, and responsive behavior without changing routes, API behavior, workflow execution, or database schema. Later UI polish can refine dashboard cards, workflow workbench density, visual graph sizing, and shared component cleanup.
 
 ## Workflow Pages
 
