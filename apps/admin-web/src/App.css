@@ -1875,3 +1875,203 @@
 .sky-app-shell-authenticated .sky-main {
   width: auto;
 }
+
+/* UI Phase 11.2 — Dashboard Command Center redesign */
+.sky-dashboard-command-hero {
+  display: grid;
+  grid-template-columns: minmax(420px, 0.9fr) minmax(520px, 1.1fr);
+  gap: 1rem;
+  align-items: stretch;
+  border: 1px solid rgba(124, 144, 177, 0.22);
+  border-radius: 1.35rem;
+  background:
+    radial-gradient(circle at top left, rgba(72, 167, 255, 0.2), transparent 34%),
+    radial-gradient(circle at 78% 18%, rgba(155, 89, 255, 0.16), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(50, 220, 150, 0.08), transparent 38%),
+    rgba(11, 18, 34, 0.94);
+  box-shadow: 0 26px 96px rgba(0, 0, 0, 0.34);
+  padding: 1.2rem;
+}
+
+.sky-dashboard-command-main {
+  display: flex;
+  min-height: 18rem;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(8, 15, 28, 0.62), rgba(22, 34, 60, 0.36));
+  padding: 1.25rem;
+}
+
+.sky-dashboard-command-title {
+  margin-bottom: 0.65rem;
+  color: #ffffff;
+  font-size: clamp(2rem, 4vw, 3.85rem);
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+  text-shadow: 0 18px 62px rgba(72, 167, 255, 0.18);
+}
+
+.sky-dashboard-command-copy {
+  max-width: 52rem;
+  color: #b8c8e6;
+  font-size: 0.98rem;
+  line-height: 1.65;
+}
+
+.sky-dashboard-command-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+}
+
+.sky-dashboard-command-link,
+.sky-dashboard-command-metric,
+.sky-dashboard-shortcuts {
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  background: rgba(6, 11, 22, 0.52);
+}
+
+.sky-dashboard-command-link,
+.sky-dashboard-command-metric {
+  display: block;
+  border-radius: 0.95rem;
+  color: #dce8ff;
+  padding: 0.9rem;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.sky-dashboard-command-link span {
+  display: block;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.sky-dashboard-command-link small {
+  color: #9fb0cc;
+}
+
+.sky-dashboard-command-link:hover,
+.sky-dashboard-command-link:focus,
+.sky-dashboard-command-metric:hover,
+.sky-dashboard-command-metric:focus {
+  border-color: rgba(124, 144, 255, 0.58);
+  background: linear-gradient(135deg, rgba(72, 167, 255, 0.14), rgba(155, 89, 255, 0.1));
+  color: #ffffff;
+  outline: none;
+  transform: translateY(-1px);
+  box-shadow: 0 18px 52px rgba(72, 167, 255, 0.09);
+}
+
+.sky-dashboard-command-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.sky-dashboard-command-metric {
+  min-height: 8.4rem;
+  background: linear-gradient(145deg, rgba(8, 15, 28, 0.7), rgba(16, 27, 48, 0.56));
+}
+
+.sky-dashboard-command-value {
+  color: #ffffff;
+  font-size: clamp(1.35rem, 2vw, 2rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.sky-dashboard-shortcuts {
+  border-radius: 1.1rem;
+  padding: 1rem;
+}
+
+.sky-dashboard-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.sky-dashboard-task-strip-compact {
+  margin-top: 0.85rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.sky-dashboard-task-strip-compact .sky-dashboard-task {
+  min-height: 5.1rem;
+}
+
+.sky-dashboard-workflow-panel {
+  border-color: rgba(72, 167, 255, 0.24);
+  background:
+    radial-gradient(circle at 12% 0, rgba(72, 167, 255, 0.1), transparent 28%),
+    radial-gradient(circle at 96% 8%, rgba(50, 220, 150, 0.08), transparent 28%),
+    rgba(11, 18, 34, 0.92);
+}
+
+.sky-dashboard-workflow-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.15fr) repeat(4, minmax(150px, 1fr));
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.sky-dashboard-workflow-status {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  border: 1px solid rgba(72, 167, 255, 0.22);
+  border-radius: 0.95rem;
+  background: linear-gradient(135deg, rgba(72, 167, 255, 0.12), rgba(155, 89, 255, 0.08));
+  padding: 0.9rem;
+}
+
+@media (max-width: 1450px) {
+  .sky-dashboard-command-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-dashboard-workflow-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sky-dashboard-workflow-status {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1100px) {
+  .sky-dashboard-task-strip-compact,
+  .sky-dashboard-command-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .sky-dashboard-command-hero,
+  .sky-dashboard-shortcuts {
+    padding: 0.9rem;
+  }
+
+  .sky-dashboard-command-main {
+    min-height: auto;
+  }
+
+  .sky-dashboard-command-links,
+  .sky-dashboard-command-metrics,
+  .sky-dashboard-task-strip-compact,
+  .sky-dashboard-workflow-grid {
+    grid-template-columns: 1fr;
+  }
+}

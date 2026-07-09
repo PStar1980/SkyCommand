@@ -558,6 +558,73 @@ function Dashboard() {
     ],
   );
 
+
+  const controlPlaneMetrics = [
+    {
+      label: 'Workflow lane',
+      value: loading ? '—' : workflowHealth?.overallStatus || '—',
+      helper: `${workflowRuns.active || 0} active · ${workflowRuns.completedLast24h || 0} completed 24h`,
+      status: workflowHealth?.overallStatus || 'UNKNOWN',
+      to: '/workflows/worker-health',
+      visible: hasPermission('WORKFLOW_READ'),
+    },
+    {
+      label: 'Task queue',
+      value: loading ? '—' : workflowTaskQueue.healthy ? 'POLLING' : 'CHECK',
+      helper: `${workflowTaskQueue.pollerCount || 0} poller(s) · ${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'skyserver-local'}`,
+      status: workflowTaskQueue.healthy ? 'CURRENT' : 'WARNING',
+      to: '/workflows/worker-health',
+      visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
+    },
+    {
+      label: 'Readiness',
+      value: loading ? '—' : productionReadiness?.overallStatus || '—',
+      helper: `${productionReadiness?.counts?.pass || 0} pass · ${productionReadiness?.counts?.warning || 0} warning · ${productionReadiness?.counts?.fail || 0} fail`,
+      status: productionReadiness?.overallStatus || 'UNKNOWN',
+      to: '/configuration/production-readiness',
+      visible: hasPermission('ADMIN_REPOSITORY_READ'),
+    },
+    {
+      label: 'Ingestion',
+      value: loading ? '—' : summary.ingestion?.overallStatus || '—',
+      helper: `${ingestionCounts.currentIndicators || 0} current · ${ingestionCounts.staleIndicators || 0} stale`,
+      status: summary.ingestion?.overallStatus || 'UNKNOWN',
+      to: '/data/ingestion',
+      visible: hasPermission('INGESTION_VIEW_STATUS'),
+    },
+  ].filter((metric) => metric.visible);
+
+  const commandLinks = [
+    {
+      label: 'Start workflow',
+      detail: 'Launch published flows',
+      to: '/workflows/start',
+      visible: hasPermission('WORKFLOW_READ'),
+    },
+    {
+      label: 'Worker health',
+      detail: 'Pollers and heartbeats',
+      to: '/workflows/worker-health',
+      visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
+    },
+    {
+      label: 'Run tools',
+      detail: 'Reusable primitives',
+      to: '/tools/run',
+      visible: hasPermission('CORE_VIEW_TOOLS'),
+    },
+    {
+      label: 'Production readiness',
+      detail: 'Pre-flight audit',
+      to: '/configuration/production-readiness',
+      visible: hasPermission('ADMIN_REPOSITORY_READ'),
+    },
+  ].filter((link) => link.visible);
+
+  const secondaryStatCards = statCards.filter((card) =>
+    ['Sessions', 'Tools', 'Executions', 'Audit events', 'Macro views'].includes(card.label),
+  );
+
   async function loadOptional(name, loader) {
     try {
       return await loader();
@@ -708,25 +775,59 @@ function Dashboard() {
 
       {error && <div className="alert alert-danger">{error}</div>}
 
-      <section className="sky-dashboard-hero mb-3">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-2">
+      <section className="sky-dashboard-command-hero mb-3">
+        <div className="sky-dashboard-command-main">
+          <div className="d-flex align-items-center gap-2 mb-3">
             <span className={`sky-status-dot ${dotClass(systemStatus)}`} />
             <span className={`sky-pill ${statusClass(systemStatus)}`}>
               {getStatusLabel(systemStatus)}
             </span>
           </div>
-          <h2 className="h4 mb-2">Operational pulse</h2>
-          <p className="sky-muted mb-0">
+          <div className="sky-page-kicker">Operational command center</div>
+          <h2 className="sky-dashboard-command-title">Control plane pulse</h2>
+          <p className="sky-dashboard-command-copy">
             API {summary.apiHealth?.ok ? 'online' : 'unknown'} · Database{' '}
-            {summary.dbHealth?.ok ? 'online' : 'unknown'} · Ingestion{' '}
-            {summary.ingestion?.overallStatus || 'not loaded'} · Automation{' '}
-            {summary.worker?.overallStatus || 'not loaded'} · Workflows{' '}
-            {workflowHealth?.overallStatus || 'not loaded'} · Permissions {permissionCount}
+            {summary.dbHealth?.ok ? 'online' : 'unknown'} · Workflows{' '}
+            {workflowHealth?.overallStatus || 'not loaded'} · Task queue{' '}
+            {workflowTaskQueue.healthy ? 'polling' : 'check required'} · Readiness{' '}
+            {productionReadiness?.overallStatus || 'not loaded'} · Permissions {permissionCount}
           </p>
+
+          <div className="sky-dashboard-command-links">
+            {commandLinks.map((link) => (
+              <Link className="sky-dashboard-command-link" key={link.to} to={link.to}>
+                <span>{link.label}</span>
+                <small>{link.detail}</small>
+              </Link>
+            ))}
+          </div>
         </div>
 
-        <div className="sky-dashboard-task-strip">
+        <div className="sky-dashboard-command-metrics">
+          {controlPlaneMetrics.map((metric) => (
+            <Link className="sky-dashboard-command-metric" key={metric.label} to={metric.to}>
+              <div className="d-flex align-items-start justify-content-between gap-2">
+                <div>
+                  <div className="sky-page-kicker">{metric.label}</div>
+                  <div className="sky-dashboard-command-value">{metric.value}</div>
+                </div>
+                <span className={`sky-status-dot ${dotClass(metric.status)}`} />
+              </div>
+              <div className="sky-muted small mt-2">{metric.helper}</div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="sky-dashboard-shortcuts mb-3">
+        <div className="sky-dashboard-section-heading">
+          <div>
+            <div className="sky-page-kicker">Quick command lanes</div>
+            <h2 className="h5 mb-0">Operate from the cockpit</h2>
+          </div>
+          <span className="sky-muted small">Permission-aware shortcuts</span>
+        </div>
+        <div className="sky-dashboard-task-strip sky-dashboard-task-strip-compact">
           {dashboardTasks.map((task) => (
             <Link className="sky-dashboard-task" key={task.label} to={task.to}>
               <div className="sky-page-kicker">{task.label}</div>
@@ -736,9 +837,17 @@ function Dashboard() {
         </div>
       </section>
 
+      <div className="sky-dashboard-section-heading mt-3 mb-2">
+        <div>
+          <div className="sky-page-kicker">Control plane telemetry</div>
+          <h2 className="h5 mb-0">Activity surface</h2>
+        </div>
+        <span className="sky-muted small">Sessions, tools, executions, audit, and macro plane</span>
+      </div>
+
       <div className="row g-3">
-        {statCards.map((card) => (
-          <div className="col-sm-6 col-xl-3" key={card.label}>
+        {secondaryStatCards.map((card) => (
+          <div className="col-sm-6 col-xl" key={card.label}>
             <section className="sky-card sky-stat-card sky-dashboard-stat-card">
               <div className="sky-card-body">
                 <div className="d-flex align-items-start justify-content-between gap-2">
@@ -941,50 +1050,61 @@ function Dashboard() {
 
       <div className="row g-3 mt-1">
         <div className="col-12">
-          <section className="sky-card sky-table-card">
+          <section className="sky-card sky-table-card sky-dashboard-workflow-panel">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
+                <div className="sky-page-kicker">Temporal lane</div>
                 <h2 className="h5 mb-0">Workflow control plane</h2>
-                <div className="small sky-muted">Temporal worker health, task queue polling, and workflow run pressure</div>
+                <div className="small sky-muted">Worker health, task queue polling, run pressure, and approval gates</div>
               </div>
               {hasPermission('WORKFLOW_READ') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/workflows/worker-health">
-                  Open worker health
-                </Link>
+                <div className="d-flex flex-wrap gap-2">
+                  <Link className="btn btn-sm sky-btn-ghost" to="/workflows/start">
+                    Start workflow
+                  </Link>
+                  <Link className="btn btn-sm sky-btn-ghost" to="/workflows/worker-health">
+                    Worker health
+                  </Link>
+                </div>
               )}
             </div>
 
             {workflowHealth ? (
               <div className="sky-card-body">
-                <div className="row g-3">
-                  <div className="col-md-3 col-6">
-                    <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Status</div>
-                      <div className="sky-mini-metric-value">{workflowHealth.overallStatus || '—'}</div>
+                <div className="sky-dashboard-workflow-grid">
+                  <div className="sky-dashboard-workflow-status">
+                    <span className={`sky-status-dot ${dotClass(workflowHealth.overallStatus)}`} />
+                    <div>
+                      <div className="sky-page-kicker">Runtime status</div>
+                      <div className="sky-dashboard-command-value">{workflowHealth.overallStatus || '—'}</div>
+                      <div className="sky-muted small">
+                        Temporal {workflowHealth.temporal?.reachable ? 'online' : 'offline'} · Worker {workflowWorker.status || 'unknown'}
+                      </div>
                     </div>
                   </div>
-                  <div className="col-md-3 col-6">
-                    <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Pollers</div>
-                      <div className="sky-mini-metric-value">{workflowTaskQueue.pollerCount || 0}</div>
-                    </div>
+
+                  <div className="sky-mini-metric">
+                    <div className="sky-page-kicker">Pollers</div>
+                    <div className="sky-mini-metric-value">{workflowTaskQueue.pollerCount || 0}</div>
+                    <div className="small sky-muted">{workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'skyserver-local'}</div>
                   </div>
-                  <div className="col-md-3 col-6">
-                    <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Active runs</div>
-                      <div className="sky-mini-metric-value">{workflowRuns.active || 0}</div>
-                    </div>
+                  <div className="sky-mini-metric">
+                    <div className="sky-page-kicker">Active runs</div>
+                    <div className="sky-mini-metric-value">{workflowRuns.active || 0}</div>
+                    <div className="small sky-muted">{workflowRuns.staleRunning || 0} stale</div>
                   </div>
-                  <div className="col-md-3 col-6">
-                    <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Pending approvals</div>
-                      <div className="sky-mini-metric-value">{workflowHealth.approvals?.pending || 0}</div>
-                    </div>
+                  <div className="sky-mini-metric">
+                    <div className="sky-page-kicker">Completed 24h</div>
+                    <div className="sky-mini-metric-value">{workflowRuns.completedLast24h || 0}</div>
+                    <div className="small sky-muted">{workflowRuns.failedLast24h || 0} failed</div>
+                  </div>
+                  <div className="sky-mini-metric">
+                    <div className="sky-page-kicker">Approvals</div>
+                    <div className="sky-mini-metric-value">{workflowHealth.approvals?.pending || 0}</div>
+                    <div className="small sky-muted">Pending human gates</div>
                   </div>
                 </div>
-                <div className="small sky-muted mt-3">
-                  Temporal {workflowHealth.temporal?.reachable ? 'online' : 'offline'} · Worker {workflowWorker.status || 'unknown'} · Completed 24h {workflowRuns.completedLast24h || 0} · Failed 24h {workflowRuns.failedLast24h || 0}
-                </div>
+
                 {(workflowHealth.hints || []).length > 0 && (
                   <div className="alert alert-warning mt-3 mb-0">
                     {(workflowHealth.hints || []).slice(0, 2).join(' ')}
