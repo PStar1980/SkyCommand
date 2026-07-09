@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import SidebarNav from './ui/SidebarNav.jsx';
-import StatusPill from './ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import authService from '../services/authService';
 
@@ -11,7 +10,6 @@ const DEFAULT_PASSWORD_FORM = {
   confirmPassword: '',
   revokeOtherSessions: true,
 };
-
 
 const COMMAND_SEARCH_ALIASES = {
   dashboard: '/dashboard',
@@ -46,12 +44,19 @@ const ICON_PATHS = {
   bell: 'M15 17h5l-1.4-1.4a2 2 0 01-.6-1.42V11a6 6 0 10-12 0v3.18a2 2 0 01-.6 1.42L4 17h5m6 0a3 3 0 11-6 0',
   mail: 'M4 6h16v12H4V6zm0 0l8 6 8-6',
   spark: 'M12 3l1.85 5.15L19 10l-5.15 1.85L12 17l-1.85-5.15L5 10l5.15-1.85L12 3z',
+  user: 'M20 21a8 8 0 10-16 0m8-10a4 4 0 100-8 4 4 0 000 8z',
 };
 
 function NavIcon({ name }) {
   return (
     <svg aria-hidden="true" className="sky-nav-icon" fill="none" viewBox="0 0 24 24">
-      <path d={ICON_PATHS[name]} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
+      <path
+        d={ICON_PATHS[name]}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.9"
+      />
     </svg>
   );
 }
@@ -86,7 +91,8 @@ function createNavGroups(hasPermission) {
     hasPermission('WORKFLOW_READ') ||
     hasPermission('TEMPORAL_WORKFLOW_READ') ||
     hasPermission('WORKFLOW_APPROVAL_READ');
-  const canViewAutomation = hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
+  const canViewAutomation =
+    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
   const canViewData = hasPermission('INGESTION_VIEW_STATUS');
   const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAccessControl =
@@ -339,7 +345,6 @@ function Navbar() {
     setPasswordSuccess('');
   }
 
-
   function handleCommandSearch(event) {
     event.preventDefault();
 
@@ -357,7 +362,8 @@ function Navbar() {
     }
 
     const match = commandSearchTargets.find((target) => {
-      const haystack = `${target.group} ${target.label} ${target.description} ${target.to}`.toLowerCase();
+      const haystack =
+        `${target.group} ${target.label} ${target.description} ${target.to}`.toLowerCase();
       return haystack.includes(normalizedQuery);
     });
 
@@ -445,23 +451,18 @@ function Navbar() {
           </div>
         </div>
 
-        <form className="sky-topbar-command-search" onSubmit={handleCommandSearch} role="search">
-          <NavIcon name="search" />
-          <input
-            aria-label="Search SkyServer commands"
-            onChange={(event) => setCommandQuery(event.target.value)}
-            placeholder="Search tools, workflows, executions..."
-            type="search"
-            value={commandQuery}
-          />
-          <span className="sky-command-search-key">/</span>
-        </form>
-
         <div className="sky-topbar-right">
-          <div className="sky-topbar-status d-none d-xl-flex">
-            <StatusPill status="INFO">Command Glass</StatusPill>
-            <StatusPill status="ONLINE">Temporal-ready</StatusPill>
-          </div>
+          <form className="sky-topbar-command-search" onSubmit={handleCommandSearch} role="search">
+            <NavIcon name="search" />
+            <input
+              aria-label="Search SkyServer commands"
+              onChange={(event) => setCommandQuery(event.target.value)}
+              placeholder="Search tools, workflows, executions..."
+              type="search"
+              value={commandQuery}
+            />
+            <span className="sky-command-search-key">/</span>
+          </form>
 
           <button
             aria-label="Open notifications"
@@ -487,17 +488,22 @@ function Navbar() {
           <div className="dropdown text-end">
             <button
               aria-expanded="false"
+              aria-label="Open account menu"
               className="btn btn-sm sky-account-menu-button dropdown-toggle"
               data-bs-toggle="dropdown"
+              title={user?.displayName || user?.username || 'Account'}
               type="button"
             >
-              <span className="sky-account-avatar">{(user?.displayName || user?.username || 'S').charAt(0)}</span>
-              <span className="sky-account-copy">
-                <span className="sky-account-name">{user?.displayName || user?.username}</span>
-                <span className="sky-account-email">{user?.email}</span>
-              </span>
+              <NavIcon name="user" />
             </button>
             <ul className="dropdown-menu dropdown-menu-dark dropdown-menu-end sky-navbar-dropdown">
+              <li className="sky-navbar-user-summary">
+                <strong>{user?.displayName || user?.username || 'SkyServer user'}</strong>
+                {user?.email && <span>{user.email}</span>}
+              </li>
+              <li>
+                <hr className="dropdown-divider" />
+              </li>
               <li>
                 <button className="dropdown-item" onClick={openPasswordModal} type="button">
                   Change password
