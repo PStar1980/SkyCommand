@@ -1,3 +1,9 @@
+# 2026-07-08 — Husky Validation Hook Cleanup
+
+- Replaced heavy Husky `pre-commit` and `pre-push` validation commands with lightweight informational scripts.
+- Kept `npm run validate` available as the explicit manual validation gate for phase handoff, release snapshots, and larger merges.
+- Updated `.husky/pre-commit` and `.husky/pre-push` messaging so local commit/push automation no longer runs the same long validation chain twice.
+
 # 2026-07-08 — Documentation Consolidation After Temporal Completion
 
 - Updated `README.md` to be a current-state overview instead of a Phase 10 implementation journal.
