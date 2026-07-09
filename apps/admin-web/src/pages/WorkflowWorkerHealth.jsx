@@ -263,8 +263,8 @@ function WorkflowWorkerHealth() {
         ))}
       </div>
 
-      <div className="row g-3 mt-1">
-        <div className="col-xl-7">
+      <div className="row g-3 mt-1 sky-workbench-row">
+        <div className="col-xxl-8 col-xl-7 sky-workbench-main">
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header">
               <h2 className="h5 mb-0">Worker heartbeats</h2>
@@ -306,7 +306,7 @@ function WorkflowWorkerHealth() {
           </section>
         </div>
 
-        <div className="col-xl-5">
+        <div className="col-xxl-4 col-xl-5 sky-workbench-main">
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header">
               <h2 className="h5 mb-0">Temporal pollers</h2>
@@ -335,8 +335,8 @@ function WorkflowWorkerHealth() {
         </div>
       </div>
 
-      <div className="row g-3 mt-1">
-        <div className="col-xl-8">
+      <div className="row g-3 mt-1 sky-workbench-row">
+        <div className="col-xxl-8 col-xl-8 sky-workbench-main">
           <section className="sky-card h-100">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
@@ -378,7 +378,7 @@ function WorkflowWorkerHealth() {
           </section>
         </div>
 
-        <div className="col-xl-4">
+        <div className="col-xxl-4 col-xl-4 sky-workbench-main">
           <section className="sky-card h-100">
             <div className="sky-card-header">
               <h2 className="h5 mb-0">Operator commands</h2>

@@ -1,10 +1,10 @@
-# 2026-07-09 — UI Phase 11.2 Dashboard Command Center Redesign
+# 2026-07-09 — UI Phase 11.3 Workflow Workbench Polish
 
-- Redesigned the Admin-Web Dashboard interior to match the Command Glass shell with a stronger control-plane pulse hero, command action links, and priority operational metric cards.
-- Added a focused quick-command lane section that keeps permission-aware shortcuts visible without crowding the main hero.
-- Reduced the top metric grid to the most useful activity-surface cards so sessions, tools, executions, audit events, and macro visibility read as secondary telemetry instead of competing with workflow health.
-- Reworked the Workflow control-plane panel with a dedicated Temporal lane treatment, runtime status block, poller count, active/stale run pressure, completed/failed 24h totals, and approval-gate count.
-- Kept the phase UI-only: no API, database, workflow execution, Temporal worker, or route behavior changed.
+- Tuned workflow-heavy pages for the Command Glass shell with wider main lanes and narrower sticky side rails on large screens.
+- Applied workbench rail/main classes to Manage Workflows, Start Workflow, Workflow History, and Worker Health so detail panels stay accessible while graph/history content gets more room.
+- Wrapped the visual workflow map in a glass viewport with edge fades, tighter node/edge sizing, and cleaner scrollbar treatment to reduce unnecessary horizontal scrolling.
+- Refined the visual inspector grid with denser, more aligned rows so retry policy, node timeout, runtime, branch, and target details read more consistently.
+- Kept the phase UI-only; no route, API, database, Temporal, or workflow execution behavior changed.
 
 # 2026-07-09 — UI Phase 11.1.1 Command Glass Visual Polish
 
