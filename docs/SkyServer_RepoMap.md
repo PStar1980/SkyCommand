@@ -149,14 +149,8 @@ SkyServer/
 │               └── schedulePoller.js
 ├── docs/
 │   ├── SkyServer_RepoMap.md
-│   ├── SkyServer_Temporal_Admin_Web_Console.md
-│   ├── SkyServer_Temporal_Core_API.md
-│   ├── SkyServer_Temporal_FRED_Pilot.md
 │   ├── SkyServer_Temporal_Local_Setup.md
-│   ├── SkyServer_Temporal_Phase_10_Roadmap.md
 │   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
-│   ├── SkyServer_Temporal_Workflow_Templates.md
-│   ├── SkyServer_Workflow_Builder_Foundation.md
 │   └── assets/
 │       ├── auth_schema_ERD.png
 │       ├── core_schema_ERD.png
