@@ -26,11 +26,6 @@ function SidebarNav({ navGroups = [], onNavigate, onClose, open = false, user })
         </button>
       </div>
 
-      <div className="sky-sidebar-search" aria-label="Navigation scope">
-        <span className="sky-sidebar-search-icon">⌕</span>
-        <span>Control plane navigation</span>
-      </div>
-
       <nav className="sky-sidebar-nav" aria-label="SkyServer navigation">
         {navGroups.map((group) => (
           <section className="sky-sidebar-group" key={group.label}>

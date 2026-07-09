@@ -85,6 +85,23 @@ const PAGE_LABELS = {
   '/access-control/user-history': 'User History',
 };
 
+function getCurrentNavCrumb(navGroups, pathname) {
+  for (const group of navGroups) {
+    const matchedItem = group.items.find((item) => item.to === pathname);
+    if (matchedItem) {
+      return {
+        group: group.label,
+        label: matchedItem.label,
+      };
+    }
+  }
+
+  return {
+    group: 'SkyServer Admin',
+    label: PAGE_LABELS[pathname] || 'Dashboard',
+  };
+}
+
 function createNavGroups(hasPermission) {
   const canViewTools = hasPermission('CORE_VIEW_TOOLS') || hasPermission('SCRIPT_EXECUTION_READ');
   const canViewWorkflows =
@@ -325,7 +342,10 @@ function Navbar() {
       ),
     [navGroups],
   );
-  const currentPageLabel = PAGE_LABELS[location.pathname] || 'SkyServer Admin';
+  const currentNavCrumb = useMemo(
+    () => getCurrentNavCrumb(navGroups, location.pathname),
+    [navGroups, location.pathname],
+  );
 
   function openPasswordModal() {
     setPasswordForm(DEFAULT_PASSWORD_FORM);
@@ -445,9 +465,10 @@ function Navbar() {
           >
             ☰
           </button>
-          <div>
-            <div className="sky-topbar-kicker">SkyServer Admin</div>
-            <div className="sky-topbar-title">{currentPageLabel}</div>
+          <div className="sky-topbar-breadcrumb" aria-label="Current page location">
+            <span className="sky-topbar-breadcrumb-group">{currentNavCrumb.group}</span>
+            <span className="sky-topbar-breadcrumb-separator">›</span>
+            <span className="sky-topbar-breadcrumb-page">{currentNavCrumb.label}</span>
           </div>
         </div>
 
