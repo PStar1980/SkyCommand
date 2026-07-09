@@ -1,6 +1,6 @@
 .sky-app-shell {
-  --sky-sidebar-width: 21.25rem;
-  --sky-topbar-height: 4.2rem;
+  --sky-sidebar-width: 24.5rem;
+  --sky-topbar-height: 7.55rem;
   min-height: 100vh;
   color: #dce8ff;
 }
@@ -92,8 +92,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.85rem;
-  padding: 1.16rem 1.15rem 1rem;
+  gap: 1rem;
+  padding: 1.35rem 1.35rem 1.15rem;
 }
 
 .sky-sidebar-brand-title,
@@ -103,12 +103,12 @@
 }
 
 .sky-sidebar-brand-title {
-  font-size: 1.04rem;
+  font-size: 1.2rem;
 }
 
 .sky-sidebar-brand-subtitle {
   color: #8fa1bf;
-  font-size: 0.72rem;
+  font-size: 0.83rem;
   font-weight: 750;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -126,56 +126,56 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin: 0 1.15rem 0.9rem;
+  margin: 0 1.35rem 1.05rem;
   border: 1px solid rgba(124, 144, 177, 0.18);
-  border-radius: 0.9rem;
+  border-radius: 1.04rem;
   background: rgba(3, 8, 18, 0.36);
   color: #9fb0cc;
-  padding: 0.78rem 0.9rem;
-  font-size: 0.92rem;
+  padding: 0.9rem 1.04rem;
+  font-size: 1.06rem;
 }
 
 .sky-sidebar-search-icon {
   color: #9ad7ff;
-  font-size: 1.02rem;
+  font-size: 1.17rem;
 }
 
 .sky-sidebar-nav {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 0.95rem;
+  gap: 1.09rem;
   overflow-y: auto;
-  padding: 0.45rem 1.05rem 1.15rem;
+  padding: 0.52rem 1.2rem 1.32rem;
   scrollbar-color: rgba(124, 144, 177, 0.28) transparent;
 }
 
 .sky-sidebar-group-label {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.52rem;
   color: #83a4d7;
-  font-size: 0.76rem;
+  font-size: 0.87rem;
   font-weight: 850;
   letter-spacing: 0.13em;
-  padding: 0.34rem 0.55rem 0.42rem;
+  padding: 0.39rem 0.63rem 0.48rem;
   text-transform: uppercase;
 }
 
 .sky-sidebar-group-items {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.35rem;
 }
 
 .sky-sidebar-link {
   display: flex;
   align-items: center;
-  gap: 0.88rem;
-  min-height: 3.55rem;
+  gap: 1.01rem;
+  min-height: 4.08rem;
   border: 1px solid transparent;
-  border-radius: 0.95rem;
+  border-radius: 1.09rem;
   color: #c8d7ef;
-  padding: 0.72rem 0.8rem;
+  padding: 0.83rem 0.92rem;
   text-decoration: none;
   transition:
     border-color 150ms ease,
@@ -207,14 +207,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.3rem;
+  height: 2.3rem;
   flex: 0 0 auto;
   border: 1px solid rgba(124, 144, 177, 0.2);
-  border-radius: 0.62rem;
+  border-radius: 0.71rem;
   background: rgba(255, 255, 255, 0.045);
   color: #9ad7ff;
-  font-size: 0.86rem;
+  font-size: 0.99rem;
   font-weight: 850;
 }
 
@@ -236,14 +236,14 @@
 
 .sky-sidebar-link-title {
   color: inherit;
-  font-size: 1.01rem;
+  font-size: 1.16rem;
   font-weight: 780;
 }
 
 .sky-sidebar-link-description {
   margin-top: 0.18rem;
   color: #9aaccc;
-  font-size: 0.82rem;
+  font-size: 0.94rem;
 }
 
 .sky-sidebar-link.active .sky-sidebar-link-description {
@@ -255,24 +255,24 @@
   z-index: 1;
   margin-top: auto;
   border-top: 1px solid rgba(124, 144, 177, 0.14);
-  padding: 0.95rem 1.1rem 1.08rem;
+  padding: 1.09rem 1.27rem 1.24rem;
 }
 
 .sky-sidebar-user-card {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   min-width: 0;
   border: 1px solid rgba(124, 144, 177, 0.16);
-  border-radius: 0.9rem;
+  border-radius: 1.04rem;
   background: rgba(4, 9, 20, 0.44);
-  padding: 0.65rem;
+  padding: 0.75rem;
 }
 
 .sky-sidebar-avatar {
   display: inline-grid;
-  width: 2rem;
-  height: 2rem;
+  width: 2.3rem;
+  height: 2.3rem;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 0.7rem;
@@ -283,13 +283,13 @@
 
 .sky-sidebar-user-name {
   color: #ffffff;
-  font-size: 0.9rem;
+  font-size: 1.04rem;
   font-weight: 760;
 }
 
 .sky-sidebar-user-email {
   color: #8fa1bf;
-  font-size: 0.76rem;
+  font-size: 0.87rem;
 }
 
 .sky-topbar {
@@ -302,32 +302,35 @@
   height: var(--sky-topbar-height);
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.8rem;
   border-bottom: 1px solid rgba(124, 144, 177, 0.16);
   background:
     linear-gradient(90deg, rgba(7, 12, 24, 0.86), rgba(10, 16, 30, 0.72)),
     rgba(7, 12, 24, 0.82);
   backdrop-filter: blur(18px);
-  padding: 0.65rem 1.35rem;
+  padding: 1.15rem 1.8rem;
 }
 
 .sky-topbar-left {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 1.05rem;
   min-width: 0;
 }
 
 .sky-topbar-menu-button {
   display: none;
+  min-width: 2.6rem;
+  min-height: 2.6rem;
   border: 1px solid rgba(124, 144, 177, 0.24);
   background: rgba(255, 255, 255, 0.045);
   color: #dce8ff;
+  font-size: 1.1rem;
 }
 
 .sky-topbar-kicker {
   color: #83a4d7;
-  font-size: 0.68rem;
+  font-size: 0.87rem;
   font-weight: 850;
   letter-spacing: 0.12em;
   line-height: 1.1;
@@ -337,7 +340,7 @@
 .sky-topbar-title {
   overflow: hidden;
   color: #ffffff;
-  font-size: 1.02rem;
+  font-size: 1.17rem;
   font-weight: 800;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -346,8 +349,13 @@
 
 .sky-topbar-status {
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
   margin-left: auto;
+}
+
+.sky-topbar .sky-pill {
+  padding: 0.34rem 0.72rem;
+  font-size: 0.94rem;
 }
 
 .sky-sidebar-scrim {
@@ -1505,8 +1513,14 @@
   border: 1px solid rgba(124, 144, 177, 0.26);
   background: rgba(6, 11, 22, 0.42);
   color: #dce8ff;
+  font-size: 0.94rem;
   line-height: 1.15;
-  padding: 0.35rem 0.65rem;
+  min-width: 12.5rem;
+  padding: 0.65rem 0.95rem;
+}
+
+.sky-account-menu-button .small {
+  font-size: 0.87rem;
 }
 
 .sky-account-menu-button:hover,
@@ -2037,7 +2051,7 @@
   }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1320px) {
   .sky-app-shell-authenticated .sky-main {
     margin-left: 0;
     padding-top: calc(var(--sky-topbar-height) + 1rem);
@@ -2064,8 +2078,8 @@
 
 @media (max-width: 768px) {
   .sky-app-shell {
-    --sky-sidebar-width: min(88vw, 18rem);
-    --sky-topbar-height: 4rem;
+    --sky-sidebar-width: min(88vw, 20rem);
+    --sky-topbar-height: 4.8rem;
   }
 
   .sky-app-shell-authenticated .sky-main,
@@ -2074,11 +2088,11 @@
   }
 
   .sky-topbar {
-    padding: 0.55rem 0.85rem;
+    padding: 0.65rem 0.95rem;
   }
 
   .sky-account-menu-button {
-    max-width: 11rem;
+    max-width: 13rem;
   }
 
   .sky-public-navbar {
