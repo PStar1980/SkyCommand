@@ -19,7 +19,7 @@ function SidebarNav({ navGroups = [], onNavigate, onClose, open = false, user })
           </span>
           <span className="sky-sidebar-brand-copy">
             <span className="sky-sidebar-brand-title">SkyCommand</span>
-            <span className="sky-sidebar-brand-subtitle">Workflow Automation Engine</span>
+            <span className="sky-sidebar-brand-subtitle">Workflow Automation</span>
           </span>
         </NavLink>
         <button
