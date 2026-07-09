@@ -1,3 +1,12 @@
+# 2026-07-08 — SkyServer Core Workflow Launcher
+
+- Added a top-level SkyServer Core CLI menu with `Run Tools` and `Run Workflows` lanes.
+- Added direct CLI workflow starting for active, enabled, published SkyServer workflow definitions through the Temporal-backed workflow executor, with optional workflow ID override and JSON input payload.
+- Added Core CLI operator resolution using `SKYSERVER_CORE_OPERATOR_EMAIL` / `SKYSERVER_ADMIN_EMAIL` when provided, or the latest active `SUPER_ADMIN` user as the local trusted operator fallback.
+- Added dynamic `skyserver_workflows` option-source support to the Core CLI so workflow-select parameters stay aligned with Admin-Web tool manifests.
+- Updated Admin/API tool execution so the `skyserver_workflow_start` bridge tool starts SkyServer workflows through the workflow executor instead of spawning the Temporal worker script.
+- Added validation coverage for `packages/core/src/SkyServer_Core.js` and `apps/api/src/services/scriptExecutionService.js`.
+
 # 2026-07-08 — Husky Validation Hook Cleanup
 
 - Replaced heavy Husky `pre-commit` and `pre-push` validation commands with lightweight informational scripts.

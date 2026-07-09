@@ -58,6 +58,7 @@ flowchart LR
     Admin[Admin Browser] --> AdminWeb["SkyServer Admin-Web<br/>React + Vite"]
     AdminWeb --> Api["SkyServer API<br/>Node.js + Express"]
     Core[SkyServer Core CLI] --> Tools["Tool Manifest<br/>core schema"]
+    Core -->|workflow starts| Api
     Api --> Tools
     Api --> Db[("PostgreSQL<br/>auth + core + macro + skyweb + worker")]
     Worker["Worker Daemon<br/>schedules + listeners"] --> Db
@@ -75,7 +76,7 @@ Current control flow:
 
 ```text
 Admin-Web / Core CLI
-  → SkyServer API / tool launcher
+  → SkyServer API / tool launcher / workflow launcher
       → PostgreSQL auth + core + worker manifests
       → ingestion, repo, DB, git, and operational scripts
       → worker schedules and listener definitions
@@ -122,7 +123,7 @@ The workflow surfaces can:
 - compose `TOOL`, `API_CALL`, `WORKFLOW`, `TEMPORAL_WORKFLOW`, `CONDITION`, `WAIT`, and `HUMAN_APPROVAL` nodes;
 - configure tool parameters, Temporal-template parameters, retry policy, node timeout, condition branches, wait timers, and approval role gates;
 - render workflow graphs visually with node inspection, drag reorder, branch labels, and runtime status overlays;
-- start active published workflows manually or from schedules;
+- start active published workflows manually from Admin-Web, SkyServer Core CLI, Admin tool bridge, or schedules;
 - store workflow-level and node-level run records in PostgreSQL while Temporal owns durable execution state;
 - approve/reject human approval gates through Admin-Web signals back to Temporal;
 - cancel, terminate, and retry workflow runs;
@@ -157,6 +158,7 @@ npm run worker:dev
 
 ```bash
 # SkyServer Core CLI
+# Top menu: Run Tools / Run Workflows
 npm run core
 ```
 
@@ -243,13 +245,13 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run temporal:health` | Checks connectivity to the configured Temporal service. |
 | `npm run temporal:fred` | Starts the FRED ingestion workflow pilot and waits for the result. |
 | `npm run daemon` | Starts the API daemon entry point with Nodemon. |
-| `npm run core` | Starts the SkyServer Core CLI tool. |
+| `npm run core` | Starts the SkyServer Core CLI with top-level Run Tools / Run Workflows menus. |
 | `npm run db:health` | Tests PostgreSQL connectivity. |
 | `npm run db:build` | Rebuilds the configured PostgreSQL database from SQL files. |
 | `npm run auth:create-admin` | Runs the first-admin/user creation script. |
 | `npm run lint` | Runs ESLint checks. |
 | `npm run format:check` | Verifies Prettier formatting. |
-| `npm run prepush` | Runs lint and formatting checks before push. |
+| `npm run prepush` | Lightweight reminder; run `npm run validate` intentionally before phase handoff/release snapshots. |
 
 ## Repository Layout
 
@@ -407,7 +409,7 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 | Phase 2 | ✅ Complete | ESLint, Prettier, Husky, and lint-staged automation |
 | Phase 3 | ✅ Complete | PostgreSQL schema, indicator registry, migrations, seeds, and views |
 | Phase 4 | ✅ Complete | FRED, BoC, StatCan, and manual ingestion pipelines |
-| Phase 5 | ✅ Complete | SkyServer Core CLI tool with configurable script launcher model |
+| Phase 5 | ✅ Complete | SkyServer Core CLI tool with configurable script launcher model and direct active-workflow start menu |
 | Phase 6 | ✅ Complete | Private Admin-Web with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety UX |
 | Phase 7 | ✅ Complete | Macro, ingestion status, admin-action APIs, Access Control, Ingestion Status, and Dashboard v2 |
 | Phase 8 | ✅ Complete | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation |
