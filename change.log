@@ -1,3 +1,18 @@
+# 2026-07-08 — Documentation Consolidation After Temporal Completion
+
+- Updated `README.md` to be a current-state overview instead of a Phase 10 implementation journal.
+- Marked Phase 10 as complete in the README roadmap, covering Temporal-backed workflow orchestration, visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection.
+- Moved phase-level implementation history out of the README; `change.log` remains the canonical phase-history record.
+- Removed redundant phase-specific Temporal docs whose content was repeated across the README, roadmap, and change log:
+  - `docs/SkyServer_Temporal_Admin_Web_Console.md`
+  - `docs/SkyServer_Temporal_Core_API.md`
+  - `docs/SkyServer_Temporal_FRED_Pilot.md`
+  - `docs/SkyServer_Temporal_Phase_10_Roadmap.md`
+  - `docs/SkyServer_Temporal_Workflow_Templates.md`
+  - `docs/SkyServer_Workflow_Builder_Foundation.md`
+- Kept `docs/SkyServer_Temporal_Local_Setup.md` as the current local operator guide and `docs/SkyServer_Temporal_Workflow_Architecture_Plan.md` as the historical architecture decision record.
+- Regenerated the repository map after documentation cleanup.
+
 # Phase 10.32 — Temporal Diagnostics Polish
 
 - Enriched Temporal runtime diagnostics returned with SkyServer workflow run detail.

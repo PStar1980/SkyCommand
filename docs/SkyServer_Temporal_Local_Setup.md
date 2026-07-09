@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the local setup path for the SkyServer Temporal pilot. Temporal is introduced beside the existing SkyServer worker/scheduler system. The current worker stack remains active while the first durable workflow pilot proves the orchestration pattern.
+This document is the current local development guide for the completed Phase 10 Temporal workflow lane. Temporal runs beside the existing SkyServer worker/scheduler system and provides durable execution for SkyServer workflow definitions.
 
 ## Local prerequisites
 
@@ -18,7 +18,8 @@ The local dev server normally exposes:
 | --- | --- |
 | Temporal frontend address | `localhost:7233` |
 | Namespace | `default` |
-| Web UI | usually opened by the local dev server |
+| Temporal Web UI | `http://localhost:8233` |
+| Metrics | `http://localhost:2661/metrics` |
 
 ## SkyServer environment
 
@@ -28,66 +29,69 @@ Add these values to the SkyServer root `.env` file:
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=skyserver-local
+TEMPORAL_UI_BASE_URL=http://localhost:8233
 TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skyserver-fred-ingestion
 TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS=1800000
+SKYSERVER_INTERNAL_API_TOKEN=replace_with_a_local_secret
 ```
 
-## Install dependencies
-
-After applying the Phase 10.1 files, run:
-
-```bash
-npm install
-```
-
-This installs the Temporal TypeScript SDK packages referenced by `package.json` and updates `package-lock.json` on the local workstation.
+The internal API token is used by workflow API-call nodes and internal workflow bridge calls. Use a local secret value and keep it stable for the environment unless rotating credentials intentionally.
 
 ## Development commands
 
-Run Temporal itself in a separate terminal:
+Run each long-lived process in its own terminal:
 
 ```bash
+# Terminal 1: Temporal server
 temporal server start-dev
-```
 
-Run the SkyServer Temporal worker:
+# Terminal 2: SkyServer API
+npm run api
 
-```bash
+# Terminal 3: SkyServer Temporal worker
 npm run temporal:worker:dev
+
+# Terminal 4: Admin-Web
+npm run web
+
+# Optional: classic SkyServer worker daemon for schedules/listeners
+npm run worker:dev
 ```
 
-Check Temporal connectivity:
+Useful checks:
 
 ```bash
 npm run temporal:health
+npm run db:health
+temporal task-queue describe --address localhost:7233 --namespace default --task-queue skyserver-local
 ```
 
-Start the FRED pilot workflow:
+Optional direct FRED workflow pilot runner:
 
 ```bash
 npm run temporal:fred
+npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
-## Recommended terminal layout
+## Admin-Web health surfaces
 
-```text
-Terminal 1: temporal server start-dev
-Terminal 2: npm run temporal:worker:dev
-Terminal 3: npm run temporal:fred
-Terminal 4: npm run api             # optional SkyServer API
-Terminal 5: npm run web             # optional Admin-Web
-```
-
-## Non-goals for Phase 10.1
-
-Phase 10.1 does not remove the existing worker daemon, scheduler/listener tables, Admin-Web automation pages, or script execution service. It only adds the first side-by-side Temporal lane.
+| Page | Purpose |
+| --- | --- |
+| `Workflows -> Worker Health` | Temporal reachability, task queue pollers, worker heartbeat freshness, run pressure, approvals, and schedules |
+| `Workflows -> Workflow History` | Runtime graph overlays, Temporal workflow/run IDs, event summaries, run controls, and retry lineage |
+| `Configuration -> Production Readiness` | Environment, Temporal, DB, workflow graph, authorization, and operational readiness checks |
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Worker cannot connect | Temporal dev server is not running | Start `temporal server start-dev` |
-| Workflow starts but does not progress | Worker is not running or task queue mismatch | Confirm `TEMPORAL_TASK_QUEUE` matches worker/client config |
-| FRED activity times out | Source downloads are slow or network is unstable | Increase `TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS` |
-| Workflow fails quickly | Missing `.env` database values or ingestion script error | Confirm PostgreSQL env values and run FRED ingestion directly once |
+| Workflow starts but does not progress | Worker is not running or task queue mismatch | Confirm `TEMPORAL_TASK_QUEUE` matches worker/client config and check Worker Health |
+| Worker Health shows no heartbeat | Temporal worker was not restarted after heartbeat migration or cannot write to DB | Restart `npm run temporal:worker:dev` and check PostgreSQL env values |
+| Task queue has no pollers | Temporal worker is offline or pointed at another task queue | Restart the worker and run `temporal task-queue describe` |
+| Approval does not resume workflow | Pending approval was deleted or Temporal execution is gone | Use Workflow History run controls to terminate/clean up and retry fresh |
+| FRED activity fails with HTTP 404/timeout | Source-side data issue or network instability | Retry run, narrow indicators, or run the ingestion script directly for source diagnostics |
 
+## Production note
+
+Local `temporal server start-dev` is only for development. Production should use persistent Temporal storage, supervised API/Admin-Web/worker processes, durable PostgreSQL backups, environment-specific secrets, and retained logs. The current readiness checklist reports those gaps but does not provision deployment infrastructure.

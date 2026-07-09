@@ -1,5 +1,9 @@
 # SkyServer Workflow Architecture Upgrade Plan
 
+## Status Note
+
+This document is retained as the historical architecture decision record for the Temporal migration. Phase 10 has since been implemented through production-readiness inspection, so current operational details live in `README.md`, `change.log`, `docs/SkyServer_Temporal_Local_Setup.md`, and the Admin-Web workflow/health/readiness pages.
+
 ## Temporal-Based Workflow Orchestration Roadmap
 
 **Project:** SkyServer / SkyWeb  
