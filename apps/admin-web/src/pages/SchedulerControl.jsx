@@ -279,7 +279,7 @@ function getWorkflowDisplayName(workflow) {
 
 function buildWorkflowScheduleName(workflow) {
   const displayName = getWorkflowDisplayName(workflow);
-  return displayName ? `${displayName} schedule` : 'SkyServer workflow schedule';
+  return displayName ? `${displayName} schedule` : 'SkyCommand workflow schedule';
 }
 
 function getScheduleTargetType(scheduleOrForm) {
@@ -389,7 +389,7 @@ function getScheduleTargetLabel(schedule, workflows = []) {
   if (getScheduleTargetType(schedule) === 'WORKFLOW') {
     const workflowCode = schedule.parameters?.workflowCode || '';
     const workflow = getSelectedWorkflow(workflows, workflowCode);
-    return workflow ? getWorkflowDisplayName(workflow) : workflowCode || 'SkyServer workflow';
+    return workflow ? getWorkflowDisplayName(workflow) : workflowCode || 'SkyCommand workflow';
   }
 
   return schedule.toolLabel || schedule.toolCode;
@@ -802,7 +802,7 @@ function SchedulerControl() {
 
     if (scheduleForm.targetType === 'WORKFLOW') {
       if (!workflowBridgeTool) {
-        setError('The Start SkyServer Workflow scheduler bridge is not configured.');
+        setError('The Start SkyCommand Workflow scheduler bridge is not configured.');
         return;
       }
 
@@ -933,7 +933,7 @@ function SchedulerControl() {
 
     try {
       await workerService.deleteSchedule(schedule.scheduleId, {
-        deleteReason: 'Deleted from SkyServer Admin Scheduler page.',
+        deleteReason: 'Deleted from SkyCommand Admin Scheduler page.',
       });
       setSelectedSchedule(null);
       resetForm();
@@ -1019,7 +1019,7 @@ function SchedulerControl() {
           <h1 className="sky-page-title">Scheduler</h1>
           <p className="sky-page-subtitle">
             Manage active schedules for worker-visible tools, queue immediate runs, monitor worker
-            nodes, and inspect schedule execution history from SkyServer Admin.
+            nodes, and inspect schedule execution history from SkyCommand Admin.
           </p>
         </div>
         <div className="text-md-end">
@@ -1141,7 +1141,7 @@ function SchedulerControl() {
                       ))}
                     </select>
                     <div className="form-text sky-muted">
-                      Tools run worker-visible primitives. Workflows run active SkyServer workflows.
+                      Tools run worker-visible primitives. Workflows run active SkyCommand workflows.
                     </div>
                   </div>
 
@@ -1174,13 +1174,13 @@ function SchedulerControl() {
                         {selectedWorkflow ? (
                           <div className="form-text sky-muted">
                             <span className="sky-pill sky-pill-success">workflow</span>{' '}
-                            {selectedWorkflow.description || 'SkyServer workflow definition'}
+                            {selectedWorkflow.description || 'SkyCommand workflow definition'}
                           </div>
                         ) : (
                           <div className="form-text text-warning">
                             {workflowBridgeTool
                               ? 'No active workflows are available.'
-                              : 'Start SkyServer Workflow bridge tool is not configured.'}
+                              : 'Start SkyCommand Workflow bridge tool is not configured.'}
                           </div>
                         )}
                       </>

@@ -325,9 +325,9 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
         >
           <option value="AUTO">Auto</option>
           <option value="NONE">No auth</option>
-          <option value="SKYSERVER_INTERNAL">SkyServer internal</option>
+          <option value="SKYSERVER_INTERNAL">SkyCommand internal</option>
         </select>
-        <div className="form-text">Auto adds SkyServer internal auth for local SkyServer API calls when configured.</div>
+        <div className="form-text">Auto adds SkyCommand internal auth for local SkyCommand API calls when configured.</div>
       </div>
       <div className="col-lg-4">
         <label className="form-label" htmlFor={`${idPrefix}-successCodes`}>Success codes</label>
@@ -412,7 +412,7 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
         targetCode: '',
         displayName: node.displayName || 'Run Child Workflow',
         nodeKey: node.nodeKey || `child_workflow_${index + 1}`,
-        description: node.description || 'Runs another active SkyServer workflow and waits for completion.',
+        description: node.description || 'Runs another active SkyCommand workflow and waits for completion.',
         inputParameters: {},
       });
       return;
@@ -498,7 +498,7 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
       targetCode,
       displayName: nextDisplayName,
       nodeKey: nextNodeKey,
-      description: node.description || workflow?.description || 'Runs a child SkyServer workflow.',
+      description: node.description || workflow?.description || 'Runs a child SkyCommand workflow.',
       inputParameters: {},
     });
   }
@@ -651,7 +651,7 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
             <>
               <div className="sky-page-kicker mb-2">Child workflow behavior</div>
               <div className="sky-empty-state text-start">
-                The parent workflow starts the selected SkyServer workflow as a Temporal child execution and waits for it to complete. Child workflow inputs come from that workflow's saved node defaults.
+                The parent workflow starts the selected SkyCommand workflow as a Temporal child execution and waits for it to complete. Child workflow inputs come from that workflow's saved node defaults.
               </div>
             </>
           ) : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? (
@@ -912,7 +912,7 @@ function WorkflowManager() {
             nodeTypeCode: 'WORKFLOW',
             nodeKey: `child_workflow_${current.length + 1}`,
             displayName: 'Run Child Workflow',
-            description: 'Runs another active SkyServer workflow and waits for completion.',
+            description: 'Runs another active SkyCommand workflow and waits for completion.',
             inputParameters: {},
           }
           : nodeTypeCode === 'TEMPORAL_WORKFLOW'
@@ -1349,7 +1349,7 @@ function WorkflowManager() {
           <div className="sky-page-kicker">Workflows · Manage</div>
           <h1 className="sky-page-title">Manage Workflows</h1>
           <p className="sky-page-subtitle">
-            Review SkyServer workflow definitions, update metadata, clone business workflows,
+            Review SkyCommand workflow definitions, update metadata, clone business workflows,
             delete old definitions, and publish graph edits through draft workflow versions.
           </p>
         </div>

@@ -572,7 +572,7 @@ function Dashboard() {
     try {
       return await loader();
     } catch (loadError) {
-      console.warn(`[SkyServer Dashboard] Optional panel failed: ${name}`, loadError);
+      console.warn(`[SkyCommand Dashboard] Optional panel failed: ${name}`, loadError);
       return null;
     }
   }

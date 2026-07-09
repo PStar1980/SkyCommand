@@ -53,6 +53,7 @@ SkyServer/
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
 │   │       │       ├── SidebarNav.jsx
+│   │       │       ├── SkyCommandMark.jsx
 │   │       │       ├── StatCard.jsx
 │   │       │       └── StatusPill.jsx
 │   │       ├── context/

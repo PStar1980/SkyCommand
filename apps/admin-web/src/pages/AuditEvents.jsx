@@ -68,7 +68,7 @@ function AuditEvents() {
           <div className="sky-page-kicker">Access Control · User History</div>
           <h1 className="sky-page-title">User History</h1>
           <p className="sky-page-subtitle">
-            Review login, authorization, and user-facing activity from the SkyServer audit trail.
+            Review login, authorization, and user-facing activity from the SkyCommand audit trail.
           </p>
         </div>
         <button className="btn sky-btn-ghost" onClick={() => loadAuditEvents()} type="button">

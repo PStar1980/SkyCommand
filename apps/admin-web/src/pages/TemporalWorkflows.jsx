@@ -130,7 +130,7 @@ function getWorkflowKey(workflow) {
 
 function getWorkflowSourceLabel(workflow) {
   if (workflow?.missingFromTemporal) {
-    return 'SkyServer DB';
+    return 'SkyCommand DB';
   }
 
   if (workflow?.skyserverRecord) {
@@ -411,7 +411,7 @@ function TemporalWorkflows({ mode = 'history' }) {
     try {
       await temporalService.terminateWorkflow(workflow.workflowId, {
         runId: workflow.runId,
-        reason: 'Terminated from SkyServer Admin-Web Temporal console.',
+        reason: 'Terminated from SkyCommand Admin-Web Temporal console.',
       });
       setActionMessage(`Terminate requested for ${workflow.workflowId}.`);
       await loadConsole({ keepSelection: true });
@@ -447,8 +447,8 @@ function TemporalWorkflows({ mode = 'history' }) {
   const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
   const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
   const pageSubtitle = isHistoryMode
-    ? 'Inspect recent Temporal workflow runs, review SkyServer run records, and manage active executions through SkyServer Core.'
-    : 'Start approved Temporal workflow templates through SkyServer Core instead of the CLI.';
+    ? 'Inspect recent Temporal workflow runs, review SkyCommand run records, and manage active executions through SkyCommand Core.'
+    : 'Start approved Temporal workflow templates through SkyCommand Core instead of the CLI.';
 
   return (
     <div>
@@ -475,7 +475,7 @@ function TemporalWorkflows({ mode = 'history' }) {
           <div className="sky-page-kicker">Temporal service</div>
           <h2 className="h4 mb-2">Durable execution lane</h2>
           <p className="sky-muted mb-3">
-            SkyServer Admin now talks to SkyServer Core/API, and Core starts or inspects
+            SkyCommand Admin now talks to SkyCommand Core/API, and Core starts or inspects
             Temporal workflows on behalf of the browser. The browser never talks to Temporal
             directly.
           </p>

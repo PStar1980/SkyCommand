@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import SidebarNav from './ui/SidebarNav.jsx';
+import SkyCommandMark from './ui/SkyCommandMark.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import authService from '../services/authService';
 
@@ -425,13 +426,7 @@ function Navbar() {
       <>
         <nav className="sky-public-navbar">
           <NavLink className="sky-public-brand" to="/">
-            <span className="sky-brand-mark sky-brand-mark-command" aria-hidden="true">
-              <svg className="sky-brand-mark-svg" viewBox="0 0 48 48" role="img">
-                <path className="sky-brand-mark-wing sky-brand-mark-wing-left" d="M8 31L20 8l8 9-8 20z" />
-                <path className="sky-brand-mark-wing sky-brand-mark-wing-right" d="M21 37l8-20 11 13-17 10z" />
-                <path className="sky-brand-mark-flow" d="M15 31h14l5-6" />
-              </svg>
-            </span>
+            <SkyCommandMark />
             <span>SkyCommand</span>
           </NavLink>
           <NavLink className="btn btn-sm sky-btn-primary" to="/login">

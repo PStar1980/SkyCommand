@@ -156,7 +156,7 @@ function WorkflowWorkerHealth() {
         value: loading ? '—' : worker.status || 'UNKNOWN',
         help: worker.latestHeartbeat
           ? `Last seen ${formatDate(worker.latestHeartbeat.lastSeenAt)}`
-          : 'No SkyServer Temporal worker heartbeat recorded yet',
+          : 'No SkyCommand Temporal worker heartbeat recorded yet',
         status: worker.status || 'UNKNOWN',
       },
       {
@@ -191,7 +191,7 @@ function WorkflowWorkerHealth() {
           <div className="sky-page-kicker">Workflows · Worker health</div>
           <h1 className="sky-page-title">Worker Health</h1>
           <p className="sky-page-subtitle">
-            Observe Temporal reachability, task queue pollers, SkyServer worker heartbeats, run
+            Observe Temporal reachability, task queue pollers, SkyCommand worker heartbeats, run
             pressure, and approval gates before workflows enter the execution lane.
           </p>
         </div>
@@ -231,7 +231,7 @@ function WorkflowWorkerHealth() {
             </div>
           ) : (
             <div className="alert alert-success mb-0">
-              Temporal server, task queue polling, and SkyServer worker heartbeat look healthy.
+              Temporal server, task queue polling, and SkyCommand worker heartbeat look healthy.
             </div>
           )}
         </div>
@@ -268,7 +268,7 @@ function WorkflowWorkerHealth() {
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header">
               <h2 className="h5 mb-0">Worker heartbeats</h2>
-              <div className="small sky-muted">SkyServer Temporal worker process check-ins</div>
+              <div className="small sky-muted">SkyCommand Temporal worker process check-ins</div>
             </div>
             {heartbeats.length > 0 ? (
               <div className="table-responsive">

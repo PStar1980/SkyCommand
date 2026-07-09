@@ -435,7 +435,7 @@ function getNodeDetail(node, nodes = []) {
   }
 
   if (nodeTypeCode === 'WORKFLOW') {
-    return 'Reusable SkyServer workflow';
+    return 'Reusable SkyCommand workflow';
   }
 
   return node.description || 'Reusable tool primitive';
