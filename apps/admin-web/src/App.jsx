@@ -3,12 +3,14 @@ import Navbar from './components/Navbar.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 
 const WORKBENCH_ROUTE_PREFIXES = [
-  '/workflows/manage',
-  '/workflows/history',
-  '/workflows/start',
-  '/workflows/create',
-  '/workflows/worker-health',
-  '/configuration/production-readiness',
+  '/dashboard',
+  '/tools',
+  '/workflows',
+  '/automation',
+  '/data',
+  '/configuration',
+  '/admin',
+  '/access-control',
 ];
 
 function App() {
