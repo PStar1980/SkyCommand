@@ -1876,202 +1876,150 @@
   width: auto;
 }
 
-/* UI Phase 11.2 — Dashboard Command Center redesign */
-.sky-dashboard-command-hero {
-  display: grid;
-  grid-template-columns: minmax(420px, 0.9fr) minmax(520px, 1.1fr);
-  gap: 1rem;
-  align-items: stretch;
-  border: 1px solid rgba(124, 144, 177, 0.22);
-  border-radius: 1.35rem;
-  background:
-    radial-gradient(circle at top left, rgba(72, 167, 255, 0.2), transparent 34%),
-    radial-gradient(circle at 78% 18%, rgba(155, 89, 255, 0.16), transparent 32%),
-    radial-gradient(circle at bottom right, rgba(50, 220, 150, 0.08), transparent 38%),
-    rgba(11, 18, 34, 0.94);
-  box-shadow: 0 26px 96px rgba(0, 0, 0, 0.34);
-  padding: 1.2rem;
-}
-
-.sky-dashboard-command-main {
-  display: flex;
-  min-height: 18rem;
-  flex-direction: column;
-  justify-content: space-between;
-  border: 1px solid rgba(124, 144, 177, 0.14);
-  border-radius: 1rem;
-  background: linear-gradient(145deg, rgba(8, 15, 28, 0.62), rgba(22, 34, 60, 0.36));
-  padding: 1.25rem;
-}
-
-.sky-dashboard-command-title {
-  margin-bottom: 0.65rem;
-  color: #ffffff;
-  font-size: clamp(2rem, 4vw, 3.85rem);
-  font-weight: 900;
-  letter-spacing: -0.06em;
-  line-height: 0.95;
-  text-shadow: 0 18px 62px rgba(72, 167, 255, 0.18);
-}
-
-.sky-dashboard-command-copy {
-  max-width: 52rem;
-  color: #b8c8e6;
-  font-size: 0.98rem;
-  line-height: 1.65;
-}
-
-.sky-dashboard-command-links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
-  margin-top: 1.2rem;
-}
-
-.sky-dashboard-command-link,
-.sky-dashboard-command-metric,
-.sky-dashboard-shortcuts {
-  border: 1px solid rgba(124, 144, 177, 0.16);
-  background: rgba(6, 11, 22, 0.52);
-}
-
-.sky-dashboard-command-link,
-.sky-dashboard-command-metric {
-  display: block;
-  border-radius: 0.95rem;
-  color: #dce8ff;
-  padding: 0.9rem;
-  text-decoration: none;
-  transition:
-    border-color 150ms ease,
-    background 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease;
-}
-
-.sky-dashboard-command-link span {
-  display: block;
-  color: #ffffff;
-  font-weight: 800;
-}
-
-.sky-dashboard-command-link small {
-  color: #9fb0cc;
-}
-
-.sky-dashboard-command-link:hover,
-.sky-dashboard-command-link:focus,
-.sky-dashboard-command-metric:hover,
-.sky-dashboard-command-metric:focus {
-  border-color: rgba(124, 144, 255, 0.58);
-  background: linear-gradient(135deg, rgba(72, 167, 255, 0.14), rgba(155, 89, 255, 0.1));
-  color: #ffffff;
-  outline: none;
-  transform: translateY(-1px);
-  box-shadow: 0 18px 52px rgba(72, 167, 255, 0.09);
-}
-
-.sky-dashboard-command-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-
-.sky-dashboard-command-metric {
-  min-height: 8.4rem;
-  background: linear-gradient(145deg, rgba(8, 15, 28, 0.7), rgba(16, 27, 48, 0.56));
-}
-
-.sky-dashboard-command-value {
-  color: #ffffff;
-  font-size: clamp(1.35rem, 2vw, 2rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
-}
-
-.sky-dashboard-shortcuts {
-  border-radius: 1.1rem;
-  padding: 1rem;
-}
-
-.sky-dashboard-section-heading {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: end;
-  justify-content: space-between;
-}
-
-.sky-dashboard-task-strip-compact {
-  margin-top: 0.85rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.sky-dashboard-task-strip-compact .sky-dashboard-task {
-  min-height: 5.1rem;
-}
-
-.sky-dashboard-workflow-panel {
-  border-color: rgba(72, 167, 255, 0.24);
-  background:
-    radial-gradient(circle at 12% 0, rgba(72, 167, 255, 0.1), transparent 28%),
-    radial-gradient(circle at 96% 8%, rgba(50, 220, 150, 0.08), transparent 28%),
-    rgba(11, 18, 34, 0.92);
-}
-
-.sky-dashboard-workflow-grid {
-  display: grid;
-  grid-template-columns: minmax(260px, 1.15fr) repeat(4, minmax(150px, 1fr));
-  gap: 0.85rem;
-  align-items: stretch;
-}
-
-.sky-dashboard-workflow-status {
-  display: flex;
-  gap: 0.85rem;
+/* UI Phase 11.3 — workflow workbench polish */
+.sky-workbench-row {
   align-items: flex-start;
-  border: 1px solid rgba(72, 167, 255, 0.22);
-  border-radius: 0.95rem;
-  background: linear-gradient(135deg, rgba(72, 167, 255, 0.12), rgba(155, 89, 255, 0.08));
-  padding: 0.9rem;
 }
 
-@media (max-width: 1450px) {
-  .sky-dashboard-command-hero {
-    grid-template-columns: 1fr;
+.sky-workbench-main,
+.sky-workbench-rail {
+  min-width: 0;
+}
+
+.sky-workbench-main > .sky-card,
+.sky-workbench-main .sky-card,
+.sky-workbench-rail .sky-card {
+  min-width: 0;
+}
+
+@media (min-width: 1200px) {
+  .sky-workbench-rail {
+    position: sticky;
+    top: calc(var(--sky-topbar-height) + 1.1rem);
+    max-height: calc(100vh - var(--sky-topbar-height) - 1.6rem);
+    overflow-y: auto;
+    padding-right: 0.2rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(154, 215, 255, 0.32) transparent;
   }
 
-  .sky-dashboard-workflow-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .sky-workbench-rail::-webkit-scrollbar {
+    width: 0.48rem;
   }
 
-  .sky-dashboard-workflow-status {
-    grid-column: 1 / -1;
+  .sky-workbench-rail::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sky-workbench-rail::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(154, 215, 255, 0.26);
   }
 }
 
-@media (max-width: 1100px) {
-  .sky-dashboard-task-strip-compact,
-  .sky-dashboard-command-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (min-width: 1600px) {
+  .sky-workbench-row-management,
+  .sky-workbench-row-history {
+    --bs-gutter-x: 1.25rem;
   }
+}
+
+.sky-workflow-visual-viewport {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(124, 144, 177, 0.12);
+  border-radius: 1rem;
+  background:
+    linear-gradient(90deg, rgba(4, 8, 16, 0.52), rgba(4, 8, 16, 0.18) 18%, rgba(4, 8, 16, 0.18) 82%, rgba(4, 8, 16, 0.52)),
+    rgba(4, 8, 16, 0.24);
+}
+
+.sky-workflow-visual-viewport::before,
+.sky-workflow-visual-viewport::after {
+  position: absolute;
+  top: 0;
+  bottom: 0.8rem;
+  z-index: 2;
+  width: 2.2rem;
+  pointer-events: none;
+  content: '';
+}
+
+.sky-workflow-visual-viewport::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(4, 8, 16, 0.9), transparent);
+}
+
+.sky-workflow-visual-viewport::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(4, 8, 16, 0.9), transparent);
+}
+
+.sky-workflow-visual-map {
+  gap: clamp(0.55rem, 1vw, 0.9rem);
+  padding: 0.95rem 0.9rem 0.85rem;
+}
+
+.sky-workflow-visual-step {
+  gap: clamp(0.5rem, 0.8vw, 0.75rem);
+}
+
+.sky-workflow-visual-node {
+  width: clamp(240px, 17vw, 292px);
+  min-height: 14.2rem;
+}
+
+.sky-workflow-visual-edge {
+  width: clamp(2.75rem, 3.25vw, 4.2rem);
+  min-height: 14.2rem;
+}
+
+.sky-workflow-visual-edge-label {
+  max-width: 4.2rem;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.sky-workflow-visual-inspector {
+  border-color: rgba(72, 167, 255, 0.28);
+  background:
+    radial-gradient(circle at top left, rgba(72, 167, 255, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(72, 167, 255, 0.07), rgba(4, 10, 22, 0.78));
+}
+
+.sky-workflow-visual-inspector-grid {
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+
+.sky-workflow-visual-inspector-row {
+  display: flex;
+  min-height: 4.55rem;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.sky-workflow-visual-inspector .btn-sm {
+  min-height: 2rem;
+}
+
+.sky-table-card {
+  overflow: auto;
+}
+
+.sky-workbench-main .sky-code-block,
+.sky-workbench-rail .sky-code-block {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 215, 255, 0.36) rgba(4, 8, 16, 0.55);
 }
 
 @media (max-width: 768px) {
-  .sky-dashboard-command-hero,
-  .sky-dashboard-shortcuts {
-    padding: 0.9rem;
+  .sky-workflow-visual-viewport::before,
+  .sky-workflow-visual-viewport::after {
+    display: none;
   }
 
-  .sky-dashboard-command-main {
-    min-height: auto;
-  }
-
-  .sky-dashboard-command-links,
-  .sky-dashboard-command-metrics,
-  .sky-dashboard-task-strip-compact,
-  .sky-dashboard-workflow-grid {
-    grid-template-columns: 1fr;
+  .sky-workflow-visual-node,
+  .sky-workflow-visual-edge {
+    width: min(76vw, 292px);
   }
 }

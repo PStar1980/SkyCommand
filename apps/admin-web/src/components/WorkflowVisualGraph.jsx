@@ -887,8 +887,9 @@ function WorkflowVisualGraph({
               Runtime overlay is read-only. Completed, running, failed, pending approval, skipped, and branch-taken states come from the selected workflow run ledger.
             </div>
           ) : null}
-          <div className="sky-workflow-visual-map" role="list" aria-label="Sequential workflow visual map">
-            {nodes.map((node, index) => (
+          <div className="sky-workflow-visual-viewport">
+            <div className="sky-workflow-visual-map" role="list" aria-label="Sequential workflow visual map">
+              {nodes.map((node, index) => (
               <div className="sky-workflow-visual-step" key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`} role="listitem">
                 <WorkflowVisualNode
                   approval={runtimeMode ? getApprovalForNode({ node, nodeRun: getNodeRunForNode(node, nodeRuns), approvals }) : null}
@@ -920,6 +921,7 @@ function WorkflowVisualGraph({
                 ) : null}
               </div>
             ))}
+            </div>
           </div>
 
           <WorkflowVisualInspector

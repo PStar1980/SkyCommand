@@ -1183,8 +1183,8 @@ function SkyWorkflows({ mode = 'start' }) {
         </div>
       </section>
 
-      <div className="row g-4">
-        <div className="col-xl-4">
+      <div className="row g-4 sky-workbench-row sky-workbench-row-history">
+        <div className="col-xxl-3 col-xl-4 sky-workbench-rail">
           {!isHistoryMode && (
             <section className="sky-card mb-4 sky-sticky-detail-card">
               <div className="sky-card-header">
@@ -1333,7 +1333,7 @@ function SkyWorkflows({ mode = 'start' }) {
           )}
         </div>
 
-        <div className="col-xl-8">
+        <div className="col-xxl-9 col-xl-8 sky-workbench-main">
           {!isHistoryMode && (
             <>
               <section className="sky-card mb-4">
