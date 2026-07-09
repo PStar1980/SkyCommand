@@ -97,7 +97,7 @@ function getCurrentNavCrumb(navGroups, pathname) {
   }
 
   return {
-    group: 'SkyServer Admin',
+    group: 'SkyCommand',
     label: PAGE_LABELS[pathname] || 'Dashboard',
   };
 }
@@ -425,8 +425,14 @@ function Navbar() {
       <>
         <nav className="sky-public-navbar">
           <NavLink className="sky-public-brand" to="/">
-            <span className="sky-brand-mark">⌁</span>
-            <span>SkyServer Admin</span>
+            <span className="sky-brand-mark sky-brand-mark-command" aria-hidden="true">
+              <svg className="sky-brand-mark-svg" viewBox="0 0 48 48" role="img">
+                <path className="sky-brand-mark-wing sky-brand-mark-wing-left" d="M8 31L20 8l8 9-8 20z" />
+                <path className="sky-brand-mark-wing sky-brand-mark-wing-right" d="M21 37l8-20 11 13-17 10z" />
+                <path className="sky-brand-mark-flow" d="M15 31h14l5-6" />
+              </svg>
+            </span>
+            <span>SkyCommand</span>
           </NavLink>
           <NavLink className="btn btn-sm sky-btn-primary" to="/login">
             Login
@@ -476,7 +482,7 @@ function Navbar() {
           <form className="sky-topbar-command-search" onSubmit={handleCommandSearch} role="search">
             <NavIcon name="search" />
             <input
-              aria-label="Search SkyServer commands"
+              aria-label="Search SkyCommand commands"
               onChange={(event) => setCommandQuery(event.target.value)}
               placeholder="Search tools, workflows, executions..."
               type="search"
@@ -519,7 +525,7 @@ function Navbar() {
             </button>
             <ul className="dropdown-menu dropdown-menu-dark dropdown-menu-end sky-navbar-dropdown">
               <li className="sky-navbar-user-summary">
-                <strong>{user?.displayName || user?.username || 'SkyServer user'}</strong>
+                <strong>{user?.displayName || user?.username || 'SkyCommand user'}</strong>
                 {user?.email && <span>{user.email}</span>}
               </li>
               <li>

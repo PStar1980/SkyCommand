@@ -39,8 +39,8 @@ function Login() {
     <div className="sky-login-wrap">
       <section className="sky-card sky-login-card">
         <div className="sky-card-header">
-          <div className="sky-page-kicker">Private console</div>
-          <h1 className="h3 sky-page-title">SkyServer Admin</h1>
+          <div className="sky-page-kicker">Workflow Automation Engine</div>
+          <h1 className="h3 sky-page-title">SkyCommand</h1>
           <p className="sky-page-subtitle">
             Sign in to run approved tools, inspect execution history, and monitor the control layer.
           </p>
