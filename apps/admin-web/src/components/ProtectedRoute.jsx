@@ -1,5 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import Panel from './ui/Panel.jsx';
+import StatusPill from './ui/StatusPill.jsx';
 
 function ProtectedRoute({ children, permissionCode }) {
   const location = useLocation();
@@ -20,15 +22,15 @@ function ProtectedRoute({ children, permissionCode }) {
 
   if (!hasPermission(permissionCode)) {
     return (
-      <section className="sky-card">
+      <Panel className="sky-table-card">
         <div className="sky-card-body">
-          <span className="sky-pill sky-pill-danger">Access blocked</span>
+          <StatusPill status="BLOCKED">Access blocked</StatusPill>
           <h1 className="h4 mt-3">Permission required</h1>
           <p className="sky-muted mb-0">
             This screen requires <span className="sky-mono">{permissionCode}</span>.
           </p>
         </div>
-      </section>
+      </Panel>
     );
   }
 

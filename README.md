@@ -109,7 +109,7 @@ SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplic
 
 Phase 11 introduces the **Command Glass** UI direction for SkyServer Admin-Web. The design keeps the existing dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar is now reserved for page context, status pills, and the authenticated operator menu.
 
-The first UI slices are intentionally structural: they changed the app shell, sidebar, topbar, spacing, dashboard command center, and workflow workbench behavior without changing routes, API behavior, workflow execution, or database schema. The polish passes tightened sidebar density, widened workflow-heavy pages, refined dashboard command tiles, softened visual graph scrollbars, reduced unnecessary visual-map scrolling, and aligned workflow inspector/card details. Later UI phases can extract shared card/badge/page-header components and continue page-by-page polish.
+The first UI slices are intentionally structural: they changed the app shell, sidebar, topbar, spacing, dashboard command center, workflow workbench behavior, and shared UI primitives without changing routes, API behavior, workflow execution, or database schema. The polish passes tightened sidebar density, widened workflow-heavy pages, refined dashboard command tiles, softened visual graph scrollbars, reduced unnecessary visual-map scrolling, aligned workflow inspector/card details, and introduced reusable Command Glass components for status pills, stat cards, panels, page headers, and sidebar navigation. Later UI phases can continue page-by-page polish while reusing those primitives instead of duplicating card/badge markup.
 
 ## Workflow Pages
 
@@ -423,7 +423,7 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 | Phase 9 | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
 | Phase 10 | ✅ Complete | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection |
 | Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, and documentation |
-| Phase 11 | 🔄 In progress | Command Glass Admin-Web modernization: left navigation shell, dashboard command center, workflow workbench polish, and shared component cleanup |
+| Phase 11 | 🔄 In progress | Command Glass Admin-Web modernization: left navigation shell, dashboard command center, workflow workbench polish, shared component primitives, and page-by-page visual refinement |
 | Phase 12 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, and production deployment planning |
 | Phase 13 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
 

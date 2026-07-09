@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import PageHeader from '../components/ui/PageHeader.jsx';
+import StatCard from '../components/ui/StatCard.jsx';
+import StatusPill, { StatusDot, getStatusClass, getStatusLabel } from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 import api from '../services/api';
@@ -64,66 +67,6 @@ function formatDuration(value) {
   }
 
   return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
-
-function statusClass(status) {
-  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED', 'PASS'].includes(status) || status === true) {
-    return 'sky-pill-success';
-  }
-
-  if (['FAILED', 'FAIL', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
-    return 'sky-pill-danger';
-  }
-
-  if (['STARTED', 'RUNNING', 'WARNING', 'STALE', 'DEGRADED', 'BUSY', 'QUEUED'].includes(status)) {
-    return 'sky-pill-warning';
-  }
-
-  return 'sky-pill-info';
-}
-
-function dotClass(status) {
-  if (['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED', 'PASS'].includes(status) || status === true) {
-    return 'sky-status-dot-success';
-  }
-
-  if (['FAILED', 'FAIL', 'ERROR', 'OFFLINE', 'TERMINATED'].includes(status) || status === false) {
-    return 'sky-status-dot-danger';
-  }
-
-  if (['STARTED', 'RUNNING', 'WARNING', 'STALE', 'DEGRADED', 'BUSY', 'QUEUED'].includes(status)) {
-    return 'sky-status-dot-warning';
-  }
-
-  return 'sky-status-dot-info';
-}
-
-function resultClass(success) {
-  if (success === true) {
-    return 'sky-pill-success';
-  }
-
-  if (success === false) {
-    return 'sky-pill-danger';
-  }
-
-  return 'sky-pill-info';
-}
-
-function getStatusLabel(status) {
-  if (status === 'STARTED') {
-    return 'RUNNING';
-  }
-
-  if (status === true) {
-    return 'ONLINE';
-  }
-
-  if (status === false) {
-    return 'OFFLINE';
-  }
-
-  return status || 'UNKNOWN';
 }
 
 function formatAction(value) {
@@ -747,41 +690,34 @@ function Dashboard() {
 
   return (
     <>
-      <header className="sky-page-header">
-        <div>
-          <div className="sky-page-kicker">Command center</div>
-          <h1 className="sky-page-title">SkyServer Admin</h1>
-          <p className="sky-page-subtitle">
-            Welcome back, {user?.displayName || user?.username || 'Operator'}. This is the private
-            cockpit for API health, database status, macro ingestion, workflow health, tools,
-            sessions, executions, and audit activity.
-          </p>
-        </div>
-
-        <div className="text-md-end">
-          <button
-            className="btn sky-btn-ghost"
-            disabled={loading}
-            onClick={loadDashboard}
-            type="button"
-          >
-            {loading ? 'Refreshing...' : 'Refresh dashboard'}
-          </button>
-          <div className="small sky-muted mt-2">
-            Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        actions={(
+          <>
+            <button
+              className="btn sky-btn-ghost"
+              disabled={loading}
+              onClick={loadDashboard}
+              type="button"
+            >
+              {loading ? 'Refreshing...' : 'Refresh dashboard'}
+            </button>
+            <div className="small sky-muted mt-2">
+              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
+            </div>
+          </>
+        )}
+        kicker="Command center"
+        subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. This is the private cockpit for API health, database status, macro ingestion, workflow health, tools, sessions, executions, and audit activity.`}
+        title="SkyServer Admin"
+      />
 
       {error && <div className="alert alert-danger">{error}</div>}
 
       <section className="sky-dashboard-command-hero mb-3">
         <div className="sky-dashboard-command-main">
           <div className="d-flex align-items-center gap-2 mb-3">
-            <span className={`sky-status-dot ${dotClass(systemStatus)}`} />
-            <span className={`sky-pill ${statusClass(systemStatus)}`}>
-              {getStatusLabel(systemStatus)}
-            </span>
+            <StatusDot status={systemStatus} />
+            <StatusPill status={systemStatus} />
           </div>
           <div className="sky-page-kicker">Operational command center</div>
           <h2 className="sky-dashboard-command-title">Control plane pulse</h2>
@@ -811,7 +747,7 @@ function Dashboard() {
                   <div className="sky-page-kicker">{metric.label}</div>
                   <div className="sky-dashboard-command-value">{metric.value}</div>
                 </div>
-                <span className={`sky-status-dot ${dotClass(metric.status)}`} />
+                <StatusDot status={metric.status} />
               </div>
               <div className="sky-muted small mt-2">{metric.helper}</div>
             </Link>
@@ -848,18 +784,13 @@ function Dashboard() {
       <div className="row g-3">
         {secondaryStatCards.map((card) => (
           <div className="col-sm-6 col-xl" key={card.label}>
-            <section className="sky-card sky-stat-card sky-dashboard-stat-card">
-              <div className="sky-card-body">
-                <div className="d-flex align-items-start justify-content-between gap-2">
-                  <div>
-                    <div className="sky-page-kicker">{card.label}</div>
-                    <div className="sky-stat-value">{card.value}</div>
-                  </div>
-                  <span className={`sky-status-dot ${dotClass(card.status)}`} />
-                </div>
-                <div className="sky-muted small mt-2">{card.help}</div>
-              </div>
-            </section>
+            <StatCard
+              className="sky-dashboard-stat-card"
+              helper={card.help}
+              label={card.label}
+              status={card.status}
+              value={card.value}
+            />
           </div>
         ))}
       </div>
@@ -937,7 +868,7 @@ function Dashboard() {
                             <div className="small sky-muted">{source.provider}</div>
                           </td>
                           <td>
-                            <span className={`sky-pill ${statusClass(source.status)}`}>
+                            <span className={`sky-pill ${getStatusClass(source.status)}`}>
                               {source.status}
                             </span>
                           </td>
@@ -946,7 +877,7 @@ function Dashboard() {
                           <td>{formatDateOnly(source.latestDataDate)}</td>
                           <td>
                             <span
-                              className={`sky-pill ${statusClass(source.latestExecution?.status)}`}
+                              className={`sky-pill ${getStatusClass(source.latestExecution?.status)}`}
                             >
                               {source.latestExecution?.status || '—'}
                             </span>
@@ -983,14 +914,14 @@ function Dashboard() {
               <dl className="row g-2 mb-0">
                 <dt className="col-5 sky-detail-label">API</dt>
                 <dd className="col-7">
-                  <span className={`sky-pill ${statusClass(summary.apiHealth?.ok)}`}>
+                  <span className={`sky-pill ${getStatusClass(summary.apiHealth?.ok)}`}>
                     {summary.apiHealth?.ok ? 'ONLINE' : 'UNKNOWN'}
                   </span>
                 </dd>
 
                 <dt className="col-5 sky-detail-label">Database</dt>
                 <dd className="col-7">
-                  <span className={`sky-pill ${statusClass(summary.dbHealth?.ok)}`}>
+                  <span className={`sky-pill ${getStatusClass(summary.dbHealth?.ok)}`}>
                     {summary.dbHealth?.ok ? summary.dbHealth.database || 'ONLINE' : 'UNKNOWN'}
                   </span>
                 </dd>
@@ -1073,7 +1004,7 @@ function Dashboard() {
               <div className="sky-card-body">
                 <div className="sky-dashboard-workflow-grid">
                   <div className="sky-dashboard-workflow-status">
-                    <span className={`sky-status-dot ${dotClass(workflowHealth.overallStatus)}`} />
+                    <StatusDot status={workflowHealth.overallStatus} />
                     <div>
                       <div className="sky-page-kicker">Runtime status</div>
                       <div className="sky-dashboard-command-value">{workflowHealth.overallStatus || '—'}</div>
@@ -1221,7 +1152,7 @@ function Dashboard() {
                           <div className="small sky-muted sky-mono">{execution.scriptName}</div>
                         </td>
                         <td>
-                          <span className={`sky-pill ${statusClass(execution.status)}`}>
+                          <span className={`sky-pill ${getStatusClass(execution.status)}`}>
                             {getStatusLabel(execution.status)}
                           </span>
                         </td>
