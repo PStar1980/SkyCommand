@@ -9,6 +9,8 @@
  * - Reads SkyServer Core categories/tools/parameters from PostgreSQL core.* tables
  * - Reads repository paths from core.repositories/core.repository_paths
  * - Lists CLI-visible categories/tools only
+ * - Adds a top-level Run Tools / Run Workflows launcher
+ * - Starts active, published SkyServer workflows through the Temporal-backed executor
  * - Prompts for configured tool parameters
  * - Resolves script locations from database-backed repository roots
  * - Executes target scripts through configured runtime
@@ -43,6 +45,7 @@ const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
 dotenv.config({ path: ENV_PATH });
 
 const { pool } = require('../../db/src/connection');
+const workflowExecutorService = require('../../../apps/api/src/services/workflowExecutorService');
 
 const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -50,6 +53,13 @@ const PROFILE_CODE =
   process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
+
+const DEFAULT_WORKFLOW_EXECUTOR_MODE = String(
+  process.env.SKYSERVER_CORE_WORKFLOW_EXECUTOR_MODE || 'temporal',
+)
+  .trim()
+  .toLowerCase();
+const CLI_USER_AGENT = 'SkyServer_Core CLI';
 
 // ------------------------------------------------------------
 // Colors
@@ -209,6 +219,24 @@ function mapRepository(row) {
     rootPath: row.root_path,
     displayOrder: row.display_order,
     active: row.active,
+  };
+}
+
+function mapWorkflowDefinition(row) {
+  return {
+    workflowDefinitionId: row.workflow_definition_id,
+    workflowCode: row.workflow_code,
+    displayName: row.display_name,
+    description: row.description,
+    status: row.status,
+    enabled: row.enabled,
+    visibleInAdmin: row.visible_in_admin,
+    startPermissionCode: row.start_permission_code,
+    publishedVersionId: row.published_version_id,
+    publishedVersionNumber: row.published_version_number,
+    nodeCount: row.published_node_count || row.latest_node_count || 0,
+    edgeCount: row.published_edge_count || row.latest_edge_count || 0,
+    displayOrder: row.display_order || 100,
   };
 }
 
@@ -403,6 +431,47 @@ async function loadRepositories() {
   return rows.map(mapRepository);
 }
 
+async function loadWorkflowDefinitions() {
+  const rows = await queryRows(
+    `
+      SELECT
+        workflow_definition_id,
+        workflow_code,
+        display_name,
+        description,
+        status,
+        enabled,
+        visible_in_admin,
+        start_permission_code,
+        published_version_id,
+        published_version_number,
+        latest_node_count,
+        latest_edge_count,
+        published_node_count,
+        published_edge_count,
+        updated_at
+      FROM worker.vw_workflow_definitions
+      WHERE status = 'ACTIVE'
+        AND enabled = TRUE
+        AND visible_in_admin = TRUE
+        AND published_version_id IS NOT NULL
+      ORDER BY display_name, workflow_code
+    `,
+  );
+
+  return rows.map(mapWorkflowDefinition);
+}
+
+async function loadSkyserverWorkflowOptions() {
+  const workflows = await loadWorkflowDefinitions();
+
+  return workflows.map((workflow, index) => ({
+    label: `${workflow.displayName} (${workflow.workflowCode})`,
+    value: workflow.workflowCode,
+    displayOrder: workflow.displayOrder || index + 1,
+  }));
+}
+
 function attachParametersToTools(tools, parameters, staticOptions) {
   const toolsByCode = new Map(tools.map((tool) => [tool.toolCode, tool]));
   const optionsByParam = new Map();
@@ -459,7 +528,7 @@ function attachToolsToCategories(categories, tools) {
 }
 
 async function loadManifestFromDatabase() {
-  const [application, categories, tools, parameters, staticOptions, repositories] =
+  const [application, categories, tools, parameters, staticOptions, repositories, workflows] =
     await Promise.all([
       loadApplication(),
       loadCategories(),
@@ -467,6 +536,7 @@ async function loadManifestFromDatabase() {
       loadParameters(),
       loadStaticParameterOptions(),
       loadRepositories(),
+      loadWorkflowDefinitions(),
     ]);
 
   attachParametersToTools(tools, parameters, staticOptions);
@@ -480,6 +550,7 @@ async function loadManifestFromDatabase() {
     },
     profileCode: PROFILE_CODE,
     repositories,
+    workflows,
     categories: attachToolsToCategories(categories, tools),
     source: 'database',
   };
@@ -507,6 +578,7 @@ function getRecoveryManifest(error) {
         active: true,
       },
     ],
+    workflows: [],
     categories: [
       {
         categoryCode: 'recovery_tools',
@@ -583,7 +655,7 @@ function getRepositoryRoot(config, repoCode) {
   return repo.rootPath;
 }
 
-function getOptionsForParam(param, config) {
+async function getOptionsForParam(param, config) {
   if (Array.isArray(param.options) && param.options.length > 0) {
     return param.options.map((option) => ({
       label: option.label || option.value,
@@ -598,6 +670,10 @@ function getOptionsForParam(param, config) {
     param.optionSourceCode === 'repositories'
   ) {
     return getRepositoryOptions(config);
+  }
+
+  if (param.optionSourceCode === 'skyserver_workflows') {
+    return loadSkyserverWorkflowOptions();
   }
 
   return null;
@@ -669,6 +745,48 @@ async function mainMenu(config) {
     console.log(yellow(`Reason: ${config.loadError.message}\n`));
   }
 
+  const workflowCount = Array.isArray(config.workflows) ? config.workflows.length : 0;
+
+  console.log(`${magenta(1)}) Run Tools`);
+  console.log(gray('   Database-backed SkyServer Core tools and scripts.'));
+  console.log(`${magenta(2)}) Run Workflows`);
+  console.log(gray(`   Start active published SkyServer workflows through Temporal. ${workflowCount} available.`));
+  console.log(`${magenta(3)}) Exit\n`);
+
+  const choice = await askQuestion(yellow('Select an option: '));
+
+  if (choice === '1') {
+    await toolsCategoryMenu(config);
+    return mainMenu(config);
+  }
+
+  if (choice === '2') {
+    await workflowMenu(config);
+    return mainMenu(config);
+  }
+
+  if (choice === '3') {
+    console.log(green('\nGoodbye'));
+    await closePool();
+    process.exit(0);
+  }
+
+  console.log(red('\nInvalid selection.'));
+  await waitForEnter();
+  return mainMenu(config);
+}
+
+async function toolsCategoryMenu(config) {
+  console.clear();
+  printHeader(config.app.title || 'SkyServer Core');
+
+  if (config.source === 'database') {
+    console.log(gray(`Config source: PostgreSQL core schema | profile=${config.profileCode}\n`));
+  } else {
+    console.log(yellow(`Config source: RECOVERY FALLBACK | profile=${config.profileCode}`));
+    console.log(yellow(`Reason: ${config.loadError.message}\n`));
+  }
+
   const categories = [...config.categories].filter(isEnabled).sort(sortByDisplayOrderThenName);
 
   categories.forEach((category, index) => {
@@ -679,7 +797,7 @@ async function mainMenu(config) {
     }
   });
 
-  console.log(`${magenta(categories.length + 1)}) Exit\n`);
+  console.log(`${magenta(categories.length + 1)}) Back\n`);
 
   const choice = await askQuestion(yellow('Select a category: '));
   const index = Number.parseInt(choice, 10);
@@ -691,13 +809,309 @@ async function mainMenu(config) {
   }
 
   if (index === categories.length + 1) {
-    console.log(green('\nGoodbye'));
-    await closePool();
-    process.exit(0);
+    return;
   }
 
   await scriptMenu(config, categories[index - 1]);
-  return mainMenu(config);
+  return toolsCategoryMenu(config);
+}
+
+
+// ------------------------------------------------------------
+// Workflow menu
+// ------------------------------------------------------------
+
+async function loadCoreOperator() {
+  const requestedEmail = String(
+    process.env.SKYSERVER_CORE_OPERATOR_EMAIL || process.env.SKYSERVER_ADMIN_EMAIL || '',
+  ).trim().toLowerCase();
+
+  const userParams = [];
+  let userWhere = `
+    EXISTS (
+      SELECT 1
+      FROM auth.vw_user_roles ur
+      WHERE ur.user_id = u.user_id
+        AND ur.app_code = 'SKYSERVER_ADMIN'
+        AND ur.role_code = 'SUPER_ADMIN'
+    )
+  `;
+
+  if (requestedEmail) {
+    userParams.push(requestedEmail);
+    userWhere = 'LOWER(u.email) = $1';
+  }
+
+  const userRows = await queryRows(
+    `
+      SELECT
+        u.user_id,
+        u.email,
+        u.username,
+        u.display_name,
+        u.status,
+        u.is_system_user,
+        u.last_login_at
+      FROM auth.users u
+      WHERE u.status = 'ACTIVE'
+        AND ${userWhere}
+      ORDER BY u.last_login_at DESC NULLS LAST, u.created_at DESC
+      LIMIT 1
+    `,
+    userParams,
+  );
+
+  const userRow = userRows[0] || null;
+
+  if (!userRow) {
+    const permissionRows = await queryRows(
+      `
+        SELECT permission_code
+        FROM auth.permissions
+        WHERE active = TRUE
+          AND permission_code IN ('WORKFLOW_START', 'TEMPORAL_WORKFLOW_START', 'WORKER_SCHEDULE_RUN')
+      `,
+    );
+
+    return {
+      user: null,
+      permissions: permissionRows.map((row) => ({ permissionCode: row.permission_code })),
+      note: requestedEmail
+        ? `No active operator found for ${requestedEmail}; using limited workflow-start permissions.`
+        : 'No active SUPER_ADMIN operator found; using limited workflow-start permissions.',
+    };
+  }
+
+  const permissionRows = await queryRows(
+    `
+      SELECT DISTINCT permission_code
+      FROM auth.vw_user_permissions
+      WHERE user_id = $1
+        AND app_code = 'SKYSERVER_ADMIN'
+      ORDER BY permission_code
+    `,
+    [userRow.user_id],
+  );
+
+  return {
+    user: {
+      userId: userRow.user_id,
+      email: userRow.email,
+      username: userRow.username,
+      displayName: userRow.display_name,
+      status: userRow.status,
+      isSystemUser: toBoolean(userRow.is_system_user),
+      source: 'skyserver_core_cli',
+    },
+    permissions: permissionRows.map((row) => ({ permissionCode: row.permission_code })),
+    note: requestedEmail
+      ? `Operator resolved from SKYSERVER_CORE_OPERATOR_EMAIL=${requestedEmail}.`
+      : `Operator resolved from latest active SUPER_ADMIN: ${userRow.display_name || userRow.email}.`,
+  };
+}
+
+async function workflowMenu(config) {
+  console.clear();
+  printHeader('Run Workflows');
+
+  if (config.source !== 'database') {
+    console.log(red('Workflows require the PostgreSQL-backed SkyServer configuration.'));
+    await waitForEnter();
+    return;
+  }
+
+  const workflows = await loadWorkflowDefinitions();
+
+  if (workflows.length === 0) {
+    console.log(yellow('No active published SkyServer workflows are available.'));
+    await waitForEnter();
+    return;
+  }
+
+  workflows.forEach((workflow, index) => {
+    console.log(
+      `${magenta(index + 1)}) ${workflow.displayName} ${gray(`(${workflow.workflowCode})`)}`,
+    );
+    console.log(
+      gray(
+        `   v${workflow.publishedVersionNumber || '?'} · ${workflow.nodeCount} node(s) · ${workflow.edgeCount} edge(s)${workflow.startPermissionCode ? ` · permission ${workflow.startPermissionCode}` : ''}`,
+      ),
+    );
+
+    if (workflow.description) {
+      console.log(gray(`   ${workflow.description}`));
+    }
+  });
+
+  console.log(`${magenta(workflows.length + 1)}) Back\n`);
+
+  const choice = await askQuestion(yellow('Select a workflow: '));
+  const index = Number.parseInt(choice, 10);
+
+  if (Number.isNaN(index) || index < 1 || index > workflows.length + 1) {
+    console.log(red('\nInvalid selection.'));
+    await waitForEnter();
+    return workflowMenu(config);
+  }
+
+  if (index === workflows.length + 1) {
+    return;
+  }
+
+  await runWorkflow(config, workflows[index - 1]);
+}
+
+function parseWorkflowInputJson(inputJson) {
+  const trimmed = String(inputJson || '').trim();
+
+  if (!trimmed) {
+    return {};
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(`Workflow input must be valid JSON: ${error.message}`);
+  }
+
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error('Workflow input JSON must be an object.');
+  }
+
+  return parsed;
+}
+
+async function collectWorkflowInput(workflow) {
+  console.log('');
+  console.log(yellow(`Workflow: ${workflow.displayName} (${workflow.workflowCode})`));
+  console.log(gray(`Published version: v${workflow.publishedVersionNumber || '?'}`));
+  console.log(gray(`Graph: ${workflow.nodeCount} node(s), ${workflow.edgeCount} edge(s)`));
+
+  if (workflow.description) {
+    console.log(gray(workflow.description));
+  }
+
+  const executorAnswer = await askQuestion(
+    yellow(
+      `Executor mode [${DEFAULT_WORKFLOW_EXECUTOR_MODE === 'inline' ? 'inline' : 'temporal'}] (temporal/inline): `,
+    ),
+  );
+  const executorMode = String(executorAnswer || DEFAULT_WORKFLOW_EXECUTOR_MODE || 'temporal')
+    .trim()
+    .toLowerCase();
+
+  if (!['temporal', 'inline'].includes(executorMode)) {
+    throw new Error('Executor mode must be temporal or inline.');
+  }
+
+  const workflowId = await askQuestion(
+    yellow('Optional Temporal workflow ID override (leave blank for auto-generated): '),
+  );
+  const inputJson = await askQuestion(
+    yellow('Optional workflow input JSON object (leave blank for saved node defaults): '),
+  );
+
+  const input = parseWorkflowInputJson(inputJson);
+
+  if (workflowId.trim()) {
+    input.workflowId = workflowId.trim();
+  }
+
+  input.runSource = input.runSource || 'manual';
+  input.triggerType = input.triggerType || 'MANUAL';
+  input.startedFrom = input.startedFrom || 'skyserver_core_cli';
+
+  return {
+    executorMode,
+    input,
+  };
+}
+
+async function runWorkflow(config, workflow) {
+  console.clear();
+  printHeader(`Starting Workflow: ${workflow.displayName}`);
+
+  let launch;
+
+  try {
+    launch = await collectWorkflowInput(workflow);
+  } catch (error) {
+    console.error(red(`\nERROR: ${error.message}`));
+    await waitForEnter();
+    return;
+  }
+
+  console.log('');
+  console.log(yellow('⚠️  Confirmation required for workflow start'));
+  console.log(yellow(`Workflow: ${workflow.displayName} (${workflow.workflowCode})`));
+  console.log(yellow(`Executor: ${launch.executorMode}`));
+  console.log(yellow('Type YES to start this workflow.'));
+
+  const confirmed = await askQuestion(yellow('Confirm: '));
+
+  if (confirmed !== 'YES') {
+    console.log(yellow('\nCancelled.'));
+    await waitForEnter();
+    return;
+  }
+
+  let operator;
+
+  try {
+    operator = await loadCoreOperator();
+  } catch (error) {
+    console.error(red(`\nERROR resolving CLI operator: ${error.message}`));
+    await waitForEnter();
+    return;
+  }
+
+  console.log(gray(`\n${operator.note}`));
+  console.log(green(`Starting ${workflow.workflowCode} through ${launch.executorMode} executor...\n`));
+
+  try {
+    const execute =
+      launch.executorMode === 'inline'
+        ? workflowExecutorService.executeWorkflow
+        : workflowExecutorService.startWorkflowWithTemporal;
+    const result = await execute({
+      workflowCode: workflow.workflowCode,
+      input: launch.input,
+      user: operator.user,
+      session: null,
+      permissions: operator.permissions,
+      context: {
+        ipAddress: null,
+        userAgent: CLI_USER_AGENT,
+      },
+    });
+
+    const run = result.run || {};
+    const temporalWorkflow = result.temporalWorkflow || run.temporalWorkflow || {};
+
+    console.log(green(result.message || `Workflow ${workflow.workflowCode} started.`));
+    console.log('');
+    console.log(`Run record: ${run.workflowRunRecordId || 'n/a'}`);
+    console.log(`Status: ${run.status || (result.started ? 'RUNNING' : result.ok ? 'COMPLETED' : 'UNKNOWN')}`);
+
+    if (run.versionNumber) {
+      console.log(`Version: v${run.versionNumber}`);
+    }
+
+    if (temporalWorkflow.workflowId || run.temporalWorkflowId) {
+      console.log(`Temporal workflow ID: ${temporalWorkflow.workflowId || run.temporalWorkflowId}`);
+    }
+
+    if (temporalWorkflow.runId || run.temporalRunId) {
+      console.log(`Temporal run ID: ${temporalWorkflow.runId || run.temporalRunId}`);
+    }
+  } catch (error) {
+    console.error(red('\nERROR starting workflow:'));
+    console.error(error.details ? JSON.stringify(error.details, null, 2) : error.message || error);
+  }
+
+  await waitForEnter();
 }
 
 // ------------------------------------------------------------
@@ -746,7 +1160,7 @@ async function collectScriptArgs(scriptDef, config) {
   const args = [];
 
   for (const param of scriptDef.params || []) {
-    const options = getOptionsForParam(param, config);
+    const options = await getOptionsForParam(param, config);
     const prompt = getParamPrompt(param);
 
     if (options && options.length > 0) {
@@ -921,8 +1335,8 @@ async function start() {
     config = getRecoveryManifest(error);
   }
 
-  if (config.categories.length === 0) {
-    console.error(red('ERROR: No CLI-visible categories/tools found.'));
+  if (config.categories.length === 0 && (!Array.isArray(config.workflows) || config.workflows.length === 0)) {
+    console.error(red('ERROR: No CLI-visible tools or runnable workflows found.'));
     await closePool();
     process.exit(1);
   }

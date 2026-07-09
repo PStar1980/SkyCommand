@@ -29,6 +29,7 @@ const MAX_PARAMETER_COUNT = Number(process.env.TOOL_EXECUTION_MAX_PARAMETERS || 
 const MAX_PARAMETER_BYTES = Number(process.env.TOOL_EXECUTION_MAX_PARAMETER_BYTES || 12000);
 const HIGH_RISK_CONFIRMATION_PHRASE =
   process.env.TOOL_HIGH_RISK_CONFIRMATION_PHRASE || 'RUN HIGH RISK';
+const SKYSERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
 
 const activeExecutionLocks = new Map();
 
@@ -536,6 +537,22 @@ async function loadRepositoryOptionValues() {
   return new Set(result.rows.map((row) => row.repo_code));
 }
 
+async function loadSkyserverWorkflowOptionValues() {
+  const result = await query(
+    `
+      SELECT workflow_code
+      FROM worker.vw_workflow_definitions
+      WHERE status = 'ACTIVE'
+        AND enabled = TRUE
+        AND visible_in_admin = TRUE
+        AND published_version_id IS NOT NULL
+      ORDER BY display_name, workflow_code
+    `,
+  );
+
+  return new Set(result.rows.map((row) => row.workflow_code));
+}
+
 async function buildToolArgs({ toolCode, rawParameters }) {
   const parameterRows = await loadToolParameters(toolCode);
   const inputParameters = rawParameters || {};
@@ -549,7 +566,9 @@ async function buildToolArgs({ toolCode, rawParameters }) {
   }
 
   let repositoryOptions = null;
+  let skyserverWorkflowOptions = null;
   const args = [];
+  const normalizedParameters = {};
 
   for (const parameter of parameterRows) {
     const rawValue = inputParameters[parameter.parameter_name];
@@ -558,6 +577,8 @@ async function buildToolArgs({ toolCode, rawParameters }) {
     if (normalizedValue === null) {
       continue;
     }
+
+    normalizedParameters[parameter.parameter_name] = normalizedValue;
 
     if (parameter.param_type_code === 'repo' || parameter.option_source_code === 'repositories') {
       if (!repositoryOptions) {
@@ -569,12 +590,23 @@ async function buildToolArgs({ toolCode, rawParameters }) {
       }
     }
 
+    if (parameter.option_source_code === 'skyserver_workflows') {
+      if (!skyserverWorkflowOptions) {
+        skyserverWorkflowOptions = await loadSkyserverWorkflowOptionValues();
+      }
+
+      if (!skyserverWorkflowOptions.has(normalizedValue)) {
+        throw createHttpError(400, `Invalid workflow selection: ${normalizedValue}`);
+      }
+    }
+
     args.push(normalizedValue);
   }
 
   return {
     args,
     parameterRows,
+    normalizedParameters,
   };
 }
 
@@ -856,6 +888,174 @@ function assertConfirmationIfRequired({ tool, confirmed, confirmationPhrase }) {
   );
 }
 
+
+function parseWorkflowInputJson(value) {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed) {
+    return {};
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw createHttpError(400, `Workflow input JSON is invalid: ${error.message}`);
+  }
+
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw createHttpError(400, 'Workflow input JSON must be an object.');
+  }
+
+  return parsed;
+}
+
+async function runSkyserverWorkflowBridgeTool({
+  tool,
+  safeParameters,
+  user,
+  session,
+  permissions,
+  context,
+}) {
+  const executionStartedAtMs = Date.now();
+  const { normalizedParameters } = await buildToolArgs({
+    toolCode: tool.tool_code,
+    rawParameters: safeParameters,
+  });
+  const workflowCode = normalizeOptionalString(normalizedParameters.workflowCode);
+
+  if (!workflowCode) {
+    throw createHttpError(400, 'workflowCode is required.');
+  }
+
+  const input = parseWorkflowInputJson(normalizedParameters.inputJson);
+
+  if (normalizeOptionalString(normalizedParameters.workflowId)) {
+    input.workflowId = normalizeOptionalString(normalizedParameters.workflowId);
+  }
+
+  input.runSource = input.runSource || 'api';
+  input.triggerType = input.triggerType || 'API';
+  input.startedFrom = input.startedFrom || 'admin_tool_bridge';
+
+  const execution = await insertExecutionStarted({
+    tool,
+    scriptFile: `workflow://skyserver/${workflowCode}`,
+    parameters: safeParameters,
+    user,
+    session,
+  });
+
+  try {
+    await auditExecutionAttempt({
+      user,
+      context,
+      toolCode: tool.tool_code,
+      success: true,
+      message: `SkyServer workflow bridge started ${workflowCode}.`,
+      action: 'start_workflow_bridge',
+      metadata: {
+        executionId: execution.execution_id,
+        workflowCode,
+        parameters: safeParameters,
+      },
+    });
+  } catch (auditError) {
+    console.error('[SkyServer API] Failed to record workflow bridge audit event:', auditError);
+  }
+
+  try {
+    const workflowExecutorService = require('./workflowExecutorService');
+    const result = await workflowExecutorService.startWorkflowWithTemporal({
+      workflowCode,
+      input,
+      user,
+      session,
+      permissions,
+      context,
+    });
+    const run = result.run || {};
+    const temporalWorkflow = result.temporalWorkflow || {};
+    const durationMs = Math.max(0, Date.now() - executionStartedAtMs);
+    const summary = result.message || `Workflow ${workflowCode} started through Temporal.`;
+
+    await updateExecutionFinished({
+      executionId: execution.execution_id,
+      status: 'SUCCESS',
+      exitCode: 0,
+      durationMs,
+      stdoutPath: null,
+      stderrPath: null,
+      summary,
+      metadata: {
+        bridgeTool: true,
+        workflowCode,
+        workflowRunRecordId: run.workflowRunRecordId || null,
+        temporalWorkflowId: temporalWorkflow.workflowId || run.temporalWorkflowId || null,
+        temporalRunId: temporalWorkflow.runId || run.temporalRunId || null,
+      },
+    });
+
+    try {
+      await authService.recordAuditEvent({
+        userId: user?.userId || null,
+        eventType: 'TOOL_EXECUTION',
+        resourceType: 'core.tools',
+        resourceId: tool.tool_code,
+        action: 'finish_workflow_bridge',
+        success: true,
+        message: summary,
+        metadata: {
+          executionId: execution.execution_id,
+          workflowCode,
+          workflowRunRecordId: run.workflowRunRecordId || null,
+          temporalWorkflowId: temporalWorkflow.workflowId || run.temporalWorkflowId || null,
+        },
+        ipAddress: context?.ipAddress || null,
+        userAgent: context?.userAgent || null,
+      });
+    } catch (auditError) {
+      console.error('[SkyServer API] Failed to record workflow bridge finish event:', auditError);
+    }
+
+    return {
+      executionId: execution.execution_id,
+      toolCode: tool.tool_code,
+      label: tool.label,
+      status: 'SUCCESS',
+      exitCode: 0,
+      durationMs,
+      startedAt: execution.started_at,
+      summary,
+      stdout: JSON.stringify(
+        {
+          ok: true,
+          workflowCode,
+          workflowRunRecordId: run.workflowRunRecordId || null,
+          temporalWorkflowId: temporalWorkflow.workflowId || run.temporalWorkflowId || null,
+          temporalRunId: temporalWorkflow.runId || run.temporalRunId || null,
+        },
+        null,
+        2,
+      ),
+      stderr: '',
+      workflow: result,
+    };
+  } catch (error) {
+    await markExecutionFailedAfterUnexpectedError({
+      execution,
+      executionStartedAtMs,
+      error,
+    });
+
+    throw error.statusCode
+      ? error
+      : createHttpError(500, error.message || 'SkyServer workflow bridge failed unexpectedly.');
+  }
+}
+
 async function runTool({
   toolCode,
   parameters = {},
@@ -891,6 +1091,23 @@ async function runTool({
   });
 
   assertExecutionNotAlreadyRunning(tool);
+
+  if (tool.tool_code === SKYSERVER_WORKFLOW_START_TOOL_CODE) {
+    const executionLock = acquireExecutionLock(tool);
+
+    try {
+      return await runSkyserverWorkflowBridgeTool({
+        tool,
+        safeParameters,
+        user,
+        session,
+        permissions,
+        context,
+      });
+    } finally {
+      executionLock.release();
+    }
+  }
 
   const executionLock = acquireExecutionLock(tool);
   let execution = null;

@@ -95,3 +95,17 @@ npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ## Production note
 
 Local `temporal server start-dev` is only for development. Production should use persistent Temporal storage, supervised API/Admin-Web/worker processes, durable PostgreSQL backups, environment-specific secrets, and retained logs. The current readiness checklist reports those gaps but does not provision deployment infrastructure.
+
+## SkyServer Core CLI workflow start
+
+The local Core CLI now has two top-level lanes:
+
+```text
+1) Run Tools
+2) Run Workflows
+```
+
+Use `npm run core`, then choose **Run Workflows** to start any active, enabled, published SkyServer workflow definition through the Temporal-backed executor. The CLI prompts for an optional Temporal workflow ID override and optional JSON input object.
+
+The CLI resolves a local trusted operator from `SKYSERVER_CORE_OPERATOR_EMAIL` / `SKYSERVER_ADMIN_EMAIL` when configured, otherwise it uses the latest active `SUPER_ADMIN` account it can find. Workflow runs started this way appear in Workflow History just like Admin-Web starts and scheduled starts.
+
