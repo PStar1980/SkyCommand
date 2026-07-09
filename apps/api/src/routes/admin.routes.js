@@ -29,6 +29,11 @@ router.post(
 
 router.get('/settings/auth', requirePermission('ADMIN_USER_READ'), adminController.getAuthSettings);
 router.get('/settings/core', requirePermission('ADMIN_ROLE_READ'), adminController.getCoreSettings);
+router.get(
+  '/production-readiness',
+  requirePermission('ADMIN_REPOSITORY_READ'),
+  adminController.getProductionReadiness,
+);
 
 router.get('/applications', requirePermission('ADMIN_USER_READ'), adminController.listApplications);
 

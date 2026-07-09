@@ -1,6 +1,7 @@
 const adminReadService = require('../services/adminReadService');
 const adminActionService = require('../services/adminActionService');
 const authService = require('../services/authService');
+const productionReadinessService = require('../services/productionReadinessService');
 
 function sendPagedResponse(res, payload) {
   res.json({
@@ -540,6 +541,19 @@ async function deleteRepository(req, res) {
   }
 }
 
+
+async function getProductionReadiness(req, res) {
+  try {
+    const payload = await productionReadinessService.getProductionReadiness({
+      user: req.user,
+      permissions: req.permissions || [],
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function getAuthSettings(req, res) {
   try {
     const payload = adminActionService.getAuthSettings();
@@ -603,5 +617,6 @@ module.exports = {
   updateRepositoryPaths,
   deleteRepository,
   getAuthSettings,
+  getProductionReadiness,
   getCoreSettings,
 };

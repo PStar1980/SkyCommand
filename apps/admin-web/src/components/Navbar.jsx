@@ -266,6 +266,16 @@ function Navbar() {
                         <li>
                           <NavLink
                             className={getDropdownItemClass}
+                            to="/configuration/production-readiness"
+                          >
+                            Production Readiness
+                          </NavLink>
+                        </li>
+                      )}
+                      {hasPermission('ADMIN_REPOSITORY_READ') && (
+                        <li>
+                          <NavLink
+                            className={getDropdownItemClass}
                             to="/configuration/repositories"
                           >
                             Repositories

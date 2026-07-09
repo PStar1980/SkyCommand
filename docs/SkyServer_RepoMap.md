@@ -63,6 +63,7 @@ SkyServer/
 │   │       │   ├── Home.jsx
 │   │       │   ├── IngestionStatus.jsx
 │   │       │   ├── Login.jsx
+│   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── SchedulerControl.jsx
 │   │       │   ├── ScriptExecutions.jsx
 │   │       │   ├── SkyWorkflows.jsx
@@ -118,6 +119,7 @@ SkyServer/
 │   │           ├── authService.js
 │   │           ├── ingestionStatusService.js
 │   │           ├── macroReadService.js
+│   │           ├── productionReadinessService.js
 │   │           ├── publicMacroService.js
 │   │           ├── scriptExecutionService.js
 │   │           ├── skywebAlertPreferencesService.js

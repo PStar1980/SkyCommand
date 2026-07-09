@@ -172,6 +172,10 @@ async function deleteRepository(repoId, payload = {}) {
   return api.delete(`/api/admin/repositories/${repoId}`, { body: payload });
 }
 
+async function getProductionReadiness() {
+  return api.get('/api/admin/production-readiness');
+}
+
 async function getAuthSettings() {
   return api.get('/api/admin/settings/auth');
 }
@@ -225,6 +229,7 @@ const adminService = {
   updateRepositoryPaths,
   deleteRepository,
   getAuthSettings,
+  getProductionReadiness,
   getCoreSettings,
 };
 
