@@ -109,7 +109,7 @@ SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplic
 
 Phase 11 introduces the **Command Glass** UI direction for SkyServer Admin-Web. The design keeps the existing dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar is now reserved for page context, status pills, and the authenticated operator menu.
 
-The first UI slice is intentionally structural: it changes the app shell, sidebar, topbar, spacing, and responsive behavior without changing routes, API behavior, workflow execution, or database schema. Later UI polish can refine dashboard cards, workflow workbench density, visual graph sizing, and shared component cleanup.
+The first UI slice is intentionally structural: it changes the app shell, sidebar, topbar, spacing, and responsive behavior without changing routes, API behavior, workflow execution, or database schema. The first polish pass tightened sidebar density, widened workflow workbench pages, refined dashboard command-tile spacing, and softened visual graph scrollbars. Later UI phases can redesign the dashboard interior and extract shared card/badge/page-header components.
 
 ## Workflow Pages
 
