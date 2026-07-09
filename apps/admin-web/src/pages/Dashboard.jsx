@@ -1217,7 +1217,7 @@ function Dashboard() {
                           <div className="small sky-muted">{audit.resourceType || '—'}</div>
                         </td>
                         <td>
-                          <span className={`sky-pill ${resultClass(audit.success)}`}>
+                          <span className={`sky-pill ${getStatusClass(audit.success)}`}>
                             {audit.success === true
                               ? 'SUCCESS'
                               : audit.success === false

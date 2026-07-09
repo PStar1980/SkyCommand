@@ -1,3 +1,10 @@
+
+## 2026-07-09 — UI Phase 11.4.1 Dashboard audit render hotfix
+
+- Fixed a Dashboard runtime crash introduced during shared component cleanup.
+- Replaced the stale `resultClass(audit.success)` call in the Latest audit table with the shared `getStatusClass(audit.success)` helper.
+- This prevents the Dashboard from rendering initially, fetching audit rows, then blanking once the audit table path is reached.
+
 # 2026-07-09 — UI Phase 11.4 Shared Component Cleanup
 
 - Added reusable Command Glass UI primitives for status pills/dots, stat cards, panels, page headers, and sidebar navigation.
