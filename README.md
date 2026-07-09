@@ -32,7 +32,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 11.1 underway — Temporal implementation is complete, production-readiness inspection is in place, and Admin-Web has begun the Command Glass UI refresh.
+**Active status:** Phase 11.2 underway — Temporal implementation is complete, production-readiness inspection is in place, and Admin-Web is moving through the Command Glass UI refresh with a redesigned command-center dashboard.
 
 SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and Command Glass administration.
 
@@ -109,7 +109,7 @@ SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplic
 
 Phase 11 introduces the **Command Glass** UI direction for SkyServer Admin-Web. The design keeps the existing dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar is now reserved for page context, status pills, and the authenticated operator menu.
 
-The first UI slice is intentionally structural: it changes the app shell, sidebar, topbar, spacing, and responsive behavior without changing routes, API behavior, workflow execution, or database schema. The first polish pass tightened sidebar density, widened workflow workbench pages, refined dashboard command-tile spacing, and softened visual graph scrollbars. Later UI phases can redesign the dashboard interior and extract shared card/badge/page-header components.
+The first UI slice is intentionally structural: it changes the app shell, sidebar, topbar, spacing, and responsive behavior without changing routes, API behavior, workflow execution, or database schema. The first polish pass tightened sidebar density, widened workflow workbench pages, refined dashboard command-tile spacing, and softened visual graph scrollbars. The second UI slice redesigns the Dashboard into a command-center interior with a control-plane pulse hero, permission-aware command links, priority workflow/task-queue/readiness metrics, and a stronger workflow control-plane panel. Later UI phases can polish workflow workbench pages and extract shared card/badge/page-header components.
 
 ## Workflow Pages
 
@@ -423,9 +423,10 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 | Phase 9 | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
 | Phase 10 | ✅ Complete | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection |
 | Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, and documentation |
-| Phase 11 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, and production deployment planning |
-| Phase 12 | 🔜 Planned | Data mart and analytics-ready PostgreSQL model refinement for public, admin, and BI consumers |
-| Phase 13 | 🔜 Planned | Cloud warehouse / BI integration track for Snowflake-style models, snapshots, and scheduled reporting outputs |
+| Phase 11 | 🔄 In progress | Command Glass Admin-Web refresh: left navigation shell, visual polish, command-center dashboard redesign, workflow workbench polish, and shared UI component cleanup |
+| Phase 12 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, and production deployment planning |
+| Phase 13 | 🔜 Planned | Data mart and analytics-ready PostgreSQL model refinement for public, admin, and BI consumers |
+| Phase 14 | 🔜 Planned | Cloud warehouse / BI integration track for Snowflake-style models, snapshots, and scheduled reporting outputs |
 
 ## Design Philosophy
 
