@@ -1,3 +1,11 @@
+# 2026-07-09 — UI Phase 11.1 Command Glass Shell
+
+- Replaced the crowded top navigation model with a left-side Command Glass navigation shell inspired by the selected dark SaaS dashboard references.
+- Added grouped sidebar navigation for Command, Tools, Workflows, Automation, Data, Configuration, and Access Control surfaces with permission-aware links.
+- Added a slim fixed topbar with page context, platform status pills, mobile sidebar toggle, and the existing account/password/logout menu.
+- Added glass/neon sidebar styling, responsive mobile drawer behavior, and wider authenticated content space for workflow workbench pages.
+- Kept route structure and runtime behavior unchanged; this phase is layout/theme foundation only.
+
 # 2026-07-08 — SkyServer Core Workflow Launcher
 
 - Added a top-level SkyServer Core CLI menu with `Run Tools` and `Run Workflows` lanes.
