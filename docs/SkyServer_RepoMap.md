@@ -48,7 +48,13 @@ SkyServer/
 │   │       │   ├── ToolParameterEditor.jsx
 │   │       │   ├── WaitParameterEditor.jsx
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx
-│   │       │   └── WorkflowVisualGraph.jsx
+│   │       │   ├── WorkflowVisualGraph.jsx
+│   │       │   └── ui/
+│   │       │       ├── PageHeader.jsx
+│   │       │       ├── Panel.jsx
+│   │       │       ├── SidebarNav.jsx
+│   │       │       ├── StatCard.jsx
+│   │       │       └── StatusPill.jsx
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── pages/

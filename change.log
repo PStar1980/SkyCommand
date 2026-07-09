@@ -1,3 +1,12 @@
+# 2026-07-09 — UI Phase 11.4 Shared Component Cleanup
+
+- Added reusable Command Glass UI primitives for status pills/dots, stat cards, panels, page headers, and sidebar navigation.
+- Refactored the authenticated navigation shell to render the sidebar through a shared `SidebarNav` component while preserving grouped, permission-aware navigation behavior.
+- Refactored the Dashboard page header, status pulse, and telemetry stat cards to use shared UI primitives instead of local duplicate badge/card markup.
+- Refactored the protected-route access-blocked panel to use the shared panel/status components.
+- Kept this phase UI-only: no API, database, routing, or workflow execution changes.
+- Updated README notes and regenerated the repository map.
+
 # 2026-07-09 — UI Phase 11.3 Workflow Workbench Polish
 
 - Tuned workflow-heavy pages for the Command Glass shell with wider main lanes and narrower sticky side rails on large screens.
