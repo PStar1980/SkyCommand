@@ -10,10 +10,16 @@ function SidebarNav({ navGroups = [], onNavigate, onClose, open = false, user })
       <div className="sky-sidebar-glow" aria-hidden="true" />
       <div className="sky-sidebar-brand-wrap">
         <NavLink className="sky-sidebar-brand" to="/dashboard" onClick={onNavigate}>
-          <span className="sky-brand-mark">⌁</span>
-          <span>
-            <span className="sky-sidebar-brand-title">SkyServer</span>
-            <span className="sky-sidebar-brand-subtitle">Command Glass</span>
+          <span className="sky-brand-mark sky-brand-mark-command" aria-hidden="true">
+            <svg className="sky-brand-mark-svg" viewBox="0 0 48 48" role="img">
+              <path className="sky-brand-mark-wing sky-brand-mark-wing-left" d="M8 31L20 8l8 9-8 20z" />
+              <path className="sky-brand-mark-wing sky-brand-mark-wing-right" d="M21 37l8-20 11 13-17 10z" />
+              <path className="sky-brand-mark-flow" d="M15 31h14l5-6" />
+            </svg>
+          </span>
+          <span className="sky-sidebar-brand-copy">
+            <span className="sky-sidebar-brand-title">SkyCommand</span>
+            <span className="sky-sidebar-brand-subtitle">Workflow Automation Engine</span>
           </span>
         </NavLink>
         <button
@@ -26,7 +32,7 @@ function SidebarNav({ navGroups = [], onNavigate, onClose, open = false, user })
         </button>
       </div>
 
-      <nav className="sky-sidebar-nav" aria-label="SkyServer navigation">
+      <nav className="sky-sidebar-nav" aria-label="SkyCommand navigation">
         {navGroups.map((group) => (
           <section className="sky-sidebar-group" key={group.label}>
             <div className="sky-sidebar-group-label">

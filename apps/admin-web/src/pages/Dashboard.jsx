@@ -706,9 +706,9 @@ function Dashboard() {
             </div>
           </>
         )}
-        kicker="Command center"
+        kicker="Workflow automation engine"
         subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. This is the private cockpit for API health, database status, macro ingestion, workflow health, tools, sessions, executions, and audit activity.`}
-        title="SkyServer Admin"
+        title="SkyCommand"
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
