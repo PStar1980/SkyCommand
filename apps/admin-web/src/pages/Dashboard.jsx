@@ -194,6 +194,10 @@ function Dashboard() {
     ingestion: null,
     worker: null,
     workflowHealth: null,
+    workflowRunsDetailed: {
+      total: 0,
+      items: [],
+    },
     productionReadiness: null,
     macro: null,
     coreSettings: null,
@@ -258,6 +262,7 @@ function Dashboard() {
   const workerNodes = workerHealth?.nodes || {};
   const workerRuns24h = workerHealth?.runs24h || {};
   const workflowHealth = summary.workflowHealth || null;
+  const workflowRunRecords = summary.workflowRunsDetailed?.items || [];
   const productionReadiness = summary.productionReadiness || null;
   const workflowRuns = workflowHealth?.runs || {};
   const workflowTaskQueue = workflowHealth?.taskQueue || {};
@@ -593,6 +598,7 @@ function Dashboard() {
         ingestionResult,
         workerResult,
         workflowHealthResult,
+        workflowRunsResult,
         productionReadinessResult,
         macroResult,
         coreSettingsResult,
@@ -622,6 +628,9 @@ function Dashboard() {
           : Promise.resolve(null),
         hasPermission('WORKFLOW_READ')
           ? loadOptional('workflow-health', () => workflowService.getWorkerHealth())
+          : Promise.resolve(null),
+        hasPermission('WORKFLOW_READ')
+          ? loadOptional('workflow-runs', () => workflowService.listRuns({ limit: 60 }))
           : Promise.resolve(null),
         hasPermission('ADMIN_REPOSITORY_READ')
           ? loadOptional('production-readiness', () => adminService.getProductionReadiness())
@@ -657,6 +666,10 @@ function Dashboard() {
         ingestion: ingestionResult,
         worker: workerResult,
         workflowHealth: workflowHealthResult,
+        workflowRunsDetailed: {
+          total: workflowRunsResult?.total || 0,
+          items: workflowRunsResult?.items || [],
+        },
         productionReadiness: productionReadinessResult,
         macro: macroResult,
         coreSettings: coreSettingsResult,
@@ -779,6 +792,39 @@ function Dashboard() {
         ingestionCounts={ingestionCounts}
         recentAudits={recentAudits}
         recentExecutions={recentExecutions}
+        systemStatusItems={[
+          {
+            label: 'API',
+            value: summary.apiHealth?.ok ? 'Online' : 'Check',
+            status: summary.apiHealth?.ok ? 'CURRENT' : 'WARNING',
+            helper: 'Core API health',
+          },
+          {
+            label: 'Database',
+            value: summary.dbHealth?.ok ? 'Online' : 'Check',
+            status: summary.dbHealth?.ok ? 'CURRENT' : 'WARNING',
+            helper: summary.dbHealth?.database || 'Connection status',
+          },
+          {
+            label: 'Worker',
+            value: workerHealth?.overallStatus || 'Unknown',
+            status: workerHealth?.overallStatus || 'UNKNOWN',
+            helper: `${workerNodes.online || 0} node(s) online`,
+          },
+          {
+            label: 'Temporal',
+            value: workflowHealth?.temporal?.reachable ? 'Reachable' : 'Check',
+            status: workflowHealth?.temporal?.reachable ? 'CURRENT' : 'WARNING',
+            helper: workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'Task queue',
+          },
+          {
+            label: 'Readiness',
+            value: productionReadiness?.overallStatus || 'Unknown',
+            status: productionReadiness?.overallStatus || 'UNKNOWN',
+            helper: `${productionReadiness?.counts?.pass || 0} pass / ${productionReadiness?.counts?.warning || 0} warning`,
+          },
+        ]}
+        workflowRuns={workflowRunRecords}
       />
 
       <div className="sky-dashboard-section-heading mt-3 mb-2">
