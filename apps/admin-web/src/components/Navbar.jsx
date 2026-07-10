@@ -614,7 +614,6 @@ function Navbar() {
         onClose={() => setSidebarOpen(false)}
         onNavigate={() => setSidebarOpen(false)}
         open={sidebarOpen}
-        user={user}
       />
 
       {sidebarOpen && (
