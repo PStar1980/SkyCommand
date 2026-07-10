@@ -5,7 +5,7 @@ function getNavLinkClass({ isActive }) {
   return `sky-sidebar-link ${isActive ? 'active' : ''}`;
 }
 
-function SidebarNav({ navGroups = [], onNavigate, onClose, open = false, user }) {
+function SidebarNav({ navGroups = [], onNavigate, onClose, open = false }) {
   return (
     <aside className={`sky-sidebar ${open ? 'is-open' : ''}`}>
       <div className="sky-sidebar-glow" aria-hidden="true" />
@@ -49,15 +49,6 @@ function SidebarNav({ navGroups = [], onNavigate, onClose, open = false, user })
         ))}
       </nav>
 
-      <div className="sky-sidebar-footer">
-        <div className="sky-sidebar-user-card">
-          <div className="sky-sidebar-avatar">{(user?.displayName || user?.username || 'S').charAt(0)}</div>
-          <div className="min-w-0">
-            <div className="sky-sidebar-user-name text-truncate">{user?.displayName || user?.username}</div>
-            <div className="sky-sidebar-user-email text-truncate">{user?.email}</div>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }
