@@ -242,19 +242,41 @@
   align-content: start;
   gap: 1.09rem;
   overflow-y: auto;
-  padding: 1.12rem 1.2rem 1.6rem;
-  scrollbar-color: rgba(124, 144, 177, 0.28) transparent;
+  padding: 1.12rem 1.2rem 2.15rem;
+  scrollbar-color: rgba(124, 144, 177, 0.18) transparent;
+  scrollbar-width: thin;
+}
+
+.sky-sidebar-nav::-webkit-scrollbar {
+  width: 0.46rem;
+}
+
+.sky-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sky-sidebar-nav::-webkit-scrollbar-thumb {
+  border: 0.14rem solid transparent;
+  border-radius: 999px;
+  background: rgba(124, 144, 177, 0.16);
+  background-clip: padding-box;
+}
+
+.sky-sidebar-nav:hover::-webkit-scrollbar-thumb {
+  background: rgba(124, 144, 177, 0.28);
+  background-clip: padding-box;
 }
 
 .sky-sidebar-group-label {
   display: flex;
   align-items: center;
-  gap: 0.52rem;
-  color: #83a4d7;
-  font-size: 0.87rem;
-  font-weight: 850;
-  letter-spacing: 0.13em;
-  padding: 0.39rem 0.63rem 0.48rem;
+  gap: 0.56rem;
+  color: #9bbcff;
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  padding: 0.42rem 0.66rem 0.5rem;
+  text-shadow: 0 0 18px rgba(72, 167, 255, 0.12);
   text-transform: uppercase;
 }
 
@@ -264,10 +286,12 @@
 }
 
 .sky-sidebar-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 1.01rem;
   min-height: 4.08rem;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: 1.09rem;
   color: #c8d7ef;
@@ -281,24 +305,51 @@
     box-shadow 150ms ease;
 }
 
+.sky-sidebar-link::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.18rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(72, 167, 255, 0.92), rgba(137, 109, 255, 0.78));
+  content: '';
+  opacity: 0;
+  transform: scaleY(0.45);
+  transform-origin: center;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
 .sky-sidebar-link:hover,
 .sky-sidebar-link:focus {
-  border-color: rgba(72, 167, 255, 0.26);
-  background: rgba(72, 167, 255, 0.055);
+  border-color: rgba(72, 167, 255, 0.2);
+  background: rgba(72, 167, 255, 0.04);
   color: #ffffff;
   outline: none;
   transform: translateX(2px);
 }
 
+.sky-sidebar-link:hover::before,
+.sky-sidebar-link:focus::before {
+  opacity: 0.46;
+  transform: scaleY(0.72);
+}
+
 .sky-sidebar-link.active {
-  border-color: rgba(137, 109, 255, 0.48);
+  border-color: rgba(124, 168, 255, 0.34);
   background:
-    linear-gradient(135deg, rgba(72, 167, 255, 0.13), rgba(137, 109, 255, 0.16)),
-    rgba(7, 12, 24, 0.78);
+    linear-gradient(90deg, rgba(72, 167, 255, 0.115), rgba(137, 109, 255, 0.075) 58%, transparent),
+    rgba(5, 10, 20, 0.88);
   color: #ffffff;
   box-shadow:
-    inset 3px 0 0 rgba(112, 185, 255, 0.42),
-    0 12px 30px rgba(0, 0, 0, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 10px 26px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(72, 167, 255, 0.035);
+}
+
+.sky-sidebar-link.active::before {
+  opacity: 1;
+  transform: scaleY(1);
 }
 
 .sky-sidebar-link-icon {
@@ -308,18 +359,33 @@
   width: 2.3rem;
   height: 2.3rem;
   flex: 0 0 auto;
-  border: 1px solid rgba(124, 144, 177, 0.2);
+  border: 1px solid rgba(124, 144, 177, 0.18);
   border-radius: 0.71rem;
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.026);
   color: #9ad7ff;
   font-size: 0.99rem;
   font-weight: 850;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.sky-sidebar-link:hover .sky-sidebar-link-icon,
+.sky-sidebar-link:focus .sky-sidebar-link-icon {
+  border-color: rgba(72, 167, 255, 0.3);
+  background: rgba(72, 167, 255, 0.065);
+  color: #dff5ff;
 }
 
 .sky-sidebar-link.active .sky-sidebar-link-icon {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(112, 185, 255, 0.42);
+  background:
+    radial-gradient(circle at 42% 28%, rgba(103, 245, 255, 0.16), transparent 1.1rem),
+    rgba(72, 167, 255, 0.08);
   color: #ffffff;
+  box-shadow: 0 0 22px rgba(72, 167, 255, 0.08);
 }
 
 .sky-sidebar-link-copy {
@@ -340,12 +406,17 @@
 
 .sky-sidebar-link-description {
   margin-top: 0.18rem;
-  color: #9aaccc;
+  color: #93a5c3;
   font-size: 0.94rem;
 }
 
+.sky-sidebar-link:hover .sky-sidebar-link-description,
+.sky-sidebar-link:focus .sky-sidebar-link-description {
+  color: #aec5e8;
+}
+
 .sky-sidebar-link.active .sky-sidebar-link-description {
-  color: #c3d9ff;
+  color: #b9d0f5;
 }
 
 
