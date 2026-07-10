@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
 import StatusPill, { StatusDot, getStatusClass, getStatusLabel } from '../components/ui/StatusPill.jsx';
@@ -603,10 +604,10 @@ function Dashboard() {
           ? loadOptional('tools', () => toolService.listTools())
           : Promise.resolve(null),
         hasPermission('SCRIPT_EXECUTION_READ')
-          ? loadOptional('executions', () => adminService.listScriptExecutions({ limit: 8 }))
+          ? loadOptional('executions', () => adminService.listScriptExecutions({ limit: 40 }))
           : Promise.resolve(null),
         hasPermission('AUDIT_READ')
-          ? loadOptional('audit', () => adminService.listAuditEvents({ limit: 8 }))
+          ? loadOptional('audit', () => adminService.listAuditEvents({ limit: 40 }))
           : Promise.resolve(null),
         hasPermission('ADMIN_USER_READ')
           ? loadOptional('sessions', () => adminService.listActiveSessions({ limit: 8 }))
@@ -772,6 +773,13 @@ function Dashboard() {
           ))}
         </div>
       </section>
+
+
+      <DashboardVisuals
+        ingestionCounts={ingestionCounts}
+        recentAudits={recentAudits}
+        recentExecutions={recentExecutions}
+      />
 
       <div className="sky-dashboard-section-heading mt-3 mb-2">
         <div>
