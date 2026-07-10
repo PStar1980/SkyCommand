@@ -141,18 +141,20 @@ function WorkflowApprovals() {
 
   return (
     <div className="sky-page-shell">
-      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-        <div>
+      <header className="sky-page-header">
+        <div className="sky-page-heading">
           <div className="sky-page-kicker">Workflows · Approvals</div>
-          <h1 className="display-6 fw-bold mb-2">Human Approval Queue</h1>
-          <p className="sky-page-subtitle mb-0">
+          <h1 className="sky-page-title">Human Approval Queue</h1>
+          <p className="sky-page-subtitle">
             Review durable approval checkpoints created by HUMAN_APPROVAL workflow nodes. Decisions are sent back to Temporal as workflow signals.
           </p>
         </div>
-        <button className="btn sky-btn-ghost" disabled={loading} onClick={() => loadApprovals(status)} type="button">
-          Refresh
-        </button>
-      </div>
+        <div className="sky-page-actions">
+          <button className="btn sky-btn-ghost" disabled={loading} onClick={() => loadApprovals(status)} type="button">
+            Refresh
+          </button>
+        </div>
+      </header>
 
       <section className="sky-card mb-4">
         <div className="sky-card-header d-flex flex-wrap justify-content-between gap-3 align-items-center">
