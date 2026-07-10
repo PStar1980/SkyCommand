@@ -3311,3 +3311,190 @@
     grid-column: auto;
   }
 }
+
+.sky-chart-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sky-chart-card-header > div:first-child {
+  min-width: 0;
+}
+
+.sky-chart-expand-button {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid rgba(154, 215, 255, 0.2);
+  border-radius: 0.7rem;
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.08), rgba(137, 109, 255, 0.065)),
+    rgba(1, 4, 9, 0.58);
+  color: #b9d4ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  opacity: 0.82;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.sky-chart-expand-button:hover,
+.sky-chart-expand-button:focus-visible {
+  border-color: rgba(80, 227, 242, 0.55);
+  color: #eef7ff;
+  box-shadow:
+    0 0 0 0.18rem rgba(72, 167, 255, 0.11),
+    0 0 26px rgba(72, 167, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  opacity: 1;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.sky-chart-expand-icon {
+  width: 1.08rem;
+  height: 1.08rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.1;
+}
+
+.sky-chart-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: clamp(1rem, 2.2vw, 2rem);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(72, 167, 255, 0.18), transparent 26rem),
+    radial-gradient(circle at 88% 84%, rgba(137, 109, 255, 0.18), transparent 28rem),
+    rgba(1, 4, 9, 0.84);
+  backdrop-filter: blur(18px);
+}
+
+.sky-chart-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(96vw, 108rem);
+  min-height: min(82vh, 58rem);
+  max-height: 94vh;
+  overflow: hidden;
+  border: 1px solid rgba(154, 215, 255, 0.26);
+  border-radius: clamp(1rem, 1.6vw, 1.45rem);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(72, 167, 255, 0.12), transparent 28rem),
+    radial-gradient(circle at 100% 100%, rgba(137, 109, 255, 0.14), transparent 30rem),
+    linear-gradient(135deg, rgba(12, 22, 42, 0.94), rgba(5, 10, 21, 0.97)),
+    #010409;
+  box-shadow:
+    0 36px 120px rgba(0, 0, 0, 0.62),
+    0 0 70px rgba(72, 167, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.sky-chart-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  border-bottom: 1px solid rgba(124, 144, 177, 0.18);
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.075), rgba(137, 109, 255, 0.05)),
+    rgba(1, 4, 9, 0.42);
+  padding: clamp(1rem, 1.5vw, 1.45rem);
+}
+
+.sky-chart-modal-header h2 {
+  margin: 0.2rem 0 0;
+  color: #f6f9ff;
+  font-size: clamp(1.45rem, 2vw, 2.25rem);
+  font-weight: 950;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+
+.sky-chart-modal-header p {
+  max-width: 72rem;
+  margin: 0.55rem 0 0;
+  color: #9fb3d5;
+  font-size: clamp(0.92rem, 0.95vw, 1.06rem);
+}
+
+.sky-chart-modal-close {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  border: 1px solid rgba(154, 215, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(1, 4, 9, 0.64);
+  color: #dce8ff;
+  font-size: 1.9rem;
+  line-height: 1;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.sky-chart-modal-close:hover,
+.sky-chart-modal-close:focus-visible {
+  border-color: rgba(80, 227, 242, 0.58);
+  color: #ffffff;
+  box-shadow:
+    0 0 0 0.18rem rgba(72, 167, 255, 0.12),
+    0 0 28px rgba(80, 227, 242, 0.18);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.sky-chart-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: clamp(0.85rem, 1.35vw, 1.35rem);
+}
+
+.sky-chart-modal-canvas {
+  width: 100%;
+  min-height: 100%;
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(72, 167, 255, 0.08), transparent 24rem),
+    rgba(4, 9, 18, 0.44);
+  padding: 1rem;
+}
+
+@media (max-width: 900px) {
+  .sky-chart-modal-backdrop {
+    padding: 0.75rem;
+  }
+
+  .sky-chart-modal {
+    max-height: 96vh;
+    min-height: 78vh;
+  }
+
+  .sky-chart-modal-header {
+    align-items: flex-start;
+  }
+
+  .sky-chart-modal-close {
+    width: 2.45rem;
+    height: 2.45rem;
+    font-size: 1.65rem;
+  }
+}
