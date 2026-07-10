@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ChartFullscreenOverlay from './ChartFullscreenOverlay.jsx';
 import EChartCanvas from './EChartCanvas.jsx';
 
@@ -19,8 +19,32 @@ function ExpandIcon() {
 
 function EChartCard({ className = '', expandable = true, height = 260, kicker, option, subtitle, title }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [chartAspectRatio, setChartAspectRatio] = useState(16 / 9);
+  const chartShellRef = useRef(null);
   const openExpanded = useCallback(() => setIsExpanded(true), []);
   const closeExpanded = useCallback(() => setIsExpanded(false), []);
+
+  useEffect(() => {
+    if (!chartShellRef.current) {
+      return undefined;
+    }
+
+    const updateAspectRatio = () => {
+      const rect = chartShellRef.current.getBoundingClientRect();
+
+      if (rect.width > 0 && rect.height > 0) {
+        setChartAspectRatio(rect.width / rect.height);
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(updateAspectRatio);
+    resizeObserver.observe(chartShellRef.current);
+    updateAspectRatio();
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   return (
     <>
@@ -43,10 +67,13 @@ function EChartCard({ className = '', expandable = true, height = 260, kicker, o
             </button>
           )}
         </div>
-        <EChartCanvas height={height} option={option} />
+        <div className="sky-chart-canvas-shell" ref={chartShellRef}>
+          <EChartCanvas height={height} option={option} />
+        </div>
       </section>
 
       <ChartFullscreenOverlay
+        chartAspectRatio={chartAspectRatio}
         isOpen={isExpanded}
         kicker={kicker}
         onClose={closeExpanded}
