@@ -329,6 +329,7 @@ function Navbar() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [topbarPanel, setTopbarPanel] = useState('');
 
   const navGroups = useMemo(() => createNavGroups(hasPermission), [hasPermission]);
   const commandSearchTargets = useMemo(
@@ -347,6 +348,58 @@ function Navbar() {
     () => getCurrentNavCrumb(navGroups, location.pathname),
     [navGroups, location.pathname],
   );
+  const permittedRoutes = useMemo(
+    () => new Set(commandSearchTargets.map((target) => target.to)),
+    [commandSearchTargets],
+  );
+  const commandSearchMatches = useMemo(() => {
+    const normalizedQuery = commandQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return commandSearchTargets.slice(0, 4);
+    }
+
+    return commandSearchTargets
+      .filter((target) => {
+        const haystack =
+          `${target.group} ${target.label} ${target.description} ${target.to}`.toLowerCase();
+        return haystack.includes(normalizedQuery);
+      })
+      .slice(0, 5);
+  }, [commandQuery, commandSearchTargets]);
+
+  const notificationItems = [
+    permittedRoutes.has('/workflows/worker-health') && {
+      label: 'Worker health pulse',
+      meta: 'Temporal pollers, worker heartbeat, and task queue status.',
+      status: 'Live',
+      to: '/workflows/worker-health',
+    },
+    permittedRoutes.has('/workflows/approvals') && {
+      label: 'Approval gates',
+      meta: 'Review human approval checkpoints before workflow continuation.',
+      status: 'Ready',
+      to: '/workflows/approvals',
+    },
+    permittedRoutes.has('/data/ingestion') && {
+      label: 'Pipeline freshness',
+      meta: 'Inspect stale indicators and macro ingestion health.',
+      status: 'Watch',
+      to: '/data/ingestion',
+    },
+  ].filter(Boolean);
+
+  const messageItems = [
+    {
+      label: 'Ops inbox foundation',
+      meta: 'Messages will collect approvals, workflow notes, and operator handoffs here.',
+    },
+    permittedRoutes.has('/access-control/user-history') && {
+      label: 'Review user activity',
+      meta: 'Open the audit trail while the message center is being wired in.',
+      to: '/access-control/user-history',
+    },
+  ].filter(Boolean);
 
   function openPasswordModal() {
     setPasswordForm(DEFAULT_PASSWORD_FORM);
@@ -366,31 +419,34 @@ function Navbar() {
     setPasswordSuccess('');
   }
 
+  function navigateToCommandTarget(to) {
+    navigate(to);
+    setCommandQuery('');
+    setTopbarPanel('');
+  }
+
+  function toggleTopbarPanel(panel) {
+    setTopbarPanel((current) => (current === panel ? '' : panel));
+  }
+
   function handleCommandSearch(event) {
     event.preventDefault();
 
     const normalizedQuery = commandQuery.trim().toLowerCase();
     if (!normalizedQuery) {
-      navigate('/dashboard');
+      navigateToCommandTarget('/dashboard');
       return;
     }
 
     const aliasRoute = COMMAND_SEARCH_ALIASES[normalizedQuery];
     if (aliasRoute) {
-      navigate(aliasRoute);
-      setCommandQuery('');
+      navigateToCommandTarget(aliasRoute);
       return;
     }
 
-    const match = commandSearchTargets.find((target) => {
-      const haystack =
-        `${target.group} ${target.label} ${target.description} ${target.to}`.toLowerCase();
-      return haystack.includes(normalizedQuery);
-    });
-
+    const [match] = commandSearchMatches;
     if (match) {
-      navigate(match.to);
-      setCommandQuery('');
+      navigateToCommandTarget(match.to);
     }
   }
 
@@ -478,34 +534,130 @@ function Navbar() {
             <NavIcon name="search" />
             <input
               aria-label="Search SkyCommand commands"
-              onChange={(event) => setCommandQuery(event.target.value)}
+              onChange={(event) => {
+                setCommandQuery(event.target.value);
+                setTopbarPanel('search');
+              }}
+              onFocus={() => setTopbarPanel('search')}
               placeholder="Search tools, workflows, executions..."
               type="search"
               value={commandQuery}
             />
             <span className="sky-command-search-key">/</span>
+            {topbarPanel === 'search' && (
+              <div className="sky-topbar-popover sky-command-search-popover">
+                <div className="sky-topbar-popover-header">
+                  <span>Command search</span>
+                  <span>{commandSearchMatches.length} match(es)</span>
+                </div>
+                <div className="sky-command-search-results">
+                  {commandSearchMatches.length > 0 ? (
+                    commandSearchMatches.map((target) => (
+                      <button
+                        className="sky-command-search-result"
+                        key={target.to}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => navigateToCommandTarget(target.to)}
+                        type="button"
+                      >
+                        <span>
+                          <strong>{target.label}</strong>
+                          <small>{target.group} · {target.description}</small>
+                        </span>
+                        <span>Open</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="sky-command-search-empty">No matching command found yet.</div>
+                  )}
+                </div>
+              </div>
+            )}
           </form>
 
-          <button
-            aria-label="Open notifications"
-            className="sky-topbar-icon-button sky-topbar-icon-button-alert"
-            onClick={() => navigate('/workflows/worker-health')}
-            title="Workflow and worker notifications"
-            type="button"
-          >
-            <NavIcon name="bell" />
-            <span className="sky-topbar-alert-dot" />
-          </button>
+          <div className="sky-topbar-action-wrap">
+            <button
+              aria-expanded={topbarPanel === 'notifications'}
+              aria-label="Open notifications"
+              className="sky-topbar-icon-button sky-topbar-icon-button-alert"
+              onClick={() => toggleTopbarPanel('notifications')}
+              title="Workflow and worker notifications"
+              type="button"
+            >
+              <NavIcon name="bell" />
+              <span className="sky-topbar-alert-dot" />
+            </button>
+            {topbarPanel === 'notifications' && (
+              <div className="sky-topbar-popover sky-action-popover">
+                <div className="sky-topbar-popover-header">
+                  <span>Notifications</span>
+                  <span>{notificationItems.length} watch items</span>
+                </div>
+                <div className="sky-topbar-popover-list">
+                  {notificationItems.map((item) => (
+                    <button
+                      className="sky-topbar-popover-item"
+                      key={item.label}
+                      onClick={() => navigateToCommandTarget(item.to)}
+                      type="button"
+                    >
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>{item.meta}</small>
+                      </span>
+                      <span className="sky-topbar-popover-badge">{item.status}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
-          <button
-            aria-label="Open messages"
-            className="sky-topbar-icon-button"
-            onClick={() => navigate('/access-control/user-history')}
-            title="Messages and activity inbox coming soon"
-            type="button"
-          >
-            <NavIcon name="mail" />
-          </button>
+          <div className="sky-topbar-action-wrap">
+            <button
+              aria-expanded={topbarPanel === 'messages'}
+              aria-label="Open messages"
+              className="sky-topbar-icon-button"
+              onClick={() => toggleTopbarPanel('messages')}
+              title="Messages and activity inbox"
+              type="button"
+            >
+              <NavIcon name="mail" />
+            </button>
+            {topbarPanel === 'messages' && (
+              <div className="sky-topbar-popover sky-action-popover">
+                <div className="sky-topbar-popover-header">
+                  <span>Messages</span>
+                  <span>Preview</span>
+                </div>
+                <div className="sky-topbar-popover-list">
+                  {messageItems.map((item) =>
+                    item.to ? (
+                      <button
+                        className="sky-topbar-popover-item"
+                        key={item.label}
+                        onClick={() => navigateToCommandTarget(item.to)}
+                        type="button"
+                      >
+                        <span>
+                          <strong>{item.label}</strong>
+                          <small>{item.meta}</small>
+                        </span>
+                        <span className="sky-topbar-popover-badge">Open</span>
+                      </button>
+                    ) : (
+                      <div className="sky-topbar-popover-item is-static" key={item.label}>
+                        <span>
+                          <strong>{item.label}</strong>
+                          <small>{item.meta}</small>
+                        </span>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="dropdown text-end">
             <button
@@ -513,6 +665,7 @@ function Navbar() {
               aria-label="Open account menu"
               className="btn btn-sm sky-account-menu-button dropdown-toggle"
               data-bs-toggle="dropdown"
+              onClick={() => setTopbarPanel('')}
               title={user?.displayName || user?.username || 'Account'}
               type="button"
             >
