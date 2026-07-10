@@ -2861,3 +2861,232 @@
     width: min(76vw, 292px);
   }
 }
+
+/* UI Phase 11.17 — standardized page surfaces */
+.sky-main-workbench {
+  display: block;
+}
+
+.sky-page-shell {
+  min-width: 0;
+}
+
+.sky-page-header {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.25rem;
+  min-height: 8.25rem;
+  margin-bottom: 1.15rem;
+  border: 1px solid rgba(124, 144, 177, 0.18);
+  border-radius: 1.2rem;
+  background:
+    radial-gradient(circle at 8% 14%, rgba(72, 167, 255, 0.14), transparent 17rem),
+    radial-gradient(circle at 94% 86%, rgba(137, 109, 255, 0.12), transparent 22rem),
+    linear-gradient(135deg, rgba(13, 23, 42, 0.86), rgba(7, 13, 25, 0.66));
+  padding: clamp(1rem, 1.35vw, 1.45rem);
+  box-shadow: 0 24px 86px rgba(0, 0, 0, 0.22);
+}
+
+.sky-page-header::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(130deg, rgba(255, 255, 255, 0.04), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 70%);
+  content: '';
+}
+
+.sky-page-header::after {
+  position: absolute;
+  inset: auto 1.15rem 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(72, 167, 255, 0.34), rgba(137, 109, 255, 0.3), transparent);
+  content: '';
+}
+
+.sky-page-heading,
+.sky-page-header > div:first-child {
+  min-width: min(100%, 30rem);
+  flex: 1 1 42rem;
+}
+
+.sky-page-actions,
+.sky-page-header > div:not(:first-child) {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.sky-page-actions .small,
+.sky-page-header > div:not(:first-child) .small {
+  width: 100%;
+  text-align: right;
+}
+
+.sky-page-kicker {
+  margin-bottom: 0.36rem;
+  color: #8eb1e5;
+  font-size: clamp(0.78rem, 0.82vw, 0.9rem);
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.sky-page-title {
+  color: #f6f9ff;
+  font-size: clamp(2rem, 2.1vw, 3rem);
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.sky-page-subtitle {
+  max-width: 72rem;
+  color: #b9c9e8;
+  font-size: clamp(0.96rem, 0.98vw, 1.08rem);
+  line-height: 1.55;
+}
+
+.sky-card {
+  position: relative;
+  isolation: isolate;
+  border-color: rgba(124, 144, 177, 0.18);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(72, 167, 255, 0.07), transparent 18rem),
+    radial-gradient(circle at 100% 100%, rgba(137, 109, 255, 0.065), transparent 18rem),
+    linear-gradient(135deg, rgba(11, 20, 38, 0.84), rgba(7, 13, 25, 0.74));
+}
+
+.sky-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(130deg, rgba(255, 255, 255, 0.028), transparent 38%);
+  content: '';
+}
+
+.sky-card-header {
+  min-height: 4.45rem;
+  border-bottom-color: rgba(124, 144, 177, 0.15);
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.052), rgba(137, 109, 255, 0.032)),
+    rgba(5, 10, 21, 0.42);
+}
+
+.sky-card-body {
+  padding: clamp(1rem, 1vw, 1.2rem);
+}
+
+.sky-stat-card {
+  min-height: 8.65rem;
+}
+
+.sky-stat-value,
+.sky-dashboard-task-value,
+.sky-dashboard-command-value,
+.sky-mini-metric-value {
+  letter-spacing: -0.035em;
+}
+
+.sky-table-card {
+  overflow: hidden;
+}
+
+.sky-table-card .sky-card-header {
+  min-height: 4.35rem;
+}
+
+.sky-table.table {
+  --bs-table-bg: rgba(7, 13, 25, 0.62);
+  --bs-table-striped-bg: rgba(72, 167, 255, 0.026);
+  --bs-table-hover-bg: rgba(72, 167, 255, 0.12);
+}
+
+.sky-table thead th {
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.08), rgba(137, 109, 255, 0.035)),
+    rgba(5, 10, 21, 0.96);
+}
+
+.sky-table tbody tr.sky-selected-row td {
+  background: linear-gradient(90deg, rgba(72, 167, 255, 0.18), rgba(137, 109, 255, 0.1));
+}
+
+.sky-source-card,
+.sky-mini-stat-grid > div,
+.sky-mini-metric,
+.sky-worker-command-card,
+.sky-dashboard-command-metric,
+.sky-dashboard-task,
+.sky-dashboard-workflow-status {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(72, 167, 255, 0.08), transparent 9rem),
+    rgba(6, 11, 22, 0.54);
+}
+
+.sky-dashboard-command-hero,
+.sky-dashboard-shortcuts,
+.sky-worker-hero {
+  border-color: rgba(124, 144, 177, 0.19);
+  background:
+    radial-gradient(circle at 8% 12%, rgba(72, 167, 255, 0.18), transparent 18rem),
+    radial-gradient(circle at 82% 10%, rgba(50, 220, 150, 0.09), transparent 18rem),
+    radial-gradient(circle at 96% 88%, rgba(137, 109, 255, 0.145), transparent 24rem),
+    linear-gradient(180deg, rgba(9, 15, 30, 0.92), rgba(7, 12, 25, 0.82));
+}
+
+.sky-sticky-detail-card {
+  top: calc(var(--sky-topbar-height) + 1rem);
+}
+
+@media (max-width: 768px) {
+  .sky-page-header {
+    display: block;
+    min-height: 0;
+    padding: 1rem;
+  }
+
+  .sky-page-actions,
+  .sky-page-header > div:not(:first-child) {
+    justify-content: stretch;
+    margin-top: 0.9rem;
+    margin-left: 0;
+  }
+
+  .sky-page-actions .btn,
+  .sky-page-header > div:not(:first-child) .btn {
+    width: 100%;
+  }
+
+  .sky-page-actions .small,
+  .sky-page-header > div:not(:first-child) .small {
+    text-align: left;
+  }
+}
+
+.sky-card .alert-warning,
+.alert-warning {
+  border-color: rgba(255, 210, 97, 0.34);
+  background:
+    linear-gradient(135deg, rgba(255, 210, 97, 0.14), rgba(137, 109, 255, 0.055)),
+    rgba(8, 15, 28, 0.9);
+  color: #ffe8a8;
+}
+
+.sky-card .alert-secondary,
+.alert-secondary {
+  border-color: rgba(154, 215, 255, 0.26);
+  background: rgba(154, 215, 255, 0.08);
+  color: #cde4ff;
+}
