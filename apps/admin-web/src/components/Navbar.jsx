@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import SidebarNav from './ui/SidebarNav.jsx';
 import SkyCommandMark from './ui/SkyCommandMark.jsx';
@@ -101,6 +101,32 @@ function getCurrentNavCrumb(navGroups, pathname) {
     group: 'SkyCommand',
     label: PAGE_LABELS[pathname] || 'Dashboard',
   };
+}
+
+function formatTopbarCount(count) {
+  if (count > 99) {
+    return '99+';
+  }
+
+  if (count > 9) {
+    return '9+';
+  }
+
+  return String(count);
+}
+
+function isEditableElement(element) {
+  if (!element) {
+    return false;
+  }
+
+  const tagName = element.tagName?.toLowerCase();
+  return (
+    tagName === 'input' ||
+    tagName === 'textarea' ||
+    tagName === 'select' ||
+    element.isContentEditable
+  );
 }
 
 function createNavGroups(hasPermission) {
@@ -330,6 +356,9 @@ function Navbar() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const [topbarPanel, setTopbarPanel] = useState('');
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const topbarControlsRef = useRef(null);
+  const commandSearchInputRef = useRef(null);
 
   const navGroups = useMemo(() => createNavGroups(hasPermission), [hasPermission]);
   const commandSearchTargets = useMemo(
@@ -390,16 +419,77 @@ function Navbar() {
   ].filter(Boolean);
 
   const messageItems = [
-    {
-      label: 'Ops inbox foundation',
-      meta: 'Messages will collect approvals, workflow notes, and operator handoffs here.',
+    permittedRoutes.has('/workflows/approvals') && {
+      label: 'Approval handoffs',
+      meta: 'Review approval requests and workflow handoff checkpoints.',
+      status: 'Open',
+      to: '/workflows/approvals',
+    },
+    permittedRoutes.has('/workflows/history') && {
+      label: 'Workflow run notes',
+      meta: 'Inspect completed, failed, and terminated workflow runs.',
+      status: 'Runs',
+      to: '/workflows/history',
     },
     permittedRoutes.has('/access-control/user-history') && {
       label: 'Review user activity',
       meta: 'Open the audit trail while the message center is being wired in.',
+      status: 'Audit',
       to: '/access-control/user-history',
     },
   ].filter(Boolean);
+
+  useEffect(() => {
+    setActiveSearchIndex(0);
+  }, [commandQuery, commandSearchMatches.length]);
+
+  useEffect(() => {
+    setTopbarPanel('');
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!topbarPanel) {
+        return;
+      }
+
+      if (topbarControlsRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setTopbarPanel('');
+    }
+
+    function handleGlobalKeyDown(event) {
+      if (event.key === 'Escape') {
+        setTopbarPanel('');
+        commandSearchInputRef.current?.blur();
+        return;
+      }
+
+      if (
+        event.key === '/' &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !isEditableElement(document.activeElement)
+      ) {
+        event.preventDefault();
+        commandSearchInputRef.current?.focus();
+        setTopbarPanel('search');
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    document.addEventListener('keydown', handleGlobalKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      document.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [topbarPanel]);
 
   function openPasswordModal() {
     setPasswordForm(DEFAULT_PASSWORD_FORM);
@@ -420,6 +510,10 @@ function Navbar() {
   }
 
   function navigateToCommandTarget(to) {
+    if (!to) {
+      return;
+    }
+
     navigate(to);
     setCommandQuery('');
     setTopbarPanel('');
@@ -433,6 +527,13 @@ function Navbar() {
     event.preventDefault();
 
     const normalizedQuery = commandQuery.trim().toLowerCase();
+    const selectedMatch = commandSearchMatches[activeSearchIndex];
+
+    if (selectedMatch) {
+      navigateToCommandTarget(selectedMatch.to);
+      return;
+    }
+
     if (!normalizedQuery) {
       navigateToCommandTarget('/dashboard');
       return;
@@ -441,12 +542,25 @@ function Navbar() {
     const aliasRoute = COMMAND_SEARCH_ALIASES[normalizedQuery];
     if (aliasRoute) {
       navigateToCommandTarget(aliasRoute);
+    }
+  }
+
+  function handleCommandSearchKeyDown(event) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setTopbarPanel('search');
+      setActiveSearchIndex((current) =>
+        commandSearchMatches.length === 0
+          ? 0
+          : Math.min(current + 1, commandSearchMatches.length - 1),
+      );
       return;
     }
 
-    const [match] = commandSearchMatches;
-    if (match) {
-      navigateToCommandTarget(match.to);
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setTopbarPanel('search');
+      setActiveSearchIndex((current) => Math.max(current - 1, 0));
     }
   }
 
@@ -529,10 +643,23 @@ function Navbar() {
           </div>
         </div>
 
-        <div className="sky-topbar-right">
-          <form className="sky-topbar-command-search" onSubmit={handleCommandSearch} role="search">
+        <div className="sky-topbar-right" ref={topbarControlsRef}>
+          <form
+            className="sky-topbar-command-search"
+            onKeyDown={handleCommandSearchKeyDown}
+            onSubmit={handleCommandSearch}
+            role="search"
+          >
             <NavIcon name="search" />
             <input
+              aria-activedescendant={
+                topbarPanel === 'search' && commandSearchMatches[activeSearchIndex]
+                  ? `sky-command-search-result-${activeSearchIndex}`
+                  : undefined
+              }
+              aria-autocomplete="list"
+              aria-controls="sky-command-search-results"
+              aria-expanded={topbarPanel === 'search'}
               aria-label="Search SkyCommand commands"
               onChange={(event) => {
                 setCommandQuery(event.target.value);
@@ -540,6 +667,8 @@ function Navbar() {
               }}
               onFocus={() => setTopbarPanel('search')}
               placeholder="Search tools, workflows, executions..."
+              ref={commandSearchInputRef}
+              role="combobox"
               type="search"
               value={commandQuery}
             />
@@ -550,19 +679,29 @@ function Navbar() {
                   <span>Command search</span>
                   <span>{commandSearchMatches.length} match(es)</span>
                 </div>
-                <div className="sky-command-search-results">
+                <div
+                  className="sky-command-search-results"
+                  id="sky-command-search-results"
+                  role="listbox"
+                >
                   {commandSearchMatches.length > 0 ? (
-                    commandSearchMatches.map((target) => (
+                    commandSearchMatches.map((target, index) => (
                       <button
-                        className="sky-command-search-result"
+                        aria-selected={activeSearchIndex === index}
+                        className={`sky-command-search-result${activeSearchIndex === index ? ' is-active' : ''}`}
+                        id={`sky-command-search-result-${index}`}
                         key={target.to}
                         onMouseDown={(event) => event.preventDefault()}
+                        onMouseEnter={() => setActiveSearchIndex(index)}
                         onClick={() => navigateToCommandTarget(target.to)}
+                        role="option"
                         type="button"
                       >
                         <span>
                           <strong>{target.label}</strong>
-                          <small>{target.group} · {target.description}</small>
+                          <small>
+                            {target.group} · {target.description}
+                          </small>
                         </span>
                         <span>Open</span>
                       </button>
@@ -585,10 +724,14 @@ function Navbar() {
               type="button"
             >
               <NavIcon name="bell" />
-              <span className="sky-topbar-alert-dot" />
+              {notificationItems.length > 0 && (
+                <span className="sky-topbar-count-badge">
+                  {formatTopbarCount(notificationItems.length)}
+                </span>
+              )}
             </button>
             {topbarPanel === 'notifications' && (
-              <div className="sky-topbar-popover sky-action-popover">
+              <div className="sky-topbar-popover sky-action-popover" role="dialog">
                 <div className="sky-topbar-popover-header">
                   <span>Notifications</span>
                   <span>{notificationItems.length} watch items</span>
@@ -623,37 +766,33 @@ function Navbar() {
               type="button"
             >
               <NavIcon name="mail" />
+              {messageItems.length > 0 && (
+                <span className="sky-topbar-count-badge sky-topbar-count-badge-muted">
+                  {formatTopbarCount(messageItems.length)}
+                </span>
+              )}
             </button>
             {topbarPanel === 'messages' && (
-              <div className="sky-topbar-popover sky-action-popover">
+              <div className="sky-topbar-popover sky-action-popover" role="dialog">
                 <div className="sky-topbar-popover-header">
                   <span>Messages</span>
                   <span>Preview</span>
                 </div>
                 <div className="sky-topbar-popover-list">
-                  {messageItems.map((item) =>
-                    item.to ? (
-                      <button
-                        className="sky-topbar-popover-item"
-                        key={item.label}
-                        onClick={() => navigateToCommandTarget(item.to)}
-                        type="button"
-                      >
-                        <span>
-                          <strong>{item.label}</strong>
-                          <small>{item.meta}</small>
-                        </span>
-                        <span className="sky-topbar-popover-badge">Open</span>
-                      </button>
-                    ) : (
-                      <div className="sky-topbar-popover-item is-static" key={item.label}>
-                        <span>
-                          <strong>{item.label}</strong>
-                          <small>{item.meta}</small>
-                        </span>
-                      </div>
-                    ),
-                  )}
+                  {messageItems.map((item) => (
+                    <button
+                      className="sky-topbar-popover-item"
+                      key={item.label}
+                      onClick={() => navigateToCommandTarget(item.to)}
+                      type="button"
+                    >
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>{item.meta}</small>
+                      </span>
+                      <span className="sky-topbar-popover-badge">{item.status}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
