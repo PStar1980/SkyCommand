@@ -86,13 +86,12 @@
   display: flex;
   width: var(--sky-sidebar-width);
   flex-direction: column;
-  border-right: 1px solid rgba(124, 144, 177, 0.16);
+  border-right: 1px solid rgba(124, 144, 177, 0.24);
   background:
-    radial-gradient(circle at 20% 16%, rgba(72, 167, 255, 0.24), transparent 14rem),
-    radial-gradient(circle at 88% 54%, rgba(155, 89, 255, 0.18), transparent 15rem),
-    linear-gradient(180deg, rgba(9, 15, 30, 0.94), rgba(7, 12, 25, 0.88));
-  box-shadow: 26px 0 80px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(22px);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 54%),
+    #010409;
+  box-shadow: 22px 0 72px rgba(0, 0, 0, 0.44);
+  backdrop-filter: none;
   overflow: hidden;
 }
 
@@ -101,8 +100,8 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(130deg, rgba(255, 255, 255, 0.055), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 22rem);
+    linear-gradient(130deg, rgba(255, 255, 255, 0.028), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 18rem);
   content: '';
 }
 
@@ -113,8 +112,9 @@
   width: 12rem;
   height: 20rem;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(98, 92, 255, 0.2), rgba(72, 167, 255, 0.08));
-  filter: blur(24px);
+  background: linear-gradient(180deg, rgba(98, 92, 255, 0.06), rgba(72, 167, 255, 0.03));
+  filter: blur(30px);
+  opacity: 0.42;
   transform: rotate(-22deg);
 }
 
@@ -129,8 +129,8 @@
   text-align: center;
   border-bottom: 1px solid rgba(124, 144, 177, 0.28);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 62%),
-    radial-gradient(circle at 18% -45%, rgba(72, 167, 255, 0.18), transparent 15rem), #010409;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 62%),
+    #010409;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38);
   padding: 1.25rem 1.45rem;
 }
@@ -283,20 +283,22 @@
 
 .sky-sidebar-link:hover,
 .sky-sidebar-link:focus {
-  border-color: rgba(72, 167, 255, 0.34);
-  background: rgba(72, 167, 255, 0.09);
+  border-color: rgba(72, 167, 255, 0.26);
+  background: rgba(72, 167, 255, 0.055);
   color: #ffffff;
   outline: none;
   transform: translateX(2px);
 }
 
 .sky-sidebar-link.active {
-  border-color: rgba(137, 109, 255, 0.58);
+  border-color: rgba(137, 109, 255, 0.48);
   background:
-    linear-gradient(135deg, rgba(72, 167, 255, 0.22), rgba(137, 109, 255, 0.28)),
-    rgba(255, 255, 255, 0.05);
+    linear-gradient(135deg, rgba(72, 167, 255, 0.13), rgba(137, 109, 255, 0.16)),
+    rgba(7, 12, 24, 0.78);
   color: #ffffff;
-  box-shadow: 0 12px 36px rgba(72, 167, 255, 0.08);
+  box-shadow:
+    inset 3px 0 0 rgba(112, 185, 255, 0.42),
+    0 12px 30px rgba(0, 0, 0, 0.16);
 }
 
 .sky-sidebar-link-icon {
@@ -308,7 +310,7 @@
   flex: 0 0 auto;
   border: 1px solid rgba(124, 144, 177, 0.2);
   border-radius: 0.71rem;
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.035);
   color: #9ad7ff;
   font-size: 0.99rem;
   font-weight: 850;
