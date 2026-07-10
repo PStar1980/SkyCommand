@@ -386,13 +386,13 @@ function Dashboard() {
         status: systemStatus,
       },
       {
-        label: 'API / DB',
+        label: 'API & DB',
         value: loading
           ? '—'
           : `${summary.apiHealth?.ok ? 'API' : 'API?'} / ${summary.dbHealth?.ok ? 'DB' : 'DB?'}`,
         help: summary.dbHealth?.database
           ? `Connected to ${summary.dbHealth.database}`
-          : 'Raw service health checks',
+          : 'Core service health checks',
         status: summary.apiHealth?.ok && summary.dbHealth?.ok ? 'CURRENT' : 'WARNING',
       },
       {
@@ -444,7 +444,7 @@ function Dashboard() {
       {
         label: 'Tools',
         value: loading ? '—' : visibleToolsCount,
-        help: 'Permission-filtered Admin-Web tools',
+        help: 'Permission-filtered SkyCommand tools',
         status: visibleToolsCount > 0 ? 'CURRENT' : 'INFO',
       },
       {
@@ -465,7 +465,7 @@ function Dashboard() {
         help:
           summary.macro && macroIndicators.total
             ? `${macroIndicators.active} active indicators`
-            : 'Macro summary visibility',
+            : 'Macro analytics visibility',
         status: summary.macro ? 'CURRENT' : 'INFO',
       },
     ],
@@ -504,7 +504,7 @@ function Dashboard() {
 
   const controlPlaneMetrics = [
     {
-      label: 'Workflow lane',
+      label: 'Workflow runtime',
       value: loading ? '—' : workflowHealth?.overallStatus || '—',
       helper: `${workflowRuns.active || 0} active · ${workflowRuns.completedLast24h || 0} completed 24h`,
       status: workflowHealth?.overallStatus || 'UNKNOWN',
@@ -552,13 +552,13 @@ function Dashboard() {
     },
     {
       label: 'Run tools',
-      detail: 'Reusable primitives',
+      detail: 'Execute configured tools',
       to: '/tools/run',
       visible: hasPermission('CORE_VIEW_TOOLS'),
     },
     {
       label: 'Production readiness',
-      detail: 'Pre-flight audit',
+      detail: 'Launch checklist',
       to: '/configuration/production-readiness',
       visible: hasPermission('ADMIN_REPOSITORY_READ'),
     },
@@ -707,7 +707,7 @@ function Dashboard() {
           </>
         )}
         kicker="Workflow automation engine"
-        subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. This is the private cockpit for API health, database status, macro ingestion, workflow health, tools, sessions, executions, and audit activity.`}
+        subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. Monitor API health, database status, macro ingestion, workflow runtime, tools, sessions, executions, and audit activity from one automation console.`}
         title="SkyCommand"
       />
 
@@ -719,8 +719,8 @@ function Dashboard() {
             <StatusDot status={systemStatus} />
             <StatusPill status={systemStatus} />
           </div>
-          <div className="sky-page-kicker">Operational command center</div>
-          <h2 className="sky-dashboard-command-title">Control plane pulse</h2>
+          <div className="sky-page-kicker">Operational pulse</div>
+          <h2 className="sky-dashboard-command-title">Automation overview</h2>
           <p className="sky-dashboard-command-copy">
             API {summary.apiHealth?.ok ? 'online' : 'unknown'} · Database{' '}
             {summary.dbHealth?.ok ? 'online' : 'unknown'} · Workflows{' '}
@@ -758,10 +758,10 @@ function Dashboard() {
       <section className="sky-dashboard-shortcuts mb-3">
         <div className="sky-dashboard-section-heading">
           <div>
-            <div className="sky-page-kicker">Quick command lanes</div>
-            <h2 className="h5 mb-0">Operate from the cockpit</h2>
+            <div className="sky-page-kicker">Automation lanes</div>
+            <h2 className="h5 mb-0">Jump into the workstream</h2>
           </div>
-          <span className="sky-muted small">Permission-aware shortcuts</span>
+          <span className="sky-muted small">Permission-aware actions</span>
         </div>
         <div className="sky-dashboard-task-strip sky-dashboard-task-strip-compact">
           {dashboardTasks.map((task) => (
@@ -775,10 +775,10 @@ function Dashboard() {
 
       <div className="sky-dashboard-section-heading mt-3 mb-2">
         <div>
-          <div className="sky-page-kicker">Control plane telemetry</div>
-          <h2 className="h5 mb-0">Activity surface</h2>
+          <div className="sky-page-kicker">Operational telemetry</div>
+          <h2 className="h5 mb-0">Activity overview</h2>
         </div>
-        <span className="sky-muted small">Sessions, tools, executions, audit, and macro plane</span>
+        <span className="sky-muted small">Sessions, tools, executions, audit, and macro activity</span>
       </div>
 
       <div className="row g-3">
@@ -906,8 +906,8 @@ function Dashboard() {
         <div className="col-xl-4">
           <section className="sky-card h-100">
             <div className="sky-card-header">
-              <h2 className="h5 mb-0">System surface</h2>
-              <div className="small sky-muted">API, database, auth, and core config</div>
+              <h2 className="h5 mb-0">System foundation</h2>
+              <div className="small sky-muted">API, database, authentication, and core configuration</div>
             </div>
 
             <div className="sky-card-body">
@@ -955,7 +955,7 @@ function Dashboard() {
 
               <hr />
 
-              <div className="sky-page-kicker">Macro plane</div>
+              <div className="sky-page-kicker">Macro intelligence</div>
               {summary.macro ? (
                 <>
                   <div className="d-flex justify-content-between gap-3 mb-2">
@@ -984,9 +984,9 @@ function Dashboard() {
           <section className="sky-card sky-table-card sky-dashboard-workflow-panel">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
-                <div className="sky-page-kicker">Temporal lane</div>
-                <h2 className="h5 mb-0">Workflow control plane</h2>
-                <div className="small sky-muted">Worker health, task queue polling, run pressure, and approval gates</div>
+                <div className="sky-page-kicker">Workflow runtime</div>
+                <h2 className="h5 mb-0">Workflow operations</h2>
+                <div className="small sky-muted">Temporal reachability, task queue polling, run pressure, and approval gates</div>
               </div>
               {hasPermission('WORKFLOW_READ') && (
                 <div className="d-flex flex-wrap gap-2">
@@ -1058,9 +1058,9 @@ function Dashboard() {
           <section className="sky-card sky-table-card">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
-                <h2 className="h5 mb-0">Automation health</h2>
+                <h2 className="h5 mb-0">Scheduler health</h2>
                 <div className="small sky-muted">
-                  Background worker nodes, active schedules, and recent scheduler runs
+                  Background worker nodes, active schedules, and recent automation runs
                 </div>
               </div>
               {hasPermission('WORKER_SCHEDULE_READ') && (
@@ -1121,8 +1121,8 @@ function Dashboard() {
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
-                <h2 className="h5 mb-0">Latest executions</h2>
-                <div className="small sky-muted">Recent script/tool activity</div>
+                <h2 className="h5 mb-0">Latest tool executions</h2>
+                <div className="small sky-muted">Recent tool and script activity</div>
               </div>
               {hasPermission('SCRIPT_EXECUTION_READ') && (
                 <Link className="btn btn-sm sky-btn-ghost" to="/tools/executions">
@@ -1186,8 +1186,8 @@ function Dashboard() {
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
-                <h2 className="h5 mb-0">Latest audit</h2>
-                <div className="small sky-muted">Authorization and operational trail</div>
+                <h2 className="h5 mb-0">Latest audit activity</h2>
+                <div className="small sky-muted">Authorization events and operational trail</div>
               </div>
               {hasPermission('AUDIT_READ') && (
                 <Link className="btn btn-sm sky-btn-ghost" to="/audit/events">
@@ -1292,7 +1292,7 @@ function Dashboard() {
           <section className="sky-card h-100">
             <div className="sky-card-header">
               <h2 className="h5 mb-0">Operator permissions</h2>
-              <div className="small sky-muted">Current session capability surface</div>
+              <div className="small sky-muted">Current session capabilities</div>
             </div>
 
             <div className="sky-card-body">
