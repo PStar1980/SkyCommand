@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
+import WorkflowHistoryVisuals from '../components/charts/WorkflowHistoryVisuals.jsx';
 import workflowService from '../services/workflowService';
 
 const STATUS_OPTIONS = [
@@ -1182,6 +1183,8 @@ function SkyWorkflows({ mode = 'start' }) {
           </div>
         </div>
       </section>
+
+      {isHistoryMode && <WorkflowHistoryVisuals runs={runs} />}
 
       <div className="row g-4 sky-workbench-row sky-workbench-row-history">
         <div className="col-xxl-3 col-xl-4 sky-workbench-rail">
