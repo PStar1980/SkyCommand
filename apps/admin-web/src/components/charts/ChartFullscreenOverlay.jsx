@@ -54,78 +54,134 @@ function getViewportMetrics(chartAspectRatio) {
   };
 }
 
-function cloneAndScaleChartOption(value, scale = 1.35, parentKey = '') {
+function normalizeArrayOrObject(value, normalizer) {
   if (Array.isArray(value)) {
-    return value.map((item) => cloneAndScaleChartOption(item, scale, parentKey));
+    return value.map((item) => (item && typeof item === 'object' ? normalizer(item) : item));
   }
 
-  if (!value || typeof value !== 'object') {
-    return value;
+  if (value && typeof value === 'object') {
+    return normalizer(value);
   }
 
-  const cloned = {};
+  return value;
+}
 
-  for (const [key, nestedValue] of Object.entries(value)) {
-    if (typeof nestedValue === 'number') {
-      if (key === 'fontSize') {
-        cloned[key] = Math.round(nestedValue * scale);
-        continue;
-      }
+function withMinimumFontSize(textStyle = {}, minimumFontSize = 16, minimumLineHeight = 20) {
+  const nextFontSize = Math.max(Number(textStyle.fontSize || 0), minimumFontSize);
 
-      if (['symbolSize', 'barWidth', 'borderWidth'].includes(key)) {
-        cloned[key] = Math.round(nestedValue * Math.min(scale, 1.22));
-        continue;
-      }
+  return {
+    ...textStyle,
+    fontSize: nextFontSize,
+    lineHeight: Math.max(Number(textStyle.lineHeight || 0), minimumLineHeight),
+  };
+}
+
+function cloneAndScaleChartOption(value, scale = 1.85) {
+  const cloneValue = (nestedValue) => {
+    if (Array.isArray(nestedValue)) {
+      return nestedValue.map(cloneValue);
     }
 
-    cloned[key] = cloneAndScaleChartOption(nestedValue, scale, key);
+    if (!nestedValue || typeof nestedValue !== 'object') {
+      return nestedValue;
+    }
+
+    const cloned = {};
+
+    for (const [key, childValue] of Object.entries(nestedValue)) {
+      if (typeof childValue === 'number') {
+        if (key === 'fontSize') {
+          cloned[key] = Math.round(childValue * scale);
+          continue;
+        }
+
+        if (key === 'lineHeight') {
+          cloned[key] = Math.round(childValue * Math.min(scale, 1.55));
+          continue;
+        }
+
+        if (['symbolSize', 'barWidth', 'borderWidth'].includes(key)) {
+          cloned[key] = Math.round(childValue * Math.min(scale, 1.28));
+          continue;
+        }
+      }
+
+      cloned[key] = cloneValue(childValue);
+    }
+
+    return cloned;
+  };
+
+  const cloned = cloneValue(value);
+
+  if (!cloned || typeof cloned !== 'object') {
+    return cloned;
   }
 
-  if (parentKey === 'axisLabel') {
-    cloned.fontSize = cloned.fontSize || 13;
-  }
+  const normalizeLegend = (legend) => ({
+    ...legend,
+    itemWidth: Math.max(Number(legend.itemWidth || 0), 28),
+    itemHeight: Math.max(Number(legend.itemHeight || 0), 16),
+    itemGap: Math.max(Number(legend.itemGap || 0), 16),
+    textStyle: withMinimumFontSize(legend.textStyle || {}, 18, 22),
+  });
 
-  if (parentKey === 'label') {
-    cloned.fontSize = cloned.fontSize || 14;
-    cloned.lineHeight = cloned.lineHeight || 16;
-  }
+  const normalizeAxis = (axis) => ({
+    ...axis,
+    axisLabel: withMinimumFontSize(axis.axisLabel || {}, 16, 21),
+    nameTextStyle: axis.nameTextStyle
+      ? withMinimumFontSize(axis.nameTextStyle, 16, 21)
+      : axis.nameTextStyle,
+  });
 
-  if (parentKey === 'textStyle') {
-    cloned.fontSize = cloned.fontSize || 14;
-  }
+  const normalizeSeries = (series) => ({
+    ...series,
+    label: series.label
+      ? withMinimumFontSize(series.label, 17, 22)
+      : series.label,
+    emphasis: series.emphasis && typeof series.emphasis === 'object'
+      ? {
+          ...series.emphasis,
+          label: series.emphasis.label
+            ? withMinimumFontSize(series.emphasis.label, 17, 22)
+            : series.emphasis.label,
+        }
+      : series.emphasis,
+  });
 
-  if (cloned.textStyle && typeof cloned.textStyle === 'object') {
-    cloned.textStyle = {
-      ...cloned.textStyle,
-      fontSize: cloned.textStyle.fontSize || 14,
+  const normalizeGrid = (grid) => ({
+    ...grid,
+    top: typeof grid.top === 'number' ? Math.max(grid.top, 56) : grid.top,
+    bottom: typeof grid.bottom === 'number' ? Math.max(grid.bottom, 26) : grid.bottom,
+    left: typeof grid.left === 'number' ? Math.max(grid.left, 18) : grid.left,
+    right: typeof grid.right === 'number' ? Math.max(grid.right, 22) : grid.right,
+  });
+
+  if (cloned.tooltip && typeof cloned.tooltip === 'object') {
+    cloned.tooltip = {
+      ...cloned.tooltip,
+      textStyle: withMinimumFontSize(cloned.tooltip.textStyle || {}, 16, 21),
     };
   }
 
-  if (cloned.axisLabel && typeof cloned.axisLabel === 'object') {
-    cloned.axisLabel = {
-      ...cloned.axisLabel,
-      fontSize: cloned.axisLabel.fontSize || 13,
-    };
+  if (cloned.legend) {
+    cloned.legend = normalizeArrayOrObject(cloned.legend, normalizeLegend);
   }
 
-  if (cloned.label && typeof cloned.label === 'object') {
-    cloned.label = {
-      ...cloned.label,
-      fontSize: cloned.label.fontSize || 14,
-      lineHeight: cloned.label.lineHeight || 16,
-    };
+  if (cloned.xAxis) {
+    cloned.xAxis = normalizeArrayOrObject(cloned.xAxis, normalizeAxis);
   }
 
-  if (cloned.legend && typeof cloned.legend === 'object') {
-    cloned.legend = {
-      ...cloned.legend,
-      itemWidth: cloned.legend.itemWidth || 18,
-      itemHeight: cloned.legend.itemHeight || 10,
-      textStyle: {
-        ...(cloned.legend.textStyle || {}),
-        fontSize: cloned.legend.textStyle?.fontSize || 14,
-      },
-    };
+  if (cloned.yAxis) {
+    cloned.yAxis = normalizeArrayOrObject(cloned.yAxis, normalizeAxis);
+  }
+
+  if (cloned.series) {
+    cloned.series = normalizeArrayOrObject(cloned.series, normalizeSeries);
+  }
+
+  if (cloned.grid) {
+    cloned.grid = normalizeArrayOrObject(cloned.grid, normalizeGrid);
   }
 
   return cloned;
