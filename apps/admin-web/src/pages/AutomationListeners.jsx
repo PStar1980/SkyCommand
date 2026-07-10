@@ -230,7 +230,7 @@ function AutomationListeners() {
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Automation control plane</div>
+          <div className="sky-page-kicker">Automation listeners</div>
           <h1 className="sky-page-title">Listeners</h1>
           <p className="sky-page-subtitle">
             Review active listener definitions for event-driven automation. Runtime execution is

@@ -325,7 +325,7 @@ function WorkflowRunControls({
       <div className="d-flex flex-wrap align-items-start justify-content-between gap-3">
         <div>
           <div className="sky-page-kicker">Run controls</div>
-          <div className="fw-bold">Operational command</div>
+          <div className="fw-bold">Run operation</div>
           <p className="small sky-muted mb-0">
             Cancel requests a graceful stop, terminate force-closes the Temporal execution, and retry starts a fresh run from the same workflow input.
           </p>

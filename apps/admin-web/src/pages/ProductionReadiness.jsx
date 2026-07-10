@@ -282,7 +282,7 @@ function ProductionReadiness() {
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
                 <h2 className="h5 mb-0">Operator commands</h2>
-                <div className="small sky-muted">Local commands to verify the control plane while hardening.</div>
+                <div className="small sky-muted">Local commands to verify the automation engine while hardening.</div>
               </div>
               <Link className="btn btn-sm sky-btn-ghost" to="/workflows/worker-health">
                 Open worker health

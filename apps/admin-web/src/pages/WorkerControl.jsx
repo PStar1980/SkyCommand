@@ -849,7 +849,7 @@ function WorkerControl() {
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Worker control plane</div>
+          <div className="sky-page-kicker">Worker operations</div>
           <h1 className="sky-page-title">Worker</h1>
           <p className="sky-page-subtitle">
             Schedule worker-visible tools, queue immediate runs, monitor worker nodes, and inspect

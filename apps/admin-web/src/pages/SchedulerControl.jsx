@@ -1015,7 +1015,7 @@ function SchedulerControl() {
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Automation control plane</div>
+          <div className="sky-page-kicker">Automation schedules</div>
           <h1 className="sky-page-title">Scheduler</h1>
           <p className="sky-page-subtitle">
             Manage active schedules for worker-visible tools, queue immediate runs, monitor worker
