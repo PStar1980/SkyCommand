@@ -52,7 +52,9 @@ SkyServer/
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx
 │   │       │   ├── WorkflowVisualGraph.jsx
 │   │       │   ├── charts/
+│   │       │   │   ├── ChartFullscreenOverlay.jsx
 │   │       │   │   ├── DashboardVisuals.jsx
+│   │       │   │   ├── EChartCanvas.jsx
 │   │       │   │   └── EChartCard.jsx
 │   │       │   └── ui/
 │   │       │       ├── PageHeader.jsx
