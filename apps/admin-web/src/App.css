@@ -762,75 +762,83 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3rem;
+  width: 3.16rem;
+  height: 3.16rem;
   flex: 0 0 auto;
-  border: 1px solid rgba(72, 167, 255, 0.56);
-  border-radius: 1.05rem;
+  border: 1px solid rgba(72, 167, 255, 0.6);
+  border-radius: 1.08rem;
   background:
-    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.22), transparent 1.15rem),
-    radial-gradient(circle at 72% 84%, rgba(112, 245, 189, 0.16), transparent 1.35rem),
-    linear-gradient(135deg, rgba(72, 167, 255, 0.34), rgba(137, 109, 255, 0.22));
+    radial-gradient(circle at 26% 18%, rgba(103, 245, 255, 0.2), transparent 1.08rem),
+    radial-gradient(circle at 76% 82%, rgba(156, 92, 255, 0.22), transparent 1.5rem),
+    linear-gradient(135deg, rgba(72, 167, 255, 0.24), rgba(10, 18, 38, 0.78) 46%, rgba(137, 109, 255, 0.2));
   color: #dff5ff;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -20px 34px rgba(0, 0, 0, 0.16),
-    0 14px 36px rgba(72, 167, 255, 0.15),
-    0 0 28px rgba(137, 109, 255, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -22px 34px rgba(0, 0, 0, 0.18),
+    0 14px 36px rgba(72, 167, 255, 0.16),
+    0 0 30px rgba(137, 109, 255, 0.1);
+}
+
+.sky-brand-mark::before {
+  position: absolute;
+  inset: 0.18rem;
+  border-radius: 0.94rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 34%),
+    radial-gradient(circle at 62% 38%, rgba(103, 245, 255, 0.08), transparent 1.6rem);
+  content: '';
+  pointer-events: none;
 }
 
 .sky-brand-mark::after {
   position: absolute;
-  inset: 0.28rem;
+  inset: 0.31rem;
   border: 1px solid rgba(220, 244, 255, 0.1);
   border-radius: 0.82rem;
   content: '';
   pointer-events: none;
 }
 
-.sky-brand-mark-command {
+.sky-brand-mark-vector {
   overflow: hidden;
 }
 
 .sky-brand-mark-svg {
-  width: 2.28rem;
-  height: 2.28rem;
+  position: relative;
+  z-index: 1;
+  width: 2.52rem;
+  height: 2.52rem;
   overflow: visible;
 }
 
-.sky-brand-mark-orbit,
-.sky-brand-mark-command-path,
-.sky-brand-mark-vector {
-  fill: none;
-  stroke-linecap: round;
+.sky-brand-vector-facet {
+  stroke: rgba(237, 249, 255, 0.18);
   stroke-linejoin: round;
+  stroke-width: 0.72;
+  filter: drop-shadow(0 0 5px rgba(72, 167, 255, 0.22));
 }
 
-.sky-brand-mark-orbit {
-  stroke: rgba(154, 215, 255, 0.34);
-  stroke-width: 2.2;
+.sky-brand-vector-facet-tip,
+.sky-brand-vector-facet-bottom {
+  filter: drop-shadow(0 0 8px rgba(103, 245, 255, 0.24));
 }
 
-.sky-brand-mark-command-path {
-  stroke: rgba(247, 251, 255, 0.92);
-  stroke-width: 4.4;
-  filter: drop-shadow(0 0 8px rgba(154, 215, 255, 0.22));
+.sky-brand-vector-facet-core,
+.sky-brand-vector-facet-end {
+  filter: drop-shadow(0 0 9px rgba(137, 109, 255, 0.25));
 }
 
-.sky-brand-mark-vector {
-  stroke: rgba(112, 245, 189, 0.9);
-  stroke-width: 3.4;
+.sky-brand-vector-highlight {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-linecap: round;
+  stroke-width: 1.05;
+  opacity: 0.72;
 }
 
-.sky-brand-mark-node {
-  fill: rgba(112, 245, 189, 0.94);
-  stroke: rgba(5, 11, 23, 0.86);
-  stroke-width: 1.45;
-  filter: drop-shadow(0 0 7px rgba(112, 245, 189, 0.55));
-}
-
-.sky-brand-mark-node-b {
-  fill: rgba(154, 215, 255, 0.94);
+.sky-brand-vector-highlight-soft {
+  stroke: rgba(103, 245, 255, 0.22);
+  opacity: 0.5;
 }
 
 .sky-page-header {

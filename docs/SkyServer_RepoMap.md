@@ -35,6 +35,8 @@ SkyServer/
 │   ├── admin-web/
 │   │   ├── index.html
 │   │   ├── vite.config.js
+│   │   ├── public/
+│   │   │   └── favicon.svg
 │   │   └── src/
 │   │       ├── App.css
 │   │       ├── App.jsx
