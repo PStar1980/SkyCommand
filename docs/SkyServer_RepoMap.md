@@ -55,7 +55,8 @@ SkyServer/
 │   │       │   │   ├── ChartFullscreenOverlay.jsx
 │   │       │   │   ├── DashboardVisuals.jsx
 │   │       │   │   ├── EChartCanvas.jsx
-│   │       │   │   └── EChartCard.jsx
+│   │       │   │   ├── EChartCard.jsx
+│   │       │   │   └── WorkflowHistoryVisuals.jsx
 │   │       │   └── ui/
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx

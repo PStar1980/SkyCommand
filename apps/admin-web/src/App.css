@@ -3520,3 +3520,11 @@
     font-size: 1.65rem;
   }
 }
+
+.sky-workflow-visuals {
+  margin-top: -0.35rem;
+}
+
+.sky-workflow-visuals .sky-dashboard-section-heading {
+  align-items: flex-start;
+}
