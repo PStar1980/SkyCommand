@@ -3198,3 +3198,59 @@
   background: rgba(154, 215, 255, 0.08);
   color: #cde4ff;
 }
+
+.sky-dashboard-visuals {
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 1.05rem;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(72, 167, 255, 0.12), transparent 18rem),
+    radial-gradient(circle at 88% 100%, rgba(137, 109, 255, 0.12), transparent 20rem),
+    linear-gradient(135deg, rgba(72, 167, 255, 0.05), rgba(137, 109, 255, 0.032)),
+    rgba(7, 13, 25, 0.68);
+  padding: 1rem;
+}
+
+.sky-dashboard-chart-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.82fr) minmax(320px, 0.82fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.sky-chart-card {
+  min-width: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(72, 167, 255, 0.095), transparent 12rem),
+    radial-gradient(circle at 100% 100%, rgba(137, 109, 255, 0.1), transparent 14rem),
+    rgba(6, 11, 22, 0.58);
+}
+
+.sky-chart-card-header {
+  min-height: 5.3rem;
+}
+
+.sky-chart-body {
+  width: 100%;
+  padding: 0.35rem 0.55rem 0.75rem;
+}
+
+@media (max-width: 1500px) {
+  .sky-dashboard-chart-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sky-dashboard-chart-wide {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .sky-dashboard-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-dashboard-visuals {
+    padding: 0.9rem;
+  }
+}

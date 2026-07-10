@@ -51,6 +51,9 @@ SkyServer/
 │   │       │   ├── WaitParameterEditor.jsx
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx
 │   │       │   ├── WorkflowVisualGraph.jsx
+│   │       │   ├── charts/
+│   │       │   │   ├── DashboardVisuals.jsx
+│   │       │   │   └── EChartCard.jsx
 │   │       │   └── ui/
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
