@@ -1,6 +1,7 @@
 .sky-app-shell {
   --sky-sidebar-width: 24.5rem;
-  --sky-topbar-height: 7.55rem;
+  --sky-topbar-height: 6.42rem;
+  --sky-content-max-font: 1.48rem;
   min-height: 100vh;
   color: #dce8ff;
   font-family:
@@ -100,7 +101,7 @@
   min-width: 0;
   margin-left: var(--sky-sidebar-width);
   margin-right: 0;
-  padding-top: calc(var(--sky-topbar-height) + 1.35rem);
+  padding-top: calc(var(--sky-topbar-height) + 1.1rem);
   padding-right: 2rem;
 }
 
@@ -122,7 +123,7 @@
     #010409;
   box-shadow: 0 22px 78px rgba(0, 0, 0, 0.48);
   backdrop-filter: none;
-  padding: 1.15rem 1.7rem;
+  padding: 0.86rem 1.7rem;
 }
 
 .sky-public-brand,
@@ -197,7 +198,7 @@
   display: flex;
   width: var(--sky-sidebar-width);
   flex-direction: column;
-  border-right: 1px solid rgba(124, 144, 177, 0.24);
+  border-right: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 54%),
     #010409;
@@ -235,20 +236,20 @@
   display: flex;
   min-height: var(--sky-topbar-height);
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 1.15rem;
-  text-align: center;
+  text-align: left;
   border-bottom: 1px solid rgba(124, 144, 177, 0.28);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 62%),
     #010409;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38);
-  padding: 1.25rem 1.45rem;
+  padding: 0.86rem 1.7rem;
 }
 
 .sky-sidebar-brand {
-  width: 100%;
-  justify-content: center;
+  width: auto;
+  justify-content: flex-start;
   gap: 0.9rem;
 }
 
@@ -548,7 +549,7 @@
     radial-gradient(circle at 62% -60%, rgba(72, 167, 255, 0.12), transparent 22rem), #010409;
   box-shadow: 0 22px 78px rgba(0, 0, 0, 0.48);
   backdrop-filter: none;
-  padding: 1.15rem 1.7rem;
+  padding: 0.86rem 1.7rem;
 }
 
 .sky-topbar-left {
@@ -1563,7 +1564,7 @@
 
 .sky-stat-value {
   color: #ffffff;
-  font-size: 2rem;
+  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
   font-weight: 850;
   line-height: 1;
 }
@@ -2102,7 +2103,7 @@
 .sky-dashboard-command-value {
   margin-top: 0.16rem;
   color: #ffffff;
-  font-size: clamp(1.28rem, 1.6vw, 1.7rem);
+  font-size: clamp(1.16rem, 1.1vw, var(--sky-content-max-font));
   font-weight: 880;
   line-height: 1.05;
   overflow-wrap: anywhere;
@@ -2228,7 +2229,7 @@
 
 .sky-dashboard-task-value {
   color: #ffffff;
-  font-size: clamp(1.12rem, 1.35vw, 1.55rem);
+  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
   font-weight: 850;
   line-height: 1.1;
 }
@@ -2255,7 +2256,7 @@
 
 .sky-mini-metric-value {
   color: #ffffff;
-  font-size: 1.55rem;
+  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
   font-weight: 850;
   line-height: 1;
 }
@@ -2334,7 +2335,7 @@
 
 .sky-worker-command-value {
   color: #ffffff;
-  font-size: 1.2rem;
+  font-size: clamp(1.05rem, 1vw, 1.28rem);
   font-weight: 850;
   line-height: 1.15;
 }
@@ -2344,7 +2345,7 @@
 }
 
 .sky-worker-stat-value {
-  font-size: 1.7rem;
+  font-size: var(--sky-content-max-font);
 }
 
 .sky-worker-param-grid {
@@ -2379,7 +2380,7 @@
   }
 
   .sky-worker-command-value {
-    font-size: 1.35rem;
+    font-size: clamp(1.05rem, 3.5vw, var(--sky-content-max-font));
   }
 }
 
@@ -3086,7 +3087,7 @@
 @media (max-width: 768px) {
   .sky-app-shell {
     --sky-sidebar-width: min(88vw, 20rem);
-    --sky-topbar-height: 4.8rem;
+    --sky-topbar-height: 4.1rem;
   }
 
   .sky-app-shell-authenticated .sky-main,
@@ -3448,10 +3449,10 @@
 
 .sky-page-title {
   color: #f6f9ff;
-  font-size: clamp(1.72rem, 1.65vw, 2.38rem);
+  font-size: clamp(1.24rem, 1.08vw, var(--sky-content-max-font));
   font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 1.02;
+  letter-spacing: -0.028em;
+  line-height: 1.08;
   text-wrap: balance;
 }
 
@@ -3502,6 +3503,14 @@
 .sky-dashboard-command-value,
 .sky-mini-metric-value {
   letter-spacing: -0.035em;
+}
+
+.sky-stat-value,
+.sky-dashboard-task-value,
+.sky-dashboard-command-value,
+.sky-mini-metric-value,
+.sky-worker-stat-value {
+  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
 }
 
 .sky-table-card {
