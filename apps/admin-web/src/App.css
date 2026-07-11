@@ -1,20 +1,14 @@
 .sky-app-shell {
   --sky-sidebar-width: 24.5rem;
   --sky-topbar-height: 6.42rem;
-  --sky-content-max-font: 1.48rem;
+  --sky-max-display-font-size: 1.48rem;
   min-height: 100vh;
   color: #dce8ff;
-  font-family:
-    'Inter',
-    'Geist',
-    'Satoshi',
-    'Manrope',
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(
+    --sky-font-sans,
+    'Inter', 'Geist', 'Satoshi', 'Manrope', ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, 'Segoe UI', sans-serif
+  );
 }
 
 .sky-app-shell-public {
@@ -75,6 +69,10 @@
   isolation: isolate;
 }
 
+.sky-app-shell :is(button, input, select, textarea, .btn, .form-control, .form-select, .dropdown-menu) {
+  font-family: inherit;
+}
+
 .sky-app-shell-authenticated::before {
   position: fixed;
   inset: var(--sky-topbar-height) 0 0 var(--sky-sidebar-width);
@@ -101,7 +99,7 @@
   min-width: 0;
   margin-left: var(--sky-sidebar-width);
   margin-right: 0;
-  padding-top: calc(var(--sky-topbar-height) + 1.1rem);
+  padding-top: calc(var(--sky-topbar-height) + 1.35rem);
   padding-right: 2rem;
 }
 
@@ -123,7 +121,7 @@
     #010409;
   box-shadow: 0 22px 78px rgba(0, 0, 0, 0.48);
   backdrop-filter: none;
-  padding: 0.86rem 1.7rem;
+  padding: 0.9rem 1.45rem;
 }
 
 .sky-public-brand,
@@ -217,6 +215,17 @@
   content: '';
 }
 
+.sky-sidebar::after {
+  position: absolute;
+  top: var(--sky-topbar-height);
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+  background: rgba(124, 144, 177, 0.2);
+  content: '';
+}
+
 .sky-sidebar-glow {
   position: absolute;
   right: -5rem;
@@ -244,11 +253,11 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 62%),
     #010409;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38);
-  padding: 0.86rem 1.7rem;
+  padding: 0.9rem 1.45rem;
 }
 
 .sky-sidebar-brand {
-  width: auto;
+  width: 100%;
   justify-content: flex-start;
   gap: 0.9rem;
 }
@@ -549,7 +558,7 @@
     radial-gradient(circle at 62% -60%, rgba(72, 167, 255, 0.12), transparent 22rem), #010409;
   box-shadow: 0 22px 78px rgba(0, 0, 0, 0.48);
   backdrop-filter: none;
-  padding: 0.86rem 1.7rem;
+  padding: 0.9rem 1.45rem;
 }
 
 .sky-topbar-left {
@@ -1221,7 +1230,7 @@
 }
 
 .sky-mono {
-  font-family: 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+  font-family: var(--sky-font-mono, 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace);
 }
 
 .sky-pill {
@@ -1564,7 +1573,7 @@
 
 .sky-stat-value {
   color: #ffffff;
-  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
+  font-size: 2rem;
   font-weight: 850;
   line-height: 1;
 }
@@ -1998,7 +2007,7 @@
 .sky-dashboard-command-title {
   margin: 0;
   color: #f6f9ff;
-  font-size: clamp(1.75rem, 2.25vw, 2.65rem);
+  font-size: clamp(1.22rem, 1.3vw, var(--sky-max-display-font-size));
   font-weight: 880;
   letter-spacing: -0.035em;
   line-height: 1;
@@ -2103,7 +2112,7 @@
 .sky-dashboard-command-value {
   margin-top: 0.16rem;
   color: #ffffff;
-  font-size: clamp(1.16rem, 1.1vw, var(--sky-content-max-font));
+  font-size: clamp(1.08rem, 1.1vw, 1.34rem);
   font-weight: 880;
   line-height: 1.05;
   overflow-wrap: anywhere;
@@ -2229,7 +2238,7 @@
 
 .sky-dashboard-task-value {
   color: #ffffff;
-  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
+  font-size: clamp(1.08rem, 1.08vw, 1.34rem);
   font-weight: 850;
   line-height: 1.1;
 }
@@ -2256,7 +2265,7 @@
 
 .sky-mini-metric-value {
   color: #ffffff;
-  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
+  font-size: 1.55rem;
   font-weight: 850;
   line-height: 1;
 }
@@ -2335,7 +2344,7 @@
 
 .sky-worker-command-value {
   color: #ffffff;
-  font-size: clamp(1.05rem, 1vw, 1.28rem);
+  font-size: 1.2rem;
   font-weight: 850;
   line-height: 1.15;
 }
@@ -2345,7 +2354,7 @@
 }
 
 .sky-worker-stat-value {
-  font-size: var(--sky-content-max-font);
+  font-size: 1.7rem;
 }
 
 .sky-worker-param-grid {
@@ -2380,7 +2389,7 @@
   }
 
   .sky-worker-command-value {
-    font-size: clamp(1.05rem, 3.5vw, var(--sky-content-max-font));
+    font-size: 1.35rem;
   }
 }
 
@@ -3087,7 +3096,7 @@
 @media (max-width: 768px) {
   .sky-app-shell {
     --sky-sidebar-width: min(88vw, 20rem);
-    --sky-topbar-height: 4.1rem;
+    --sky-topbar-height: 4.8rem;
   }
 
   .sky-app-shell-authenticated .sky-main,
@@ -3449,10 +3458,10 @@
 
 .sky-page-title {
   color: #f6f9ff;
-  font-size: clamp(1.24rem, 1.08vw, var(--sky-content-max-font));
+  font-size: clamp(1.22rem, 1.25vw, var(--sky-max-display-font-size));
   font-weight: 900;
-  letter-spacing: -0.028em;
-  line-height: 1.08;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
   text-wrap: balance;
 }
 
@@ -3501,16 +3510,17 @@
 .sky-stat-value,
 .sky-dashboard-task-value,
 .sky-dashboard-command-value,
-.sky-mini-metric-value {
+.sky-mini-metric-value,
+.sky-worker-command-value,
+.sky-worker-stat-value,
+.sky-running-timer {
+  font-size: min(1.34rem, var(--sky-max-display-font-size));
   letter-spacing: -0.035em;
 }
 
-.sky-stat-value,
-.sky-dashboard-task-value,
-.sky-dashboard-command-value,
-.sky-mini-metric-value,
-.sky-worker-stat-value {
-  font-size: clamp(1.1rem, 1.08vw, var(--sky-content-max-font));
+.sky-dashboard-command-title,
+.sky-page-title {
+  font-size: clamp(1.22rem, 1.25vw, var(--sky-max-display-font-size));
 }
 
 .sky-table-card {
