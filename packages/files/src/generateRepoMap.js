@@ -108,7 +108,7 @@ function shouldSkipFile(fileName) {
     return false;
   }
 
-  return ['.zip', '.log'].includes(path.extname(normalizedFileName));
+  return ['.zip', '.log', '.patch'].includes(path.extname(normalizedFileName));
 }
 
 function sortEntries(entries) {

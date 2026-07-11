@@ -633,3 +633,24 @@ SkyWeb Analytics owns:
 - Added the Production Readiness link to the Configuration navigation menu.
 - Refreshed the main Dashboard with a high-level Readiness command tile and status card that summarize pass/warning/fail counts.
 - Kept this phase inspection-only: no process supervision, no Docker/Kubernetes/systemd/NSSM deployment, no secrets-vault integration, and no runtime execution behavior changes.
+
+## Phase 11 — SkyCommand Admin-Web modernization
+
+- Rebranded the Admin-Web experience as **SkyCommand — Workflow Automation** while keeping SkyServer as the backend/control-plane repository identity.
+- Reworked the shell into a black navigation frame with grouped left navigation, larger typography, aligned breadcrumbs, navbar command search, notification/message popovers, and anonymous operator icon treatment.
+- Added the reusable `SkyCommandMark` inline SVG brand mark and restored the Admin-Web favicon asset under `apps/admin-web/public/favicon.svg`.
+- Standardized page surfaces with shared headers, card/table treatments, selected-row styling, warning tone adjustments, and sticky-detail-panel spacing.
+- Polished the login experience with a sky/sunset-inspired atmospheric background, larger auth card, remember-email option, forgot-password support copy, and request-access copy.
+- Removed stale Command Glass wording from user-facing copy and aligned dashboard/product text around SkyCommand workflow automation.
+
+## Phase 12 — SkyCommand visual operations layer
+
+- Added Apache ECharts and D3-powered visual analytics to the SkyCommand Admin-Web experience.
+- Added Dashboard automation intelligence charts for system health, weekly operations activity, workflow run trends, workflow outcomes, runtime pressure, macro freshness, and tool run status.
+- Added Workflow History visual analytics for run trend, outcome mix, duration trend, runs by workflow, failures over time, and Temporal/local backend split.
+- Added Worker Health pulse charts for heartbeat timelines, active/stale worker mix, poller coverage, runs per day, and approval/run pressure.
+- Added Ingestion Status analytics for freshness mix, indicators by source, stale-age buckets, latest-data distribution, source runtime trend, and ingestion run quality.
+- Added Tools History analytics for success/failure trend, executions by category, top-used tools, slowest tools, and runtime-duration distribution.
+- Added Production Readiness analytics for readiness gauge, check status mix, category coverage, progress by area, and risk concentration.
+- Added reusable chart infrastructure: `EChartCard`, `ChartFullscreenOverlay`, `EChartCanvas`, empty states, trend charts, duration charts, status donuts, outcome bars, shared chart theme/options/data helpers, and full-screen chart overlay behavior.
+- Completed a repository hygiene pass by preserving the required favicon in lean handoff zips, excluding `*.patch` artifacts, and removing duplicate view exports that were incorrectly stored in `scripts/db/triggers`.

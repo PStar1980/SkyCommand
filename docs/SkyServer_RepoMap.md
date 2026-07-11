@@ -383,11 +383,6 @@ SkyServer/
 │   │   │   ├── worker.listeners_set_updated_at.sql
 │   │   │   ├── worker.schedule_runs_set_updated_at.sql
 │   │   │   ├── worker.schedules_set_updated_at.sql
-│   │   │   ├── worker.vw_listener_events_recent.sql
-│   │   │   ├── worker.vw_listeners.sql
-│   │   │   ├── worker.vw_schedule_runs_recent.sql
-│   │   │   ├── worker.vw_schedules.sql
-│   │   │   ├── worker.vw_worker_nodes.sql
 │   │   │   └── worker.worker_nodes_set_updated_at.sql
 │   │   └── views/
 │   │       ├── auth.vw_active_sessions.sql

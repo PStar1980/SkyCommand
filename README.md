@@ -9,7 +9,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 | Layer | Technology |
 | --- | --- |
 | API | Node.js, Express |
-| Admin client | React, Vite, React Router, Bootstrap, Axios |
+| Admin client | React, Vite, React Router, Bootstrap, Axios, Apache ECharts, D3 |
 | Database | PostgreSQL |
 | Data access | `pg`, SQL migrations/seeds, relational manifests |
 | Auth | App-scoped login, hashed bearer sessions, RBAC permissions, audit events |
@@ -29,26 +29,31 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 - **Temporal-backed durable workflow orchestration** with tool/API/workflow/template nodes, condition branches, waits, human approvals, retries, version guardrails, run controls, and diagnostics.
 - **Clean system boundary with SkyWeb**, where SkyServer owns ingestion/evaluation/control-plane work while SkyWeb owns analytics presentation and member workflows.
 - **Repository automation discipline** through generated repo maps, generated lean handoff zips, and dev-commit tooling.
+- **SkyCommand visual operations layer** with reusable Apache ECharts/D3 chart cards, full-screen chart overlays, and dashboard/workflow/worker/ingestion/tool/readiness analytics.
 
 ## Current Status
 
-**Active status:** Phase 11 UI modernization underway — Temporal implementation is complete, production-readiness inspection is in place, and Admin-Web has moved into the Command Glass shell/dashboard/workbench refresh.
+**Active status:** Phase 12 SkyCommand visualization expansion is complete. Temporal implementation, production-readiness inspection, SkyCommand shell modernization, login polish, and the reusable chart system are now in place.
 
-SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and Command Glass administration.
+SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane behind **SkyCommand**, the branded Admin-Web experience for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and operational intelligence.
 
 Phase 10 moved Temporal from a local FRED pilot into a full SkyServer workflow execution lane. SkyServer workflows can now compose tools, API calls, child workflows, Temporal-native templates, condition gates, waits, human approvals, retry policies, versioned drafts, visual graph editing, runtime overlays, diagnostics, worker health, and production-readiness checks while preserving the existing worker/tool infrastructure.
+
+Phase 11 modernized Admin-Web into the **SkyCommand** product shell with a black navigation frame, left-side grouped navigation, branded prism mark, unified page surfaces, navbar search/popovers, and a more polished login experience.
+
+Phase 12 added the **visual operations layer**: dashboard intelligence, Workflow History analytics, Worker Health pulse charts, Ingestion Status analytics, Tools History analytics, Production Readiness visualizations, reusable chart helper components, and full-screen chart overlays.
 
 ## Core Product Surfaces
 
 | Surface | Purpose |
 | --- | --- |
-| Admin-Web Dashboard | Private Command Glass dashboard for API/DB health, ingestion, automation, workflows, task queue health, readiness, tools, sessions, scripts, and audits |
+| SkyCommand Dashboard | Private operational intelligence dashboard for API/DB health, ingestion, automation, workflows, task queue health, readiness, tools, sessions, scripts, audits, and chart-based visual summaries |
 | Tools | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging |
 | Workflows | Versioned workflow builder, visual graph editor, start/history, approvals, run controls, Temporal diagnostics, and worker health |
 | Automation | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyServer workflows |
-| Ingestion Status | Source health, indicator freshness, stale-data detection, run history, and per-indicator diagnostics |
+| Ingestion Status | Source health, indicator freshness, stale-data detection, run history, per-indicator diagnostics, and macro pipeline analytics |
 | Access Control | User, role, permission, session, password administration, and User History audit review |
-| Tools History | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability |
+| Tools History | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability plus usage, speed, category, and outcome analytics |
 | SkyWeb APIs | Public/member macro, profile, preference, dashboard, alert, and alert-evaluation support for SkyWeb Analytics |
 
 ## Architecture
@@ -98,18 +103,20 @@ SkyServer and SkyWeb now have a clean boundary:
 | Worker scheduling | Dashboards and saved views |
 | Alert evaluation execution | Alert rules and Signal Center presentation |
 | Admin-Web and RBAC administration | Account/profile/preferences UX |
-| Script/tool execution | ECharts/D3 visualization layer |
+| Script/tool execution and admin visual intelligence | Public/member ECharts/D3 analytics presentation |
 | Repo map/zip/dev-commit utilities | Portfolio-ready product presentation |
-| Future Temporal orchestration | Public/member API consumption |
+| Temporal orchestration and workflow diagnostics | Public/member API consumption |
 
 SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
 
 
-## Admin-Web UI Direction
+## SkyCommand UI and Visualization Direction
 
-Phase 11 introduces the **Command Glass** UI direction for SkyServer Admin-Web. The design keeps the existing dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar is now reserved for page context, status pills, and the authenticated operator menu.
+Phase 11 established **SkyCommand** as the branded Admin-Web shell. The design keeps the dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar carries page context, command search, notification/message shells, and the authenticated operator icon.
 
-The first UI slices are intentionally structural: they changed the app shell, sidebar, topbar, spacing, dashboard command center, workflow workbench behavior, and shared UI primitives without changing routes, API behavior, workflow execution, or database schema. The polish passes tightened sidebar density, widened workflow-heavy pages, refined dashboard command tiles, softened visual graph scrollbars, reduced unnecessary visual-map scrolling, aligned workflow inspector/card details, and introduced reusable Command Glass components for status pills, stat cards, panels, page headers, and sidebar navigation. Later UI phases can continue page-by-page polish while reusing those primitives instead of duplicating card/badge markup.
+The UI modernization changed the app shell, sidebar, topbar, spacing, dashboard command center, workflow workbench behavior, login experience, brand mark, and shared UI primitives without changing workflow execution or database semantics. Reusable SkyCommand components now cover status pills, stat cards, panels, page headers, sidebar navigation, and the inline SVG brand mark.
+
+Phase 12 added the reusable visualization layer. Apache ECharts and D3 now power chart sections across the Dashboard, Workflow History, Worker Health, Ingestion Status, Tools History, and Production Readiness pages. Chart cards share a consistent anatomy, status color language, empty-state handling, and full-screen overlay behavior so visual analytics can expand without page-by-page chart sprawl.
 
 ## Workflow Pages
 
@@ -265,7 +272,7 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 ```text
 SkyServer/
 ├── apps/
-│   ├── admin-web/        # Private React/Vite Admin-Web frontend
+│   ├── admin-web/        # Private React/Vite SkyCommand frontend
 │   ├── api/              # Node/Express API layer
 │   └── worker/           # Background worker daemon, schedulers, listeners
 ├── packages/
@@ -277,13 +284,11 @@ SkyServer/
 │   ├── git/              # Dev commit, status, and merge scripts
 │   ├── ingestion/        # FRED, BoC, StatCan, and manual ingestion pipelines
 │   ├── skyweb/           # SkyWeb alert evaluation support scripts
-│   ├── temporal/         # Temporal worker, workflows, activities, and pilot clients
-│   └── shared/           # Shared constants, contracts, and validators
+│   └── temporal/         # Temporal worker, workflows, activities, and pilot clients
 ├── scripts/
 │   ├── db/               # SQL schemas, tables, views, triggers, and functions
 │   ├── node/             # Shared Node utilities
-│   ├── powershell/       # PowerShell automation helpers
-│   └── python/           # Reserved Python utility space
+│   └── powershell/       # PowerShell automation helpers
 ├── docs/
 │   ├── SkyServer_RepoMap.md
 │   ├── SkyServer_Temporal_Local_Setup.md
@@ -293,7 +298,7 @@ SkyServer/
 └── package.json
 ```
 
-Generated handoff zips exclude dependency/build/runtime clutter such as `node_modules/`, `dist/`, `build/`, `bin/`, `obj/`, logs, temp folders, and image binaries by default so project exchange stays lean.
+Generated handoff zips exclude dependency/build/runtime clutter such as `node_modules/`, `dist/`, `build/`, `bin/`, `obj/`, logs, temp folders, screenshots/images, `*.zip`, and `*.patch` files by default so project exchange stays lean. The Admin-Web favicon is explicitly preserved even though other image assets are excluded by default.
 
 ## API Families
 
@@ -372,6 +377,31 @@ Primary protected workflow API families include:
 
 The browser/Admin-Web should call SkyServer API rather than Temporal directly, preserving the SkyServer auth/RBAC boundary and keeping audit, versioning, workflow-run persistence, and diagnostics in one control-plane layer.
 
+## SkyCommand Chart System
+
+The Admin-Web visualization layer is built around reusable chart primitives under `apps/admin-web/src/components/charts`:
+
+| Component/helper | Purpose |
+| --- | --- |
+| `EChartCard` | Shared chart card shell with title, subtitle, expand action, empty state, and chart canvas |
+| `ChartFullscreenOverlay` | Reusable full-screen chart inspection overlay with close/Escape/backdrop behavior |
+| `TrendAreaChart` | Standard line/area trend chart for activity, run pressure, and status movement |
+| `DurationTrendChart` | Duration-specific trend chart for runtime pressure and execution timing |
+| `StatusDonut` | Donut chart helper for health/outcome/status mix visualizations |
+| `OutcomeBarChart` | Horizontal/vertical bar chart helper for outcome counts and ranked categories |
+| `chartTheme`, `chartOptions`, `chartData` | Centralized status colors, tooltip/legend/axis styling, and grouping helpers |
+
+Current visual pages include:
+
+- Dashboard automation intelligence
+- Workflow History run analytics
+- Worker Health execution pulse
+- Ingestion Status macro pipeline analytics
+- Tools History execution analytics
+- Production Readiness hardening analytics
+
+Chart rules: keep status colors semantic, use cards for scanability, preserve full-screen overlay behavior, and keep low/empty-data states explicit.
+
 ## Browser-Triggered Script Safety
 
 SkyServer allows browser-triggered tool execution through Admin-Web, so guardrails are central:
@@ -388,7 +418,7 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 
 ## Documentation
 
-`README.md` is now a current-state overview. Detailed implementation history lives in `change.log`; generated structure lives in the repo map. Older phase-specific Temporal notes were removed after Phase 10 completion to avoid repeating the same implementation story in several places.
+`README.md` is now a current-state overview. Detailed implementation history lives in `change.log`; generated structure lives in the repo map. Older phase-specific Temporal notes were removed after Phase 10 completion to avoid repeating the same implementation story in several places. The current visualization expansion plan is represented in the roadmap below and implemented through the reusable chart system.
 
 | Asset | Purpose |
 | --- | --- |
@@ -422,10 +452,12 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 | Phase 8 | ✅ Complete | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation |
 | Phase 9 | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
 | Phase 10 | ✅ Complete | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection |
-| Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, and documentation |
-| Phase 11 | 🔄 In progress | Command Glass Admin-Web modernization: left navigation shell, dashboard command center, workflow workbench polish, shared component primitives, and page-by-page visual refinement |
-| Phase 12 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, and production deployment planning |
-| Phase 13 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
+| Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, documentation, and chart/page polish |
+| Phase 11 | ✅ Complete | SkyCommand Admin-Web modernization: branded shell, black navigation frame, sidebar/page typography, dashboard wording, navbar search/popovers, login atmosphere, brand mark, and shared UI primitives |
+| Phase 12 | ✅ Complete | SkyCommand visual operations layer: ECharts/D3 dashboard intelligence, Workflow History charts, Worker Health pulse, Ingestion analytics, Tools History analytics, Production Readiness visuals, full-screen chart overlays, and reusable chart helpers |
+| Phase 13 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, source failure recovery, and production deployment planning |
+| Phase 14 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
+| Phase 15 | 🔜 Planned | Testing and demo hardening: Playwright coverage, workflow/chart regression checks, portfolio demo scripts, and release-quality documentation |
 
 ## Design Philosophy
 
