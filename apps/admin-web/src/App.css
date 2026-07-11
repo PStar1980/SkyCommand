@@ -4126,3 +4126,103 @@
     flex-direction: column;
   }
 }
+
+/* Phase 12.14 — functional history pagination/detail polish */
+.sky-functional-history-shell {
+  min-width: 0;
+}
+
+.sky-functional-history-browser .sky-card-header {
+  align-items: flex-end;
+  gap: 1rem 1.25rem;
+}
+
+.sky-history-filter-grid-single {
+  grid-template-columns: minmax(220px, 1fr);
+  min-width: min(100%, 340px);
+}
+
+.sky-functional-history-table-card,
+.sky-workflow-history-table-card {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.sky-functional-history-detail-zone {
+  min-width: 0;
+}
+
+.sky-tool-history-detail-card {
+  min-width: 0;
+}
+
+.sky-execution-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(320px, 1.05fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.sky-execution-detail-summary,
+.sky-execution-detail-metadata {
+  min-width: 0;
+}
+
+.sky-execution-detail-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.sky-execution-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.sky-tool-history-metadata-block {
+  min-height: 18rem;
+  max-height: 28rem;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 215, 255, 0.34) rgba(4, 8, 16, 0.48);
+}
+
+.sky-tool-history-metadata-block::-webkit-scrollbar {
+  width: 0.48rem;
+  height: 0.48rem;
+}
+
+.sky-tool-history-metadata-block::-webkit-scrollbar-track {
+  background: rgba(4, 8, 16, 0.32);
+}
+
+.sky-tool-history-metadata-block::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(154, 215, 255, 0.28);
+}
+
+@media (max-width: 1200px) {
+  .sky-execution-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-execution-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .sky-history-filter-grid-single {
+    width: 100%;
+  }
+
+  .sky-execution-metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
