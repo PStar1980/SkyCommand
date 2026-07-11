@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import IngestionStatusVisuals from '../components/charts/IngestionStatusVisuals.jsx';
 import ingestionService from '../services/ingestionService';
 
 const SOURCE_OPTIONS = [
@@ -254,7 +255,7 @@ function IngestionStatus() {
   const [recentFilters, setRecentFilters] = useState({
     source: '',
     status: '',
-    limit: 10,
+    limit: 50,
   });
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [recentLoading, setRecentLoading] = useState(true);
@@ -556,6 +557,13 @@ function IngestionStatus() {
           )}
         </div>
       </section>
+
+      <IngestionStatusVisuals
+        indicators={indicators}
+        recentExecutions={recentExecutions}
+        sources={sources}
+        summary={summary}
+      />
 
       <div className="row g-3 mt-1">
         <div className="col-xl-8">
