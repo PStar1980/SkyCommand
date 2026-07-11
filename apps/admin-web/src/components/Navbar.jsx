@@ -63,7 +63,7 @@ function NavIcon({ name }) {
 }
 
 const PAGE_LABELS = {
-  '/dashboard': 'Dashboard',
+  '/dashboard': 'Overview',
   '/tools/run': 'Run Tools',
   '/tools/executions': 'Tools History',
   '/workflows/create': 'Create Workflow',
@@ -147,12 +147,12 @@ function createNavGroups(hasPermission) {
 
   return [
     {
-      label: 'Command',
+      label: 'Dashboards',
       icon: '⌘',
       visible: true,
       items: [
         {
-          label: 'Dashboard',
+          label: 'Overview',
           to: '/dashboard',
           icon: '◈',
           visible: true,
