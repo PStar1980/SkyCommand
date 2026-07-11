@@ -25,7 +25,7 @@ import ToolsDashboard from './pages/ToolsDashboard.jsx';
 import WorkflowsDashboard from './pages/WorkflowsDashboard.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
 import SchedulerControl from './pages/SchedulerControl.jsx';
-import { TemporalStartWorkflow, TemporalWorkflowHistory } from './pages/TemporalWorkflows.jsx';
+import { TemporalStartWorkflow } from './pages/TemporalWorkflows.jsx';
 import WorkflowBuilder from './pages/WorkflowBuilder.jsx';
 import WorkflowManager from './pages/WorkflowManager.jsx';
 import WorkflowApprovals from './pages/WorkflowApprovals.jsx';
@@ -192,14 +192,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
             <Route
               path="workflows/temporal/history"
-              element={
-                <ProtectedRoute permissionCode="TEMPORAL_WORKFLOW_READ">
-                  <TemporalWorkflowHistory />
-                </ProtectedRoute>
-              }
+              element={<Navigate replace to="/workflows/history?runtime=temporal" />}
             />
-            <Route path="automation/temporal" element={<Navigate replace to="/workflows/temporal/history" />} />
-            <Route path="temporal" element={<Navigate replace to="/workflows/temporal/history" />} />
+            <Route path="automation/temporal" element={<Navigate replace to="/workflows/history?runtime=temporal" />} />
+            <Route path="temporal" element={<Navigate replace to="/workflows/history?runtime=temporal" />} />
 
 
             <Route
