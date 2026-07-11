@@ -1,17 +1,9 @@
 :root {
+  --sky-font-sans: 'Inter', 'Geist', 'Satoshi', 'Manrope', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sky-font-mono: 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
   color: #e7edf7;
   background: #0a0f1c;
-  font-family:
-    'Inter',
-    'Geist',
-    'Satoshi',
-    'Manrope',
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(--sky-font-sans);
   font-synthesis: none;
   font-feature-settings:
     'cv02' 1,
@@ -50,5 +42,5 @@ textarea {
 
 code,
 pre {
-  font-family: 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+  font-family: var(--sky-font-mono);
 }
