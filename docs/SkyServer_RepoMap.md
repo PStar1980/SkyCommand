@@ -355,7 +355,12 @@ SkyServer/
 │   │   │   ├── core.tools.sql
 │   │   │   ├── core.visibility_channels.sql
 │   │   │   ├── macro.indicators.sql
+│   │   │   ├── skyweb.alert_notifications.sql
+│   │   │   ├── skyweb.alert_rule_events.sql
+│   │   │   ├── skyweb.alert_rules.sql
 │   │   │   ├── skyweb.saved_macro_views.sql
+│   │   │   ├── skyweb.user_dashboard_items.sql
+│   │   │   ├── skyweb.user_dashboards.sql
 │   │   │   ├── skyweb.user_preferences.sql
 │   │   │   ├── skyweb.user_profiles.sql
 │   │   │   ├── worker.listener_events.sql
@@ -364,7 +369,19 @@ SkyServer/
 │   │   │   ├── worker.schedule_runs.sql
 │   │   │   ├── worker.schedules_phase8_5.sql
 │   │   │   ├── worker.schedules.sql
-│   │   │   └── worker.worker_nodes.sql
+│   │   │   ├── worker.temporal_worker_heartbeats.sql
+│   │   │   ├── worker.temporal_workflow_definitions.sql
+│   │   │   ├── worker.temporal_workflow_parameters.sql
+│   │   │   ├── worker.temporal_workflow_run_records.sql
+│   │   │   ├── worker.worker_nodes.sql
+│   │   │   ├── worker.workflow_approval_requests.sql
+│   │   │   ├── worker.workflow_definitions.sql
+│   │   │   ├── worker.workflow_edges.sql
+│   │   │   ├── worker.workflow_node_run_records.sql
+│   │   │   ├── worker.workflow_node_types.sql
+│   │   │   ├── worker.workflow_nodes.sql
+│   │   │   ├── worker.workflow_run_records.sql
+│   │   │   └── worker.workflow_versions.sql
 │   │   ├── triggers/
 │   │   │   ├── auth.permissions_set_updated_at.sql
 │   │   │   ├── auth.roles_set_updated_at.sql
@@ -376,14 +393,30 @@ SkyServer/
 │   │   │   ├── core.tool_categories_set_updated_at.sql
 │   │   │   ├── core.tool_parameters_set_updated_at.sql
 │   │   │   ├── core.tools_set_updated_at.sql
+│   │   │   ├── skyweb.alert_notifications_set_updated_at.sql
+│   │   │   ├── skyweb.alert_rules_set_updated_at.sql
 │   │   │   ├── skyweb.saved_macro_views_set_updated_at.sql
+│   │   │   ├── skyweb.user_dashboard_items_set_updated_at.sql
+│   │   │   ├── skyweb.user_dashboards_set_updated_at.sql
 │   │   │   ├── skyweb.user_preferences_set_updated_at.sql
 │   │   │   ├── skyweb.user_profiles_set_updated_at.sql
 │   │   │   ├── worker.listener_events_set_updated_at.sql
 │   │   │   ├── worker.listeners_set_updated_at.sql
 │   │   │   ├── worker.schedule_runs_set_updated_at.sql
 │   │   │   ├── worker.schedules_set_updated_at.sql
-│   │   │   └── worker.worker_nodes_set_updated_at.sql
+│   │   │   ├── worker.temporal_worker_heartbeats_set_updated_at.sql
+│   │   │   ├── worker.temporal_workflow_definitions_set_updated_at.sql
+│   │   │   ├── worker.temporal_workflow_parameters_set_updated_at.sql
+│   │   │   ├── worker.temporal_workflow_run_records_set_updated_at.sql
+│   │   │   ├── worker.worker_nodes_set_updated_at.sql
+│   │   │   ├── worker.workflow_approval_requests_set_updated_at.sql
+│   │   │   ├── worker.workflow_definitions_set_updated_at.sql
+│   │   │   ├── worker.workflow_edges_set_updated_at.sql
+│   │   │   ├── worker.workflow_node_run_records_set_updated_at.sql
+│   │   │   ├── worker.workflow_node_types_set_updated_at.sql
+│   │   │   ├── worker.workflow_nodes_set_updated_at.sql
+│   │   │   ├── worker.workflow_run_records_set_updated_at.sql
+│   │   │   └── worker.workflow_versions_set_updated_at.sql
 │   │   └── views/
 │   │       ├── auth.vw_active_sessions.sql
 │   │       ├── auth.vw_audit_events_recent.sql
@@ -418,14 +451,26 @@ SkyServer/
 │   │       ├── macro.vw_us_ca_inflation_compare.sql
 │   │       ├── macro.vw_us_ca_labor_compare.sql
 │   │       ├── macro.vw_us_ca_policy_fx.sql
+│   │       ├── skyweb.vw_alert_notifications.sql
+│   │       ├── skyweb.vw_alert_rule_events.sql
+│   │       ├── skyweb.vw_alert_rules.sql
 │   │       ├── skyweb.vw_saved_macro_views.sql
+│   │       ├── skyweb.vw_user_dashboard_items.sql
+│   │       ├── skyweb.vw_user_dashboards.sql
 │   │       ├── skyweb.vw_user_preferences.sql
 │   │       ├── skyweb.vw_user_profiles.sql
 │   │       ├── worker.vw_listener_events_recent.sql
 │   │       ├── worker.vw_listeners.sql
 │   │       ├── worker.vw_schedule_runs_recent.sql
 │   │       ├── worker.vw_schedules.sql
-│   │       └── worker.vw_worker_nodes.sql
+│   │       ├── worker.vw_temporal_worker_heartbeats.sql
+│   │       ├── worker.vw_temporal_workflow_definitions.sql
+│   │       ├── worker.vw_temporal_workflow_run_records.sql
+│   │       ├── worker.vw_worker_nodes.sql
+│   │       ├── worker.vw_workflow_approval_requests.sql
+│   │       ├── worker.vw_workflow_definitions.sql
+│   │       ├── worker.vw_workflow_nodes.sql
+│   │       └── worker.vw_workflow_run_records.sql
 │   ├── node/
 │   │   └── util/
 │   │       ├── bootstrap.js
