@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { BarChart, LineChart, PieChart } from 'echarts/charts';
+import { BarChart, GaugeChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([BarChart, GaugeChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 function EChartCanvas({ className = '', height = 260, option }) {
   const chartStyle = typeof height === 'number' ? { minHeight: height } : { height, minHeight: height };

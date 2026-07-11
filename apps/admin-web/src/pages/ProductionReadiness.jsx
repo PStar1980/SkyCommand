@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ProductionReadinessVisuals from '../components/charts/ProductionReadinessVisuals.jsx';
 import adminService from '../services/adminService';
 
 function formatDate(value) {
@@ -267,6 +268,8 @@ function ProductionReadiness() {
           </section>
         </div>
       </div>
+
+      <ProductionReadinessVisuals readiness={readiness} />
 
       <div className="row g-3">
         {sections.map((section) => (
