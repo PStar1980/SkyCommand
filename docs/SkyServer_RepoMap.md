@@ -56,6 +56,7 @@ SkyServer/
 │   │       │   │   ├── DashboardVisuals.jsx
 │   │       │   │   ├── EChartCanvas.jsx
 │   │       │   │   ├── EChartCard.jsx
+│   │       │   │   ├── WorkerHealthVisuals.jsx
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
 │   │       │   └── ui/
 │   │       │       ├── PageHeader.jsx
