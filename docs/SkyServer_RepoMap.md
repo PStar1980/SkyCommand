@@ -57,6 +57,7 @@ SkyServer/
 │   │       │   │   ├── EChartCanvas.jsx
 │   │       │   │   ├── EChartCard.jsx
 │   │       │   │   ├── IngestionStatusVisuals.jsx
+│   │       │   │   ├── ProductionReadinessVisuals.jsx
 │   │       │   │   ├── ToolsHistoryVisuals.jsx
 │   │       │   │   ├── WorkerHealthVisuals.jsx
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
