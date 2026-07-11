@@ -176,6 +176,12 @@ const IMAGE_FILE_EXTENSIONS = new Set([
   '.heif',
 ]);
 
+const PRESERVED_IMAGE_RELATIVE_PATHS = new Set(['apps/admin-web/public/favicon.svg']);
+
+function normalizeRelativeAssetPath(fullPath) {
+  return path.relative(location, fullPath).split(path.sep).join('/').toLowerCase();
+}
+
 function isWithinNodeModules(fullPath) {
   const relativePath = path.relative(location, fullPath);
 
@@ -238,7 +244,13 @@ function shouldSkipFile(fullPath) {
 
   const extension = path.extname(fullPath).toLowerCase();
 
-  if (!includeImages && IMAGE_FILE_EXTENSIONS.has(extension)) {
+  const relativeAssetPath = normalizeRelativeAssetPath(fullPath);
+
+  if (
+    !includeImages &&
+    IMAGE_FILE_EXTENSIONS.has(extension) &&
+    !PRESERVED_IMAGE_RELATIVE_PATHS.has(relativeAssetPath)
+  ) {
     return true;
   }
 
@@ -247,7 +259,7 @@ function shouldSkipFile(fullPath) {
     return false;
   }
 
-  return ['.zip', '.log'].includes(extension);
+  return ['.zip', '.log', '.patch'].includes(extension);
 }
 
 function scanDirectory(dir, baseDir = dir) {

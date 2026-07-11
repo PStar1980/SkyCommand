@@ -1,4 +1,4 @@
-﻿# Node.js
+# Node.js
 node_modules/
 .env
 
@@ -14,9 +14,10 @@ logs/
 index/
 data/
 
-# Build artifacts
+# Build and handoff artifacts
 dist/
 *.zip
+*.patch
 
 # OS/Editor
 .DS_Store
