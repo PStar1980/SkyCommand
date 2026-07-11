@@ -1311,15 +1311,16 @@
 .sky-login-card {
   position: relative;
   overflow: hidden;
-  width: min(100%, 520px);
-  border-color: rgba(124, 144, 177, 0.28);
+  width: min(100%, 680px);
+  border-color: rgba(124, 144, 177, 0.3);
   background:
     linear-gradient(145deg, rgba(15, 28, 52, 0.92), rgba(8, 14, 29, 0.88) 56%, rgba(16, 13, 39, 0.9)),
     rgba(5, 10, 21, 0.92);
   box-shadow:
-    0 28px 90px rgba(0, 0, 0, 0.5),
-    0 0 90px rgba(72, 167, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.075);
+    0 34px 110px rgba(0, 0, 0, 0.52),
+    0 0 110px rgba(72, 167, 255, 0.1),
+    0 0 160px rgba(255, 126, 54, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.085);
   backdrop-filter: blur(22px);
 }
 
@@ -1328,8 +1329,8 @@
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 18% 0%, rgba(72, 167, 255, 0.18), transparent 13rem),
-    radial-gradient(circle at 86% 110%, rgba(255, 126, 54, 0.12), transparent 14rem),
+    radial-gradient(circle at 18% 0%, rgba(72, 167, 255, 0.2), transparent 14rem),
+    radial-gradient(circle at 86% 110%, rgba(255, 126, 54, 0.14), transparent 16rem),
     linear-gradient(120deg, rgba(255, 255, 255, 0.055), transparent 42%);
   content: '';
 }
@@ -1338,6 +1339,191 @@
 .sky-login-card .sky-card-body {
   position: relative;
   z-index: 1;
+}
+
+.sky-login-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.35rem 1.45rem 1.25rem;
+}
+
+.sky-login-card-header .sky-page-title {
+  font-size: clamp(2rem, 2.4vw, 2.55rem);
+  letter-spacing: -0.06em;
+}
+
+.sky-login-card-header .sky-page-subtitle {
+  max-width: 31rem;
+  color: #c1d1ee;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.sky-login-card-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: max-content;
+  border: 1px solid rgba(72, 167, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(72, 167, 255, 0.075);
+  color: #9ecbff;
+  padding: 0.48rem 0.72rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sky-login-card-signal span {
+  display: block;
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 999px;
+  background: #48f0b3;
+  box-shadow: 0 0 16px rgba(72, 240, 179, 0.72);
+}
+
+.sky-login-card-body {
+  padding: 1.35rem 1.45rem 1.45rem;
+}
+
+.sky-login-form {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.sky-login-card .sky-form-control {
+  min-height: 3.15rem;
+  border-radius: 0.74rem;
+  font-size: 1rem;
+}
+
+.sky-login-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.2rem 0 1.15rem;
+}
+
+.sky-login-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.8rem;
+  margin: 0;
+  color: #aebfda;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.sky-login-remember .form-check-input {
+  margin: 0;
+  border-color: rgba(124, 144, 177, 0.4);
+  background-color: rgba(5, 10, 21, 0.86);
+}
+
+.sky-login-remember .form-check-input:checked {
+  border-color: rgba(72, 167, 255, 0.74);
+  background-color: #2b8fff;
+}
+
+.sky-auth-text-button {
+  border: 0;
+  background: transparent;
+  color: #9dccff;
+  padding: 0;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.sky-auth-text-button:hover,
+.sky-auth-text-button:focus {
+  color: #f4fbff;
+  text-decoration: underline;
+  text-underline-offset: 0.24rem;
+}
+
+.sky-login-submit {
+  min-height: 3.25rem;
+  border-radius: 0.78rem;
+  font-size: 1rem;
+  box-shadow: 0 14px 34px rgba(43, 143, 255, 0.18);
+}
+
+.sky-login-access-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 1.05rem;
+}
+
+.sky-login-access-button {
+  min-height: 5.3rem;
+  border: 1px solid rgba(124, 144, 177, 0.18);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.055), rgba(155, 89, 255, 0.035)),
+    rgba(4, 9, 19, 0.62);
+  color: #d9e7ff;
+  padding: 0.9rem 0.95rem;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.sky-login-access-button:hover,
+.sky-login-access-button:focus,
+.sky-login-access-button.is-active {
+  border-color: rgba(72, 167, 255, 0.48);
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.12), rgba(155, 89, 255, 0.08)),
+    rgba(6, 13, 26, 0.78);
+  box-shadow: 0 16px 44px rgba(72, 167, 255, 0.09);
+  transform: translateY(-1px);
+}
+
+.sky-login-access-button strong,
+.sky-login-access-button span {
+  display: block;
+}
+
+.sky-login-access-button strong {
+  color: #f7fbff;
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+.sky-login-access-button span {
+  margin-top: 0.28rem;
+  color: #9fb0cc;
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+
+.sky-login-support-panel {
+  margin-top: 1rem;
+  border: 1px solid rgba(72, 167, 255, 0.2);
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(72, 167, 255, 0.12), transparent 11rem),
+    rgba(4, 9, 19, 0.72);
+  padding: 0.95rem 1rem;
+  color: #c8d7ef;
+}
+
+.sky-login-support-panel p {
+  margin: 0.32rem 0 0.72rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .sky-auth-alert {
@@ -2990,6 +3176,35 @@
 
   .sky-public-brand-subtitle {
     font-size: 0.62rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .sky-login-card {
+    width: min(100%, 560px);
+  }
+
+  .sky-login-card-header {
+    display: block;
+    padding: 1.1rem 1.1rem 1rem;
+  }
+
+  .sky-login-card-signal {
+    margin-top: 0.95rem;
+  }
+
+  .sky-login-card-body {
+    padding: 1.1rem;
+  }
+
+  .sky-login-access-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-login-options-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.7rem;
   }
 }
 
