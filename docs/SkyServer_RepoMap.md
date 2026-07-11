@@ -70,6 +70,7 @@ SkyServer/
 │   │       │   │   ├── WorkerHealthVisuals.jsx
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
 │   │       │   └── ui/
+│   │       │       ├── DashboardFilterCard.jsx
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
 │   │       │       ├── SidebarNav.jsx
@@ -85,21 +86,25 @@ SkyServer/
 │   │       │   ├── AdminSessions.jsx
 │   │       │   ├── AdminUsers.jsx
 │   │       │   ├── AuditEvents.jsx
+│   │       │   ├── AutomationDashboard.jsx
 │   │       │   ├── AutomationListeners.jsx
 │   │       │   ├── Dashboard.jsx
 │   │       │   ├── Home.jsx
 │   │       │   ├── IngestionStatus.jsx
 │   │       │   ├── Login.jsx
 │   │       │   ├── ProductionReadiness.jsx
+│   │       │   ├── ReadinessDashboard.jsx
 │   │       │   ├── SchedulerControl.jsx
 │   │       │   ├── ScriptExecutions.jsx
 │   │       │   ├── SkyWorkflows.jsx
 │   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── Tools.jsx
+│   │       │   ├── ToolsDashboard.jsx
 │   │       │   ├── WorkerControl.jsx
 │   │       │   ├── WorkflowApprovals.jsx
 │   │       │   ├── WorkflowBuilder.jsx
 │   │       │   ├── WorkflowManager.jsx
+│   │       │   ├── WorkflowsDashboard.jsx
 │   │       │   └── WorkflowWorkerHealth.jsx
 │   │       └── services/
 │   │           ├── adminService.js

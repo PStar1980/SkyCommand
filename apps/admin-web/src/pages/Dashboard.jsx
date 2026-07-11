@@ -320,7 +320,7 @@ function Dashboard() {
         buildDashboardTask(
           'Review ingestion',
           summary.ingestion?.overallStatus || '—',
-          '/data/ingestion',
+          '/dashboard/data-pipeline',
           'INGESTION_VIEW_STATUS',
           permissionCodes,
         ),
@@ -538,7 +538,7 @@ function Dashboard() {
       value: loading ? '—' : summary.ingestion?.overallStatus || '—',
       helper: `${ingestionCounts.currentIndicators || 0} current · ${ingestionCounts.staleIndicators || 0} stale`,
       status: summary.ingestion?.overallStatus || 'UNKNOWN',
-      to: '/data/ingestion',
+      to: '/dashboard/data-pipeline',
       visible: hasPermission('INGESTION_VIEW_STATUS'),
     },
   ].filter((metric) => metric.visible);
@@ -858,7 +858,7 @@ function Dashboard() {
                 <div className="small sky-muted">Source freshness and indicator health</div>
               </div>
               {hasPermission('INGESTION_VIEW_STATUS') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/data/ingestion">
+                <Link className="btn btn-sm sky-btn-ghost" to="/dashboard/data-pipeline">
                   Open ingestion
                 </Link>
               )}

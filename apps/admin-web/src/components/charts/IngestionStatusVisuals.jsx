@@ -507,7 +507,6 @@ function IngestionStatusVisuals({ indicators = [], recentExecutions = [], source
           title="Freshness mix"
         />
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={285}
           kicker="Source composition"
           option={sourceStackOption}
@@ -529,7 +528,6 @@ function IngestionStatusVisuals({ indicators = [], recentExecutions = [], source
           title="Latest data distribution"
         />
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={285}
           kicker="Run duration"
           option={durationOption}

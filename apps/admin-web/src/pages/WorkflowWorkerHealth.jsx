@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import WorkerHealthVisuals from '../components/charts/WorkerHealthVisuals.jsx';
 import workflowService from '../services/workflowService';
 
 function formatDate(value) {
@@ -113,8 +112,6 @@ function WorkflowWorkerHealth() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
-  const [recentRuns, setRecentRuns] = useState([]);
-  const [pendingApprovals, setPendingApprovals] = useState([]);
 
   async function loadHealth() {
     setLoading(true);
@@ -122,20 +119,10 @@ function WorkflowWorkerHealth() {
 
     try {
       const healthResult = await workflowService.getWorkerHealth();
-
-      const [runsResult, approvalsResult] = await Promise.allSettled([
-        workflowService.listRuns({ limit: 80 }),
-        workflowService.listApprovals({ status: 'PENDING', limit: 50 }),
-      ]);
-
       setHealth(healthResult);
-      setRecentRuns(runsResult.status === 'fulfilled' ? runsResult.value?.items || [] : []);
-      setPendingApprovals(approvalsResult.status === 'fulfilled' ? approvalsResult.value?.items || [] : []);
       setRefreshingAt(new Date());
     } catch (loadError) {
       setError(loadError.message || 'Failed to load worker health.');
-      setRecentRuns([]);
-      setPendingApprovals([]);
     } finally {
       setLoading(false);
     }
@@ -276,12 +263,6 @@ function WorkflowWorkerHealth() {
         ))}
       </div>
 
-
-      <WorkerHealthVisuals
-        health={health || {}}
-        pendingApprovals={pendingApprovals}
-        runs={recentRuns}
-      />
 
       <div className="row g-3 mt-1 sky-workbench-row">
         <div className="col-xxl-8 col-xl-7 sky-workbench-main">
