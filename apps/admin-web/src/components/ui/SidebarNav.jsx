@@ -5,6 +5,10 @@ function getNavLinkClass({ isActive }) {
   return `sky-sidebar-link ${isActive ? 'active' : ''}`;
 }
 
+function shouldUseExactMatch(item) {
+  return item.end ?? true;
+}
+
 function SidebarNav({ navGroups = [], onNavigate, onClose, open = false }) {
   return (
     <aside className={`sky-sidebar ${open ? 'is-open' : ''}`}>
@@ -36,7 +40,13 @@ function SidebarNav({ navGroups = [], onNavigate, onClose, open = false }) {
             </div>
             <div className="sky-sidebar-group-items">
               {group.items.map((item) => (
-                <NavLink className={getNavLinkClass} key={item.to} onClick={onNavigate} to={item.to}>
+                <NavLink
+                  className={getNavLinkClass}
+                  end={shouldUseExactMatch(item)}
+                  key={item.to}
+                  onClick={onNavigate}
+                  to={item.to}
+                >
                   <span className="sky-sidebar-link-icon">{item.icon}</span>
                   <span className="sky-sidebar-link-copy">
                     <span className="sky-sidebar-link-title">{item.label}</span>
