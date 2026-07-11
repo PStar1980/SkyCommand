@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import adminService from '../services/adminService';
+import ToolsHistoryVisuals from '../components/charts/ToolsHistoryVisuals.jsx';
 
 function formatDate(value) {
   if (!value) {
@@ -80,6 +81,7 @@ function formatDuration(item) {
 
 function ScriptExecutions() {
   const [items, setItems] = useState([]);
+  const [visualItems, setVisualItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [filters, setFilters] = useState({ status: '', limit: 25 });
   const [total, setTotal] = useState(0);
@@ -91,8 +93,16 @@ function ScriptExecutions() {
     setError('');
 
     try {
-      const result = await adminService.listScriptExecutions(nextFilters);
+      const visualLimit = 200;
+      const [result, visualResult] = await Promise.all([
+        adminService.listScriptExecutions(nextFilters),
+        adminService.listScriptExecutions({
+          ...nextFilters,
+          limit: visualLimit,
+        }),
+      ]);
       setItems(result.items || []);
+      setVisualItems(visualResult.items || result.items || []);
       setTotal(result.total || 0);
       setSelectedItem((currentSelected) => {
         if (!currentSelected) {
@@ -149,6 +159,8 @@ function ScriptExecutions() {
       </header>
 
       {error && <div className="alert alert-danger">{error}</div>}
+
+      <ToolsHistoryVisuals executions={visualItems.length ? visualItems : items} />
 
       <section className="sky-card mb-3">
         <div className="sky-card-body">
