@@ -1388,7 +1388,7 @@ function SkyWorkflows({ mode = 'start' }) {
               </div>
             </div>
           </div>
-          <div className="table-responsive sky-table-card sky-workflow-history-table-card">
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-workflow-history-table-card">
             <table className="table table-sm table-hover sky-table align-middle">
               <thead>
                 <tr>
