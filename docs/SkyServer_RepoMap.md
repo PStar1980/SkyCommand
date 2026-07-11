@@ -52,13 +52,21 @@ SkyServer/
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx
 │   │       │   ├── WorkflowVisualGraph.jsx
 │   │       │   ├── charts/
+│   │       │   │   ├── chartData.js
 │   │       │   │   ├── ChartFullscreenOverlay.jsx
+│   │       │   │   ├── chartOptions.js
+│   │       │   │   ├── chartTheme.js
 │   │       │   │   ├── DashboardVisuals.jsx
+│   │       │   │   ├── DurationTrendChart.jsx
 │   │       │   │   ├── EChartCanvas.jsx
 │   │       │   │   ├── EChartCard.jsx
+│   │       │   │   ├── EmptyChartState.jsx
 │   │       │   │   ├── IngestionStatusVisuals.jsx
+│   │       │   │   ├── OutcomeBarChart.jsx
 │   │       │   │   ├── ProductionReadinessVisuals.jsx
+│   │       │   │   ├── StatusDonut.jsx
 │   │       │   │   ├── ToolsHistoryVisuals.jsx
+│   │       │   │   ├── TrendAreaChart.jsx
 │   │       │   │   ├── WorkerHealthVisuals.jsx
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
 │   │       │   └── ui/

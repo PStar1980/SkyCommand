@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ChartFullscreenOverlay from './ChartFullscreenOverlay.jsx';
 import EChartCanvas from './EChartCanvas.jsx';
+import EmptyChartState from './EmptyChartState.jsx';
 
 function ExpandIcon() {
   return (
@@ -17,7 +18,18 @@ function ExpandIcon() {
   );
 }
 
-function EChartCard({ className = '', expandable = true, height = 260, kicker, option, subtitle, title }) {
+function EChartCard({
+  className = '',
+  emptyMessage,
+  emptyTitle,
+  expandable = true,
+  height = 260,
+  isEmpty = false,
+  kicker,
+  option,
+  subtitle,
+  title,
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [chartAspectRatio, setChartAspectRatio] = useState(16 / 9);
   const chartShellRef = useRef(null);
@@ -55,7 +67,7 @@ function EChartCard({ className = '', expandable = true, height = 260, kicker, o
             <h2 className="h5 mb-0">{title}</h2>
             {subtitle && <div className="small sky-muted mt-1">{subtitle}</div>}
           </div>
-          {expandable && (
+          {expandable && !isEmpty && (
             <button
               aria-label={`Expand ${title} chart`}
               className="sky-chart-expand-button"
@@ -68,13 +80,17 @@ function EChartCard({ className = '', expandable = true, height = 260, kicker, o
           )}
         </div>
         <div className="sky-chart-canvas-shell" ref={chartShellRef}>
-          <EChartCanvas height={height} option={option} />
+          {isEmpty ? (
+            <EmptyChartState message={emptyMessage} title={emptyTitle} />
+          ) : (
+            <EChartCanvas height={height} option={option} />
+          )}
         </div>
       </section>
 
       <ChartFullscreenOverlay
         chartAspectRatio={chartAspectRatio}
-        isOpen={isExpanded}
+        isOpen={isExpanded && !isEmpty}
         kicker={kicker}
         onClose={closeExpanded}
         option={option}

@@ -3636,6 +3636,44 @@
   min-width: 0;
 }
 
+.sky-chart-empty-state {
+  display: grid;
+  min-height: 16rem;
+  place-items: center;
+  text-align: center;
+  color: #c8d7ef;
+  padding: 2rem;
+}
+
+.sky-chart-empty-state h3 {
+  margin: 0 0 0.35rem;
+  color: #eef5ff;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.sky-chart-empty-state p {
+  max-width: 26rem;
+  margin: 0;
+  color: #8fa3c7;
+  font-size: 0.86rem;
+}
+
+.sky-chart-empty-orb {
+  width: 3.4rem;
+  height: 3.4rem;
+  margin: 0 auto 0.85rem;
+  border: 1px solid rgba(154, 215, 255, 0.22);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(80, 227, 242, 0.46), transparent 28%),
+    radial-gradient(circle at 70% 78%, rgba(137, 109, 255, 0.36), transparent 42%),
+    rgba(1, 4, 9, 0.72);
+  box-shadow:
+    0 0 34px rgba(72, 167, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
 @media (max-width: 1500px) {
   .sky-dashboard-chart-grid {
     grid-template-columns: 1fr 1fr;
