@@ -21,7 +21,11 @@ function App() {
   );
 
   return (
-    <div className={`sky-app-shell ${isAuthenticated ? 'sky-app-shell-authenticated' : ''}`}>
+    <div
+      className={`sky-app-shell ${
+        isAuthenticated ? 'sky-app-shell-authenticated' : 'sky-app-shell-public'
+      }`}
+    >
       <Navbar />
       <main className={`container-fluid sky-main ${isWorkbenchPage ? 'sky-main-workbench' : ''}`}>
         <Outlet />

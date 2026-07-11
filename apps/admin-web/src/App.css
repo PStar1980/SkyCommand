@@ -16,6 +16,54 @@
     sans-serif;
 }
 
+.sky-app-shell-public {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 52% 72%, rgba(255, 118, 45, 0.18), transparent 20rem),
+    radial-gradient(circle at 66% 66%, rgba(255, 178, 88, 0.13), transparent 18rem),
+    radial-gradient(circle at 22% 14%, rgba(72, 167, 255, 0.18), transparent 20rem),
+    radial-gradient(circle at 88% 92%, rgba(137, 109, 255, 0.2), transparent 24rem),
+    linear-gradient(180deg, #02050b 0%, #07101f 42%, #090d1c 66%, #0d0c20 100%);
+  isolation: isolate;
+}
+
+.sky-app-shell-public::before {
+  position: fixed;
+  inset: var(--sky-topbar-height) 0 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(1, 4, 9, 0.72) 0%, rgba(4, 8, 17, 0.18) 28%, rgba(1, 4, 9, 0.28) 100%),
+    radial-gradient(ellipse at 50% 66%, rgba(255, 119, 50, 0.2), transparent 28rem),
+    radial-gradient(ellipse at 54% 72%, rgba(255, 188, 112, 0.12), transparent 18rem),
+    radial-gradient(ellipse at 50% 74%, rgba(137, 109, 255, 0.12), transparent 34rem),
+    linear-gradient(180deg, rgba(10, 18, 38, 0.5), rgba(5, 8, 18, 0.92));
+  content: '';
+}
+
+.sky-app-shell-public::after {
+  position: fixed;
+  inset: var(--sky-topbar-height) 0 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, transparent 0 18%, rgba(255, 255, 255, 0.035) 24%, transparent 34%),
+    radial-gradient(ellipse at 34% 58%, rgba(244, 151, 88, 0.09), transparent 18rem),
+    radial-gradient(ellipse at 58% 46%, rgba(211, 161, 255, 0.07), transparent 20rem),
+    radial-gradient(ellipse at 42% 38%, rgba(154, 174, 205, 0.06), transparent 22rem);
+  opacity: 0.92;
+  content: '';
+}
+
+.sky-app-shell-public .sky-main {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  padding: var(--sky-topbar-height) 0 0;
+}
+
 .sky-app-shell-authenticated {
   position: relative;
   min-height: 100vh;
@@ -57,16 +105,24 @@
 }
 
 .sky-public-navbar {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 1030;
+  right: 0;
+  left: 0;
+  z-index: 1040;
   display: flex;
+  height: var(--sky-topbar-height);
   align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(124, 144, 177, 0.18);
-  background: rgba(6, 11, 22, 0.82);
-  backdrop-filter: blur(18px);
-  padding: 0.85rem 1.25rem;
+  justify-content: flex-start;
+  border-bottom: 1px solid rgba(124, 144, 177, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 62%),
+    radial-gradient(circle at 18% -40%, rgba(72, 167, 255, 0.14), transparent 20rem),
+    radial-gradient(circle at 72% -70%, rgba(255, 126, 54, 0.08), transparent 24rem),
+    #010409;
+  box-shadow: 0 22px 78px rgba(0, 0, 0, 0.48);
+  backdrop-filter: none;
+  padding: 1.15rem 1.7rem;
 }
 
 .sky-public-brand,
@@ -77,6 +133,61 @@
   color: #f6f9ff;
   font-weight: 850;
   text-decoration: none;
+}
+
+.sky-public-brand {
+  gap: 0.9rem;
+}
+
+.sky-public-brand .sky-brand-mark {
+  width: 4.08rem;
+  height: 4.08rem;
+  border-radius: 1.26rem;
+}
+
+.sky-public-brand .sky-brand-mark::before {
+  inset: 0.23rem;
+  border-radius: 1.05rem;
+}
+
+.sky-public-brand .sky-brand-mark::after {
+  inset: 0.38rem;
+  border-radius: 0.93rem;
+}
+
+.sky-public-brand .sky-brand-mark-svg {
+  width: 3.24rem;
+  height: 3.24rem;
+}
+
+.sky-public-brand-copy {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.sky-public-brand-title,
+.sky-public-brand-subtitle {
+  display: block;
+  line-height: 1.08;
+}
+
+.sky-public-brand-title {
+  color: #f7fbff;
+  font-size: 1.62rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  text-shadow: 0 0 24px rgba(72, 167, 255, 0.18);
+}
+
+.sky-public-brand-subtitle {
+  color: #a7bfeb;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .sky-sidebar {
@@ -1171,13 +1282,62 @@
 }
 
 .sky-login-wrap {
+  position: relative;
+  z-index: 1;
   display: grid;
-  min-height: calc(100vh - 7rem);
+  min-height: calc(100vh - var(--sky-topbar-height));
   place-items: center;
+  padding: clamp(2rem, 6vh, 5.5rem) clamp(1.1rem, 4vw, 4rem);
+}
+
+.sky-login-wrap::before {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  width: min(72vw, 58rem);
+  height: min(42vw, 30rem);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 48% 50%, rgba(255, 133, 63, 0.16), transparent 44%),
+    radial-gradient(circle at 42% 38%, rgba(72, 167, 255, 0.14), transparent 48%),
+    radial-gradient(circle at 66% 68%, rgba(137, 109, 255, 0.12), transparent 54%);
+  content: '';
+  filter: blur(44px);
+  opacity: 0.8;
+  pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .sky-login-card {
-  width: min(100%, 470px);
+  position: relative;
+  overflow: hidden;
+  width: min(100%, 520px);
+  border-color: rgba(124, 144, 177, 0.28);
+  background:
+    linear-gradient(145deg, rgba(15, 28, 52, 0.92), rgba(8, 14, 29, 0.88) 56%, rgba(16, 13, 39, 0.9)),
+    rgba(5, 10, 21, 0.92);
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.5),
+    0 0 90px rgba(72, 167, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075);
+  backdrop-filter: blur(22px);
+}
+
+.sky-login-card::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(72, 167, 255, 0.18), transparent 13rem),
+    radial-gradient(circle at 86% 110%, rgba(255, 126, 54, 0.12), transparent 14rem),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.055), transparent 42%);
+  content: '';
+}
+
+.sky-login-card .sky-card-header,
+.sky-login-card .sky-card-body {
+  position: relative;
+  z-index: 1;
 }
 
 .sky-auth-alert {
@@ -2808,6 +2968,28 @@
 
   .sky-public-navbar {
     padding: 0.7rem 0.85rem;
+  }
+
+  .sky-public-brand {
+    gap: 0.72rem;
+  }
+
+  .sky-public-brand .sky-brand-mark {
+    width: 3.35rem;
+    height: 3.35rem;
+  }
+
+  .sky-public-brand .sky-brand-mark-svg {
+    width: 2.65rem;
+    height: 2.65rem;
+  }
+
+  .sky-public-brand-title {
+    font-size: 1.34rem;
+  }
+
+  .sky-public-brand-subtitle {
+    font-size: 0.62rem;
   }
 }
 
