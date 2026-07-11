@@ -482,7 +482,6 @@ function ProductionReadinessVisuals({ readiness }) {
           title="Check status mix"
         />
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={280}
           kicker="Category coverage"
           option={categoryOption}
@@ -490,7 +489,6 @@ function ProductionReadinessVisuals({ readiness }) {
           title="Checks by category"
         />
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={260}
           kicker="Hardening progress"
           option={hardeningProgressOption}

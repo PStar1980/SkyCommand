@@ -468,7 +468,6 @@ function WorkflowHistoryVisuals({ runs = [] }) {
 
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={285}
           kicker="Workflow activity"
           option={runTrendOption}

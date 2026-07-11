@@ -490,7 +490,6 @@ function ToolsHistoryVisuals({ executions = [] }) {
 
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={285}
           kicker="Execution quality"
           option={statusTrendOption}

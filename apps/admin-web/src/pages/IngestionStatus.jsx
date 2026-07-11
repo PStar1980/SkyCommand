@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import IngestionStatusVisuals from '../components/charts/IngestionStatusVisuals.jsx';
+import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
 import ingestionService from '../services/ingestionService';
 
 const SOURCE_OPTIONS = [
@@ -405,6 +406,30 @@ function IngestionStatus() {
     await loadIndicators(nextFilters);
   }
 
+  async function applyDashboardFilters(event) {
+    event.preventDefault();
+    await Promise.all([loadIndicators(filters), loadRecentExecutions(recentFilters)]);
+  }
+
+  async function resetDashboardFilters() {
+    const nextIndicatorFilters = {
+      source: '',
+      status: '',
+      active: 'true',
+      q: '',
+      limit: 50,
+    };
+    const nextRecentFilters = {
+      source: '',
+      status: '',
+      limit: 50,
+    };
+
+    setFilters(nextIndicatorFilters);
+    setRecentFilters(nextRecentFilters);
+    await Promise.all([loadIndicators(nextIndicatorFilters), loadRecentExecutions(nextRecentFilters)]);
+  }
+
   async function handleSourceSelect(sourceCode) {
     const nextIndicatorFilters = {
       ...filters,
@@ -427,10 +452,10 @@ function IngestionStatus() {
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Pipeline health</div>
-          <h1 className="sky-page-title">Ingestion Status</h1>
+          <div className="sky-page-kicker">Dashboards · Data pipeline</div>
+          <h1 className="sky-page-title">Data Pipeline</h1>
           <p className="sky-page-subtitle">
-            Monitor source freshness, recent ingestion runs, and indicator-level data health across
+            Visualize source freshness, recent ingestion runs, and indicator-level data health across
             the macro pipeline.
           </p>
         </div>
@@ -557,6 +582,127 @@ function IngestionStatus() {
           )}
         </div>
       </section>
+
+
+      <form onSubmit={applyDashboardFilters}>
+        <DashboardFilterCard
+          actions={(
+            <>
+              <button
+                className="btn sky-btn-primary"
+                disabled={overviewLoading || recentLoading || indicatorLoading}
+                type="submit"
+              >
+                Apply filters
+              </button>
+              <button
+                className="btn sky-btn-ghost"
+                disabled={overviewLoading || recentLoading || indicatorLoading}
+                onClick={resetDashboardFilters}
+                type="button"
+              >
+                Reset
+              </button>
+            </>
+          )}
+          meta={`${indicators.length} visible indicators · ${recentExecutions.length} recent ingestion runs`}
+          title="Pipeline analytics filters"
+        >
+          <div>
+            <label className="form-label" htmlFor="pipelineDashboardSourceFilter">
+              Source
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="pipelineDashboardSourceFilter"
+              onChange={(event) => {
+                updateFilter('source', event.target.value);
+                updateRecentFilter('source', event.target.value);
+              }}
+              value={filters.source}
+            >
+              {SOURCE_OPTIONS.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="pipelineDashboardStatusFilter">
+              Indicator status
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="pipelineDashboardStatusFilter"
+              onChange={(event) => updateFilter('status', event.target.value)}
+              value={filters.status}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="pipelineDashboardActiveFilter">
+              Active state
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="pipelineDashboardActiveFilter"
+              onChange={(event) => updateFilter('active', event.target.value)}
+              value={filters.active}
+            >
+              <option value="true">Active indicators</option>
+              <option value="false">Inactive indicators</option>
+              <option value="">All indicators</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="pipelineDashboardRecentStatusFilter">
+              Run status
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="pipelineDashboardRecentStatusFilter"
+              onChange={(event) => updateRecentFilter('status', event.target.value)}
+              value={recentFilters.status}
+            >
+              {EXECUTION_STATUS_OPTIONS.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="pipelineDashboardLimitFilter">
+              Indicator limit
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="pipelineDashboardLimitFilter"
+              onChange={(event) => updateFilter('limit', event.target.value)}
+              value={filters.limit}
+            >
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="pipelineDashboardRunLimitFilter">
+              Run limit
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="pipelineDashboardRunLimitFilter"
+              onChange={(event) => updateRecentFilter('limit', event.target.value)}
+              value={recentFilters.limit}
+            >
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </DashboardFilterCard>
+      </form>
 
       <IngestionStatusVisuals
         indicators={indicators}

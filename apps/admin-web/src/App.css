@@ -3699,7 +3699,7 @@
   }
 
   .sky-dashboard-chart-wide {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 }
 
@@ -3711,6 +3711,25 @@
   .sky-dashboard-visuals {
     padding: 0.9rem;
   }
+}
+
+
+.sky-dashboard-filter-card {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(72, 167, 255, 0.08), transparent 14rem),
+    radial-gradient(circle at 100% 100%, rgba(137, 109, 255, 0.08), transparent 16rem),
+    rgba(6, 11, 22, 0.72);
+}
+
+.sky-dashboard-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+}
+
+.sky-dashboard-filter-grid .form-label {
+  margin-bottom: 0.35rem;
 }
 
 .sky-system-health-strip {
@@ -3745,7 +3764,7 @@
 }
 
 .sky-dashboard-chart-grid-expanded .sky-dashboard-chart-wide {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 @media (max-width: 1500px) {
@@ -3755,7 +3774,7 @@
   }
 
   .sky-dashboard-chart-grid-expanded .sky-dashboard-chart-wide {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 }
 

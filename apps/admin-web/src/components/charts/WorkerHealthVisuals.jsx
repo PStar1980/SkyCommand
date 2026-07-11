@@ -452,7 +452,6 @@ function WorkerHealthVisuals({ health = {}, pendingApprovals = [], runs = [] }) 
 
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={285}
           kicker="Heartbeat timeline"
           option={heartbeatTimelineOption}
@@ -474,7 +473,6 @@ function WorkerHealthVisuals({ health = {}, pendingApprovals = [], runs = [] }) 
           title="Poller coverage"
         />
         <EChartCard
-          className="sky-dashboard-chart-wide"
           height={260}
           kicker="Run throughput"
           option={runActivityOption}

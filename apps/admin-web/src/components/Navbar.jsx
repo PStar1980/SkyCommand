@@ -14,6 +14,13 @@ const DEFAULT_PASSWORD_FORM = {
 
 const COMMAND_SEARCH_ALIASES = {
   dashboard: '/dashboard',
+  overview: '/dashboard',
+  'data pipeline': '/dashboard/data-pipeline',
+  pipeline: '/dashboard/data-pipeline',
+  'tools dashboard': '/dashboard/tools',
+  'workflows dashboard': '/dashboard/workflows',
+  'automation dashboard': '/dashboard/automation',
+  'readiness dashboard': '/dashboard/readiness',
   home: '/dashboard',
   pulse: '/dashboard',
   tools: '/tools/run',
@@ -28,9 +35,9 @@ const COMMAND_SEARCH_ALIASES = {
   temporal: '/workflows/temporal/history',
   scheduler: '/automation/scheduler',
   listeners: '/automation/listeners',
-  ingestion: '/data/ingestion',
-  data: '/data/ingestion',
-  readiness: '/configuration/production-readiness',
+  ingestion: '/dashboard/data-pipeline',
+  data: '/dashboard/data-pipeline',
+  readiness: '/dashboard/readiness',
   repositories: '/configuration/repositories',
   repos: '/configuration/repositories',
   users: '/admin/users',
@@ -64,6 +71,11 @@ function NavIcon({ name }) {
 
 const PAGE_LABELS = {
   '/dashboard': 'Overview',
+  '/dashboard/data-pipeline': 'Data Pipeline',
+  '/dashboard/tools': 'Tools',
+  '/dashboard/workflows': 'Workflows',
+  '/dashboard/automation': 'Automation',
+  '/dashboard/readiness': 'Readiness',
   '/tools/run': 'Run Tools',
   '/tools/executions': 'Tools History',
   '/workflows/create': 'Create Workflow',
@@ -76,7 +88,7 @@ const PAGE_LABELS = {
   '/workflows/temporal/history': 'Temporal History',
   '/automation/scheduler': 'Scheduler',
   '/automation/listeners': 'Listeners',
-  '/data/ingestion': 'Ingestion Status',
+  '/data/ingestion': 'Data Pipeline',
   '/configuration/production-readiness': 'Production Readiness',
   '/configuration/repositories': 'Repositories',
   '/admin/users': 'Users',
@@ -137,7 +149,6 @@ function createNavGroups(hasPermission) {
     hasPermission('WORKFLOW_APPROVAL_READ');
   const canViewAutomation =
     hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
-  const canViewData = hasPermission('INGESTION_VIEW_STATUS');
   const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
@@ -159,11 +170,39 @@ function createNavGroups(hasPermission) {
           description: 'Operational pulse',
         },
         {
-          label: 'Worker Health',
-          to: '/workflows/worker-health',
-          icon: '●',
-          visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
-          description: 'Task queue and pollers',
+          label: 'Data Pipeline',
+          to: '/dashboard/data-pipeline',
+          icon: '⇣',
+          visible: hasPermission('INGESTION_VIEW_STATUS'),
+          description: 'Macro pipeline analytics',
+        },
+        {
+          label: 'Tools',
+          to: '/dashboard/tools',
+          icon: '▣',
+          visible: hasPermission('SCRIPT_EXECUTION_READ'),
+          description: 'Execution analytics',
+        },
+        {
+          label: 'Workflows',
+          to: '/dashboard/workflows',
+          icon: '◷',
+          visible: hasPermission('WORKFLOW_READ'),
+          description: 'Run analytics',
+        },
+        {
+          label: 'Automation',
+          to: '/dashboard/automation',
+          icon: '◎',
+          visible: hasPermission('WORKFLOW_READ'),
+          description: 'Worker pulse',
+        },
+        {
+          label: 'Readiness',
+          to: '/dashboard/readiness',
+          icon: '✓',
+          visible: hasPermission('ADMIN_REPOSITORY_READ'),
+          description: 'Hardening analytics',
         },
       ],
     },
@@ -229,6 +268,13 @@ function createNavGroups(hasPermission) {
           description: 'Human gates',
         },
         {
+          label: 'Worker Health',
+          to: '/workflows/worker-health',
+          icon: '●',
+          visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
+          description: 'Task queue and pollers',
+        },
+        {
           label: 'Temporal History',
           to: '/workflows/temporal/history',
           icon: 'T',
@@ -255,20 +301,6 @@ function createNavGroups(hasPermission) {
           icon: '◎',
           visible: hasPermission('WORKER_LISTENER_READ'),
           description: 'Event watchers',
-        },
-      ],
-    },
-    {
-      label: 'Data',
-      icon: '▦',
-      visible: canViewData,
-      items: [
-        {
-          label: 'Ingestion Status',
-          to: '/data/ingestion',
-          icon: '⇣',
-          visible: hasPermission('INGESTION_VIEW_STATUS'),
-          description: 'Macro sources',
         },
       ],
     },
@@ -410,11 +442,11 @@ function Navbar() {
       status: 'Ready',
       to: '/workflows/approvals',
     },
-    permittedRoutes.has('/data/ingestion') && {
+    permittedRoutes.has('/dashboard/data-pipeline') && {
       label: 'Pipeline freshness',
       meta: 'Inspect stale indicators and macro ingestion health.',
       status: 'Watch',
-      to: '/data/ingestion',
+      to: '/dashboard/data-pipeline',
     },
   ].filter(Boolean);
 

@@ -140,7 +140,6 @@ function DashboardVisuals({
 
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">
         <TrendAreaChart
-          className="sky-dashboard-chart-wide"
           colors={[CHART_COLORS.blue, CHART_COLORS.violet]}
           height={285}
           kicker="Weekly activity"

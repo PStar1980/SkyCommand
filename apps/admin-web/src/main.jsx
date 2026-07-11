@@ -13,12 +13,16 @@ import ProductionReadiness from './pages/ProductionReadiness.jsx';
 import AdminRoles from './pages/AdminRoles.jsx';
 import AdminSessions from './pages/AdminSessions.jsx';
 import AdminUsers from './pages/AdminUsers.jsx';
+import AutomationDashboard from './pages/AutomationDashboard.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Home from './pages/Home.jsx';
 import IngestionStatus from './pages/IngestionStatus.jsx';
 import Login from './pages/Login.jsx';
+import ReadinessDashboard from './pages/ReadinessDashboard.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
+import ToolsDashboard from './pages/ToolsDashboard.jsx';
+import WorkflowsDashboard from './pages/WorkflowsDashboard.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
 import SchedulerControl from './pages/SchedulerControl.jsx';
 import { TemporalStartWorkflow, TemporalWorkflowHistory } from './pages/TemporalWorkflows.jsx';
@@ -47,6 +51,46 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="dashboard/data-pipeline"
+              element={
+                <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
+                  <IngestionStatus />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboard/tools"
+              element={
+                <ProtectedRoute permissionCode="SCRIPT_EXECUTION_READ">
+                  <ToolsDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboard/workflows"
+              element={
+                <ProtectedRoute permissionCode="WORKFLOW_READ">
+                  <WorkflowsDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboard/automation"
+              element={
+                <ProtectedRoute permissionCode="WORKFLOW_READ">
+                  <AutomationDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboard/readiness"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_REPOSITORY_READ">
+                  <ReadinessDashboard />
+                </ProtectedRoute>
+              }
+            />
 
             <Route path="tools" element={<Navigate replace to="/tools/run" />} />
             <Route
@@ -68,16 +112,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
-            <Route path="data" element={<Navigate replace to="/data/ingestion" />} />
-            <Route path="ingestion-status" element={<Navigate replace to="/data/ingestion" />} />
-            <Route
-              path="data/ingestion"
-              element={
-                <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
-                  <IngestionStatus />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="data" element={<Navigate replace to="/dashboard/data-pipeline" />} />
+            <Route path="ingestion-status" element={<Navigate replace to="/dashboard/data-pipeline" />} />
+            <Route path="data/ingestion" element={<Navigate replace to="/dashboard/data-pipeline" />} />
 
             <Route path="worker" element={<Navigate replace to="/automation/scheduler" />} />
             <Route
