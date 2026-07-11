@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
@@ -11,6 +12,37 @@ const STATUS_OPTIONS = [
   { value: 'CANCELED', label: 'Canceled' },
   { value: 'TERMINATED', label: 'Terminated' },
 ];
+
+const HISTORY_PAGE_SIZE = 10;
+const HISTORY_LOAD_LIMIT = 200;
+
+const RUNTIME_FILTER_OPTIONS = [
+  { value: 'skycommand', label: 'SkyCommand ledger' },
+  { value: 'temporal', label: 'Temporal-backed only' },
+  { value: 'inline', label: 'Inline/local only' },
+];
+
+function normalizeRuntimeFilter(value) {
+  const normalized = String(value || '').toLowerCase();
+
+  if (normalized === 'temporal' || normalized === 'inline') {
+    return normalized;
+  }
+
+  return 'skycommand';
+}
+
+function runMatchesRuntimeFilter(run, runtimeFilter) {
+  if (runtimeFilter === 'temporal') {
+    return Boolean(run?.temporalWorkflowId || run?.temporalRunId || run?.temporalRuntime);
+  }
+
+  if (runtimeFilter === 'inline') {
+    return !run?.temporalWorkflowId && !run?.temporalRunId && !run?.temporalRuntime;
+  }
+
+  return true;
+}
 
 function formatDate(value) {
   if (!value) {
@@ -815,6 +847,7 @@ function TemporalRuntimePanel({ runtime }) {
 
 function SkyWorkflows({ mode = 'start' }) {
   const { hasPermission } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canStart =
     hasPermission('WORKFLOW_START') ||
     hasPermission('TEMPORAL_WORKFLOW_START') ||
@@ -833,7 +866,11 @@ function SkyWorkflows({ mode = 'start' }) {
   const [selectedDefinitionDetail, setSelectedDefinitionDetail] = useState(null);
   const [runs, setRuns] = useState([]);
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
-  const [filters, setFilters] = useState({ status: '', limit: '25' });
+  const [filters, setFilters] = useState(() => ({
+    status: '',
+    runtime: normalizeRuntimeFilter(searchParams.get('runtime')),
+  }));
+  const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [runActionLoading, setRunActionLoading] = useState('');
@@ -862,6 +899,18 @@ function SkyWorkflows({ mode = 'start' }) {
     return { completed, running, failed };
   }, [runs]);
 
+
+  const historyRuns = useMemo(
+    () => runs.filter((run) => runMatchesRuntimeFilter(run, filters.runtime)),
+    [filters.runtime, runs],
+  );
+  const historyPageCount = Math.max(1, Math.ceil(historyRuns.length / HISTORY_PAGE_SIZE));
+  const currentHistoryPage = Math.min(historyPage, historyPageCount);
+  const historyPageStart = (currentHistoryPage - 1) * HISTORY_PAGE_SIZE;
+  const pagedHistoryRuns = historyRuns.slice(historyPageStart, historyPageStart + HISTORY_PAGE_SIZE);
+  const historyRangeStart = historyRuns.length === 0 ? 0 : historyPageStart + 1;
+  const historyRangeEnd = Math.min(historyPageStart + HISTORY_PAGE_SIZE, historyRuns.length);
+
   async function loadDefinitions({ keepSelection = true } = {}) {
     const result = await workflowService.listDefinitions();
     const items = result.items || [];
@@ -883,7 +932,11 @@ function SkyWorkflows({ mode = 'start' }) {
   }
 
   async function loadRuns(nextFilters = filters, { keepSelection = true } = {}) {
-    const result = await workflowService.listRuns(nextFilters);
+    const query = {
+      limit: HISTORY_LOAD_LIMIT,
+      status: nextFilters.status,
+    };
+    const result = await workflowService.listRuns(query);
     const items = result.items || [];
     setRuns(items);
 
@@ -1088,6 +1141,22 @@ function SkyWorkflows({ mode = 'start' }) {
   function updateFilter(name, value) {
     const nextFilters = { ...filters, [name]: value };
     setFilters(nextFilters);
+    setHistoryPage(1);
+    setSelectedRunDetail(null);
+
+    if (name === 'runtime') {
+      const nextSearchParams = new URLSearchParams(searchParams);
+
+      if (value === 'skycommand') {
+        nextSearchParams.delete('runtime');
+      } else {
+        nextSearchParams.set('runtime', value);
+      }
+
+      setSearchParams(nextSearchParams, { replace: true });
+      return;
+    }
+
     loadRuns(nextFilters, { keepSelection: false });
   }
 
@@ -1099,6 +1168,347 @@ function SkyWorkflows({ mode = 'start' }) {
   useEffect(() => {
     setSelectedRuntimeNodeIndex(null);
   }, [selectedRun?.workflowRunRecordId]);
+
+
+  useEffect(() => {
+    if (historyPage > historyPageCount) {
+      setHistoryPage(historyPageCount);
+    }
+  }, [historyPage, historyPageCount]);
+
+  function renderSelectedRunDetailCard() {
+    return (
+      <section className="sky-card sky-workflow-history-detail-card">
+        <div className="sky-card-header">
+          <div className="sky-page-kicker">Run detail</div>
+          <h2 className="h5 mb-0">Selected workflow</h2>
+        </div>
+        <div className="sky-card-body sky-workflow-history-detail-scroll">
+          {!selectedRun ? (
+            <div className="sky-empty-state py-4">Select a workflow run to inspect it.</div>
+          ) : (
+            <>
+              <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+                <span className={`sky-pill ${statusClass(selectedRun.status)}`}>{selectedRun.status}</span>
+                <span className="small sky-muted">{formatDuration(getRunDurationMs(selectedRun))}</span>
+              </div>
+              <dl className="row small mb-3">
+                <dt className="col-4 sky-detail-label">Workflow</dt>
+                <dd className="col-8 sky-detail-value">{selectedRun.workflowDisplayName || selectedRun.workflowCode}</dd>
+                <dt className="col-4 sky-detail-label">Run</dt>
+                <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.workflowRunRecordId}</dd>
+                {selectedRelations.parentRun && (
+                  <>
+                    <dt className="col-4 sky-detail-label">Parent</dt>
+                    <dd className="col-8 sky-detail-value">
+                      <button
+                        className="btn btn-link btn-sm p-0 align-baseline"
+                        onClick={() => loadRunDetail(selectedRelations.parentRun.workflowRunRecordId)}
+                        type="button"
+                      >
+                        {selectedRelations.parentRun.workflowDisplayName || selectedRelations.parentRun.workflowCode}
+                      </button>
+                      {selectedRun.parentNodeKey && (
+                        <div className="small sky-muted sky-mono">via {selectedRun.parentNodeKey}</div>
+                      )}
+                    </dd>
+                  </>
+                )}
+                {(selectedRelations.childRuns || []).length > 0 && (
+                  <>
+                    <dt className="col-4 sky-detail-label">Children</dt>
+                    <dd className="col-8 sky-detail-value">
+                      <span className="sky-pill sky-pill-info">{selectedRelations.childRuns.length} child run(s)</span>
+                    </dd>
+                  </>
+                )}
+                {selectedApprovals.length > 0 && (
+                  <>
+                    <dt className="col-4 sky-detail-label">Approvals</dt>
+                    <dd className="col-8 sky-detail-value">
+                      <span className="sky-pill sky-pill-warning">
+                        {selectedApprovals.filter((approval) => approval.status === 'PENDING').length} pending
+                      </span>
+                      <span className="sky-pill sky-pill-info ms-1">{selectedApprovals.length} total</span>
+                    </dd>
+                  </>
+                )}
+                <dt className="col-4 sky-detail-label">Started</dt>
+                <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
+                <dt className="col-4 sky-detail-label">Completed</dt>
+                <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
+                <dt className="col-4 sky-detail-label">Source</dt>
+                <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
+                <dt className="col-4 sky-detail-label">Started by</dt>
+                <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
+                <dt className="col-4 sky-detail-label">Executor</dt>
+                <dd className="col-8 sky-detail-value sky-mono">{selectedRun.metadata?.executor || '—'}</dd>
+                <dt className="col-4 sky-detail-label">Temporal workflow</dt>
+                <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalWorkflowId || '—'}</dd>
+                <dt className="col-4 sky-detail-label">Temporal run</dt>
+                <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalRunId || '—'}</dd>
+                <dt className="col-4 sky-detail-label">Runtime</dt>
+                <dd className="col-8 sky-detail-value">
+                  {selectedRun.temporalWorkflowId ? (
+                    <span className="sky-pill sky-pill-success">Temporal-backed</span>
+                  ) : (
+                    <span className="sky-pill sky-pill-info">Inline/local</span>
+                  )}
+                </dd>
+                <dt className="col-4 sky-detail-label">Temporal status</dt>
+                <dd className="col-8 sky-detail-value">
+                  <span className={`sky-pill ${statusClass(selectedTemporalRuntime?.status || selectedRun.status)}`}>
+                    {selectedTemporalRuntime?.status || selectedRun.status || '—'}
+                  </span>
+                </dd>
+                <dt className="col-4 sky-detail-label">History events</dt>
+                <dd className="col-8 sky-detail-value">{selectedTemporalRuntime?.history?.eventCount || selectedTemporalRuntime?.historyLength || '—'}</dd>
+                {selectedTemporalRuntime?.uiUrl && (
+                  <>
+                    <dt className="col-4 sky-detail-label">Temporal UI</dt>
+                    <dd className="col-8 sky-detail-value">
+                      <a href={selectedTemporalRuntime.uiUrl} rel="noreferrer" target="_blank">Open diagnostics</a>
+                    </dd>
+                  </>
+                )}
+              </dl>
+              <WorkflowRunControls
+                busyAction={runActionLoading}
+                canCancel={canCancelRun}
+                canRetry={canStart}
+                canTerminate={canTerminateRun}
+                onCancel={handleCancelRun}
+                onRetry={handleRetryRun}
+                onTerminate={handleTerminateRun}
+                run={selectedRun}
+              />
+              <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
+              <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>
+            </>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  function renderHistoryPagination() {
+    return (
+      <div className="sky-pagination-row">
+        <div className="small sky-muted">
+          Showing {historyRangeStart}-{historyRangeEnd} of {historyRuns.length} workflow run(s)
+        </div>
+        <div className="sky-pagination-controls" aria-label="Workflow history pagination">
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={currentHistoryPage <= 1}
+            onClick={() => setHistoryPage(1)}
+            type="button"
+          >
+            First
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={currentHistoryPage <= 1}
+            onClick={() => setHistoryPage((page) => Math.max(1, page - 1))}
+            type="button"
+          >
+            Back
+          </button>
+          <label className="sky-pagination-select-label" htmlFor="workflowHistoryPageSelect">Page</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select"
+            id="workflowHistoryPageSelect"
+            onChange={(event) => setHistoryPage(Number(event.target.value) || 1)}
+            value={currentHistoryPage}
+          >
+            {Array.from({ length: historyPageCount }, (_, index) => index + 1).map((page) => (
+              <option key={page} value={page}>{page}</option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {historyPageCount}</span>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={currentHistoryPage >= historyPageCount}
+            onClick={() => setHistoryPage((page) => Math.min(historyPageCount, page + 1))}
+            type="button"
+          >
+            Next
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={currentHistoryPage >= historyPageCount}
+            onClick={() => setHistoryPage(historyPageCount)}
+            type="button"
+          >
+            Last
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderHistoryView() {
+    return (
+      <div className="sky-workflow-history-shell">
+        <section className="sky-card mb-4 sky-workflow-history-browser">
+          <div className="sky-card-header">
+            <div>
+              <div className="sky-page-kicker">Run browser</div>
+              <h2 className="h5 mb-0">Workflow history data</h2>
+              <p className="sky-muted small mb-0">
+                Select the execution surface and status, then inspect a run in the detail workspace below.
+              </p>
+            </div>
+            <div className="sky-history-filter-grid">
+              <div>
+                <label className="form-label" htmlFor="workflowHistoryRuntime">Runtime source</label>
+                <select
+                  className="form-select sky-form-control"
+                  id="workflowHistoryRuntime"
+                  onChange={(event) => updateFilter('runtime', event.target.value)}
+                  value={filters.runtime}
+                >
+                  {RUNTIME_FILTER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="workflowHistoryStatus">Status</label>
+                <select
+                  className="form-select sky-form-control"
+                  id="workflowHistoryStatus"
+                  onChange={(event) => updateFilter('status', event.target.value)}
+                  value={filters.status}
+                >
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="table-responsive sky-table-card sky-workflow-history-table-card">
+            <table className="table table-sm table-hover sky-table align-middle">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Workflow</th>
+                  <th>Started</th>
+                  <th>Completed</th>
+                  <th>Duration</th>
+                  <th>Runtime</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td colSpan="6"><div className="sky-empty-state">Loading workflow runs...</div></td>
+                  </tr>
+                )}
+                {!loading && historyRuns.length === 0 && (
+                  <tr>
+                    <td colSpan="6"><div className="sky-empty-state">No workflow runs found for these filters.</div></td>
+                  </tr>
+                )}
+                {!loading && pagedHistoryRuns.map((run) => (
+                  <tr
+                    className={`sky-clickable-row ${selectedRun?.workflowRunRecordId === run.workflowRunRecordId ? 'sky-selected-row' : ''}`}
+                    key={run.workflowRunRecordId}
+                    onClick={() => loadRunDetail(run.workflowRunRecordId)}
+                  >
+                    <td><span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span></td>
+                    <td>
+                      <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
+                      <div className="small sky-mono sky-muted">{run.workflowCode}</div>
+                      <div className="d-flex flex-wrap gap-1 mt-1">
+                        {getRunRelationLabel(run) && (
+                          <span className="sky-pill sky-pill-warning">{getRunRelationLabel(run)}</span>
+                        )}
+                        {run.metadata?.parentWorkflowRunRecordId && (
+                          <span className="sky-pill sky-pill-info">Has parent</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>{formatDate(run.startedAt || run.createdAt)}</td>
+                    <td>{formatDate(run.completedAt)}</td>
+                    <td>{formatDuration(getRunDurationMs(run))}</td>
+                    <td>
+                      {run.temporalWorkflowId ? (
+                        <span className="sky-pill sky-pill-success">Temporal-backed</span>
+                      ) : (
+                        <span className="sky-pill sky-pill-info">Inline/local</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {renderHistoryPagination()}
+        </section>
+
+        <section className="sky-workflow-history-detail-zone">
+          <div className="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
+            <div>
+              <div className="sky-page-kicker">Selected run workspace</div>
+              <h2 className="h5 mb-0">Execution detail</h2>
+            </div>
+            <div className="small sky-muted">Detail panels scroll independently from the run browser.</div>
+          </div>
+
+          <div className="sky-workflow-history-detail-grid">
+            {renderSelectedRunDetailCard()}
+            <div className="sky-workflow-history-detail-stack">
+              <section className="sky-card">
+                <div className="sky-card-body">
+                  {!selectedRun ? (
+                    <div className="sky-empty-state">Select a workflow run to view the runtime graph overlay.</div>
+                  ) : (
+                    <WorkflowVisualGraph
+                      approvals={selectedApprovals}
+                      headingKicker="Runtime status overlay"
+                      nodeRuns={selectedNodeRuns}
+                      nodes={runtimeVisualNodes}
+                      onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
+                      runStatus={selectedTemporalRuntime?.status || selectedRun.status}
+                      runtimeMode
+                      selectedNodeIndex={selectedRuntimeNodeIndex}
+                      subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
+                      temporalRuntime={selectedTemporalRuntime}
+                      title="Runtime workflow map"
+                    />
+                  )}
+                </div>
+              </section>
+
+              <WorkflowRunTreePanel
+                onOpenRun={loadRunDetail}
+                selectedRunId={selectedRun?.workflowRunRecordId}
+                tree={selectedRunTree}
+              />
+
+              <TemporalRuntimePanel runtime={selectedTemporalRuntime} />
+
+              <section className="sky-card">
+                <div className="sky-card-header">
+                  <div className="sky-page-kicker">Node runs</div>
+                  <h2 className="h5 mb-0">Timeline</h2>
+                </div>
+                <div className="sky-card-body">
+                  {selectedNodeRuns.length === 0 ? (
+                    <div className="sky-empty-state">Select a run to inspect node outcomes.</div>
+                  ) : (
+                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} approvals={selectedApprovals} onOpenRun={loadRunDetail} />
+                  )}
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
   const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
@@ -1127,6 +1537,8 @@ function SkyWorkflows({ mode = 'start' }) {
       {error && <div className="alert alert-danger">{error}</div>}
       {message && <div className="alert alert-success">{message}</div>}
 
+      {isHistoryMode ? renderHistoryView() : (
+        <>
       <section className="sky-worker-hero mb-4">
         <div>
           <div className="sky-page-kicker">Workflow builder foundation</div>
@@ -1514,6 +1926,8 @@ function SkyWorkflows({ mode = 'start' }) {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

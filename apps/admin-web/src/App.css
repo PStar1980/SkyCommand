@@ -4001,3 +4001,128 @@
 .sky-workflow-visuals .sky-dashboard-section-heading {
   align-items: flex-start;
 }
+
+/* Phase 12.13 — workflow history functional layout polish */
+.sky-workflow-history-shell {
+  min-width: 0;
+}
+
+.sky-workflow-history-browser .sky-card-header {
+  align-items: flex-end;
+  gap: 1rem 1.25rem;
+}
+
+.sky-history-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(190px, 0.8fr);
+  gap: 0.85rem;
+  min-width: min(100%, 520px);
+}
+
+.sky-history-filter-grid .form-label {
+  margin-bottom: 0.35rem;
+}
+
+.sky-workflow-history-table-card {
+  max-height: min(42vh, 34rem);
+}
+
+.sky-pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem 1rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid rgba(124, 144, 177, 0.14);
+}
+
+.sky-pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sky-pagination-select-label {
+  margin: 0 0.1rem 0 0.35rem;
+  color: #9fb5da;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sky-pagination-select {
+  width: 5.5rem;
+  min-height: 2rem;
+}
+
+.sky-workflow-history-detail-zone {
+  min-width: 0;
+}
+
+.sky-workflow-history-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.42fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sky-workflow-history-detail-card {
+  position: sticky;
+  top: calc(var(--sky-topbar-height) + 1.05rem);
+  min-width: 0;
+}
+
+.sky-workflow-history-detail-scroll {
+  max-height: calc(100vh - var(--sky-topbar-height) - 10rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 215, 255, 0.34) rgba(4, 8, 16, 0.48);
+}
+
+.sky-workflow-history-detail-scroll::-webkit-scrollbar {
+  width: 0.48rem;
+}
+
+.sky-workflow-history-detail-scroll::-webkit-scrollbar-track {
+  background: rgba(4, 8, 16, 0.32);
+}
+
+.sky-workflow-history-detail-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(154, 215, 255, 0.28);
+}
+
+.sky-workflow-history-detail-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+@media (max-width: 1200px) {
+  .sky-workflow-history-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-workflow-history-detail-card {
+    position: static;
+  }
+
+  .sky-workflow-history-detail-scroll {
+    max-height: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .sky-history-filter-grid {
+    grid-template-columns: 1fr;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sky-pagination-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
