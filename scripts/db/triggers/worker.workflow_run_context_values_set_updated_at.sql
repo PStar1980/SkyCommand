@@ -1,0 +1,5 @@
+DROP TRIGGER IF EXISTS workflow_run_context_values_set_updated_at ON worker.workflow_run_context_values;
+CREATE TRIGGER workflow_run_context_values_set_updated_at
+BEFORE UPDATE ON worker.workflow_run_context_values
+FOR EACH ROW
+EXECUTE FUNCTION worker.set_updated_at();

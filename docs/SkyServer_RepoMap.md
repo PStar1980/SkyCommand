@@ -238,7 +238,8 @@ SkyServer/
 │   │       │   ├── 00038__workflow_builder_foundation.sql
 │   │       │   ├── 00045__workflow_lifecycle_simplification.sql
 │   │       │   ├── 00051__workflow_human_approval_requests.sql
-│   │       │   └── 00054__temporal_worker_heartbeats.sql
+│   │       │   ├── 00054__temporal_worker_heartbeats.sql
+│   │       │   └── 00055__workflow_node_output_persistence.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -390,6 +391,8 @@ SkyServer/
 │   │   │   ├── worker.workflow_node_run_records.sql
 │   │   │   ├── worker.workflow_node_types.sql
 │   │   │   ├── worker.workflow_nodes.sql
+│   │   │   ├── worker.workflow_run_context_values.sql
+│   │   │   ├── worker.workflow_run_node_outputs.sql
 │   │   │   ├── worker.workflow_run_records.sql
 │   │   │   └── worker.workflow_versions.sql
 │   │   ├── triggers/
@@ -425,6 +428,8 @@ SkyServer/
 │   │   │   ├── worker.workflow_node_run_records_set_updated_at.sql
 │   │   │   ├── worker.workflow_node_types_set_updated_at.sql
 │   │   │   ├── worker.workflow_nodes_set_updated_at.sql
+│   │   │   ├── worker.workflow_run_context_values_set_updated_at.sql
+│   │   │   ├── worker.workflow_run_node_outputs_set_updated_at.sql
 │   │   │   ├── worker.workflow_run_records_set_updated_at.sql
 │   │   │   └── worker.workflow_versions_set_updated_at.sql
 │   │   └── views/
@@ -480,6 +485,8 @@ SkyServer/
 │   │       ├── worker.vw_workflow_approval_requests.sql
 │   │       ├── worker.vw_workflow_definitions.sql
 │   │       ├── worker.vw_workflow_nodes.sql
+│   │       ├── worker.vw_workflow_run_context_values.sql
+│   │       ├── worker.vw_workflow_run_node_outputs.sql
 │   │       └── worker.vw_workflow_run_records.sql
 │   ├── node/
 │   │   └── util/

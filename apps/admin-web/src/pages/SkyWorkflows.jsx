@@ -94,6 +94,20 @@ function formatPollingInterval(ms) {
   return `${seconds % 1 === 0 ? seconds.toFixed(0) : seconds.toFixed(1)} s`;
 }
 
+function formatJsonPreview(value, maxLength = 2800) {
+  try {
+    const text = typeof value === 'string' ? value : JSON.stringify(value ?? null, null, 2);
+
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    return `${text.slice(0, maxLength)}\n\n… output preview truncated`;
+  } catch (error) {
+    return String(value ?? '');
+  }
+}
+
 function getWorkflowHistoryPollingDelay({ activeRunCount = 0, hidden = false, selectedRunActive = false } = {}) {
   if (hidden) {
     return HISTORY_POLL_HIDDEN_MS;
@@ -610,6 +624,82 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
 }
 
 
+
+function WorkflowNodeOutputLedger({ outputs = [], contextValues = [] }) {
+  const hasOutputs = outputs.length > 0;
+  const hasContextValues = contextValues.length > 0;
+
+  return (
+    <section className="sky-card mb-4">
+      <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Node outputs</div>
+          <h2 className="h5 mb-0">Structured output ledger</h2>
+        </div>
+        <div className="d-flex flex-wrap gap-2 small">
+          <span className="sky-pill sky-pill-info">{outputs.length} output record(s)</span>
+          {hasContextValues && <span className="sky-pill sky-pill-success">{contextValues.length} context value(s)</span>}
+        </div>
+      </div>
+      <div className="sky-card-body">
+        {!hasOutputs ? (
+          <div className="sky-empty-state">Structured node outputs will appear here after the run records node output persistence.</div>
+        ) : (
+          <div className="sky-node-output-grid">
+            {outputs.map((output) => (
+              <article className="sky-worker-command-card" key={output.workflowRunNodeOutputId || `${output.nodeKey}-${output.outputKey}`}>
+                <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+                  <div>
+                    <div className="sky-page-kicker">{output.nodeTypeCode || 'NODE'} · {output.outputKey || 'result'}</div>
+                    <div className="fw-bold">{output.nodeKey || 'Workflow node'}</div>
+                    <div className="small sky-muted">{output.targetCode || 'No target'} · {output.outputType || 'object'}</div>
+                  </div>
+                  <span className={`sky-pill ${statusClass(output.status)}`}>{output.status || 'SAVED'}</span>
+                </div>
+                <div className="d-flex flex-wrap gap-2 small mb-2">
+                  <span className="sky-pill sky-pill-info">Attempt {output.attemptCount ?? 0}</span>
+                  <span className="sky-pill sky-pill-info">Saved {formatDate(output.updatedAt || output.createdAt)}</span>
+                </div>
+                {output.outputSummary && <p className="small sky-muted mb-2">{output.outputSummary}</p>}
+                {Object.keys(output.inputSnapshot || {}).length > 0 && (
+                  <details className="mb-2">
+                    <summary className="small fw-semibold sky-clickable-row">Resolved input</summary>
+                    <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(output.inputSnapshot, 1400)}</pre>
+                  </details>
+                )}
+                <details open>
+                  <summary className="small fw-semibold sky-clickable-row">Output JSON</summary>
+                  <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(output.output)}</pre>
+                </details>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {hasContextValues && (
+          <div className="mt-4">
+            <div className="sky-page-kicker mb-2">Workflow context</div>
+            <div className="sky-node-output-grid">
+              {contextValues.map((item) => (
+                <article className="sky-worker-command-card" key={item.workflowRunContextValueId || item.contextKey}>
+                  <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                    <div>
+                      <div className="fw-bold sky-mono">{item.contextKey}</div>
+                      <div className="small sky-muted">{item.sourceNodeKey || 'Workflow'} · {item.valueType || 'unknown'}</div>
+                    </div>
+                    <span className="sky-pill sky-pill-info">Context</span>
+                  </div>
+                  <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(item.value, 1600)}</pre>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function WorkflowRunTreeNode({ node, selectedRunId, onOpenRun }) {
   if (!node?.run) {
     return null;
@@ -927,6 +1017,8 @@ function SkyWorkflows({ mode = 'start' }) {
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
+  const selectedNodeOutputs = selectedRunDetail?.nodeOutputs || [];
+  const selectedContextValues = selectedRunDetail?.contextValues || [];
   const selectedApprovals = selectedRunDetail?.approvals || [];
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const selectedRelations = selectedRunDetail?.relations || {};
@@ -1731,6 +1823,8 @@ function SkyWorkflows({ mode = 'start' }) {
                   )}
                 </div>
               </section>
+
+              <WorkflowNodeOutputLedger outputs={selectedNodeOutputs} contextValues={selectedContextValues} />
             </div>
           </div>
         </section>
@@ -2150,6 +2244,8 @@ function SkyWorkflows({ mode = 'start' }) {
                   )}
                 </div>
               </section>
+
+              <WorkflowNodeOutputLedger outputs={selectedNodeOutputs} contextValues={selectedContextValues} />
             </>
           )}
         </div>
