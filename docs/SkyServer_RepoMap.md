@@ -148,26 +148,28 @@ SkyServer/
 │   │       │   ├── tools.routes.js
 │   │       │   ├── worker.routes.js
 │   │       │   └── workflow.routes.js
-│   │       └── services/
-│   │           ├── adminActionService.js
-│   │           ├── adminReadService.js
-│   │           ├── authService.js
-│   │           ├── ingestionStatusService.js
-│   │           ├── macroReadService.js
-│   │           ├── productionReadinessService.js
-│   │           ├── publicMacroService.js
-│   │           ├── scriptExecutionService.js
-│   │           ├── skywebAlertPreferencesService.js
-│   │           ├── skywebAlertsService.js
-│   │           ├── skywebDashboardsService.js
-│   │           ├── skywebPreferencesService.js
-│   │           ├── skywebProfileService.js
-│   │           ├── skywebSavedViewsService.js
-│   │           ├── temporalService.js
-│   │           ├── toolManifestService.js
-│   │           ├── workerService.js
-│   │           ├── workflowExecutorService.js
-│   │           └── workflowHealthService.js
+│   │       ├── services/
+│   │       │   ├── adminActionService.js
+│   │       │   ├── adminReadService.js
+│   │       │   ├── authService.js
+│   │       │   ├── ingestionStatusService.js
+│   │       │   ├── macroReadService.js
+│   │       │   ├── productionReadinessService.js
+│   │       │   ├── publicMacroService.js
+│   │       │   ├── scriptExecutionService.js
+│   │       │   ├── skywebAlertPreferencesService.js
+│   │       │   ├── skywebAlertsService.js
+│   │       │   ├── skywebDashboardsService.js
+│   │       │   ├── skywebPreferencesService.js
+│   │       │   ├── skywebProfileService.js
+│   │       │   ├── skywebSavedViewsService.js
+│   │       │   ├── temporalService.js
+│   │       │   ├── toolManifestService.js
+│   │       │   ├── workerService.js
+│   │       │   ├── workflowExecutorService.js
+│   │       │   └── workflowHealthService.js
+│   │       └── utils/
+│   │           └── liveTelemetryEnvelope.js
 │   └── worker/
 │       └── src/
 │           ├── index.js

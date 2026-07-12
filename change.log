@@ -1,3 +1,12 @@
+## 2026-07-12 — Phase 13.2 Live Telemetry Contracts
+
+- Added a shared API live telemetry envelope for pollable SkyCommand surfaces.
+- Workflow run list, active-run list, and selected-run telemetry responses now include contract metadata, generated timestamps, active counts, records, selected snapshots, and counts while preserving existing response fields.
+- Tool History execution responses now include live telemetry metadata for active/running execution awareness.
+- Data Pipeline status and Production Readiness responses now expose live telemetry snapshots for dashboard polling consumers.
+- Hardened smart polling UI behavior so transient polling failures keep the last good data visible, show soft reconnecting warnings, and only escalate after repeated failures.
+- Updated Workflow History custom telemetry polling to use the same soft warning behavior instead of surfacing one-off poll failures as hard page errors.
+
 ## 2026-07-12 — Phase 13.1B Smart Polling Expansion
 
 - Extracted smart polling into reusable Admin-Web helpers for live, backoff-aware refresh loops.

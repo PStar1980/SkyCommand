@@ -1,4 +1,47 @@
 const ingestionStatusService = require('../services/ingestionStatusService');
+const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
+
+function isActiveIngestionExecution(execution = {}) {
+  return ['STARTED', 'RUNNING', 'QUEUED'].includes(String(execution.status || '').toUpperCase());
+}
+
+function buildIngestionTelemetry(payload = {}) {
+  const recentExecutions = payload.recentExecutions || [];
+  const activeExecutions = recentExecutions.filter(isActiveIngestionExecution);
+  const activeWatchCount =
+    activeExecutions.length +
+    Number(payload.staleIndicators || 0) +
+    Number(payload.errorIndicators || 0) +
+    Number(payload.noDataIndicators || 0);
+
+  return createLiveTelemetryEnvelope({
+    active: activeWatchCount > 0,
+    activeCount: activeWatchCount,
+    counts: {
+      sourceCount: payload.sourceCount || 0,
+      totalIndicators: payload.totalIndicators || 0,
+      currentIndicators: payload.currentIndicators || 0,
+      staleIndicators: payload.staleIndicators || 0,
+      noDataIndicators: payload.noDataIndicators || 0,
+      errorIndicators: payload.errorIndicators || 0,
+      activeExecutions: activeExecutions.length,
+    },
+    meta: {
+      overallStatus: payload.overallStatus || 'UNKNOWN',
+    },
+    records: payload.sources || [],
+    resource: 'pipeline-status',
+    scope: 'macro-pipeline',
+    selectedRecord: payload,
+    status:
+      payload.overallStatus === 'ERROR'
+        ? 'error'
+        : payload.overallStatus === 'WARNING'
+          ? 'warning'
+          : 'idle',
+    surface: 'data-pipeline-dashboard',
+  });
+}
 
 function sendPagedResponse(res, payload) {
   res.json({
@@ -27,10 +70,12 @@ function sendServiceError(res, error) {
 async function getStatus(req, res, next) {
   try {
     const payload = await ingestionStatusService.getIngestionStatusSummary(req.query || {});
+    const liveEnvelope = buildIngestionTelemetry(payload);
 
     res.json({
       ok: true,
       ...payload,
+      ...liveEnvelope,
     });
   } catch (error) {
     next(error);
