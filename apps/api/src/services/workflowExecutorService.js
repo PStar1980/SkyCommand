@@ -1529,6 +1529,308 @@ function toJsonbValue(value) {
   return value;
 }
 
+
+function cloneJsonCompatible(value) {
+  if (value === undefined) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function normalizeContextKey(value, fallback = 'value') {
+  const normalized = String(value || fallback)
+    .trim()
+    .replace(/[^A-Za-z0-9_.:-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 180);
+
+  return normalized || fallback;
+}
+
+function getWorkflowRuntimeParams(input = {}) {
+  const safeInput = getSafeObject(input);
+
+  return getSafeObject(
+    safeInput.params
+      || safeInput.runtimeParameters
+      || safeInput.workflowParameters
+      || safeInput.parameters,
+  );
+}
+
+function setNestedContextValue(target, contextKey, value) {
+  const parts = String(contextKey || '')
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return target;
+  }
+
+  let cursor = target;
+  parts.forEach((part, index) => {
+    if (index === parts.length - 1) {
+      cursor[part] = cloneJsonCompatible(value);
+      return;
+    }
+
+    if (!cursor[part] || typeof cursor[part] !== 'object' || Array.isArray(cursor[part])) {
+      cursor[part] = {};
+    }
+
+    cursor = cursor[part];
+  });
+
+  return target;
+}
+
+function buildContextObjectFromPatch(patch = {}) {
+  return Object.entries(getSafeObject(patch)).reduce((accumulator, [contextKey, value]) => {
+    setNestedContextValue(accumulator, contextKey, value);
+    return accumulator;
+  }, {});
+}
+
+function buildContextObjectFromRows(contextValues = []) {
+  return contextValues.reduce((accumulator, item) => {
+    setNestedContextValue(accumulator, item.contextKey, item.value);
+    return accumulator;
+  }, {});
+}
+
+function mergeContextObjects(base = {}, patchObject = {}) {
+  const output = { ...getSafeObject(base) };
+
+  for (const [key, value] of Object.entries(getSafeObject(patchObject))) {
+    if (
+      value
+      && typeof value === 'object'
+      && !Array.isArray(value)
+      && output[key]
+      && typeof output[key] === 'object'
+      && !Array.isArray(output[key])
+    ) {
+      output[key] = mergeContextObjects(output[key], value);
+    } else {
+      output[key] = cloneJsonCompatible(value);
+    }
+  }
+
+  return output;
+}
+
+function applyContextPatch(runtimeContext = {}, patch = {}) {
+  return mergeContextObjects(runtimeContext, buildContextObjectFromPatch(patch));
+}
+
+function buildInitialWorkflowContextPatch({ run = {}, definition = {}, input = {} } = {}) {
+  const safeInput = getSafeObject(input);
+  const runtimeParams = getWorkflowRuntimeParams(safeInput);
+
+  return {
+    'workflow.workflowRunRecordId': run.workflowRunRecordId || null,
+    'workflow.workflowCode': definition.workflowCode || run.workflowCode || null,
+    'workflow.workflowDisplayName': definition.displayName || run.workflowDisplayName || null,
+    'workflow.versionNumber': definition.publishedVersionNumber || run.versionNumber || null,
+    'workflow.runSource': safeInput.runSource || run.runSource || 'manual',
+    'workflow.triggerType': safeInput.triggerType || run.triggerType || 'MANUAL',
+    'workflow.input': safeInput,
+    params: runtimeParams,
+  };
+}
+
+function buildWorkflowExecutionContext({
+  baseContext = {},
+  runtimeContext = {},
+  input = {},
+  nodeOutputsByKey = {},
+  previousNodeOutput = null,
+  currentNodeKey = null,
+} = {}) {
+  const safeRuntimeContext = getSafeObject(runtimeContext);
+
+  return {
+    ...getSafeObject(baseContext),
+    workflowContext: safeRuntimeContext,
+    params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(input)),
+    nodes: getSafeObject(safeRuntimeContext.nodes),
+    previousOutputs: nodeOutputsByKey,
+    previousOutput: previousNodeOutput,
+    conditionEvaluation: {
+      input,
+      context: safeRuntimeContext,
+      params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(input)),
+      nodes: nodeOutputsByKey,
+      previous: previousNodeOutput,
+      currentNodeKey,
+    },
+  };
+}
+
+function extractContextUpdatesFromOutput(output = {}) {
+  const safeOutput = getSafeObject(output);
+  const nestedOutput = getSafeObject(safeOutput.output);
+
+  return {
+    ...getSafeObject(safeOutput.contextUpdates),
+    ...getSafeObject(nestedOutput.contextUpdates),
+  };
+}
+
+function buildNodeContextPatch(nodeRun = {}) {
+  if (!nodeRun?.nodeKey) {
+    return {};
+  }
+
+  const output = getSafeObject(nodeRun.output);
+  const nodeKey = normalizeContextKey(nodeRun.nodeKey, 'node');
+  const patch = {
+    [`nodes.${nodeKey}.nodeKey`]: nodeRun.nodeKey,
+    [`nodes.${nodeKey}.nodeTypeCode`]: nodeRun.nodeTypeCode || null,
+    [`nodes.${nodeKey}.targetCode`]: nodeRun.targetCode || null,
+    [`nodes.${nodeKey}.status`]: nodeRun.status || null,
+    [`nodes.${nodeKey}.attemptCount`]: nodeRun.attemptCount ?? 0,
+    [`nodes.${nodeKey}.startedAt`]: nodeRun.startedAt || null,
+    [`nodes.${nodeKey}.completedAt`]: nodeRun.completedAt || null,
+    [`nodes.${nodeKey}.output`]: output,
+    [`nodes.${nodeKey}.summary`]: getNodeOutputPersistenceSummary(output),
+    'last.nodeKey': nodeRun.nodeKey,
+    'last.status': nodeRun.status || null,
+    'last.output': output,
+    'last.completedAt': nodeRun.completedAt || new Date().toISOString(),
+  };
+
+  const durationMs = normalizeTelemetryDurationMs(nodeRun.durationMs)
+    ?? normalizeTelemetryDurationMs(output.durationMs)
+    ?? getTelemetryDurationBetween(nodeRun.startedAt || nodeRun.createdAt, nodeRun.completedAt);
+
+  if (durationMs !== null) {
+    patch[`nodes.${nodeKey}.durationMs`] = durationMs;
+    patch['last.durationMs'] = durationMs;
+  }
+
+  const saveOutputAs = normalizeContextKey(
+    nodeRun.metadata?.parameters?.saveOutputAs
+      || nodeRun.metadata?.parameters?.outputKey
+      || nodeRun.metadata?.saveOutputAs
+      || output.saveOutputAs,
+    '',
+  );
+
+  if (saveOutputAs) {
+    patch[saveOutputAs] = output;
+  }
+
+  for (const [contextKey, value] of Object.entries(extractContextUpdatesFromOutput(output))) {
+    patch[normalizeContextKey(contextKey)] = value;
+  }
+
+  return patch;
+}
+
+async function persistWorkflowContextPatch({
+  workflowRunRecordId,
+  patch = {},
+  sourceNodeKey = null,
+  sourceNodeRunRecordId = null,
+  metadata = {},
+} = {}) {
+  if (!workflowRunRecordId) {
+    return [];
+  }
+
+  const entries = Object.entries(getSafeObject(patch));
+  const persisted = [];
+
+  for (const [rawContextKey, rawValue] of entries) {
+    const contextKey = normalizeContextKey(rawContextKey);
+    const value = toJsonbValue(rawValue);
+
+    try {
+      const result = await query(
+        `
+          INSERT INTO worker.workflow_run_context_values (
+            workflow_run_record_id,
+            context_key,
+            value_json,
+            value_type,
+            source_node_key,
+            source_node_run_record_id,
+            metadata
+          )
+          VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb)
+          ON CONFLICT (workflow_run_record_id, context_key)
+          DO UPDATE SET
+            value_json = EXCLUDED.value_json,
+            value_type = EXCLUDED.value_type,
+            source_node_key = EXCLUDED.source_node_key,
+            source_node_run_record_id = EXCLUDED.source_node_run_record_id,
+            metadata = worker.workflow_run_context_values.metadata || EXCLUDED.metadata
+          RETURNING *
+        `,
+        [
+          workflowRunRecordId,
+          contextKey,
+          JSON.stringify(value),
+          getJsonValueType(value),
+          sourceNodeKey || null,
+          sourceNodeRunRecordId || null,
+          JSON.stringify({
+            persistedBy: 'skyserver_workflow_context_store_v1',
+            persistedAt: new Date().toISOString(),
+            ...getSafeObject(metadata),
+          }),
+        ],
+      );
+
+      persisted.push(normalizeWorkflowContextValueRow(result.rows[0]));
+    } catch (error) {
+      if (isOptionalWorkflowPersistenceMissing(error)) {
+        return persisted;
+      }
+
+      throw error;
+    }
+  }
+
+  return persisted;
+}
+
+async function seedWorkflowRunContext({ run = {}, definition = {}, input = {} } = {}) {
+  return persistWorkflowContextPatch({
+    workflowRunRecordId: run.workflowRunRecordId,
+    patch: buildInitialWorkflowContextPatch({ run, definition, input }),
+    metadata: {
+      contextPhase: 'initial_workflow_context',
+      workflowCode: definition.workflowCode || run.workflowCode || null,
+    },
+  });
+}
+
+async function persistWorkflowNodeContext(nodeRun = {}) {
+  if (!nodeRun?.workflowRunRecordId || !nodeRun?.workflowNodeRunRecordId || !nodeRun?.nodeKey) {
+    return [];
+  }
+
+  return persistWorkflowContextPatch({
+    workflowRunRecordId: nodeRun.workflowRunRecordId,
+    patch: buildNodeContextPatch(nodeRun),
+    sourceNodeKey: nodeRun.nodeKey,
+    sourceNodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+    metadata: {
+      contextPhase: 'node_output_context',
+      nodeTypeCode: nodeRun.nodeTypeCode || null,
+      targetCode: nodeRun.targetCode || null,
+    },
+  });
+}
+
 function isOptionalWorkflowPersistenceMissing(error) {
   return ['42P01', '42703', '42883'].includes(String(error?.code || ''));
 }
@@ -1902,7 +2204,15 @@ async function insertWorkflowRun({
     ],
   );
 
-  return normalizeRunRow(result.rows[0]);
+  const run = normalizeRunRow(result.rows[0]);
+
+  await seedWorkflowRunContext({
+    run,
+    definition,
+    input: safeInput,
+  });
+
+  return run;
 }
 
 async function updateWorkflowRun({ workflowRunRecordId, status, summary, metadata = {} }) {
@@ -2034,6 +2344,7 @@ async function updateNodeRun({ nodeRunRecordId, status, output = {}, errorMessag
 
   if (['COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'SKIPPED'].includes(String(status || '').toUpperCase())) {
     await persistWorkflowNodeOutput(nodeRun);
+    await persistWorkflowNodeContext(nodeRun);
   }
 
   return nodeRun;
@@ -4719,6 +5030,11 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
   const run = await insertWorkflowRun({ definition, input, user, context });
   const nodeRuns = [];
   const nodeOutputsByKey = {};
+  let workflowRuntimeContext = buildContextObjectFromPatch(buildInitialWorkflowContextPatch({
+    run,
+    definition,
+    input,
+  }));
   let previousNodeOutput = null;
   let conditionStop = null;
   const startedAtMs = Date.now();
@@ -4732,15 +5048,14 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
       const node = executionPlan.nodes[currentNodeIndex];
       const nodeRun = await insertNodeRun({ workflowRunRecordId: run.workflowRunRecordId, node });
       const parameters = buildNodeParameters(node, input);
-      const nodeContext = {
-        ...context,
-        conditionEvaluation: {
-          input,
-          nodes: nodeOutputsByKey,
-          previous: previousNodeOutput,
-          currentNodeKey: node.nodeKey,
-        },
-      };
+      const nodeContext = buildWorkflowExecutionContext({
+        baseContext: context,
+        runtimeContext: workflowRuntimeContext,
+        input,
+        nodeOutputsByKey,
+        previousNodeOutput,
+        currentNodeKey: node.nodeKey,
+      });
       let nextNodeIndex = currentNodeIndex + 1;
 
       try {
@@ -4761,6 +5076,7 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
         nodeRuns.push(completedNodeRun);
         nodeOutputsByKey[node.nodeKey] = output;
         previousNodeOutput = output;
+        workflowRuntimeContext = applyContextPatch(workflowRuntimeContext, buildNodeContextPatch(completedNodeRun));
 
         if (node.nodeTypeCode === 'CONDITION') {
           const branchTargetIndex = resolveConditionBranchIndex({
@@ -5538,6 +5854,7 @@ function buildWorkflowRunTelemetrySnapshot(detail = {}) {
   const nodeRuns = detail.nodeRuns || [];
   const nodeRunsByKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
   const persistedOutputsByNodeKey = groupNodeOutputsByNodeKey(detail.nodeOutputs || []);
+  const contextObject = buildContextObjectFromRows(detail.contextValues || []);
   const nodes = definitionNodes.length > 0
     ? definitionNodes.map((node, index) => ({
       ...buildWorkflowTelemetryNode({
@@ -5576,6 +5893,7 @@ function buildWorkflowRunTelemetrySnapshot(detail = {}) {
     nodeOutputs: detail.nodeOutputs || [],
     outputsByNodeKey: persistedOutputsByNodeKey,
     contextValues: detail.contextValues || [],
+    contextObject,
     approvals: detail.approvals || [],
     counts: {
       nodes: nodes.length,

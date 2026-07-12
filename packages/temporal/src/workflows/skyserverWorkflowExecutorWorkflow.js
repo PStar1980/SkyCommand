@@ -79,6 +79,198 @@ function buildNodeParameters(node, requestInput = {}) {
   };
 }
 
+
+function cloneJsonCompatible(value) {
+  if (value === undefined) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function normalizeContextKey(value, fallback = 'value') {
+  const normalized = String(value || fallback)
+    .trim()
+    .replace(/[^A-Za-z0-9_.:-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 180);
+
+  return normalized || fallback;
+}
+
+function getWorkflowRuntimeParams(input = {}) {
+  const safeInput = getSafeObject(input);
+
+  return getSafeObject(
+    safeInput.params
+      || safeInput.runtimeParameters
+      || safeInput.workflowParameters
+      || safeInput.parameters,
+  );
+}
+
+function setNestedContextValue(target, contextKey, value) {
+  const parts = String(contextKey || '')
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return target;
+  }
+
+  let cursor = target;
+  parts.forEach((part, index) => {
+    if (index === parts.length - 1) {
+      cursor[part] = cloneJsonCompatible(value);
+      return;
+    }
+
+    if (!cursor[part] || typeof cursor[part] !== 'object' || Array.isArray(cursor[part])) {
+      cursor[part] = {};
+    }
+
+    cursor = cursor[part];
+  });
+
+  return target;
+}
+
+function buildContextObjectFromPatch(patch = {}) {
+  return Object.entries(getSafeObject(patch)).reduce((accumulator, [contextKey, value]) => {
+    setNestedContextValue(accumulator, contextKey, value);
+    return accumulator;
+  }, {});
+}
+
+function mergeContextObjects(base = {}, patchObject = {}) {
+  const output = { ...getSafeObject(base) };
+
+  for (const [key, value] of Object.entries(getSafeObject(patchObject))) {
+    if (
+      value
+      && typeof value === 'object'
+      && !Array.isArray(value)
+      && output[key]
+      && typeof output[key] === 'object'
+      && !Array.isArray(output[key])
+    ) {
+      output[key] = mergeContextObjects(output[key], value);
+    } else {
+      output[key] = cloneJsonCompatible(value);
+    }
+  }
+
+  return output;
+}
+
+function applyContextPatch(runtimeContext = {}, patch = {}) {
+  return mergeContextObjects(runtimeContext, buildContextObjectFromPatch(patch));
+}
+
+function buildInitialWorkflowContextPatch({ workflowRunRecordId, definition = {}, requestInput = {} } = {}) {
+  return {
+    'workflow.workflowRunRecordId': workflowRunRecordId || null,
+    'workflow.workflowCode': definition.workflowCode || null,
+    'workflow.workflowDisplayName': definition.displayName || null,
+    'workflow.versionNumber': definition.publishedVersionNumber || null,
+    'workflow.runSource': requestInput.runSource || 'manual',
+    'workflow.triggerType': requestInput.triggerType || 'MANUAL',
+    'workflow.input': getSafeObject(requestInput),
+    params: getWorkflowRuntimeParams(requestInput),
+  };
+}
+
+function getWorkflowNodeOutputSummary(output = {}) {
+  const safeOutput = getSafeObject(output);
+
+  return String(safeOutput.summary || safeOutput.message || '');
+}
+
+function buildNodeContextPatch(nodeRun = {}) {
+  if (!nodeRun?.nodeKey) {
+    return {};
+  }
+
+  const output = getSafeObject(nodeRun.output);
+  const nodeKey = normalizeContextKey(nodeRun.nodeKey, 'node');
+  const patch = {
+    [`nodes.${nodeKey}.nodeKey`]: nodeRun.nodeKey,
+    [`nodes.${nodeKey}.nodeTypeCode`]: nodeRun.nodeTypeCode || null,
+    [`nodes.${nodeKey}.targetCode`]: nodeRun.targetCode || null,
+    [`nodes.${nodeKey}.status`]: nodeRun.status || null,
+    [`nodes.${nodeKey}.attemptCount`]: nodeRun.attemptCount ?? 0,
+    [`nodes.${nodeKey}.startedAt`]: nodeRun.startedAt || null,
+    [`nodes.${nodeKey}.completedAt`]: nodeRun.completedAt || null,
+    [`nodes.${nodeKey}.output`]: output,
+    [`nodes.${nodeKey}.summary`]: getWorkflowNodeOutputSummary(output),
+    'last.nodeKey': nodeRun.nodeKey,
+    'last.status': nodeRun.status || null,
+    'last.output': output,
+    'last.completedAt': nodeRun.completedAt || null,
+  };
+
+  if (output.durationMs !== undefined && output.durationMs !== null) {
+    patch[`nodes.${nodeKey}.durationMs`] = output.durationMs;
+    patch['last.durationMs'] = output.durationMs;
+  }
+
+  const saveOutputAs = normalizeContextKey(
+    nodeRun.metadata?.parameters?.saveOutputAs
+      || nodeRun.metadata?.parameters?.outputKey
+      || nodeRun.metadata?.saveOutputAs
+      || output.saveOutputAs,
+    '',
+  );
+
+  if (saveOutputAs) {
+    patch[saveOutputAs] = output;
+  }
+
+  const contextUpdates = {
+    ...getSafeObject(output.contextUpdates),
+    ...getSafeObject(getSafeObject(output.output).contextUpdates),
+  };
+
+  for (const [contextKey, value] of Object.entries(contextUpdates)) {
+    patch[normalizeContextKey(contextKey)] = value;
+  }
+
+  return patch;
+}
+
+function buildWorkflowExecutionContext({
+  baseContext = {},
+  runtimeContext = {},
+  requestInput = {},
+  nodeOutputsByKey = {},
+  previousNodeOutput = null,
+  currentNodeKey = null,
+} = {}) {
+  const safeRuntimeContext = getSafeObject(runtimeContext);
+
+  return {
+    ...getSafeObject(baseContext),
+    workflowContext: safeRuntimeContext,
+    params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(requestInput)),
+    nodes: getSafeObject(safeRuntimeContext.nodes),
+    previousOutputs: nodeOutputsByKey,
+    previousOutput: previousNodeOutput,
+    conditionEvaluation: {
+      input: requestInput,
+      context: safeRuntimeContext,
+      params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(requestInput)),
+      nodes: nodeOutputsByKey,
+      previous: previousNodeOutput,
+      currentNodeKey,
+    },
+  };
+}
+
 function normalizePositiveInteger(value, fallback, max = 10) {
   const parsed = Number.parseInt(value, 10);
 
@@ -1244,6 +1436,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   const requestInput = getSafeObject(input.input);
   const nodeRuns = [];
   const nodeOutputsByKey = {};
+  let workflowRuntimeContext = {};
   let previousNodeOutput = null;
   let conditionStop = null;
   let approvalStop = null;
@@ -1275,6 +1468,12 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
 
   const definition = await definitionActivities.loadSkyserverWorkflowDefinitionActivity({ workflowCode });
 
+  workflowRuntimeContext = buildContextObjectFromPatch(buildInitialWorkflowContextPatch({
+    workflowRunRecordId,
+    definition,
+    requestInput,
+  }));
+
   await ledgerActivities.linkSkyserverWorkflowRunToTemporalActivity({
     workflowRunRecordId,
     temporalWorkflowId,
@@ -1296,15 +1495,14 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     while (currentNodeIndex < executionPlan.nodes.length) {
       const node = executionPlan.nodes[currentNodeIndex];
       const parameters = buildNodeParameters(node, requestInput);
-      const nodeContext = {
-        ...getSafeObject(input.context),
-        conditionEvaluation: {
-          input: requestInput,
-          nodes: nodeOutputsByKey,
-          previous: previousNodeOutput,
-          currentNodeKey: node.nodeKey,
-        },
-      };
+      const nodeContext = buildWorkflowExecutionContext({
+        baseContext: input.context,
+        runtimeContext: workflowRuntimeContext,
+        requestInput,
+        nodeOutputsByKey,
+        previousNodeOutput,
+        currentNodeKey: node.nodeKey,
+      });
       const nodeAttemptOffset = getNodeAttemptOffset(requestInput, node.nodeKey);
       const nodeRun = await ledgerActivities.startSkyserverWorkflowNodeRunActivity({
         workflowRunRecordId,
@@ -1349,7 +1547,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           user: input.user || null,
           session: input.session || null,
           permissions: input.permissions || [],
-          context: input.context || {},
+          context: nodeContext,
           temporalWorkflowId,
           temporalRunId,
           workflowRunRecordId,
@@ -1385,6 +1583,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
       nodeRuns.push(completedNodeRun);
       nodeOutputsByKey[node.nodeKey] = completedNodeRun?.output || {};
       previousNodeOutput = completedNodeRun?.output || {};
+      workflowRuntimeContext = applyContextPatch(workflowRuntimeContext, buildNodeContextPatch(completedNodeRun));
 
       if (node.nodeTypeCode === 'CONDITION') {
         const branchTargetIndex = resolveConditionBranchIndex({

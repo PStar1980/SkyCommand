@@ -33,7 +33,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 13 is expanding the live workflow intelligence layer. Workflow History now updates selected runs and node overlays without manual refresh, smart polling powers Tool History and the SkyCommand dashboard analytics pages, Phase 13.2 added shared live telemetry contracts with polling-safe warning behavior, and Phase 13.3 now persists structured node outputs for Workflow History inspection and future workflow context mapping.
+**Active status:** Phase 13 is expanding the live workflow intelligence layer. Workflow History now updates selected runs and node overlays without manual refresh, smart polling powers Tool History and the SkyCommand dashboard analytics pages, Phase 13.2 added shared live telemetry contracts with polling-safe warning behavior, Phase 13.3 persists structured node outputs, and Phase 13.4 now stores workflow run context values derived from run inputs and node outputs.
 
 SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane behind **SkyCommand**, the branded Admin-Web experience for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and operational intelligence.
 
@@ -43,7 +43,7 @@ Phase 11 modernized Admin-Web into the **SkyCommand** product shell with a black
 
 Phase 12 added the **visual operations layer**: dashboard intelligence, Workflow History analytics, Worker Health pulse charts, Ingestion Status analytics, Tools History analytics, Production Readiness visualizations, reusable chart helper components, and full-screen chart overlays.
 
-Phase 13 adds the **live workflow intelligence layer**. Smart polling and live telemetry contracts keep Workflow History, selected run details, node status overlays, runtime summaries, Tool History, Data Pipeline, Readiness, and dashboard analytics surfaces fresh without full page reloads. Polling now preserves the last good UI state during transient refresh failures and escalates only after repeated polling errors. Structured node output persistence now stores resolved inputs and returned outputs in dedicated run-output rows, preparing the next slices for workflow context, runtime parameters, context-aware branching, animated execution, and run summaries.
+Phase 13 adds the **live workflow intelligence layer**. Smart polling and live telemetry contracts keep Workflow History, selected run details, node status overlays, runtime summaries, Tool History, Data Pipeline, Readiness, and dashboard analytics surfaces fresh without full page reloads. Polling now preserves the last good UI state during transient refresh failures and escalates only after repeated polling errors. Structured node output persistence now stores resolved inputs and returned outputs in dedicated run-output rows, and the workflow context store now merges run inputs and completed node outputs into durable context values for future runtime parameters, context-aware branching, animated execution, and run summaries.
 
 ## Core Product Surfaces
 
@@ -120,7 +120,7 @@ The UI modernization changed the app shell, sidebar, topbar, spacing, dashboard 
 
 Phase 12 added the reusable visualization layer. Apache ECharts and D3 now power chart sections across the Dashboard, Workflow History, Worker Health, Ingestion Status, Tools History, and Production Readiness pages. Chart cards share a consistent anatomy, status color language, empty-state handling, and full-screen overlay behavior so visual analytics can expand without page-by-page chart sprawl.
 
-Phase 13 adds the live intelligence spine. Workflow and dashboard surfaces use smart polling against standardized telemetry contracts, while workflow node completions now persist structured node outputs into `worker.workflow_run_node_outputs`. Workflow History can display the persisted output ledger for a selected run, including resolved inputs, output summaries, output JSON, attempt count, status, and future context rows.
+Phase 13 adds the live intelligence spine. Workflow and dashboard surfaces use smart polling against standardized telemetry contracts, while workflow node completions now persist structured node outputs into `worker.workflow_run_node_outputs`. The workflow context store now updates `worker.workflow_run_context_values` with initial workflow inputs, runtime parameter placeholders, per-node status/output summaries, `last.*` values, and selected custom context updates so future nodes can resolve values from `params`, `nodes`, `last`, and custom context keys.
 
 ## Workflow Pages
 
