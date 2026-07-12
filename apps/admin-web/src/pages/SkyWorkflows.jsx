@@ -914,10 +914,14 @@ function SkyWorkflows({ mode = 'start' }) {
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
   const [telemetryState, setTelemetryState] = useState({
     activeRunCount: 0,
+    consecutiveErrors: 0,
     error: '',
     intervalMs: HISTORY_POLL_IDLE_MS,
+    lastErrorAt: null,
+    lastSuccessfulAt: null,
     lastUpdatedAt: null,
     selectedRunActive: false,
+    warning: '',
   });
   const telemetryPollingRef = useRef(false);
 
@@ -1112,12 +1116,18 @@ function SkyWorkflows({ mode = 'start' }) {
         selectedRunActive,
       });
 
+      const successfulAt = new Date().toISOString();
+
       setTelemetryState({
         activeRunCount,
+        consecutiveErrors: 0,
         error: '',
         intervalMs: nextIntervalMs,
-        lastUpdatedAt: new Date().toISOString(),
+        lastErrorAt: null,
+        lastSuccessfulAt: successfulAt,
+        lastUpdatedAt: successfulAt,
         selectedRunActive,
+        warning: '',
       });
 
       return {
@@ -1132,11 +1142,17 @@ function SkyWorkflows({ mode = 'start' }) {
         setError(errorMessage);
       }
 
-      setTelemetryState((current) => ({
-        ...current,
-        error: errorMessage,
-        lastUpdatedAt: new Date().toISOString(),
-      }));
+      setTelemetryState((current) => {
+        const consecutiveErrors = Number(current.consecutiveErrors || 0) + 1;
+
+        return {
+          ...current,
+          consecutiveErrors,
+          error: consecutiveErrors >= 2 ? errorMessage : '',
+          lastErrorAt: new Date().toISOString(),
+          warning: errorMessage,
+        };
+      });
 
       return null;
     } finally {
@@ -1553,15 +1569,18 @@ function SkyWorkflows({ mode = 'start' }) {
                 Select the execution surface and status, then inspect a run in the detail workspace below.
               </p>
               <div className="d-flex flex-wrap align-items-center gap-2 mt-2 small">
-                <span className={`sky-pill ${telemetryState.error ? 'sky-pill-warning' : 'sky-pill-success'}`}>
-                  Smart polling {telemetryState.error ? 'checking' : 'live'}
+                <span className={`sky-pill ${telemetryState.error ? 'sky-pill-warning' : telemetryState.warning ? 'sky-pill-info' : 'sky-pill-success'}`}>
+                  Smart polling {telemetryState.error ? 'checking' : telemetryState.warning ? 'reconnecting' : 'live'}
                 </span>
                 <span className="sky-pill sky-pill-info">Every {formatPollingInterval(telemetryState.intervalMs)}</span>
                 <span className="sky-pill sky-pill-info">Active runs {telemetryState.activeRunCount}</span>
-                {telemetryState.lastUpdatedAt && (
-                  <span className="sky-muted">Updated {formatDate(telemetryState.lastUpdatedAt)}</span>
+                {(telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt) && (
+                  <span className="sky-muted">Updated {formatDate(telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt)}</span>
                 )}
               </div>
+              {telemetryState.warning && !telemetryState.error && (
+                <div className="small sky-muted mt-2">Last poll warning: {telemetryState.warning}</div>
+              )}
               {telemetryState.error && (
                 <div className="small text-warning-emphasis mt-2">{telemetryState.error}</div>
               )}

@@ -59,6 +59,7 @@ function getErrorMessage(error, fallback = 'Smart polling refresh failed.') {
 
 function useSmartPolling({
   enabled = true,
+  errorThreshold = 2,
   getDelay,
   initialIntervalMs = SMART_POLLING_INTERVALS.IDLE,
   onError,
@@ -72,9 +73,13 @@ function useSmartPolling({
   const pollingRef = useRef(false);
   const [state, setState] = useState({
     activeCount: 0,
+    consecutiveErrors: 0,
     error: '',
     intervalMs: initialIntervalMs,
+    lastErrorAt: null,
+    lastSuccessfulAt: null,
     lastUpdatedAt: null,
+    warning: '',
   });
 
   useEffect(() => {
@@ -131,12 +136,17 @@ function useSmartPolling({
         }
 
         const nextIntervalMs = resolveDelay(result);
+        const successfulAt = result.lastUpdatedAt || new Date().toISOString();
+
         setState((current) => ({
           ...current,
           ...result,
+          consecutiveErrors: 0,
           error: '',
           intervalMs: nextIntervalMs,
-          lastUpdatedAt: result.lastUpdatedAt || new Date().toISOString(),
+          lastSuccessfulAt: successfulAt,
+          lastUpdatedAt: successfulAt,
+          warning: '',
         }));
         timerId = window.setTimeout(tick, nextIntervalMs);
       } catch (error) {
@@ -145,12 +155,19 @@ function useSmartPolling({
         }
 
         const errorMessage = getErrorMessage(error);
+        const failedAt = new Date().toISOString();
         onErrorRef.current?.(error);
-        setState((current) => ({
-          ...current,
-          error: errorMessage,
-          lastUpdatedAt: new Date().toISOString(),
-        }));
+        setState((current) => {
+          const consecutiveErrors = Number(current.consecutiveErrors || 0) + 1;
+
+          return {
+            ...current,
+            consecutiveErrors,
+            error: consecutiveErrors >= errorThreshold ? errorMessage : '',
+            lastErrorAt: failedAt,
+            warning: errorMessage,
+          };
+        });
         schedule();
       } finally {
         pollingRef.current = false;
@@ -179,7 +196,7 @@ function useSmartPolling({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, initialIntervalMs, pauseWhenBusy, ...dependencies]);
+  }, [enabled, errorThreshold, initialIntervalMs, pauseWhenBusy, ...dependencies]);
 
   return state;
 }

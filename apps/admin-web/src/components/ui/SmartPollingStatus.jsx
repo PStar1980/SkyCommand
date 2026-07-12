@@ -26,22 +26,33 @@ function SmartPollingStatus({
   state = {},
 }) {
   const nextActiveValue = activeValue ?? state.activeCount ?? 0;
+  const hasHardError = Boolean(state.error);
+  const hasWarning = Boolean(state.warning || state.lastErrorAt);
+  const statusClass = hasHardError
+    ? 'sky-pill-warning'
+    : hasWarning
+      ? 'sky-pill-info'
+      : 'sky-pill-success';
+  const statusLabel = hasHardError ? errorLabel : hasWarning ? 'reconnecting' : liveLabel;
 
   return (
     <div className={`d-flex flex-wrap align-items-center gap-2 small ${className}`.trim()}>
-      <span className={`sky-pill ${state.error ? 'sky-pill-warning' : 'sky-pill-success'}`}>
-        Smart polling {state.error ? errorLabel : liveLabel}
-      </span>
+      <span className={`sky-pill ${statusClass}`}>Smart polling {statusLabel}</span>
       <span className="sky-pill sky-pill-info">
         Every {formatPollingInterval(state.intervalMs)}
       </span>
       <span className="sky-pill sky-pill-info">
         {activeLabel} {nextActiveValue}
       </span>
-      {state.lastUpdatedAt && (
-        <span className="sky-muted">Updated {formatDate(state.lastUpdatedAt)}</span>
+      {(state.lastSuccessfulAt || state.lastUpdatedAt) && (
+        <span className="sky-muted">
+          Updated {formatDate(state.lastSuccessfulAt || state.lastUpdatedAt)}
+        </span>
       )}
-      {state.error && <span className="small text-warning-emphasis">{state.error}</span>}
+      {hasWarning && !hasHardError && (
+        <span className="sky-muted">Last poll warning: {state.warning}</span>
+      )}
+      {hasHardError && <span className="small text-warning-emphasis">{state.error}</span>}
     </div>
   );
 }

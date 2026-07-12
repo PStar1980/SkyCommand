@@ -1,6 +1,77 @@
 const authService = require('../services/authService');
 const workflowExecutorService = require('../services/workflowExecutorService');
 const workflowHealthService = require('../services/workflowHealthService');
+const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
+
+const ACTIVE_WORKFLOW_STATUSES = new Set([
+  'PENDING',
+  'QUEUED',
+  'RUNNING',
+  'STARTED',
+  'IN_PROGRESS',
+  'WAITING',
+  'APPROVAL_PENDING',
+  'CANCEL_REQUESTED',
+]);
+
+function isActiveWorkflowRun(run = {}) {
+  return ACTIVE_WORKFLOW_STATUSES.has(String(run.status || '').toUpperCase());
+}
+
+function buildRunListTelemetry({
+  items = [],
+  limit,
+  surface = 'workflow-history',
+  scope = 'workflow-runs',
+  total,
+} = {}) {
+  const activeItems = items.filter(isActiveWorkflowRun);
+
+  return createLiveTelemetryEnvelope({
+    active: activeItems.length > 0,
+    activeCount: activeItems.length,
+    counts: {
+      total: total ?? items.length,
+      limit,
+      returned: items.length,
+      active: activeItems.length,
+      completed: items.filter((item) => String(item.status || '').toUpperCase() === 'COMPLETED')
+        .length,
+      failed: items.filter((item) => String(item.status || '').toUpperCase() === 'FAILED').length,
+      canceled: items.filter((item) =>
+        ['CANCELED', 'CANCELLED', 'TERMINATED'].includes(String(item.status || '').toUpperCase()),
+      ).length,
+    },
+    records: items,
+    resource: 'run-list',
+    scope,
+    surface,
+  });
+}
+
+function buildSelectedRunTelemetryEnvelope(result = {}) {
+  const telemetry = result.telemetry || {};
+  const counts = telemetry.counts || {};
+
+  return createLiveTelemetryEnvelope({
+    active: Boolean(telemetry.active),
+    activeCount: counts.activeNodes || (telemetry.active ? 1 : 0),
+    counts,
+    meta: {
+      currentNodeId: telemetry.currentNodeId || null,
+      runtime: telemetry.runtime || null,
+      workflowCode: telemetry.workflowCode || null,
+      workflowRunRecordId: telemetry.workflowRunRecordId || null,
+    },
+    records: telemetry.nodes || [],
+    resource: 'selected-run',
+    scope: 'selected-workflow-run',
+    selectedRecord: telemetry,
+    surface: 'workflow-history',
+    warnings: telemetry.warnings || [],
+    errors: telemetry.errors || [],
+  });
+}
 
 function parseBooleanQuery(value, fallback) {
   if (value === undefined || value === null || value === '') {
@@ -72,7 +143,9 @@ async function getDefinition(req, res, next) {
 
 async function getManagedDefinition(req, res, next) {
   try {
-    const result = await workflowExecutorService.getWorkflowDefinitionForManage(req.params.workflowCode);
+    const result = await workflowExecutorService.getWorkflowDefinitionForManage(
+      req.params.workflowCode,
+    );
 
     res.json({
       ok: true,
@@ -197,7 +270,6 @@ async function createVersion(req, res, next) {
     return next(error);
   }
 }
-
 
 async function deleteDefinition(req, res, next) {
   try {
@@ -409,10 +481,13 @@ async function startWorkflow(req, res, next) {
     const context = authService.getRequestContext(req);
     const body = req.body || {};
     const input = body.input || body;
-    const executorMode = String(body.executorMode || input.executorMode || 'temporal').trim().toLowerCase();
-    const execute = executorMode === 'inline'
-      ? workflowExecutorService.executeWorkflow
-      : workflowExecutorService.startWorkflowWithTemporal;
+    const executorMode = String(body.executorMode || input.executorMode || 'temporal')
+      .trim()
+      .toLowerCase();
+    const execute =
+      executorMode === 'inline'
+        ? workflowExecutorService.executeWorkflow
+        : workflowExecutorService.startWorkflowWithTemporal;
     const result = await execute({
       workflowCode: req.params.workflowCode,
       input,
@@ -443,10 +518,16 @@ async function startWorkflow(req, res, next) {
 async function listRuns(req, res, next) {
   try {
     const result = await workflowExecutorService.listWorkflowRuns(req.query || {});
+    const liveEnvelope = buildRunListTelemetry({
+      items: result.items || [],
+      limit: result.limit,
+      total: result.total,
+    });
 
     res.json({
       ok: true,
       ...result,
+      ...liveEnvelope,
     });
   } catch (error) {
     next(error);
@@ -456,10 +537,17 @@ async function listRuns(req, res, next) {
 async function listActiveRuns(req, res, next) {
   try {
     const result = await workflowExecutorService.listActiveWorkflowRuns(req.query || {});
+    const liveEnvelope = buildRunListTelemetry({
+      items: result.items || [],
+      limit: result.limit,
+      scope: 'active-workflow-runs',
+      total: result.total,
+    });
 
     res.json({
       ok: true,
       ...result,
+      ...liveEnvelope,
     });
   } catch (error) {
     next(error);
@@ -489,11 +577,15 @@ async function getRun(req, res, next) {
 
 async function getRunTelemetry(req, res, next) {
   try {
-    const result = await workflowExecutorService.getWorkflowRunTelemetry(req.params.workflowRunRecordId);
+    const result = await workflowExecutorService.getWorkflowRunTelemetry(
+      req.params.workflowRunRecordId,
+    );
+    const liveEnvelope = buildSelectedRunTelemetryEnvelope(result);
 
     res.json({
       ok: true,
       ...result,
+      ...liveEnvelope,
     });
   } catch (error) {
     if (error.statusCode) {
@@ -572,7 +664,6 @@ async function retryRun(req, res, next) {
     return next(error);
   }
 }
-
 
 async function listApprovals(req, res, next) {
   try {

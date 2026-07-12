@@ -2,14 +2,71 @@ const adminReadService = require('../services/adminReadService');
 const adminActionService = require('../services/adminActionService');
 const authService = require('../services/authService');
 const productionReadinessService = require('../services/productionReadinessService');
+const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
-function sendPagedResponse(res, payload) {
+function sendPagedResponse(res, payload, liveTelemetryOptions = null) {
+  const liveEnvelope = liveTelemetryOptions
+    ? createLiveTelemetryEnvelope(liveTelemetryOptions)
+    : {};
+
   res.json({
     ok: true,
     total: payload.total,
     limit: payload.limit,
     offset: payload.offset,
     items: payload.items,
+    ...liveEnvelope,
+  });
+}
+
+function isActiveToolExecution(execution = {}) {
+  return ['STARTED', 'RUNNING', 'QUEUED'].includes(String(execution.status || '').toUpperCase());
+}
+
+function buildToolExecutionTelemetry(payload = {}) {
+  const items = payload.items || [];
+  const activeItems = items.filter(isActiveToolExecution);
+  const failedItems = items.filter((item) => String(item.status || '').toUpperCase() === 'FAILED');
+  const successItems = items.filter(
+    (item) => String(item.status || '').toUpperCase() === 'SUCCESS',
+  );
+
+  return {
+    active: activeItems.length > 0,
+    activeCount: activeItems.length,
+    counts: {
+      total: payload.total || items.length,
+      limit: payload.limit,
+      offset: payload.offset,
+      returned: items.length,
+      active: activeItems.length,
+      success: successItems.length,
+      failed: failedItems.length,
+    },
+    records: items,
+    resource: 'execution-list',
+    scope: 'tool-executions',
+    surface: 'tool-history',
+  };
+}
+
+function buildReadinessTelemetry(payload = {}) {
+  const summary = payload.summary || payload.counts || {};
+  const warningCount = Number(summary.warning || summary.warnings || payload.warnings?.length || 0);
+  const failureCount = Number(summary.fail || summary.failures || payload.failures?.length || 0);
+
+  return createLiveTelemetryEnvelope({
+    active: warningCount > 0 || failureCount > 0,
+    activeCount: warningCount + failureCount,
+    counts: summary,
+    records: payload.checks || payload.items || [],
+    resource: 'readiness-snapshot',
+    scope: 'production-readiness',
+    selectedRecord: payload,
+    status: failureCount > 0 ? 'error' : warningCount > 0 ? 'warning' : 'idle',
+    surface: 'readiness-dashboard',
+    warnings: payload.warnings || [],
+    errors: payload.errors || [],
   });
 }
 
@@ -64,7 +121,7 @@ async function listLoginEvents(req, res) {
 async function listScriptExecutions(req, res) {
   try {
     const payload = await adminReadService.listScriptExecutions(req.query || {});
-    sendPagedResponse(res, payload);
+    sendPagedResponse(res, payload, buildToolExecutionTelemetry(payload));
   } catch (error) {
     sendServiceError(res, error);
   }
@@ -541,14 +598,18 @@ async function deleteRepository(req, res) {
   }
 }
 
-
 async function getProductionReadiness(req, res) {
   try {
     const payload = await productionReadinessService.getProductionReadiness({
       user: req.user,
       permissions: req.permissions || [],
     });
-    sendServiceResponse(res, payload);
+    const liveEnvelope = buildReadinessTelemetry(payload);
+
+    sendServiceResponse(res, {
+      ...payload,
+      ...liveEnvelope,
+    });
   } catch (error) {
     sendServiceError(res, error);
   }
