@@ -5112,6 +5112,65 @@ function isWorkflowRunStatusActive(status) {
   return ACTIVE_RUN_STATUSES.has(String(status || '').trim().toUpperCase());
 }
 
+function normalizeTelemetryDurationMs(value) {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return null;
+  }
+
+  return Math.round(numeric);
+}
+
+function getTelemetryDateMs(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.getTime();
+}
+
+function getTelemetryDurationBetween(start, end) {
+  const startMs = getTelemetryDateMs(start);
+  const endMs = getTelemetryDateMs(end);
+
+  if (startMs === null || endMs === null) {
+    return null;
+  }
+
+  return Math.max(0, endMs - startMs);
+}
+
+function getRunDurationMs(run = {}) {
+  return normalizeTelemetryDurationMs(run.durationMs)
+    ?? normalizeTelemetryDurationMs(run.metadata?.durationMs)
+    ?? normalizeTelemetryDurationMs(run.output?.durationMs)
+    ?? getTelemetryDurationBetween(
+      run.startedAt || run.createdAt,
+      run.completedAt || (isWorkflowRunStatusActive(run.status) ? new Date().toISOString() : null),
+    );
+}
+
+function getNodeRunDurationMs(nodeRun = {}) {
+  if (!nodeRun) {
+    return null;
+  }
+
+  return normalizeTelemetryDurationMs(nodeRun.durationMs)
+    ?? normalizeTelemetryDurationMs(nodeRun.metadata?.durationMs)
+    ?? normalizeTelemetryDurationMs(nodeRun.output?.durationMs)
+    ?? getTelemetryDurationBetween(
+      nodeRun.startedAt || nodeRun.createdAt,
+      nodeRun.completedAt || (isWorkflowRunStatusActive(nodeRun.status) ? new Date().toISOString() : null),
+    );
+}
+
 function summarizeWorkflowNodeOutput(output = {}) {
   const safeOutput = getSafeObject(output);
 
