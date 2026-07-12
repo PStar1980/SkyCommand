@@ -1176,6 +1176,22 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }, [historyPage, historyPageCount]);
 
+  useEffect(() => {
+    if (!isHistoryMode || loading || pagedHistoryRuns.length === 0) {
+      return;
+    }
+
+    const selectedRunId = selectedRun?.workflowRunRecordId;
+    const selectedRunIsVisible = pagedHistoryRuns.some(
+      (run) => run.workflowRunRecordId === selectedRunId,
+    );
+
+    if (!selectedRunIsVisible) {
+      loadRunDetail(pagedHistoryRuns[0].workflowRunRecordId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHistoryMode, loading, pagedHistoryRuns, selectedRun?.workflowRunRecordId]);
+
   function renderSelectedRunDetailCard() {
     return (
       <section className="sky-card sky-workflow-history-detail-card">
@@ -1392,23 +1408,22 @@ function SkyWorkflows({ mode = 'start' }) {
             <table className="table table-sm table-hover sky-table align-middle">
               <thead>
                 <tr>
-                  <th>Status</th>
                   <th>Workflow</th>
+                  <th>Status</th>
                   <th>Started</th>
-                  <th>Completed</th>
                   <th>Duration</th>
-                  <th>Runtime</th>
+                  <th>Completed</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="6"><div className="sky-empty-state">Loading workflow runs...</div></td>
+                    <td colSpan="5"><div className="sky-empty-state">Loading workflow runs...</div></td>
                   </tr>
                 )}
                 {!loading && historyRuns.length === 0 && (
                   <tr>
-                    <td colSpan="6"><div className="sky-empty-state">No workflow runs found for these filters.</div></td>
+                    <td colSpan="5"><div className="sky-empty-state">No workflow runs found for these filters.</div></td>
                   </tr>
                 )}
                 {!loading && pagedHistoryRuns.map((run) => (
@@ -1417,7 +1432,6 @@ function SkyWorkflows({ mode = 'start' }) {
                     key={run.workflowRunRecordId}
                     onClick={() => loadRunDetail(run.workflowRunRecordId)}
                   >
-                    <td><span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span></td>
                     <td>
                       <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
                       <div className="small sky-mono sky-muted">{run.workflowCode}</div>
@@ -1428,18 +1442,17 @@ function SkyWorkflows({ mode = 'start' }) {
                         {run.metadata?.parentWorkflowRunRecordId && (
                           <span className="sky-pill sky-pill-info">Has parent</span>
                         )}
+                        {run.temporalWorkflowId ? (
+                          <span className="sky-pill sky-pill-success">Temporal-backed</span>
+                        ) : (
+                          <span className="sky-pill sky-pill-info">Inline/local</span>
+                        )}
                       </div>
                     </td>
+                    <td><span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span></td>
                     <td>{formatDate(run.startedAt || run.createdAt)}</td>
-                    <td>{formatDate(run.completedAt)}</td>
                     <td>{formatDuration(getRunDurationMs(run))}</td>
-                    <td>
-                      {run.temporalWorkflowId ? (
-                        <span className="sky-pill sky-pill-success">Temporal-backed</span>
-                      ) : (
-                        <span className="sky-pill sky-pill-info">Inline/local</span>
-                      )}
-                    </td>
+                    <td>{formatDate(run.completedAt)}</td>
                   </tr>
                 ))}
               </tbody>
