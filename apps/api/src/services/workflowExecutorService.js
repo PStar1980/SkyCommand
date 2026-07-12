@@ -1454,6 +1454,262 @@ function normalizeNodeRunRow(row) {
   };
 }
 
+function normalizeNodeOutputRow(row) {
+  const item = camelizeRow(row);
+
+  return {
+    workflowRunNodeOutputId: item.workflowRunNodeOutputId,
+    workflowRunRecordId: item.workflowRunRecordId,
+    workflowCode: item.workflowCode,
+    workflowStatus: item.workflowStatus,
+    workflowNodeRunRecordId: item.workflowNodeRunRecordId,
+    workflowNodeId: item.workflowNodeId,
+    nodeKey: item.nodeKey,
+    nodeTypeCode: item.nodeTypeCode,
+    targetCode: item.targetCode,
+    outputKey: item.outputKey,
+    outputType: item.outputType,
+    inputSnapshot: item.inputSnapshotJson || {},
+    output: item.outputJson,
+    outputSummary: item.outputSummary,
+    status: item.status,
+    attemptCount: item.attemptCount || 0,
+    metadata: item.metadata || {},
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+function normalizeWorkflowContextValueRow(row) {
+  const item = camelizeRow(row);
+
+  return {
+    workflowRunContextValueId: item.workflowRunContextValueId,
+    workflowRunRecordId: item.workflowRunRecordId,
+    workflowCode: item.workflowCode,
+    workflowStatus: item.workflowStatus,
+    contextKey: item.contextKey,
+    value: item.valueJson,
+    valueType: item.valueType,
+    sourceNodeKey: item.sourceNodeKey,
+    sourceNodeRunRecordId: item.sourceNodeRunRecordId,
+    metadata: item.metadata || {},
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+function getJsonValueType(value) {
+  if (value === null || value === undefined) {
+    return 'null';
+  }
+
+  if (Array.isArray(value)) {
+    return 'array';
+  }
+
+  const type = typeof value;
+
+  if (['string', 'number', 'boolean'].includes(type)) {
+    return type;
+  }
+
+  if (type === 'object') {
+    return 'object';
+  }
+
+  return 'unknown';
+}
+
+function toJsonbValue(value) {
+  if (value === undefined) {
+    return null;
+  }
+
+  return value;
+}
+
+function isOptionalWorkflowPersistenceMissing(error) {
+  return ['42P01', '42703', '42883'].includes(String(error?.code || ''));
+}
+
+function normalizeOutputKey(value, fallback = 'result') {
+  const normalized = String(value || fallback)
+    .trim()
+    .replace(/[^A-Za-z0-9_.:-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 120);
+
+  return normalized || fallback;
+}
+
+function getNodeOutputPersistenceSummary(output = {}) {
+  return summarizeWorkflowNodeOutput(output) || output?.summary || output?.message || '';
+}
+
+function buildNodeOutputPersistenceRecords(nodeRun = {}) {
+  const output = toJsonbValue(nodeRun.output || {});
+  const outputRecords = [{
+    outputKey: 'result',
+    output,
+    outputSummary: getNodeOutputPersistenceSummary(output || {}),
+  }];
+
+  const safeOutput = getSafeObject(output);
+
+  if (safeOutput.output && typeof safeOutput.output === 'object') {
+    outputRecords.push({
+      outputKey: 'output',
+      output: safeOutput.output,
+      outputSummary: safeOutput.output.summary || safeOutput.output.message || '',
+    });
+  }
+
+  if (safeOutput.error && typeof safeOutput.error === 'object') {
+    outputRecords.push({
+      outputKey: 'error',
+      output: safeOutput.error,
+      outputSummary: safeOutput.error.message || nodeRun.errorMessage || '',
+    });
+  }
+
+  return outputRecords;
+}
+
+async function persistWorkflowNodeOutput(nodeRun = {}) {
+  if (!nodeRun?.workflowRunRecordId || !nodeRun?.workflowNodeRunRecordId || !nodeRun?.nodeKey) {
+    return [];
+  }
+
+  const inputSnapshot = getSafeObject(nodeRun.metadata?.parameters);
+  const outputRecords = buildNodeOutputPersistenceRecords(nodeRun);
+  const persisted = [];
+
+  for (const record of outputRecords) {
+    try {
+      const output = toJsonbValue(record.output);
+      const result = await query(
+        `
+          INSERT INTO worker.workflow_run_node_outputs (
+            workflow_run_record_id,
+            workflow_node_run_record_id,
+            workflow_node_id,
+            node_key,
+            node_type_code,
+            target_code,
+            output_key,
+            output_type,
+            input_snapshot_json,
+            output_json,
+            output_summary,
+            status,
+            attempt_count,
+            metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13, $14::jsonb)
+          ON CONFLICT (workflow_node_run_record_id, output_key)
+          DO UPDATE SET
+            workflow_run_record_id = EXCLUDED.workflow_run_record_id,
+            workflow_node_id = EXCLUDED.workflow_node_id,
+            node_key = EXCLUDED.node_key,
+            node_type_code = EXCLUDED.node_type_code,
+            target_code = EXCLUDED.target_code,
+            output_type = EXCLUDED.output_type,
+            input_snapshot_json = EXCLUDED.input_snapshot_json,
+            output_json = EXCLUDED.output_json,
+            output_summary = EXCLUDED.output_summary,
+            status = EXCLUDED.status,
+            attempt_count = EXCLUDED.attempt_count,
+            metadata = worker.workflow_run_node_outputs.metadata || EXCLUDED.metadata
+          RETURNING *
+        `,
+        [
+          nodeRun.workflowRunRecordId,
+          nodeRun.workflowNodeRunRecordId,
+          nodeRun.workflowNodeId || null,
+          nodeRun.nodeKey,
+          nodeRun.nodeTypeCode || null,
+          nodeRun.targetCode || null,
+          normalizeOutputKey(record.outputKey),
+          getJsonValueType(output),
+          JSON.stringify(inputSnapshot),
+          JSON.stringify(output),
+          record.outputSummary || null,
+          nodeRun.status || null,
+          Number.parseInt(nodeRun.attemptCount, 10) || 0,
+          JSON.stringify({
+            persistedBy: 'skyserver_workflow_output_persistence_v1',
+            persistedAt: new Date().toISOString(),
+            source: nodeRun.metadata?.temporalBacked ? 'temporal_workflow_activity' : 'inline_workflow_executor',
+          }),
+        ],
+      );
+
+      persisted.push(normalizeNodeOutputRow(result.rows[0]));
+    } catch (error) {
+      if (isOptionalWorkflowPersistenceMissing(error)) {
+        return persisted;
+      }
+
+      throw error;
+    }
+  }
+
+  return persisted;
+}
+
+async function getWorkflowNodeOutputsForRun(workflowRunRecordId) {
+  if (!workflowRunRecordId) {
+    return [];
+  }
+
+  try {
+    const result = await query(
+      `
+        SELECT *
+        FROM worker.vw_workflow_run_node_outputs
+        WHERE workflow_run_record_id = $1
+        ORDER BY created_at, node_key, output_key
+      `,
+      [workflowRunRecordId],
+    );
+
+    return result.rows.map(normalizeNodeOutputRow);
+  } catch (error) {
+    if (isOptionalWorkflowPersistenceMissing(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+async function getWorkflowContextValuesForRun(workflowRunRecordId) {
+  if (!workflowRunRecordId) {
+    return [];
+  }
+
+  try {
+    const result = await query(
+      `
+        SELECT *
+        FROM worker.vw_workflow_run_context_values
+        WHERE workflow_run_record_id = $1
+        ORDER BY context_key
+      `,
+      [workflowRunRecordId],
+    );
+
+    return result.rows.map(normalizeWorkflowContextValueRow);
+  } catch (error) {
+    if (isOptionalWorkflowPersistenceMissing(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
 async function listWorkflowDefinitions({ visibleOnly = true, enabledOnly = true, publishedOnly = true, activeOnly = true } = {}) {
   const clauses = [];
 
@@ -1770,7 +2026,17 @@ async function updateNodeRun({ nodeRunRecordId, status, output = {}, errorMessag
     ],
   );
 
-  return result.rows[0] ? normalizeNodeRunRow(result.rows[0]) : null;
+  if (!result.rows[0]) {
+    return null;
+  }
+
+  const nodeRun = normalizeNodeRunRow(result.rows[0]);
+
+  if (['COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'SKIPPED'].includes(String(status || '').toUpperCase())) {
+    await persistWorkflowNodeOutput(nodeRun);
+  }
+
+  return nodeRun;
 }
 
 
@@ -1901,7 +2167,11 @@ async function finalizeActiveNodeRunsForRun({ workflowRunRecordId, status, summa
     [workflowRunRecordId, status, summary || null, JSON.stringify(getSafeObject(metadata))],
   );
 
-  return result.rows.map(normalizeNodeRunRow);
+  const nodeRuns = result.rows.map(normalizeNodeRunRow);
+
+  await Promise.all(nodeRuns.map((nodeRun) => persistWorkflowNodeOutput(nodeRun)));
+
+  return nodeRuns;
 }
 
 async function requestWorkflowRunControlAction({
@@ -5069,8 +5339,10 @@ async function getWorkflowRun(workflowRunRecordId) {
     });
   }
 
-  const [nodeRuns, relations, approvals, definitionGraph] = await Promise.all([
+  const [nodeRuns, nodeOutputs, contextValues, relations, approvals, definitionGraph] = await Promise.all([
     getWorkflowNodeRunsForRun(workflowRunRecordId),
+    getWorkflowNodeOutputsForRun(workflowRunRecordId),
+    getWorkflowContextValuesForRun(workflowRunRecordId),
     getWorkflowRunRelations(run),
     getWorkflowApprovalRequestsForRun(workflowRunRecordId),
     getWorkflowVersionGraph(run.workflowVersionId),
@@ -5100,6 +5372,8 @@ async function getWorkflowRun(workflowRunRecordId) {
       temporalRuntime,
     },
     nodeRuns,
+    nodeOutputs,
+    contextValues,
     approvals,
     definitionGraph,
     relations,
@@ -5241,18 +5515,42 @@ function findTelemetryCurrentNodeId(nodes = [], run = {}) {
   return queuedNode?.nodeId || null;
 }
 
+function groupNodeOutputsByNodeKey(nodeOutputs = []) {
+  return nodeOutputs.reduce((accumulator, output) => {
+    const nodeKey = String(output?.nodeKey || '').trim();
+
+    if (!nodeKey) {
+      return accumulator;
+    }
+
+    if (!accumulator[nodeKey]) {
+      accumulator[nodeKey] = [];
+    }
+
+    accumulator[nodeKey].push(output);
+    return accumulator;
+  }, {});
+}
+
 function buildWorkflowRunTelemetrySnapshot(detail = {}) {
   const run = detail.run || {};
   const definitionNodes = detail.definitionGraph?.nodes || [];
   const nodeRuns = detail.nodeRuns || [];
   const nodeRunsByKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
+  const persistedOutputsByNodeKey = groupNodeOutputsByNodeKey(detail.nodeOutputs || []);
   const nodes = definitionNodes.length > 0
-    ? definitionNodes.map((node, index) => buildWorkflowTelemetryNode({
-      node,
-      nodeRun: nodeRunsByKey.get(node.nodeKey) || null,
-      index,
+    ? definitionNodes.map((node, index) => ({
+      ...buildWorkflowTelemetryNode({
+        node,
+        nodeRun: nodeRunsByKey.get(node.nodeKey) || null,
+        index,
+      }),
+      persistedOutputs: persistedOutputsByNodeKey[node.nodeKey] || [],
     }))
-    : nodeRuns.map((nodeRun, index) => buildWorkflowTelemetryNode({ nodeRun, index }));
+    : nodeRuns.map((nodeRun, index) => ({
+      ...buildWorkflowTelemetryNode({ nodeRun, index }),
+      persistedOutputs: persistedOutputsByNodeKey[nodeRun.nodeKey] || [],
+    }));
   const currentNodeId = findTelemetryCurrentNodeId(nodes, run);
   const activeNodeCount = nodes.filter((node) => isWorkflowRunStatusActive(node.status)).length;
   const completedNodeCount = nodes.filter((node) => node.status === TERMINAL_SUCCESS_STATUS).length;
@@ -5275,6 +5573,9 @@ function buildWorkflowRunTelemetrySnapshot(detail = {}) {
     temporalWorkflowId: run.temporalWorkflowId || null,
     temporalRunId: run.temporalRunId || null,
     nodes,
+    nodeOutputs: detail.nodeOutputs || [],
+    outputsByNodeKey: persistedOutputsByNodeKey,
+    contextValues: detail.contextValues || [],
     approvals: detail.approvals || [],
     counts: {
       nodes: nodes.length,
@@ -5350,6 +5651,8 @@ module.exports = {
   getWorkflowDefinitionForManage,
   getWorkflowRun,
   getWorkflowRunTelemetry,
+  getWorkflowNodeOutputsForRun,
+  getWorkflowContextValuesForRun,
   createWorkflowApprovalRequest,
   decideWorkflowApprovalRequest,
   publishWorkflowDraftVersion,

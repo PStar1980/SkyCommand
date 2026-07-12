@@ -679,3 +679,12 @@ SkyWeb Analytics owns:
 - Added Production Readiness analytics for readiness gauge, check status mix, category coverage, progress by area, and risk concentration.
 - Added reusable chart infrastructure: `EChartCard`, `ChartFullscreenOverlay`, `EChartCanvas`, empty states, trend charts, duration charts, status donuts, outcome bars, shared chart theme/options/data helpers, and full-screen chart overlay behavior.
 - Completed a repository hygiene pass by preserving the required favicon in lean handoff zips, excluding `*.patch` artifacts, and removing duplicate view exports that were incorrectly stored in `scripts/db/triggers`.
+
+## Phase 13.3 — Node output persistence
+
+- Added migration `00055__workflow_node_output_persistence.sql` with `worker.workflow_run_node_outputs`, `worker.workflow_run_context_values`, and read views for structured run-output/context inspection.
+- Added matching `scripts/db` object files for individual versioning of the new output/context tables, triggers, and views.
+- Updated the workflow executor so completed, failed, canceled, terminated, and skipped node runs persist a durable structured output record keyed by node run and output key.
+- Preserved compatibility with existing databases by treating the new output/context tables as optional until the migration is applied.
+- Extended selected workflow run telemetry/detail payloads with `nodeOutputs`, `outputsByNodeKey`, and `contextValues` so smart polling can surface output/context changes without a page reload.
+- Added a Workflow History structured output ledger panel that shows persisted node outputs, resolved input snapshots, output summaries, output JSON, and future context values for the selected run.

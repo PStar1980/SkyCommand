@@ -4226,3 +4226,45 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Phase 13.3 — workflow node output persistence display */
+.sky-node-output-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.sky-json-block {
+  max-height: 20rem;
+  overflow: auto;
+  border: 1px solid rgba(124, 144, 177, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(1, 4, 9, 0.62);
+  color: #d7e7ff;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding: 0.85rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 215, 255, 0.34) rgba(4, 8, 16, 0.48);
+}
+
+.sky-json-block::-webkit-scrollbar {
+  width: 0.48rem;
+  height: 0.48rem;
+}
+
+.sky-json-block::-webkit-scrollbar-track {
+  background: rgba(4, 8, 16, 0.32);
+}
+
+.sky-json-block::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(154, 215, 255, 0.28);
+}
+
+@media (max-width: 760px) {
+  .sky-node-output-grid {
+    grid-template-columns: 1fr;
+  }
+}
