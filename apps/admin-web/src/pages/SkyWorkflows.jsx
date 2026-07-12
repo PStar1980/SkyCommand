@@ -1413,17 +1413,18 @@ function SkyWorkflows({ mode = 'start' }) {
                   <th>Started</th>
                   <th>Duration</th>
                   <th>Completed</th>
+                  <th>Runtime</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="5"><div className="sky-empty-state">Loading workflow runs...</div></td>
+                    <td colSpan="6"><div className="sky-empty-state">Loading workflow runs...</div></td>
                   </tr>
                 )}
                 {!loading && historyRuns.length === 0 && (
                   <tr>
-                    <td colSpan="5"><div className="sky-empty-state">No workflow runs found for these filters.</div></td>
+                    <td colSpan="6"><div className="sky-empty-state">No workflow runs found for these filters.</div></td>
                   </tr>
                 )}
                 {!loading && pagedHistoryRuns.map((run) => (
@@ -1435,24 +1436,28 @@ function SkyWorkflows({ mode = 'start' }) {
                     <td>
                       <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
                       <div className="small sky-mono sky-muted">{run.workflowCode}</div>
-                      <div className="d-flex flex-wrap gap-1 mt-1">
-                        {getRunRelationLabel(run) && (
-                          <span className="sky-pill sky-pill-warning">{getRunRelationLabel(run)}</span>
-                        )}
-                        {run.metadata?.parentWorkflowRunRecordId && (
-                          <span className="sky-pill sky-pill-info">Has parent</span>
-                        )}
-                        {run.temporalWorkflowId ? (
-                          <span className="sky-pill sky-pill-success">Temporal-backed</span>
-                        ) : (
-                          <span className="sky-pill sky-pill-info">Inline/local</span>
-                        )}
-                      </div>
+                      {(getRunRelationLabel(run) || run.metadata?.parentWorkflowRunRecordId) && (
+                        <div className="d-flex flex-wrap gap-1 mt-1">
+                          {getRunRelationLabel(run) && (
+                            <span className="sky-pill sky-pill-warning">{getRunRelationLabel(run)}</span>
+                          )}
+                          {run.metadata?.parentWorkflowRunRecordId && (
+                            <span className="sky-pill sky-pill-info">Has parent</span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td><span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span></td>
                     <td>{formatDate(run.startedAt || run.createdAt)}</td>
                     <td>{formatDuration(getRunDurationMs(run))}</td>
                     <td>{formatDate(run.completedAt)}</td>
+                    <td>
+                      {run.temporalWorkflowId ? (
+                        <span className="sky-pill sky-pill-success">Temporal-backed</span>
+                      ) : (
+                        <span className="sky-pill sky-pill-info">Inline/local</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
