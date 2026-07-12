@@ -5108,6 +5108,166 @@ async function getWorkflowRun(workflowRunRecordId) {
   };
 }
 
+function isWorkflowRunStatusActive(status) {
+  return ACTIVE_RUN_STATUSES.has(String(status || '').trim().toUpperCase());
+}
+
+function summarizeWorkflowNodeOutput(output = {}) {
+  const safeOutput = getSafeObject(output);
+
+  if (safeOutput.summary) {
+    return String(safeOutput.summary);
+  }
+
+  if (safeOutput.message) {
+    return String(safeOutput.message);
+  }
+
+  if (safeOutput.kind === 'tool_execution') {
+    return `${safeOutput.toolCode || 'Tool'} finished with ${safeOutput.status || 'UNKNOWN'}`;
+  }
+
+  if (safeOutput.kind === 'api_call') {
+    return `API ${safeOutput.method || ''} ${safeOutput.url || ''} returned ${safeOutput.statusCode || 'unknown status'}`.trim();
+  }
+
+  if (safeOutput.kind === 'condition_evaluation') {
+    return `Condition ${safeOutput.passed ? 'passed' : 'did not pass'}.`;
+  }
+
+  if (safeOutput.kind === 'human_approval') {
+    return `Human approval ${safeOutput.status || safeOutput.decision || 'completed'}.`;
+  }
+
+  return '';
+}
+
+function buildWorkflowTelemetryNode({ node = {}, nodeRun = null, index = 0 } = {}) {
+  const status = nodeRun?.status || 'QUEUED';
+  const startedAt = nodeRun?.startedAt || nodeRun?.createdAt || null;
+  const completedAt = nodeRun?.completedAt || null;
+
+  return {
+    nodeId: node.nodeKey || nodeRun?.nodeKey || `node-${index + 1}`,
+    nodeKey: node.nodeKey || nodeRun?.nodeKey || null,
+    nodeRunRecordId: nodeRun?.workflowNodeRunRecordId || null,
+    nodeType: node.nodeTypeCode || nodeRun?.nodeTypeCode || null,
+    label: node.displayName || nodeRun?.nodeKey || `Node ${index + 1}`,
+    status,
+    targetCode: node.targetCode || nodeRun?.targetCode || null,
+    startedAt,
+    completedAt,
+    durationMs: getNodeRunDurationMs(nodeRun),
+    attemptCount: nodeRun?.attemptCount ?? 0,
+    outputSummary: summarizeWorkflowNodeOutput(nodeRun?.output),
+    output: nodeRun?.output || {},
+    errorMessage: nodeRun?.errorMessage || null,
+    metadata: nodeRun?.metadata || {},
+  };
+}
+
+function findTelemetryCurrentNodeId(nodes = [], run = {}) {
+  const runningNode = nodes.find((node) => isWorkflowRunStatusActive(node.status));
+
+  if (runningNode) {
+    return runningNode.nodeId;
+  }
+
+  if (!isWorkflowRunStatusActive(run.status)) {
+    return null;
+  }
+
+  const queuedNode = nodes.find((node) => String(node.status || '').toUpperCase() === 'QUEUED');
+
+  return queuedNode?.nodeId || null;
+}
+
+function buildWorkflowRunTelemetrySnapshot(detail = {}) {
+  const run = detail.run || {};
+  const definitionNodes = detail.definitionGraph?.nodes || [];
+  const nodeRuns = detail.nodeRuns || [];
+  const nodeRunsByKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
+  const nodes = definitionNodes.length > 0
+    ? definitionNodes.map((node, index) => buildWorkflowTelemetryNode({
+      node,
+      nodeRun: nodeRunsByKey.get(node.nodeKey) || null,
+      index,
+    }))
+    : nodeRuns.map((nodeRun, index) => buildWorkflowTelemetryNode({ nodeRun, index }));
+  const currentNodeId = findTelemetryCurrentNodeId(nodes, run);
+  const activeNodeCount = nodes.filter((node) => isWorkflowRunStatusActive(node.status)).length;
+  const completedNodeCount = nodes.filter((node) => node.status === TERMINAL_SUCCESS_STATUS).length;
+  const failedNodeCount = nodes.filter((node) => node.status === TERMINAL_FAILURE_STATUS).length;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    workflowRunRecordId: run.workflowRunRecordId,
+    runId: run.workflowRunRecordId,
+    workflowName: run.workflowDisplayName || run.workflowCode,
+    workflowCode: run.workflowCode,
+    status: run.status,
+    active: isWorkflowRunStatusActive(run.status),
+    currentNodeId,
+    startedAt: run.startedAt || run.createdAt || null,
+    completedAt: run.completedAt || null,
+    durationMs: getRunDurationMs(run),
+    summary: run.summary || null,
+    runtime: run.temporalWorkflowId ? 'temporal' : 'inline',
+    temporalWorkflowId: run.temporalWorkflowId || null,
+    temporalRunId: run.temporalRunId || null,
+    nodes,
+    approvals: detail.approvals || [],
+    counts: {
+      nodes: nodes.length,
+      activeNodes: activeNodeCount,
+      completedNodes: completedNodeCount,
+      failedNodes: failedNodeCount,
+      approvals: (detail.approvals || []).length,
+      pendingApprovals: (detail.approvals || []).filter((approval) => approval.status === 'PENDING').length,
+    },
+  };
+}
+
+async function listActiveWorkflowRuns(filters = {}) {
+  const limit = parseLimit(filters.limit);
+  const clauses = ['status = ANY($1::text[])'];
+  const values = [[...ACTIVE_RUN_STATUSES]];
+  const workflowCode = String(filters.workflowCode || '').trim();
+
+  if (workflowCode) {
+    values.push(workflowCode);
+    clauses.push(`workflow_code = $${values.length}`);
+  }
+
+  values.push(limit);
+
+  const result = await query(
+    `
+      SELECT *
+      FROM worker.vw_workflow_run_records
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY COALESCE(started_at, created_at) DESC, created_at DESC
+      LIMIT $${values.length}
+    `,
+    values,
+  );
+
+  return {
+    total: result.rows.length,
+    limit,
+    items: result.rows.map(normalizeRunRow),
+  };
+}
+
+async function getWorkflowRunTelemetry(workflowRunRecordId) {
+  const detail = await getWorkflowRun(workflowRunRecordId);
+
+  return {
+    ...detail,
+    telemetry: buildWorkflowRunTelemetrySnapshot(detail),
+  };
+}
+
 module.exports = {
   WorkflowServiceError,
   completeWorkflowNodeRun,
@@ -5130,6 +5290,7 @@ module.exports = {
   getWorkflowDefinition,
   getWorkflowDefinitionForManage,
   getWorkflowRun,
+  getWorkflowRunTelemetry,
   createWorkflowApprovalRequest,
   decideWorkflowApprovalRequest,
   publishWorkflowDraftVersion,
@@ -5138,6 +5299,7 @@ module.exports = {
   listBuilderCatalog,
   linkWorkflowRunToTemporal,
   listWorkflowDefinitions,
+  listActiveWorkflowRuns,
   listWorkflowRuns,
   markWorkflowNodeAttempt,
   startWorkflowNodeRun,

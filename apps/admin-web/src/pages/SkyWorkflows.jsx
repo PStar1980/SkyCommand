@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
@@ -15,6 +15,10 @@ const STATUS_OPTIONS = [
 
 const HISTORY_PAGE_SIZE = 10;
 const HISTORY_LOAD_LIMIT = 200;
+const HISTORY_POLL_IDLE_MS = 8000;
+const HISTORY_POLL_ACTIVE_MS = 2000;
+const HISTORY_POLL_SELECTED_ACTIVE_MS = 1500;
+const HISTORY_POLL_HIDDEN_MS = 30000;
 
 const RUNTIME_FILTER_OPTIONS = [
   { value: 'skycommand', label: 'SkyCommand ledger' },
@@ -73,6 +77,37 @@ function formatDuration(ms) {
   }
 
   return `${(value / 1000).toFixed(1)} s`;
+}
+
+function formatPollingInterval(ms) {
+  const value = Number(ms);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return '—';
+  }
+
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+
+  const seconds = value / 1000;
+  return `${seconds % 1 === 0 ? seconds.toFixed(0) : seconds.toFixed(1)} s`;
+}
+
+function getWorkflowHistoryPollingDelay({ activeRunCount = 0, hidden = false, selectedRunActive = false } = {}) {
+  if (hidden) {
+    return HISTORY_POLL_HIDDEN_MS;
+  }
+
+  if (selectedRunActive) {
+    return HISTORY_POLL_SELECTED_ACTIVE_MS;
+  }
+
+  if (activeRunCount > 0) {
+    return HISTORY_POLL_ACTIVE_MS;
+  }
+
+  return HISTORY_POLL_IDLE_MS;
 }
 
 function getDateDiffMs(start, end) {
@@ -877,6 +912,14 @@ function SkyWorkflows({ mode = 'start' }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
+  const [telemetryState, setTelemetryState] = useState({
+    activeRunCount: 0,
+    error: '',
+    intervalMs: HISTORY_POLL_IDLE_MS,
+    lastUpdatedAt: null,
+    selectedRunActive: false,
+  });
+  const telemetryPollingRef = useRef(false);
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
@@ -995,23 +1038,109 @@ function SkyWorkflows({ mode = 'start' }) {
     await loadDefinitionDetail(definition);
   }
 
-  async function loadRunDetail(workflowRunRecordId) {
+  async function loadRunDetail(workflowRunRecordId, { quiet = false, telemetry = isHistoryMode } = {}) {
     if (!workflowRunRecordId) {
-      return;
+      return null;
     }
 
-    setError('');
+    if (!quiet) {
+      setError('');
+    }
 
     try {
-      const detail = await workflowService.getRun(workflowRunRecordId);
+      const detail = telemetry
+        ? await workflowService.getRunTelemetry(workflowRunRecordId)
+        : await workflowService.getRun(workflowRunRecordId);
       setSelectedRunDetail(detail);
 
-      if (detail.run?.workflowCode) {
+      if (detail.run?.workflowCode && !quiet) {
         const definitionDetail = await workflowService.getDefinition(detail.run.workflowCode);
         setSelectedDefinitionDetail(definitionDetail.definition);
       }
+
+      return detail;
     } catch (loadError) {
-      setError(formatApiError(loadError, 'Failed to load workflow run detail.'));
+      if (!quiet) {
+        setError(formatApiError(loadError, 'Failed to load workflow run detail.'));
+      }
+      return null;
+    }
+  }
+
+
+  async function refreshWorkflowHistoryTelemetry({ quiet = true } = {}) {
+    if (!isHistoryMode || telemetryPollingRef.current) {
+      return null;
+    }
+
+    telemetryPollingRef.current = true;
+
+    try {
+      const result = await workflowService.listRuns({
+        limit: HISTORY_LOAD_LIMIT,
+        status: filters.status,
+      });
+      const items = result.items || [];
+      const activeRunCount = items.filter(isActiveRun).length;
+      const visibleRuns = items.filter((run) => runMatchesRuntimeFilter(run, filters.runtime));
+      const visiblePageCount = Math.max(1, Math.ceil(visibleRuns.length / HISTORY_PAGE_SIZE));
+      const visibleCurrentPage = Math.min(historyPage, visiblePageCount);
+      const visiblePageStart = (visibleCurrentPage - 1) * HISTORY_PAGE_SIZE;
+      const visiblePageRuns = visibleRuns.slice(visiblePageStart, visiblePageStart + HISTORY_PAGE_SIZE);
+      const selectedRunId = selectedRun?.workflowRunRecordId;
+      const selectedVisibleRun = selectedRunId
+        ? visiblePageRuns.find((run) => run.workflowRunRecordId === selectedRunId)
+        : null;
+      const nextSelectedRun = selectedVisibleRun || visiblePageRuns[0] || null;
+      let refreshedDetail = null;
+
+      setRuns(items);
+
+      if (nextSelectedRun) {
+        refreshedDetail = await loadRunDetail(nextSelectedRun.workflowRunRecordId, {
+          quiet: true,
+          telemetry: true,
+        });
+      } else {
+        setSelectedRunDetail(null);
+      }
+
+      const selectedRunActive = isActiveRun(refreshedDetail?.run || nextSelectedRun);
+      const nextIntervalMs = getWorkflowHistoryPollingDelay({
+        activeRunCount,
+        hidden: document.visibilityState === 'hidden',
+        selectedRunActive,
+      });
+
+      setTelemetryState({
+        activeRunCount,
+        error: '',
+        intervalMs: nextIntervalMs,
+        lastUpdatedAt: new Date().toISOString(),
+        selectedRunActive,
+      });
+
+      return {
+        activeRunCount,
+        intervalMs: nextIntervalMs,
+        selectedRunActive,
+      };
+    } catch (pollError) {
+      const errorMessage = formatApiError(pollError, 'Workflow telemetry refresh failed.');
+
+      if (!quiet) {
+        setError(errorMessage);
+      }
+
+      setTelemetryState((current) => ({
+        ...current,
+        error: errorMessage,
+        lastUpdatedAt: new Date().toISOString(),
+      }));
+
+      return null;
+    } finally {
+      telemetryPollingRef.current = false;
     }
   }
 
@@ -1191,6 +1320,55 @@ function SkyWorkflows({ mode = 'start' }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHistoryMode, loading, pagedHistoryRuns, selectedRun?.workflowRunRecordId]);
+
+  useEffect(() => {
+    if (!isHistoryMode) {
+      return undefined;
+    }
+
+    let canceled = false;
+    let timerId = null;
+
+    async function pollWorkflowHistory() {
+      const pollResult = await refreshWorkflowHistoryTelemetry({ quiet: true });
+
+      if (canceled) {
+        return;
+      }
+
+      const fallbackActiveRunCount = runs.filter(isActiveRun).length;
+      const fallbackSelectedRunActive = isActiveRun(selectedRun);
+      const delay = pollResult?.intervalMs || getWorkflowHistoryPollingDelay({
+        activeRunCount: pollResult?.activeRunCount ?? fallbackActiveRunCount,
+        hidden: document.visibilityState === 'hidden',
+        selectedRunActive: pollResult?.selectedRunActive ?? fallbackSelectedRunActive,
+      });
+
+      timerId = window.setTimeout(pollWorkflowHistory, delay);
+    }
+
+    const initialDelay = getWorkflowHistoryPollingDelay({
+      activeRunCount: runs.filter(isActiveRun).length,
+      hidden: document.visibilityState === 'hidden',
+      selectedRunActive: isActiveRun(selectedRun),
+    });
+
+    setTelemetryState((current) => ({
+      ...current,
+      intervalMs: initialDelay,
+    }));
+
+    timerId = window.setTimeout(pollWorkflowHistory, initialDelay);
+
+    return () => {
+      canceled = true;
+
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHistoryMode, filters.status, filters.runtime, selectedRun?.workflowRunRecordId, selectedRun?.status]);
 
   function renderSelectedRunDetailCard() {
     return (
@@ -1374,6 +1552,19 @@ function SkyWorkflows({ mode = 'start' }) {
               <p className="sky-muted small mb-0">
                 Select the execution surface and status, then inspect a run in the detail workspace below.
               </p>
+              <div className="d-flex flex-wrap align-items-center gap-2 mt-2 small">
+                <span className={`sky-pill ${telemetryState.error ? 'sky-pill-warning' : 'sky-pill-success'}`}>
+                  Smart polling {telemetryState.error ? 'checking' : 'live'}
+                </span>
+                <span className="sky-pill sky-pill-info">Every {formatPollingInterval(telemetryState.intervalMs)}</span>
+                <span className="sky-pill sky-pill-info">Active runs {telemetryState.activeRunCount}</span>
+                {telemetryState.lastUpdatedAt && (
+                  <span className="sky-muted">Updated {formatDate(telemetryState.lastUpdatedAt)}</span>
+                )}
+              </div>
+              {telemetryState.error && (
+                <div className="small text-warning-emphasis mt-2">{telemetryState.error}</div>
+              )}
             </div>
             <div className="sky-history-filter-grid">
               <div>
