@@ -75,10 +75,13 @@ SkyServer/
 │   │       │       ├── Panel.jsx
 │   │       │       ├── SidebarNav.jsx
 │   │       │       ├── SkyCommandMark.jsx
+│   │       │       ├── SmartPollingStatus.jsx
 │   │       │       ├── StatCard.jsx
 │   │       │       └── StatusPill.jsx
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
+│   │       ├── hooks/
+│   │       │   └── useSmartPolling.js
 │   │       ├── pages/
 │   │       │   ├── AdminPrivileges.jsx
 │   │       │   ├── AdminRepositories.jsx

@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import WorkflowHistoryVisuals from '../components/charts/WorkflowHistoryVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
+import useSmartPolling, {
+  SMART_POLLING_INTERVALS,
+  getSmartPollingDelay,
+} from '../hooks/useSmartPolling.js';
 import workflowService from '../services/workflowService';
 
 const STATUS_OPTIONS = [
@@ -14,8 +19,18 @@ const STATUS_OPTIONS = [
   { value: 'QUEUED', label: 'Queued' },
 ];
 
+function isActiveRun(run) {
+  const status = String(run?.status || '').toUpperCase();
+  return status === 'RUNNING' || status === 'QUEUED';
+}
+
 function getWorkflowCode(run) {
-  return run?.workflowCode || run?.workflowDefinitionCode || run?.metadata?.workflowCode || 'unknown-workflow';
+  return (
+    run?.workflowCode ||
+    run?.workflowDefinitionCode ||
+    run?.metadata?.workflowCode ||
+    'unknown-workflow'
+  );
 }
 
 function formatDate(value) {
@@ -43,22 +58,32 @@ function WorkflowsDashboard() {
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
 
-  async function loadRuns(nextFilters = filters) {
-    setLoading(true);
-    setError('');
+  async function loadRuns(nextFilters = filters, { quiet = false } = {}) {
+    if (!quiet) {
+      setLoading(true);
+      setError('');
+    }
 
     try {
       const result = await workflowService.listRuns({
         status: nextFilters.status,
         limit: nextFilters.limit,
       });
-      setRuns(result.items || []);
+      const resultItems = result.items || [];
+      setRuns(resultItems);
       setTotal(result.total || 0);
       setRefreshingAt(new Date());
+
+      return { activeCount: resultItems.filter(isActiveRun).length };
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load workflow analytics.');
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load workflow analytics.');
+      }
+      throw loadError;
     } finally {
-      setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+      }
     }
   }
 
@@ -66,6 +91,19 @@ function WorkflowsDashboard() {
     loadRuns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const pollingState = useSmartPolling({
+    dependencies: [filters.status, filters.limit],
+    getDelay: ({ activeCount = 0, hidden = false } = {}) =>
+      getSmartPollingDelay({
+        activeCount,
+        activeMs: SMART_POLLING_INTERVALS.ACTIVE,
+        hidden,
+        idleMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+      }),
+    initialIntervalMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+    onPoll: () => loadRuns(filters, { quiet: true }),
+  });
 
   const workflowOptions = useMemo(() => {
     const names = [...new Set(runs.map(getWorkflowCode))].sort((a, b) => a.localeCompare(b));
@@ -98,14 +136,26 @@ function WorkflowsDashboard() {
   return (
     <>
       <PageHeader
-        actions={(
+        actions={
           <>
-            <button className="btn sky-btn-ghost" disabled={loading} onClick={() => loadRuns()} type="button">
+            <button
+              className="btn sky-btn-ghost"
+              disabled={loading}
+              onClick={() => loadRuns()}
+              type="button"
+            >
               {loading ? 'Refreshing...' : 'Refresh analytics'}
             </button>
-            <div className="small sky-muted mt-2">Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}</div>
+            <div className="small sky-muted mt-2">
+              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
+            </div>
+            <SmartPollingStatus
+              activeLabel="Active runs"
+              className="justify-content-end mt-2"
+              state={pollingState}
+            />
           </>
-        )}
+        }
         kicker="Dashboards · Workflows"
         subtitle="Inspect workflow run trends, outcomes, duration pressure, definition load, failure pressure, and runtime backend split."
         title="Workflows Dashboard"
@@ -115,21 +165,28 @@ function WorkflowsDashboard() {
 
       <form onSubmit={applyFilters}>
         <DashboardFilterCard
-          actions={(
+          actions={
             <>
               <button className="btn sky-btn-primary" disabled={loading} type="submit">
                 Apply filters
               </button>
-              <button className="btn sky-btn-ghost" disabled={loading} onClick={resetFilters} type="button">
+              <button
+                className="btn sky-btn-ghost"
+                disabled={loading}
+                onClick={resetFilters}
+                type="button"
+              >
                 Reset
               </button>
             </>
-          )}
+          }
           meta={`Showing ${filteredRuns.length} chart rows from ${runs.length} loaded · ${total} total matching server filter`}
           title="Workflow analytics filters"
         >
           <div>
-            <label className="form-label" htmlFor="workflowsDashboardStatus">Run status</label>
+            <label className="form-label" htmlFor="workflowsDashboardStatus">
+              Run status
+            </label>
             <select
               className="form-select sky-form-control"
               id="workflowsDashboardStatus"
@@ -137,12 +194,16 @@ function WorkflowsDashboard() {
               value={filters.status}
             >
               {STATUS_OPTIONS.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="form-label" htmlFor="workflowsDashboardDefinition">Workflow</label>
+            <label className="form-label" htmlFor="workflowsDashboardDefinition">
+              Workflow
+            </label>
             <select
               className="form-select sky-form-control"
               id="workflowsDashboardDefinition"
@@ -151,12 +212,16 @@ function WorkflowsDashboard() {
             >
               <option value="">All workflows</option>
               {workflowOptions.map((workflowCode) => (
-                <option key={workflowCode} value={workflowCode}>{workflowCode}</option>
+                <option key={workflowCode} value={workflowCode}>
+                  {workflowCode}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="form-label" htmlFor="workflowsDashboardLimit">Recent window</label>
+            <label className="form-label" htmlFor="workflowsDashboardLimit">
+              Recent window
+            </label>
             <select
               className="form-select sky-form-control"
               id="workflowsDashboardLimit"

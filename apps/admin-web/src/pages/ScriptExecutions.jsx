@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
+import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
+import useSmartPolling, {
+  SMART_POLLING_INTERVALS,
+  getSmartPollingDelay,
+} from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService';
 
 const TOOL_HISTORY_PAGE_SIZE = 10;
+
+function isActiveExecution(item) {
+  return String(item?.status || '').toUpperCase() === 'STARTED';
+}
 
 function formatDate(value) {
   if (!value) {
@@ -119,10 +128,12 @@ function ScriptExecutions() {
   async function loadExecutions(
     nextFilters = filters,
     nextPage = currentPage,
-    { keepSelection = true } = {},
+    { keepSelection = true, quiet = false } = {},
   ) {
-    setLoading(true);
-    setError('');
+    if (!quiet) {
+      setLoading(true);
+      setError('');
+    }
 
     const safePage = Math.max(1, Number(nextPage) || 1);
     const query = {
@@ -139,7 +150,7 @@ function ScriptExecutions() {
 
       if (resultTotal > 0 && safePage > resultPageCount) {
         setCurrentPage(resultPageCount);
-        await loadExecutions(nextFilters, resultPageCount, { keepSelection: false });
+        await loadExecutions(nextFilters, resultPageCount, { keepSelection: false, quiet });
         return;
       }
 
@@ -157,10 +168,22 @@ function ScriptExecutions() {
           null
         );
       });
+
+      return {
+        activeCount: resultItems.filter(isActiveExecution).length,
+        selectedActive: resultItems.some(
+          (item) => item.executionId === selectedItem?.executionId && isActiveExecution(item),
+        ),
+      };
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load script executions.');
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load script executions.');
+      }
+      throw loadError;
     } finally {
-      setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+      }
     }
   }
 
@@ -168,6 +191,21 @@ function ScriptExecutions() {
     loadExecutions(filters, 1, { keepSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const pollingState = useSmartPolling({
+    dependencies: [filters.status, safeCurrentPage, selectedItem?.executionId],
+    getDelay: ({ activeCount = 0, hidden = false, selectedActive = false } = {}) =>
+      getSmartPollingDelay({
+        activeCount,
+        activeMs: SMART_POLLING_INTERVALS.ACTIVE,
+        hidden,
+        idleMs: SMART_POLLING_INTERVALS.IDLE,
+        selectedActive,
+        selectedActiveMs: SMART_POLLING_INTERVALS.SELECTED_ACTIVE,
+      }),
+    initialIntervalMs: SMART_POLLING_INTERVALS.IDLE,
+    onPoll: () => loadExecutions(filters, safeCurrentPage, { keepSelection: true, quiet: true }),
+  });
 
   function updateFilter(name, value) {
     const nextFilters = {
@@ -278,6 +316,11 @@ function ScriptExecutions() {
                 Filter the operational tool ledger, then inspect the selected execution in the
                 detail workspace below.
               </p>
+              <SmartPollingStatus
+                activeLabel="Running tools"
+                className="mt-2"
+                state={pollingState}
+              />
             </div>
             <div className="sky-history-filter-grid sky-history-filter-grid-single">
               <div>
@@ -322,7 +365,9 @@ function ScriptExecutions() {
                 {!loading && items.length === 0 && (
                   <tr>
                     <td colSpan="5">
-                      <div className="sky-empty-state">No tool executions found for this filter.</div>
+                      <div className="sky-empty-state">
+                        No tool executions found for this filter.
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -373,7 +418,9 @@ function ScriptExecutions() {
                       <div>
                         <div className="sky-page-kicker">Selected tool</div>
                         <h3 className="h5 mb-1">{selectedItem.scriptName}</h3>
-                        <div className="small sky-muted">{selectedItem.category || 'Uncategorized'}</div>
+                        <div className="small sky-muted">
+                          {selectedItem.category || 'Uncategorized'}
+                        </div>
                       </div>
                       <span className={`sky-pill ${statusClass(selectedItem.status)}`}>
                         {getStatusLabel(selectedItem.status)}
@@ -383,7 +430,9 @@ function ScriptExecutions() {
                     <div className="sky-execution-metric-grid">
                       <div className="sky-mini-metric">
                         <div className="sky-page-kicker">Duration</div>
-                        <div className="sky-mini-metric-value">{getDurationLabel(selectedItem)}</div>
+                        <div className="sky-mini-metric-value">
+                          {getDurationLabel(selectedItem)}
+                        </div>
                       </div>
                       <div className="sky-mini-metric">
                         <div className="sky-page-kicker">Started</div>
@@ -391,7 +440,9 @@ function ScriptExecutions() {
                       </div>
                       <div className="sky-mini-metric">
                         <div className="sky-page-kicker">Completed</div>
-                        <div className="sky-detail-value">{formatDate(selectedItem.finishedAt)}</div>
+                        <div className="sky-detail-value">
+                          {formatDate(selectedItem.finishedAt)}
+                        </div>
                       </div>
                       <div className="sky-mini-metric">
                         <div className="sky-page-kicker">Logs</div>

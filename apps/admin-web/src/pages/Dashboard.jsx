@@ -2,9 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
-import StatusPill, { StatusDot, getStatusClass, getStatusLabel } from '../components/ui/StatusPill.jsx';
+import StatusPill, {
+  StatusDot,
+  getStatusClass,
+  getStatusLabel,
+} from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import useSmartPolling, {
+  SMART_POLLING_INTERVALS,
+  getSmartPollingDelay,
+} from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService';
 import api from '../services/api';
 import toolService from '../services/toolService';
@@ -507,7 +516,6 @@ function Dashboard() {
     ],
   );
 
-
   const controlPlaneMetrics = [
     {
       label: 'Workflow runtime',
@@ -583,9 +591,11 @@ function Dashboard() {
     }
   }
 
-  async function loadDashboard() {
-    setLoading(true);
-    setError('');
+  async function loadDashboard({ quiet = false } = {}) {
+    if (!quiet) {
+      setLoading(true);
+      setError('');
+    }
 
     try {
       const [
@@ -646,7 +656,7 @@ function Dashboard() {
           : Promise.resolve(null),
       ]);
 
-      setSummary({
+      const nextSummary = {
         apiHealth,
         dbHealth,
         tools: toolsResult?.tools || [],
@@ -674,14 +684,40 @@ function Dashboard() {
         macro: macroResult,
         coreSettings: coreSettingsResult,
         authSettings: authSettingsResult,
-      });
+      };
+      const nextRunningExecutions = nextSummary.executions.items.filter(
+        (execution) => String(execution.status || '').toUpperCase() === 'STARTED',
+      );
+      const nextWorkflowRuns = nextSummary.workflowHealth?.runs || {};
+      const nextActiveRuns = Number(nextWorkflowRuns.active || 0);
+
+      setSummary(nextSummary);
       setRefreshingAt(new Date());
+
+      return { activeCount: nextRunningExecutions.length + nextActiveRuns };
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load dashboard.');
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load dashboard.');
+      }
+      throw loadError;
     } finally {
-      setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+      }
     }
   }
+
+  const pollingState = useSmartPolling({
+    getDelay: ({ activeCount = 0, hidden = false } = {}) =>
+      getSmartPollingDelay({
+        activeCount,
+        activeMs: SMART_POLLING_INTERVALS.ACTIVE,
+        hidden,
+        idleMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+      }),
+    initialIntervalMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+    onPoll: () => loadDashboard({ quiet: true }),
+  });
 
   useEffect(() => {
     let active = true;
@@ -705,12 +741,12 @@ function Dashboard() {
   return (
     <>
       <PageHeader
-        actions={(
+        actions={
           <>
             <button
               className="btn sky-btn-ghost"
               disabled={loading}
-              onClick={loadDashboard}
+              onClick={() => loadDashboard()}
               type="button"
             >
               {loading ? 'Refreshing...' : 'Refresh dashboard'}
@@ -718,8 +754,13 @@ function Dashboard() {
             <div className="small sky-muted mt-2">
               Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
             </div>
+            <SmartPollingStatus
+              activeLabel="Live runs"
+              className="justify-content-end mt-2"
+              state={pollingState}
+            />
           </>
-        )}
+        }
         kicker="Workflow automation engine"
         subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. Monitor API health, database status, macro ingestion, workflow runtime, tools, sessions, executions, and audit activity from one automation console.`}
         title="SkyCommand"
@@ -787,7 +828,6 @@ function Dashboard() {
         </div>
       </section>
 
-
       <DashboardVisuals
         ingestionCounts={ingestionCounts}
         recentAudits={recentAudits}
@@ -832,7 +872,9 @@ function Dashboard() {
           <div className="sky-page-kicker">Operational telemetry</div>
           <h2 className="h5 mb-0">Activity overview</h2>
         </div>
-        <span className="sky-muted small">Sessions, tools, executions, audit, and macro activity</span>
+        <span className="sky-muted small">
+          Sessions, tools, executions, audit, and macro activity
+        </span>
       </div>
 
       <div className="row g-3">
@@ -961,7 +1003,9 @@ function Dashboard() {
           <section className="sky-card h-100">
             <div className="sky-card-header">
               <h2 className="h5 mb-0">System foundation</h2>
-              <div className="small sky-muted">API, database, authentication, and core configuration</div>
+              <div className="small sky-muted">
+                API, database, authentication, and core configuration
+              </div>
             </div>
 
             <div className="sky-card-body">
@@ -1040,7 +1084,9 @@ function Dashboard() {
               <div>
                 <div className="sky-page-kicker">Workflow runtime</div>
                 <h2 className="h5 mb-0">Workflow operations</h2>
-                <div className="small sky-muted">Temporal reachability, task queue polling, run pressure, and approval gates</div>
+                <div className="small sky-muted">
+                  Temporal reachability, task queue polling, run pressure, and approval gates
+                </div>
               </div>
               {hasPermission('WORKFLOW_READ') && (
                 <div className="d-flex flex-wrap gap-2">
@@ -1061,17 +1107,24 @@ function Dashboard() {
                     <StatusDot status={workflowHealth.overallStatus} />
                     <div>
                       <div className="sky-page-kicker">Runtime status</div>
-                      <div className="sky-dashboard-command-value">{workflowHealth.overallStatus || '—'}</div>
+                      <div className="sky-dashboard-command-value">
+                        {workflowHealth.overallStatus || '—'}
+                      </div>
                       <div className="sky-muted small">
-                        Temporal {workflowHealth.temporal?.reachable ? 'online' : 'offline'} · Worker {workflowWorker.status || 'unknown'}
+                        Temporal {workflowHealth.temporal?.reachable ? 'online' : 'offline'} ·
+                        Worker {workflowWorker.status || 'unknown'}
                       </div>
                     </div>
                   </div>
 
                   <div className="sky-mini-metric">
                     <div className="sky-page-kicker">Pollers</div>
-                    <div className="sky-mini-metric-value">{workflowTaskQueue.pollerCount || 0}</div>
-                    <div className="small sky-muted">{workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'skyserver-local'}</div>
+                    <div className="sky-mini-metric-value">
+                      {workflowTaskQueue.pollerCount || 0}
+                    </div>
+                    <div className="small sky-muted">
+                      {workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'skyserver-local'}
+                    </div>
                   </div>
                   <div className="sky-mini-metric">
                     <div className="sky-page-kicker">Active runs</div>
@@ -1080,12 +1133,16 @@ function Dashboard() {
                   </div>
                   <div className="sky-mini-metric">
                     <div className="sky-page-kicker">Completed 24h</div>
-                    <div className="sky-mini-metric-value">{workflowRuns.completedLast24h || 0}</div>
+                    <div className="sky-mini-metric-value">
+                      {workflowRuns.completedLast24h || 0}
+                    </div>
                     <div className="small sky-muted">{workflowRuns.failedLast24h || 0} failed</div>
                   </div>
                   <div className="sky-mini-metric">
                     <div className="sky-page-kicker">Approvals</div>
-                    <div className="sky-mini-metric-value">{workflowHealth.approvals?.pending || 0}</div>
+                    <div className="sky-mini-metric-value">
+                      {workflowHealth.approvals?.pending || 0}
+                    </div>
                     <div className="small sky-muted">Pending human gates</div>
                   </div>
                 </div>

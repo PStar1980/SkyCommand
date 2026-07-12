@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import IngestionStatusVisuals from '../components/charts/IngestionStatusVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
+import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
+import useSmartPolling, {
+  SMART_POLLING_INTERVALS,
+  getSmartPollingDelay,
+} from '../hooks/useSmartPolling.js';
 import ingestionService from '../services/ingestionService';
 
 const SOURCE_OPTIONS = [
@@ -266,42 +271,66 @@ function IngestionStatus() {
 
   const statCards = useMemo(() => buildStatCards(summary), [summary]);
 
-  async function loadOverview() {
-    setOverviewLoading(true);
-    setError('');
+  async function loadOverview({ quiet = false } = {}) {
+    if (!quiet) {
+      setOverviewLoading(true);
+      setError('');
+    }
 
     try {
       const result = await ingestionService.getStatusSummary({ recentLimit: 5 });
       setSummary(result);
       setSources(result.sources || []);
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load ingestion overview.');
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load ingestion overview.');
+      }
+      throw loadError;
     } finally {
-      setOverviewLoading(false);
+      if (!quiet) {
+        setOverviewLoading(false);
+      }
     }
   }
 
-  async function loadRecentExecutions(nextFilters = recentFilters) {
-    setRecentLoading(true);
-    setError('');
+  async function loadRecentExecutions(nextFilters = recentFilters, { quiet = false } = {}) {
+    if (!quiet) {
+      setRecentLoading(true);
+      setError('');
+    }
 
     try {
       const result = await ingestionService.listRecentExecutions(nextFilters);
-      setRecentExecutions(result.items || []);
+      const resultItems = result.items || [];
+      setRecentExecutions(resultItems);
       setRecentTotal(result.total || 0);
+
+      return {
+        activeCount: resultItems.filter(
+          (item) => String(item.status || '').toUpperCase() === 'STARTED',
+        ).length,
+      };
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load recent ingestion executions.');
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load recent ingestion executions.');
+      }
+      throw loadError;
     } finally {
-      setRecentLoading(false);
+      if (!quiet) {
+        setRecentLoading(false);
+      }
     }
   }
 
   async function loadIndicators(
     nextFilters = filters,
     preferredIndicatorCode = selectedIndicator?.indicatorCode,
+    { quiet = false } = {},
   ) {
-    setIndicatorLoading(true);
-    setError('');
+    if (!quiet) {
+      setIndicatorLoading(true);
+      setError('');
+    }
 
     try {
       const result = await ingestionService.listIndicatorStatuses(nextFilters);
@@ -311,17 +340,28 @@ function IngestionStatus() {
 
       if (nextIndicators.length === 0) {
         setSelectedIndicator(null);
-        return;
+        return { activeCount: 0 };
       }
 
       const selectedStillVisible = nextIndicators.find(
         (indicator) => indicator.indicatorCode === preferredIndicatorCode,
       );
       setSelectedIndicator(selectedStillVisible || nextIndicators[0]);
+
+      return {
+        activeCount: nextIndicators.filter((indicator) =>
+          ['STALE', 'PROBLEM', 'NO_DATA'].includes(String(indicator.status || '').toUpperCase()),
+        ).length,
+      };
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load indicator statuses.');
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load indicator statuses.');
+      }
+      throw loadError;
     } finally {
-      setIndicatorLoading(false);
+      if (!quiet) {
+        setIndicatorLoading(false);
+      }
     }
   }
 
@@ -344,9 +384,40 @@ function IngestionStatus() {
     }
   }
 
-  async function refreshAll() {
-    await Promise.all([loadOverview(), loadRecentExecutions(), loadIndicators()]);
+  async function refreshAll({ quiet = false } = {}) {
+    const [, recentResult, indicatorResult] = await Promise.all([
+      loadOverview({ quiet }),
+      loadRecentExecutions(recentFilters, { quiet }),
+      loadIndicators(filters, selectedIndicator?.indicatorCode, { quiet }),
+    ]);
+
+    return {
+      activeCount:
+        Number(recentResult?.activeCount || 0) + Number(indicatorResult?.activeCount || 0),
+    };
   }
+
+  const pollingState = useSmartPolling({
+    dependencies: [
+      filters.source,
+      filters.status,
+      filters.active,
+      filters.q,
+      filters.limit,
+      recentFilters.source,
+      recentFilters.status,
+      recentFilters.limit,
+    ],
+    getDelay: ({ activeCount = 0, hidden = false } = {}) =>
+      getSmartPollingDelay({
+        activeCount,
+        activeMs: SMART_POLLING_INTERVALS.ACTIVE,
+        hidden,
+        idleMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+      }),
+    initialIntervalMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+    onPoll: () => refreshAll({ quiet: true }),
+  });
 
   useEffect(() => {
     let active = true;
@@ -427,7 +498,10 @@ function IngestionStatus() {
 
     setFilters(nextIndicatorFilters);
     setRecentFilters(nextRecentFilters);
-    await Promise.all([loadIndicators(nextIndicatorFilters), loadRecentExecutions(nextRecentFilters)]);
+    await Promise.all([
+      loadIndicators(nextIndicatorFilters),
+      loadRecentExecutions(nextRecentFilters),
+    ]);
   }
 
   async function handleSourceSelect(sourceCode) {
@@ -455,18 +529,25 @@ function IngestionStatus() {
           <div className="sky-page-kicker">Dashboards · Data pipeline</div>
           <h1 className="sky-page-title">Data Pipeline</h1>
           <p className="sky-page-subtitle">
-            Visualize source freshness, recent ingestion runs, and indicator-level data health across
-            the macro pipeline.
+            Visualize source freshness, recent ingestion runs, and indicator-level data health
+            across the macro pipeline.
           </p>
         </div>
-        <button
-          className="btn sky-btn-ghost"
-          disabled={overviewLoading || recentLoading || indicatorLoading}
-          onClick={refreshAll}
-          type="button"
-        >
-          {overviewLoading || recentLoading || indicatorLoading ? 'Refreshing...' : 'Refresh all'}
-        </button>
+        <div className="sky-page-actions">
+          <button
+            className="btn sky-btn-ghost"
+            disabled={overviewLoading || recentLoading || indicatorLoading}
+            onClick={() => refreshAll()}
+            type="button"
+          >
+            {overviewLoading || recentLoading || indicatorLoading ? 'Refreshing...' : 'Refresh all'}
+          </button>
+          <SmartPollingStatus
+            activeLabel="Pipeline watch items"
+            className="justify-content-end mt-2"
+            state={pollingState}
+          />
+        </div>
       </header>
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -583,10 +664,9 @@ function IngestionStatus() {
         </div>
       </section>
 
-
       <form onSubmit={applyDashboardFilters}>
         <DashboardFilterCard
-          actions={(
+          actions={
             <>
               <button
                 className="btn sky-btn-primary"
@@ -604,7 +684,7 @@ function IngestionStatus() {
                 Reset
               </button>
             </>
-          )}
+          }
           meta={`${indicators.length} visible indicators · ${recentExecutions.length} recent ingestion runs`}
           title="Pipeline analytics filters"
         >
@@ -622,7 +702,9 @@ function IngestionStatus() {
               value={filters.source}
             >
               {SOURCE_OPTIONS.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </div>
@@ -637,7 +719,9 @@ function IngestionStatus() {
               value={filters.status}
             >
               {STATUS_OPTIONS.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </div>
@@ -667,7 +751,9 @@ function IngestionStatus() {
               value={recentFilters.status}
             >
               {EXECUTION_STATUS_OPTIONS.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </div>

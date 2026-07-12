@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import WorkerHealthVisuals from '../components/charts/WorkerHealthVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
+import useSmartPolling, {
+  SMART_POLLING_INTERVALS,
+  getSmartPollingDelay,
+} from '../hooks/useSmartPolling.js';
 import workflowService from '../services/workflowService';
 
 const RUN_STATUS_OPTIONS = [
@@ -13,6 +18,15 @@ const RUN_STATUS_OPTIONS = [
   { value: 'RUNNING', label: 'Running' },
   { value: 'QUEUED', label: 'Queued' },
 ];
+
+function isActiveRun(run) {
+  const status = String(run?.status || '').toUpperCase();
+  return status === 'RUNNING' || status === 'QUEUED';
+}
+
+function isPendingApproval(approval) {
+  return String(approval?.status || '').toUpperCase() === 'PENDING';
+}
 
 function formatDate(value) {
   if (!value) {
@@ -35,14 +49,20 @@ function AutomationDashboard() {
   const [health, setHealth] = useState(null);
   const [runs, setRuns] = useState([]);
   const [approvals, setApprovals] = useState([]);
-  const [filters, setFilters] = useState({ runStatus: '', approvalStatus: 'PENDING', limit: '120' });
+  const [filters, setFilters] = useState({
+    runStatus: '',
+    approvalStatus: 'PENDING',
+    limit: '120',
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
 
-  async function loadAutomation(nextFilters = filters) {
-    setLoading(true);
-    setError('');
+  async function loadAutomation(nextFilters = filters, { quiet = false } = {}) {
+    if (!quiet) {
+      setLoading(true);
+      setError('');
+    }
 
     try {
       const [healthResult, runsResult, approvalsResult] = await Promise.allSettled([
@@ -55,16 +75,30 @@ function AutomationDashboard() {
         throw healthResult.reason;
       }
 
+      const resultRuns = runsResult.status === 'fulfilled' ? runsResult.value?.items || [] : [];
+      const resultApprovals =
+        approvalsResult.status === 'fulfilled' ? approvalsResult.value?.items || [] : [];
+
       setHealth(healthResult.value);
-      setRuns(runsResult.status === 'fulfilled' ? runsResult.value?.items || [] : []);
-      setApprovals(approvalsResult.status === 'fulfilled' ? approvalsResult.value?.items || [] : []);
+      setRuns(resultRuns);
+      setApprovals(resultApprovals);
       setRefreshingAt(new Date());
+
+      return {
+        activeCount:
+          resultRuns.filter(isActiveRun).length + resultApprovals.filter(isPendingApproval).length,
+      };
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load automation analytics.');
-      setRuns([]);
-      setApprovals([]);
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load automation analytics.');
+        setRuns([]);
+        setApprovals([]);
+      }
+      throw loadError;
     } finally {
-      setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+      }
     }
   }
 
@@ -72,6 +106,19 @@ function AutomationDashboard() {
     loadAutomation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const pollingState = useSmartPolling({
+    dependencies: [filters.runStatus, filters.approvalStatus, filters.limit],
+    getDelay: ({ activeCount = 0, hidden = false } = {}) =>
+      getSmartPollingDelay({
+        activeCount,
+        activeMs: SMART_POLLING_INTERVALS.ACTIVE,
+        hidden,
+        idleMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+      }),
+    initialIntervalMs: SMART_POLLING_INTERVALS.DASHBOARD_IDLE,
+    onPoll: () => loadAutomation(filters, { quiet: true }),
+  });
 
   const meta = useMemo(() => {
     const heartbeatCount = health?.worker?.heartbeats?.length || 0;
@@ -97,14 +144,26 @@ function AutomationDashboard() {
   return (
     <>
       <PageHeader
-        actions={(
+        actions={
           <>
-            <button className="btn sky-btn-ghost" disabled={loading} onClick={() => loadAutomation()} type="button">
+            <button
+              className="btn sky-btn-ghost"
+              disabled={loading}
+              onClick={() => loadAutomation()}
+              type="button"
+            >
               {loading ? 'Refreshing...' : 'Refresh analytics'}
             </button>
-            <div className="small sky-muted mt-2">Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}</div>
+            <div className="small sky-muted mt-2">
+              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
+            </div>
+            <SmartPollingStatus
+              activeLabel="Live items"
+              className="justify-content-end mt-2"
+              state={pollingState}
+            />
           </>
-        )}
+        }
         kicker="Dashboards · Automation"
         subtitle="Monitor worker heartbeats, poller coverage, workflow throughput, and approval gate pressure away from functional controls."
         title="Automation Dashboard"
@@ -114,21 +173,28 @@ function AutomationDashboard() {
 
       <form onSubmit={applyFilters}>
         <DashboardFilterCard
-          actions={(
+          actions={
             <>
               <button className="btn sky-btn-primary" disabled={loading} type="submit">
                 Apply filters
               </button>
-              <button className="btn sky-btn-ghost" disabled={loading} onClick={resetFilters} type="button">
+              <button
+                className="btn sky-btn-ghost"
+                disabled={loading}
+                onClick={resetFilters}
+                type="button"
+              >
                 Reset
               </button>
             </>
-          )}
+          }
           meta={meta}
           title="Automation pulse filters"
         >
           <div>
-            <label className="form-label" htmlFor="automationDashboardRunStatus">Run status</label>
+            <label className="form-label" htmlFor="automationDashboardRunStatus">
+              Run status
+            </label>
             <select
               className="form-select sky-form-control"
               id="automationDashboardRunStatus"
@@ -136,12 +202,16 @@ function AutomationDashboard() {
               value={filters.runStatus}
             >
               {RUN_STATUS_OPTIONS.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="form-label" htmlFor="automationDashboardApprovalStatus">Approval status</label>
+            <label className="form-label" htmlFor="automationDashboardApprovalStatus">
+              Approval status
+            </label>
             <select
               className="form-select sky-form-control"
               id="automationDashboardApprovalStatus"
@@ -155,7 +225,9 @@ function AutomationDashboard() {
             </select>
           </div>
           <div>
-            <label className="form-label" htmlFor="automationDashboardLimit">Run window</label>
+            <label className="form-label" htmlFor="automationDashboardLimit">
+              Run window
+            </label>
             <select
               className="form-select sky-form-control"
               id="automationDashboardLimit"
