@@ -688,3 +688,12 @@ SkyWeb Analytics owns:
 - Preserved compatibility with existing databases by treating the new output/context tables as optional until the migration is applied.
 - Extended selected workflow run telemetry/detail payloads with `nodeOutputs`, `outputsByNodeKey`, and `contextValues` so smart polling can surface output/context changes without a page reload.
 - Added a Workflow History structured output ledger panel that shows persisted node outputs, resolved input snapshots, output summaries, output JSON, and future context values for the selected run.
+
+## Phase 13.4 — Workflow context store
+
+- Added workflow context seeding so new runs persist initial workflow identity, run input, source/trigger metadata, and runtime parameter placeholders into `worker.workflow_run_context_values`.
+- Updated node completion persistence so terminal node runs now merge durable context values such as `nodes.<nodeKey>.output`, `nodes.<nodeKey>.status`, `nodes.<nodeKey>.summary`, `last.output`, and selected custom `contextUpdates`.
+- Added nested context-object construction from persisted context rows so selected-run telemetry exposes both the flat context ledger and a future-friendly runtime context object.
+- Updated inline and Temporal-backed SkyServer workflow executors to carry a live in-memory workflow context while nodes execute, giving conditions and future nodes access to `workflowContext`, `params`, `nodes`, `previousOutputs`, and `previousOutput`.
+- Preserved compatibility with databases that have not yet applied the Phase 13 output/context migration by treating context persistence as optional until the tables/views exist.
+
