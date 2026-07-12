@@ -1,3 +1,11 @@
+## 2026-07-12 — Phase 13.1B Smart Polling Expansion
+
+- Extracted smart polling into reusable Admin-Web helpers for live, backoff-aware refresh loops.
+- Extended no-refresh polling to Tool History so the table and selected execution detail update while tools are running.
+- Extended smart polling to the SkyCommand Overview, Tools, Workflows, Automation, Readiness, and Data Pipeline dashboard surfaces.
+- Dashboard polling now slows on idle/hidden tabs and speeds up when live runs, running tools, pending approvals, or pipeline watch items exist.
+- Added shared SmartPollingStatus UI so live refresh cadence, active counts, and last update time are visible consistently.
+
 ## 2026-07-12 — Phase 13.1 Smart Workflow Telemetry
 
 - Started Phase 13, the live workflow telemetry and runtime context track.

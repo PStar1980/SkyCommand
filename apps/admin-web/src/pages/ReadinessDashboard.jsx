@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import ProductionReadinessVisuals from '../components/charts/ProductionReadinessVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
+import useSmartPolling, { SMART_POLLING_INTERVALS } from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService';
 
 const STATUS_OPTIONS = [
@@ -58,24 +60,40 @@ function ReadinessDashboard() {
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
 
-  async function loadReadiness() {
-    setLoading(true);
-    setError('');
+  async function loadReadiness({ quiet = false } = {}) {
+    if (!quiet) {
+      setLoading(true);
+      setError('');
+    }
 
     try {
       const result = await adminService.getProductionReadiness();
       setReadiness(result);
       setRefreshingAt(new Date());
+
+      return { activeCount: result?.counts?.warning || 0 };
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load readiness analytics.');
+      if (!quiet) {
+        setError(loadError.message || 'Failed to load readiness analytics.');
+      }
+      throw loadError;
     } finally {
-      setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     loadReadiness();
   }, []);
+
+  const pollingState = useSmartPolling({
+    getDelay: ({ hidden = false } = {}) =>
+      hidden ? SMART_POLLING_INTERVALS.HIDDEN : SMART_POLLING_INTERVALS.SLOW,
+    initialIntervalMs: SMART_POLLING_INTERVALS.SLOW,
+    onPoll: () => loadReadiness({ quiet: true }),
+  });
 
   const areaOptions = useMemo(() => {
     const sections = Array.isArray(readiness?.sections) ? readiness.sections : [];
@@ -110,14 +128,26 @@ function ReadinessDashboard() {
   return (
     <>
       <PageHeader
-        actions={(
+        actions={
           <>
-            <button className="btn sky-btn-ghost" disabled={loading} onClick={loadReadiness} type="button">
+            <button
+              className="btn sky-btn-ghost"
+              disabled={loading}
+              onClick={() => loadReadiness()}
+              type="button"
+            >
               {loading ? 'Refreshing...' : 'Refresh analytics'}
             </button>
-            <div className="small sky-muted mt-2">Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}</div>
+            <div className="small sky-muted mt-2">
+              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
+            </div>
+            <SmartPollingStatus
+              activeLabel="Warnings"
+              className="justify-content-end mt-2"
+              state={pollingState}
+            />
           </>
-        )}
+        }
         kicker="Dashboards · Readiness"
         subtitle="Review readiness score, status mix, category coverage, hardening progress, and risk concentration as a visual control surface."
         title="Readiness Dashboard"
@@ -126,16 +156,23 @@ function ReadinessDashboard() {
       {error && <div className="alert alert-danger">{error}</div>}
 
       <DashboardFilterCard
-        actions={(
-          <button className="btn sky-btn-ghost" disabled={loading} onClick={resetFilters} type="button">
+        actions={
+          <button
+            className="btn sky-btn-ghost"
+            disabled={loading}
+            onClick={resetFilters}
+            type="button"
+          >
             Reset filters
           </button>
-        )}
+        }
         meta={`${filteredCounts.checks} visible checks · ${filteredCounts.areas} readiness area(s)`}
         title="Readiness analytics filters"
       >
         <div>
-          <label className="form-label" htmlFor="readinessDashboardArea">Readiness area</label>
+          <label className="form-label" htmlFor="readinessDashboardArea">
+            Readiness area
+          </label>
           <select
             className="form-select sky-form-control"
             id="readinessDashboardArea"
@@ -144,12 +181,16 @@ function ReadinessDashboard() {
           >
             <option value="">All areas</option>
             {areaOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </div>
         <div>
-          <label className="form-label" htmlFor="readinessDashboardStatus">Check status</label>
+          <label className="form-label" htmlFor="readinessDashboardStatus">
+            Check status
+          </label>
           <select
             className="form-select sky-form-control"
             id="readinessDashboardStatus"
@@ -157,7 +198,9 @@ function ReadinessDashboard() {
             value={filters.status}
           >
             {STATUS_OPTIONS.map((option) => (
-              <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+              <option key={option.value || 'all'} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </div>
