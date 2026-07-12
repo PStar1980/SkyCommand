@@ -306,9 +306,9 @@ function ScriptExecutions() {
                 <tr>
                   <th>Tool</th>
                   <th>Status</th>
-                  <th>Duration</th>
                   <th>Started</th>
-                  <th>Finished</th>
+                  <th>Duration</th>
+                  <th>Completed</th>
                 </tr>
               </thead>
               <tbody>
@@ -344,8 +344,8 @@ function ScriptExecutions() {
                           {getStatusLabel(item.status)}
                         </span>
                       </td>
-                      <td>{formatDuration(item)}</td>
                       <td>{formatDate(item.startedAt)}</td>
+                      <td>{formatDuration(item)}</td>
                       <td>{formatDate(item.finishedAt)}</td>
                     </tr>
                   ))}
@@ -390,7 +390,7 @@ function ScriptExecutions() {
                         <div className="sky-detail-value">{formatDate(selectedItem.startedAt)}</div>
                       </div>
                       <div className="sky-mini-metric">
-                        <div className="sky-page-kicker">Finished</div>
+                        <div className="sky-page-kicker">Completed</div>
                         <div className="sky-detail-value">{formatDate(selectedItem.finishedAt)}</div>
                       </div>
                       <div className="sky-mini-metric">
