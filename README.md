@@ -33,7 +33,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 12 SkyCommand visualization expansion is complete. Temporal implementation, production-readiness inspection, SkyCommand shell modernization, login polish, and the reusable chart system are now in place.
+**Active status:** Phase 13 has started with live Workflow History telemetry. Phase 12 SkyCommand visualization expansion is complete, and the current focus is making workflow runs update automatically without manual page refreshes.
 
 SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane behind **SkyCommand**, the branded Admin-Web experience for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and operational intelligence.
 
@@ -42,6 +42,8 @@ Phase 10 moved Temporal from a local FRED pilot into a full SkyServer workflow e
 Phase 11 modernized Admin-Web into the **SkyCommand** product shell with a black navigation frame, left-side grouped navigation, branded prism mark, unified page surfaces, navbar search/popovers, and a more polished login experience.
 
 Phase 12 added the **visual operations layer**: dashboard intelligence, Workflow History analytics, Worker Health pulse charts, Ingestion Status analytics, Tools History analytics, Production Readiness visualizations, reusable chart helper components, and full-screen chart overlays.
+
+Phase 13 adds the **live workflow intelligence layer**. Smart polling and clean telemetry endpoints keep Workflow History, selected run details, node status overlays, and runtime summaries fresh without full page reloads. Later Phase 13 slices extend this into structured node outputs, workflow context, runtime parameters, context-aware branching, animated execution, and run summaries.
 
 ## Core Product Surfaces
 
@@ -141,7 +143,8 @@ The workflow surfaces can:
 - store workflow-level and node-level run records in PostgreSQL while Temporal owns durable execution state;
 - approve/reject human approval gates through Admin-Web signals back to Temporal;
 - cancel, terminate, and retry workflow runs;
-- inspect Temporal workflow IDs, run IDs, event summaries, diagnostic links, task queue status, and worker heartbeat health.
+- inspect Temporal workflow IDs, run IDs, event summaries, diagnostic links, task queue status, and worker heartbeat health;
+- auto-refresh Workflow History and selected run telemetry through smart polling, slowing down when no active workflows exist or the browser tab is hidden.
 
 Lower-level Temporal runtime diagnostics remain available at `/workflows/temporal/start` and `/workflows/temporal/history` for direct Temporal-template visibility. Admin-Web calls SkyServer API; it never connects to Temporal directly. Legacy `/automation/temporal` and `/temporal` links redirect to the workflow cockpit.
 
@@ -452,12 +455,13 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 | Phase 8 | ✅ Complete | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation |
 | Phase 9 | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
 | Phase 10 | ✅ Complete | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection |
-| Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, documentation, and chart/page polish |
 | Phase 11 | ✅ Complete | SkyCommand Admin-Web modernization: branded shell, black navigation frame, sidebar/page typography, dashboard wording, navbar search/popovers, login atmosphere, brand mark, and shared UI primitives |
 | Phase 12 | ✅ Complete | SkyCommand visual operations layer: ECharts/D3 dashboard intelligence, Workflow History charts, Worker Health pulse, Ingestion analytics, Tools History analytics, Production Readiness visuals, full-screen chart overlays, and reusable chart helpers |
-| Phase 13 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, source failure recovery, and production deployment planning |
-| Phase 14 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
-| Phase 15 | 🔜 Planned | Testing and demo hardening: Playwright coverage, workflow/chart regression checks, portfolio demo scripts, and release-quality documentation |
+| Phase 13 | 🔄 In Progress | Live workflow telemetry, runtime context, and parameterized workflow execution: smart polling, clean run snapshots, node outputs, workflow context, runtime parameters, context-aware conditions, animated execution, and summaries |
+| Phase 14 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, source failure recovery, and production deployment planning |
+| Phase 15 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
+| Phase 16 | 🔜 Planned | Testing and demo hardening: Playwright coverage, workflow/chart regression checks, portfolio demo scripts, and release-quality documentation |
+| Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, documentation, and chart/page polish |
 
 ## Design Philosophy
 

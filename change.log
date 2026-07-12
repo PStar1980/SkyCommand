@@ -1,3 +1,11 @@
+## 2026-07-12 — Phase 13.1 Smart Workflow Telemetry
+
+- Started Phase 13, the live workflow telemetry and runtime context track.
+- Added workflow telemetry API support for active workflow runs and selected-run telemetry snapshots.
+- Added smart polling on Workflow History so the run browser and selected workflow detail can update without a full page reload.
+- Polling now runs faster when active/running workflows exist, slows when no active workflow exists, and backs off when the browser tab is hidden.
+- Updated README roadmap to insert the new Phase 13 and shift ingestion hardening, data mart/cloud, and test/demo hardening forward by one phase.
+
 
 ## 2026-07-09 — UI Phase 11.4.1 Dashboard audit render hotfix
 

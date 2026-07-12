@@ -72,6 +72,10 @@ function listRuns(filters = {}) {
   return api.get('/api/workflows/runs', { query: filters });
 }
 
+function listActiveRuns(filters = {}) {
+  return api.get('/api/workflows/runs/active', { query: filters });
+}
+
 
 function listApprovals(filters = {}) {
   return api.get('/api/workflows/approvals', { query: filters });
@@ -83,6 +87,10 @@ function decideApproval(approvalRequestId, payload = {}) {
 
 function getRun(workflowRunRecordId) {
   return api.get(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}`);
+}
+
+function getRunTelemetry(workflowRunRecordId) {
+  return api.get(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/telemetry`);
 }
 
 
@@ -111,6 +119,8 @@ const workflowService = {
   getDefinition,
   getManagedDefinition,
   getRun,
+  getRunTelemetry,
+  listActiveRuns,
   listApprovals,
   decideApproval,
   discardDraft,

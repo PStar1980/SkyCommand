@@ -453,9 +453,43 @@ async function listRuns(req, res, next) {
   }
 }
 
+async function listActiveRuns(req, res, next) {
+  try {
+    const result = await workflowExecutorService.listActiveWorkflowRuns(req.query || {});
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function getRun(req, res, next) {
   try {
     const result = await workflowExecutorService.getWorkflowRun(req.params.workflowRunRecordId);
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
+async function getRunTelemetry(req, res, next) {
+  try {
+    const result = await workflowExecutorService.getWorkflowRunTelemetry(req.params.workflowRunRecordId);
 
     res.json({
       ok: true,
@@ -621,6 +655,7 @@ module.exports = {
   getManagedDefinition,
   getWorkerHealth,
   getRun,
+  getRunTelemetry,
   controlRun,
   cancelRun,
   listApprovals,
@@ -628,6 +663,7 @@ module.exports = {
   approveApproval,
   rejectApproval,
   listDefinitions,
+  listActiveRuns,
   listRuns,
   publishDraftVersion,
   replaceDefinitionGraph,
