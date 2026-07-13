@@ -718,3 +718,11 @@ SkyWeb Analytics owns:
 - Removed the Create Workflow Builder V2 and Palette cards so node definitions have more horizontal room for future enhancements.
 - Updated Create Workflow to send workflow-level `runtimeParameters` with the definition payload, while node-level parameters can continue referencing those launch-time values with `{{ params.<name> }}` templates.
 - Added backend enforcement for the 10 runtime-parameter limit when creating or updating workflow definitions.
+
+## Phase 13.5C — Workflow parameter scope and history detail polish
+
+- Removed the Create Workflow default node so new definitions start with an empty node timeline and operators explicitly choose the first node type.
+- Tightened workflow-level runtime parameter discovery so only explicit workflow parameter schemas are surfaced on Start Workflow / Manage Workflows; generic definition config parameters are no longer treated as launch-time workflow params.
+- Added seed `00057__workflow_runtime_parameter_scope_cleanup.sql` to remove the Phase 13.5 macro-refresh proof-case runtime params and restore the macro ingestion tool defaults back to node-level parameters.
+- Kept Manage Workflows focused on workflow metadata plus explicit workflow-level runtime params, while node-level tool parameters remain in the graph/node editor below.
+- Reworked Workflow History so the runtime workflow map gets the full page width; detailed run metadata now opens from a `View details` overlay using the same modal treatment as expanded chart cards.
