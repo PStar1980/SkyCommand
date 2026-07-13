@@ -47,6 +47,7 @@ SkyServer/
 │   │       │   ├── HumanApprovalParameterEditor.jsx
 │   │       │   ├── Navbar.jsx
 │   │       │   ├── ProtectedRoute.jsx
+│   │       │   ├── RuntimeParameterSchemaEditor.jsx
 │   │       │   ├── ToolParameterEditor.jsx
 │   │       │   ├── WaitParameterEditor.jsx
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx

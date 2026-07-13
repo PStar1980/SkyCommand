@@ -6,6 +6,7 @@ const toolManifestService = require('./toolManifestService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const MAX_WORKFLOW_RUNTIME_PARAMETERS = 10;
 const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
@@ -1599,6 +1600,7 @@ function normalizeRuntimeParameterOptions(options = []) {
 
 function normalizeWorkflowParameterDefinitions(parameters = []) {
   return getSafeArray(parameters)
+    .slice(0, MAX_WORKFLOW_RUNTIME_PARAMETERS)
     .map((parameter, index) => {
       const raw = getSafeObject(parameter);
       const key = normalizeContextKey(
@@ -1627,6 +1629,17 @@ function normalizeWorkflowParameterDefinitions(parameters = []) {
     })
     .filter((parameter) => Boolean(parameter.key))
     .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.key.localeCompare(b.key));
+}
+
+function assertWorkflowParameterDefinitionLimit(parameters = []) {
+  const count = getSafeArray(parameters).length;
+
+  if (count > MAX_WORKFLOW_RUNTIME_PARAMETERS) {
+    throw new WorkflowServiceError(`Workflows can define up to ${MAX_WORKFLOW_RUNTIME_PARAMETERS} runtime parameters.`, 400, {
+      suppliedCount: count,
+      maxRuntimeParameters: MAX_WORKFLOW_RUNTIME_PARAMETERS,
+    });
+  }
 }
 
 function getDefinitionRuntimeParameters(definition = {}) {
@@ -3479,6 +3492,8 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
   const visibleInAdmin = payload.visibleInAdmin !== false;
   const enabled = payload.enabled !== false;
   const nodesInput = getSafeArray(payload.nodes);
+  assertWorkflowParameterDefinitionLimit(payload.runtimeParameters);
+  const runtimeParameters = normalizeWorkflowParameterDefinitions(payload.runtimeParameters);
 
   if (!workflowCode) {
     throw new WorkflowServiceError('workflowCode or displayName is required.', 400);
@@ -3548,6 +3563,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
           createdBy: 'workflow_builder_v1',
           builderVersion: '10.25',
           supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL'],
+          runtimeParameters,
         }),
         user?.userId || null,
       ],
@@ -3984,6 +4000,7 @@ async function updateWorkflowDefinition({ workflowCode, payload = {}, user, perm
   const configPatch = { updatedBy: 'workflow_manager_v1' };
 
   if (Object.prototype.hasOwnProperty.call(payload, 'runtimeParameters')) {
+    assertWorkflowParameterDefinitionLimit(payload.runtimeParameters);
     configPatch.runtimeParameters = normalizeWorkflowParameterDefinitions(payload.runtimeParameters);
   }
 

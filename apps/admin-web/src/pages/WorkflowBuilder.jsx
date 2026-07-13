@@ -24,6 +24,10 @@ import WorkflowRetryPolicyEditor, {
   cleanRetryPolicyValues,
   DEFAULT_RETRY_POLICY,
 } from '../components/WorkflowRetryPolicyEditor.jsx';
+import RuntimeParameterSchemaEditor, {
+  cleanRuntimeParameterDefinitions,
+  normalizeRuntimeParameterDefinitions,
+} from '../components/RuntimeParameterSchemaEditor.jsx';
 import workflowService from '../services/workflowService';
 
 const DEFAULT_API_PARAMETERS = {
@@ -689,6 +693,7 @@ function WorkflowBuilder() {
     displayName: '',
     description: '',
     publish: true,
+    runtimeParameters: [],
   });
   const [nodes, setNodes] = useState([
     { ...EMPTY_NODE },
@@ -1093,6 +1098,7 @@ function WorkflowBuilder() {
         publish: form.publish,
         visibleInAdmin: true,
         enabled: true,
+        runtimeParameters: cleanRuntimeParameterDefinitions(form.runtimeParameters),
         nodes: validateNodesForSubmit(),
       };
 
@@ -1135,63 +1141,23 @@ function WorkflowBuilder() {
         </div>
       )}
 
-      <section className="sky-worker-hero mb-4">
-        <div>
-          <div className="sky-page-kicker">Workflow builder v2</div>
-          <h2 className="h4 mb-2">Sequential node composer</h2>
-          <p className="sky-muted mb-3">
-            Tools remain reusable primitives, API calls become integration nodes, child workflows compose reusable business processes, Temporal templates plug in specialized durable subprocesses, condition gates control flow, wait nodes pause safely, human approvals place authorized users in the loop, and Temporal runs the active graph.
-          </p>
-          <div className="sky-worker-command-strip">
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Supported now</div>
-              <div className="sky-worker-command-value">TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL</div>
+      <form onSubmit={handleSubmit}>
+        <section className="sky-card mb-4">
+          <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+              <div className="sky-page-kicker">Definition</div>
+              <h2 className="h5 mb-0">Workflow metadata</h2>
             </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Tool targets</div>
-              <div className="sky-worker-command-value">{toolTargets.length}</div>
-            </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Workflow targets</div>
-              <div className="sky-worker-command-value">{workflowTargets.length}</div>
-            </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Temporal templates</div>
-              <div className="sky-worker-command-value">{temporalWorkflowTargets.length}</div>
-            </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Draft nodes</div>
-              <div className="sky-worker-command-value">{nodes.length}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="sky-card">
-          <div className="sky-card-header">
-            <div className="sky-page-kicker">Preview</div>
-            <h3 className="h5 mb-0">{form.displayName || 'Untitled workflow'}</h3>
-          </div>
-          <div className="sky-card-body">
-            <p className="sky-muted mb-3">{form.description || 'No workflow description yet.'}</p>
             <div className="d-flex flex-wrap gap-2">
               <span className="sky-pill sky-pill-info sky-mono">{slugify(form.workflowCode || form.displayName) || 'workflow-code'}</span>
-              <span className="sky-pill sky-pill-success">{form.publish ? 'Active on create' : 'Create inactive'}</span>
+              <span className={`sky-pill ${form.publish ? 'sky-pill-success' : 'sky-pill-warning'}`}>{form.publish ? 'Active on create' : 'Create inactive'}</span>
               <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
-              <span className="sky-pill sky-pill-info">{Math.max(0, nodes.length - 1)} edge(s)</span>
+              <span className="sky-pill sky-pill-info">{normalizeRuntimeParameterDefinitions(form.runtimeParameters).length} runtime param(s)</span>
             </div>
           </div>
-        </div>
-      </section>
-
-      <form onSubmit={handleSubmit}>
-        <div className="row g-4">
-          <div className="col-xl-4">
-            <section className="sky-card mb-4">
-              <div className="sky-card-header">
-                <div className="sky-page-kicker">Definition</div>
-                <h2 className="h5 mb-0">Workflow metadata</h2>
-              </div>
-              <div className="sky-card-body">
+          <div className="sky-card-body">
+            <div className="row g-4">
+              <div className="col-xl-5">
                 <div className="mb-3">
                   <label className="form-label" htmlFor="workflowDisplayName">Display name</label>
                   <input
@@ -1234,34 +1200,24 @@ function WorkflowBuilder() {
                     Make workflow active immediately
                   </label>
                 </div>
-                <button className="btn sky-btn-primary w-100" disabled={saving || loading} type="submit">
+                <button className="btn sky-btn-primary" disabled={saving || loading} type="submit">
                   {saving ? 'Creating workflow...' : 'Create workflow'}
                 </button>
               </div>
-            </section>
-
-            <section className="sky-card">
-              <div className="sky-card-header">
-                <div className="sky-page-kicker">Palette</div>
-                <h2 className="h5 mb-0">Node types</h2>
+              <div className="col-xl-7">
+                <div className="sky-page-kicker mb-2">Workflow-level runtime params</div>
+                <RuntimeParameterSchemaEditor
+                  idPrefix="workflow-create-runtime-param"
+                  onChange={(runtimeParameters) => patchForm({ runtimeParameters })}
+                  parameters={form.runtimeParameters}
+                />
               </div>
-              <div className="sky-card-body">
-                <div className="d-flex flex-wrap gap-2">
-                  {(catalog.nodeTypes || []).map((nodeType) => (
-                    <span
-                      className={`sky-pill ${['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL'].includes(nodeType.nodeTypeCode) ? 'sky-pill-success' : 'sky-pill-info'}`}
-                      key={nodeType.nodeTypeCode}
-                      title={nodeType.description || ''}
-                    >
-                      {nodeType.nodeTypeCode}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </section>
+            </div>
           </div>
+        </section>
 
-          <div className="col-xl-8">
+        <div className="d-flex flex-column gap-4">
+          <div>
             <section className="sky-card mb-4">
               <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                 <div>
