@@ -67,16 +67,20 @@ function normalizeWorkflowIdPart(value, fallback = 'workflow') {
   return normalized || fallback;
 }
 
-function buildNodeParameters(node, requestInput = {}) {
+function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
   const input = getSafeObject(requestInput);
   const nodeInputs = getSafeObject(input.nodeInputs);
   const parameterOverrides = getSafeObject(input.parameterOverrides);
   const nodeOverride = getSafeObject(nodeInputs[node.nodeKey] || parameterOverrides[node.nodeKey]);
-
-  return {
+  const mergedParameters = {
     ...getSafeObject(node.inputParameters),
     ...nodeOverride,
   };
+
+  return resolveRuntimeTemplates(mergedParameters, buildTemplateResolutionScope({
+    requestInput: input,
+    context: executionContext,
+  }));
 }
 
 
@@ -111,6 +115,88 @@ function getWorkflowRuntimeParams(input = {}) {
       || safeInput.workflowParameters
       || safeInput.parameters,
   );
+}
+
+function getPathValue(source = {}, path = '') {
+  const parts = String(path || '')
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  let cursor = source;
+
+  for (const part of parts) {
+    if (cursor === undefined || cursor === null) {
+      return undefined;
+    }
+
+    if (Array.isArray(cursor) && /^\d+$/.test(part)) {
+      cursor = cursor[Number(part)];
+    } else {
+      cursor = cursor[part];
+    }
+  }
+
+  return cursor;
+}
+
+function buildTemplateResolutionScope({ requestInput = {}, context = {} } = {}) {
+  const workflowContext = getSafeObject(context.workflowContext || context.context || context);
+
+  return {
+    input: getSafeObject(requestInput),
+    params: getSafeObject(context.params || workflowContext.params || getWorkflowRuntimeParams(requestInput)),
+    context: workflowContext,
+    workflowContext,
+    workflow: getSafeObject(workflowContext.workflow),
+    nodes: getSafeObject(context.nodes || workflowContext.nodes),
+    last: getSafeObject(workflowContext.last),
+    previousOutput: context.previousOutput || null,
+    previousOutputs: getSafeObject(context.previousOutputs),
+  };
+}
+
+function resolveTemplateString(value, scope = {}) {
+  const text = String(value);
+  const exactMatch = text.match(/^\s*{{\s*([^}]+?)\s*}}\s*$/);
+
+  if (exactMatch) {
+    const resolved = getPathValue(scope, exactMatch[1]);
+
+    return resolved === undefined ? '' : cloneJsonCompatible(resolved);
+  }
+
+  return text.replace(/{{\s*([^}]+?)\s*}}/g, (_match, path) => {
+    const resolved = getPathValue(scope, path);
+
+    if (resolved === undefined || resolved === null) {
+      return '';
+    }
+
+    if (typeof resolved === 'object') {
+      return JSON.stringify(resolved);
+    }
+
+    return String(resolved);
+  });
+}
+
+function resolveRuntimeTemplates(value, scope = {}) {
+  if (typeof value === 'string') {
+    return resolveTemplateString(value, scope);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveRuntimeTemplates(item, scope));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, resolveRuntimeTemplates(nestedValue, scope)]),
+    );
+  }
+
+  return value;
 }
 
 function setNestedContextValue(target, contextKey, value) {
@@ -1494,7 +1580,6 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
 
     while (currentNodeIndex < executionPlan.nodes.length) {
       const node = executionPlan.nodes[currentNodeIndex];
-      const parameters = buildNodeParameters(node, requestInput);
       const nodeContext = buildWorkflowExecutionContext({
         baseContext: input.context,
         runtimeContext: workflowRuntimeContext,
@@ -1503,6 +1588,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         previousNodeOutput,
         currentNodeKey: node.nodeKey,
       });
+      const parameters = buildNodeParameters(node, requestInput, nodeContext);
       const nodeAttemptOffset = getNodeAttemptOffset(requestInput, node.nodeKey);
       const nodeRun = await ledgerActivities.startSkyserverWorkflowNodeRunActivity({
         workflowRunRecordId,
