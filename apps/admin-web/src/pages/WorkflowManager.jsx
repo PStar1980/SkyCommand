@@ -731,6 +731,112 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
 }
 
 
+function getNodeTypeLabel(nodeTypeCode = 'TOOL') {
+  const labels = {
+    TOOL: 'Tool primitive',
+    API_CALL: 'API call',
+    WORKFLOW: 'Child workflow',
+    TEMPORAL_WORKFLOW: 'Temporal workflow template',
+    CONDITION: 'Condition / branch',
+    WAIT: 'Wait / delay',
+    HUMAN_APPROVAL: 'Human approval',
+  };
+
+  return labels[String(nodeTypeCode || 'TOOL').toUpperCase()] || labels.TOOL;
+}
+
+function formatParameterValue(value) {
+  if (value === undefined || value === null || value === '') {
+    return '—';
+  }
+
+  if (typeof value === 'object') {
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
+}
+
+function ReadOnlyNodeParameterPanel({
+  index,
+  node,
+  saving = false,
+  toolTargets = [],
+  workflowTargets = [],
+  temporalWorkflowTargets = [],
+  onCreateDraft,
+}) {
+  if (!node) {
+    return null;
+  }
+
+  const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').toUpperCase();
+  const inputParameters = node.inputParameters || {};
+  const parameterEntries = Object.entries(inputParameters);
+  const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
+  const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
+  const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
+  const targetLabel = selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || node.targetCode || '—';
+
+  return (
+    <div className="sky-worker-command-card mt-4">
+      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Selected node defaults · Node {index + 1}</div>
+          <h3 className="h6 mb-1">{node.displayName || targetLabel || `Node ${index + 1}`}</h3>
+          <p className="sky-muted mb-0">
+            Published versions are read-only. Create a draft to edit this node's saved defaults, retry policy, and timeout.
+          </p>
+        </div>
+        <span className="d-flex flex-wrap gap-2">
+          <span className="sky-pill sky-pill-info">{getNodeTypeLabel(nodeTypeCode)}</span>
+          <button className="btn btn-sm sky-btn-primary" disabled={saving} onClick={onCreateDraft} type="button">
+            Create draft to edit
+          </button>
+        </span>
+      </div>
+
+      <div className="row g-3">
+        <div className="col-lg-3">
+          <div className="sky-page-kicker">Node key</div>
+          <div className="sky-form-control-static sky-mono">{node.nodeKey || '—'}</div>
+        </div>
+        <div className="col-lg-3">
+          <div className="sky-page-kicker">Target</div>
+          <div className="sky-form-control-static">{targetLabel}</div>
+        </div>
+        <div className="col-lg-3">
+          <div className="sky-page-kicker">Retry policy</div>
+          <div className="sky-form-control-static sky-mono">{getRetryPolicySummary(node.retryPolicy)}</div>
+        </div>
+        <div className="col-lg-3">
+          <div className="sky-page-kicker">Node timeout</div>
+          <div className="sky-form-control-static sky-mono">{node.timeoutMs ? `${node.timeoutMs} ms` : 'default'}</div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <div className="sky-page-kicker mb-2">Node-level input parameters</div>
+        {parameterEntries.length > 0 ? (
+          <div className="sky-node-parameter-preview-grid">
+            {parameterEntries.map(([key, value]) => (
+              <div className="sky-node-parameter-preview" key={key}>
+                <div className="sky-page-kicker">{key}</div>
+                <pre className="sky-code-block mb-0">{formatParameterValue(value)}</pre>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="sky-empty-state text-start">
+            No saved node-level input parameters. This node will use its target defaults unless a draft adds explicit values.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function WorkflowManager() {
   const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [] });
   const [definitions, setDefinitions] = useState([]);
@@ -744,7 +850,7 @@ function WorkflowManager() {
   });
   const [cloneForm, setCloneForm] = useState({ workflowCode: '', displayName: '', description: '', publish: true });
   const [publishForm, setPublishForm] = useState({ changeNote: '' });
-  const [editorNodes, setEditorNodes] = useState([{ ...EMPTY_NODE }]);
+  const [editorNodes, setEditorNodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -850,9 +956,10 @@ function WorkflowManager() {
         description: definition.description || '',
         publish: true,
       });
-      setEditorNodes(graphNodesToEditorNodes(definition.editGraph?.nodes || definition.draftGraph?.nodes || definition.publishedGraph?.nodes || definition.latestGraph?.nodes || []));
+      const nextEditorNodes = graphNodesToEditorNodes(definition.editGraph?.nodes || definition.draftGraph?.nodes || definition.publishedGraph?.nodes || definition.latestGraph?.nodes || []);
+      setEditorNodes(nextEditorNodes);
       setPublishForm({ changeNote: '' });
-      setSelectedVisualNodeIndex(null);
+      setSelectedVisualNodeIndex(nextEditorNodes.length > 0 ? 0 : null);
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow detail.'));
     } finally {
@@ -891,65 +998,72 @@ function WorkflowManager() {
   }
 
   function addEditorNode(nodeTypeCode = 'TOOL') {
-    setSelectedVisualNodeIndex(null);
-    setEditorNodes((current) => [
-      ...current,
-      nodeTypeCode === 'API_CALL'
+    const nextIndex = editorNodes.length;
+    const nextNode = nodeTypeCode === 'API_CALL'
+      ? {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'API_CALL',
+        nodeKey: `api_call_${nextIndex + 1}`,
+        displayName: 'Call API',
+        description: 'Calls a configured HTTP endpoint.',
+        inputParameters: { ...DEFAULT_API_PARAMETERS },
+      }
+      : nodeTypeCode === 'WORKFLOW'
         ? {
           ...EMPTY_NODE,
-          nodeTypeCode: 'API_CALL',
-          nodeKey: `api_call_${current.length + 1}`,
-          displayName: 'Call API',
-          description: 'Calls a configured HTTP endpoint.',
-          inputParameters: { ...DEFAULT_API_PARAMETERS },
+          nodeTypeCode: 'WORKFLOW',
+          nodeKey: `child_workflow_${nextIndex + 1}`,
+          displayName: 'Run Child Workflow',
+          description: 'Runs another active SkyCommand workflow and waits for completion.',
+          inputParameters: {},
         }
-        : nodeTypeCode === 'WORKFLOW'
+        : nodeTypeCode === 'TEMPORAL_WORKFLOW'
           ? {
             ...EMPTY_NODE,
-            nodeTypeCode: 'WORKFLOW',
-            nodeKey: `child_workflow_${current.length + 1}`,
-            displayName: 'Run Child Workflow',
-            description: 'Runs another active SkyCommand workflow and waits for completion.',
+            nodeTypeCode: 'TEMPORAL_WORKFLOW',
+            nodeKey: `temporal_workflow_${nextIndex + 1}`,
+            displayName: 'Run Temporal Workflow Template',
+            description: 'Runs an approved Temporal-native workflow template and waits for completion.',
             inputParameters: {},
           }
-          : nodeTypeCode === 'TEMPORAL_WORKFLOW'
+          : nodeTypeCode === 'CONDITION'
             ? {
               ...EMPTY_NODE,
-              nodeTypeCode: 'TEMPORAL_WORKFLOW',
-              nodeKey: `temporal_workflow_${current.length + 1}`,
-              displayName: 'Run Temporal Workflow Template',
-              description: 'Runs an approved Temporal-native workflow template and waits for completion.',
-              inputParameters: {},
+              nodeTypeCode: 'CONDITION',
+              nodeKey: `condition_${nextIndex + 1}`,
+              displayName: 'Evaluate Condition',
+              description: 'Evaluates a safe condition and controls whether the remaining workflow continues.',
+              inputParameters: { ...DEFAULT_CONDITION_PARAMETERS },
             }
-            : nodeTypeCode === 'CONDITION'
+            : nodeTypeCode === 'WAIT'
               ? {
                 ...EMPTY_NODE,
-                nodeTypeCode: 'CONDITION',
-                nodeKey: `condition_${current.length + 1}`,
-                displayName: 'Evaluate Condition',
-                description: 'Evaluates a safe condition and controls whether the remaining workflow continues.',
-                inputParameters: { ...DEFAULT_CONDITION_PARAMETERS },
+                nodeTypeCode: 'WAIT',
+                nodeKey: `wait_${nextIndex + 1}`,
+                displayName: 'Wait / Delay',
+                description: 'Pauses the workflow for a configured duration before continuing.',
+                inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
               }
-              : nodeTypeCode === 'WAIT'
+              : nodeTypeCode === 'HUMAN_APPROVAL'
                 ? {
                   ...EMPTY_NODE,
-                  nodeTypeCode: 'WAIT',
-                  nodeKey: `wait_${current.length + 1}`,
-                  displayName: 'Wait / Delay',
-                  description: 'Pauses the workflow for a configured duration before continuing.',
-                  inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
+                  nodeTypeCode: 'HUMAN_APPROVAL',
+                  nodeKey: `approval_${nextIndex + 1}`,
+                  displayName: 'Human Approval',
+                  description: 'Pauses the workflow until an authorized user approves or rejects the request.',
+                  inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
                 }
-                : nodeTypeCode === 'HUMAN_APPROVAL'
-                  ? {
-                    ...EMPTY_NODE,
-                    nodeTypeCode: 'HUMAN_APPROVAL',
-                    nodeKey: `approval_${current.length + 1}`,
-                    displayName: 'Human Approval',
-                    description: 'Pauses the workflow until an authorized user approves or rejects the request.',
-                    inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
-                  }
-                  : { ...EMPTY_NODE, nodeKey: `node_${current.length + 1}` },
-    ]);
+                : { ...EMPTY_NODE, nodeKey: `node_${nextIndex + 1}` };
+
+    setEditorNodes((current) => [...current, nextNode]);
+    setSelectedVisualNodeIndex(nextIndex);
+
+    window.requestAnimationFrame(() => {
+      document.getElementById(`workflow-editor-node-${nextIndex}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    });
   }
 
   function removeEditorNode(index) {
@@ -1343,6 +1457,12 @@ function WorkflowManager() {
   const draftGraph = detail?.draftGraph || null;
   const graphLocked = Boolean(detail && !draftGraph);
   const guardrails = detail?.guardrails || {};
+  const selectedEditorNodeIndex = Number.isInteger(selectedVisualNodeIndex)
+    && selectedVisualNodeIndex >= 0
+    && selectedVisualNodeIndex < editorNodes.length
+    ? selectedVisualNodeIndex
+    : null;
+  const selectedEditorNode = selectedEditorNodeIndex === null ? null : editorNodes[selectedEditorNodeIndex];
 
   return (
     <div>
@@ -1635,28 +1755,45 @@ function WorkflowManager() {
                     workflowTargets={workflowTargets}
                   />
 
-                  {!graphLocked && (
+                  {editorNodes.length === 0 ? (
+                    <div className="sky-empty-state mt-4">Add at least one node.</div>
+                  ) : graphLocked ? (
+                    selectedEditorNode ? (
+                      <ReadOnlyNodeParameterPanel
+                        index={selectedEditorNodeIndex}
+                        node={selectedEditorNode}
+                        onCreateDraft={handleCreateDraft}
+                        saving={saving}
+                        toolTargets={toolTargets}
+                        workflowTargets={workflowTargets}
+                        temporalWorkflowTargets={temporalWorkflowTargets}
+                      />
+                    ) : (
+                      <div className="sky-empty-state mt-4">Select a node above to inspect its saved node-level defaults.</div>
+                    )
+                  ) : (
                     <>
-                      <div className="d-flex flex-column gap-3 mt-4">
-                        {editorNodes.map((node, index) => (
+                      {selectedEditorNode ? (
+                        <div className="mt-4">
                           <EditableNodeCard
-                            index={index}
+                            index={selectedEditorNodeIndex}
                             allNodes={editorNodes}
-                            highlighted={selectedVisualNodeIndex === index}
-                            key={`${index}-${node.nodeKey || node.targetCode}`}
-                            node={node}
+                            highlighted
+                            key={`${selectedEditorNodeIndex}-${selectedEditorNode.nodeKey || selectedEditorNode.targetCode}`}
+                            node={selectedEditorNode}
                             onChange={updateEditorNode}
-                            onMoveDown={() => moveEditorNode(index, 1)}
-                            onMoveUp={() => moveEditorNode(index, -1)}
-                            onRemove={() => removeEditorNode(index)}
+                            onMoveDown={() => moveEditorNode(selectedEditorNodeIndex, 1, { selectMovedNode: true })}
+                            onMoveUp={() => moveEditorNode(selectedEditorNodeIndex, -1, { selectMovedNode: true })}
+                            onRemove={() => removeEditorNode(selectedEditorNodeIndex)}
                             toolTargets={toolTargets}
                             workflowTargets={workflowTargets}
                             temporalWorkflowTargets={temporalWorkflowTargets}
                             approvalRoleTargets={approvalRoleTargets}
                           />
-                        ))}
-                        {editorNodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="sky-empty-state mt-4">Select a node above to edit its node-level defaults.</div>
+                      )}
 
                       <div className="d-flex justify-content-end mt-4">
                         <button className="btn sky-btn-primary" disabled={saving || editorNodes.length === 0} type="submit">
