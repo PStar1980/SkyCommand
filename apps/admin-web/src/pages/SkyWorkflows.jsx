@@ -2014,78 +2014,19 @@ function SkyWorkflows({ mode = 'start' }) {
       {message && <div className="alert alert-success">{message}</div>}
 
       {isHistoryMode ? renderHistoryView() : (
-        <>
-      <section className="sky-worker-hero mb-4">
-        <div>
-          <div className="sky-page-kicker">Workflow builder foundation</div>
-          <h2 className="h4 mb-2">Composable execution lane</h2>
-          <p className="sky-muted mb-3">
-            SkyCommand workflows compose lower-level primitives. Tools remain first-class building
-            blocks, while Temporal templates can be plugged in as one node type instead of turning
-            every primitive into a separate workflow.
-          </p>
-          <div className="sky-worker-command-strip">
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Definitions</div>
-              <div className="sky-worker-command-value">{definitions.length}</div>
+        <div className="d-flex flex-column gap-4">
+          <section className="sky-card">
+            <div className="sky-card-header">
+              <div className="sky-page-kicker">Workflow launcher</div>
+              <h2 className="h5 mb-0">Choose workflow</h2>
             </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Running</div>
-              <div className="sky-worker-command-value">{runStats.running}</div>
-            </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Failed</div>
-              <div className="sky-worker-command-value">{runStats.failed}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="sky-card">
-          <div className="sky-card-header">
-            <div className="sky-page-kicker">Selected definition</div>
-            <h3 className="h5 mb-0">{selectedDefinitionDetail?.displayName || 'No workflow selected'}</h3>
-          </div>
-          <div className="sky-card-body">
-            <p className="sky-muted mb-3">{selectedDefinitionDetail?.description || 'Select a workflow definition to inspect it.'}</p>
-            <div className="row g-2">
-              <div className="col-4">
-                <div className="sky-mini-metric">
-                  <div className="sky-page-kicker">Status</div>
-                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.status || '—'}</div>
-                </div>
-              </div>
-              <div className="col-4">
-                <div className="sky-mini-metric">
-                  <div className="sky-page-kicker">Nodes</div>
-                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.nodes?.length || 0}</div>
-                </div>
-              </div>
-              <div className="col-4">
-                <div className="sky-mini-metric">
-                  <div className="sky-page-kicker">Edges</div>
-                  <div className="sky-mini-metric-value">{selectedDefinitionDetail?.edges?.length || 0}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-      <div className="row g-4 sky-workbench-row sky-workbench-row-history">
-        <div className="col-xxl-3 col-xl-4 sky-workbench-rail">
-          {!isHistoryMode && (
-            <section className="sky-card mb-4 sky-sticky-detail-card">
-              <div className="sky-card-header">
-                <div className="sky-page-kicker">Workflow launcher</div>
-                <h2 className="h5 mb-0">Choose workflow</h2>
-              </div>
-              <div className="sky-card-body">
-                {definitions.length > 0 ? (
-                  <>
+            <div className="sky-card-body">
+              {definitions.length > 0 ? (
+                <div className="row g-3 align-items-end">
+                  <div className="col-xl-7">
                     <label className="form-label" htmlFor="workflowStartDefinition">Active workflow</label>
                     <select
-                      className="form-select sky-form-control mb-3"
+                      className="form-select sky-form-control"
                       id="workflowStartDefinition"
                       onChange={(event) => handleDefinitionSelect(event.target.value)}
                       value={selectedDefinition?.workflowCode || ''}
@@ -2096,403 +2037,150 @@ function SkyWorkflows({ mode = 'start' }) {
                         </option>
                       ))}
                     </select>
-
-                    <div className="sky-worker-command-card">
-                      <div className="sky-page-kicker">Selected workflow</div>
-                      <div className="fw-bold">{selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}</div>
-                      <div className="small sky-muted sky-mono mb-2">{selectedDefinition?.workflowCode}</div>
-                      <p className="small sky-muted mb-3">{selectedDefinitionDetail?.description || 'No description.'}</p>
-                      <div className="d-flex flex-wrap gap-2">
+                  </div>
+                  <div className="col-xl-5">
+                    <div className="sky-worker-command-card h-100">
+                      <div className="d-flex flex-wrap justify-content-between gap-2">
+                        <div>
+                          <div className="sky-page-kicker">Selected workflow</div>
+                          <div className="fw-bold">{selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}</div>
+                          <div className="small sky-muted sky-mono">{selectedDefinition?.workflowCode}</div>
+                        </div>
                         <span className="sky-pill sky-pill-success">{selectedDefinitionDetail?.status || 'ACTIVE'}</span>
+                      </div>
+                      <p className="small sky-muted my-2">{selectedDefinitionDetail?.description || 'No description.'}</p>
+                      <div className="d-flex flex-wrap gap-2">
                         <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.nodes?.length || 0} node(s)</span>
                         <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.edges?.length || 0} edge(s)</span>
+                        <span className="sky-pill sky-pill-info">{runtimeParameters.length} runtime param(s)</span>
                       </div>
                     </div>
-                  </>
-                ) : (
-                  <div className="sky-empty-state">No active workflow definitions are available.</div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {isHistoryMode && (
-            <section className="sky-card sky-sticky-detail-card">
-              <div className="sky-card-header">
-                <div className="sky-page-kicker">Run detail</div>
-                <h2 className="h5 mb-0">Selected workflow</h2>
-              </div>
-              <div className="sky-card-body">
-                {!selectedRun ? (
-                  <div className="sky-empty-state py-4">Select a workflow run to inspect it.</div>
-                ) : (
-                  <>
-                    <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
-                      <span className={`sky-pill ${statusClass(selectedRun.status)}`}>{selectedRun.status}</span>
-                      <span className="small sky-muted">{formatDuration(getRunDurationMs(selectedRun))}</span>
-                    </div>
-                    <dl className="row small mb-3">
-                      <dt className="col-4 sky-detail-label">Workflow</dt>
-                      <dd className="col-8 sky-detail-value">{selectedRun.workflowDisplayName || selectedRun.workflowCode}</dd>
-                      <dt className="col-4 sky-detail-label">Run</dt>
-                      <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.workflowRunRecordId}</dd>
-                      {selectedRelations.parentRun && (
-                        <>
-                          <dt className="col-4 sky-detail-label">Parent</dt>
-                          <dd className="col-8 sky-detail-value">
-                            <button
-                              className="btn btn-link btn-sm p-0 align-baseline"
-                              onClick={() => loadRunDetail(selectedRelations.parentRun.workflowRunRecordId)}
-                              type="button"
-                            >
-                              {selectedRelations.parentRun.workflowDisplayName || selectedRelations.parentRun.workflowCode}
-                            </button>
-                            {selectedRun.parentNodeKey && (
-                              <div className="small sky-muted sky-mono">via {selectedRun.parentNodeKey}</div>
-                            )}
-                          </dd>
-                        </>
-                      )}
-                      {(selectedRelations.childRuns || []).length > 0 && (
-                        <>
-                          <dt className="col-4 sky-detail-label">Children</dt>
-                          <dd className="col-8 sky-detail-value">
-                            <span className="sky-pill sky-pill-info">{selectedRelations.childRuns.length} child run(s)</span>
-                          </dd>
-                        </>
-                      )}
-                      {selectedApprovals.length > 0 && (
-                        <>
-                          <dt className="col-4 sky-detail-label">Approvals</dt>
-                          <dd className="col-8 sky-detail-value">
-                            <span className="sky-pill sky-pill-warning">
-                              {selectedApprovals.filter((approval) => approval.status === 'PENDING').length} pending
-                            </span>
-                            <span className="sky-pill sky-pill-info ms-1">{selectedApprovals.length} total</span>
-                          </dd>
-                        </>
-                      )}
-                      <dt className="col-4 sky-detail-label">Started</dt>
-                      <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
-                      <dt className="col-4 sky-detail-label">Completed</dt>
-                      <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
-                      <dt className="col-4 sky-detail-label">Source</dt>
-                      <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
-                      <dt className="col-4 sky-detail-label">Runtime params</dt>
-                      <dd className="col-8 sky-detail-value">
-                        {Object.keys(getSafeObject(selectedRun.input?.params)).length > 0 ? (
-                          <span className="sky-pill sky-pill-info">{Object.keys(getSafeObject(selectedRun.input.params)).length} parameter(s)</span>
-                        ) : '—'}
-                      </dd>
-                      <dt className="col-4 sky-detail-label">Started by</dt>
-                      <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
-                      <dt className="col-4 sky-detail-label">Executor</dt>
-                      <dd className="col-8 sky-detail-value sky-mono">{selectedRun.metadata?.executor || '—'}</dd>
-                      <dt className="col-4 sky-detail-label">Temporal workflow</dt>
-                      <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalWorkflowId || '—'}</dd>
-                      <dt className="col-4 sky-detail-label">Temporal run</dt>
-                      <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalRunId || '—'}</dd>
-                      <dt className="col-4 sky-detail-label">Temporal status</dt>
-                      <dd className="col-8 sky-detail-value">
-                        <span className={`sky-pill ${statusClass(selectedTemporalRuntime?.status || selectedRun.status)}`}>
-                          {selectedTemporalRuntime?.status || selectedRun.status || '—'}
-                        </span>
-                      </dd>
-                      <dt className="col-4 sky-detail-label">History events</dt>
-                      <dd className="col-8 sky-detail-value">{selectedTemporalRuntime?.history?.eventCount || selectedTemporalRuntime?.historyLength || '—'}</dd>
-                      {selectedTemporalRuntime?.uiUrl && (
-                        <>
-                          <dt className="col-4 sky-detail-label">Temporal UI</dt>
-                          <dd className="col-8 sky-detail-value">
-                            <a href={selectedTemporalRuntime.uiUrl} rel="noreferrer" target="_blank">Open diagnostics</a>
-                          </dd>
-                        </>
-                      )}
-                    </dl>
-                    <WorkflowRunControls
-                      busyAction={runActionLoading}
-                      canCancel={canCancelRun}
-                      canRetry={canStart}
-                      canTerminate={canTerminateRun}
-                      onCancel={handleCancelRun}
-                      onRetry={handleRetryRun}
-                      onTerminate={handleTerminateRun}
-                      run={selectedRun}
-                    />
-                    <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
-                    <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>
-                  </>
-                )}
-              </div>
-            </section>
-          )}
-        </div>
-
-        <div className="col-xxl-9 col-xl-8 sky-workbench-main">
-          {!isHistoryMode && (
-            <>
-              <section className="sky-card mb-4">
-                <div className="sky-card-header">
-                  <div className="sky-page-kicker">Execution plan</div>
-                  <h2 className="h5 mb-0">Node timeline</h2>
-                </div>
-                <div className="sky-card-body">
-                  <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || []} />
-                </div>
-              </section>
-
-              <section className="sky-card">
-                <div className="sky-card-header">
-                  <div className="sky-page-kicker">Manual start</div>
-                  <h2 className="h5 mb-0">Run selected workflow</h2>
-                </div>
-                <form className="sky-card-body" onSubmit={handleStartWorkflow}>
-                  <div className="sky-empty-state text-start mb-3">
-                    Runtime parameters are saved into workflow context as <code>params</code>.
-                    Node configs can reference them with <code>{'{{ params.example }}'}</code>, while node defaults still come from Create Workflow / Manage Workflows.
                   </div>
+                </div>
+              ) : (
+                <div className="sky-empty-state">No active workflow definitions are available.</div>
+              )}
+            </div>
+          </section>
 
-                  {runtimeParameters.length > 0 ? (
-                    <div className="row g-3 mb-3">
-                      {runtimeParameters.map((parameter) => {
-                        const inputId = `runtime-param-${parameter.key}`;
-                        const value = runtimeParameterValues[parameter.key] ?? '';
+          <section className="sky-card">
+            <div className="sky-card-header">
+              <div className="sky-page-kicker">Execution plan</div>
+              <h2 className="h5 mb-0">Node timeline</h2>
+            </div>
+            <div className="sky-card-body">
+              <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || []} />
+            </div>
+          </section>
 
-                        if (parameter.type === 'boolean') {
-                          return (
-                            <div className="col-12" key={parameter.key}>
-                              <div className="form-check form-switch">
-                                <input
-                                  checked={Boolean(value)}
-                                  className="form-check-input"
-                                  id={inputId}
-                                  onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.checked }))}
-                                  type="checkbox"
-                                />
-                                <label className="form-check-label" htmlFor={inputId}>
-                                  {parameter.label}
-                                </label>
-                              </div>
-                              {parameter.description && <div className="form-text sky-muted">{parameter.description}</div>}
-                            </div>
-                          );
-                        }
+          <section className="sky-card">
+            <div className="sky-card-header">
+              <div className="sky-page-kicker">Manual start</div>
+              <h2 className="h5 mb-0">Run selected workflow</h2>
+            </div>
+            <form className="sky-card-body" onSubmit={handleStartWorkflow}>
+              <div className="sky-empty-state text-start mb-3">
+                Runtime values are saved into workflow context as <code>params</code>.
+                Configure workflow-level parameter definitions in Create Workflow / Manage Workflows, then reference them inside node defaults with <code>{'{{ params.example }}'}</code>.
+              </div>
 
-                        return (
-                          <div className="col-lg-6" key={parameter.key}>
-                            <label className="form-label" htmlFor={inputId}>
+              {runtimeParameters.length > 0 ? (
+                <div className="row g-3 mb-3">
+                  {runtimeParameters.map((parameter) => {
+                    const inputId = `runtime-param-${parameter.key}`;
+                    const value = runtimeParameterValues[parameter.key] ?? '';
+
+                    if (parameter.type === 'boolean') {
+                      return (
+                        <div className="col-12" key={parameter.key}>
+                          <div className="form-check form-switch">
+                            <input
+                              checked={Boolean(value)}
+                              className="form-check-input"
+                              id={inputId}
+                              onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.checked }))}
+                              type="checkbox"
+                            />
+                            <label className="form-check-label" htmlFor={inputId}>
                               {parameter.label}
-                              {parameter.required && <span className="text-danger ms-1">*</span>}
                             </label>
-                            {parameter.type === 'select' ? (
-                              <select
-                                className="form-select sky-form-control"
-                                id={inputId}
-                                onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
-                                required={parameter.required}
-                                value={String(value)}
-                              >
-                                <option value="">{parameter.prompt || `Select ${parameter.label}`}</option>
-                                {parameter.options.map((option) => (
-                                  <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                              </select>
-                            ) : parameter.type === 'json' ? (
-                              <textarea
-                                className="form-control sky-form-control sky-mono"
-                                id={inputId}
-                                onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
-                                placeholder={parameter.prompt || '{ }'}
-                                required={parameter.required}
-                                rows={4}
-                                value={String(value)}
-                              />
-                            ) : (
-                              <input
-                                className="form-control sky-form-control sky-mono"
-                                id={inputId}
-                                maxLength={parameter.maxLength || undefined}
-                                onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
-                                placeholder={parameter.prompt || parameter.key}
-                                required={parameter.required}
-                                type={parameter.type === 'number' ? 'number' : parameter.type === 'date' ? 'date' : 'text'}
-                                value={String(value)}
-                              />
-                            )}
-                            <div className="form-text sky-muted">
-                              {parameter.description || `${parameter.type} parameter saved as params.${parameter.key}`}
-                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="sky-empty-state text-start mb-3">
-                      This workflow has no runtime parameter schema yet. It will run with saved node defaults only.
-                    </div>
-                  )}
+                          {parameter.description && <div className="form-text sky-muted">{parameter.description}</div>}
+                        </div>
+                      );
+                    }
 
-                  {runtimeParameterError && <div className="alert alert-danger py-2">{runtimeParameterError}</div>}
-
-                  <button
-                    className="btn sky-btn-primary"
-                    disabled={starting || !selectedDefinitionDetail || !canStart}
-                    type="submit"
-                  >
-                    {starting ? 'Running workflow...' : runtimeParameters.length > 0 ? 'Start workflow with parameters' : 'Start workflow'}
-                  </button>
-                  {!canStart && (
-                    <div className="small sky-muted mt-2">
-                      TEMPORAL_WORKFLOW_START or WORKER_SCHEDULE_RUN permission is required.
-                    </div>
-                  )}
-                </form>
-              </section>
-            </>
-          )}
-
-          {isHistoryMode && (
-            <>
-              <section className="sky-card mb-4">
-                <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
-                  <div>
-                    <div className="sky-page-kicker">Recent runs</div>
-                    <h2 className="h5 mb-0">SkyCommand workflow runs</h2>
-                  </div>
-                  <div className="sky-inline-filter-form">
-                    <select
-                      className="form-select sky-form-control"
-                      onChange={(event) => updateFilter('status', event.target.value)}
-                      value={filters.status}
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="form-select sky-form-control"
-                      onChange={(event) => updateFilter('limit', event.target.value)}
-                      value={filters.limit}
-                    >
-                      <option value="10">10</option>
-                      <option value="25">25</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
-                    </select>
-                  </div>
+                    return (
+                      <div className="col-lg-6" key={parameter.key}>
+                        <label className="form-label" htmlFor={inputId}>
+                          {parameter.label}
+                          {parameter.required && <span className="text-danger ms-1">*</span>}
+                        </label>
+                        {parameter.type === 'select' ? (
+                          <select
+                            className="form-select sky-form-control"
+                            id={inputId}
+                            onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                            required={parameter.required}
+                            value={String(value)}
+                          >
+                            <option value="">{parameter.prompt || `Select ${parameter.label}`}</option>
+                            {parameter.options.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        ) : parameter.type === 'json' ? (
+                          <textarea
+                            className="form-control sky-form-control sky-mono"
+                            id={inputId}
+                            onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                            placeholder={parameter.prompt || '{ }'}
+                            required={parameter.required}
+                            rows={4}
+                            value={String(value)}
+                          />
+                        ) : (
+                          <input
+                            className="form-control sky-form-control sky-mono"
+                            id={inputId}
+                            maxLength={parameter.maxLength || undefined}
+                            onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                            placeholder={parameter.prompt || parameter.key}
+                            required={parameter.required}
+                            type={parameter.type === 'number' ? 'number' : parameter.type === 'date' ? 'date' : 'text'}
+                            value={String(value)}
+                          />
+                        )}
+                        <div className="form-text sky-muted">
+                          {parameter.description || `${parameter.type} parameter saved as params.${parameter.key}`}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="table-responsive sky-table-card">
-                  <table className="table table-sm table-hover sky-table align-middle">
-                    <thead>
-                      <tr>
-                        <th>Status</th>
-                        <th>Workflow</th>
-                        <th>Started</th>
-                        <th>Completed</th>
-                        <th>Duration</th>
-                        <th>Runtime</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading && (
-                        <tr>
-                          <td colSpan="6"><div className="sky-empty-state">Loading workflow runs...</div></td>
-                        </tr>
-                      )}
-                      {!loading && runs.length === 0 && (
-                        <tr>
-                          <td colSpan="6"><div className="sky-empty-state">No workflow runs found.</div></td>
-                        </tr>
-                      )}
-                      {!loading && runs.map((run) => (
-                        <tr
-                          className={`sky-clickable-row ${selectedRun?.workflowRunRecordId === run.workflowRunRecordId ? 'sky-selected-row' : ''}`}
-                          key={run.workflowRunRecordId}
-                          onClick={() => loadRunDetail(run.workflowRunRecordId)}
-                        >
-                          <td><span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span></td>
-                          <td>
-                            <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
-                            <div className="small sky-mono sky-muted">{run.workflowCode}</div>
-                            <div className="d-flex flex-wrap gap-1 mt-1">
-                              {getRunRelationLabel(run) && (
-                                <span className="sky-pill sky-pill-warning">{getRunRelationLabel(run)}</span>
-                              )}
-                              {run.metadata?.parentWorkflowRunRecordId && (
-                                <span className="sky-pill sky-pill-info">Has parent</span>
-                              )}
-                            </div>
-                          </td>
-                          <td>{formatDate(run.startedAt || run.createdAt)}</td>
-                          <td>{formatDate(run.completedAt)}</td>
-                          <td>{formatDuration(getRunDurationMs(run))}</td>
-                          <td>
-                            {run.temporalWorkflowId ? (
-                              <span className="sky-pill sky-pill-success">Temporal-backed</span>
-                            ) : (
-                              <span className="sky-pill sky-pill-info">Inline</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              ) : (
+                <div className="sky-empty-state text-start mb-3">
+                  This workflow has no runtime parameter schema yet. It will run with saved node defaults only.
                 </div>
-              </section>
+              )}
 
+              {runtimeParameterError && <div className="alert alert-danger py-2">{runtimeParameterError}</div>}
 
-              <section className="sky-card mb-4">
-                <div className="sky-card-body">
-                  {!selectedRun ? (
-                    <div className="sky-empty-state">Select a workflow run to view the runtime graph overlay.</div>
-                  ) : (
-                    <WorkflowVisualGraph
-                      approvals={selectedApprovals}
-                      headingKicker="Runtime status overlay"
-                      nodeRuns={selectedNodeRuns}
-                      nodes={runtimeVisualNodes}
-                      onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
-                      runStatus={selectedTemporalRuntime?.status || selectedRun.status}
-                      runtimeMode
-                      selectedNodeIndex={selectedRuntimeNodeIndex}
-                      subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
-                      temporalRuntime={selectedTemporalRuntime}
-                      title="Runtime workflow map"
-                    />
-                  )}
+              <button
+                className="btn sky-btn-primary"
+                disabled={starting || !selectedDefinitionDetail || !canStart}
+                type="submit"
+              >
+                {starting ? 'Running workflow...' : runtimeParameters.length > 0 ? 'Start workflow with parameters' : 'Start workflow'}
+              </button>
+              {!canStart && (
+                <div className="small sky-muted mt-2">
+                  TEMPORAL_WORKFLOW_START or WORKER_SCHEDULE_RUN permission is required.
                 </div>
-              </section>
-
-              <WorkflowRunTreePanel
-                onOpenRun={loadRunDetail}
-                selectedRunId={selectedRun?.workflowRunRecordId}
-                tree={selectedRunTree}
-              />
-
-              <TemporalRuntimePanel runtime={selectedTemporalRuntime} />
-
-              <section className="sky-card">
-                <div className="sky-card-header">
-                  <div className="sky-page-kicker">Node runs</div>
-                  <h2 className="h5 mb-0">Timeline</h2>
-                </div>
-                <div className="sky-card-body">
-                  {selectedNodeRuns.length === 0 ? (
-                    <div className="sky-empty-state">Select a run to inspect node outcomes.</div>
-                  ) : (
-                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} approvals={selectedApprovals} onOpenRun={loadRunDetail} />
-                  )}
-                </div>
-              </section>
-
-              <WorkflowNodeOutputLedger outputs={selectedNodeOutputs} contextValues={selectedContextValues} />
-            </>
-          )}
+              )}
+            </form>
+          </section>
         </div>
-      </div>
-        </>
       )}
     </div>
   );

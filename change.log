@@ -708,3 +708,13 @@ SkyWeb Analytics owns:
 - Added template resolution for node input parameters so workflow nodes can reference values such as `{{ params.commitMessage }}`, `{{ context.last.output }}`, `{{ nodes.some_node.output }}`, and `{{ workflow.workflowCode }}`.
 - Applied the same parameter/template resolution behavior to the Temporal-backed SkyServer workflow executor so durable executions and inline executions share the same launch contract.
 - Updated Workflow History run detail to show when a selected workflow run was launched with runtime parameters.
+
+## Phase 13.5B — Workflow-level runtime parameter design polish
+
+- Reworked Start Workflow so the workflow selector is a full-width launcher card above the execution plan and manual start sections, removing the older Workflow Builder Foundation summary card from the launch surface.
+- Reworked Manage Workflows so operators choose definitions from the same dropdown-style selector pattern used by Start Workflow, removing the older Workflow Lifecycle and Workflow Definitions catalog cards.
+- Added a reusable `RuntimeParameterSchemaEditor` for workflow-level parameter definitions with a 10-parameter limit, typed parameter names, labels, descriptions, required flags, defaults, select options, and max-length support.
+- Updated Create Workflow so workflow metadata sits above the node timeline and now includes workflow-level runtime parameter design before nodes are configured.
+- Removed the Create Workflow Builder V2 and Palette cards so node definitions have more horizontal room for future enhancements.
+- Updated Create Workflow to send workflow-level `runtimeParameters` with the definition payload, while node-level parameters can continue referencing those launch-time values with `{{ params.<name> }}` templates.
+- Added backend enforcement for the 10 runtime-parameter limit when creating or updating workflow definitions.

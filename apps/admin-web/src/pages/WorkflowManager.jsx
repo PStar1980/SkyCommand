@@ -25,6 +25,10 @@ import WorkflowRetryPolicyEditor, {
   DEFAULT_RETRY_POLICY,
   getInitialRetryPolicyValues,
 } from '../components/WorkflowRetryPolicyEditor.jsx';
+import RuntimeParameterSchemaEditor, {
+  cleanRuntimeParameterDefinitions,
+  normalizeRuntimeParameterDefinitions,
+} from '../components/RuntimeParameterSchemaEditor.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
@@ -210,29 +214,6 @@ function StatusPill({ status }) {
       : 'sky-pill-info';
 
   return <span className={`sky-pill ${className}`}>{normalized}</span>;
-}
-
-function WorkflowListCard({ definition, selected, onSelect }) {
-  return (
-    <button
-      className={`sky-worker-command-card text-start w-100 ${selected ? 'sky-selected-card' : ''}`}
-      onClick={onSelect}
-      type="button"
-    >
-      <div className="d-flex flex-wrap justify-content-between gap-2">
-        <div>
-          <div className="fw-bold">{definition.displayName}</div>
-          <div className="small sky-muted sky-mono">{definition.workflowCode}</div>
-        </div>
-        <StatusPill status={definition.status} />
-      </div>
-      <p className="small sky-muted mt-2 mb-2">{definition.description || 'No description.'}</p>
-      <div className="d-flex flex-wrap gap-2">
-        <span className="sky-pill sky-pill-info">{definition.publishedNodeCount || definition.latestNodeCount || 0} node(s)</span>
-        <span className="sky-pill sky-pill-info">{definition.publishedEdgeCount || definition.latestEdgeCount || 0} edge(s)</span>
-      </div>
-    </button>
-  );
 }
 
 function ToolTargetOption({ tool }) {
@@ -759,7 +740,7 @@ function WorkflowManager() {
     displayName: '',
     description: '',
     status: 'ACTIVE',
-    runtimeParametersJson: '[]',
+    runtimeParameters: [],
   });
   const [cloneForm, setCloneForm] = useState({ workflowCode: '', displayName: '', description: '', publish: true });
   const [publishForm, setPublishForm] = useState({ changeNote: '' });
@@ -861,7 +842,7 @@ function WorkflowManager() {
         displayName: definition.displayName || '',
         description: definition.description || '',
         status: definition.status || 'ACTIVE',
-        runtimeParametersJson: formatRuntimeParameterSchema(definition.runtimeParameters || definition.config?.runtimeParameters || []),
+        runtimeParameters: normalizeRuntimeParameterDefinitions(definition.runtimeParameters || definition.config?.runtimeParameters || []),
       });
       setCloneForm({
         workflowCode: `${definition.workflowCode}-copy`,
@@ -1195,7 +1176,7 @@ function WorkflowManager() {
         displayName: metadataForm.displayName,
         description: metadataForm.description,
         status: metadataForm.status,
-        runtimeParameters: parseRuntimeParameterSchema(metadataForm.runtimeParametersJson),
+        runtimeParameters: cleanRuntimeParameterDefinitions(metadataForm.runtimeParameters),
       });
       setMessage(result.message || 'Workflow updated.');
       await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
@@ -1390,92 +1371,62 @@ function WorkflowManager() {
         </div>
       )}
 
-      <section className="sky-worker-hero mb-4">
-        <div>
-          <div className="sky-page-kicker">Workflow lifecycle</div>
-          <h2 className="h4 mb-2">Definition control center</h2>
-          <p className="sky-muted mb-3">
-            Manage the current workflow graph and lifecycle with a visual sequential map, approval gates, waits, and reusable child workflows.
-          </p>
-          <div className="sky-worker-command-strip">
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Definitions</div>
-              <div className="sky-worker-command-value">{definitions.length}</div>
-            </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Active</div>
-              <div className="sky-worker-command-value">{definitions.filter((definition) => definition.status === 'ACTIVE').length}</div>
-            </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Tool targets</div>
-              <div className="sky-worker-command-value">{toolTargets.length}</div>
-            </div>
-            <div className="sky-worker-command-card">
-              <div className="sky-page-kicker">Workflow targets</div>
-              <div className="sky-worker-command-value">{workflowTargets.length}</div>
-            </div>
+      <section className="sky-card mb-4">
+        <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div>
+            <div className="sky-page-kicker">Workflow selector</div>
+            <h2 className="h5 mb-0">Choose workflow</h2>
+          </div>
+          <div className="d-flex flex-wrap gap-2">
+            <span className="sky-pill sky-pill-info">{definitions.length} definition(s)</span>
+            <span className="sky-pill sky-pill-success">{definitions.filter((definition) => definition.status === 'ACTIVE').length} active</span>
+            <span className="sky-pill sky-pill-info">{toolTargets.length} tool target(s)</span>
           </div>
         </div>
-        <div className="sky-card">
-          <div className="sky-card-header">
-            <div className="sky-page-kicker">Selected workflow</div>
-            <h3 className="h5 mb-0">{selectedDefinition?.displayName || 'No workflow selected'}</h3>
-          </div>
-          <div className="sky-card-body">
-            <p className="sky-muted mb-3">{selectedDefinition?.description || 'Select a workflow to inspect its graph and lifecycle controls.'}</p>
-            {selectedDefinition && (
-              <div className="d-flex flex-wrap gap-2">
-                <StatusPill status={selectedDefinition.status} />
-                <span className="sky-pill sky-pill-info">{selectedDefinition.publishedNodeCount || selectedDefinition.latestNodeCount || 0} node(s)</span>
-                <span className="sky-pill sky-pill-info">{selectedDefinition.publishedEdgeCount || selectedDefinition.latestEdgeCount || 0} edge(s)</span>
+        <div className="sky-card-body">
+          {definitions.length > 0 ? (
+            <div className="row g-3 align-items-end">
+              <div className="col-xl-7">
+                <label className="form-label" htmlFor="workflowManagerDefinition">Workflow definition</label>
+                <select
+                  className="form-select sky-form-control"
+                  id="workflowManagerDefinition"
+                  onChange={(event) => selectDefinition(event.target.value)}
+                  value={selectedCode}
+                >
+                  {definitions.map((definition) => (
+                    <option key={definition.workflowCode} value={definition.workflowCode}>
+                      {definition.displayName} ({definition.workflowCode})
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
-          </div>
+              <div className="col-xl-5">
+                <div className="sky-worker-command-card h-100">
+                  <div className="d-flex flex-wrap justify-content-between gap-2">
+                    <div>
+                      <div className="sky-page-kicker">Selected workflow</div>
+                      <div className="fw-bold">{selectedDefinition?.displayName || 'No workflow selected'}</div>
+                      <div className="small sky-muted sky-mono">{selectedDefinition?.workflowCode || '—'}</div>
+                    </div>
+                    {selectedDefinition && <StatusPill status={selectedDefinition.status} />}
+                  </div>
+                  <div className="d-flex flex-wrap gap-2 mt-3">
+                    <span className="sky-pill sky-pill-info">{selectedDefinition?.publishedNodeCount || selectedDefinition?.latestNodeCount || 0} node(s)</span>
+                    <span className="sky-pill sky-pill-info">{selectedDefinition?.publishedEdgeCount || selectedDefinition?.latestEdgeCount || 0} edge(s)</span>
+                    <span className="sky-pill sky-pill-info">{normalizeRuntimeParameterDefinitions(metadataForm.runtimeParameters).length} runtime param(s)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="sky-empty-state">No workflow definitions found.</div>
+          )}
         </div>
       </section>
 
-      <div className="row g-4 sky-workbench-row sky-workbench-row-management">
-        <div className="col-xxl-3 col-xl-4 sky-workbench-rail">
-          <section className="sky-card mb-4">
-            <div className="sky-card-header">
-              <div className="sky-page-kicker">Catalog</div>
-              <h2 className="h5 mb-0">Workflow definitions</h2>
-            </div>
-            <div className="sky-card-body d-flex flex-column gap-3">
-              {definitions.map((definition) => (
-                <WorkflowListCard
-                  definition={definition}
-                  key={definition.workflowCode}
-                  onSelect={() => selectDefinition(definition.workflowCode)}
-                  selected={definition.workflowCode === selectedCode}
-                />
-              ))}
-              {definitions.length === 0 && <div className="sky-empty-state">No workflow definitions found.</div>}
-            </div>
-          </section>
+      <div className="sky-workbench-main">
 
-          <section className="sky-card">
-            <div className="sky-card-header">
-              <div className="sky-page-kicker">Lifecycle map</div>
-              <h2 className="h5 mb-0">What v1 supports</h2>
-            </div>
-            <div className="sky-card-body d-flex flex-column gap-2">
-              <span className="sky-pill sky-pill-success">Edit metadata</span>
-              <span className="sky-pill sky-pill-success">Clone workflow</span>
-              <span className="sky-pill sky-pill-success">Draft-before-edit guardrails</span>
-              <span className="sky-pill sky-pill-success">Save draft graph</span>
-              <span className="sky-pill sky-pill-success">Publish new version</span>
-              <span className="sky-pill sky-pill-success">Visual graph preview</span>
-              <span className="sky-pill sky-pill-success">Visual node inspector</span>
-              <span className="sky-pill sky-pill-success">Visual drag reorder</span>
-              <span className="sky-pill sky-pill-success">Condition branch edges</span>
-              <span className="sky-pill sky-pill-success">Delete workflow</span>
-              <span className="sky-pill sky-pill-info">Sequential TOOL + API + CHILD + TEMPORAL + CONDITION + WAIT + APPROVAL nodes</span>
-            </div>
-          </section>
-        </div>
-
-        <div className="col-xxl-9 col-xl-8 sky-workbench-main">
           {!detail && (
             <section className="sky-card">
               <div className="sky-empty-state">Select a workflow definition to manage it.</div>
@@ -1536,17 +1487,13 @@ function WorkflowManager() {
                       <div className="form-text sky-muted">Inactive workflows are hidden from Start Workflow and blocked from scheduled execution.</div>
                     </div>
                     <div className="col-12">
-                      <label className="form-label" htmlFor="managerRuntimeParameters">Runtime parameter schema JSON</label>
-                      <textarea
-                        className="form-control sky-form-control sky-mono"
-                        id="managerRuntimeParameters"
-                        onChange={(event) => setMetadataForm((current) => ({ ...current, runtimeParametersJson: event.target.value }))}
-                        rows={8}
-                        value={metadataForm.runtimeParametersJson}
+                      <div className="sky-page-kicker mb-2">Workflow-level runtime params</div>
+                      <RuntimeParameterSchemaEditor
+                        disabled={saving || detailLoading}
+                        idPrefix="workflow-manager-runtime-param"
+                        onChange={(runtimeParameters) => setMetadataForm((current) => ({ ...current, runtimeParameters }))}
+                        parameters={metadataForm.runtimeParameters}
                       />
-                      <div className="form-text sky-muted">
-                        Store an array of parameter definitions with key, label, type, required, defaultValue, options, and description. Start Workflow renders this as the runtime launch form.
-                      </div>
                     </div>
                   </div>
 
@@ -1782,7 +1729,6 @@ function WorkflowManager() {
               </section>
             </div>
           )}
-        </div>
       </div>
     </div>
   );
