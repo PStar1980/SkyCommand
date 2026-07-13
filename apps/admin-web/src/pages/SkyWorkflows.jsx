@@ -26,6 +26,137 @@ const RUNTIME_FILTER_OPTIONS = [
   { value: 'inline', label: 'Inline/local only' },
 ];
 
+function getSafeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function getSafeObject(value, fallback = {}) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
+}
+
+function normalizeRuntimeParameterOptions(options = []) {
+  return getSafeArray(options)
+    .map((option) => {
+      if (option && typeof option === 'object') {
+        const value = option.value ?? option.optionValue ?? option.key ?? option.id ?? '';
+        const label = option.label ?? option.displayName ?? option.name ?? value;
+
+        return { value: String(value), label: String(label || value) };
+      }
+
+      return { value: String(option), label: String(option) };
+    })
+    .filter((option) => option.value !== '');
+}
+
+function normalizeRuntimeParameterDefinitions(definition = {}) {
+  const config = getSafeObject(definition.config);
+  const parameterSchema = getSafeObject(config.parameterSchema);
+  const rawParameters = getSafeArray(
+    definition.runtimeParameters
+      || config.runtimeParameters
+      || config.parameters
+      || parameterSchema.parameters
+      || parameterSchema.runtimeParameters,
+  );
+
+  return rawParameters
+    .map((parameter, index) => {
+      const raw = getSafeObject(parameter);
+      const key = String(raw.key || raw.parameterName || raw.name || raw.paramName || `param_${index + 1}`)
+        .trim()
+        .replace(/[^A-Za-z0-9_.:-]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      const type = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string').trim().toLowerCase();
+      const normalizedType = ['string', 'number', 'boolean', 'select', 'date', 'json'].includes(type) ? type : 'string';
+
+      return {
+        key,
+        parameterName: key,
+        label: raw.label || raw.displayName || key,
+        type: normalizedType,
+        paramTypeCode: normalizedType,
+        required: raw.required === true || raw.required === 'true',
+        defaultValue: raw.defaultValue ?? raw.default ?? '',
+        description: raw.description || raw.prompt || '',
+        prompt: raw.prompt || raw.description || '',
+        options: normalizeRuntimeParameterOptions(raw.options || raw.allowedValues || raw.values),
+        maxLength: Number.isFinite(Number(raw.maxLength)) ? Number(raw.maxLength) : null,
+        displayOrder: Number.isFinite(Number(raw.displayOrder)) ? Number(raw.displayOrder) : index * 10 + 10,
+      };
+    })
+    .filter((parameter) => parameter.key)
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.key.localeCompare(b.key));
+}
+
+function getInitialRuntimeParameterValues(parameters = []) {
+  return parameters.reduce((accumulator, parameter) => {
+    if (parameter.type === 'boolean') {
+      accumulator[parameter.key] = parameter.defaultValue === true || parameter.defaultValue === 'true';
+    } else if (parameter.type === 'json') {
+      accumulator[parameter.key] = parameter.defaultValue && typeof parameter.defaultValue === 'object'
+        ? JSON.stringify(parameter.defaultValue, null, 2)
+        : String(parameter.defaultValue || '');
+    } else {
+      accumulator[parameter.key] = parameter.defaultValue ?? '';
+    }
+
+    return accumulator;
+  }, {});
+}
+
+function parseRuntimeParameterValues(parameters = [], values = {}) {
+  return parameters.reduce((accumulator, parameter) => {
+    const rawValue = values[parameter.key];
+    const empty = rawValue === undefined || rawValue === null || rawValue === '';
+
+    if (parameter.required && empty) {
+      throw new Error(`${parameter.label || parameter.key} is required.`);
+    }
+
+    if (empty) {
+      if (parameter.type === 'boolean') {
+        accumulator[parameter.key] = false;
+      }
+      return accumulator;
+    }
+
+    if (parameter.type === 'number') {
+      const numericValue = Number(rawValue);
+
+      if (!Number.isFinite(numericValue)) {
+        throw new Error(`${parameter.label || parameter.key} must be a number.`);
+      }
+
+      accumulator[parameter.key] = numericValue;
+      return accumulator;
+    }
+
+    if (parameter.type === 'boolean') {
+      accumulator[parameter.key] = Boolean(rawValue);
+      return accumulator;
+    }
+
+    if (parameter.type === 'json') {
+      try {
+        accumulator[parameter.key] = typeof rawValue === 'object' ? rawValue : JSON.parse(String(rawValue));
+      } catch (error) {
+        throw new Error(`${parameter.label || parameter.key} must be valid JSON.`);
+      }
+      return accumulator;
+    }
+
+    const stringValue = String(rawValue);
+
+    if (parameter.maxLength && stringValue.length > parameter.maxLength) {
+      throw new Error(`${parameter.label || parameter.key} must be ${parameter.maxLength} characters or less.`);
+    }
+
+    accumulator[parameter.key] = stringValue;
+    return accumulator;
+  }, {});
+}
+
 function normalizeRuntimeFilter(value) {
   const normalized = String(value || '').toLowerCase();
 
@@ -1002,6 +1133,8 @@ function SkyWorkflows({ mode = 'start' }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
+  const [runtimeParameterValues, setRuntimeParameterValues] = useState({});
+  const [runtimeParameterError, setRuntimeParameterError] = useState('');
   const [telemetryState, setTelemetryState] = useState({
     activeRunCount: 0,
     consecutiveErrors: 0,
@@ -1023,6 +1156,10 @@ function SkyWorkflows({ mode = 'start' }) {
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const selectedRelations = selectedRunDetail?.relations || {};
   const selectedRunTree = selectedRunDetail?.runTree || selectedRelations.runTree || null;
+  const runtimeParameters = useMemo(
+    () => normalizeRuntimeParameterDefinitions(selectedDefinitionDetail || selectedDefinition || {}),
+    [selectedDefinition, selectedDefinitionDetail],
+  );
   const runtimeVisualNodes = selectedRunDetail?.definitionGraph?.nodes?.length
     ? selectedRunDetail.definitionGraph.nodes
     : selectedDefinitionDetail?.nodes?.length
@@ -1262,12 +1399,16 @@ function SkyWorkflows({ mode = 'start' }) {
     setStarting(true);
     setError('');
     setMessage('');
+    setRuntimeParameterError('');
 
     try {
+      const params = parseRuntimeParameterValues(runtimeParameters, runtimeParameterValues);
       const result = await workflowService.startWorkflow(selectedDefinitionDetail.workflowCode, {
         input: {
           runSource: 'manual',
           triggerType: 'MANUAL',
+          params,
+          runtimeParameters: params,
         },
       });
 
@@ -1284,7 +1425,9 @@ function SkyWorkflows({ mode = 'start' }) {
         await loadRunDetail(result.run.workflowRunRecordId);
       }
     } catch (startError) {
-      setError(formatApiError(startError, 'Failed to start workflow.'));
+      const messageText = formatApiError(startError, 'Failed to start workflow.');
+      setRuntimeParameterError(messageText);
+      setError(messageText);
     } finally {
       setStarting(false);
     }
@@ -1405,6 +1548,11 @@ function SkyWorkflows({ mode = 'start' }) {
   useEffect(() => {
     setSelectedRuntimeNodeIndex(null);
   }, [selectedRun?.workflowRunRecordId]);
+
+  useEffect(() => {
+    setRuntimeParameterValues(getInitialRuntimeParameterValues(runtimeParameters));
+    setRuntimeParameterError('');
+  }, [selectedDefinitionDetail?.workflowCode]);
 
 
   useEffect(() => {
@@ -1541,6 +1689,12 @@ function SkyWorkflows({ mode = 'start' }) {
                 <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
                 <dt className="col-4 sky-detail-label">Source</dt>
                 <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
+                <dt className="col-4 sky-detail-label">Runtime params</dt>
+                <dd className="col-8 sky-detail-value">
+                  {Object.keys(getSafeObject(selectedRun.input?.params)).length > 0 ? (
+                    <span className="sky-pill sky-pill-info">{Object.keys(getSafeObject(selectedRun.input.params)).length} parameter(s)</span>
+                  ) : '—'}
+                </dd>
                 <dt className="col-4 sky-detail-label">Started by</dt>
                 <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
                 <dt className="col-4 sky-detail-label">Executor</dt>
@@ -2024,6 +2178,12 @@ function SkyWorkflows({ mode = 'start' }) {
                       <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
                       <dt className="col-4 sky-detail-label">Source</dt>
                       <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
+                      <dt className="col-4 sky-detail-label">Runtime params</dt>
+                      <dd className="col-8 sky-detail-value">
+                        {Object.keys(getSafeObject(selectedRun.input?.params)).length > 0 ? (
+                          <span className="sky-pill sky-pill-info">{Object.keys(getSafeObject(selectedRun.input.params)).length} parameter(s)</span>
+                        ) : '—'}
+                      </dd>
                       <dt className="col-4 sky-detail-label">Started by</dt>
                       <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
                       <dt className="col-4 sky-detail-label">Executor</dt>
@@ -2088,16 +2248,98 @@ function SkyWorkflows({ mode = 'start' }) {
                 </div>
                 <form className="sky-card-body" onSubmit={handleStartWorkflow}>
                   <div className="sky-empty-state text-start mb-3">
-                    This workflow will run with the node parameter defaults configured in
-                    Create Workflow / Manage Workflows. Update the workflow graph to change node
-                    inputs before launch.
+                    Runtime parameters are saved into workflow context as <code>params</code>.
+                    Node configs can reference them with <code>{'{{ params.example }}'}</code>, while node defaults still come from Create Workflow / Manage Workflows.
                   </div>
+
+                  {runtimeParameters.length > 0 ? (
+                    <div className="row g-3 mb-3">
+                      {runtimeParameters.map((parameter) => {
+                        const inputId = `runtime-param-${parameter.key}`;
+                        const value = runtimeParameterValues[parameter.key] ?? '';
+
+                        if (parameter.type === 'boolean') {
+                          return (
+                            <div className="col-12" key={parameter.key}>
+                              <div className="form-check form-switch">
+                                <input
+                                  checked={Boolean(value)}
+                                  className="form-check-input"
+                                  id={inputId}
+                                  onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.checked }))}
+                                  type="checkbox"
+                                />
+                                <label className="form-check-label" htmlFor={inputId}>
+                                  {parameter.label}
+                                </label>
+                              </div>
+                              {parameter.description && <div className="form-text sky-muted">{parameter.description}</div>}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="col-lg-6" key={parameter.key}>
+                            <label className="form-label" htmlFor={inputId}>
+                              {parameter.label}
+                              {parameter.required && <span className="text-danger ms-1">*</span>}
+                            </label>
+                            {parameter.type === 'select' ? (
+                              <select
+                                className="form-select sky-form-control"
+                                id={inputId}
+                                onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                                required={parameter.required}
+                                value={String(value)}
+                              >
+                                <option value="">{parameter.prompt || `Select ${parameter.label}`}</option>
+                                {parameter.options.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            ) : parameter.type === 'json' ? (
+                              <textarea
+                                className="form-control sky-form-control sky-mono"
+                                id={inputId}
+                                onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                                placeholder={parameter.prompt || '{ }'}
+                                required={parameter.required}
+                                rows={4}
+                                value={String(value)}
+                              />
+                            ) : (
+                              <input
+                                className="form-control sky-form-control sky-mono"
+                                id={inputId}
+                                maxLength={parameter.maxLength || undefined}
+                                onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                                placeholder={parameter.prompt || parameter.key}
+                                required={parameter.required}
+                                type={parameter.type === 'number' ? 'number' : parameter.type === 'date' ? 'date' : 'text'}
+                                value={String(value)}
+                              />
+                            )}
+                            <div className="form-text sky-muted">
+                              {parameter.description || `${parameter.type} parameter saved as params.${parameter.key}`}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="sky-empty-state text-start mb-3">
+                      This workflow has no runtime parameter schema yet. It will run with saved node defaults only.
+                    </div>
+                  )}
+
+                  {runtimeParameterError && <div className="alert alert-danger py-2">{runtimeParameterError}</div>}
+
                   <button
                     className="btn sky-btn-primary"
                     disabled={starting || !selectedDefinitionDetail || !canStart}
                     type="submit"
                   >
-                    {starting ? 'Running workflow...' : 'Start workflow'}
+                    {starting ? 'Running workflow...' : runtimeParameters.length > 0 ? 'Start workflow with parameters' : 'Start workflow'}
                   </button>
                   {!canStart && (
                     <div className="small sky-muted mt-2">

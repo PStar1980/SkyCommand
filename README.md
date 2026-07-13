@@ -43,7 +43,7 @@ Phase 11 modernized Admin-Web into the **SkyCommand** product shell with a black
 
 Phase 12 added the **visual operations layer**: dashboard intelligence, Workflow History analytics, Worker Health pulse charts, Ingestion Status analytics, Tools History analytics, Production Readiness visualizations, reusable chart helper components, and full-screen chart overlays.
 
-Phase 13 adds the **live workflow intelligence layer**. Smart polling and live telemetry contracts keep Workflow History, selected run details, node status overlays, runtime summaries, Tool History, Data Pipeline, Readiness, and dashboard analytics surfaces fresh without full page reloads. Polling now preserves the last good UI state during transient refresh failures and escalates only after repeated polling errors. Structured node output persistence now stores resolved inputs and returned outputs in dedicated run-output rows, and the workflow context store now merges run inputs and completed node outputs into durable context values for future runtime parameters, context-aware branching, animated execution, and run summaries.
+Phase 13 adds the **live workflow intelligence layer**. Smart polling and live telemetry contracts keep Workflow History, selected run details, node status overlays, runtime summaries, Tool History, Data Pipeline, Readiness, and dashboard analytics surfaces fresh without full page reloads. Polling now preserves the last good UI state during transient refresh failures and escalates only after repeated polling errors. Structured node output persistence now stores resolved inputs and returned outputs in dedicated run-output rows, the workflow context store merges run inputs and completed node outputs into durable context values, and runtime parameter schemas now let reusable workflows collect launch values before execution.
 
 ## Core Product Surfaces
 
@@ -120,7 +120,7 @@ The UI modernization changed the app shell, sidebar, topbar, spacing, dashboard 
 
 Phase 12 added the reusable visualization layer. Apache ECharts and D3 now power chart sections across the Dashboard, Workflow History, Worker Health, Ingestion Status, Tools History, and Production Readiness pages. Chart cards share a consistent anatomy, status color language, empty-state handling, and full-screen overlay behavior so visual analytics can expand without page-by-page chart sprawl.
 
-Phase 13 adds the live intelligence spine. Workflow and dashboard surfaces use smart polling against standardized telemetry contracts, while workflow node completions now persist structured node outputs into `worker.workflow_run_node_outputs`. The workflow context store now updates `worker.workflow_run_context_values` with initial workflow inputs, runtime parameter placeholders, per-node status/output summaries, `last.*` values, and selected custom context updates so future nodes can resolve values from `params`, `nodes`, `last`, and custom context keys.
+Phase 13 adds the live intelligence spine. Workflow and dashboard surfaces use smart polling against standardized telemetry contracts, while workflow node completions now persist structured node outputs into `worker.workflow_run_node_outputs`. The workflow context store now updates `worker.workflow_run_context_values` with initial workflow inputs, runtime parameters, per-node status/output summaries, `last.*` values, and selected custom context updates. Workflow definitions can now store a runtime parameter schema, Start Workflow renders that schema as a launch form, and node input parameters can resolve template references such as `{{ params.commitMessage }}`, `{{ context.last.output }}`, and `{{ nodes.some_node.output }}` before execution.
 
 ## Workflow Pages
 
@@ -142,6 +142,8 @@ The workflow surfaces can:
 - configure tool parameters, Temporal-template parameters, retry policy, node timeout, condition branches, wait timers, and approval role gates;
 - render workflow graphs visually with node inspection, drag reorder, branch labels, and runtime status overlays;
 - start active published workflows manually from Admin-Web, SkyServer Core CLI, Admin tool bridge, or schedules;
+- define runtime parameter schemas for reusable workflows and capture submitted launch values as durable `params` context;
+- resolve node input templates from runtime params, workflow context, previous outputs, and named node outputs;
 - store workflow-level and node-level run records in PostgreSQL while Temporal owns durable execution state;
 - approve/reject human approval gates through Admin-Web signals back to Temporal;
 - cancel, terminate, and retry workflow runs;

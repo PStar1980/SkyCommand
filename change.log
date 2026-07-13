@@ -697,3 +697,14 @@ SkyWeb Analytics owns:
 - Updated inline and Temporal-backed SkyServer workflow executors to carry a live in-memory workflow context while nodes execute, giving conditions and future nodes access to `workflowContext`, `params`, `nodes`, `previousOutputs`, and `previousOutput`.
 - Preserved compatibility with databases that have not yet applied the Phase 13 output/context migration by treating context persistence as optional until the tables/views exist.
 
+
+## Phase 13.5 — Runtime workflow parameters
+
+- Added workflow runtime parameter schema support through workflow definition config, surfaced as `runtimeParameters` on workflow definition payloads.
+- Added a Manage Workflows runtime parameter schema editor so operators can store parameter metadata such as key, label, type, required, defaults, options, and descriptions.
+- Updated Start Workflow with a generated runtime parameter launch form that validates string, number, boolean, select, date, and JSON parameters before execution.
+- Persisted submitted runtime parameters into workflow run input as both `params` and `runtimeParameters`, allowing the Phase 13 context store to seed them into durable workflow context.
+- Added backend runtime parameter validation/coercion before inline or Temporal-backed workflow starts, including required-field, number, select-option, JSON, and max-length checks.
+- Added template resolution for node input parameters so workflow nodes can reference values such as `{{ params.commitMessage }}`, `{{ context.last.output }}`, `{{ nodes.some_node.output }}`, and `{{ workflow.workflowCode }}`.
+- Applied the same parameter/template resolution behavior to the Temporal-backed SkyServer workflow executor so durable executions and inline executions share the same launch contract.
+- Updated Workflow History run detail to show when a selected workflow run was launched with runtime parameters.

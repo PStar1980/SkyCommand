@@ -149,6 +149,20 @@ function parseJsonInput(value, fieldName, allowBlank = true) {
   }
 }
 
+function formatRuntimeParameterSchema(parameters = []) {
+  return JSON.stringify(Array.isArray(parameters) ? parameters : [], null, 2);
+}
+
+function parseRuntimeParameterSchema(value) {
+  const parsed = parseJsonInput(value || '[]', 'Runtime parameter schema JSON', false);
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('Runtime parameter schema JSON must be an array.');
+  }
+
+  return parsed;
+}
+
 function supportsRetryPolicy(nodeTypeCode) {
   return ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'].includes(String(nodeTypeCode || 'TOOL').toUpperCase());
 }
@@ -745,6 +759,7 @@ function WorkflowManager() {
     displayName: '',
     description: '',
     status: 'ACTIVE',
+    runtimeParametersJson: '[]',
   });
   const [cloneForm, setCloneForm] = useState({ workflowCode: '', displayName: '', description: '', publish: true });
   const [publishForm, setPublishForm] = useState({ changeNote: '' });
@@ -846,6 +861,7 @@ function WorkflowManager() {
         displayName: definition.displayName || '',
         description: definition.description || '',
         status: definition.status || 'ACTIVE',
+        runtimeParametersJson: formatRuntimeParameterSchema(definition.runtimeParameters || definition.config?.runtimeParameters || []),
       });
       setCloneForm({
         workflowCode: `${definition.workflowCode}-copy`,
@@ -1175,7 +1191,12 @@ function WorkflowManager() {
     setMessage('');
 
     try {
-      const result = await workflowService.updateDefinition(detail.workflowCode, metadataForm);
+      const result = await workflowService.updateDefinition(detail.workflowCode, {
+        displayName: metadataForm.displayName,
+        description: metadataForm.description,
+        status: metadataForm.status,
+        runtimeParameters: parseRuntimeParameterSchema(metadataForm.runtimeParametersJson),
+      });
       setMessage(result.message || 'Workflow updated.');
       await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
     } catch (saveError) {
@@ -1513,6 +1534,19 @@ function WorkflowManager() {
                         <option value="INACTIVE">INACTIVE</option>
                       </select>
                       <div className="form-text sky-muted">Inactive workflows are hidden from Start Workflow and blocked from scheduled execution.</div>
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label" htmlFor="managerRuntimeParameters">Runtime parameter schema JSON</label>
+                      <textarea
+                        className="form-control sky-form-control sky-mono"
+                        id="managerRuntimeParameters"
+                        onChange={(event) => setMetadataForm((current) => ({ ...current, runtimeParametersJson: event.target.value }))}
+                        rows={8}
+                        value={metadataForm.runtimeParametersJson}
+                      />
+                      <div className="form-text sky-muted">
+                        Store an array of parameter definitions with key, label, type, required, defaultValue, options, and description. Start Workflow renders this as the runtime launch form.
+                      </div>
                     </div>
                   </div>
 

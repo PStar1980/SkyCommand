@@ -1332,6 +1332,7 @@ function normalizeDefinitionRow(row) {
     startPermissionCode: item.startPermissionCode,
     cancelPermissionCode: item.cancelPermissionCode,
     config: item.config || {},
+    runtimeParameters: normalizeWorkflowParameterDefinitions(getParameterSchemaFromConfig(item.config || {})),
     versionCount: item.versionCount || 0,
     latestVersionNumber: item.latestVersionNumber,
     publishedVersionNumber: item.publishedVersionNumber,
@@ -1561,6 +1562,272 @@ function getWorkflowRuntimeParams(input = {}) {
       || safeInput.workflowParameters
       || safeInput.parameters,
   );
+}
+
+function getParameterSchemaFromConfig(config = {}) {
+  const safeConfig = getSafeObject(config);
+  const nestedSchema = getSafeObject(safeConfig.parameterSchema);
+
+  return getSafeArray(
+    safeConfig.runtimeParameters
+      || safeConfig.parameters
+      || nestedSchema.parameters
+      || nestedSchema.runtimeParameters,
+  );
+}
+
+function normalizeRuntimeParameterOptions(options = []) {
+  return getSafeArray(options)
+    .map((option) => {
+      if (option && typeof option === 'object') {
+        const value = option.value ?? option.optionValue ?? option.key ?? option.id ?? '';
+        const label = option.label ?? option.displayName ?? option.name ?? value;
+
+        return {
+          value: String(value),
+          label: String(label || value),
+        };
+      }
+
+      return {
+        value: String(option),
+        label: String(option),
+      };
+    })
+    .filter((option) => option.value !== '');
+}
+
+function normalizeWorkflowParameterDefinitions(parameters = []) {
+  return getSafeArray(parameters)
+    .map((parameter, index) => {
+      const raw = getSafeObject(parameter);
+      const key = normalizeContextKey(
+        raw.key || raw.parameterName || raw.name || raw.paramName || `param_${index + 1}`,
+        `param_${index + 1}`,
+      );
+      const type = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string')
+        .trim()
+        .toLowerCase();
+      const allowedType = ['string', 'number', 'boolean', 'select', 'date', 'json'].includes(type) ? type : 'string';
+
+      return {
+        key,
+        parameterName: key,
+        label: String(raw.label || raw.displayName || key).trim() || key,
+        type: allowedType,
+        paramTypeCode: allowedType,
+        required: toBoolean(raw.required),
+        defaultValue: raw.defaultValue ?? raw.default ?? null,
+        description: raw.description || raw.prompt || '',
+        prompt: raw.prompt || raw.description || '',
+        options: normalizeRuntimeParameterOptions(raw.options || raw.allowedValues || raw.values),
+        maxLength: Number.isFinite(Number(raw.maxLength)) ? Number(raw.maxLength) : null,
+        displayOrder: Number.isFinite(Number(raw.displayOrder)) ? Number(raw.displayOrder) : index * 10 + 10,
+      };
+    })
+    .filter((parameter) => Boolean(parameter.key))
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.key.localeCompare(b.key));
+}
+
+function getDefinitionRuntimeParameters(definition = {}) {
+  return normalizeWorkflowParameterDefinitions(getParameterSchemaFromConfig(definition.config));
+}
+
+function isBlankRuntimeParameterValue(value) {
+  return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+}
+
+function parseRuntimeJsonParameter(value, parameter) {
+  if (isBlankRuntimeParameterValue(value)) {
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    return cloneJsonCompatible(value);
+  }
+
+  try {
+    return JSON.parse(String(value));
+  } catch (error) {
+    throw new WorkflowServiceError(`Runtime parameter ${parameter.label || parameter.key} must be valid JSON.`, 400, {
+      parameterKey: parameter.key,
+      error: error.message || String(error),
+    });
+  }
+}
+
+function coerceRuntimeParameterValue(value, parameter) {
+  if (isBlankRuntimeParameterValue(value)) {
+    if (!isBlankRuntimeParameterValue(parameter.defaultValue)) {
+      return coerceRuntimeParameterValue(parameter.defaultValue, { ...parameter, defaultValue: null });
+    }
+
+    return parameter.type === 'boolean' ? false : null;
+  }
+
+  if (parameter.type === 'number') {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      throw new WorkflowServiceError(`Runtime parameter ${parameter.label || parameter.key} must be a number.`, 400, {
+        parameterKey: parameter.key,
+        value,
+      });
+    }
+
+    return numericValue;
+  }
+
+  if (parameter.type === 'boolean') {
+    return toBoolean(value);
+  }
+
+  if (parameter.type === 'json') {
+    return parseRuntimeJsonParameter(value, parameter);
+  }
+
+  const stringValue = String(value);
+
+  if (parameter.maxLength && stringValue.length > parameter.maxLength) {
+    throw new WorkflowServiceError(`Runtime parameter ${parameter.label || parameter.key} exceeds max length ${parameter.maxLength}.`, 400, {
+      parameterKey: parameter.key,
+      maxLength: parameter.maxLength,
+    });
+  }
+
+  if (parameter.type === 'select' && parameter.options.length > 0) {
+    const allowedValues = new Set(parameter.options.map((option) => String(option.value)));
+
+    if (!allowedValues.has(stringValue)) {
+      throw new WorkflowServiceError(`Runtime parameter ${parameter.label || parameter.key} must use an allowed option.`, 400, {
+        parameterKey: parameter.key,
+        value: stringValue,
+        allowedValues: [...allowedValues],
+      });
+    }
+  }
+
+  return stringValue;
+}
+
+function validateWorkflowRuntimeInput(definition = {}, input = {}) {
+  const safeInput = getSafeObject(input);
+  const parameters = getDefinitionRuntimeParameters(definition);
+  const suppliedParams = getWorkflowRuntimeParams(safeInput);
+  const normalizedParams = {};
+
+  for (const parameter of parameters) {
+    const supplied = Object.prototype.hasOwnProperty.call(suppliedParams, parameter.key)
+      ? suppliedParams[parameter.key]
+      : suppliedParams[parameter.parameterName];
+
+    if (parameter.required && isBlankRuntimeParameterValue(supplied) && isBlankRuntimeParameterValue(parameter.defaultValue)) {
+      throw new WorkflowServiceError(`Runtime parameter ${parameter.label || parameter.key} is required.`, 400, {
+        parameterKey: parameter.key,
+        parameter,
+      });
+    }
+
+    const coercedValue = coerceRuntimeParameterValue(supplied, parameter);
+
+    if (!isBlankRuntimeParameterValue(coercedValue) || parameter.type === 'boolean') {
+      normalizedParams[parameter.key] = coercedValue;
+    }
+  }
+
+  for (const [key, value] of Object.entries(suppliedParams)) {
+    if (!Object.prototype.hasOwnProperty.call(normalizedParams, key) && !parameters.some((parameter) => parameter.key === key)) {
+      normalizedParams[normalizeContextKey(key)] = cloneJsonCompatible(value);
+    }
+  }
+
+  return {
+    ...safeInput,
+    params: normalizedParams,
+    runtimeParameters: normalizedParams,
+  };
+}
+
+function getPathValue(source = {}, path = '') {
+  const parts = String(path || '')
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  let cursor = source;
+
+  for (const part of parts) {
+    if (cursor === undefined || cursor === null) {
+      return undefined;
+    }
+
+    if (Array.isArray(cursor) && /^\d+$/.test(part)) {
+      cursor = cursor[Number(part)];
+    } else {
+      cursor = cursor[part];
+    }
+  }
+
+  return cursor;
+}
+
+function buildTemplateResolutionScope({ input = {}, context = {} } = {}) {
+  const workflowContext = getSafeObject(context.workflowContext || context.context || context);
+
+  return {
+    input: getSafeObject(input),
+    params: getSafeObject(context.params || workflowContext.params || getWorkflowRuntimeParams(input)),
+    context: workflowContext,
+    workflowContext,
+    workflow: getSafeObject(workflowContext.workflow),
+    nodes: getSafeObject(context.nodes || workflowContext.nodes),
+    last: getSafeObject(workflowContext.last),
+    previousOutput: context.previousOutput || null,
+    previousOutputs: getSafeObject(context.previousOutputs),
+  };
+}
+
+function resolveTemplateString(value, scope = {}) {
+  const text = String(value);
+  const exactMatch = text.match(/^\s*{{\s*([^}]+?)\s*}}\s*$/);
+
+  if (exactMatch) {
+    const resolved = getPathValue(scope, exactMatch[1]);
+
+    return resolved === undefined ? '' : cloneJsonCompatible(resolved);
+  }
+
+  return text.replace(/{{\s*([^}]+?)\s*}}/g, (_match, path) => {
+    const resolved = getPathValue(scope, path);
+
+    if (resolved === undefined || resolved === null) {
+      return '';
+    }
+
+    if (typeof resolved === 'object') {
+      return JSON.stringify(resolved);
+    }
+
+    return String(resolved);
+  });
+}
+
+function resolveRuntimeTemplates(value, scope = {}) {
+  if (typeof value === 'string') {
+    return resolveTemplateString(value, scope);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveRuntimeTemplates(item, scope));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, resolveRuntimeTemplates(nestedValue, scope)]),
+    );
+  }
+
+  return value;
 }
 
 function setNestedContextValue(target, contextKey, value) {
@@ -2141,16 +2408,20 @@ async function getWorkflowDefinition(workflowCode) {
   };
 }
 
-function buildNodeParameters(node, requestInput = {}) {
+function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
   const input = getSafeObject(requestInput);
   const nodeInputs = getSafeObject(input.nodeInputs);
   const parameterOverrides = getSafeObject(input.parameterOverrides);
   const nodeOverride = getSafeObject(nodeInputs[node.nodeKey] || parameterOverrides[node.nodeKey]);
-
-  return {
+  const mergedParameters = {
     ...getSafeObject(node.inputParameters),
     ...nodeOverride,
   };
+
+  return resolveRuntimeTemplates(mergedParameters, buildTemplateResolutionScope({
+    input,
+    context: executionContext,
+  }));
 }
 
 async function insertWorkflowRun({
@@ -3710,6 +3981,11 @@ async function updateWorkflowDefinition({ workflowCode, payload = {}, user, perm
     : existing.status;
   const nextEnabled = nextStatus === 'ACTIVE';
   const nextVisible = true;
+  const configPatch = { updatedBy: 'workflow_manager_v1' };
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'runtimeParameters')) {
+    configPatch.runtimeParameters = normalizeWorkflowParameterDefinitions(payload.runtimeParameters);
+  }
 
   await query(
     `
@@ -3733,7 +4009,7 @@ async function updateWorkflowDefinition({ workflowCode, payload = {}, user, perm
       nextEnabled,
       nextVisible,
       user?.userId || null,
-      JSON.stringify({ updatedBy: 'workflow_manager_v1' }),
+      JSON.stringify(configPatch),
     ],
   );
 
@@ -4935,9 +5211,11 @@ async function startWorkflowWithTemporal({
     });
   }
 
+  const normalizedInput = validateWorkflowRuntimeInput(definition, input);
+
   const run = await insertWorkflowRun({
     definition,
-    input,
+    input: normalizedInput,
     user,
     context,
     status: 'QUEUED',
@@ -4952,7 +5230,7 @@ async function startWorkflowWithTemporal({
     const temporalStart = await temporalService.startSkyserverWorkflowExecutorWorkflow({
       workflowCode: definition.workflowCode,
       workflowRunRecordId: run.workflowRunRecordId,
-      input,
+      input: normalizedInput,
       actor: user,
       session,
       permissions,
@@ -5027,13 +5305,15 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
     });
   }
 
-  const run = await insertWorkflowRun({ definition, input, user, context });
+  const normalizedInput = validateWorkflowRuntimeInput(definition, input);
+
+  const run = await insertWorkflowRun({ definition, input: normalizedInput, user, context });
   const nodeRuns = [];
   const nodeOutputsByKey = {};
   let workflowRuntimeContext = buildContextObjectFromPatch(buildInitialWorkflowContextPatch({
     run,
     definition,
-    input,
+    input: normalizedInput,
   }));
   let previousNodeOutput = null;
   let conditionStop = null;
@@ -5047,15 +5327,15 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
     while (currentNodeIndex < executionPlan.nodes.length) {
       const node = executionPlan.nodes[currentNodeIndex];
       const nodeRun = await insertNodeRun({ workflowRunRecordId: run.workflowRunRecordId, node });
-      const parameters = buildNodeParameters(node, input);
       const nodeContext = buildWorkflowExecutionContext({
         baseContext: context,
         runtimeContext: workflowRuntimeContext,
-        input,
+        input: normalizedInput,
         nodeOutputsByKey,
         previousNodeOutput,
         currentNodeKey: node.nodeKey,
       });
+      const parameters = buildNodeParameters(node, normalizedInput, nodeContext);
       let nextNodeIndex = currentNodeIndex + 1;
 
       try {
