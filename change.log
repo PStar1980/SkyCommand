@@ -740,3 +740,12 @@ SkyWeb Analytics owns:
 - Added seed `00057__workflow_runtime_parameter_scope_cleanup.sql` to remove the Phase 13.5 macro-refresh proof-case runtime params and restore the macro ingestion tool defaults back to node-level parameters.
 - Kept Manage Workflows focused on workflow metadata plus explicit workflow-level runtime params, while node-level tool parameters remain in the graph/node editor below.
 - Reworked Workflow History so the runtime workflow map gets the full page width; detailed run metadata now opens from a `View details` overlay using the same modal treatment as expanded chart cards.
+
+## Phase 13.7 — Animated workflow execution focus
+
+- Added active-node detection to the reusable workflow visual graph so running, queued, pending, and approval-wait nodes become the live focus of the runtime map.
+- Added a reusable Follow active node toggle for runtime workflow maps; when enabled, the selected inspector tracks the live node and scrolls the visual lane into view without a page refresh.
+- Added animated runtime edge flow for the edge leading into the active node, while preserving existing completed, failed, skipped, condition-branch, and approval status overlays.
+- Updated Workflow History to enable active-node following by default on the selected run workspace, keeping the node map and inspector synchronized during smart polling.
+- Added reduced-motion-safe CSS so operators who prefer less animation still get status highlighting without continuous motion.
+
