@@ -4303,3 +4303,26 @@
     max-height: calc(100vh - 1.5rem);
   }
 }
+
+.sky-form-control-static {
+  min-height: 2.35rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.75rem;
+  background: rgba(4, 8, 16, 0.55);
+  color: #e6f0ff;
+  overflow-wrap: anywhere;
+}
+
+.sky-node-parameter-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.sky-node-parameter-preview {
+  padding: 0.85rem;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.85rem;
+  background: rgba(5, 11, 24, 0.48);
+}

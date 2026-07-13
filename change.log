@@ -1,3 +1,10 @@
+## 2026-07-13 — Phase 13.5D Manage Workflow Node Parameter Editor
+
+- Restored Manage Workflows node-level parameter access by showing a selected-node defaults panel underneath the visual workflow graph.
+- Published workflow graphs now expose a read-only node defaults preview with a direct Create draft to edit action.
+- Draft workflow graphs now edit only the selected node at a time, reusing the same node parameter editors as Create Workflow for tool, API, Temporal template, condition, wait, and approval nodes.
+- Selecting or adding a node keeps the node parameter workspace focused, reducing graph editor clutter while preserving node-level defaults separately from workflow-level runtime parameters.
+
 ## 2026-07-12 — Phase 13.2 Live Telemetry Contracts
 
 - Added a shared API live telemetry envelope for pollable SkyCommand surfaces.
