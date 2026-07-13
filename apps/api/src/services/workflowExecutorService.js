@@ -630,16 +630,34 @@ function evaluateConditionNode({ node, parameters = {}, context = {} }) {
     ? normalizedParameters.trueTargetNodeKey || null
     : normalizedParameters.falseTargetNodeKey || null;
   const branchLabel = passed ? 'TRUE' : 'FALSE';
+  const conditionContextKey = normalizeContextKey(node.nodeKey || node.displayName || 'condition', 'condition');
   const summary = branchTargetNodeKey
     ? `Condition ${node.displayName || node.nodeKey} resolved ${branchLabel}; routing to ${branchTargetNodeKey}.`
     : passed
       ? `Condition ${node.displayName || node.nodeKey} passed; continuing workflow.`
       : `Condition ${node.displayName || node.nodeKey} did not pass; ${normalizedParameters.onFalse === 'STOP_SUCCESS' ? 'stopping workflow successfully' : normalizedParameters.onFalse === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
+  const contextUpdates = {
+    [`conditions.${conditionContextKey}.nodeKey`]: node.nodeKey || null,
+    [`conditions.${conditionContextKey}.passed`]: passed,
+    [`conditions.${conditionContextKey}.status`]: passed ? 'PASSED' : 'FAILED',
+    [`conditions.${conditionContextKey}.branchLabel`]: branchLabel,
+    [`conditions.${conditionContextKey}.branchTargetNodeKey`]: branchTargetNodeKey,
+    [`conditions.${conditionContextKey}.evaluatedAt`]: new Date().toISOString(),
+    [`conditions.${conditionContextKey}.summary`]: summary,
+    'lastCondition.nodeKey': node.nodeKey || null,
+    'lastCondition.passed': passed,
+    'lastCondition.status': passed ? 'PASSED' : 'FAILED',
+    'lastCondition.branchLabel': branchLabel,
+    'lastCondition.branchTargetNodeKey': branchTargetNodeKey,
+    'lastCondition.summary': summary,
+  };
 
   return {
     kind: 'condition_evaluation',
     status: passed ? 'PASSED' : 'FAILED',
     passed,
+    route: branchLabel,
+    reason: summary,
     operator: normalizedParameters.operator,
     leftPath: normalizedParameters.leftPath || null,
     leftValue: serializeConditionValue(leftValue),
@@ -654,6 +672,7 @@ function evaluateConditionNode({ node, parameters = {}, context = {} }) {
     branchLabel,
     branchTaken: Boolean(branchTargetNodeKey),
     summary,
+    contextUpdates,
   };
 }
 
@@ -1924,6 +1943,39 @@ function buildInitialWorkflowContextPatch({ run = {}, definition = {}, input = {
   };
 }
 
+function buildConditionNodeLookup(runtimeNodes = {}, nodeOutputsByKey = {}) {
+  const lookup = { ...getSafeObject(runtimeNodes) };
+
+  for (const [rawNodeKey, rawOutput] of Object.entries(getSafeObject(nodeOutputsByKey))) {
+    const nodeKey = String(rawNodeKey || '').trim();
+    const normalizedNodeKey = normalizeContextKey(nodeKey, 'node');
+    const output = getSafeObject(rawOutput);
+    const existingNode = getSafeObject(lookup[nodeKey] || lookup[normalizedNodeKey]);
+    const summary = output.summary || output.message || existingNode.summary || '';
+    const value = {
+      ...output,
+      ...existingNode,
+      output,
+      result: output,
+      nodeKey,
+      summary,
+      nodeStatus: existingNode.status || null,
+      runStatus: existingNode.status || null,
+      outputStatus: output.status || null,
+      outputSummary: summary,
+      durationMs: existingNode.durationMs ?? output.durationMs ?? null,
+    };
+
+    if (nodeKey) {
+      lookup[nodeKey] = value;
+    }
+
+    lookup[normalizedNodeKey] = value;
+  }
+
+  return lookup;
+}
+
 function buildWorkflowExecutionContext({
   baseContext = {},
   runtimeContext = {},
@@ -1933,20 +1985,29 @@ function buildWorkflowExecutionContext({
   currentNodeKey = null,
 } = {}) {
   const safeRuntimeContext = getSafeObject(runtimeContext);
+  const params = getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(input));
+  const previousOutputs = getSafeObject(nodeOutputsByKey);
+  const conditionNodes = buildConditionNodeLookup(safeRuntimeContext.nodes, previousOutputs);
 
   return {
     ...getSafeObject(baseContext),
     workflowContext: safeRuntimeContext,
-    params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(input)),
+    params,
     nodes: getSafeObject(safeRuntimeContext.nodes),
-    previousOutputs: nodeOutputsByKey,
+    previousOutputs,
     previousOutput: previousNodeOutput,
     conditionEvaluation: {
       input,
+      workflow: getSafeObject(safeRuntimeContext.workflow),
       context: safeRuntimeContext,
-      params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(input)),
-      nodes: nodeOutputsByKey,
+      workflowContext: safeRuntimeContext,
+      params,
+      nodes: conditionNodes,
+      nodeOutputs: previousOutputs,
+      previousOutputs,
       previous: previousNodeOutput,
+      previousOutput: previousNodeOutput,
+      last: getSafeObject(safeRuntimeContext.last),
       currentNodeKey,
     },
   };

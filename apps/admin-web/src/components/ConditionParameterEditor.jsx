@@ -143,11 +143,11 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
           className="form-control sky-form-control sky-mono"
           id={`${idPrefix}-leftPath`}
           onChange={(event) => patch({ leftPath: event.target.value })}
-          placeholder="input.condition or nodes.fred_ingestion.status"
+          placeholder="params.commitMessage or nodes.fred_ingestion.output.status"
           value={values.leftPath || ''}
         />
         <div className="form-text sky-muted">
-          Use dot paths from the workflow context: input.*, nodes.&lt;node_key&gt;.*, or previous.*.
+          Use dot paths from the live workflow scope: params.*, context.*, workflow.*, nodes.&lt;node_key&gt;.*, previous.*, previousOutput.*, or last.*.
         </div>
       </div>
       <div className="col-lg-4">
@@ -260,6 +260,9 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
       </div>
       <div className="col-12">
         <div className="sky-empty-state text-start py-3">
+          <div className="small sky-muted mb-2">
+            Examples: <span className="sky-mono">params.commitMessage</span>, <span className="sky-mono">context.last.status</span>, <span className="sky-mono">nodes.fred_ingestion.output.status</span>, <span className="sky-mono">previousOutput.summary</span>.
+          </div>
           <span className="fw-semibold">Preview:</span> {getConditionExpressionSummary(values)}.
           {' '}True: {getBranchTargetLabel(values.trueTargetNodeKey, branchTargetOptions)}.
           {' '}False: {values.falseTargetNodeKey ? `jump to ${getBranchTargetLabel(values.falseTargetNodeKey, branchTargetOptions)}` : (CONDITION_FALSE_ACTIONS.find((action) => action.value === values.onFalse)?.label || values.onFalse)}.

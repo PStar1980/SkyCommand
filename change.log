@@ -1,3 +1,10 @@
+## 2026-07-13 — Phase 13.6 Context-Aware Conditions
+
+- Expanded condition-node evaluation scope so conditions can read runtime params, durable workflow context, workflow metadata, prior node outputs, previous node output, and last-node context through predictable dot paths.
+- Added normalized node lookups for condition paths so `nodes.<nodeKey>.output.*`, `nodes.<nodeKey>.status`, `previousOutput.*`, and `context.last.*` can be used without custom script glue.
+- Condition nodes now emit route/reason metadata plus context updates under `conditions.<nodeKey>.*` and `lastCondition.*`, making branch decisions durable and visible to later nodes.
+- Updated the condition parameter editor guidance with examples for params, context, node outputs, and previous-output references.
+
 ## 2026-07-13 — Phase 13.5D Manage Workflow Node Parameter Editor
 
 - Restored Manage Workflows node-level parameter access by showing a selected-node defaults panel underneath the visual workflow graph.
@@ -733,9 +740,3 @@ SkyWeb Analytics owns:
 - Added seed `00057__workflow_runtime_parameter_scope_cleanup.sql` to remove the Phase 13.5 macro-refresh proof-case runtime params and restore the macro ingestion tool defaults back to node-level parameters.
 - Kept Manage Workflows focused on workflow metadata plus explicit workflow-level runtime params, while node-level tool parameters remain in the graph/node editor below.
 - Reworked Workflow History so the runtime workflow map gets the full page width; detailed run metadata now opens from a `View details` overlay using the same modal treatment as expanded chart cards.
-
-## Phase 13.5D — Manage Workflow node parameter hotfix
-
-- Restored the missing retry-policy summary import used by the Manage Workflows read-only selected-node defaults panel.
-- Fixed the Manage Workflows blank-page regression that occurred when a published workflow auto-selected a graph node and attempted to render node-level defaults.
-- Confirmed node-level parameters remain scoped to `worker.workflow_nodes.input_parameters`, separate from workflow-level runtime parameter definitions.
