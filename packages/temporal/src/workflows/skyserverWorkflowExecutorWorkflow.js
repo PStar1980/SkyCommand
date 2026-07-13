@@ -329,6 +329,39 @@ function buildNodeContextPatch(nodeRun = {}) {
   return patch;
 }
 
+function buildConditionNodeLookup(runtimeNodes = {}, nodeOutputsByKey = {}) {
+  const lookup = { ...getSafeObject(runtimeNodes) };
+
+  for (const [rawNodeKey, rawOutput] of Object.entries(getSafeObject(nodeOutputsByKey))) {
+    const nodeKey = String(rawNodeKey || '').trim();
+    const normalizedNodeKey = normalizeContextKey(nodeKey, 'node');
+    const output = getSafeObject(rawOutput);
+    const existingNode = getSafeObject(lookup[nodeKey] || lookup[normalizedNodeKey]);
+    const summary = output.summary || output.message || existingNode.summary || '';
+    const value = {
+      ...output,
+      ...existingNode,
+      output,
+      result: output,
+      nodeKey,
+      summary,
+      nodeStatus: existingNode.status || null,
+      runStatus: existingNode.status || null,
+      outputStatus: output.status || null,
+      outputSummary: summary,
+      durationMs: existingNode.durationMs ?? output.durationMs ?? null,
+    };
+
+    if (nodeKey) {
+      lookup[nodeKey] = value;
+    }
+
+    lookup[normalizedNodeKey] = value;
+  }
+
+  return lookup;
+}
+
 function buildWorkflowExecutionContext({
   baseContext = {},
   runtimeContext = {},
@@ -338,20 +371,29 @@ function buildWorkflowExecutionContext({
   currentNodeKey = null,
 } = {}) {
   const safeRuntimeContext = getSafeObject(runtimeContext);
+  const params = getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(requestInput));
+  const previousOutputs = getSafeObject(nodeOutputsByKey);
+  const conditionNodes = buildConditionNodeLookup(safeRuntimeContext.nodes, previousOutputs);
 
   return {
     ...getSafeObject(baseContext),
     workflowContext: safeRuntimeContext,
-    params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(requestInput)),
+    params,
     nodes: getSafeObject(safeRuntimeContext.nodes),
-    previousOutputs: nodeOutputsByKey,
+    previousOutputs,
     previousOutput: previousNodeOutput,
     conditionEvaluation: {
       input: requestInput,
+      workflow: getSafeObject(safeRuntimeContext.workflow),
       context: safeRuntimeContext,
-      params: getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(requestInput)),
-      nodes: nodeOutputsByKey,
+      workflowContext: safeRuntimeContext,
+      params,
+      nodes: conditionNodes,
+      nodeOutputs: previousOutputs,
+      previousOutputs,
       previous: previousNodeOutput,
+      previousOutput: previousNodeOutput,
+      last: getSafeObject(safeRuntimeContext.last),
       currentNodeKey,
     },
   };
