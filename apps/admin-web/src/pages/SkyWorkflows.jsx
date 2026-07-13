@@ -1133,6 +1133,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
+  const [followActiveRuntimeNode, setFollowActiveRuntimeNode] = useState(true);
   const [runtimeParameterValues, setRuntimeParameterValues] = useState({});
   const [runtimeParameterError, setRuntimeParameterError] = useState('');
   const [runDetailOverlayOpen, setRunDetailOverlayOpen] = useState(false);
@@ -2009,8 +2010,10 @@ function SkyWorkflows({ mode = 'start' }) {
                           View details
                         </button>
                       )}
+                      followActiveNode={followActiveRuntimeNode}
                       nodeRuns={selectedNodeRuns}
                       nodes={runtimeVisualNodes}
+                      onFollowActiveNodeChange={setFollowActiveRuntimeNode}
                       onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
                       runStatus={selectedTemporalRuntime?.status || selectedRun.status}
                       runtimeMode
