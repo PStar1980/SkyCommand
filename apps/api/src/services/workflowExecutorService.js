@@ -1571,9 +1571,8 @@ function getParameterSchemaFromConfig(config = {}) {
 
   return getSafeArray(
     safeConfig.runtimeParameters
-      || safeConfig.parameters
-      || nestedSchema.parameters
-      || nestedSchema.runtimeParameters,
+      || nestedSchema.runtimeParameters
+      || nestedSchema.parameters,
   );
 }
 

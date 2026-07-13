@@ -4268,3 +4268,38 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Phase 13.5C — workflow history detail overlay */
+.sky-run-detail-modal {
+  width: min(94rem, calc(100vw - 4rem));
+  max-height: calc(100vh - 4rem);
+}
+
+.sky-run-detail-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(1rem, 1.25vw, 1.5rem);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 215, 255, 0.34) rgba(4, 8, 16, 0.48);
+}
+
+.sky-run-detail-modal-body::-webkit-scrollbar {
+  width: 0.55rem;
+}
+
+.sky-run-detail-modal-body::-webkit-scrollbar-track {
+  background: rgba(4, 8, 16, 0.35);
+}
+
+.sky-run-detail-modal-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(154, 215, 255, 0.3);
+}
+
+@media (max-width: 760px) {
+  .sky-run-detail-modal {
+    width: calc(100vw - 1.5rem);
+    max-height: calc(100vh - 1.5rem);
+  }
+}

@@ -695,9 +695,7 @@ function WorkflowBuilder() {
     publish: true,
     runtimeParameters: [],
   });
-  const [nodes, setNodes] = useState([
-    { ...EMPTY_NODE },
-  ]);
+  const [nodes, setNodes] = useState([]);
 
   const toolTargets = useMemo(
     () => [...(catalog.toolTargets || [])].sort((a, b) => {

@@ -743,6 +743,7 @@ function WorkflowVisualInspector({ approvals = [], catalogs, nodeRuns = [], node
 function WorkflowVisualGraph({
   approvals = [],
   headingKicker,
+  headerActions = null,
   nodeRuns = [],
   nodes = [],
   runStatus = '',
@@ -859,7 +860,8 @@ function WorkflowVisualGraph({
           <h3 className="h5 mb-1">{resolvedTitle}</h3>
           <p className="sky-muted mb-0">{resolvedSubtitle}</p>
         </div>
-        <div className="d-flex flex-wrap gap-2">
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          {headerActions}
           <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
           <span className="sky-pill sky-pill-info">{totalEdges} edge(s)</span>
           <span className="sky-pill sky-pill-success">Sequential lane</span>

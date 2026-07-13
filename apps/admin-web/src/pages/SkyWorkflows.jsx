@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
@@ -55,9 +56,8 @@ function normalizeRuntimeParameterDefinitions(definition = {}) {
   const rawParameters = getSafeArray(
     definition.runtimeParameters
       || config.runtimeParameters
-      || config.parameters
-      || parameterSchema.parameters
-      || parameterSchema.runtimeParameters,
+      || parameterSchema.runtimeParameters
+      || parameterSchema.parameters,
   );
 
   return rawParameters
@@ -1135,6 +1135,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
   const [runtimeParameterValues, setRuntimeParameterValues] = useState({});
   const [runtimeParameterError, setRuntimeParameterError] = useState('');
+  const [runDetailOverlayOpen, setRunDetailOverlayOpen] = useState(false);
   const [telemetryState, setTelemetryState] = useState({
     activeRunCount: 0,
     consecutiveErrors: 0,
@@ -1166,6 +1167,27 @@ function SkyWorkflows({ mode = 'start' }) {
       ? selectedDefinitionDetail.nodes
       : selectedNodeRuns;
   const isHistoryMode = mode === 'history';
+
+  useEffect(() => {
+    if (!runDetailOverlayOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setRunDetailOverlayOpen(false);
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [runDetailOverlayOpen]);
 
   const runStats = useMemo(() => {
     const completed = runs.filter((run) => run.status === 'COMPLETED').length;
@@ -1626,124 +1648,161 @@ function SkyWorkflows({ mode = 'start' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHistoryMode, filters.status, filters.runtime, selectedRun?.workflowRunRecordId, selectedRun?.status]);
 
-  function renderSelectedRunDetailCard() {
+  function renderSelectedRunDetailContent() {
+    if (!selectedRun) {
+      return <div className="sky-empty-state py-4">Select a workflow run to inspect it.</div>;
+    }
+
     return (
-      <section className="sky-card sky-workflow-history-detail-card">
-        <div className="sky-card-header">
-          <div className="sky-page-kicker">Run detail</div>
-          <h2 className="h5 mb-0">Selected workflow</h2>
+      <>
+        <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+          <span className={`sky-pill ${statusClass(selectedRun.status)}`}>{selectedRun.status}</span>
+          <span className="small sky-muted">{formatDuration(getRunDurationMs(selectedRun))}</span>
         </div>
-        <div className="sky-card-body sky-workflow-history-detail-scroll">
-          {!selectedRun ? (
-            <div className="sky-empty-state py-4">Select a workflow run to inspect it.</div>
-          ) : (
+        <dl className="row small mb-3">
+          <dt className="col-4 sky-detail-label">Workflow</dt>
+          <dd className="col-8 sky-detail-value">{selectedRun.workflowDisplayName || selectedRun.workflowCode}</dd>
+          <dt className="col-4 sky-detail-label">Run</dt>
+          <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.workflowRunRecordId}</dd>
+          {selectedRelations.parentRun && (
             <>
-              <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
-                <span className={`sky-pill ${statusClass(selectedRun.status)}`}>{selectedRun.status}</span>
-                <span className="small sky-muted">{formatDuration(getRunDurationMs(selectedRun))}</span>
-              </div>
-              <dl className="row small mb-3">
-                <dt className="col-4 sky-detail-label">Workflow</dt>
-                <dd className="col-8 sky-detail-value">{selectedRun.workflowDisplayName || selectedRun.workflowCode}</dd>
-                <dt className="col-4 sky-detail-label">Run</dt>
-                <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.workflowRunRecordId}</dd>
-                {selectedRelations.parentRun && (
-                  <>
-                    <dt className="col-4 sky-detail-label">Parent</dt>
-                    <dd className="col-8 sky-detail-value">
-                      <button
-                        className="btn btn-link btn-sm p-0 align-baseline"
-                        onClick={() => loadRunDetail(selectedRelations.parentRun.workflowRunRecordId)}
-                        type="button"
-                      >
-                        {selectedRelations.parentRun.workflowDisplayName || selectedRelations.parentRun.workflowCode}
-                      </button>
-                      {selectedRun.parentNodeKey && (
-                        <div className="small sky-muted sky-mono">via {selectedRun.parentNodeKey}</div>
-                      )}
-                    </dd>
-                  </>
+              <dt className="col-4 sky-detail-label">Parent</dt>
+              <dd className="col-8 sky-detail-value">
+                <button
+                  className="btn btn-link btn-sm p-0 align-baseline"
+                  onClick={() => loadRunDetail(selectedRelations.parentRun.workflowRunRecordId)}
+                  type="button"
+                >
+                  {selectedRelations.parentRun.workflowDisplayName || selectedRelations.parentRun.workflowCode}
+                </button>
+                {selectedRun.parentNodeKey && (
+                  <div className="small sky-muted sky-mono">via {selectedRun.parentNodeKey}</div>
                 )}
-                {(selectedRelations.childRuns || []).length > 0 && (
-                  <>
-                    <dt className="col-4 sky-detail-label">Children</dt>
-                    <dd className="col-8 sky-detail-value">
-                      <span className="sky-pill sky-pill-info">{selectedRelations.childRuns.length} child run(s)</span>
-                    </dd>
-                  </>
-                )}
-                {selectedApprovals.length > 0 && (
-                  <>
-                    <dt className="col-4 sky-detail-label">Approvals</dt>
-                    <dd className="col-8 sky-detail-value">
-                      <span className="sky-pill sky-pill-warning">
-                        {selectedApprovals.filter((approval) => approval.status === 'PENDING').length} pending
-                      </span>
-                      <span className="sky-pill sky-pill-info ms-1">{selectedApprovals.length} total</span>
-                    </dd>
-                  </>
-                )}
-                <dt className="col-4 sky-detail-label">Started</dt>
-                <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
-                <dt className="col-4 sky-detail-label">Completed</dt>
-                <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
-                <dt className="col-4 sky-detail-label">Source</dt>
-                <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
-                <dt className="col-4 sky-detail-label">Runtime params</dt>
-                <dd className="col-8 sky-detail-value">
-                  {Object.keys(getSafeObject(selectedRun.input?.params)).length > 0 ? (
-                    <span className="sky-pill sky-pill-info">{Object.keys(getSafeObject(selectedRun.input.params)).length} parameter(s)</span>
-                  ) : '—'}
-                </dd>
-                <dt className="col-4 sky-detail-label">Started by</dt>
-                <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
-                <dt className="col-4 sky-detail-label">Executor</dt>
-                <dd className="col-8 sky-detail-value sky-mono">{selectedRun.metadata?.executor || '—'}</dd>
-                <dt className="col-4 sky-detail-label">Temporal workflow</dt>
-                <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalWorkflowId || '—'}</dd>
-                <dt className="col-4 sky-detail-label">Temporal run</dt>
-                <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalRunId || '—'}</dd>
-                <dt className="col-4 sky-detail-label">Runtime</dt>
-                <dd className="col-8 sky-detail-value">
-                  {selectedRun.temporalWorkflowId ? (
-                    <span className="sky-pill sky-pill-success">Temporal-backed</span>
-                  ) : (
-                    <span className="sky-pill sky-pill-info">Inline/local</span>
-                  )}
-                </dd>
-                <dt className="col-4 sky-detail-label">Temporal status</dt>
-                <dd className="col-8 sky-detail-value">
-                  <span className={`sky-pill ${statusClass(selectedTemporalRuntime?.status || selectedRun.status)}`}>
-                    {selectedTemporalRuntime?.status || selectedRun.status || '—'}
-                  </span>
-                </dd>
-                <dt className="col-4 sky-detail-label">History events</dt>
-                <dd className="col-8 sky-detail-value">{selectedTemporalRuntime?.history?.eventCount || selectedTemporalRuntime?.historyLength || '—'}</dd>
-                {selectedTemporalRuntime?.uiUrl && (
-                  <>
-                    <dt className="col-4 sky-detail-label">Temporal UI</dt>
-                    <dd className="col-8 sky-detail-value">
-                      <a href={selectedTemporalRuntime.uiUrl} rel="noreferrer" target="_blank">Open diagnostics</a>
-                    </dd>
-                  </>
-                )}
-              </dl>
-              <WorkflowRunControls
-                busyAction={runActionLoading}
-                canCancel={canCancelRun}
-                canRetry={canStart}
-                canTerminate={canTerminateRun}
-                onCancel={handleCancelRun}
-                onRetry={handleRetryRun}
-                onTerminate={handleTerminateRun}
-                run={selectedRun}
-              />
-              <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
-              <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>
+              </dd>
             </>
           )}
-        </div>
-      </section>
+          {(selectedRelations.childRuns || []).length > 0 && (
+            <>
+              <dt className="col-4 sky-detail-label">Children</dt>
+              <dd className="col-8 sky-detail-value">
+                <span className="sky-pill sky-pill-info">{selectedRelations.childRuns.length} child run(s)</span>
+              </dd>
+            </>
+          )}
+          {selectedApprovals.length > 0 && (
+            <>
+              <dt className="col-4 sky-detail-label">Approvals</dt>
+              <dd className="col-8 sky-detail-value">
+                <span className="sky-pill sky-pill-warning">
+                  {selectedApprovals.filter((approval) => approval.status === 'PENDING').length} pending
+                </span>
+                <span className="sky-pill sky-pill-info ms-1">{selectedApprovals.length} total</span>
+              </dd>
+            </>
+          )}
+          <dt className="col-4 sky-detail-label">Started</dt>
+          <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
+          <dt className="col-4 sky-detail-label">Completed</dt>
+          <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
+          <dt className="col-4 sky-detail-label">Source</dt>
+          <dd className="col-8 sky-detail-value sky-mono">{selectedRun.runSource}</dd>
+          <dt className="col-4 sky-detail-label">Runtime params</dt>
+          <dd className="col-8 sky-detail-value">
+            {Object.keys(getSafeObject(selectedRun.input?.params)).length > 0 ? (
+              <span className="sky-pill sky-pill-info">{Object.keys(getSafeObject(selectedRun.input.params)).length} parameter(s)</span>
+            ) : '—'}
+          </dd>
+          <dt className="col-4 sky-detail-label">Started by</dt>
+          <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
+          <dt className="col-4 sky-detail-label">Executor</dt>
+          <dd className="col-8 sky-detail-value sky-mono">{selectedRun.metadata?.executor || '—'}</dd>
+          <dt className="col-4 sky-detail-label">Temporal workflow</dt>
+          <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalWorkflowId || '—'}</dd>
+          <dt className="col-4 sky-detail-label">Temporal run</dt>
+          <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalRunId || '—'}</dd>
+          <dt className="col-4 sky-detail-label">Runtime</dt>
+          <dd className="col-8 sky-detail-value">
+            {selectedRun.temporalWorkflowId ? (
+              <span className="sky-pill sky-pill-success">Temporal-backed</span>
+            ) : (
+              <span className="sky-pill sky-pill-info">Inline/local</span>
+            )}
+          </dd>
+          <dt className="col-4 sky-detail-label">Temporal status</dt>
+          <dd className="col-8 sky-detail-value">
+            <span className={`sky-pill ${statusClass(selectedTemporalRuntime?.status || selectedRun.status)}`}>
+              {selectedTemporalRuntime?.status || selectedRun.status || '—'}
+            </span>
+          </dd>
+          <dt className="col-4 sky-detail-label">History events</dt>
+          <dd className="col-8 sky-detail-value">{selectedTemporalRuntime?.history?.eventCount || selectedTemporalRuntime?.historyLength || '—'}</dd>
+          {selectedTemporalRuntime?.uiUrl && (
+            <>
+              <dt className="col-4 sky-detail-label">Temporal UI</dt>
+              <dd className="col-8 sky-detail-value">
+                <a href={selectedTemporalRuntime.uiUrl} rel="noreferrer" target="_blank">Open diagnostics</a>
+              </dd>
+            </>
+          )}
+        </dl>
+        <WorkflowRunControls
+          busyAction={runActionLoading}
+          canCancel={canCancelRun}
+          canRetry={canStart}
+          canTerminate={canTerminateRun}
+          onCancel={handleCancelRun}
+          onRetry={handleRetryRun}
+          onTerminate={handleTerminateRun}
+          run={selectedRun}
+        />
+        <p className="sky-muted small">{selectedRun.summary || 'No summary.'}</p>
+        <pre className="sky-code-block sky-worker-json-preview">{jsonPreview(selectedRun)}</pre>
+      </>
+    );
+  }
+
+  function renderSelectedRunDetailOverlay() {
+    if (!runDetailOverlayOpen) {
+      return null;
+    }
+
+    return createPortal(
+      <div
+        aria-modal="true"
+        className="sky-chart-modal-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            setRunDetailOverlayOpen(false);
+          }
+        }}
+        role="dialog"
+      >
+        <section className="sky-chart-modal sky-run-detail-modal" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="sky-chart-modal-header">
+            <div>
+              <div className="sky-page-kicker sky-chart-modal-kicker">Run detail</div>
+              <h2>Selected workflow</h2>
+              <p>Review run identity, runtime source, controls, Temporal diagnostics, and raw metadata without compressing the workflow map.</p>
+            </div>
+            <button
+              aria-label="Close run detail"
+              autoFocus
+              className="sky-chart-modal-close"
+              onClick={() => setRunDetailOverlayOpen(false)}
+              type="button"
+            >
+              <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24">
+                <path d="M6.5 6.5l11 11" />
+                <path d="M17.5 6.5l-11 11" />
+              </svg>
+            </button>
+          </div>
+          <div className="sky-run-detail-modal-body">
+            {renderSelectedRunDetailContent()}
+          </div>
+        </section>
+      </div>,
+      document.body,
     );
   }
 
@@ -1931,9 +1990,7 @@ function SkyWorkflows({ mode = 'start' }) {
             <div className="small sky-muted">Detail panels scroll independently from the run browser.</div>
           </div>
 
-          <div className="sky-workflow-history-detail-grid">
-            {renderSelectedRunDetailCard()}
-            <div className="sky-workflow-history-detail-stack">
+          <div className="sky-workflow-history-detail-stack">
               <section className="sky-card">
                 <div className="sky-card-body">
                   {!selectedRun ? (
@@ -1942,6 +1999,16 @@ function SkyWorkflows({ mode = 'start' }) {
                     <WorkflowVisualGraph
                       approvals={selectedApprovals}
                       headingKicker="Runtime status overlay"
+                      headerActions={(
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={!selectedRun}
+                          onClick={() => setRunDetailOverlayOpen(true)}
+                          type="button"
+                        >
+                          View details
+                        </button>
+                      )}
                       nodeRuns={selectedNodeRuns}
                       nodes={runtimeVisualNodes}
                       onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
@@ -1979,7 +2046,6 @@ function SkyWorkflows({ mode = 'start' }) {
               </section>
 
               <WorkflowNodeOutputLedger outputs={selectedNodeOutputs} contextValues={selectedContextValues} />
-            </div>
           </div>
         </section>
       </div>
