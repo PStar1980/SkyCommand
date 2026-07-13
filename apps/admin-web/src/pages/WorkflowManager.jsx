@@ -24,6 +24,7 @@ import WorkflowRetryPolicyEditor, {
   cleanRetryPolicyValues,
   DEFAULT_RETRY_POLICY,
   getInitialRetryPolicyValues,
+  getRetryPolicySummary,
 } from '../components/WorkflowRetryPolicyEditor.jsx';
 import RuntimeParameterSchemaEditor, {
   cleanRuntimeParameterDefinitions,

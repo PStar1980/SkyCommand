@@ -733,3 +733,9 @@ SkyWeb Analytics owns:
 - Added seed `00057__workflow_runtime_parameter_scope_cleanup.sql` to remove the Phase 13.5 macro-refresh proof-case runtime params and restore the macro ingestion tool defaults back to node-level parameters.
 - Kept Manage Workflows focused on workflow metadata plus explicit workflow-level runtime params, while node-level tool parameters remain in the graph/node editor below.
 - Reworked Workflow History so the runtime workflow map gets the full page width; detailed run metadata now opens from a `View details` overlay using the same modal treatment as expanded chart cards.
+
+## Phase 13.5D — Manage Workflow node parameter hotfix
+
+- Restored the missing retry-policy summary import used by the Manage Workflows read-only selected-node defaults panel.
+- Fixed the Manage Workflows blank-page regression that occurred when a published workflow auto-selected a graph node and attempted to render node-level defaults.
+- Confirmed node-level parameters remain scoped to `worker.workflow_nodes.input_parameters`, separate from workflow-level runtime parameter definitions.
