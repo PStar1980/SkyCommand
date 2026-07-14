@@ -1,3 +1,13 @@
+## 2026-07-14 — Temporal and Listener Audit/Privilege Housekeeping
+
+- Added user-facing audit events for direct Temporal workflow starts, start failures, cancellation requests/failures, and termination requests/failures without copying runtime parameter payloads into the security audit log.
+- Added explicit `LISTENER_CREATED` and `LISTENER_CHANGED` audit event types for listener creation, updates, enablement, and disablement.
+- Added granular `WORKER_LISTENER_CREATE` and `WORKER_LISTENER_CHANGE` permissions, restricted them to `ADMIN` and `SUPER_ADMIN`, and retired the broad legacy `WORKER_LISTENER_WRITE` permission while preserving its historical row.
+- Updated listener API and Admin-Web guards to use the new granular permissions.
+- Preserved internal-service immediate scheduler access under `WORKER_SCHEDULE_RUN_IMMEDIATE` after the earlier scheduler privilege split.
+- Extended Production Readiness checks to validate all eight workflow/scheduler/listener processing permissions, sixteen expected administrative grants, and zero non-administrative grants.
+- Expanded `npm run validate` to syntax-check the worker controller, routes, and service touched by automation security changes.
+
 ## 2026-07-13 — Workflow and Scheduler Audit/Privilege Hardening
 
 - Added granular `WORKFLOW_CREATE`, `WORKFLOW_RUN`, and `WORKFLOW_CHANGE` permissions for workflow creation, run controls, and definition/version changes.

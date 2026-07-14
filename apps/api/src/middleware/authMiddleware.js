@@ -8,6 +8,7 @@ const INTERNAL_SERVICE_PERMISSION_CODES = [
   'TEMPORAL_WORKFLOW_START',
   'WORKER_SCHEDULE_READ',
   'WORKER_SCHEDULE_RUN',
+  'WORKER_SCHEDULE_RUN_IMMEDIATE',
 ];
 
 function parseBoolean(value, fallback = false) {
@@ -77,7 +78,11 @@ async function requireAuth(req, res, next) {
     const internalToken = getInternalServiceToken(req);
     const configuredInternalToken = getConfiguredInternalServiceToken();
 
-    if (isInternalServiceAuthEnabled() && configuredInternalToken && internalToken === configuredInternalToken) {
+    if (
+      isInternalServiceAuthEnabled() &&
+      configuredInternalToken &&
+      internalToken === configuredInternalToken
+    ) {
       applyInternalServiceIdentity(req);
       return next();
     }

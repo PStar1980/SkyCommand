@@ -110,7 +110,7 @@ function buildStatCards(health, listeners = []) {
 
 function AutomationListeners() {
   const { hasPermission } = useAuth();
-  const canWriteListeners = hasPermission('WORKER_LISTENER_WRITE');
+  const canChangeListeners = hasPermission('WORKER_LISTENER_CHANGE');
 
   const [health, setHealth] = useState(null);
   const [listeners, setListeners] = useState([]);
@@ -205,8 +205,8 @@ function AutomationListeners() {
   }
 
   async function handleListenerStatus(listener, enabled) {
-    if (!canWriteListeners) {
-      setError('WORKER_LISTENER_WRITE is required to change listener status.');
+    if (!canChangeListeners) {
+      setError('WORKER_LISTENER_CHANGE is required to change listener status.');
       return;
     }
 
@@ -388,7 +388,7 @@ function AutomationListeners() {
                         <td onClick={(event) => event.stopPropagation()}>
                           <button
                             className="btn btn-sm sky-btn-ghost"
-                            disabled={!canWriteListeners || actionLoading}
+                            disabled={!canChangeListeners || actionLoading}
                             onClick={() => handleListenerStatus(listener, !listener.enabled)}
                             type="button"
                           >

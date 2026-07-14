@@ -19,7 +19,6 @@ function sendPagedResponse(res, payload = {}) {
   });
 }
 
-
 function parseMaybeJsonQueryPayload(query = {}) {
   const entries = Object.entries(query || {});
 
@@ -60,6 +59,60 @@ function getActionContext(req) {
   return {
     actor: req.user,
     context: authService.getRequestContext(req),
+  };
+}
+
+function getAuditErrorMessage(error) {
+  return String(error?.message || 'Temporal action failed.').slice(0, 1000);
+}
+
+async function recordTemporalAudit(
+  req,
+  { eventType, action, success, message, resourceId = null, metadata = {} } = {},
+) {
+  const context = authService.getRequestContext(req);
+
+  try {
+    await authService.recordAuditEvent({
+      appCode: req.session?.appCode,
+      userId: req.user?.userId || null,
+      eventType,
+      resourceType: 'temporal_workflow',
+      resourceId,
+      action,
+      success,
+      message,
+      metadata: {
+        route: req.originalUrl,
+        method: req.method,
+        ...metadata,
+      },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    });
+  } catch (auditError) {
+    console.error(
+      `[SkyServer Temporal API] Failed to record ${eventType || action || 'Temporal'} audit event:`,
+      auditError,
+    );
+  }
+}
+
+function getStartedWorkflowAuditDetails(payload = {}, fallbackWorkflowCode = null) {
+  const workflow = payload.workflow || {};
+  const definition = payload.definition || {};
+
+  return {
+    resourceId: workflow.workflowId || fallbackWorkflowCode || null,
+    metadata: {
+      workflowCode:
+        definition.workflowCode || workflow.workflowCode || fallbackWorkflowCode || null,
+      workflowType: definition.workflowType || workflow.workflowType || null,
+      workflowId: workflow.workflowId || null,
+      runId: workflow.runId || null,
+      namespace: workflow.namespace || null,
+      taskQueue: workflow.taskQueue || null,
+    },
   };
 }
 
@@ -127,13 +180,23 @@ async function getWorkflow(req, res) {
   }
 }
 
-
 async function startWorkflowFromDefinition(req, res) {
+  const workflowCode = req.params.workflowCode;
+
   try {
     const payload = await temporalService.startWorkflowFromDefinition({
-      workflowCode: req.params.workflowCode,
+      workflowCode,
       body: buildRequestPayload(req),
       ...getActionContext(req),
+    });
+    const auditDetails = getStartedWorkflowAuditDetails(payload, workflowCode);
+
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_STARTED',
+      action: 'start_temporal_workflow',
+      success: true,
+      message: `Started Temporal workflow ${auditDetails.metadata.workflowCode || workflowCode}.`,
+      ...auditDetails,
     });
 
     res.status(202).json({
@@ -141,50 +204,125 @@ async function startWorkflowFromDefinition(req, res) {
       ...payload,
     });
   } catch (error) {
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_START_FAILED',
+      action: 'start_temporal_workflow',
+      success: false,
+      message: `Failed to start Temporal workflow ${workflowCode}: ${getAuditErrorMessage(error)}`,
+      resourceId: workflowCode,
+      metadata: { workflowCode, statusCode: error.statusCode || 500 },
+    });
     sendServiceError(res, error);
   }
 }
 
 async function startFredIngestionWorkflow(req, res) {
+  const workflowCode = 'fred-ingestion';
+
   try {
     const payload = await temporalService.startFredIngestionWorkflow(
       buildRequestPayload(req),
       null,
       getActionContext(req),
     );
+    const auditDetails = getStartedWorkflowAuditDetails(payload, workflowCode);
+
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_STARTED',
+      action: 'start_temporal_workflow',
+      success: true,
+      message: `Started Temporal workflow ${auditDetails.metadata.workflowCode || workflowCode}.`,
+      ...auditDetails,
+    });
 
     res.status(202).json({
       ok: true,
       ...payload,
     });
   } catch (error) {
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_START_FAILED',
+      action: 'start_temporal_workflow',
+      success: false,
+      message: `Failed to start Temporal workflow ${workflowCode}: ${getAuditErrorMessage(error)}`,
+      resourceId: workflowCode,
+      metadata: { workflowCode, statusCode: error.statusCode || 500 },
+    });
     sendServiceError(res, error);
   }
 }
 
 async function cancelWorkflow(req, res) {
+  const workflowId = req.params.workflowId;
+  const runId = req.body?.runId || req.query.runId || null;
+
   try {
     const payload = await temporalService.cancelWorkflow({
-      workflowId: req.params.workflowId,
-      runId: req.body?.runId || req.query.runId,
+      workflowId,
+      runId,
       actor: req.user,
     });
+
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_CANCEL_REQUESTED',
+      action: 'cancel_temporal_workflow',
+      success: true,
+      message: `Requested cancellation of Temporal workflow ${workflowId}.`,
+      resourceId: workflowId,
+      metadata: { workflowId, runId, namespace: payload.namespace || null },
+    });
+
     sendServiceResponse(res, payload);
   } catch (error) {
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_CANCEL_FAILED',
+      action: 'cancel_temporal_workflow',
+      success: false,
+      message: `Failed to cancel Temporal workflow ${workflowId}: ${getAuditErrorMessage(error)}`,
+      resourceId: workflowId,
+      metadata: { workflowId, runId, statusCode: error.statusCode || 500 },
+    });
     sendServiceError(res, error);
   }
 }
 
 async function terminateWorkflow(req, res) {
+  const workflowId = req.params.workflowId;
+  const runId = req.body?.runId || req.query.runId || null;
+  const reason = req.body?.reason;
+
   try {
     const payload = await temporalService.terminateWorkflow({
-      workflowId: req.params.workflowId,
-      runId: req.body?.runId || req.query.runId,
-      reason: req.body?.reason,
+      workflowId,
+      runId,
+      reason,
       actor: req.user,
     });
+
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_TERMINATE_REQUESTED',
+      action: 'terminate_temporal_workflow',
+      success: true,
+      message: `Requested termination of Temporal workflow ${workflowId}.`,
+      resourceId: workflowId,
+      metadata: {
+        workflowId,
+        runId,
+        namespace: payload.namespace || null,
+        reason: payload.reason || reason || null,
+      },
+    });
+
     sendServiceResponse(res, payload);
   } catch (error) {
+    await recordTemporalAudit(req, {
+      eventType: 'TEMPORAL_WORKFLOW_TERMINATE_FAILED',
+      action: 'terminate_temporal_workflow',
+      success: false,
+      message: `Failed to terminate Temporal workflow ${workflowId}: ${getAuditErrorMessage(error)}`,
+      resourceId: workflowId,
+      metadata: { workflowId, runId, statusCode: error.statusCode || 500 },
+    });
     sendServiceError(res, error);
   }
 }
