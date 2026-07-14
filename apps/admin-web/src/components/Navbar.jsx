@@ -250,14 +250,14 @@ function createNavGroups(hasPermission) {
           label: 'Manage Workflows',
           to: '/workflows/manage',
           icon: '▧',
-          visible: hasPermission('WORKFLOW_WRITE'),
+          visible: hasPermission('WORKFLOW_CHANGE'),
           description: 'Drafts and versions',
         },
         {
           label: 'Create Workflow',
           to: '/workflows/create',
           icon: '+',
-          visible: hasPermission('WORKFLOW_WRITE'),
+          visible: hasPermission('WORKFLOW_CREATE'),
           description: 'New process graph',
         },
         {

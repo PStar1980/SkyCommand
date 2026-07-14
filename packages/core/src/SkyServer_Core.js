@@ -869,7 +869,7 @@ async function loadCoreOperator() {
         SELECT permission_code
         FROM auth.permissions
         WHERE active = TRUE
-          AND permission_code IN ('WORKFLOW_START', 'TEMPORAL_WORKFLOW_START', 'WORKER_SCHEDULE_RUN')
+          AND permission_code IN ('WORKFLOW_RUN', 'TEMPORAL_WORKFLOW_START', 'WORKER_SCHEDULE_RUN')
       `,
     );
 
@@ -877,8 +877,8 @@ async function loadCoreOperator() {
       user: null,
       permissions: permissionRows.map((row) => ({ permissionCode: row.permission_code })),
       note: requestedEmail
-        ? `No active operator found for ${requestedEmail}; using limited workflow-start permissions.`
-        : 'No active SUPER_ADMIN operator found; using limited workflow-start permissions.',
+        ? `No active operator found for ${requestedEmail}; using limited workflow-run permissions.`
+        : 'No active SUPER_ADMIN operator found; using limited workflow-run permissions.',
     };
   }
 

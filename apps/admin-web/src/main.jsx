@@ -137,7 +137,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route
               path="workflows/create"
               element={
-                <ProtectedRoute permissionCode="WORKFLOW_WRITE">
+                <ProtectedRoute permissionCode="WORKFLOW_CREATE">
                   <WorkflowBuilder />
                 </ProtectedRoute>
               }
@@ -145,7 +145,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route
               path="workflows/manage"
               element={
-                <ProtectedRoute permissionCode="WORKFLOW_WRITE">
+                <ProtectedRoute permissionCode="WORKFLOW_CHANGE">
                   <WorkflowManager />
                 </ProtectedRoute>
               }

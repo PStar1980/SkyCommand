@@ -391,8 +391,10 @@ function buildStatCards(health, tools) {
 
 function WorkerControl() {
   const { hasPermission } = useAuth();
-  const canWriteSchedules = hasPermission('WORKER_SCHEDULE_WRITE');
-  const canRunSchedules = hasPermission('WORKER_SCHEDULE_RUN');
+  const canCreateSchedules = hasPermission('WORKER_SCHEDULE_CREATE');
+  const canChangeSchedules = hasPermission('WORKER_SCHEDULE_CHANGE');
+  const canWriteSchedules = canCreateSchedules || canChangeSchedules;
+  const canRunSchedules = hasPermission('WORKER_SCHEDULE_RUN_IMMEDIATE');
   const canViewNodes = hasPermission('WORKER_ADMIN');
   const canViewListeners = hasPermission('WORKER_LISTENER_READ');
   const canViewListenerEvents = hasPermission('WORKER_EVENT_READ');
@@ -694,8 +696,14 @@ function WorkerControl() {
   async function handleScheduleSubmit(event) {
     event.preventDefault();
 
-    if (!canWriteSchedules) {
-      setError('WORKER_SCHEDULE_WRITE is required to save schedules.');
+    const canSaveSchedule = formMode === 'edit' ? canChangeSchedules : canCreateSchedules;
+
+    if (!canSaveSchedule) {
+      setError(
+        formMode === 'edit'
+          ? 'WORKER_SCHEDULE_CHANGE is required to update schedules.'
+          : 'WORKER_SCHEDULE_CREATE is required to create schedules.',
+      );
       return;
     }
 
@@ -737,8 +745,8 @@ function WorkerControl() {
   }
 
   async function handleScheduleStatus(schedule, enabled) {
-    if (!canWriteSchedules) {
-      setError('WORKER_SCHEDULE_WRITE is required to change schedule status.');
+    if (!canChangeSchedules) {
+      setError('WORKER_SCHEDULE_CHANGE is required to change schedule status.');
       return;
     }
 
@@ -760,7 +768,7 @@ function WorkerControl() {
 
   async function handleRunNow(schedule) {
     if (!canRunSchedules) {
-      setError('WORKER_SCHEDULE_RUN is required to queue a schedule.');
+      setError('WORKER_SCHEDULE_RUN_IMMEDIATE is required to queue a schedule.');
       return;
     }
 
@@ -951,7 +959,7 @@ function WorkerControl() {
             <div className="sky-card-body">
               {!canWriteSchedules && (
                 <div className="alert alert-danger">
-                  WORKER_SCHEDULE_WRITE is required to create or edit schedules.
+                  WORKER_SCHEDULE_CREATE or WORKER_SCHEDULE_CHANGE is required to create or edit schedules.
                 </div>
               )}
 
@@ -1317,6 +1325,7 @@ function WorkerControl() {
                           >
                             <button
                               className="btn btn-sm sky-btn-ghost"
+                              disabled={!canChangeSchedules || actionLoading}
                               onClick={() => editSchedule(schedule)}
                               type="button"
                             >
@@ -1332,7 +1341,7 @@ function WorkerControl() {
                             </button>
                             <button
                               className="btn btn-sm sky-btn-ghost"
-                              disabled={!canWriteSchedules || actionLoading}
+                              disabled={!canChangeSchedules || actionLoading}
                               onClick={() => handleScheduleStatus(schedule, !schedule.enabled)}
                               type="button"
                             >
@@ -1419,6 +1428,7 @@ function WorkerControl() {
                   <div className="d-flex flex-wrap gap-2 mt-3">
                     <button
                       className="btn sky-btn-ghost"
+                      disabled={!canChangeSchedules || actionLoading}
                       onClick={() => editSchedule(selectedSchedule)}
                       type="button"
                     >
@@ -1434,7 +1444,7 @@ function WorkerControl() {
                     </button>
                     <button
                       className="btn sky-btn-ghost"
-                      disabled={!canWriteSchedules || actionLoading}
+                      disabled={!canChangeSchedules || actionLoading}
                       onClick={() =>
                         handleScheduleStatus(selectedSchedule, !selectedSchedule.enabled)
                       }

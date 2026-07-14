@@ -15,7 +15,7 @@ router.get('/runs', requirePermission('WORKER_SCHEDULE_READ'), workerController.
 router.get('/schedules', requirePermission('WORKER_SCHEDULE_READ'), workerController.listSchedules);
 router.post(
   '/schedules',
-  requirePermission('WORKER_SCHEDULE_WRITE'),
+  requirePermission('WORKER_SCHEDULE_CREATE'),
   workerController.createSchedule,
 );
 router.get(
@@ -25,32 +25,32 @@ router.get(
 );
 router.patch(
   '/schedules/:scheduleId',
-  requirePermission('WORKER_SCHEDULE_WRITE'),
+  requirePermission('WORKER_SCHEDULE_CHANGE'),
   workerController.updateSchedule,
 );
 router.patch(
   '/schedules/:scheduleId/status',
-  requirePermission('WORKER_SCHEDULE_WRITE'),
+  requirePermission('WORKER_SCHEDULE_CHANGE'),
   workerController.updateScheduleStatus,
 );
 router.post(
   '/schedules/:scheduleId/queue',
-  requirePermission('WORKER_SCHEDULE_RUN'),
+  requirePermission('WORKER_SCHEDULE_RUN_IMMEDIATE'),
   workerController.queueScheduleNow,
 );
 router.post(
   '/schedules/:scheduleId/unqueue',
-  requirePermission('WORKER_SCHEDULE_RUN'),
+  requirePermission('WORKER_SCHEDULE_CHANGE'),
   workerController.unqueueSchedule,
 );
 router.post(
   '/schedules/:scheduleId/run-now',
-  requirePermission('WORKER_SCHEDULE_RUN'),
+  requirePermission('WORKER_SCHEDULE_RUN_IMMEDIATE'),
   workerController.runScheduleNow,
 );
 router.delete(
   '/schedules/:scheduleId',
-  requirePermission('WORKER_SCHEDULE_WRITE'),
+  requirePermission('WORKER_SCHEDULE_CHANGE'),
   workerController.deleteSchedule,
 );
 router.get(

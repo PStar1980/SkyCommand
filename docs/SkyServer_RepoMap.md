@@ -268,7 +268,8 @@ SkyServer/
 │   │           ├── 00053__workflow_retry_policy_hotfix.sql
 │   │           ├── 00056__workflow_runtime_parameters_seed.sql
 │   │           ├── 00057__workflow_runtime_parameter_scope_cleanup.sql
-│   │           └── 00058__workflow_summary_node_support_seed.sql
+│   │           ├── 00058__workflow_summary_node_support_seed.sql
+│   │           └── 00059__workflow_scheduler_audit_privileges_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

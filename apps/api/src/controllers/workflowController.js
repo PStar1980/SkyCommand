@@ -81,6 +81,44 @@ function parseBooleanQuery(value, fallback) {
   return value === true || value === 'true' || value === '1';
 }
 
+async function recordWorkflowDefinitionAudit(req, {
+  eventType,
+  action,
+  definition = {},
+  message,
+  metadata = {},
+} = {}) {
+  const context = authService.getRequestContext(req);
+
+  try {
+    await authService.recordAuditEvent({
+      appCode: req.session?.appCode,
+      userId: req.user?.userId || null,
+      eventType,
+      resourceType: 'worker.workflow_definitions',
+      resourceId: definition.workflowDefinitionId || definition.workflowCode || req.params?.workflowCode || null,
+      action,
+      success: true,
+      message,
+      metadata: {
+        workflowCode: definition.workflowCode || req.params?.workflowCode || null,
+        workflowDisplayName: definition.displayName || null,
+        workflowVersionId:
+          definition.workflowVersionId
+          || definition.publishedVersionId
+          || definition.latestVersionId
+          || req.params?.workflowVersionId
+          || null,
+        ...metadata,
+      },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    });
+  } catch (auditError) {
+    console.error(`[SkyServer API] Failed to record ${eventType || 'workflow definition'} audit event:`, auditError);
+  }
+}
+
 async function getWorkerHealth(req, res, next) {
   try {
     const result = await workflowHealthService.getWorkflowWorkerHealth();
@@ -173,6 +211,13 @@ async function updateDefinition(req, res, next) {
       permissions: req.permissions || [],
     });
 
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'update_workflow',
+      definition,
+      message: `Workflow ${definition.displayName} updated.`,
+    });
+
     res.json({
       ok: true,
       definition,
@@ -197,6 +242,13 @@ async function archiveDefinition(req, res, next) {
       workflowCode: req.params.workflowCode,
       user: req.user,
       permissions: req.permissions || [],
+    });
+
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'archive_workflow',
+      definition,
+      message: `Workflow ${definition.displayName} archived.`,
     });
 
     res.json({
@@ -226,6 +278,16 @@ async function cloneDefinition(req, res, next) {
       permissions: req.permissions || [],
     });
 
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CREATED',
+      action: 'clone_workflow',
+      definition,
+      message: `Workflow cloned as ${definition.displayName}.`,
+      metadata: {
+        sourceWorkflowCode: req.params.workflowCode,
+      },
+    });
+
     res.status(201).json({
       ok: true,
       definition,
@@ -253,6 +315,16 @@ async function createVersion(req, res, next) {
       permissions: req.permissions || [],
     });
 
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'create_workflow_version',
+      definition,
+      message: `Workflow ${definition.displayName} version created${req.body?.publish === false ? '' : ' and published'}.`,
+      metadata: {
+        publish: req.body?.publish !== false,
+      },
+    });
+
     res.status(201).json({
       ok: true,
       definition,
@@ -277,6 +349,13 @@ async function deleteDefinition(req, res, next) {
       workflowCode: req.params.workflowCode,
       user: req.user,
       permissions: req.permissions || [],
+    });
+
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'delete_workflow',
+      definition: deleted,
+      message: `Workflow ${deleted.displayName} deleted.`,
     });
 
     res.json({
@@ -306,6 +385,16 @@ async function replaceDefinitionGraph(req, res, next) {
       permissions: req.permissions || [],
     });
 
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'replace_workflow_graph',
+      definition,
+      message: `Workflow ${definition.displayName} graph saved.`,
+      metadata: {
+        nodeCount: Array.isArray(req.body?.nodes) ? req.body.nodes.length : null,
+      },
+    });
+
     res.json({
       ok: true,
       definition,
@@ -331,6 +420,16 @@ async function createDraftVersion(req, res, next) {
       payload: req.body || {},
       user: req.user,
       permissions: req.permissions || [],
+    });
+
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: definition.draftReused ? 'reuse_workflow_draft' : 'create_workflow_draft',
+      definition,
+      message: definition.message || `Draft version created for ${definition.displayName}.`,
+      metadata: {
+        draftReused: Boolean(definition.draftReused),
+      },
     });
 
     res.status(definition.draftReused ? 200 : 201).json({
@@ -361,6 +460,16 @@ async function saveDraftGraph(req, res, next) {
       permissions: req.permissions || [],
     });
 
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'save_workflow_draft_graph',
+      definition,
+      message: `Draft graph for ${definition.displayName} saved.`,
+      metadata: {
+        nodeCount: Array.isArray(req.body?.nodes) ? req.body.nodes.length : null,
+      },
+    });
+
     res.json({
       ok: true,
       definition,
@@ -389,6 +498,16 @@ async function publishDraftVersion(req, res, next) {
       permissions: req.permissions || [],
     });
 
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'publish_workflow_draft',
+      definition,
+      message: `Workflow ${definition.displayName} draft published as the current version.`,
+      metadata: {
+        changeNote: req.body?.changeNote || req.body?.publishNote || null,
+      },
+    });
+
     res.json({
       ok: true,
       definition,
@@ -415,6 +534,13 @@ async function discardDraftVersion(req, res, next) {
       workflowVersionId: req.params.workflowVersionId,
       user: req.user,
       permissions: req.permissions || [],
+    });
+
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CHANGED',
+      action: 'discard_workflow_draft',
+      definition,
+      message: `Draft version discarded for ${definition.displayName}.`,
     });
 
     res.json({
@@ -456,6 +582,16 @@ async function createDefinition(req, res, next) {
       payload: req.body || {},
       user: req.user,
       permissions: req.permissions || [],
+    });
+
+    await recordWorkflowDefinitionAudit(req, {
+      eventType: 'WORKFLOW_CREATED',
+      action: 'create_workflow',
+      definition,
+      message: `Workflow ${definition.displayName} created${definition.publishedVersionId ? ' and published' : ''}.`,
+      metadata: {
+        published: Boolean(definition.publishedVersionId),
+      },
     });
 
     res.status(201).json({
@@ -608,6 +744,7 @@ async function controlRun(req, res, next) {
       reason: req.body?.reason,
       user: req.user,
       permissions: req.permissions || [],
+      context: authService.getRequestContext(req),
     });
 
     res.json({

@@ -560,11 +560,61 @@ async function buildAuthSection({ user, permissions }) {
     WHERE active = TRUE
       AND permission_code IN ('WORKFLOW_APPROVAL_READ', 'WORKFLOW_APPROVAL_DECIDE')
   `);
-  const runControlPermissions = await countRows(`
+  const workflowProcessingPermissions = await countRows(`
     SELECT COUNT(*)::int AS count
     FROM auth.permissions
     WHERE active = TRUE
-      AND permission_code IN ('WORKFLOW_CANCEL', 'WORKFLOW_START', 'TEMPORAL_WORKFLOW_CANCEL', 'TEMPORAL_WORKFLOW_TERMINATE')
+      AND permission_code IN ('WORKFLOW_CREATE', 'WORKFLOW_RUN', 'WORKFLOW_CHANGE')
+  `);
+  const schedulerProcessingPermissions = await countRows(`
+    SELECT COUNT(*)::int AS count
+    FROM auth.permissions
+    WHERE active = TRUE
+      AND permission_code IN (
+        'WORKER_SCHEDULE_CREATE',
+        'WORKER_SCHEDULE_CHANGE',
+        'WORKER_SCHEDULE_RUN_IMMEDIATE'
+      )
+  `);
+  const administrativeProcessingGrants = await countRows(`
+    SELECT COUNT(DISTINCT r.role_code || ':' || p.permission_code)::int AS count
+    FROM auth.role_permissions rp
+    JOIN auth.roles r
+      ON r.role_id = rp.role_id
+     AND r.active = TRUE
+    JOIN auth.permissions p
+      ON p.permission_id = rp.permission_id
+     AND p.active = TRUE
+    WHERE rp.active = TRUE
+      AND r.role_code IN ('SUPER_ADMIN', 'ADMIN')
+      AND p.permission_code IN (
+        'WORKFLOW_CREATE',
+        'WORKFLOW_RUN',
+        'WORKFLOW_CHANGE',
+        'WORKER_SCHEDULE_CREATE',
+        'WORKER_SCHEDULE_CHANGE',
+        'WORKER_SCHEDULE_RUN_IMMEDIATE'
+      )
+  `);
+  const unauthorizedProcessingGrants = await countRows(`
+    SELECT COUNT(*)::int AS count
+    FROM auth.role_permissions rp
+    JOIN auth.roles r
+      ON r.role_id = rp.role_id
+     AND r.active = TRUE
+    JOIN auth.permissions p
+      ON p.permission_id = rp.permission_id
+     AND p.active = TRUE
+    WHERE rp.active = TRUE
+      AND r.role_code NOT IN ('SUPER_ADMIN', 'ADMIN')
+      AND p.permission_code IN (
+        'WORKFLOW_CREATE',
+        'WORKFLOW_RUN',
+        'WORKFLOW_CHANGE',
+        'WORKER_SCHEDULE_CREATE',
+        'WORKER_SCHEDULE_CHANGE',
+        'WORKER_SCHEDULE_RUN_IMMEDIATE'
+      )
   `);
   const currentPermissionCodes = new Set((permissions || []).map((permission) => permission.permissionCode).filter(Boolean));
   const checks = [
@@ -593,12 +643,28 @@ async function buildAuthSection({ user, permissions }) {
         : 'One or more workflow approval permissions are missing or inactive.',
     ),
     buildCheck(
-      'run_control_permissions_exist',
-      'Run control permissions exist',
-      runControlPermissions >= 4 ? 'PASS' : 'WARNING',
-      runControlPermissions >= 4
-        ? 'Workflow start/cancel and Temporal cancel/terminate permissions are active.'
-        : 'One or more run-control permissions are missing or inactive.',
+      'workflow_processing_permissions_exist',
+      'Workflow processing permissions exist',
+      workflowProcessingPermissions >= 3 ? 'PASS' : 'FAIL',
+      workflowProcessingPermissions >= 3
+        ? 'Workflow create, run, and change permissions are active.'
+        : 'One or more granular workflow processing permissions are missing or inactive.',
+    ),
+    buildCheck(
+      'scheduler_processing_permissions_exist',
+      'Scheduler processing permissions exist',
+      schedulerProcessingPermissions >= 3 ? 'PASS' : 'FAIL',
+      schedulerProcessingPermissions >= 3
+        ? 'Scheduler create, change, and immediate-run permissions are active.'
+        : 'One or more granular scheduler processing permissions are missing or inactive.',
+    ),
+    buildCheck(
+      'processing_permissions_admin_only',
+      'Processing permissions are restricted to administrators',
+      administrativeProcessingGrants >= 12 && unauthorizedProcessingGrants === 0 ? 'PASS' : 'FAIL',
+      administrativeProcessingGrants >= 12 && unauthorizedProcessingGrants === 0
+        ? 'All six processing permissions are granted to ADMIN and SUPER_ADMIN only.'
+        : `${administrativeProcessingGrants}/12 expected administrative grants found; ${unauthorizedProcessingGrants} unauthorized active grant(s) found.`,
     ),
     buildCheck(
       'current_user_can_read_workflows',
@@ -615,7 +681,7 @@ async function buildAuthSection({ user, permissions }) {
   return buildSection(
     'auth_permissions',
     'Auth and permission readiness',
-    'Checks super admin presence, workflow approval permissions, run-control permissions, and current operator visibility.',
+    'Checks super admin presence, workflow approval permissions, administrator-only workflow/scheduler processing grants, and current operator visibility.',
     checks,
   );
 }
