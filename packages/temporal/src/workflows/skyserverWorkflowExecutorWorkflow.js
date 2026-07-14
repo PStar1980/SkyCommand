@@ -762,6 +762,29 @@ function buildConditionStopSummary({ definition, output, completedNodeCount, tot
   return `Workflow ${definition.displayName} stopped successfully by condition gate: ${output?.summary || 'condition returned false'} (${skippedNodeCount} remaining node(s) skipped).`;
 }
 
+function getWorkflowRunSummaryOutput(nodeOutputsByKey = {}) {
+  for (const [nodeKey, rawOutput] of Object.entries(getSafeObject(nodeOutputsByKey))) {
+    const output = getSafeObject(rawOutput);
+
+    if (output.kind === 'workflow_run_summary') {
+      return {
+        ...output,
+        nodeKey,
+      };
+    }
+
+    const nestedOutput = getSafeObject(output.output);
+    if (nestedOutput.kind === 'workflow_run_summary') {
+      return {
+        ...nestedOutput,
+        nodeKey,
+      };
+    }
+  }
+
+  return null;
+}
+
 function normalizeConditionBranchTargetNodeKey(value) {
   return String(value || '').trim();
 }
@@ -1622,14 +1645,21 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
 
     while (currentNodeIndex < executionPlan.nodes.length) {
       const node = executionPlan.nodes[currentNodeIndex];
-      const nodeContext = buildWorkflowExecutionContext({
-        baseContext: input.context,
-        runtimeContext: workflowRuntimeContext,
-        requestInput,
-        nodeOutputsByKey,
-        previousNodeOutput,
-        currentNodeKey: node.nodeKey,
-      });
+      const nodeContext = {
+        ...buildWorkflowExecutionContext({
+          baseContext: input.context,
+          runtimeContext: workflowRuntimeContext,
+          requestInput,
+          nodeOutputsByKey,
+          previousNodeOutput,
+          currentNodeKey: node.nodeKey,
+        }),
+        definition,
+        workflowRunRecordId,
+        nodeRuns,
+        startedAtMs,
+        totalNodeCount: definition.nodes.length,
+      };
       const parameters = buildNodeParameters(node, requestInput, nodeContext);
       const nodeAttemptOffset = getNodeAttemptOffset(requestInput, node.nodeKey);
       const nodeRun = await ledgerActivities.startSkyserverWorkflowNodeRunActivity({
@@ -1768,6 +1798,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     }
 
     const durationMs = Date.now() - startedAtMs;
+    const summaryOutput = getWorkflowRunSummaryOutput(nodeOutputsByKey);
     const summary = conditionStop
       ? buildConditionStopSummary({
         definition,
@@ -1782,7 +1813,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           completedNodeCount: nodeRuns.length,
           totalNodeCount: definition.nodes.length,
         })
-        : `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
+        : summaryOutput?.summary || `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
     const completedRun = await ledgerActivities.completeSkyserverWorkflowRunActivity({
       workflowRunRecordId,
       summary,
@@ -1793,6 +1824,8 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         conditionStopNodeKey: conditionStop?.nodeKey || null,
         approvalStopNodeKey: approvalStop?.nodeKey || null,
         conditionBranchRoutes,
+        summaryNodeKey: summaryOutput?.nodeKey || null,
+        summaryTitle: summaryOutput?.title || null,
         temporalWorkflowId,
         temporalRunId,
       },

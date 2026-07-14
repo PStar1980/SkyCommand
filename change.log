@@ -1,3 +1,11 @@
+## 2026-07-13 — Phase 13.8 Summary Node and Run Summary
+
+- Added SUMMARY workflow node support so workflows can generate structured, human-readable end-of-run summaries from runtime params, workflow context, node outputs, warnings, errors, and timings.
+- Summary node outputs are persisted through the existing node-output ledger and promoted into `workflow_run_records.summary` when present.
+- Added Create Workflow and Manage Workflows editors for summary-node templates, technical details, recommended next actions, and output/timing/warning toggles.
+- Added a Workflow History run summary panel that surfaces summary-node results, counts, timing, warnings, and recommended actions above the runtime workflow map.
+- Seeded the SUMMARY node type for the workflow builder catalog and updated Phase 13 README notes.
+
 ## 2026-07-13 — Phase 13.6 Context-Aware Conditions
 
 - Expanded condition-node evaluation scope so conditions can read runtime params, durable workflow context, workflow metadata, prior node outputs, previous node output, and last-node context through predictable dot paths.

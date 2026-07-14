@@ -48,6 +48,7 @@ SkyServer/
 │   │       │   ├── Navbar.jsx
 │   │       │   ├── ProtectedRoute.jsx
 │   │       │   ├── RuntimeParameterSchemaEditor.jsx
+│   │       │   ├── SummaryParameterEditor.jsx
 │   │       │   ├── ToolParameterEditor.jsx
 │   │       │   ├── WaitParameterEditor.jsx
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx
@@ -266,7 +267,8 @@ SkyServer/
 │   │           ├── 00052__workflow_human_approval_node_support_seed.sql
 │   │           ├── 00053__workflow_retry_policy_hotfix.sql
 │   │           ├── 00056__workflow_runtime_parameters_seed.sql
-│   │           └── 00057__workflow_runtime_parameter_scope_cleanup.sql
+│   │           ├── 00057__workflow_runtime_parameter_scope_cleanup.sql
+│   │           └── 00058__workflow_summary_node_support_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
