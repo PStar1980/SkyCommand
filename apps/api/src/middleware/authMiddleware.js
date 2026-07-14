@@ -51,7 +51,7 @@ function buildInternalServicePermission(permissionCode) {
     grantedThroughRoles: ['INTERNAL_SERVICE'],
     appId: null,
     appCode: 'SKYSERVER_ADMIN',
-    appTitle: 'SkyServer Admin',
+    appTitle: 'SkyCommand',
   };
 }
 

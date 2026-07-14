@@ -5,7 +5,7 @@ BEGIN;
 
 INSERT INTO core.applications (app_code, title, manifest_version, description, active)
 VALUES
-  ('SKYSERVER_ADMIN','SkyServer Admin','1.0.0','Private administrative web console for SkyServer control-plane operations.',TRUE),
+  ('SKYSERVER_ADMIN','SkyCommand','1.0.0','Private administrative web console for SkyServer control-plane operations.',TRUE),
   ('SKYSERVER_CORE','SkyServer Core','2.0.0','Shared operational manifest for SkyServer Core CLI and Admin-Web/API tool execution.',TRUE),
   ('SKYSERVER_WORKER','SkyServer Worker','1.0.0','Background automation worker for schedules, listeners, and event-driven operations.',TRUE),
   ('SKYWEB','SkyWeb','0.1.0','Future public-facing web application and macro/dashboard experience.',TRUE)
