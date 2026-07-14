@@ -22,13 +22,13 @@ router.get(
 
 router.get(
   '/builder/catalog',
-  requireAnyPermission(['WORKFLOW_WRITE', 'WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ']),
+  requireAnyPermission(['WORKFLOW_CREATE', 'WORKFLOW_CHANGE', 'WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ']),
   workflowController.getBuilderCatalog,
 );
 
 router.post(
   '/definitions',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CREATE']),
   workflowController.createDefinition,
 );
 
@@ -84,88 +84,88 @@ router.get(
 
 router.post(
   '/runs/:workflowRunRecordId/cancel',
-  requireAnyPermission(['WORKFLOW_CANCEL', 'TEMPORAL_WORKFLOW_CANCEL', 'WORKER_SCHEDULE_RUN']),
+  requireAnyPermission(['WORKFLOW_RUN']),
   workflowController.cancelRun,
 );
 
 router.post(
   '/runs/:workflowRunRecordId/terminate',
-  requireAnyPermission(['WORKFLOW_CANCEL', 'TEMPORAL_WORKFLOW_TERMINATE', 'WORKER_ADMIN']),
+  requireAnyPermission(['WORKFLOW_RUN']),
   workflowController.terminateRun,
 );
 
 router.post(
   '/runs/:workflowRunRecordId/retry',
-  requireAnyPermission(['WORKFLOW_START', 'TEMPORAL_WORKFLOW_START', 'WORKER_SCHEDULE_RUN']),
+  requireAnyPermission(['WORKFLOW_RUN']),
   workflowController.retryRun,
 );
 
 
 router.get(
   '/definitions/:workflowCode/manage',
-  requireAnyPermission(['WORKFLOW_WRITE', 'WORKFLOW_READ']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.getManagedDefinition,
 );
 
 router.patch(
   '/definitions/:workflowCode',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.updateDefinition,
 );
 
 router.post(
   '/definitions/:workflowCode/archive',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.archiveDefinition,
 );
 
 router.post(
   '/definitions/:workflowCode/clone',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CREATE']),
   workflowController.cloneDefinition,
 );
 
 router.post(
   '/definitions/:workflowCode/versions',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.createVersion,
 );
 
 
 router.post(
   '/definitions/:workflowCode/drafts',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.createDraftVersion,
 );
 
 router.put(
   '/definitions/:workflowCode/versions/:workflowVersionId/graph',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.saveDraftGraph,
 );
 
 router.post(
   '/definitions/:workflowCode/versions/:workflowVersionId/publish',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.publishDraftVersion,
 );
 
 router.delete(
   '/definitions/:workflowCode/versions/:workflowVersionId',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.discardDraftVersion,
 );
 
 
 router.put(
   '/definitions/:workflowCode/graph',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.replaceDefinitionGraph,
 );
 
 router.delete(
   '/definitions/:workflowCode',
-  requireAnyPermission(['WORKFLOW_WRITE']),
+  requireAnyPermission(['WORKFLOW_CHANGE']),
   workflowController.deleteDefinition,
 );
 
@@ -177,7 +177,7 @@ router.get(
 
 router.post(
   '/definitions/:workflowCode/start',
-  requireAnyPermission(['WORKFLOW_START', 'TEMPORAL_WORKFLOW_START', 'WORKER_SCHEDULE_RUN']),
+  requireAnyPermission(['WORKFLOW_RUN']),
   workflowController.startWorkflow,
 );
 

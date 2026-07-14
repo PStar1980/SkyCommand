@@ -1,7 +1,17 @@
+## 2026-07-13 — Workflow and Scheduler Audit/Privilege Hardening
+
+- Added granular `WORKFLOW_CREATE`, `WORKFLOW_RUN`, and `WORKFLOW_CHANGE` permissions for workflow creation, run controls, and definition/version changes.
+- Added granular `WORKER_SCHEDULE_CREATE`, `WORKER_SCHEDULE_CHANGE`, and `WORKER_SCHEDULE_RUN_IMMEDIATE` permissions for scheduler creation, maintenance, and immediate execution requests.
+- Restricted the six new processing permissions to `ADMIN` and `SUPER_ADMIN`, migrated default workflow start/cancel permission codes and the workflow-start bridge tool to `WORKFLOW_RUN`, and updated API/Admin-Web/CLI guards accordingly.
+- Added workflow definition audit events for create, clone, update, archive, version/draft/graph changes, publish/discard, and delete actions.
+- Added workflow run audit events for Temporal starts/failures, inline completion/failure, retry, cancel/terminate controls, and approval decisions.
+- Upgraded existing scheduler audit entries with explicit scheduler event types and resource metadata.
+- Extended Production Readiness checks to verify the new granular permissions, both administrative role grants, and the absence of active grants to non-administrative roles.
+
 ## 2026-07-13 — Phase 13.9 Workflow Surface Layout Realignment
 
 - Reworked the SkyCommand Overview dashboard so command/action hero panels are removed and replaced with a consistent Dashboard Controls filter card above the visual analytics layer.
-- Updated Create Workflow to show a runtime-status overlay preview below workflow definition metadata and replaced the old vertical node timeline/business preview layout with a visual Workflow Graph editor plus selected-node editing workspace.
+- Updated Create Workflow to use one visual Workflow Graph editor with a consolidated inspector, removing the duplicate runtime-status preview while preserving runtime-oriented inspector fields.
 - Updated Start Workflow to remove the separate execution-plan card and add a live Runtime Status Overlay beneath Manual Start so newly launched workflows can animate and poll on the same page.
 - Adjusted the shared workflow visual graph so the Follow Active Node toggle only appears on live runtime surfaces that can actually control it.
 

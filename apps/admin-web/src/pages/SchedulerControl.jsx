@@ -457,8 +457,10 @@ function buildStatCards(health, tools) {
 
 function SchedulerControl() {
   const { hasPermission } = useAuth();
-  const canWriteSchedules = hasPermission('WORKER_SCHEDULE_WRITE');
-  const canRunSchedules = hasPermission('WORKER_SCHEDULE_RUN');
+  const canCreateSchedules = hasPermission('WORKER_SCHEDULE_CREATE');
+  const canChangeSchedules = hasPermission('WORKER_SCHEDULE_CHANGE');
+  const canWriteSchedules = canCreateSchedules || canChangeSchedules;
+  const canRunSchedules = hasPermission('WORKER_SCHEDULE_RUN_IMMEDIATE');
   const canViewNodes = hasPermission('WORKER_ADMIN');
 
   const [health, setHealth] = useState(null);
@@ -795,8 +797,14 @@ function SchedulerControl() {
   async function handleScheduleSubmit(event) {
     event.preventDefault();
 
-    if (!canWriteSchedules) {
-      setError('WORKER_SCHEDULE_WRITE is required to save schedules.');
+    const canSaveSchedule = formMode === 'edit' ? canChangeSchedules : canCreateSchedules;
+
+    if (!canSaveSchedule) {
+      setError(
+        formMode === 'edit'
+          ? 'WORKER_SCHEDULE_CHANGE is required to update schedules.'
+          : 'WORKER_SCHEDULE_CREATE is required to create schedules.',
+      );
       return;
     }
 
@@ -848,8 +856,8 @@ function SchedulerControl() {
   }
 
   async function handleScheduleStatus(schedule, enabled) {
-    if (!canWriteSchedules) {
-      setError('WORKER_SCHEDULE_WRITE is required to change schedule status.');
+    if (!canChangeSchedules) {
+      setError('WORKER_SCHEDULE_CHANGE is required to change schedule status.');
       return;
     }
 
@@ -871,7 +879,7 @@ function SchedulerControl() {
 
   async function handleQueueNow(schedule) {
     if (!canRunSchedules) {
-      setError('WORKER_SCHEDULE_RUN is required to queue a schedule.');
+      setError('WORKER_SCHEDULE_RUN_IMMEDIATE is required to queue a schedule.');
       return;
     }
 
@@ -892,8 +900,8 @@ function SchedulerControl() {
   }
 
   async function handleUnqueueSchedule(schedule) {
-    if (!canRunSchedules) {
-      setError('WORKER_SCHEDULE_RUN is required to unqueue a schedule.');
+    if (!canChangeSchedules) {
+      setError('WORKER_SCHEDULE_CHANGE is required to unqueue a schedule.');
       return;
     }
 
@@ -914,8 +922,8 @@ function SchedulerControl() {
   }
 
   async function handleDeleteSchedule(schedule) {
-    if (!canWriteSchedules) {
-      setError('WORKER_SCHEDULE_WRITE is required to delete schedules.');
+    if (!canChangeSchedules) {
+      setError('WORKER_SCHEDULE_CHANGE is required to delete schedules.');
       return;
     }
 
@@ -1117,7 +1125,7 @@ function SchedulerControl() {
             <div className="sky-card-body">
               {!canWriteSchedules && (
                 <div className="alert alert-danger">
-                  WORKER_SCHEDULE_WRITE is required to create or edit schedules.
+                  WORKER_SCHEDULE_CREATE or WORKER_SCHEDULE_CHANGE is required to create or edit schedules.
                 </div>
               )}
 
@@ -1562,6 +1570,7 @@ function SchedulerControl() {
                           >
                             <button
                               className="btn btn-sm sky-btn-ghost"
+                              disabled={!canChangeSchedules || actionLoading}
                               onClick={() => editSchedule(schedule)}
                               type="button"
                             >
@@ -1570,7 +1579,7 @@ function SchedulerControl() {
                             {schedule.isQueued ? (
                               <button
                                 className="btn btn-sm sky-btn-ghost"
-                                disabled={!canRunSchedules || actionLoading}
+                                disabled={!canChangeSchedules || actionLoading}
                                 onClick={() => handleUnqueueSchedule(schedule)}
                                 type="button"
                               >
@@ -1588,7 +1597,7 @@ function SchedulerControl() {
                             )}
                             <button
                               className="btn btn-sm sky-btn-ghost"
-                              disabled={!canWriteSchedules || actionLoading}
+                              disabled={!canChangeSchedules || actionLoading}
                               onClick={() => handleScheduleStatus(schedule, !schedule.enabled)}
                               type="button"
                             >
@@ -1596,7 +1605,7 @@ function SchedulerControl() {
                             </button>
                             <button
                               className="btn btn-sm sky-btn-ghost text-danger"
-                              disabled={!canWriteSchedules || actionLoading}
+                              disabled={!canChangeSchedules || actionLoading}
                               onClick={() => handleDeleteSchedule(schedule)}
                               type="button"
                             >
@@ -1704,6 +1713,7 @@ function SchedulerControl() {
                   <div className="d-flex flex-wrap gap-2 mt-3">
                     <button
                       className="btn sky-btn-ghost"
+                      disabled={!canChangeSchedules || actionLoading}
                       onClick={() => editSchedule(selectedSchedule)}
                       type="button"
                     >
@@ -1712,7 +1722,7 @@ function SchedulerControl() {
                     {selectedSchedule.isQueued ? (
                       <button
                         className="btn sky-btn-primary"
-                        disabled={!canRunSchedules || actionLoading}
+                        disabled={!canChangeSchedules || actionLoading}
                         onClick={() => handleUnqueueSchedule(selectedSchedule)}
                         type="button"
                       >
@@ -1730,7 +1740,7 @@ function SchedulerControl() {
                     )}
                     <button
                       className="btn sky-btn-ghost"
-                      disabled={!canWriteSchedules || actionLoading}
+                      disabled={!canChangeSchedules || actionLoading}
                       onClick={() =>
                         handleScheduleStatus(selectedSchedule, !selectedSchedule.enabled)
                       }
@@ -1740,7 +1750,7 @@ function SchedulerControl() {
                     </button>
                     <button
                       className="btn sky-btn-ghost text-danger"
-                      disabled={!canWriteSchedules || actionLoading}
+                      disabled={!canChangeSchedules || actionLoading}
                       onClick={() => handleDeleteSchedule(selectedSchedule)}
                       type="button"
                     >

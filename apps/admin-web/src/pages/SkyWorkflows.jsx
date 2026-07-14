@@ -1205,18 +1205,9 @@ function TemporalRuntimePanel({ runtime }) {
 function SkyWorkflows({ mode = 'start' }) {
   const { hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const canStart =
-    hasPermission('WORKFLOW_START') ||
-    hasPermission('TEMPORAL_WORKFLOW_START') ||
-    hasPermission('WORKER_SCHEDULE_RUN');
-  const canCancelRun =
-    hasPermission('WORKFLOW_CANCEL') ||
-    hasPermission('TEMPORAL_WORKFLOW_CANCEL') ||
-    hasPermission('WORKER_SCHEDULE_RUN');
-  const canTerminateRun =
-    hasPermission('WORKFLOW_CANCEL') ||
-    hasPermission('TEMPORAL_WORKFLOW_TERMINATE') ||
-    hasPermission('WORKER_ADMIN');
+  const canStart = hasPermission('WORKFLOW_RUN');
+  const canCancelRun = hasPermission('WORKFLOW_RUN');
+  const canTerminateRun = hasPermission('WORKFLOW_RUN');
 
   const [definitions, setDefinitions] = useState([]);
   const [selectedDefinition, setSelectedDefinition] = useState(null);
@@ -2384,7 +2375,7 @@ function SkyWorkflows({ mode = 'start' }) {
               </button>
               {!canStart && (
                 <div className="small sky-muted mt-2">
-                  TEMPORAL_WORKFLOW_START or WORKER_SCHEDULE_RUN permission is required.
+                  WORKFLOW_RUN permission is required.
                 </div>
               )}
             </form>

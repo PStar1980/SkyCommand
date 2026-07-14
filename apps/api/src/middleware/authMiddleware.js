@@ -3,6 +3,7 @@ const authService = require('../services/authService');
 const INTERNAL_SERVICE_PERMISSION_CODES = [
   'WORKFLOW_READ',
   'WORKFLOW_START',
+  'WORKFLOW_RUN',
   'TEMPORAL_WORKFLOW_READ',
   'TEMPORAL_WORKFLOW_START',
   'WORKER_SCHEDULE_READ',

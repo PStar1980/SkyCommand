@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { pool, query } = require('../../../../packages/db/src/connection');
+const authService = require('./authService');
 const scriptExecutionService = require('./scriptExecutionService');
 const temporalService = require('./temporalService');
 const toolManifestService = require('./toolManifestService');
@@ -10,8 +11,11 @@ const MAX_WORKFLOW_RUNTIME_PARAMETERS = 10;
 const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL', 'SUMMARY']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
-const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
-const DEFAULT_CANCEL_PERMISSION = 'WORKFLOW_CANCEL';
+const DEFAULT_START_PERMISSION = 'WORKFLOW_RUN';
+const DEFAULT_CANCEL_PERMISSION = 'WORKFLOW_RUN';
+const WORKFLOW_CREATE_PERMISSION = 'WORKFLOW_CREATE';
+const WORKFLOW_RUN_PERMISSION = 'WORKFLOW_RUN';
+const WORKFLOW_CHANGE_PERMISSION = 'WORKFLOW_CHANGE';
 const DEFAULT_CONDITION_ON_FALSE = 'STOP_SUCCESS';
 const DEFAULT_WAIT_DURATION_MS = 1000;
 const MAX_WAIT_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -75,6 +79,35 @@ function assertPermission({ permissionCode, permissions, action }) {
       action,
       permissionCode,
     });
+  }
+}
+
+async function recordWorkflowAuditEvent({
+  user,
+  context = {},
+  eventType,
+  resourceType,
+  resourceId = null,
+  action,
+  success = true,
+  message,
+  metadata = {},
+} = {}) {
+  try {
+    await authService.recordAuditEvent({
+      userId: user?.userId || null,
+      eventType,
+      resourceType,
+      resourceId,
+      action,
+      success,
+      message,
+      metadata,
+      ipAddress: context?.ipAddress || null,
+      userAgent: context?.userAgent || null,
+    });
+  } catch (auditError) {
+    console.error(`[SkyServer API] Failed to record ${eventType || 'workflow'} audit event:`, auditError);
   }
 }
 
@@ -2837,8 +2870,16 @@ async function requestWorkflowRunControlAction({
   action,
   reason = '',
   user,
+  permissions = [],
+  context = {},
 } = {}) {
   const normalizedAction = String(action || '').trim().toLowerCase();
+
+  assertPermission({
+    permissionCode: WORKFLOW_RUN_PERMISSION,
+    permissions,
+    action: `${normalizedAction || 'control'}_workflow_run`,
+  });
 
   if (!['cancel', 'terminate'].includes(normalizedAction)) {
     throw new WorkflowServiceError('Unsupported workflow run control action.', 400, {
@@ -2946,6 +2987,27 @@ async function requestWorkflowRunControlAction({
     metadata: controlMetadata,
   });
 
+  await recordWorkflowAuditEvent({
+    user,
+    context,
+    eventType: 'WORKFLOW_RUN_CONTROLLED',
+    resourceType: 'worker.workflow_run_records',
+    resourceId: run.workflowRunRecordId,
+    action: `${normalizedAction}_workflow_run`,
+    success: true,
+    message: summary,
+    metadata: {
+      workflowCode: run.workflowCode,
+      workflowDisplayName: run.workflowDisplayName,
+      previousStatus: run.status,
+      status: finalStatus,
+      reason: normalizedReason || null,
+      temporalWorkflowId: run.temporalWorkflowId || null,
+      temporalRunId: run.temporalRunId || null,
+      temporalWarning,
+    },
+  });
+
   return {
     ok: true,
     action: normalizedAction,
@@ -2987,6 +3049,12 @@ async function retryWorkflowRun({
   permissions = [],
   context = {},
 } = {}) {
+  assertPermission({
+    permissionCode: WORKFLOW_RUN_PERMISSION,
+    permissions,
+    action: 'retry_workflow_run',
+  });
+
   const run = await getWorkflowRunById(workflowRunRecordId);
 
   if (!run) {
@@ -3049,6 +3117,25 @@ async function retryWorkflowRun({
       },
     });
   }
+
+  await recordWorkflowAuditEvent({
+    user,
+    context,
+    eventType: 'WORKFLOW_RUN_RETRIED',
+    resourceType: 'worker.workflow_run_records',
+    resourceId: retryRun?.workflowRunRecordId || result.run?.workflowRunRecordId || null,
+    action: 'retry_workflow_run',
+    success: true,
+    message: `Retry started for ${run.workflowDisplayName || run.workflowCode}.`,
+    metadata: {
+      workflowCode: run.workflowCode,
+      workflowDisplayName: run.workflowDisplayName,
+      originalWorkflowRunRecordId: run.workflowRunRecordId,
+      originalStatus: run.status,
+      retryAttemptNumber,
+      retryWorkflowRunRecordId: retryRun?.workflowRunRecordId || result.run?.workflowRunRecordId || null,
+    },
+  });
 
   return {
     ...result,
@@ -3547,7 +3634,7 @@ async function insertWorkflowEdges({ client, workflowVersionId, insertedNodes = 
 
 async function createWorkflowDefinition({ payload = {}, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CREATE_PERMISSION,
     permissions,
     action: 'create_workflow',
   });
@@ -4045,7 +4132,7 @@ function normalizeWorkflowStatus(value, fallback = 'ACTIVE') {
 
 async function updateWorkflowDefinition({ workflowCode, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CHANGE_PERMISSION,
     permissions,
     action: 'update_workflow',
   });
@@ -4115,7 +4202,7 @@ async function archiveWorkflowDefinition({ workflowCode, user, permissions = [] 
 
 async function deleteWorkflowDefinition({ workflowCode, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CHANGE_PERMISSION,
     permissions,
     action: 'delete_workflow',
   });
@@ -4581,7 +4668,7 @@ function assertVersionFresh({ version, payload = {}, action }) {
 
 async function createWorkflowDraftVersion({ workflowCode, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CHANGE_PERMISSION,
     permissions,
     action: 'create_workflow_draft',
   });
@@ -4674,7 +4761,7 @@ async function createWorkflowDraftVersion({ workflowCode, payload = {}, user, pe
 
 async function saveWorkflowDraftGraph({ workflowCode, workflowVersionId, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CHANGE_PERMISSION,
     permissions,
     action: 'save_workflow_draft_graph',
   });
@@ -4767,7 +4854,7 @@ async function saveWorkflowDraftGraph({ workflowCode, workflowVersionId, payload
 
 async function publishWorkflowDraftVersion({ workflowCode, workflowVersionId, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CHANGE_PERMISSION,
     permissions,
     action: 'publish_workflow_draft',
   });
@@ -4860,7 +4947,7 @@ async function publishWorkflowDraftVersion({ workflowCode, workflowVersionId, pa
 
 async function discardWorkflowDraftVersion({ workflowCode, workflowVersionId, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CHANGE_PERMISSION,
     permissions,
     action: 'discard_workflow_draft',
   });
@@ -4926,7 +5013,7 @@ async function replaceWorkflowGraph({ workflowCode, payload = {}, user, permissi
 
 async function createWorkflowVersion({ workflowCode, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CHANGE_PERMISSION,
     permissions,
     action: 'create_workflow_version',
   });
@@ -5013,7 +5100,7 @@ async function createWorkflowVersion({ workflowCode, payload = {}, user, permiss
 
 async function cloneWorkflowDefinition({ workflowCode, payload = {}, user, permissions = [] } = {}) {
   assertPermission({
-    permissionCode: 'WORKFLOW_WRITE',
+    permissionCode: WORKFLOW_CREATE_PERMISSION,
     permissions,
     action: 'clone_workflow',
   });
@@ -5084,6 +5171,11 @@ async function createChildWorkflowRun({
 
   const definition = await getWorkflowDefinition(normalizedChildWorkflowCode);
 
+  assertPermission({
+    permissionCode: WORKFLOW_RUN_PERMISSION,
+    permissions,
+    action: 'start_child_workflow',
+  });
   assertPermission({
     permissionCode: definition.startPermissionCode,
     permissions,
@@ -5480,6 +5572,11 @@ async function startWorkflowWithTemporal({
   const definition = await getWorkflowDefinition(workflowCode);
 
   assertPermission({
+    permissionCode: WORKFLOW_RUN_PERMISSION,
+    permissions,
+    action: 'start_workflow',
+  });
+  assertPermission({
     permissionCode: definition.startPermissionCode,
     permissions,
     action: 'start_workflow',
@@ -5538,15 +5635,39 @@ async function startWorkflowWithTemporal({
       },
     });
 
+    const startedRun = linkedRun || run;
+    const message = `Workflow ${definition.displayName} started through Temporal. Refresh Workflow History to follow node progress.`;
+
+    await recordWorkflowAuditEvent({
+      user,
+      context,
+      eventType: 'WORKFLOW_RUN_STARTED',
+      resourceType: 'worker.workflow_run_records',
+      resourceId: startedRun.workflowRunRecordId,
+      action: 'start_workflow',
+      success: true,
+      message,
+      metadata: {
+        workflowCode: definition.workflowCode,
+        workflowDisplayName: definition.displayName,
+        workflowVersionId: startedRun.workflowVersionId || definition.publishedVersionId || null,
+        runSource: normalizedInput.runSource || 'manual',
+        triggerType: normalizedInput.triggerType || 'MANUAL',
+        executor: 'temporal',
+        temporalWorkflowId: temporalStart.workflow.workflowId || null,
+        temporalRunId: temporalStart.workflow.runId || null,
+      },
+    });
+
     return {
       ok: true,
       started: true,
       async: true,
-      run: linkedRun || run,
+      run: startedRun,
       definition,
       nodeRuns: [],
       temporalWorkflow: temporalStart.workflow,
-      message: `Workflow ${definition.displayName} started through Temporal. Refresh Workflow History to follow node progress.`,
+      message,
     };
   } catch (error) {
     const failedRun = await updateWorkflowRun({
@@ -5558,6 +5679,25 @@ async function startWorkflowWithTemporal({
         temporalBacked: true,
         startFailure: true,
         errorMessage: error.message || String(error),
+      },
+    });
+
+    await recordWorkflowAuditEvent({
+      user,
+      context,
+      eventType: 'WORKFLOW_RUN_START_FAILED',
+      resourceType: 'worker.workflow_run_records',
+      resourceId: run.workflowRunRecordId,
+      action: 'start_workflow',
+      success: false,
+      message: `Workflow ${definition.displayName} failed to start through Temporal.`,
+      metadata: {
+        workflowCode: definition.workflowCode,
+        workflowDisplayName: definition.displayName,
+        runSource: normalizedInput.runSource || 'manual',
+        triggerType: normalizedInput.triggerType || 'MANUAL',
+        executor: 'temporal',
+        error: error.message || String(error),
       },
     });
 
@@ -5573,6 +5713,11 @@ async function startWorkflowWithTemporal({
 async function executeWorkflow({ workflowCode, input = {}, user, session, permissions = [], context = {} } = {}) {
   const definition = await getWorkflowDefinition(workflowCode);
 
+  assertPermission({
+    permissionCode: WORKFLOW_RUN_PERMISSION,
+    permissions,
+    action: 'start_workflow',
+  });
   assertPermission({
     permissionCode: definition.startPermissionCode,
     permissions,
@@ -5720,6 +5865,27 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
       },
     });
 
+    await recordWorkflowAuditEvent({
+      user,
+      context,
+      eventType: 'WORKFLOW_RUN_COMPLETED',
+      resourceType: 'worker.workflow_run_records',
+      resourceId: completedRun.workflowRunRecordId,
+      action: 'run_workflow_inline',
+      success: true,
+      message: summary,
+      metadata: {
+        workflowCode: definition.workflowCode,
+        workflowDisplayName: definition.displayName,
+        runSource: normalizedInput.runSource || 'manual',
+        triggerType: normalizedInput.triggerType || 'MANUAL',
+        executor: 'inline',
+        nodeCount: definition.nodes.length,
+        completedNodeCount: nodeRuns.length,
+        durationMs: Date.now() - startedAtMs,
+      },
+    });
+
     return {
       ok: true,
       run: completedRun,
@@ -5736,6 +5902,27 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
         durationMs: Date.now() - startedAtMs,
         failedNodeCount: nodeRuns.filter((nodeRun) => nodeRun?.status === TERMINAL_FAILURE_STATUS).length,
         errorMessage: error.message || String(error),
+      },
+    });
+
+    await recordWorkflowAuditEvent({
+      user,
+      context,
+      eventType: 'WORKFLOW_RUN_FAILED',
+      resourceType: 'worker.workflow_run_records',
+      resourceId: failedRun.workflowRunRecordId,
+      action: 'run_workflow_inline',
+      success: false,
+      message: summary,
+      metadata: {
+        workflowCode: definition.workflowCode,
+        workflowDisplayName: definition.displayName,
+        runSource: normalizedInput.runSource || 'manual',
+        triggerType: normalizedInput.triggerType || 'MANUAL',
+        executor: 'inline',
+        failedNodeCount: nodeRuns.filter((nodeRun) => nodeRun?.status === TERMINAL_FAILURE_STATUS).length,
+        durationMs: Date.now() - startedAtMs,
+        error: error.message || String(error),
       },
     });
 
@@ -6111,6 +6298,28 @@ async function decideWorkflowApprovalRequest({
       signalSent: true,
       signalResult,
       requestContext: getSafeObject(context),
+    },
+  });
+
+  await recordWorkflowAuditEvent({
+    user,
+    context,
+    eventType: 'WORKFLOW_APPROVAL_DECIDED',
+    resourceType: 'worker.workflow_approval_requests',
+    resourceId: resolved.approvalRequestId,
+    action: 'decide_workflow_approval',
+    success: true,
+    message: `Workflow approval ${decision.toLowerCase()}.`,
+    metadata: {
+      workflowRunRecordId: resolved.workflowRunRecordId,
+      workflowNodeRunRecordId: resolved.workflowNodeRunRecordId,
+      nodeKey: resolved.nodeKey,
+      approvalKey: resolved.approvalKey,
+      requiredRoleCode: resolved.requiredRoleCode,
+      decision,
+      decisionNote,
+      temporalWorkflowId: resolved.temporalWorkflowId || approval.temporalWorkflowId || null,
+      temporalRunId: resolved.temporalRunId || approval.temporalRunId || null,
     },
   });
 

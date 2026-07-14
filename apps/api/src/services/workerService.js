@@ -434,6 +434,8 @@ function sanitizeParameter(row) {
 async function recordWorkerAudit({
   actor,
   context,
+  eventType = null,
+  resourceType = 'worker',
   action,
   success,
   message,
@@ -442,8 +444,8 @@ async function recordWorkerAudit({
 }) {
   await authService.recordAuditEvent({
     userId: actor?.userId || null,
-    eventType: success ? 'WORKER_ADMIN_ACTION' : 'WORKER_ADMIN_ACTION_FAILED',
-    resourceType: 'worker',
+    eventType: eventType || (success ? 'WORKER_ADMIN_ACTION' : 'WORKER_ADMIN_ACTION_FAILED'),
+    resourceType,
     resourceId,
     action,
     success,
@@ -888,6 +890,8 @@ async function createSchedule({ body = {}, actor = null, context = {} } = {}) {
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'SCHEDULER_CREATED',
+    resourceType: 'worker.schedules',
     action: 'create_schedule',
     success: true,
     message: `Created worker schedule ${payload.scheduleCode}.`,
@@ -974,6 +978,8 @@ async function updateSchedule({ scheduleId, body = {}, actor = null, context = {
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'SCHEDULER_CHANGED',
+    resourceType: 'worker.schedules',
     action: 'update_schedule',
     success: true,
     message: `Updated worker schedule ${payload.scheduleCode}.`,
@@ -1024,6 +1030,8 @@ async function updateScheduleStatus({ scheduleId, body = {}, actor = null, conte
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'SCHEDULER_CHANGED',
+    resourceType: 'worker.schedules',
     action: enabled ? 'enable_schedule' : 'disable_schedule',
     success: true,
     message: `${enabled ? 'Enabled' : 'Disabled'} worker schedule ${existing.scheduleCode}.`,
@@ -1069,6 +1077,8 @@ async function queueScheduleNow({ scheduleId, actor = null, context = {} } = {})
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'SCHEDULER_RUN_IMMEDIATE_REQUESTED',
+    resourceType: 'worker.schedules',
     action: 'queue_schedule_now',
     success: true,
     message: `Queued worker schedule ${existing.scheduleCode} for immediate execution.`,
@@ -1135,6 +1145,8 @@ async function unqueueSchedule({ scheduleId, actor = null, context = {} } = {}) 
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'SCHEDULER_CHANGED',
+    resourceType: 'worker.schedules',
     action: 'unqueue_schedule',
     success: true,
     message: `Unqueued worker schedule ${existing.scheduleCode}.`,
@@ -1198,6 +1210,8 @@ async function deleteSchedule({ scheduleId, body = {}, actor = null, context = {
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'SCHEDULER_CHANGED',
+    resourceType: 'worker.schedules',
     action: 'delete_schedule',
     success: true,
     message: `Deleted worker schedule ${existing.scheduleCode}.`,
