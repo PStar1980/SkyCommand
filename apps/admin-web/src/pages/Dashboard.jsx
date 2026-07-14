@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
+import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
@@ -213,6 +214,11 @@ function Dashboard() {
     authSettings: null,
   });
   const [error, setError] = useState('');
+  const [dashboardFilters, setDashboardFilters] = useState({
+    executionStatus: '',
+    recentLimit: '60',
+    workflowStatus: '',
+  });
 
   const permissionCodes = useMemo(() => getPermissionCodes(permissions), [permissions]);
   const permissionCount = permissions.length;
@@ -581,6 +587,38 @@ function Dashboard() {
   const secondaryStatCards = statCards.filter((card) =>
     ['Sessions', 'Tools', 'Executions', 'Audit events', 'Macro views'].includes(card.label),
   );
+  const dashboardRecentLimit = Number(dashboardFilters.recentLimit) || 60;
+  const visualRecentExecutions = useMemo(() => {
+    if (!dashboardFilters.executionStatus) {
+      return recentExecutions;
+    }
+
+    return recentExecutions.filter(
+      (execution) => String(execution.status || '').toUpperCase() === dashboardFilters.executionStatus,
+    );
+  }, [dashboardFilters.executionStatus, recentExecutions]);
+  const visualWorkflowRuns = useMemo(() => {
+    if (!dashboardFilters.workflowStatus) {
+      return workflowRunRecords;
+    }
+
+    return workflowRunRecords.filter(
+      (run) => String(run.status || '').toUpperCase() === dashboardFilters.workflowStatus,
+    );
+  }, [dashboardFilters.workflowStatus, workflowRunRecords]);
+
+  function updateDashboardFilter(name, value) {
+    setDashboardFilters((current) => ({ ...current, [name]: value }));
+  }
+
+  function resetDashboardFilters() {
+    setDashboardFilters({ executionStatus: '', recentLimit: '60', workflowStatus: '' });
+  }
+
+  function applyDashboardFilters(event) {
+    event.preventDefault();
+    loadDashboard();
+  }
 
   async function loadOptional(name, loader) {
     try {
@@ -620,10 +658,10 @@ function Dashboard() {
           ? loadOptional('tools', () => toolService.listTools())
           : Promise.resolve(null),
         hasPermission('SCRIPT_EXECUTION_READ')
-          ? loadOptional('executions', () => adminService.listScriptExecutions({ limit: 40 }))
+          ? loadOptional('executions', () => adminService.listScriptExecutions({ limit: dashboardRecentLimit }))
           : Promise.resolve(null),
         hasPermission('AUDIT_READ')
-          ? loadOptional('audit', () => adminService.listAuditEvents({ limit: 40 }))
+          ? loadOptional('audit', () => adminService.listAuditEvents({ limit: dashboardRecentLimit }))
           : Promise.resolve(null),
         hasPermission('ADMIN_USER_READ')
           ? loadOptional('sessions', () => adminService.listActiveSessions({ limit: 8 }))
@@ -640,7 +678,7 @@ function Dashboard() {
           ? loadOptional('workflow-health', () => workflowService.getWorkerHealth())
           : Promise.resolve(null),
         hasPermission('WORKFLOW_READ')
-          ? loadOptional('workflow-runs', () => workflowService.listRuns({ limit: 60 }))
+          ? loadOptional('workflow-runs', () => workflowService.listRuns({ limit: dashboardRecentLimit }))
           : Promise.resolve(null),
         hasPermission('ADMIN_REPOSITORY_READ')
           ? loadOptional('production-readiness', () => adminService.getProductionReadiness())
@@ -768,70 +806,83 @@ function Dashboard() {
 
       {error && <div className="alert alert-danger">{error}</div>}
 
-      <section className="sky-dashboard-command-hero mb-3">
-        <div className="sky-dashboard-command-main">
-          <div className="d-flex align-items-center gap-2 mb-3">
-            <StatusDot status={systemStatus} />
-            <StatusPill status={systemStatus} />
-          </div>
-          <div className="sky-page-kicker">Operational pulse</div>
-          <h2 className="sky-dashboard-command-title">Automation overview</h2>
-          <p className="sky-dashboard-command-copy">
-            API {summary.apiHealth?.ok ? 'online' : 'unknown'} · Database{' '}
-            {summary.dbHealth?.ok ? 'online' : 'unknown'} · Workflows{' '}
-            {workflowHealth?.overallStatus || 'not loaded'} · Task queue{' '}
-            {workflowTaskQueue.healthy ? 'polling' : 'check required'} · Readiness{' '}
-            {productionReadiness?.overallStatus || 'not loaded'} · Permissions {permissionCount}
-          </p>
-
-          <div className="sky-dashboard-command-links">
-            {commandLinks.map((link) => (
-              <Link className="sky-dashboard-command-link" key={link.to} to={link.to}>
-                <span>{link.label}</span>
-                <small>{link.detail}</small>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        <div className="sky-dashboard-command-metrics">
-          {controlPlaneMetrics.map((metric) => (
-            <Link className="sky-dashboard-command-metric" key={metric.label} to={metric.to}>
-              <div className="d-flex align-items-start justify-content-between gap-2">
-                <div>
-                  <div className="sky-page-kicker">{metric.label}</div>
-                  <div className="sky-dashboard-command-value">{metric.value}</div>
-                </div>
-                <StatusDot status={metric.status} />
-              </div>
-              <div className="sky-muted small mt-2">{metric.helper}</div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="sky-dashboard-shortcuts mb-3">
-        <div className="sky-dashboard-section-heading">
+      <form onSubmit={applyDashboardFilters}>
+        <DashboardFilterCard
+          actions={
+            <>
+              <button className="btn sky-btn-primary" disabled={loading} type="submit">
+                Apply filters
+              </button>
+              <button
+                className="btn sky-btn-ghost"
+                disabled={loading}
+                onClick={resetDashboardFilters}
+                type="button"
+              >
+                Reset
+              </button>
+            </>
+          }
+          meta={`${visualRecentExecutions.length} tool run(s) · ${visualWorkflowRuns.length} workflow run(s) · ${ingestionCounts.currentIndicators || 0} current indicator(s)`}
+          title="Overview analytics filters"
+        >
           <div>
-            <div className="sky-page-kicker">Automation lanes</div>
-            <h2 className="h5 mb-0">Jump into the workstream</h2>
+            <label className="form-label" htmlFor="overviewRecentLimit">
+              Recent window
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="overviewRecentLimit"
+              onChange={(event) => updateDashboardFilter('recentLimit', event.target.value)}
+              value={dashboardFilters.recentLimit}
+            >
+              <option value="40">40 recent records</option>
+              <option value="60">60 recent records</option>
+              <option value="120">120 recent records</option>
+            </select>
           </div>
-          <span className="sky-muted small">Permission-aware actions</span>
-        </div>
-        <div className="sky-dashboard-task-strip sky-dashboard-task-strip-compact">
-          {dashboardTasks.map((task) => (
-            <Link className="sky-dashboard-task" key={task.label} to={task.to}>
-              <div className="sky-page-kicker">{task.label}</div>
-              <div className="sky-dashboard-task-value">{task.value}</div>
-            </Link>
-          ))}
-        </div>
-      </section>
+          <div>
+            <label className="form-label" htmlFor="overviewWorkflowStatus">
+              Workflow status focus
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="overviewWorkflowStatus"
+              onChange={(event) => updateDashboardFilter('workflowStatus', event.target.value)}
+              value={dashboardFilters.workflowStatus}
+            >
+              <option value="">All workflow statuses</option>
+              <option value="RUNNING">Running</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="FAILED">Failed</option>
+              <option value="TERMINATED">Terminated</option>
+              <option value="CANCELED">Canceled</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="overviewExecutionStatus">
+              Tool status focus
+            </label>
+            <select
+              className="form-select sky-form-control"
+              id="overviewExecutionStatus"
+              onChange={(event) => updateDashboardFilter('executionStatus', event.target.value)}
+              value={dashboardFilters.executionStatus}
+            >
+              <option value="">All tool statuses</option>
+              <option value="SUCCESS">Success</option>
+              <option value="STARTED">Running</option>
+              <option value="FAILED">Failed</option>
+              <option value="TERMINATED">Terminated</option>
+            </select>
+          </div>
+        </DashboardFilterCard>
+      </form>
 
       <DashboardVisuals
         ingestionCounts={ingestionCounts}
         recentAudits={recentAudits}
-        recentExecutions={recentExecutions}
+        recentExecutions={visualRecentExecutions}
         systemStatusItems={[
           {
             label: 'API',
@@ -864,7 +915,7 @@ function Dashboard() {
             helper: `${productionReadiness?.counts?.pass || 0} pass / ${productionReadiness?.counts?.warning || 0} warning`,
           },
         ]}
-        workflowRuns={workflowRunRecords}
+        workflowRuns={visualWorkflowRuns}
       />
 
       <div className="sky-dashboard-section-heading mt-3 mb-2">

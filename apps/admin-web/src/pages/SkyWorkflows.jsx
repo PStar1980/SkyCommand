@@ -329,6 +329,19 @@ function statusClass(status) {
   return 'sky-pill-info';
 }
 
+function SmartRunStatusBadges({ run }) {
+  if (!run) {
+    return null;
+  }
+
+  return (
+    <div className="d-flex flex-wrap align-items-center gap-2">
+      <span className={`sky-pill ${statusClass(run.status)}`}>Run {run.status || 'UNKNOWN'}</span>
+      <span className="sky-pill sky-pill-info">{formatDuration(getRunDurationMs(run))}</span>
+    </div>
+  );
+}
+
 
 function eventCategoryClass(category) {
   const normalized = String(category || '').toLowerCase();
@@ -1533,7 +1546,7 @@ function SkyWorkflows({ mode = 'start' }) {
       setSelectedRunDetail({ run: result.run, nodeRuns: result.nodeRuns || [] });
       await loadRuns(filters, { keepSelection: false });
       if (result.run?.workflowRunRecordId) {
-        await loadRunDetail(result.run.workflowRunRecordId);
+        await loadRunDetail(result.run.workflowRunRecordId, { telemetry: true });
       }
     } catch (startError) {
       const messageText = formatApiError(startError, 'Failed to start workflow.');
@@ -1620,7 +1633,7 @@ function SkyWorkflows({ mode = 'start' }) {
       setMessage(result.message || 'Workflow retry started.');
       await loadRuns(filters, { keepSelection: false });
       if (result.run?.workflowRunRecordId) {
-        await loadRunDetail(result.run.workflowRunRecordId);
+        await loadRunDetail(result.run.workflowRunRecordId, { telemetry: true });
       }
     } catch (actionError) {
       setError(formatApiError(actionError, 'Failed to retry workflow run.'));
@@ -1736,6 +1749,53 @@ function SkyWorkflows({ mode = 'start' }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHistoryMode, filters.status, filters.runtime, selectedRun?.workflowRunRecordId, selectedRun?.status]);
+
+  useEffect(() => {
+    if (isHistoryMode || !selectedRun?.workflowRunRecordId || !isActiveRun(selectedRun)) {
+      return undefined;
+    }
+
+    let canceled = false;
+    let timerId = null;
+
+    async function pollStartedWorkflow() {
+      const detail = await loadRunDetail(selectedRun.workflowRunRecordId, {
+        quiet: true,
+        telemetry: true,
+      });
+
+      if (canceled) {
+        return;
+      }
+
+      const stillActive = isActiveRun(detail?.run || selectedRun);
+      const delay = stillActive ? HISTORY_POLL_SELECTED_ACTIVE_MS : HISTORY_POLL_IDLE_MS;
+
+      setTelemetryState((current) => ({
+        ...current,
+        activeRunCount: stillActive ? 1 : 0,
+        error: '',
+        intervalMs: delay,
+        lastUpdatedAt: new Date().toISOString(),
+        selectedRunActive: stillActive,
+      }));
+
+      if (stillActive) {
+        timerId = window.setTimeout(pollStartedWorkflow, delay);
+      }
+    }
+
+    timerId = window.setTimeout(pollStartedWorkflow, HISTORY_POLL_SELECTED_ACTIVE_MS);
+
+    return () => {
+      canceled = true;
+
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHistoryMode, selectedRun?.workflowRunRecordId, selectedRun?.status]);
 
   function renderSelectedRunDetailContent() {
     if (!selectedRun) {
@@ -2224,16 +2284,6 @@ function SkyWorkflows({ mode = 'start' }) {
 
           <section className="sky-card">
             <div className="sky-card-header">
-              <div className="sky-page-kicker">Execution plan</div>
-              <h2 className="h5 mb-0">Node timeline</h2>
-            </div>
-            <div className="sky-card-body">
-              <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || []} />
-            </div>
-          </section>
-
-          <section className="sky-card">
-            <div className="sky-card-header">
               <div className="sky-page-kicker">Manual start</div>
               <h2 className="h5 mb-0">Run selected workflow</h2>
             </div>
@@ -2338,6 +2388,27 @@ function SkyWorkflows({ mode = 'start' }) {
                 </div>
               )}
             </form>
+          </section>
+
+          <section className="sky-card">
+            <div className="sky-card-body">
+              <WorkflowVisualGraph
+                approvals={selectedApprovals}
+                followActiveNode={followActiveRuntimeNode}
+                headingKicker="Runtime status overlay"
+                headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}
+                nodeRuns={selectedNodeRuns}
+                nodes={runtimeVisualNodes}
+                onFollowActiveNodeChange={setFollowActiveRuntimeNode}
+                onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
+                runStatus={selectedTemporalRuntime?.status || selectedRun?.status || 'NOT_RUN'}
+                runtimeMode
+                selectedNodeIndex={selectedRuntimeNodeIndex}
+                subtitle="Live run overlay for the workflow you start here. When a run is active, this panel polls telemetry and animates node state without leaving the page."
+                temporalRuntime={selectedTemporalRuntime}
+                title="Runtime workflow map"
+              />
+            </div>
           </section>
         </div>
       )}
