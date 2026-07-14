@@ -62,7 +62,7 @@ router.get(
 router.get('/listeners', requirePermission('WORKER_LISTENER_READ'), workerController.listListeners);
 router.post(
   '/listeners',
-  requirePermission('WORKER_LISTENER_WRITE'),
+  requirePermission('WORKER_LISTENER_CREATE'),
   workerController.createListener,
 );
 router.get(
@@ -72,12 +72,12 @@ router.get(
 );
 router.patch(
   '/listeners/:listenerId',
-  requirePermission('WORKER_LISTENER_WRITE'),
+  requirePermission('WORKER_LISTENER_CHANGE'),
   workerController.updateListener,
 );
 router.patch(
   '/listeners/:listenerId/status',
-  requirePermission('WORKER_LISTENER_WRITE'),
+  requirePermission('WORKER_LISTENER_CHANGE'),
   workerController.updateListenerStatus,
 );
 router.get(

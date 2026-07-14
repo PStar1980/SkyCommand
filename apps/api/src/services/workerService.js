@@ -1576,6 +1576,8 @@ async function createListener({ body = {}, actor = null, context = {} } = {}) {
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'LISTENER_CREATED',
+    resourceType: 'worker.listeners',
     action: 'create_listener',
     success: true,
     message: `Created worker listener ${payload.listenerCode}.`,
@@ -1641,6 +1643,8 @@ async function updateListener({ listenerId, body = {}, actor = null, context = {
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'LISTENER_CHANGED',
+    resourceType: 'worker.listeners',
     action: 'update_listener',
     success: true,
     message: `Updated worker listener ${payload.listenerCode}.`,
@@ -1677,6 +1681,8 @@ async function updateListenerStatus({ listenerId, body = {}, actor = null, conte
   await recordWorkerAudit({
     actor,
     context,
+    eventType: 'LISTENER_CHANGED',
+    resourceType: 'worker.listeners',
     action: enabled ? 'enable_listener' : 'disable_listener',
     success: true,
     message: `${enabled ? 'Enabled' : 'Disabled'} worker listener ${existing.listenerCode}.`,

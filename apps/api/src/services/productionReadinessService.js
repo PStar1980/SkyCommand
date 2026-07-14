@@ -56,7 +56,9 @@ function isBlank(value) {
 }
 
 function hasDangerousSecretValue(value) {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
 
   return (
     !normalized ||
@@ -139,9 +141,11 @@ async function safeQuery(sql, params = [], fallbackRows = []) {
 }
 
 async function relationExists(relationName) {
-  const rows = await safeQuery('SELECT to_regclass($1) IS NOT NULL AS exists', [relationName], [
-    { exists: false },
-  ]);
+  const rows = await safeQuery(
+    'SELECT to_regclass($1) IS NOT NULL AS exists',
+    [relationName],
+    [{ exists: false }],
+  );
 
   return rows[0]?.exists === true;
 }
@@ -153,7 +157,8 @@ async function countRows(sql, params = []) {
 
 function buildEnvironmentSection() {
   const config = getTemporalConfig();
-  const authEnabled = String(process.env.SKYSERVER_INTERNAL_API_AUTH_ENABLED || 'true').toLowerCase() !== 'false';
+  const authEnabled =
+    String(process.env.SKYSERVER_INTERNAL_API_AUTH_ENABLED || 'true').toLowerCase() !== 'false';
   const checks = [];
 
   checks.push(
@@ -199,7 +204,11 @@ function buildEnvironmentSection() {
     buildCheck(
       'database_name',
       'Database target is explicit',
-      isBlank(process.env.PGDATABASE) ? 'FAIL' : isLocalValue(process.env.PGDATABASE) ? 'WARNING' : 'PASS',
+      isBlank(process.env.PGDATABASE)
+        ? 'FAIL'
+        : isLocalValue(process.env.PGDATABASE)
+          ? 'WARNING'
+          : 'PASS',
       isBlank(process.env.PGDATABASE)
         ? 'PGDATABASE is missing.'
         : isLocalValue(process.env.PGDATABASE)
@@ -314,7 +323,9 @@ async function buildDatabaseSection() {
       exists: await relationExists(relationName),
     })),
   );
-  const missingRelations = relationResults.filter((item) => !item.exists).map((item) => item.relationName);
+  const missingRelations = relationResults
+    .filter((item) => !item.exists)
+    .map((item) => item.relationName);
   const orphanRunningRuns = await countRows(`
     SELECT COUNT(*)::int AS count
     FROM worker.workflow_run_records
@@ -420,7 +431,8 @@ async function buildWorkflowSafetySection() {
     WHERE an.required_role_code IS NOT NULL
       AND r.role_id IS NULL
   `);
-  const missingRetryPolicies = await countRows(`
+  const missingRetryPolicies = await countRows(
+    `
     SELECT COUNT(*)::int AS count
     FROM worker.workflow_nodes wn
     JOIN worker.workflow_versions wv
@@ -428,8 +440,11 @@ async function buildWorkflowSafetySection() {
     WHERE wv.status = 'PUBLISHED'
       AND wn.node_type_code = ANY($1)
       AND (wn.retry_policy IS NULL OR wn.retry_policy = '{}'::jsonb)
-  `, [EXECUTABLE_NODE_TYPES]);
-  const missingTimeouts = await countRows(`
+  `,
+    [EXECUTABLE_NODE_TYPES],
+  );
+  const missingTimeouts = await countRows(
+    `
     SELECT COUNT(*)::int AS count
     FROM worker.workflow_nodes wn
     JOIN worker.workflow_versions wv
@@ -437,7 +452,9 @@ async function buildWorkflowSafetySection() {
     WHERE wv.status = 'PUBLISHED'
       AND wn.node_type_code = ANY($1)
       AND wn.timeout_ms IS NULL
-  `, [EXECUTABLE_NODE_TYPES]);
+  `,
+    [EXECUTABLE_NODE_TYPES],
+  );
   const backwardsConditionalEdges = await countRows(`
     SELECT COUNT(*)::int AS count
     FROM worker.workflow_edges e
@@ -576,6 +593,15 @@ async function buildAuthSection({ user, permissions }) {
         'WORKER_SCHEDULE_RUN_IMMEDIATE'
       )
   `);
+  const listenerProcessingPermissions = await countRows(`
+    SELECT COUNT(*)::int AS count
+    FROM auth.permissions
+    WHERE active = TRUE
+      AND permission_code IN (
+        'WORKER_LISTENER_CREATE',
+        'WORKER_LISTENER_CHANGE'
+      )
+  `);
   const administrativeProcessingGrants = await countRows(`
     SELECT COUNT(DISTINCT r.role_code || ':' || p.permission_code)::int AS count
     FROM auth.role_permissions rp
@@ -593,7 +619,9 @@ async function buildAuthSection({ user, permissions }) {
         'WORKFLOW_CHANGE',
         'WORKER_SCHEDULE_CREATE',
         'WORKER_SCHEDULE_CHANGE',
-        'WORKER_SCHEDULE_RUN_IMMEDIATE'
+        'WORKER_SCHEDULE_RUN_IMMEDIATE',
+        'WORKER_LISTENER_CREATE',
+        'WORKER_LISTENER_CHANGE'
       )
   `);
   const unauthorizedProcessingGrants = await countRows(`
@@ -613,10 +641,14 @@ async function buildAuthSection({ user, permissions }) {
         'WORKFLOW_CHANGE',
         'WORKER_SCHEDULE_CREATE',
         'WORKER_SCHEDULE_CHANGE',
-        'WORKER_SCHEDULE_RUN_IMMEDIATE'
+        'WORKER_SCHEDULE_RUN_IMMEDIATE',
+        'WORKER_LISTENER_CREATE',
+        'WORKER_LISTENER_CHANGE'
       )
   `);
-  const currentPermissionCodes = new Set((permissions || []).map((permission) => permission.permissionCode).filter(Boolean));
+  const currentPermissionCodes = new Set(
+    (permissions || []).map((permission) => permission.permissionCode).filter(Boolean),
+  );
   const checks = [
     buildCheck(
       'super_admin_exists',
@@ -659,20 +691,30 @@ async function buildAuthSection({ user, permissions }) {
         : 'One or more granular scheduler processing permissions are missing or inactive.',
     ),
     buildCheck(
+      'listener_processing_permissions_exist',
+      'Listener processing permissions exist',
+      listenerProcessingPermissions >= 2 ? 'PASS' : 'FAIL',
+      listenerProcessingPermissions >= 2
+        ? 'Listener create and change permissions are active.'
+        : 'One or more granular listener processing permissions are missing or inactive.',
+    ),
+    buildCheck(
       'processing_permissions_admin_only',
       'Processing permissions are restricted to administrators',
-      administrativeProcessingGrants >= 12 && unauthorizedProcessingGrants === 0 ? 'PASS' : 'FAIL',
-      administrativeProcessingGrants >= 12 && unauthorizedProcessingGrants === 0
-        ? 'All six processing permissions are granted to ADMIN and SUPER_ADMIN only.'
-        : `${administrativeProcessingGrants}/12 expected administrative grants found; ${unauthorizedProcessingGrants} unauthorized active grant(s) found.`,
+      administrativeProcessingGrants >= 16 && unauthorizedProcessingGrants === 0 ? 'PASS' : 'FAIL',
+      administrativeProcessingGrants >= 16 && unauthorizedProcessingGrants === 0
+        ? 'All eight processing permissions are granted to ADMIN and SUPER_ADMIN only.'
+        : `${administrativeProcessingGrants}/16 expected administrative grants found; ${unauthorizedProcessingGrants} unauthorized active grant(s) found.`,
     ),
     buildCheck(
       'current_user_can_read_workflows',
       'Current operator can inspect workflows',
-      currentPermissionCodes.has('WORKFLOW_READ') || currentPermissionCodes.has('TEMPORAL_WORKFLOW_READ')
+      currentPermissionCodes.has('WORKFLOW_READ') ||
+        currentPermissionCodes.has('TEMPORAL_WORKFLOW_READ')
         ? 'PASS'
         : 'WARNING',
-      currentPermissionCodes.has('WORKFLOW_READ') || currentPermissionCodes.has('TEMPORAL_WORKFLOW_READ')
+      currentPermissionCodes.has('WORKFLOW_READ') ||
+        currentPermissionCodes.has('TEMPORAL_WORKFLOW_READ')
         ? 'Current operator has workflow read visibility.'
         : 'Current operator does not have workflow read visibility.',
     ),
@@ -681,7 +723,7 @@ async function buildAuthSection({ user, permissions }) {
   return buildSection(
     'auth_permissions',
     'Auth and permission readiness',
-    'Checks super admin presence, workflow approval permissions, administrator-only workflow/scheduler processing grants, and current operator visibility.',
+    'Checks super admin presence, workflow approval permissions, administrator-only workflow/scheduler/listener processing grants, and current operator visibility.',
     checks,
   );
 }
@@ -742,24 +784,26 @@ function buildCommands(workerHealthResult) {
 }
 
 async function getProductionReadiness({ user = null, permissions = [] } = {}) {
-  const workerHealthResult = await workflowHealthService.getWorkflowWorkerHealth().catch((error) => ({
-    overallStatus: 'OFFLINE',
-    temporal: {
-      reachable: false,
-      error: error.message || String(error),
-    },
-    taskQueue: {
-      pollerCount: 0,
-      healthy: false,
-    },
-    worker: {
-      recentHeartbeatCount: 0,
-      status: 'UNKNOWN',
-    },
-    runs: {},
-    approvals: {},
-    hints: [error.message || String(error)],
-  }));
+  const workerHealthResult = await workflowHealthService
+    .getWorkflowWorkerHealth()
+    .catch((error) => ({
+      overallStatus: 'OFFLINE',
+      temporal: {
+        reachable: false,
+        error: error.message || String(error),
+      },
+      taskQueue: {
+        pollerCount: 0,
+        healthy: false,
+      },
+      worker: {
+        recentHeartbeatCount: 0,
+        status: 'UNKNOWN',
+      },
+      runs: {},
+      approvals: {},
+      hints: [error.message || String(error)],
+    }));
 
   const sections = [
     buildEnvironmentSection(),
