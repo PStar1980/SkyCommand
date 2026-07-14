@@ -1348,26 +1348,6 @@ function WorkflowBuilder() {
         </section>
 
         <section className="sky-card mb-4">
-          <div className="sky-card-body">
-            <WorkflowVisualGraph
-              headingKicker="Runtime status overlay"
-              nodeRuns={[]}
-              nodes={nodes}
-              onNodeSelect={(index) => setSelectedBuilderNodeIndex(index)}
-              runStatus="DRAFT"
-              runtimeMode
-              selectedNodeIndex={selectedBuilderNodeIndex}
-              subtitle="Design-time runtime preview. New workflows start with no node runs recorded; this overlay previews the same visual surface used during live execution."
-              temporalRuntime={{ status: 'DRAFT' }}
-              title="Runtime workflow map"
-              toolTargets={toolTargets}
-              workflowTargets={workflowTargets}
-              temporalWorkflowTargets={temporalWorkflowTargets}
-            />
-          </div>
-        </section>
-
-        <section className="sky-card mb-4">
           <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
             <div>
               <div className="sky-page-kicker">Workflow graph</div>
@@ -1386,6 +1366,7 @@ function WorkflowBuilder() {
           </div>
           <div className="sky-card-body">
             <WorkflowVisualGraph
+              includeRuntimeInspectorRows
               nodes={nodes}
               onNodeMove={(index, direction) => moveNode(index, direction)}
               onNodeReorder={reorderNode}
