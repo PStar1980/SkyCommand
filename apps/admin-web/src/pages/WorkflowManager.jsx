@@ -49,6 +49,8 @@ const DEFAULT_API_PARAMETERS = {
   authMode: 'AUTO',
 };
 
+const VERSION_HISTORY_PAGE_SIZE = 5;
+
 const EMPTY_NODE = {
   nodeKey: '',
   displayName: '',
@@ -905,6 +907,7 @@ function WorkflowManager() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [selectedVisualNodeIndex, setSelectedVisualNodeIndex] = useState(null);
+  const [versionHistoryPage, setVersionHistoryPage] = useState(1);
 
   const toolTargets = useMemo(
     () => [...(catalog.toolTargets || [])].sort((a, b) => {
@@ -938,7 +941,7 @@ function WorkflowManager() {
     [catalog.approvalRoleTargets],
   );
 
-  async function loadDefinitions(nextSelectedCode = selectedCode) {
+  async function loadDefinitions(nextSelectedCode = selectedCode, detailOptions = {}) {
     setLoading(true);
     setError('');
 
@@ -967,7 +970,7 @@ function WorkflowManager() {
       setSelectedCode(nextCode);
 
       if (nextCode) {
-        await loadDetail(nextCode, { silent: true });
+        await loadDetail(nextCode, { silent: true, ...detailOptions });
       } else {
         setDetail(null);
       }
@@ -1005,9 +1008,23 @@ function WorkflowManager() {
         publish: true,
       });
       const nextEditorNodes = graphNodesToEditorNodes(definition.editGraph?.nodes || definition.draftGraph?.nodes || definition.publishedGraph?.nodes || definition.latestGraph?.nodes || []);
+      const preferredNodeKey = String(options.selectedNodeKey || '').trim();
+      const preferredNodeIndex = Number.isInteger(options.selectedNodeIndex) ? options.selectedNodeIndex : null;
+      const matchedNodeIndex = preferredNodeKey
+        ? nextEditorNodes.findIndex((node) => node.nodeKey === preferredNodeKey)
+        : -1;
+      const nextSelectedNodeIndex = matchedNodeIndex >= 0
+        ? matchedNodeIndex
+        : preferredNodeIndex !== null && nextEditorNodes.length > 0
+          ? Math.min(Math.max(preferredNodeIndex, 0), nextEditorNodes.length - 1)
+          : nextEditorNodes.length > 0
+            ? 0
+            : null;
+
       setEditorNodes(nextEditorNodes);
       setPublishForm({ changeNote: '' });
-      setSelectedVisualNodeIndex(nextEditorNodes.length > 0 ? 0 : null);
+      setSelectedVisualNodeIndex(nextSelectedNodeIndex);
+      setVersionHistoryPage(1);
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow detail.'));
     } finally {
@@ -1463,9 +1480,16 @@ function WorkflowManager() {
         baseWorkflowVersionId: draftGraph.workflowVersionId,
         baseUpdatedAt: draftGraph.updatedAt,
       };
+      const selectedNodeKey = Number.isInteger(selectedVisualNodeIndex)
+        ? editorNodes[selectedVisualNodeIndex]?.nodeKey || null
+        : null;
+      const selectedNodeIndex = Number.isInteger(selectedVisualNodeIndex) ? selectedVisualNodeIndex : null;
       const result = await workflowService.saveDraftGraph(detail.workflowCode, draftGraph.workflowVersionId, payload);
       setMessage(result.message || 'Draft workflow graph saved. Publish the draft before new runs use it.');
-      await loadDefinitions(result.definition?.workflowCode || detail.workflowCode);
+      await loadDefinitions(result.definition?.workflowCode || detail.workflowCode, {
+        selectedNodeKey,
+        selectedNodeIndex,
+      });
     } catch (graphError) {
       setError(formatApiError(graphError, 'Failed to save workflow draft graph.'));
     } finally {
@@ -1536,6 +1560,20 @@ function WorkflowManager() {
     ? selectedVisualNodeIndex
     : null;
   const selectedEditorNode = selectedEditorNodeIndex === null ? null : editorNodes[selectedEditorNodeIndex];
+  const versionHistoryItems = detail?.versions || [];
+  const versionHistoryPageCount = Math.max(1, Math.ceil(versionHistoryItems.length / VERSION_HISTORY_PAGE_SIZE));
+  const safeVersionHistoryPage = Math.min(versionHistoryPage, versionHistoryPageCount);
+  const versionHistoryStartIndex = (safeVersionHistoryPage - 1) * VERSION_HISTORY_PAGE_SIZE;
+  const pagedVersionHistoryItems = versionHistoryItems.slice(
+    versionHistoryStartIndex,
+    versionHistoryStartIndex + VERSION_HISTORY_PAGE_SIZE,
+  );
+  const versionHistoryRangeStart = versionHistoryItems.length === 0 ? 0 : versionHistoryStartIndex + 1;
+  const versionHistoryRangeEnd = Math.min(versionHistoryStartIndex + VERSION_HISTORY_PAGE_SIZE, versionHistoryItems.length);
+
+  function goToVersionHistoryPage(page) {
+    setVersionHistoryPage(Math.min(Math.max(1, Number(page) || 1), versionHistoryPageCount));
+  }
 
   return (
     <div>
@@ -1786,7 +1824,7 @@ function WorkflowManager() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(detail.versions || []).map((version) => (
+                          {pagedVersionHistoryItems.map((version) => (
                             <tr key={version.workflowVersionId}>
                               <td className="sky-mono">v{version.versionNumber}</td>
                               <td><StatusPill status={version.status} /></td>
@@ -1798,6 +1836,57 @@ function WorkflowManager() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                    <div className="sky-pagination-row px-0 pb-0">
+                      <div className="small sky-muted">
+                        Showing {versionHistoryRangeStart}-{versionHistoryRangeEnd} of {versionHistoryItems.length} version(s)
+                      </div>
+                      <div className="sky-pagination-controls" aria-label="Workflow version history pagination">
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={safeVersionHistoryPage <= 1}
+                          onClick={() => goToVersionHistoryPage(1)}
+                          type="button"
+                        >
+                          First
+                        </button>
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={safeVersionHistoryPage <= 1}
+                          onClick={() => goToVersionHistoryPage(safeVersionHistoryPage - 1)}
+                          type="button"
+                        >
+                          Back
+                        </button>
+                        <label className="sky-pagination-select-label" htmlFor="workflowVersionHistoryPageSelect">Page</label>
+                        <select
+                          className="form-select form-select-sm sky-form-control sky-pagination-select"
+                          id="workflowVersionHistoryPageSelect"
+                          onChange={(event) => goToVersionHistoryPage(event.target.value)}
+                          value={safeVersionHistoryPage}
+                        >
+                          {Array.from({ length: versionHistoryPageCount }, (_, index) => index + 1).map((page) => (
+                            <option key={page} value={page}>{page}</option>
+                          ))}
+                        </select>
+                        <span className="small sky-muted">of {versionHistoryPageCount}</span>
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={safeVersionHistoryPage >= versionHistoryPageCount}
+                          onClick={() => goToVersionHistoryPage(safeVersionHistoryPage + 1)}
+                          type="button"
+                        >
+                          Next
+                        </button>
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={safeVersionHistoryPage >= versionHistoryPageCount}
+                          onClick={() => goToVersionHistoryPage(versionHistoryPageCount)}
+                          type="button"
+                        >
+                          Last
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -18,7 +18,7 @@ INSERT INTO core.applications (app_code, title, manifest_version, description, a
 VALUES
   (
     'SKYSERVER_ADMIN',
-    'SkyServer Admin',
+    'SkyCommand',
     '1.0.0',
     'Private administrative web console for SkyServer control-plane operations.',
     TRUE

@@ -239,6 +239,274 @@ function formatJsonPreview(value, maxLength = 2800) {
   }
 }
 
+function humanizeOutputKey(value) {
+  const label = String(value || '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!label) {
+    return 'Value';
+  }
+
+  return label
+    .split(' ')
+    .map((word) => {
+      const normalized = word.toLowerCase();
+      const acronym = {
+        api: 'API',
+        http: 'HTTP',
+        https: 'HTTPS',
+        id: 'ID',
+        ids: 'IDs',
+        json: 'JSON',
+        ms: 'ms',
+        url: 'URL',
+        ui: 'UI',
+        stdout: 'Standard output',
+        stderr: 'Error output',
+      }[normalized];
+
+      return acronym || `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+    })
+    .join(' ');
+}
+
+function parseFriendlyOutputValue(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const text = value.trim();
+
+  if (!text || !((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']')))) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return value;
+  }
+}
+
+function isFriendlyComplexValue(value) {
+  return value !== null && typeof value === 'object';
+}
+
+function isIsoDateValue(value) {
+  return typeof value === 'string'
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
+    && !Number.isNaN(new Date(value).getTime());
+}
+
+function formatByteCount(value) {
+  const bytes = Number(value);
+
+  if (!Number.isFinite(bytes)) {
+    return String(value ?? '—');
+  }
+
+  if (bytes < 1024) {
+    return `${bytes.toLocaleString()} B`;
+  }
+
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let scaled = bytes / 1024;
+  let unitIndex = 0;
+
+  while (scaled >= 1024 && unitIndex < units.length - 1) {
+    scaled /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${scaled.toFixed(scaled >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
+function FriendlyOutputScalar({ fieldKey = '', value }) {
+  const normalizedKey = String(fieldKey || '').toLowerCase();
+
+  if (value === null || value === undefined || value === '') {
+    return <span className="sky-muted">—</span>;
+  }
+
+  if (typeof value === 'boolean') {
+    return <span className={`sky-pill ${value ? 'sky-pill-success' : 'sky-pill-info'}`}>{value ? 'Yes' : 'No'}</span>;
+  }
+
+  if (typeof value === 'number') {
+    if (normalizedKey.endsWith('ms') || normalizedKey.includes('duration')) {
+      return <span>{formatDuration(value)}</span>;
+    }
+
+    if (normalizedKey.includes('byte')) {
+      return <span>{formatByteCount(value)}</span>;
+    }
+
+    return <span>{value.toLocaleString()}</span>;
+  }
+
+  const text = String(value);
+
+  if (isIsoDateValue(text) || normalizedKey.endsWith('at') || normalizedKey.includes('timestamp')) {
+    const formatted = formatDate(text);
+
+    if (formatted !== '—') {
+      return <span>{formatted}</span>;
+    }
+  }
+
+  if (normalizedKey === 'status' || normalizedKey.endsWith('status')) {
+    return <span className={`sky-pill ${statusClass(text)}`}>{text}</span>;
+  }
+
+  if (/^https?:\/\//i.test(text)) {
+    return <a href={text} rel="noreferrer" target="_blank">{text}</a>;
+  }
+
+  if (text.includes('\n') || text.length > 180) {
+    return <pre className="sky-node-output-readable-text mb-0">{text}</pre>;
+  }
+
+  const mono = normalizedKey.endsWith('id')
+    || normalizedKey.endsWith('key')
+    || normalizedKey.endsWith('code')
+    || normalizedKey.includes('hash')
+    || normalizedKey.includes('path');
+
+  return <span className={mono ? 'sky-mono' : undefined}>{text}</span>;
+}
+
+function FriendlyOutputValue({ fieldKey = '', value, depth = 0 }) {
+  const parsedValue = parseFriendlyOutputValue(value);
+
+  if (!isFriendlyComplexValue(parsedValue)) {
+    return <FriendlyOutputScalar fieldKey={fieldKey} value={parsedValue} />;
+  }
+
+  if (Array.isArray(parsedValue)) {
+    if (parsedValue.length === 0) {
+      return <span className="sky-muted">No items</span>;
+    }
+
+    const scalarOnly = parsedValue.every((item) => !isFriendlyComplexValue(parseFriendlyOutputValue(item)));
+
+    if (scalarOnly) {
+      return (
+        <ul className="sky-node-output-list mb-0">
+          {parsedValue.map((item, index) => (
+            <li key={`${fieldKey}-${index}`}>
+              <FriendlyOutputScalar fieldKey={fieldKey} value={item} />
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <div className="sky-node-output-array">
+        {parsedValue.map((item, index) => (
+          <div className="sky-node-output-array-item" key={`${fieldKey}-${index}`}>
+            <div className="sky-page-kicker mb-2">Item {index + 1}</div>
+            <FriendlyOutputValue fieldKey={`${fieldKey}.${index}`} value={item} depth={depth + 1} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const entries = Object.entries(parsedValue);
+
+  if (entries.length === 0) {
+    return <span className="sky-muted">No values</span>;
+  }
+
+  return (
+    <div className={`sky-node-output-fields ${depth > 0 ? 'is-nested' : ''}`}>
+      {entries.map(([key, nestedValue]) => {
+        const parsedNestedValue = parseFriendlyOutputValue(nestedValue);
+        const complex = isFriendlyComplexValue(parsedNestedValue);
+        const itemCount = Array.isArray(parsedNestedValue)
+          ? parsedNestedValue.length
+          : complex
+            ? Object.keys(parsedNestedValue).length
+            : 0;
+
+        if (complex) {
+          return (
+            <details className="sky-node-output-nested" key={key} open={depth === 0}>
+              <summary>
+                <span>{humanizeOutputKey(key)}</span>
+                <span className="sky-muted small">{itemCount} item(s)</span>
+              </summary>
+              <div className="sky-node-output-nested-body">
+                <FriendlyOutputValue fieldKey={key} value={parsedNestedValue} depth={depth + 1} />
+              </div>
+            </details>
+          );
+        }
+
+        return (
+          <div className="sky-node-output-field" key={key}>
+            <div className="sky-node-output-label">{humanizeOutputKey(key)}</div>
+            <div className="sky-node-output-value">
+              <FriendlyOutputScalar fieldKey={key} value={parsedNestedValue} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function buildNodeOutputGroups({ outputs = [], contextValues = [], nodes = [] } = {}) {
+  const nodeCatalog = new Map(
+    nodes.map((node, index) => [
+      String(node.nodeKey || ''),
+      {
+        node,
+        index,
+      },
+    ]),
+  );
+  const groups = new Map();
+
+  function ensureGroup(nodeKey, fallback = {}) {
+    const normalizedKey = String(nodeKey || 'workflow').trim() || 'workflow';
+
+    if (!groups.has(normalizedKey)) {
+      const catalogEntry = nodeCatalog.get(normalizedKey);
+      groups.set(normalizedKey, {
+        nodeKey: normalizedKey,
+        node: catalogEntry?.node || null,
+        nodeIndex: catalogEntry?.index ?? Number.MAX_SAFE_INTEGER,
+        nodeTypeCode: fallback.nodeTypeCode || catalogEntry?.node?.nodeTypeCode || 'WORKFLOW',
+        targetCode: fallback.targetCode || catalogEntry?.node?.targetCode || '',
+        outputs: [],
+        contextValues: [],
+      });
+    }
+
+    return groups.get(normalizedKey);
+  }
+
+  outputs.forEach((output) => {
+    ensureGroup(output.nodeKey, output).outputs.push(output);
+  });
+
+  contextValues.forEach((item) => {
+    ensureGroup(item.sourceNodeKey || 'workflow').contextValues.push(item);
+  });
+
+  return Array.from(groups.values()).sort((left, right) => {
+    if (left.nodeKey === 'workflow') return 1;
+    if (right.nodeKey === 'workflow') return -1;
+    if (left.nodeIndex !== right.nodeIndex) return left.nodeIndex - right.nodeIndex;
+    return left.nodeKey.localeCompare(right.nodeKey);
+  });
+}
+
 function getWorkflowHistoryPollingDelay({ activeRunCount = 0, hidden = false, selectedRunActive = false } = {}) {
   if (hidden) {
     return HISTORY_POLL_HIDDEN_MS;
@@ -857,74 +1125,141 @@ function WorkflowRunSummaryPanel({ run, outputs = [] }) {
   );
 }
 
-function WorkflowNodeOutputLedger({ outputs = [], contextValues = [] }) {
+function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = [] }) {
   const hasOutputs = outputs.length > 0;
   const hasContextValues = contextValues.length > 0;
+  const outputGroups = useMemo(
+    () => buildNodeOutputGroups({ outputs, contextValues, nodes }),
+    [contextValues, nodes, outputs],
+  );
 
   return (
     <section className="sky-card mb-4">
       <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div>
           <div className="sky-page-kicker">Node outputs</div>
-          <h2 className="h5 mb-0">Structured output ledger</h2>
+          <h2 className="h5 mb-0">Node-by-node results</h2>
+          <p className="small sky-muted mb-0 mt-1">
+            Outputs and context values are grouped by workflow node and translated into readable fields. Raw JSON remains available for diagnostics.
+          </p>
         </div>
         <div className="d-flex flex-wrap gap-2 small">
           <span className="sky-pill sky-pill-info">{outputs.length} output record(s)</span>
+          <span className="sky-pill sky-pill-info">{outputGroups.length} node group(s)</span>
           {hasContextValues && <span className="sky-pill sky-pill-success">{contextValues.length} context value(s)</span>}
         </div>
       </div>
       <div className="sky-card-body">
-        {!hasOutputs ? (
+        {!hasOutputs && !hasContextValues ? (
           <div className="sky-empty-state">Structured node outputs will appear here after the run records node output persistence.</div>
         ) : (
-          <div className="sky-node-output-grid">
-            {outputs.map((output) => (
-              <article className="sky-worker-command-card" key={output.workflowRunNodeOutputId || `${output.nodeKey}-${output.outputKey}`}>
-                <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
-                  <div>
-                    <div className="sky-page-kicker">{output.nodeTypeCode || 'NODE'} · {output.outputKey || 'result'}</div>
-                    <div className="fw-bold">{output.nodeKey || 'Workflow node'}</div>
-                    <div className="small sky-muted">{output.targetCode || 'No target'} · {output.outputType || 'object'}</div>
-                  </div>
-                  <span className={`sky-pill ${statusClass(output.status)}`}>{output.status || 'SAVED'}</span>
-                </div>
-                <div className="d-flex flex-wrap gap-2 small mb-2">
-                  <span className="sky-pill sky-pill-info">Attempt {output.attemptCount ?? 0}</span>
-                  <span className="sky-pill sky-pill-info">Saved {formatDate(output.updatedAt || output.createdAt)}</span>
-                </div>
-                {output.outputSummary && <p className="small sky-muted mb-2">{output.outputSummary}</p>}
-                {Object.keys(output.inputSnapshot || {}).length > 0 && (
-                  <details className="mb-2">
-                    <summary className="small fw-semibold sky-clickable-row">Resolved input</summary>
-                    <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(output.inputSnapshot, 1400)}</pre>
-                  </details>
-                )}
-                <details open>
-                  <summary className="small fw-semibold sky-clickable-row">Output JSON</summary>
-                  <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(output.output)}</pre>
-                </details>
-              </article>
-            ))}
-          </div>
-        )}
+          <div className="sky-node-output-groups">
+            {outputGroups.map((group) => {
+              const displayName = group.node?.displayName
+                || group.outputs[0]?.metadata?.displayName
+                || (group.nodeKey === 'workflow' ? 'Workflow-level context' : group.nodeKey);
+              const nodeNumber = Number.isInteger(group.nodeIndex) && group.nodeIndex >= 0 && group.nodeIndex < nodes.length
+                ? group.nodeIndex + 1
+                : null;
+              const groupScopeLabel = nodeNumber
+                ? `Node ${nodeNumber}`
+                : group.nodeKey === 'workflow'
+                  ? 'Workflow'
+                  : 'Node';
 
-        {hasContextValues && (
-          <div className="mt-4">
-            <div className="sky-page-kicker mb-2">Workflow context</div>
-            <div className="sky-node-output-grid">
-              {contextValues.map((item) => (
-                <article className="sky-worker-command-card" key={item.workflowRunContextValueId || item.contextKey}>
-                  <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+              return (
+                <article className="sky-node-output-group" key={group.nodeKey}>
+                  <div className="sky-node-output-group-header">
                     <div>
-                      <div className="fw-bold sky-mono">{item.contextKey}</div>
-                      <div className="small sky-muted">{item.sourceNodeKey || 'Workflow'} · {item.valueType || 'unknown'}</div>
+                      <div className="sky-page-kicker">
+                        {groupScopeLabel} · {group.nodeTypeCode || 'NODE'}
+                      </div>
+                      <h3 className="h6 mb-1">{displayName}</h3>
+                      <div className="small sky-muted">
+                        <span className="sky-mono">{group.nodeKey}</span>
+                        {group.targetCode ? <> · <span className="sky-mono">{group.targetCode}</span></> : null}
+                      </div>
                     </div>
-                    <span className="sky-pill sky-pill-info">Context</span>
+                    <div className="d-flex flex-wrap gap-2">
+                      {group.outputs.length > 0 && <span className="sky-pill sky-pill-info">{group.outputs.length} output(s)</span>}
+                      {group.contextValues.length > 0 && <span className="sky-pill sky-pill-success">{group.contextValues.length} context value(s)</span>}
+                    </div>
                   </div>
-                  <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(item.value, 1600)}</pre>
+
+                  {group.outputs.length > 0 && (
+                    <div className="sky-node-output-records">
+                      {group.outputs.map((output, outputIndex) => (
+                        <section
+                          className="sky-node-output-record"
+                          key={output.workflowRunNodeOutputId || `${output.nodeKey}-${output.outputKey}-${outputIndex}`}
+                        >
+                          <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+                            <div>
+                              <div className="sky-page-kicker">Output {outputIndex + 1}</div>
+                              <div className="fw-bold">{humanizeOutputKey(output.outputKey || 'result')}</div>
+                              <div className="small sky-muted">{humanizeOutputKey(output.outputType || 'object')}</div>
+                            </div>
+                            <div className="d-flex flex-wrap gap-2">
+                              <span className={`sky-pill ${statusClass(output.status)}`}>{output.status || 'SAVED'}</span>
+                              <span className="sky-pill sky-pill-info">Attempt {output.attemptCount ?? 0}</span>
+                              <span className="sky-pill sky-pill-info">Saved {formatDate(output.updatedAt || output.createdAt)}</span>
+                            </div>
+                          </div>
+
+                          {output.outputSummary && (
+                            <div className="sky-node-output-summary mb-3">
+                              <div className="sky-page-kicker mb-1">Summary</div>
+                              <div>{output.outputSummary}</div>
+                            </div>
+                          )}
+
+                          <div className="sky-page-kicker mb-2">Output details</div>
+                          <FriendlyOutputValue value={output.output} />
+
+                          {Object.keys(output.inputSnapshot || {}).length > 0 && (
+                            <details className="sky-node-output-diagnostic mt-3">
+                              <summary>Resolved input</summary>
+                              <div className="sky-node-output-diagnostic-body">
+                                <FriendlyOutputValue value={output.inputSnapshot} />
+                              </div>
+                            </details>
+                          )}
+
+                          <details className="sky-node-output-diagnostic mt-3">
+                            <summary>Raw JSON</summary>
+                            <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(output.output)}</pre>
+                          </details>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+
+                  {group.contextValues.length > 0 && (
+                    <div className="sky-node-context-section">
+                      <div className="sky-page-kicker mb-2">Context values from this node</div>
+                      <div className="sky-node-context-grid">
+                        {group.contextValues.map((item) => (
+                          <section className="sky-node-context-item" key={item.workflowRunContextValueId || item.contextKey}>
+                            <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+                              <div>
+                                <div className="fw-bold">{humanizeOutputKey(item.contextKey)}</div>
+                                <div className="small sky-muted sky-mono">{item.contextKey}</div>
+                              </div>
+                              <span className="sky-pill sky-pill-info">{humanizeOutputKey(item.valueType || 'value')}</span>
+                            </div>
+                            <FriendlyOutputValue fieldKey={item.contextKey} value={item.value} />
+                            <details className="sky-node-output-diagnostic mt-3">
+                              <summary>Raw context JSON</summary>
+                              <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(item.value, 1600)}</pre>
+                            </details>
+                          </section>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </article>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -2190,7 +2525,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 </div>
               </section>
 
-              <WorkflowNodeOutputLedger outputs={selectedNodeOutputs} contextValues={selectedContextValues} />
+              <WorkflowNodeOutputLedger outputs={selectedNodeOutputs} contextValues={selectedContextValues} nodes={runtimeVisualNodes} />
           </div>
         </section>
       </div>
@@ -2228,12 +2563,12 @@ function SkyWorkflows({ mode = 'start' }) {
         <div className="d-flex flex-column gap-4">
           <section className="sky-card">
             <div className="sky-card-header">
-              <div className="sky-page-kicker">Workflow launcher</div>
-              <h2 className="h5 mb-0">Choose workflow</h2>
+              <div className="sky-page-kicker">Manual start</div>
+              <h2 className="h5 mb-0">Run selected workflow</h2>
             </div>
-            <div className="sky-card-body">
+            <form className="sky-card-body" onSubmit={handleStartWorkflow}>
               {definitions.length > 0 ? (
-                <div className="row g-3 align-items-end">
+                <div className="row g-3 align-items-end mb-4">
                   <div className="col-xl-7">
                     <label className="form-label" htmlFor="workflowStartDefinition">Active workflow</label>
                     <select
@@ -2250,36 +2585,21 @@ function SkyWorkflows({ mode = 'start' }) {
                     </select>
                   </div>
                   <div className="col-xl-5">
-                    <div className="sky-worker-command-card h-100">
-                      <div className="d-flex flex-wrap justify-content-between gap-2">
-                        <div>
-                          <div className="sky-page-kicker">Selected workflow</div>
-                          <div className="fw-bold">{selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}</div>
-                          <div className="small sky-muted sky-mono">{selectedDefinition?.workflowCode}</div>
-                        </div>
-                        <span className="sky-pill sky-pill-success">{selectedDefinitionDetail?.status || 'ACTIVE'}</span>
-                      </div>
-                      <p className="small sky-muted my-2">{selectedDefinitionDetail?.description || 'No description.'}</p>
-                      <div className="d-flex flex-wrap gap-2">
-                        <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.nodes?.length || 0} node(s)</span>
-                        <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.edges?.length || 0} edge(s)</span>
-                        <span className="sky-pill sky-pill-info">{runtimeParameters.length} runtime param(s)</span>
-                      </div>
+                    <div className="d-flex flex-wrap align-items-center gap-2">
+                      <span className="fw-bold">{selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}</span>
+                      <span className="sky-pill sky-pill-success">{selectedDefinitionDetail?.status || 'ACTIVE'}</span>
+                      <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.nodes?.length || 0} node(s)</span>
+                      <span className="sky-pill sky-pill-info">{runtimeParameters.length} runtime param(s)</span>
+                    </div>
+                    <div className="small sky-muted mt-2">
+                      {selectedDefinitionDetail?.description || 'No workflow description.'}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="sky-empty-state">No active workflow definitions are available.</div>
+                <div className="sky-empty-state mb-4">No active workflow definitions are available.</div>
               )}
-            </div>
-          </section>
 
-          <section className="sky-card">
-            <div className="sky-card-header">
-              <div className="sky-page-kicker">Manual start</div>
-              <h2 className="h5 mb-0">Run selected workflow</h2>
-            </div>
-            <form className="sky-card-body" onSubmit={handleStartWorkflow}>
               <div className="sky-empty-state text-start mb-3">
                 Runtime values are saved into workflow context as <code>params</code>.
                 Configure workflow-level parameter definitions in Create Workflow / Manage Workflows, then reference them inside node defaults with <code>{'{{ params.example }}'}</code>.

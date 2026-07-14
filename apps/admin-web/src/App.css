@@ -4269,6 +4269,166 @@
   }
 }
 
+/* Phase 13.9 — readable, node-grouped output ledger */
+.sky-node-output-groups {
+  display: grid;
+  gap: 1rem;
+}
+
+.sky-node-output-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(124, 144, 177, 0.2);
+  border-radius: 0.9rem;
+  background: rgba(4, 9, 18, 0.44);
+}
+
+.sky-node-output-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(124, 144, 177, 0.16);
+  background: linear-gradient(135deg, rgba(26, 55, 94, 0.32), rgba(8, 15, 28, 0.28));
+}
+
+.sky-node-output-records {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.sky-node-output-record,
+.sky-node-context-item {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.8rem;
+  background: rgba(2, 6, 13, 0.54);
+}
+
+.sky-node-output-summary {
+  padding: 0.75rem 0.85rem;
+  border-left: 3px solid rgba(92, 193, 255, 0.7);
+  border-radius: 0.45rem;
+  background: rgba(36, 112, 174, 0.12);
+}
+
+.sky-node-output-fields {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.sky-node-output-fields.is-nested {
+  padding-top: 0.35rem;
+}
+
+.sky-node-output-field {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.34fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(124, 144, 177, 0.12);
+  border-radius: 0.55rem;
+  background: rgba(11, 22, 39, 0.48);
+}
+
+.sky-node-output-label {
+  color: #9fb5da;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.sky-node-output-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #e2edff;
+}
+
+.sky-node-output-readable-text {
+  max-height: 14rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #d7e7ff;
+  font-family: var(--bs-font-monospace);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.sky-node-output-nested,
+.sky-node-output-diagnostic {
+  min-width: 0;
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 0.6rem;
+  background: rgba(8, 16, 29, 0.48);
+}
+
+.sky-node-output-nested > summary,
+.sky-node-output-diagnostic > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  color: #c9dcfb;
+  font-weight: 700;
+}
+
+.sky-node-output-nested-body,
+.sky-node-output-diagnostic-body {
+  min-width: 0;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.sky-node-output-array {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.sky-node-output-array-item {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid rgba(124, 144, 177, 0.12);
+  border-radius: 0.55rem;
+  background: rgba(8, 16, 29, 0.42);
+}
+
+.sky-node-output-list {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 1.2rem;
+}
+
+.sky-node-context-section {
+  padding: 0 1rem 1rem;
+}
+
+.sky-node-context-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .sky-node-output-field {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+
+  .sky-node-context-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Phase 13.5C — workflow history detail overlay */
 .sky-run-detail-modal-backdrop {
   z-index: 5000;
