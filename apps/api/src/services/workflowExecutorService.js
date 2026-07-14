@@ -7,7 +7,7 @@ const toolManifestService = require('./toolManifestService');
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const MAX_WORKFLOW_RUNTIME_PARAMETERS = 10;
-const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL']);
+const SUPPORTED_NODE_TYPES = new Set(['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL', 'SUMMARY']);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
 const DEFAULT_START_PERMISSION = 'WORKFLOW_START';
@@ -1301,6 +1301,7 @@ function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
     API_CALL: 'Call API',
     CONDITION: 'Evaluate Condition',
     HUMAN_APPROVAL: 'Human Approval',
+    SUMMARY: 'Generate Run Summary',
     WAIT: 'Wait / Delay',
     TEMPORAL_WORKFLOW: 'Start Temporal Workflow',
     TOOL: 'Run Tool',
@@ -1315,6 +1316,7 @@ function getNodeTargetKindForType(nodeTypeCode) {
     API_CALL: 'api.endpoint',
     CONDITION: null,
     HUMAN_APPROVAL: null,
+    SUMMARY: null,
     WAIT: null,
     TEMPORAL_WORKFLOW: 'worker.temporal_workflow_definitions',
     TOOL: 'core.tools',
@@ -1329,6 +1331,7 @@ function getNodeCategoryForType(nodeTypeCode) {
     API_CALL: 'INTEGRATION',
     CONDITION: 'CONTROL',
     HUMAN_APPROVAL: 'HUMAN',
+    SUMMARY: 'CONTROL',
     WAIT: 'CONTROL',
     TEMPORAL_WORKFLOW: 'WORKFLOW',
     TOOL: 'ACTION',
@@ -3362,13 +3365,13 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
   const nodeTypeCode = String(node.nodeTypeCode || 'TOOL').trim().toUpperCase();
 
   if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode)) {
-    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, WAIT, and HUMAN_APPROVAL nodes.', 400, {
+    throw new WorkflowServiceError('Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, WAIT, HUMAN_APPROVAL, and SUMMARY nodes.', 400, {
       nodeTypeCode,
-      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL'],
+      supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL', 'SUMMARY'],
     });
   }
 
-  const inputParameters = getSafeObject(node.inputParameters);
+  let inputParameters = getSafeObject(node.inputParameters);
   const targetCode = String(
     node.targetCode ||
     node.toolCode ||
@@ -3415,6 +3418,10 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     normalizeHumanApprovalParameters(inputParameters, node);
   }
 
+  if (nodeTypeCode === 'SUMMARY') {
+    inputParameters = normalizeSummaryParameters(inputParameters);
+  }
+
   const nodeKeyBase = normalizeNodeKey(
     node.nodeKey || node.displayName || targetCode || `${nodeTypeCode.toLowerCase()}_${index + 1}`,
     `node_${index + 1}`,
@@ -3442,7 +3449,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     positionY: Number.isFinite(Number(node.positionY)) ? Number(node.positionY) : 120,
     displayOrder: Number.isFinite(Number(node.displayOrder)) ? Number(node.displayOrder) : (index + 1) * 10,
     enabled: node.enabled !== false,
-    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : nodeTypeCode === 'CONDITION' ? 'condition' : nodeTypeCode === 'WAIT' ? 'wait' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'human_approval' : 'tool' }),
+    config: getSafeObject(node.config, { builderCard: nodeTypeCode === 'API_CALL' ? 'api' : nodeTypeCode === 'WORKFLOW' ? 'workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'temporal' : nodeTypeCode === 'CONDITION' ? 'condition' : nodeTypeCode === 'WAIT' ? 'wait' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'human_approval' : nodeTypeCode === 'SUMMARY' ? 'summary' : 'tool' }),
   };
 }
 
@@ -3622,7 +3629,7 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         JSON.stringify({
           createdBy: 'workflow_builder_v1',
           builderVersion: '10.25',
-          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL'],
+          supportedNodeTypes: ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'CONDITION', 'WAIT', 'HUMAN_APPROVAL', 'SUMMARY'],
           runtimeParameters,
         }),
         user?.userId || null,
@@ -5188,6 +5195,10 @@ async function executeNode({ node, parameters, user, session, permissions, conte
     return runTemporalWorkflowNode({ node, parameters, user, context });
   }
 
+  if (node.nodeTypeCode === 'SUMMARY') {
+    return buildWorkflowRunSummaryOutput({ node, parameters, context });
+  }
+
   throw new WorkflowServiceError(`Node type has no executor adapter: ${node.nodeTypeCode}`, 501);
 }
 
@@ -5211,6 +5222,205 @@ function buildConditionStopSummary({ definition, output, completedNodeCount, tot
   const skippedNodeCount = Math.max(0, Number(totalNodeCount || 0) - Number(completedNodeCount || 0));
 
   return `Workflow ${definition.displayName} stopped successfully by condition gate: ${output.summary || 'condition returned false'} (${skippedNodeCount} remaining node(s) skipped).`;
+}
+
+function normalizeSummaryParameters(parameters = {}) {
+  const input = getSafeObject(parameters);
+
+  return {
+    title: String(input.title || '').trim(),
+    summaryTemplate: String(input.summaryTemplate || input.template || '').trim(),
+    technicalDetailsTemplate: String(input.technicalDetailsTemplate || input.technicalTemplate || '').trim(),
+    recommendedNextActions: String(input.recommendedNextActions || '').trim(),
+    includeKeyOutputs: input.includeKeyOutputs !== false && input.includeKeyOutputs !== 'false',
+    includeWarnings: input.includeWarnings !== false && input.includeWarnings !== 'false',
+    includeTimings: input.includeTimings !== false && input.includeTimings !== 'false',
+  };
+}
+
+function splitSummaryActions(value) {
+  return String(value || '')
+    .split(/[;\n]+/g)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function countRunNodeStatuses(nodeRuns = []) {
+  return getSafeArray(nodeRuns).reduce((accumulator, nodeRun) => {
+    const status = String(nodeRun?.status || 'UNKNOWN').trim().toUpperCase() || 'UNKNOWN';
+    accumulator[status] = (accumulator[status] || 0) + 1;
+    accumulator.total += 1;
+    return accumulator;
+  }, {
+    total: 0,
+    COMPLETED: 0,
+    FAILED: 0,
+    RUNNING: 0,
+    SKIPPED: 0,
+    PENDING_APPROVAL: 0,
+  });
+}
+
+function getWorkflowRunSummaryOutput(nodeOutputsByKey = {}) {
+  for (const [nodeKey, rawOutput] of Object.entries(getSafeObject(nodeOutputsByKey))) {
+    const output = getSafeObject(rawOutput);
+
+    if (output.kind === 'workflow_run_summary') {
+      return {
+        ...output,
+        nodeKey,
+      };
+    }
+
+    const nestedOutput = getSafeObject(output.output);
+    if (nestedOutput.kind === 'workflow_run_summary') {
+      return {
+        ...nestedOutput,
+        nodeKey,
+      };
+    }
+  }
+
+  return null;
+}
+
+function renderSummaryTemplate(template, scope, fallback = '') {
+  const text = String(template || '').trim();
+
+  if (!text) {
+    return fallback;
+  }
+
+  const rendered = resolveRuntimeTemplates(text, scope);
+  if (typeof rendered === 'string') {
+    return rendered.trim();
+  }
+
+  return truncateJsonPreview(rendered, 4000);
+}
+
+function buildSummaryKeyOutputs(nodeOutputsByKey = {}) {
+  return Object.entries(getSafeObject(nodeOutputsByKey)).reduce((accumulator, [nodeKey, rawOutput]) => {
+    const output = getSafeObject(rawOutput);
+
+    if (output.kind === 'workflow_run_summary') {
+      return accumulator;
+    }
+
+    const nestedOutput = getSafeObject(output.output);
+    accumulator[nodeKey] = {
+      kind: output.kind || nestedOutput.kind || 'node_output',
+      status: output.status || (output.success === false ? 'FAILED' : output.success === true ? 'SUCCESS' : null),
+      summary: summarizeWorkflowNodeOutput(output) || output.summary || output.message || nestedOutput.summary || nestedOutput.message || '',
+      outputPreview: truncateJsonPreview(nestedOutput && Object.keys(nestedOutput).length > 0 ? nestedOutput : output, 1600),
+    };
+
+    return accumulator;
+  }, {});
+}
+
+function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {} } = {}) {
+  const rawNodeParameters = getSafeObject(node.inputParameters);
+  const summaryParameters = normalizeSummaryParameters({
+    ...getSafeObject(parameters),
+    summaryTemplate: rawNodeParameters.summaryTemplate ?? rawNodeParameters.template ?? parameters.summaryTemplate,
+    technicalDetailsTemplate: rawNodeParameters.technicalDetailsTemplate ?? rawNodeParameters.technicalTemplate ?? parameters.technicalDetailsTemplate,
+  });
+  const workflowContext = getSafeObject(context.workflowContext || context.context);
+  const workflowInfo = getSafeObject(workflowContext.workflow);
+  const definition = getSafeObject(context.definition);
+  const nodeRuns = getSafeArray(context.nodeRuns);
+  const nodeOutputsByKey = getSafeObject(context.previousOutputs);
+  const counts = countRunNodeStatuses(nodeRuns);
+  const totalNodeCount = Number(context.totalNodeCount || getSafeArray(definition.nodes).length || counts.total || 0);
+  const skippedNodeCount = Math.max(0, totalNodeCount - counts.total);
+  const workflowName = summaryParameters.title
+    || definition.displayName
+    || workflowInfo.workflowDisplayName
+    || workflowInfo.workflowCode
+    || 'Workflow';
+  const now = new Date().toISOString();
+  const durationMs = Number.isFinite(Number(context.startedAtMs)) ? Math.max(0, Date.now() - Number(context.startedAtMs)) : null;
+  const scope = buildTemplateResolutionScope({
+    input: workflowInfo.input || {},
+    context: {
+      ...getSafeObject(context),
+      workflowContext,
+      context: workflowContext,
+      params: getSafeObject(context.params || workflowContext.params),
+      previousOutputs: nodeOutputsByKey,
+      nodes: getSafeObject(context.nodes || workflowContext.nodes),
+    },
+  });
+  const keyOutputs = summaryParameters.includeKeyOutputs ? buildSummaryKeyOutputs(nodeOutputsByKey) : {};
+  const warnings = [];
+  const errors = [];
+
+  for (const nodeRun of nodeRuns) {
+    if (nodeRun?.status === TERMINAL_FAILURE_STATUS || nodeRun?.errorMessage) {
+      errors.push({
+        nodeKey: nodeRun.nodeKey || null,
+        status: nodeRun.status || null,
+        message: nodeRun.errorMessage || getSafeObject(nodeRun.output).message || 'Node failed.',
+      });
+    }
+  }
+
+  if (counts.FAILED > 0) {
+    warnings.push(`${counts.FAILED} node(s) failed before the summary node executed.`);
+  }
+
+  if (skippedNodeCount > 0) {
+    warnings.push(`${skippedNodeCount} node(s) did not run before the summary node executed.`);
+  }
+
+  const defaultSummary = `Workflow ${workflowName} summarized: ${counts.COMPLETED}/${totalNodeCount || counts.total} node(s) completed${counts.FAILED ? `, ${counts.FAILED} failed` : ''}${skippedNodeCount ? `, ${skippedNodeCount} not run` : ''}.`;
+  const summary = renderSummaryTemplate(summaryParameters.summaryTemplate, scope, defaultSummary) || defaultSummary;
+  const technicalDetails = renderSummaryTemplate(summaryParameters.technicalDetailsTemplate, scope, '');
+  const recommendedNextActions = splitSummaryActions(summaryParameters.recommendedNextActions);
+  const status = errors.length > 0 ? 'WARNING' : 'SUCCESS';
+
+  return {
+    kind: 'workflow_run_summary',
+    title: workflowName,
+    status,
+    summary,
+    message: summary,
+    technicalDetails,
+    recommendedNextActions,
+    keyOutputs,
+    warnings: summaryParameters.includeWarnings ? warnings : [],
+    errors: summaryParameters.includeWarnings ? errors : [],
+    counts: {
+      totalNodes: totalNodeCount || counts.total,
+      completedNodes: counts.COMPLETED,
+      failedNodes: counts.FAILED,
+      runningNodes: counts.RUNNING,
+      skippedNodes: skippedNodeCount,
+    },
+    timings: summaryParameters.includeTimings ? {
+      durationMs,
+      generatedAt: now,
+      startedAt: workflowInfo.startedAt || null,
+      completedAt: null,
+    } : {},
+    output: {
+      title: workflowName,
+      summary,
+      status,
+      keyOutputs,
+      recommendedNextActions,
+    },
+    contextUpdates: {
+      'summary.title': workflowName,
+      'summary.text': summary,
+      'summary.status': status,
+      'summary.generatedAt': now,
+      'summary.nodeKey': node.nodeKey || null,
+      'summary.keyOutputs': keyOutputs,
+    },
+  };
 }
 
 function getConditionBranchTargetKeyFromOutput(output = {}) {
@@ -5404,14 +5614,21 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
     while (currentNodeIndex < executionPlan.nodes.length) {
       const node = executionPlan.nodes[currentNodeIndex];
       const nodeRun = await insertNodeRun({ workflowRunRecordId: run.workflowRunRecordId, node });
-      const nodeContext = buildWorkflowExecutionContext({
-        baseContext: context,
-        runtimeContext: workflowRuntimeContext,
-        input: normalizedInput,
-        nodeOutputsByKey,
-        previousNodeOutput,
-        currentNodeKey: node.nodeKey,
-      });
+      const nodeContext = {
+        ...buildWorkflowExecutionContext({
+          baseContext: context,
+          runtimeContext: workflowRuntimeContext,
+          input: normalizedInput,
+          nodeOutputsByKey,
+          previousNodeOutput,
+          currentNodeKey: node.nodeKey,
+        }),
+        definition,
+        workflowRunRecordId: run.workflowRunRecordId,
+        nodeRuns,
+        startedAtMs,
+        totalNodeCount: definition.nodes.length,
+      };
       const parameters = buildNodeParameters(node, normalizedInput, nodeContext);
       let nextNodeIndex = currentNodeIndex + 1;
 
@@ -5479,6 +5696,7 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
       currentNodeIndex = nextNodeIndex;
     }
 
+    const summaryOutput = getWorkflowRunSummaryOutput(nodeOutputsByKey);
     const summary = conditionStop
       ? buildConditionStopSummary({
         definition,
@@ -5486,7 +5704,7 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
         completedNodeCount: nodeRuns.length,
         totalNodeCount: definition.nodes.length,
       })
-      : `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
+      : summaryOutput?.summary || `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
     const completedRun = await updateWorkflowRun({
       workflowRunRecordId: run.workflowRunRecordId,
       status: TERMINAL_SUCCESS_STATUS,
@@ -5497,6 +5715,8 @@ async function executeWorkflow({ workflowCode, input = {}, user, session, permis
         skippedNodeCount: conditionStop ? Math.max(0, definition.nodes.length - nodeRuns.length) : Math.max(0, definition.nodes.length - nodeRuns.length),
         conditionStopNodeKey: conditionStop?.nodeKey || null,
         conditionBranchRoutes,
+        summaryNodeKey: summaryOutput?.nodeKey || null,
+        summaryTitle: summaryOutput?.title || null,
       },
     });
 

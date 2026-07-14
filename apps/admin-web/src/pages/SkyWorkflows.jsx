@@ -612,6 +612,10 @@ function WorkflowDefinitionCard({ definition, selected, onSelect }) {
 }
 
 function getNodeOutputSummary(output = {}) {
+  if (output.kind === 'workflow_run_summary') {
+    return output.summary || output.message || output.title || 'Workflow summary generated.';
+  }
+
   if (output.summary) {
     return output.summary;
   }
@@ -755,6 +759,90 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
 }
 
 
+
+function getWorkflowRunSummaryFromOutputs(outputs = []) {
+  for (const record of outputs) {
+    const output = record?.output || {};
+
+    if (output?.kind === 'workflow_run_summary') {
+      return {
+        ...output,
+        nodeKey: record.nodeKey,
+        outputKey: record.outputKey,
+        savedAt: record.updatedAt || record.createdAt,
+      };
+    }
+
+    if (output?.output?.kind === 'workflow_run_summary') {
+      return {
+        ...output.output,
+        nodeKey: record.nodeKey,
+        outputKey: record.outputKey,
+        savedAt: record.updatedAt || record.createdAt,
+      };
+    }
+  }
+
+  return null;
+}
+
+function WorkflowRunSummaryPanel({ run, outputs = [] }) {
+  if (!run) {
+    return null;
+  }
+
+  const summaryOutput = getWorkflowRunSummaryFromOutputs(outputs);
+  const summaryText = summaryOutput?.summary || run.summary || '';
+
+  if (!summaryText) {
+    return null;
+  }
+
+  const counts = summaryOutput?.counts || {};
+  const timings = summaryOutput?.timings || {};
+  const recommendedNextActions = Array.isArray(summaryOutput?.recommendedNextActions) ? summaryOutput.recommendedNextActions : [];
+  const warnings = Array.isArray(summaryOutput?.warnings) ? summaryOutput.warnings : [];
+  const errors = Array.isArray(summaryOutput?.errors) ? summaryOutput.errors : [];
+
+  return (
+    <section className="sky-card mb-4">
+      <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Run summary</div>
+          <h2 className="h5 mb-0">{summaryOutput?.title || run.workflowDisplayName || 'Workflow run summary'}</h2>
+          <p className="small sky-muted mb-0 mt-1">{summaryText}</p>
+        </div>
+        <div className="d-flex flex-wrap gap-2 small">
+          <span className={`sky-pill ${statusClass(summaryOutput?.status || run.status)}`}>{summaryOutput?.status || run.status}</span>
+          {summaryOutput?.nodeKey && <span className="sky-pill sky-pill-info">{summaryOutput.nodeKey}</span>}
+          {timings.durationMs !== undefined && timings.durationMs !== null && <span className="sky-pill sky-pill-info">{formatDuration(timings.durationMs)}</span>}
+        </div>
+      </div>
+      <div className="sky-card-body">
+        <div className="row g-3">
+          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Completed</div><div className="sky-stat-value">{counts.completedNodes ?? '—'}</div></div></div>
+          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Failed</div><div className="sky-stat-value">{counts.failedNodes ?? 0}</div></div></div>
+          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Skipped</div><div className="sky-stat-value">{counts.skippedNodes ?? 0}</div></div></div>
+          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Total nodes</div><div className="sky-stat-value">{counts.totalNodes ?? '—'}</div></div></div>
+        </div>
+        {summaryOutput?.technicalDetails && <pre className="sky-json-block mt-3 mb-0">{summaryOutput.technicalDetails}</pre>}
+        {recommendedNextActions.length > 0 && (
+          <div className="mt-3">
+            <div className="sky-page-kicker mb-2">Recommended next actions</div>
+            <ul className="small sky-muted mb-0">
+              {recommendedNextActions.map((action) => <li key={action}>{action}</li>)}
+            </ul>
+          </div>
+        )}
+        {(warnings.length > 0 || errors.length > 0) && (
+          <div className="alert alert-warning mt-3 mb-0 py-2">
+            {[...warnings, ...errors.map((error) => error.message || String(error))].map((item) => <div key={item}>{item}</div>)}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function WorkflowNodeOutputLedger({ outputs = [], contextValues = [] }) {
   const hasOutputs = outputs.length > 0;
@@ -1992,6 +2080,8 @@ function SkyWorkflows({ mode = 'start' }) {
           </div>
 
           <div className="sky-workflow-history-detail-stack">
+              <WorkflowRunSummaryPanel run={selectedRun} outputs={selectedNodeOutputs} />
+
               <section className="sky-card">
                 <div className="sky-card-body">
                   {!selectedRun ? (

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getConditionExpressionSummary } from './ConditionParameterEditor.jsx';
 import { getHumanApprovalSummary } from './HumanApprovalParameterEditor.jsx';
 import { formatWaitDuration } from './WaitParameterEditor.jsx';
+import { getSummaryExpressionSummary } from './SummaryParameterEditor.jsx';
 import { getRetryPolicySummary } from './WorkflowRetryPolicyEditor.jsx';
 
 function normalizeNodeType(value) {
@@ -67,6 +68,13 @@ function getNodeTypeMeta(nodeTypeCode) {
       marker: '✓',
       className: 'sky-workflow-visual-node-approval',
       pillClassName: 'sky-pill-success',
+    },
+    SUMMARY: {
+      badge: 'SUMMARY',
+      label: 'Run summary',
+      marker: 'Σ',
+      className: 'sky-workflow-visual-node-summary',
+      pillClassName: 'sky-pill-info',
     },
   };
 
@@ -439,6 +447,10 @@ function getNodeSummary(node, catalogs = {}) {
     return getHumanApprovalSummary(node.inputParameters);
   }
 
+  if (nodeTypeCode === 'SUMMARY') {
+    return getSummaryExpressionSummary(node.inputParameters);
+  }
+
   return getCatalogLabel(catalogs, node);
 }
 
@@ -463,6 +475,10 @@ function getNodeDetail(node, nodes = []) {
   if (nodeTypeCode === 'HUMAN_APPROVAL') {
     const role = parameters.requiredRoleCode || 'No role gate';
     return `Role: ${role}`;
+  }
+
+  if (nodeTypeCode === 'SUMMARY') {
+    return parameters.summaryTemplate ? 'Custom summary template' : 'Auto summary from workflow context';
   }
 
   if (nodeTypeCode === 'API_CALL') {
@@ -541,6 +557,16 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
       ['Timeout', `${parameters.timeoutDuration || 24} ${String(parameters.timeoutUnit || 'HOURS').toLowerCase()}`],
       ['When rejected', formatAction(parameters.onReject || parameters.onRejected, 'STOP_SUCCESS')],
       ['When timed out', formatAction(parameters.onTimeout, 'FAIL_WORKFLOW')],
+    );
+    return rows;
+  }
+
+  if (nodeTypeCode === 'SUMMARY') {
+    rows.push(
+      ['Summary mode', getSummaryExpressionSummary(parameters)],
+      ['Title', parameters.title || node.displayName || 'Workflow run summary'],
+      ['Technical details', parameters.technicalDetailsTemplate ? 'custom template' : 'auto'],
+      ['Recommended actions', parameters.recommendedNextActions ? 'configured' : '—'],
     );
     return rows;
   }

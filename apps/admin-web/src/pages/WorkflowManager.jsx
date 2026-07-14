@@ -30,6 +30,11 @@ import RuntimeParameterSchemaEditor, {
   cleanRuntimeParameterDefinitions,
   normalizeRuntimeParameterDefinitions,
 } from '../components/RuntimeParameterSchemaEditor.jsx';
+import SummaryParameterEditor, {
+  cleanSummaryParameterValues,
+  DEFAULT_SUMMARY_PARAMETERS,
+  getSummaryExpressionSummary,
+} from '../components/SummaryParameterEditor.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
@@ -114,7 +119,9 @@ function graphNodesToEditorNodes(nodes = []) {
           ? { ...DEFAULT_WAIT_PARAMETERS, ...(node.inputParameters || {}) }
           : node.nodeTypeCode === 'HUMAN_APPROVAL'
             ? { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS, ...(node.inputParameters || {}) }
-            : node.inputParameters || {},
+            : node.nodeTypeCode === 'SUMMARY'
+              ? { ...DEFAULT_SUMMARY_PARAMETERS, ...(node.inputParameters || {}) }
+              : node.inputParameters || {},
     retryPolicy: getInitialRetryPolicyValues(node.retryPolicy),
     timeoutMs: node.timeoutMs ? String(node.timeoutMs) : '',
     positionX: node.positionX,
@@ -379,6 +386,20 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   );
 }
 
+function getManagerNodeExpressionSummary(node, selectedTool) {
+  const nodeTypeCode = String(node?.nodeTypeCode || 'TOOL').toUpperCase();
+
+  if (nodeTypeCode === 'API_CALL') return node.inputParameters?.url || 'api endpoint';
+  if (nodeTypeCode === 'WORKFLOW') return node.targetCode || 'child workflow';
+  if (nodeTypeCode === 'TEMPORAL_WORKFLOW') return node.targetCode || 'temporal template';
+  if (nodeTypeCode === 'CONDITION') return getConditionExpressionSummary(node.inputParameters);
+  if (nodeTypeCode === 'WAIT') return formatWaitDuration(node.inputParameters);
+  if (nodeTypeCode === 'HUMAN_APPROVAL') return getHumanApprovalSummary(node.inputParameters);
+  if (nodeTypeCode === 'SUMMARY') return getSummaryExpressionSummary(node.inputParameters);
+
+  return node.targetCode || selectedTool?.targetCode || 'target tool';
+}
+
 function EditableNodeCard({ index, node, allNodes = [], highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
@@ -462,6 +483,18 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
       return;
     }
 
+    if (nextType === 'SUMMARY') {
+      patch({
+        nodeTypeCode: 'SUMMARY',
+        targetCode: '',
+        displayName: node.displayName || 'Generate Run Summary',
+        nodeKey: node.nodeKey || `summary_${index + 1}`,
+        description: node.description || 'Generates a human-readable workflow run summary from params, context, outputs, errors, and timings.',
+        inputParameters: { ...DEFAULT_SUMMARY_PARAMETERS },
+      });
+      return;
+    }
+
     patch({
       nodeTypeCode: 'TOOL',
       targetCode: '',
@@ -520,9 +553,9 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
     >
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'Human approval' : 'Tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {getNodeTypeLabel(nodeTypeCode)}</div>
           <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'Workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : nodeTypeCode === 'WAIT' ? formatWaitDuration(node.inputParameters) : nodeTypeCode === 'HUMAN_APPROVAL' ? getHumanApprovalSummary(node.inputParameters) : node.targetCode || 'target tool'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {getManagerNodeExpressionSummary(node, selectedTool)}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -547,6 +580,7 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
             <option value="CONDITION">Condition / branch</option>
             <option value="WAIT">Wait / delay</option>
             <option value="HUMAN_APPROVAL">Human approval</option>
+            <option value="SUMMARY">Summary / run report</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -701,6 +735,18 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
                 Creates a pending approval request and waits for a Temporal signal before continuing.
               </div>
             </>
+          ) : nodeTypeCode === 'SUMMARY' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Run summary parameters</div>
+              <SummaryParameterEditor
+                idPrefix={`manager-node-${index}-summary`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameters={node.inputParameters || {}}
+              />
+              <div className="form-text mt-2">
+                Generates a structured workflow summary from runtime params, workflow context, node outputs, errors, and timings.
+              </div>
+            </>
           ) : (
             <>
               <div className="sky-page-kicker mb-2">Tool parameters</div>
@@ -741,6 +787,7 @@ function getNodeTypeLabel(nodeTypeCode = 'TOOL') {
     CONDITION: 'Condition / branch',
     WAIT: 'Wait / delay',
     HUMAN_APPROVAL: 'Human approval',
+    SUMMARY: 'Run summary',
   };
 
   return labels[String(nodeTypeCode || 'TOOL').toUpperCase()] || labels.TOOL;
@@ -1054,7 +1101,16 @@ function WorkflowManager() {
                   description: 'Pauses the workflow until an authorized user approves or rejects the request.',
                   inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
                 }
-                : { ...EMPTY_NODE, nodeKey: `node_${nextIndex + 1}` };
+                : nodeTypeCode === 'SUMMARY'
+                  ? {
+                    ...EMPTY_NODE,
+                    nodeTypeCode: 'SUMMARY',
+                    nodeKey: `summary_${nextIndex + 1}`,
+                    displayName: 'Generate Run Summary',
+                    description: 'Generates a human-readable workflow run summary from params, context, outputs, errors, and timings.',
+                    inputParameters: { ...DEFAULT_SUMMARY_PARAMETERS },
+                  }
+                  : { ...EMPTY_NODE, nodeKey: `node_${nextIndex + 1}` };
 
     setEditorNodes((current) => [...current, nextNode]);
     setSelectedVisualNodeIndex(nextIndex);
@@ -1247,6 +1303,22 @@ function WorkflowManager() {
           config: {
             builderCard: 'human_approval',
             updatedBy: 'workflow_manager_ui_v7',
+          },
+        };
+      }
+
+      if (nodeTypeCode === 'SUMMARY') {
+        return {
+          nodeKey,
+          nodeTypeCode: 'SUMMARY',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode: '',
+          inputParameters: cleanSummaryParameterValues(node.inputParameters),
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'summary',
+            updatedBy: 'workflow_manager_ui_v8',
           },
         };
       }
@@ -1737,7 +1809,7 @@ function WorkflowManager() {
                     <div className="sky-page-kicker">Workflow graph</div>
                     <h2 className="h5 mb-0">{graphLocked ? 'Published graph preview' : 'Edit draft sequential graph with condition gates, waits, and approvals'}</h2>
                   </div>
-                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button></div>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('SUMMARY')} type="button">Add summary</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   {graphLocked && (

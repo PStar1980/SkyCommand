@@ -28,6 +28,11 @@ import RuntimeParameterSchemaEditor, {
   cleanRuntimeParameterDefinitions,
   normalizeRuntimeParameterDefinitions,
 } from '../components/RuntimeParameterSchemaEditor.jsx';
+import SummaryParameterEditor, {
+  cleanSummaryParameterValues,
+  DEFAULT_SUMMARY_PARAMETERS,
+  getSummaryExpressionSummary,
+} from '../components/SummaryParameterEditor.jsx';
 import workflowService from '../services/workflowService';
 
 const DEFAULT_API_PARAMETERS = {
@@ -319,6 +324,36 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
   );
 }
 
+
+function getBuilderNodeTypeLabel(nodeTypeCode) {
+  const map = {
+    API_CALL: 'API call',
+    WORKFLOW: 'Child workflow',
+    TEMPORAL_WORKFLOW: 'Temporal workflow',
+    CONDITION: 'Condition',
+    WAIT: 'Wait / delay',
+    HUMAN_APPROVAL: 'Human approval',
+    SUMMARY: 'Run summary',
+    TOOL: 'Tool',
+  };
+
+  return map[String(nodeTypeCode || 'TOOL').toUpperCase()] || 'Tool';
+}
+
+function getBuilderNodeExpressionSummary(node, selectedTool) {
+  const nodeTypeCode = String(node?.nodeTypeCode || 'TOOL').toUpperCase();
+
+  if (nodeTypeCode === 'API_CALL') return node.inputParameters?.url || 'api endpoint';
+  if (nodeTypeCode === 'WORKFLOW') return node.targetCode || 'child workflow';
+  if (nodeTypeCode === 'TEMPORAL_WORKFLOW') return node.targetCode || 'temporal template';
+  if (nodeTypeCode === 'CONDITION') return getConditionExpressionSummary(node.inputParameters);
+  if (nodeTypeCode === 'WAIT') return formatWaitDuration(node.inputParameters);
+  if (nodeTypeCode === 'HUMAN_APPROVAL') return getHumanApprovalSummary(node.inputParameters);
+  if (nodeTypeCode === 'SUMMARY') return getSummaryExpressionSummary(node.inputParameters);
+
+  return node.targetCode || selectedTool?.targetCode || 'target tool';
+}
+
 function WorkflowBuilderNodeCard({
   index,
   node,
@@ -414,6 +449,18 @@ function WorkflowBuilderNodeCard({
       return;
     }
 
+    if (nextType === 'SUMMARY') {
+      patch({
+        nodeTypeCode: 'SUMMARY',
+        targetCode: '',
+        displayName: node.displayName || 'Generate Run Summary',
+        nodeKey: node.nodeKey || `summary_${index + 1}`,
+        description: node.description || 'Generates a human-readable workflow run summary from params, context, outputs, errors, and timings.',
+        inputParameters: { ...DEFAULT_SUMMARY_PARAMETERS },
+      });
+      return;
+    }
+
     patch({
       nodeTypeCode: 'TOOL',
       targetCode: '',
@@ -470,9 +517,9 @@ function WorkflowBuilderNodeCard({
     <div className="sky-worker-command-card">
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
-          <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode === 'API_CALL' ? 'API call' : nodeTypeCode === 'WORKFLOW' ? 'Child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? 'Temporal workflow' : nodeTypeCode === 'CONDITION' ? 'Condition' : nodeTypeCode === 'WAIT' ? 'Wait / delay' : nodeTypeCode === 'HUMAN_APPROVAL' ? 'Human approval' : 'Tool'}</div>
+          <div className="sky-page-kicker">Node {index + 1} · {getBuilderNodeTypeLabel(nodeTypeCode)}</div>
           <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'New workflow node'}</div>
-          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {nodeTypeCode === 'API_CALL' ? node.inputParameters?.url || 'api endpoint' : nodeTypeCode === 'WORKFLOW' ? node.targetCode || 'child workflow' : nodeTypeCode === 'TEMPORAL_WORKFLOW' ? node.targetCode || 'temporal template' : nodeTypeCode === 'CONDITION' ? getConditionExpressionSummary(node.inputParameters) : nodeTypeCode === 'WAIT' ? formatWaitDuration(node.inputParameters) : nodeTypeCode === 'HUMAN_APPROVAL' ? getHumanApprovalSummary(node.inputParameters) : node.targetCode || 'target tool'}</div>
+          <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {getBuilderNodeExpressionSummary(node, selectedTool)}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-sm sky-btn-ghost" disabled={index === 0} onClick={onMoveUp} type="button">↑</button>
@@ -497,6 +544,7 @@ function WorkflowBuilderNodeCard({
             <option value="CONDITION">Condition / branch</option>
             <option value="WAIT">Wait / delay</option>
             <option value="HUMAN_APPROVAL">Human approval</option>
+            <option value="SUMMARY">Summary / run report</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -649,6 +697,18 @@ function WorkflowBuilderNodeCard({
               />
               <div className="form-text mt-2">
                 Creates a pending approval request and waits for a Temporal signal before continuing.
+              </div>
+            </>
+          ) : nodeTypeCode === 'SUMMARY' ? (
+            <>
+              <div className="sky-page-kicker mb-2">Run summary parameters</div>
+              <SummaryParameterEditor
+                idPrefix={`node-${index}-summary`}
+                onChange={(inputParameters) => patch({ inputParameters })}
+                parameters={node.inputParameters || {}}
+              />
+              <div className="form-text mt-2">
+                Generates a structured workflow summary from runtime params, workflow context, node outputs, errors, and timings.
               </div>
             </>
           ) : (
@@ -889,7 +949,16 @@ function WorkflowBuilder() {
                     description: 'Pauses the workflow until an authorized user approves or rejects the request.',
                     inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
                   }
-                  : {
+                  : nodeTypeCode === 'SUMMARY'
+                    ? {
+                      ...EMPTY_NODE,
+                      nodeTypeCode: 'SUMMARY',
+                      nodeKey: `summary_${current.length + 1}`,
+                      displayName: 'Generate Run Summary',
+                      description: 'Generates a human-readable workflow run summary from params, context, outputs, errors, and timings.',
+                      inputParameters: { ...DEFAULT_SUMMARY_PARAMETERS },
+                    }
+                    : {
             ...EMPTY_NODE,
             nodeKey: `node_${current.length + 1}`,
           },
@@ -1044,6 +1113,22 @@ function WorkflowBuilder() {
           config: {
             builderCard: 'human_approval',
             createdBy: 'workflow_builder_ui_v7',
+          },
+        };
+      }
+
+      if (nodeTypeCode === 'SUMMARY') {
+        return {
+          nodeKey,
+          nodeTypeCode: 'SUMMARY',
+          displayName,
+          description: String(node.description || '').trim(),
+          targetCode: '',
+          inputParameters: cleanSummaryParameterValues(node.inputParameters),
+          displayOrder: (index + 1) * 10,
+          config: {
+            builderCard: 'summary',
+            createdBy: 'workflow_builder_ui_v8',
           },
         };
       }
@@ -1230,6 +1315,7 @@ function WorkflowBuilder() {
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('CONDITION')} type="button">Add condition</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('WAIT')} type="button">Add wait/delay</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('HUMAN_APPROVAL')} type="button">Add approval</button>
+                  <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('SUMMARY')} type="button">Add summary</button>
                 </div>
               </div>
               <div className="sky-card-body d-flex flex-column gap-3">
