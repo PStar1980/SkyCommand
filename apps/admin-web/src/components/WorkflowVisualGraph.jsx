@@ -674,7 +674,7 @@ function WorkflowVisualEdge({ active = false, fromNode, index, nodeRun, nodes, r
   );
 }
 
-function WorkflowVisualInspector({ approvals = [], catalogs, nodeRuns = [], nodes = [], runtimeMode = false, selectedNodeIndex = null, onNodeMove, onNodeSelect }) {
+function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspectorRows = false, nodeRuns = [], nodes = [], runtimeMode = false, selectedNodeIndex = null, onNodeMove, onNodeSelect }) {
   const hasSelection = Number.isInteger(selectedNodeIndex)
     && selectedNodeIndex >= 0
     && selectedNodeIndex < nodes.length;
@@ -696,7 +696,7 @@ function WorkflowVisualInspector({ approvals = [], catalogs, nodeRuns = [], node
   const node = nodes[selectedNodeIndex];
   const nodeRun = getNodeRunForNode(node, nodeRuns);
   const approval = getApprovalForNode({ node, nodeRun, approvals });
-  const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval }) : null;
+  const runtimeOverlay = (runtimeMode || includeRuntimeInspectorRows) ? getRuntimeOverlay({ node, nodeRun, approval }) : null;
   const meta = getNodeTypeMeta(node.nodeTypeCode);
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${selectedNodeIndex + 1}`;
   const rows = getInspectorRows(node, catalogs, nodes);
@@ -813,6 +813,7 @@ function WorkflowVisualGraph({
   followActiveNode = false,
   headingKicker,
   headerActions = null,
+  includeRuntimeInspectorRows = false,
   nodeRuns = [],
   nodes = [],
   runStatus = '',
@@ -1037,6 +1038,7 @@ function WorkflowVisualGraph({
           <WorkflowVisualInspector
             approvals={approvals}
             catalogs={catalogs}
+            includeRuntimeInspectorRows={includeRuntimeInspectorRows}
             nodeRuns={nodeRuns}
             nodes={nodes}
             runtimeMode={runtimeMode}
