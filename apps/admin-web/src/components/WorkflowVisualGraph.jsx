@@ -813,6 +813,7 @@ function WorkflowVisualGraph({
   followActiveNode = false,
   headingKicker,
   headerActions = null,
+  headerActionsStandalone = false,
   includeRuntimeInspectorRows = false,
   nodeRuns = [],
   nodes = [],
@@ -953,8 +954,10 @@ function WorkflowVisualGraph({
           <h3 className="h5 mb-1">{resolvedTitle}</h3>
           <p className="sky-muted mb-0">{resolvedSubtitle}</p>
         </div>
-        <div className="d-flex flex-wrap align-items-center gap-2">
-          {headerActions}
+        <div className={`d-flex flex-wrap align-items-center gap-2 ${headerActionsStandalone ? 'justify-content-end' : ''}`}>
+          {headerActionsStandalone ? (
+            <div className="d-flex w-100 justify-content-end">{headerActions}</div>
+          ) : headerActions}
           {runtimeMode && onFollowActiveNodeChange ? (
             <label className={`sky-follow-active-toggle ${followActiveNode ? 'is-enabled' : ''}`}>
               <input

@@ -4270,6 +4270,10 @@
 }
 
 /* Phase 13.5C — workflow history detail overlay */
+.sky-run-detail-modal-backdrop {
+  z-index: 5000;
+}
+
 .sky-run-detail-modal {
   width: min(94rem, calc(100vw - 4rem));
   max-height: calc(100vh - 4rem);

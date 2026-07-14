@@ -1909,7 +1909,7 @@ function SkyWorkflows({ mode = 'start' }) {
     return createPortal(
       <div
         aria-modal="true"
-        className="sky-chart-modal-backdrop"
+        className="sky-chart-modal-backdrop sky-run-detail-modal-backdrop"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) {
             setRunDetailOverlayOpen(false);
@@ -2151,6 +2151,7 @@ function SkyWorkflows({ mode = 'start' }) {
                           View details
                         </button>
                       )}
+                      headerActionsStandalone
                       followActiveNode={followActiveRuntimeNode}
                       nodeRuns={selectedNodeRuns}
                       nodes={runtimeVisualNodes}
@@ -2403,6 +2404,7 @@ function SkyWorkflows({ mode = 'start' }) {
           </section>
         </div>
       )}
+      {renderSelectedRunDetailOverlay()}
     </div>
   );
 }

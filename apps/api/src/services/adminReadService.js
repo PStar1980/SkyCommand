@@ -164,6 +164,9 @@ function sanitizeAuditEvent(row) {
     email: row.email,
     username: row.username,
     displayName: row.display_name,
+    userLabel: row.user_label || row.display_name || row.username || row.email || 'System',
+    roleCodes: Array.isArray(row.role_codes) ? row.role_codes : [],
+    privilegeCodes: Array.isArray(row.privilege_codes) ? row.privilege_codes : [],
     eventType: row.event_type,
     resourceType: row.resource_type,
     resourceId: row.resource_id,
@@ -353,6 +356,210 @@ function sanitizeUserRole(row) {
   };
 }
 
+const AUDIT_EVENT_SOURCE_SQL = `
+  FROM (
+    SELECT
+      audit_event.*,
+      COALESCE(
+        NULLIF(audit_event.display_name, ''),
+        NULLIF(audit_event.username, ''),
+        NULLIF(audit_event.email, ''),
+        'System'
+      ) AS user_label,
+      CONCAT_WS(
+        ' ',
+        COALESCE(
+          NULLIF(audit_event.display_name, ''),
+          NULLIF(audit_event.username, ''),
+          NULLIF(audit_event.email, ''),
+          'System'
+        ),
+        audit_event.display_name,
+        audit_event.username,
+        audit_event.email,
+        audit_event.user_id::text
+      ) AS user_search_text,
+      COALESCE(role_context.role_codes, ARRAY[]::text[]) AS role_codes,
+      COALESCE(array_to_string(role_context.role_codes, ', '), '') AS role_codes_text,
+      COALESCE(privilege_context.privilege_codes, ARRAY[]::text[]) AS privilege_codes,
+      COALESCE(array_to_string(privilege_context.privilege_codes, ', '), '') AS privilege_codes_text
+    FROM auth.vw_audit_events_recent audit_event
+    LEFT JOIN LATERAL (
+      SELECT
+        ARRAY_AGG(DISTINCT role_code ORDER BY role_code)
+          FILTER (WHERE role_code IS NOT NULL AND role_code <> '') AS role_codes
+      FROM (
+        SELECT role.role_code
+        FROM auth.user_roles user_role
+        INNER JOIN auth.roles role
+          ON role.role_id = user_role.role_id
+        WHERE user_role.user_id = audit_event.user_id
+          AND user_role.active = TRUE
+          AND role.active = TRUE
+          AND (audit_event.app_id IS NULL OR role.app_id = audit_event.app_id)
+
+        UNION ALL
+
+        SELECT NULLIF(audit_event.metadata->>'roleCode', '')
+
+        UNION ALL
+
+        SELECT NULLIF(audit_event.metadata->>'requiredRoleCode', '')
+
+        UNION ALL
+
+        SELECT role_code
+        FROM jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(audit_event.metadata->'roleCodes') = 'array'
+              THEN audit_event.metadata->'roleCodes'
+            ELSE '[]'::jsonb
+          END
+        ) AS metadata_roles(role_code)
+      ) role_values
+    ) role_context ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        ARRAY_AGG(DISTINCT privilege_code ORDER BY privilege_code)
+          FILTER (WHERE privilege_code IS NOT NULL AND privilege_code <> '') AS privilege_codes
+      FROM (
+        SELECT NULLIF(audit_event.metadata->>'permissionCode', '') AS privilege_code
+
+        UNION ALL
+
+        SELECT NULLIF(audit_event.metadata->>'privilegeCode', '')
+
+        UNION ALL
+
+        SELECT permission_code
+        FROM jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(audit_event.metadata->'permissionCodes') = 'array'
+              THEN audit_event.metadata->'permissionCodes'
+            ELSE '[]'::jsonb
+          END
+        ) AS metadata_permissions(permission_code)
+
+        UNION ALL
+
+        SELECT missing_permission
+        FROM jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(audit_event.metadata->'missingPermissions') = 'array'
+              THEN audit_event.metadata->'missingPermissions'
+            ELSE '[]'::jsonb
+          END
+        ) AS metadata_missing_permissions(missing_permission)
+
+        UNION ALL
+
+        SELECT tool.permission_code
+        FROM core.tools tool
+        WHERE audit_event.resource_type = 'core.tools'
+          AND tool.tool_code = audit_event.resource_id
+          AND tool.permission_code IS NOT NULL
+
+        UNION ALL
+
+        SELECT CASE tool.risk_code
+          WHEN 'low' THEN 'CORE_RUN_LOW_RISK_SCRIPT'
+          WHEN 'medium' THEN 'CORE_RUN_MEDIUM_RISK_SCRIPT'
+          WHEN 'high' THEN 'CORE_RUN_HIGH_RISK_SCRIPT'
+          ELSE NULL
+        END
+        FROM core.tools tool
+        WHERE audit_event.resource_type = 'core.tools'
+          AND tool.tool_code = audit_event.resource_id
+
+        UNION ALL
+
+        SELECT TRIM(permission_code)
+        FROM regexp_split_to_table(
+          CASE
+            WHEN audit_event.resource_type = 'permission'
+              AND audit_event.action = 'require_permission'
+              THEN COALESCE(audit_event.resource_id, '')
+            ELSE ''
+          END,
+          '[|]'
+        ) AS denied_permissions(permission_code)
+        WHERE TRIM(permission_code) <> ''
+
+        UNION ALL
+
+        SELECT CASE
+          WHEN audit_event.action IN ('create_workflow', 'clone_workflow')
+            THEN 'WORKFLOW_CREATE'
+          WHEN audit_event.action IN (
+            'update_workflow',
+            'archive_workflow',
+            'delete_workflow',
+            'create_workflow_version',
+            'create_workflow_draft',
+            'save_workflow_draft_graph',
+            'replace_workflow_graph',
+            'publish_workflow_draft',
+            'discard_workflow_draft'
+          )
+            THEN 'WORKFLOW_CHANGE'
+          WHEN audit_event.action IN (
+            'start_workflow',
+            'run_workflow_inline',
+            'start_child_workflow',
+            'retry_workflow_run',
+            'cancel_workflow_run',
+            'terminate_workflow_run'
+          )
+            THEN 'WORKFLOW_RUN'
+          WHEN audit_event.action = 'decide_workflow_approval'
+            THEN 'WORKFLOW_APPROVAL_DECIDE'
+          WHEN audit_event.action = 'create_schedule'
+            THEN 'WORKER_SCHEDULE_CREATE'
+          WHEN audit_event.action IN (
+            'update_schedule',
+            'enable_schedule',
+            'disable_schedule',
+            'delete_schedule',
+            'unqueue_schedule'
+          )
+            THEN 'WORKER_SCHEDULE_CHANGE'
+          WHEN audit_event.action IN ('queue_schedule_now', 'run_schedule_now')
+            THEN 'WORKER_SCHEDULE_RUN_IMMEDIATE'
+          WHEN audit_event.action = 'create_listener'
+            THEN 'WORKER_LISTENER_CREATE'
+          WHEN audit_event.action IN ('update_listener', 'enable_listener', 'disable_listener')
+            THEN 'WORKER_LISTENER_CHANGE'
+          WHEN audit_event.action = 'start_temporal_workflow'
+            THEN 'TEMPORAL_WORKFLOW_START'
+          WHEN audit_event.action = 'cancel_temporal_workflow'
+            THEN 'TEMPORAL_WORKFLOW_CANCEL'
+          WHEN audit_event.action = 'terminate_temporal_workflow'
+            THEN 'TEMPORAL_WORKFLOW_TERMINATE'
+          WHEN audit_event.action IN (
+            'create_user',
+            'update_user',
+            'update_user_status',
+            'reset_user_password',
+            'update_user_applications',
+            'revoke_user_sessions',
+            'revoke_session'
+          )
+            THEN 'ADMIN_USER_WRITE'
+          WHEN audit_event.action IN ('create_role', 'update_role', 'update_user_roles')
+            THEN 'ADMIN_ROLE_WRITE'
+          WHEN audit_event.action IN ('create_permission', 'update_permission', 'update_role_permissions')
+            THEN 'ADMIN_PERMISSION_WRITE'
+          WHEN audit_event.action IN ('create_repository', 'update_repository', 'delete_repository')
+            THEN 'ADMIN_REPOSITORY_WRITE'
+          WHEN audit_event.action IN ('start_workflow_bridge', 'finish_workflow_bridge')
+            THEN 'WORKFLOW_RUN'
+          ELSE NULL
+        END
+      ) privilege_values
+    ) privilege_context ON TRUE
+  ) audit_events
+`;
+
 async function listAuditEvents(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
@@ -362,6 +569,24 @@ async function listAuditEvents(filters = {}) {
   addEqualsFilter({ clauses, values, columnName: 'resource_type', value: filters.resourceType });
   addEqualsFilter({ clauses, values, columnName: 'action', value: filters.action });
   addBooleanFilter({ clauses, values, columnName: 'success', value: filters.success });
+  addSearchFilter({
+    clauses,
+    values,
+    columns: ['user_search_text'],
+    searchText: filters.user,
+  });
+  addSearchFilter({
+    clauses,
+    values,
+    columns: ['role_codes_text'],
+    searchText: filters.role,
+  });
+  addSearchFilter({
+    clauses,
+    values,
+    columns: ['privilege_codes_text'],
+    searchText: filters.privilege,
+  });
   addDateRangeFilters({
     clauses,
     values,
@@ -376,6 +601,8 @@ async function listAuditEvents(filters = {}) {
       'email',
       'username',
       'display_name',
+      'role_codes_text',
+      'privilege_codes_text',
       'event_type',
       'resource_type',
       'action',
@@ -385,8 +612,8 @@ async function listAuditEvents(filters = {}) {
   });
 
   const result = await runPagedQuery({
-    selectSql: 'SELECT * FROM auth.vw_audit_events_recent',
-    countSql: 'SELECT COUNT(*)::int AS total FROM auth.vw_audit_events_recent',
+    selectSql: `SELECT * ${AUDIT_EVENT_SOURCE_SQL}`,
+    countSql: `SELECT COUNT(*)::int AS total ${AUDIT_EVENT_SOURCE_SQL}`,
     clauses,
     values,
     orderBy: 'ORDER BY created_at DESC',
