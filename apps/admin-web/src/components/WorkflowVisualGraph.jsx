@@ -954,7 +954,7 @@ function WorkflowVisualGraph({
         </div>
         <div className="d-flex flex-wrap align-items-center gap-2">
           {headerActions}
-          {runtimeMode ? (
+          {runtimeMode && onFollowActiveNodeChange ? (
             <label className={`sky-follow-active-toggle ${followActiveNode ? 'is-enabled' : ''}`}>
               <input
                 checked={Boolean(followActiveNode)}

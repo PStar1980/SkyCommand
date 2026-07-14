@@ -1,3 +1,10 @@
+## 2026-07-13 — Phase 13.9 Workflow Surface Layout Realignment
+
+- Reworked the SkyCommand Overview dashboard so command/action hero panels are removed and replaced with a consistent Dashboard Controls filter card above the visual analytics layer.
+- Updated Create Workflow to show a runtime-status overlay preview below workflow definition metadata and replaced the old vertical node timeline/business preview layout with a visual Workflow Graph editor plus selected-node editing workspace.
+- Updated Start Workflow to remove the separate execution-plan card and add a live Runtime Status Overlay beneath Manual Start so newly launched workflows can animate and poll on the same page.
+- Adjusted the shared workflow visual graph so the Follow Active Node toggle only appears on live runtime surfaces that can actually control it.
+
 ## 2026-07-13 — Phase 13.8 Summary Node and Run Summary
 
 - Added SUMMARY workflow node support so workflows can generate structured, human-readable end-of-run summaries from runtime params, workflow context, node outputs, warnings, errors, and timings.

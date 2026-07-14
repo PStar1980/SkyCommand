@@ -19,6 +19,7 @@ import WaitParameterEditor, {
   DEFAULT_WAIT_PARAMETERS,
   formatWaitDuration,
 } from '../components/WaitParameterEditor.jsx';
+import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import WorkflowRetryPolicyEditor, {
   cleanNodeTimeoutMs,
   cleanRetryPolicyValues,
@@ -756,6 +757,7 @@ function WorkflowBuilder() {
     runtimeParameters: [],
   });
   const [nodes, setNodes] = useState([]);
+  const [selectedBuilderNodeIndex, setSelectedBuilderNodeIndex] = useState(null);
 
   const toolTargets = useMemo(
     () => [...(catalog.toolTargets || [])].sort((a, b) => {
@@ -850,6 +852,9 @@ function WorkflowBuilder() {
     }),
     [nodes, toolTargets, workflowTargets, temporalWorkflowTargets],
   );
+  const selectedBuilderNode = Number.isInteger(selectedBuilderNodeIndex)
+    ? nodes[selectedBuilderNodeIndex]
+    : null;
 
   async function loadCatalog() {
     setLoading(true);
@@ -892,81 +897,109 @@ function WorkflowBuilder() {
     setNodes((current) => current.map((node, nodeIndex) => (nodeIndex === index ? nextNode : node)));
   }
 
+  function buildNodeTemplate(nodeTypeCode = 'TOOL', ordinal = 1) {
+    if (nodeTypeCode === 'API_CALL') {
+      return {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'API_CALL',
+        nodeKey: `api_call_${ordinal}`,
+        displayName: 'Call API',
+        description: 'Calls a configured HTTP endpoint.',
+        inputParameters: { ...DEFAULT_API_PARAMETERS },
+      };
+    }
+
+    if (nodeTypeCode === 'WORKFLOW') {
+      return {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'WORKFLOW',
+        nodeKey: `child_workflow_${ordinal}`,
+        displayName: 'Run Child Workflow',
+        description: 'Runs another active SkyCommand workflow and waits for completion.',
+        inputParameters: {},
+      };
+    }
+
+    if (nodeTypeCode === 'TEMPORAL_WORKFLOW') {
+      return {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'TEMPORAL_WORKFLOW',
+        nodeKey: `temporal_workflow_${ordinal}`,
+        displayName: 'Run Temporal Workflow Template',
+        description: 'Runs an approved Temporal-native workflow template and waits for completion.',
+        inputParameters: {},
+      };
+    }
+
+    if (nodeTypeCode === 'CONDITION') {
+      return {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'CONDITION',
+        nodeKey: `condition_${ordinal}`,
+        displayName: 'Evaluate Condition',
+        description: 'Evaluates a safe condition and controls whether the remaining workflow continues.',
+        inputParameters: { ...DEFAULT_CONDITION_PARAMETERS },
+      };
+    }
+
+    if (nodeTypeCode === 'WAIT') {
+      return {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'WAIT',
+        nodeKey: `wait_${ordinal}`,
+        displayName: 'Wait / Delay',
+        description: 'Pauses the workflow for a configured duration before continuing.',
+        inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
+      };
+    }
+
+    if (nodeTypeCode === 'HUMAN_APPROVAL') {
+      return {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'HUMAN_APPROVAL',
+        nodeKey: `approval_${ordinal}`,
+        displayName: 'Human Approval',
+        description: 'Pauses the workflow until an authorized user approves or rejects the request.',
+        inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
+      };
+    }
+
+    if (nodeTypeCode === 'SUMMARY') {
+      return {
+        ...EMPTY_NODE,
+        nodeTypeCode: 'SUMMARY',
+        nodeKey: `summary_${ordinal}`,
+        displayName: 'Generate Run Summary',
+        description: 'Generates a human-readable workflow run summary from params, context, outputs, errors, and timings.',
+        inputParameters: { ...DEFAULT_SUMMARY_PARAMETERS },
+      };
+    }
+
+    return {
+      ...EMPTY_NODE,
+      nodeKey: `node_${ordinal}`,
+    };
+  }
+
   function addNode(nodeTypeCode = 'TOOL') {
-    setNodes((current) => [
-      ...current,
-      nodeTypeCode === 'API_CALL'
-        ? {
-          ...EMPTY_NODE,
-          nodeTypeCode: 'API_CALL',
-          nodeKey: `api_call_${current.length + 1}`,
-          displayName: 'Call API',
-          description: 'Calls a configured HTTP endpoint.',
-          inputParameters: { ...DEFAULT_API_PARAMETERS },
-        }
-        : nodeTypeCode === 'WORKFLOW'
-          ? {
-            ...EMPTY_NODE,
-            nodeTypeCode: 'WORKFLOW',
-            nodeKey: `child_workflow_${current.length + 1}`,
-            displayName: 'Run Child Workflow',
-            description: 'Runs another active SkyCommand workflow and waits for completion.',
-            inputParameters: {},
-          }
-          : nodeTypeCode === 'TEMPORAL_WORKFLOW'
-            ? {
-              ...EMPTY_NODE,
-              nodeTypeCode: 'TEMPORAL_WORKFLOW',
-              nodeKey: `temporal_workflow_${current.length + 1}`,
-              displayName: 'Run Temporal Workflow Template',
-              description: 'Runs an approved Temporal-native workflow template and waits for completion.',
-              inputParameters: {},
-            }
-            : nodeTypeCode === 'CONDITION'
-              ? {
-                ...EMPTY_NODE,
-                nodeTypeCode: 'CONDITION',
-                nodeKey: `condition_${current.length + 1}`,
-                displayName: 'Evaluate Condition',
-                description: 'Evaluates a safe condition and controls whether the remaining workflow continues.',
-                inputParameters: { ...DEFAULT_CONDITION_PARAMETERS },
-              }
-              : nodeTypeCode === 'WAIT'
-                ? {
-                  ...EMPTY_NODE,
-                  nodeTypeCode: 'WAIT',
-                  nodeKey: `wait_${current.length + 1}`,
-                  displayName: 'Wait / Delay',
-                  description: 'Pauses the workflow for a configured duration before continuing.',
-                  inputParameters: { ...DEFAULT_WAIT_PARAMETERS },
-                }
-                : nodeTypeCode === 'HUMAN_APPROVAL'
-                  ? {
-                    ...EMPTY_NODE,
-                    nodeTypeCode: 'HUMAN_APPROVAL',
-                    nodeKey: `approval_${current.length + 1}`,
-                    displayName: 'Human Approval',
-                    description: 'Pauses the workflow until an authorized user approves or rejects the request.',
-                    inputParameters: { ...DEFAULT_HUMAN_APPROVAL_PARAMETERS },
-                  }
-                  : nodeTypeCode === 'SUMMARY'
-                    ? {
-                      ...EMPTY_NODE,
-                      nodeTypeCode: 'SUMMARY',
-                      nodeKey: `summary_${current.length + 1}`,
-                      displayName: 'Generate Run Summary',
-                      description: 'Generates a human-readable workflow run summary from params, context, outputs, errors, and timings.',
-                      inputParameters: { ...DEFAULT_SUMMARY_PARAMETERS },
-                    }
-                    : {
-            ...EMPTY_NODE,
-            nodeKey: `node_${current.length + 1}`,
-          },
-    ]);
+    const nextIndex = nodes.length;
+    setNodes((current) => [...current, buildNodeTemplate(nodeTypeCode, current.length + 1)]);
+    setSelectedBuilderNodeIndex(nextIndex);
   }
 
   function removeNode(index) {
     setNodes((current) => current.filter((_, nodeIndex) => nodeIndex !== index));
+    setSelectedBuilderNodeIndex((current) => {
+      if (current === null) {
+        return null;
+      }
+
+      if (current === index) {
+        return nodes.length > 1 ? Math.max(0, index - 1) : null;
+      }
+
+      return current > index ? current - 1 : current;
+    });
   }
 
   function moveNode(index, direction) {
@@ -979,8 +1012,23 @@ function WorkflowBuilder() {
       }
 
       [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      setSelectedBuilderNodeIndex(targetIndex);
       return next;
     });
+  }
+
+  function reorderNode(sourceIndex, targetIndex) {
+    setNodes((current) => {
+      if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= current.length || targetIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      const [movedNode] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, movedNode);
+      return next;
+    });
+    setSelectedBuilderNodeIndex(targetIndex);
   }
 
   function validateNodesForSubmit() {
@@ -1299,15 +1347,33 @@ function WorkflowBuilder() {
           </div>
         </section>
 
-        <div className="d-flex flex-column gap-4">
-          <div>
-            <section className="sky-card mb-4">
-              <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
-                <div>
-                  <div className="sky-page-kicker">Node timeline</div>
-                  <h2 className="h5 mb-0">Sequential execution plan with condition gates, waits, and approvals</h2>
-                </div>
-                <div className="d-flex flex-wrap gap-2">
+        <section className="sky-card mb-4">
+          <div className="sky-card-body">
+            <WorkflowVisualGraph
+              headingKicker="Runtime status overlay"
+              nodeRuns={[]}
+              nodes={nodes}
+              onNodeSelect={(index) => setSelectedBuilderNodeIndex(index)}
+              runStatus="DRAFT"
+              runtimeMode
+              selectedNodeIndex={selectedBuilderNodeIndex}
+              subtitle="Design-time runtime preview. New workflows start with no node runs recorded; this overlay previews the same visual surface used during live execution."
+              temporalRuntime={{ status: 'DRAFT' }}
+              title="Runtime workflow map"
+              toolTargets={toolTargets}
+              workflowTargets={workflowTargets}
+              temporalWorkflowTargets={temporalWorkflowTargets}
+            />
+          </div>
+        </section>
+
+        <section className="sky-card mb-4">
+          <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+              <div className="sky-page-kicker">Workflow graph</div>
+              <h2 className="h5 mb-0">Sequential workflow map</h2>
+            </div>
+            <div className="d-flex flex-wrap gap-2">
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('TOOL')} type="button">Add tool node</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('API_CALL')} type="button">Add API node</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('WORKFLOW')} type="button">Add child workflow</button>
@@ -1317,56 +1383,45 @@ function WorkflowBuilder() {
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('HUMAN_APPROVAL')} type="button">Add approval</button>
                   <button className="btn btn-sm sky-btn-ghost" onClick={() => addNode('SUMMARY')} type="button">Add summary</button>
                 </div>
-              </div>
-              <div className="sky-card-body d-flex flex-column gap-3">
-                {nodes.map((node, index) => (
-                  <WorkflowBuilderNodeCard
-                    allNodes={nodes}
-                    index={index}
-                    key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`}
-                    node={node}
-                    onChange={updateNode}
-                    onMoveDown={() => moveNode(index, 1)}
-                    onMoveUp={() => moveNode(index, -1)}
-                    onRemove={() => removeNode(index)}
-                    toolTargets={toolTargets}
-                    workflowTargets={workflowTargets}
-                    temporalWorkflowTargets={temporalWorkflowTargets}
-                    approvalRoleTargets={approvalRoleTargets}
-                  />
-                ))}
-                {nodes.length === 0 && <div className="sky-empty-state">Add at least one node.</div>}
-              </div>
-            </section>
-
-            <section className="sky-card">
-              <div className="sky-card-header">
-                <div className="sky-page-kicker">Business preview</div>
-                <h2 className="h5 mb-0">What SkyCommand will publish</h2>
-              </div>
-              <div className="sky-card-body">
-                {previewNodes.length === 0 ? (
-                  <div className="sky-empty-state">Add nodes to preview the workflow path.</div>
-                ) : (
-                  <div className="d-flex flex-column gap-2">
-                    {previewNodes.map((item, index) => (
-                      <div className="sky-worker-command-card" key={`${item.code}-${index}`}>
-                        <div className="d-flex justify-content-between gap-3">
-                          <div>
-                            <div className="sky-page-kicker">Step {index + 1}</div>
-                            <div className="fw-bold">{item.displayName}</div>
-                            <div className="small sky-muted">{item.description || 'No description.'}</div>
-                          </div>
-                          <span className="sky-pill sky-pill-info sky-mono">{item.code}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
           </div>
-        </div>
+          <div className="sky-card-body">
+            <WorkflowVisualGraph
+              nodes={nodes}
+              onNodeMove={(index, direction) => moveNode(index, direction)}
+              onNodeReorder={reorderNode}
+              onNodeSelect={(index) => setSelectedBuilderNodeIndex(index)}
+              selectedNodeIndex={selectedBuilderNodeIndex}
+              subtitle="Build the workflow visually, select a node to edit its defaults, and drag nodes to reorder the sequential lane before publishing."
+              title="Sequential workflow map"
+              toolTargets={toolTargets}
+              workflowTargets={workflowTargets}
+              temporalWorkflowTargets={temporalWorkflowTargets}
+            />
+
+            {nodes.length === 0 ? (
+              <div className="sky-empty-state mt-4">Add at least one node.</div>
+            ) : selectedBuilderNode ? (
+              <div className="mt-4">
+                <WorkflowBuilderNodeCard
+                  allNodes={nodes}
+                  approvalRoleTargets={approvalRoleTargets}
+                  index={selectedBuilderNodeIndex}
+                  key={`${selectedBuilderNodeIndex}-${selectedBuilderNode.nodeKey || selectedBuilderNode.targetCode || selectedBuilderNode.nodeTypeCode}`}
+                  node={selectedBuilderNode}
+                  onChange={updateNode}
+                  onMoveDown={() => moveNode(selectedBuilderNodeIndex, 1)}
+                  onMoveUp={() => moveNode(selectedBuilderNodeIndex, -1)}
+                  onRemove={() => removeNode(selectedBuilderNodeIndex)}
+                  temporalWorkflowTargets={temporalWorkflowTargets}
+                  toolTargets={toolTargets}
+                  workflowTargets={workflowTargets}
+                />
+              </div>
+            ) : (
+              <div className="sky-empty-state mt-4">Select a node above to edit its node-level defaults.</div>
+            )}
+          </div>
+        </section>
       </form>
     </div>
   );
