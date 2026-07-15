@@ -1,3 +1,11 @@
+## 2026-07-15 — Command Center Identity Distribution Charts
+
+- Filled the Command Center identity chart columns with stacked operational visualizations instead of elongated single-chart cards.
+- Added Users by Role horizontal charts for SkyCommand and SkyWeb, including assigned/active-user tooltips and click-through filtering on the Users page.
+- Added current Session Age Distribution charts using under-15-minute, 15–60-minute, 1–4-hour, 4–12-hour, and over-12-hour bands with click-through filtering on the Sessions page.
+- Expanded the application user-summary API response with role distribution and session-age telemetry while retaining the existing authentication and daily-session trend contract.
+- Added role filtering to Access Control > Users and session-age filtering to Access Control > Sessions so Command Center drill-downs remain actionable.
+
 ## 2026-07-14 — Temporal and Listener Audit/Privilege Housekeeping
 
 - Added user-facing audit events for direct Temporal workflow starts, start failures, cancellation requests/failures, and termination requests/failures without copying runtime parameter payloads into the security audit log.

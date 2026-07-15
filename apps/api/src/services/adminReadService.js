@@ -853,6 +853,27 @@ async function listActiveSessions(filters = {}) {
     fallback: null,
   });
 
+  const ageRange = normalizeOptionalString(filters.ageRange);
+  const sessionAgeRanges = {
+    UNDER_15_MIN: [0, 900],
+    MIN_15_TO_60: [900, 3600],
+    HOUR_1_TO_4: [3600, 14400],
+    HOUR_4_TO_12: [14400, 43200],
+    OVER_12_HOURS: [43200, null],
+  };
+  const selectedAgeRange = ageRange ? sessionAgeRanges[ageRange.toUpperCase()] : null;
+
+  if (selectedAgeRange) {
+    const [minimumAgeSeconds, maximumAgeSeconds] = selectedAgeRange;
+    values.push(minimumAgeSeconds);
+    clauses.push(`EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at)) >= $${values.length}`);
+
+    if (maximumAgeSeconds !== null) {
+      values.push(maximumAgeSeconds);
+      clauses.push(`EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at)) < $${values.length}`);
+    }
+  }
+
   addEqualsFilter({ clauses, values, columnName: 'user_id', value: filters.userId });
   addDateRangeFilters({
     clauses,
@@ -960,26 +981,73 @@ async function getApplicationUserSummary(filters = {}) {
           ON app.app_id = ua.app_id
         CROSS JOIN bounds
       ),
+      role_distribution AS (
+        SELECT
+          role.role_code,
+          role.role_name,
+          COUNT(DISTINCT user_role.user_id) FILTER (
+            WHERE user_role.active = TRUE
+              AND user_account.is_system_user = FALSE
+              AND user_application.user_id IS NOT NULL
+          )::int AS assigned_users,
+          COUNT(DISTINCT user_role.user_id) FILTER (
+            WHERE user_role.active = TRUE
+              AND user_account.is_system_user = FALSE
+              AND user_account.status = 'ACTIVE'
+              AND user_application.status = 'ACTIVE'
+          )::int AS active_users
+        FROM target_app app
+        JOIN auth.roles role
+          ON role.app_id = app.app_id
+         AND role.active = TRUE
+        LEFT JOIN auth.user_roles user_role
+          ON user_role.role_id = role.role_id
+         AND user_role.active = TRUE
+        LEFT JOIN auth.users user_account
+          ON user_account.user_id = user_role.user_id
+        LEFT JOIN auth.user_applications user_application
+          ON user_application.user_id = user_account.user_id
+         AND user_application.app_id = app.app_id
+        GROUP BY role.role_code, role.role_name
+      ),
+      active_session_scope AS (
+        SELECT
+          session_record.session_id,
+          session_record.user_id,
+          session_record.created_at,
+          EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - session_record.created_at))::bigint AS age_seconds
+        FROM auth.sessions session_record
+        JOIN auth.users user_account
+          ON user_account.user_id = session_record.user_id
+        JOIN target_app app
+          ON app.app_id = session_record.app_id
+        JOIN auth.user_applications user_application
+          ON user_application.user_id = user_account.user_id
+         AND user_application.app_id = session_record.app_id
+        WHERE session_record.revoked_at IS NULL
+          AND session_record.expires_at > CURRENT_TIMESTAMP
+          AND user_account.status = 'ACTIVE'
+          AND user_account.is_system_user = FALSE
+          AND user_application.status = 'ACTIVE'
+      ),
       session_stats AS (
         SELECT
           COUNT(*)::int AS active_sessions,
-          COUNT(DISTINCT s.user_id)::int AS users_online,
-          COUNT(*) FILTER (
-            WHERE s.created_at <= CURRENT_TIMESTAMP - INTERVAL '12 hours'
-          )::int AS stale_sessions,
-          COALESCE(
-            MAX(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - s.created_at))),
-            0
-          )::bigint AS longest_session_seconds
-        FROM auth.sessions s
-        JOIN auth.users u
-          ON u.user_id = s.user_id
-        JOIN target_app app
-          ON app.app_id = s.app_id
-        WHERE s.revoked_at IS NULL
-          AND s.expires_at > CURRENT_TIMESTAMP
-          AND u.status = 'ACTIVE'
-          AND u.is_system_user = FALSE
+          COUNT(DISTINCT user_id)::int AS users_online,
+          COUNT(*) FILTER (WHERE age_seconds >= 43200)::int AS stale_sessions,
+          COALESCE(MAX(age_seconds), 0)::bigint AS longest_session_seconds
+        FROM active_session_scope
+      ),
+      session_age_distribution AS (
+        SELECT 1 AS sort_order, 'UNDER_15_MIN' AS bucket_key, 'Under 15 min' AS bucket_label, 0::bigint AS min_age_seconds, 899::bigint AS max_age_seconds, COUNT(*) FILTER (WHERE age_seconds < 900)::int AS session_count FROM active_session_scope
+        UNION ALL
+        SELECT 2, 'MIN_15_TO_60', '15–60 min', 900::bigint, 3599::bigint, COUNT(*) FILTER (WHERE age_seconds >= 900 AND age_seconds < 3600)::int FROM active_session_scope
+        UNION ALL
+        SELECT 3, 'HOUR_1_TO_4', '1–4 hours', 3600::bigint, 14399::bigint, COUNT(*) FILTER (WHERE age_seconds >= 3600 AND age_seconds < 14400)::int FROM active_session_scope
+        UNION ALL
+        SELECT 4, 'HOUR_4_TO_12', '4–12 hours', 14400::bigint, 43199::bigint, COUNT(*) FILTER (WHERE age_seconds >= 14400 AND age_seconds < 43200)::int FROM active_session_scope
+        UNION ALL
+        SELECT 5, 'OVER_12_HOURS', 'Over 12 hours', 43200::bigint, NULL::bigint, COUNT(*) FILTER (WHERE age_seconds >= 43200)::int FROM active_session_scope
       ),
       login_stats AS (
         SELECT
@@ -1108,7 +1176,39 @@ async function getApplicationUserSummary(filters = {}) {
             FROM daily_activity activity
           ),
           '[]'::jsonb
-        ) AS activity
+        ) AS activity,
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'roleCode', role_item.role_code,
+                'roleName', role_item.role_name,
+                'assignedUsers', role_item.assigned_users,
+                'activeUsers', role_item.active_users
+              )
+              ORDER BY role_item.assigned_users DESC, role_item.role_code
+            )
+            FROM role_distribution role_item
+            WHERE role_item.assigned_users > 0
+          ),
+          '[]'::jsonb
+        ) AS role_distribution,
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'key', age_bucket.bucket_key,
+                'label', age_bucket.bucket_label,
+                'count', age_bucket.session_count,
+                'minAgeSeconds', age_bucket.min_age_seconds,
+                'maxAgeSeconds', age_bucket.max_age_seconds
+              )
+              ORDER BY age_bucket.sort_order
+            )
+            FROM session_age_distribution age_bucket
+          ),
+          '[]'::jsonb
+        ) AS session_age_distribution
       FROM target_app app
       CROSS JOIN user_stats
       CROSS JOIN session_stats
@@ -1128,6 +1228,10 @@ async function getApplicationUserSummary(filters = {}) {
 
   const row = result.rows[0];
   const activity = Array.isArray(row.activity) ? row.activity : [];
+  const roleDistribution = Array.isArray(row.role_distribution) ? row.role_distribution : [];
+  const sessionAgeDistribution = Array.isArray(row.session_age_distribution)
+    ? row.session_age_distribution
+    : [];
   const newUsersComparison = buildComparisonMetric(row.new_users_current, row.new_users_previous);
   const successfulLoginComparison = buildComparisonMetric(
     row.successful_logins,
@@ -1189,6 +1293,22 @@ async function getApplicationUserSummary(filters = {}) {
       peakSessionFootprint: peakSessionFootprintComparison,
     },
     health,
+    roleDistribution: roleDistribution.map((item) => ({
+      roleCode: item.roleCode,
+      roleName: item.roleName,
+      assignedUsers: Number(item.assignedUsers || 0),
+      activeUsers: Number(item.activeUsers || 0),
+    })),
+    sessionAgeDistribution: sessionAgeDistribution.map((item) => ({
+      key: item.key,
+      label: item.label,
+      count: Number(item.count || 0),
+      minAgeSeconds: Number(item.minAgeSeconds || 0),
+      maxAgeSeconds:
+        item.maxAgeSeconds === null || item.maxAgeSeconds === undefined
+          ? null
+          : Number(item.maxAgeSeconds),
+    })),
     activity: activity.map((item) => ({
       date: item.date,
       successfulLogins: Number(item.successfulLogins || 0),
@@ -1258,6 +1378,34 @@ async function listUsers(filters = {}) {
         AND app.app_code = $${values.length}
         AND ua.status = 'ACTIVE'
         AND app.active = TRUE
+    )`);
+  }
+
+  const roleCode = normalizeOptionalString(filters.roleCode);
+
+  if (roleCode !== null) {
+    values.push(roleCode);
+    const rolePlaceholder = `$${values.length}`;
+    let roleApplicationClause = '';
+
+    if (appCode !== null) {
+      values.push(appCode);
+      roleApplicationClause = `AND role_app.app_code = $${values.length}`;
+    }
+
+    clauses.push(`EXISTS (
+      SELECT 1
+      FROM auth.user_roles user_role
+      JOIN auth.roles role
+        ON role.role_id = user_role.role_id
+      JOIN core.applications role_app
+        ON role_app.app_id = role.app_id
+      WHERE user_role.user_id = u.user_id
+        AND user_role.active = TRUE
+        AND role.active = TRUE
+        AND role_app.active = TRUE
+        AND role.role_code = ${rolePlaceholder}
+        ${roleApplicationClause}
     )`);
   }
 

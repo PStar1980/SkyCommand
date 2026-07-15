@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import IdentityHorizontalBarChart from './IdentityHorizontalBarChart.jsx';
 import TrendAreaChart from './TrendAreaChart.jsx';
 import { CHART_COLORS } from './chartTheme.js';
 
@@ -166,10 +167,39 @@ function ApplicationUserSummaryRow({ data, loading = false, title }) {
     ],
     [activity],
   );
+  const roleDistribution = Array.isArray(data?.roleDistribution) ? data.roleDistribution : [];
+  const sessionAgeDistribution = Array.isArray(data?.sessionAgeDistribution)
+    ? data.sessionAgeDistribution
+    : [];
+  const roleChartData = useMemo(
+    () =>
+      roleDistribution.map((item) => ({
+        name: item.roleCode || item.roleName || 'ROLE',
+        value: Number(item.assignedUsers || 0),
+        roleCode: item.roleCode || '',
+        roleName: item.roleName || item.roleCode || 'Role',
+        assignedUsers: Number(item.assignedUsers || 0),
+        activeUsers: Number(item.activeUsers || 0),
+      })),
+    [roleDistribution],
+  );
+  const sessionAgeChartData = useMemo(
+    () =>
+      sessionAgeDistribution.map((item) => ({
+        name: item.label || item.key || 'Session age',
+        value: Number(item.count || 0),
+        key: item.key || '',
+        label: item.label || item.key || 'Session age',
+        count: Number(item.count || 0),
+      })),
+    [sessionAgeDistribution],
+  );
   const hasLoginActivity = activity.some(
     (item) => Number(item.successfulLogins || 0) > 0 || Number(item.failedLogins || 0) > 0,
   );
   const hasSessionActivity = activity.some((item) => Number(item.activeSessions || 0) > 0);
+  const hasRoleAssignments = roleChartData.some((item) => item.value > 0);
+  const hasSessionAgeActivity = sessionAgeChartData.some((item) => item.value > 0);
   const generatedAtLabel = formatDateTime(data?.generatedAt, 'Update time unavailable');
   const healthReason = Array.isArray(health.reasons) ? health.reasons.join(' · ') : '';
   const periodStart = activity[0]?.date || '';
@@ -228,6 +258,34 @@ function ApplicationUserSummaryRow({ data, loading = false, title }) {
       navigate(`/admin/sessions?${search.toString()}`);
     },
     [activity, appCode, navigate],
+  );
+
+  const handleRoleChartClick = useCallback(
+    (params) => {
+      const roleCode = params?.data?.roleCode;
+
+      if (!roleCode) {
+        return;
+      }
+
+      const search = new URLSearchParams({ appCode, roleCode });
+      navigate(`/admin/users?${search.toString()}`);
+    },
+    [appCode, navigate],
+  );
+
+  const handleSessionAgeChartClick = useCallback(
+    (params) => {
+      const ageRange = params?.data?.key;
+
+      if (!ageRange) {
+        return;
+      }
+
+      const search = new URLSearchParams({ appCode, ageRange });
+      navigate(`/admin/sessions?${search.toString()}`);
+    },
+    [appCode, navigate],
   );
 
   return (
@@ -340,35 +398,87 @@ function ApplicationUserSummaryRow({ data, loading = false, title }) {
         )}
       </section>
 
-      <TrendAreaChart
-        colors={[CHART_COLORS.green, CHART_COLORS.red]}
-        emptyMessage={`No ${appTitle} login attempts were recorded during this ${rangeLabel} period.`}
-        emptyTitle="No login activity"
-        footer={`Click a point to inspect login attempts · Current as of ${generatedAtLabel}`}
-        height={245}
-        isEmpty={!loading && data && !hasLoginActivity}
-        kicker={`${rangeLabel} authentication`}
-        labels={labels}
-        onChartClick={handleLoginChartClick}
-        series={loginSeries}
-        subtitle="Successful and failed login attempts grouped by day."
-        title="User logins"
-      />
+      <div className="sky-user-summary-chart-stack">
+        <TrendAreaChart
+          colors={[CHART_COLORS.green, CHART_COLORS.red]}
+          emptyMessage={`No ${appTitle} login attempts were recorded during this ${rangeLabel} period.`}
+          emptyTitle="No login activity"
+          footer={`Click a point to inspect login attempts · Current as of ${generatedAtLabel}`}
+          height={140}
+          isEmpty={!loading && data && !hasLoginActivity}
+          kicker={`${rangeLabel} authentication`}
+          labels={labels}
+          onChartClick={handleLoginChartClick}
+          series={loginSeries}
+          subtitle="Successful and failed login attempts grouped by day."
+          title="User logins"
+        />
 
-      <TrendAreaChart
-        colors={[CHART_COLORS.blue]}
-        emptyMessage={`No ${appTitle} sessions were active during this ${rangeLabel} period.`}
-        emptyTitle="No session activity"
-        footer={`Click a point to open current ${appTitle} sessions · Current as of ${generatedAtLabel}`}
-        height={245}
-        isEmpty={!loading && data && !hasSessionActivity}
-        kicker={`${rangeLabel} session pressure`}
-        labels={labels}
-        onChartClick={handleSessionChartClick}
-        series={sessionSeries}
-        subtitle="Sessions observed at any point during each day."
-        title="Daily session footprint"
-      />
+        <IdentityHorizontalBarChart
+          colors={[
+            CHART_COLORS.blue,
+            CHART_COLORS.violet,
+            CHART_COLORS.cyan,
+            CHART_COLORS.green,
+            CHART_COLORS.gold,
+          ]}
+          data={roleChartData}
+          emptyMessage={`No active ${appTitle} role assignments are available.`}
+          emptyTitle="No role assignments"
+          footer={`Click a role to open its assigned ${appTitle} users · Current as of ${generatedAtLabel}`}
+          height={140}
+          isEmpty={!loading && data && !hasRoleAssignments}
+          kicker="Authorization profile"
+          name="Assigned users"
+          onChartClick={handleRoleChartClick}
+          subtitle="Users with multiple roles appear once in each assigned role."
+          title="Users by role"
+          tooltipFormatter={(item) =>
+            `${item.roleCode || 'Role'}<br/>${item.roleName || ''}<br/>Assigned users: ${item.assignedUsers || 0}<br/>Active users: ${item.activeUsers || 0}`
+          }
+        />
+      </div>
+
+      <div className="sky-user-summary-chart-stack">
+        <TrendAreaChart
+          colors={[CHART_COLORS.blue]}
+          emptyMessage={`No ${appTitle} sessions were active during this ${rangeLabel} period.`}
+          emptyTitle="No session activity"
+          footer={`Click a point to open current ${appTitle} sessions · Current as of ${generatedAtLabel}`}
+          height={140}
+          isEmpty={!loading && data && !hasSessionActivity}
+          kicker={`${rangeLabel} session pressure`}
+          labels={labels}
+          onChartClick={handleSessionChartClick}
+          series={sessionSeries}
+          subtitle="Sessions observed at any point during each day."
+          title="Daily session footprint"
+        />
+
+        <IdentityHorizontalBarChart
+          colors={[
+            CHART_COLORS.blue,
+            CHART_COLORS.cyan,
+            CHART_COLORS.violet,
+            CHART_COLORS.gold,
+            CHART_COLORS.red,
+          ]}
+          data={sessionAgeChartData}
+          emptyMessage={`No active ${appTitle} sessions are available for age analysis.`}
+          emptyTitle="No active sessions"
+          footer={`Click an age band to inspect matching ${appTitle} sessions · Current as of ${generatedAtLabel}`}
+          height={140}
+          isEmpty={!loading && data && !hasSessionAgeActivity}
+          kicker="Current session lifetime"
+          name="Active sessions"
+          onChartClick={handleSessionAgeChartClick}
+          subtitle="Current sessions grouped by time since authentication."
+          title="Session age distribution"
+          tooltipFormatter={(item) =>
+            `${item.label || 'Session age'}<br/>Active sessions: ${item.count || 0}`
+          }
+        />
+      </div>
     </div>
   );
 }

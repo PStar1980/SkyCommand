@@ -64,6 +64,7 @@ SkyServer/
 │   │       │   │   ├── EChartCanvas.jsx
 │   │       │   │   ├── EChartCard.jsx
 │   │       │   │   ├── EmptyChartState.jsx
+│   │       │   │   ├── IdentityHorizontalBarChart.jsx
 │   │       │   │   ├── IngestionStatusVisuals.jsx
 │   │       │   │   ├── OutcomeBarChart.jsx
 │   │       │   │   ├── ProductionReadinessVisuals.jsx

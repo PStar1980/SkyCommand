@@ -19,6 +19,7 @@ function getInitialUserFilters(searchParams) {
     q: searchParams.get('q') || '',
     status: searchParams.get('status') || '',
     appCode: searchParams.get('appCode') || '',
+    roleCode: searchParams.get('roleCode') || '',
     limit: 50,
   };
 }
@@ -150,6 +151,11 @@ function AdminUsers() {
         (role) => role.active && (!role.appCode || role.appCode === DEFAULT_ADMIN_APP_CODE),
       ),
     [roles],
+  );
+  const filterRoles = useMemo(
+    () =>
+      roles.filter((role) => role.active && (!filters.appCode || role.appCode === filters.appCode)),
+    [filters.appCode, roles],
   );
   const selectedIsCurrentUser = currentUser?.userId && selectedUser?.userId === currentUser.userId;
 
@@ -673,7 +679,7 @@ function AdminUsers() {
       <section className="sky-card mb-3">
         <div className="sky-card-body">
           <form className="row g-3 align-items-end" onSubmit={handleApplyFilters}>
-            <div className="col-lg-4 col-md-6">
+            <div className="col-lg-3 col-md-6">
               <label className="form-label" htmlFor="userSearch">
                 Search
               </label>
@@ -703,20 +709,44 @@ function AdminUsers() {
                 ))}
               </select>
             </div>
-            <div className="col-lg-3 col-md-3">
+            <div className="col-lg-2 col-md-3">
               <label className="form-label" htmlFor="userAppFilter">
                 Application access
               </label>
               <select
                 className="form-select sky-form-control"
                 id="userAppFilter"
-                onChange={(event) => updateFilter('appCode', event.target.value)}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    appCode: event.target.value,
+                    roleCode: '',
+                  }))
+                }
                 value={filters.appCode}
               >
                 <option value="">All applications</option>
                 {applications.map((application) => (
                   <option key={application.appCode} value={application.appCode}>
                     {application.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-lg-3 col-md-3">
+              <label className="form-label" htmlFor="userRoleFilter">
+                Role
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="userRoleFilter"
+                onChange={(event) => updateFilter('roleCode', event.target.value)}
+                value={filters.roleCode}
+              >
+                <option value="">All roles</option>
+                {filterRoles.map((role) => (
+                  <option key={`${role.appCode || 'APP'}-${role.roleCode}`} value={role.roleCode}>
+                    {role.roleCode} · {role.roleName}
                   </option>
                 ))}
               </select>
@@ -736,7 +766,7 @@ function AdminUsers() {
                 <option value="100">100</option>
               </select>
             </div>
-            <div className="col-lg-2 col-md-3 d-grid">
+            <div className="col-lg-1 col-md-3 d-grid">
               <button className="btn sky-btn-ghost" disabled={loading} type="submit">
                 Apply
               </button>
