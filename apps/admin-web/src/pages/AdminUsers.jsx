@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
@@ -12,6 +13,15 @@ const DEFAULT_CREATE_FORM = {
   status: 'ACTIVE',
   roleCodes: ['VIEWER'],
 };
+
+function getInitialUserFilters(searchParams) {
+  return {
+    q: searchParams.get('q') || '',
+    status: searchParams.get('status') || '',
+    appCode: searchParams.get('appCode') || '',
+    limit: 50,
+  };
+}
 
 function formatDate(value) {
   if (!value) {
@@ -103,6 +113,8 @@ function roleCodesFromUserRoles(userRoles = []) {
 
 function AdminUsers() {
   const { hasPermission, user: currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
+  const initialFilters = getInitialUserFilters(searchParams);
   const canWriteUsers = hasPermission('ADMIN_USER_WRITE');
   const canWriteRoles = hasPermission('ADMIN_ROLE_WRITE');
 
@@ -114,7 +126,7 @@ function AdminUsers() {
   const [selectedPermissions, setSelectedPermissions] = useState([]);
   const [applicationForm, setApplicationForm] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [filters, setFilters] = useState({ q: '', status: '', appCode: '', limit: 50 });
+  const [filters, setFilters] = useState(() => initialFilters);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);

@@ -4,10 +4,20 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([BarChart, GaugeChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([
+  BarChart,
+  GaugeChart,
+  LineChart,
+  PieChart,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+  CanvasRenderer,
+]);
 
-function EChartCanvas({ className = '', height = 260, option }) {
-  const chartStyle = typeof height === 'number' ? { minHeight: height } : { height, minHeight: height };
+function EChartCanvas({ className = '', height = 260, onChartClick, option }) {
+  const chartStyle =
+    typeof height === 'number' ? { minHeight: height } : { height, minHeight: height };
   const chartRef = useRef(null);
   const instanceRef = useRef(null);
 
@@ -23,6 +33,10 @@ function EChartCanvas({ className = '', height = 260, option }) {
     instanceRef.current = instance;
     instance.setOption(option, true);
 
+    if (typeof onChartClick === 'function') {
+      instance.on('click', onChartClick);
+    }
+
     const resizeChart = () => {
       instance.resize();
     };
@@ -34,18 +48,15 @@ function EChartCanvas({ className = '', height = 260, option }) {
 
     return () => {
       resizeObserver.disconnect();
+      if (typeof onChartClick === 'function') {
+        instance.off('click', onChartClick);
+      }
       instance.dispose();
       instanceRef.current = null;
     };
-  }, [option]);
+  }, [onChartClick, option]);
 
-  return (
-    <div
-      className={`sky-chart-body ${className}`.trim()}
-      ref={chartRef}
-      style={chartStyle}
-    />
-  );
+  return <div className={`sky-chart-body ${className}`.trim()} ref={chartRef} style={chartStyle} />;
 }
 
 export default EChartCanvas;

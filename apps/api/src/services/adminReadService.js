@@ -114,6 +114,117 @@ function addDateRangeFilters({ clauses, values, columnName, from, to }) {
   }
 }
 
+function buildComparisonMetric(currentValue, previousValue) {
+  const current = Number(currentValue || 0);
+  const previous = Number(previousValue || 0);
+  const delta = current - previous;
+  const percentChange =
+    previous === 0 ? (current === 0 ? 0 : null) : Number(((delta / previous) * 100).toFixed(1));
+
+  return {
+    current,
+    previous,
+    delta,
+    percentChange,
+    direction: delta > 0 ? 'UP' : delta < 0 ? 'DOWN' : 'FLAT',
+  };
+}
+
+function buildIdentityHealth({
+  failedLogins = 0,
+  lockedUsers = 0,
+  sessionFootprintComparison,
+  staleSessions = 0,
+  successfulLogins = 0,
+  successfulLoginComparison,
+} = {}) {
+  const successful = Number(successfulLogins || 0);
+  const failed = Number(failedLogins || 0);
+  const totalAttempts = successful + failed;
+  const failedLoginRate =
+    totalAttempts > 0 ? Number(((failed / totalAttempts) * 100).toFixed(1)) : 0;
+  const loginPercentChange = successfulLoginComparison?.percentChange;
+  const sessionPercentChange = sessionFootprintComparison?.percentChange;
+  const reasons = [];
+  let status = 'NORMAL';
+
+  const promote = (nextStatus) => {
+    const priority = { NORMAL: 0, ELEVATED: 1, ATTENTION: 2, CRITICAL: 3 };
+    if ((priority[nextStatus] || 0) > (priority[status] || 0)) {
+      status = nextStatus;
+    }
+  };
+
+  if (failed >= 10 && failedLoginRate >= 25) {
+    promote('CRITICAL');
+    reasons.push(`${failed} failed logins (${failedLoginRate}% of attempts)`);
+  } else if (failed >= 5 || failedLoginRate >= 15) {
+    promote('ATTENTION');
+    reasons.push(`${failed} failed logins (${failedLoginRate}% of attempts)`);
+  } else if (failed > 0) {
+    promote('ELEVATED');
+    reasons.push(`${failed} failed login attempt(s)`);
+  }
+
+  if (Number(lockedUsers || 0) >= 3) {
+    promote('CRITICAL');
+    reasons.push(`${lockedUsers} locked users`);
+  } else if (Number(lockedUsers || 0) > 0) {
+    promote('ATTENTION');
+    reasons.push(`${lockedUsers} locked user(s)`);
+  }
+
+  if (Number(staleSessions || 0) >= 3) {
+    promote('ATTENTION');
+    reasons.push(`${staleSessions} sessions older than 12 hours`);
+  } else if (Number(staleSessions || 0) > 0) {
+    promote('ELEVATED');
+    reasons.push(`${staleSessions} session(s) older than 12 hours`);
+  }
+
+  if (loginPercentChange === null && successful >= 10) {
+    promote('ATTENTION');
+    reasons.push(`${successful} successful logins with no prior-period activity`);
+  } else if (loginPercentChange !== null && loginPercentChange >= 100 && successful >= 10) {
+    promote('ATTENTION');
+    reasons.push(`Successful logins increased ${loginPercentChange}%`);
+  } else if (loginPercentChange !== null && loginPercentChange >= 50 && successful >= 5) {
+    promote('ELEVATED');
+    reasons.push(`Successful logins increased ${loginPercentChange}%`);
+  }
+
+  if (sessionPercentChange === null && sessionFootprintComparison?.current >= 5) {
+    promote('ATTENTION');
+    reasons.push('New session pressure appeared with no prior-period footprint');
+  } else if (
+    sessionPercentChange !== null &&
+    sessionPercentChange >= 100 &&
+    sessionFootprintComparison?.current >= 5
+  ) {
+    promote('ATTENTION');
+    reasons.push(`Daily session footprint increased ${sessionPercentChange}%`);
+  } else if (
+    sessionPercentChange !== null &&
+    sessionPercentChange >= 50 &&
+    sessionFootprintComparison?.current >= 3
+  ) {
+    promote('ELEVATED');
+    reasons.push(`Daily session footprint increased ${sessionPercentChange}%`);
+  }
+
+  if (reasons.length === 0) {
+    reasons.push('No unusual authentication or session pressure detected.');
+  }
+
+  return {
+    status,
+    label: status === 'NORMAL' ? 'Normal' : status.charAt(0) + status.slice(1).toLowerCase(),
+    reasons,
+    failedLoginRate,
+    staleSessionThresholdHours: 12,
+  };
+}
+
 function addSearchFilter({ clauses, values, columns, searchText }) {
   const normalizedSearchText = normalizeOptionalString(searchText);
 
@@ -191,6 +302,9 @@ function sanitizeLoginEvent(row) {
     emailAttempted: row.email_attempted,
     success: row.success,
     failureReason: row.failure_reason,
+    appId: row.app_id,
+    appCode: row.app_code,
+    appTitle: row.app_title,
     ipAddress: row.ip_address,
     userAgent: row.user_agent,
     createdAt: row.created_at,
@@ -633,6 +747,13 @@ async function listLoginEvents(filters = {}) {
   const clauses = [];
   const values = [];
 
+  addAppCodeFilter({
+    clauses,
+    values,
+    columnName: 'app_code',
+    value: filters.appCode,
+    fallback: null,
+  });
   addEqualsFilter({ clauses, values, columnName: 'failure_reason', value: filters.failureReason });
   addBooleanFilter({ clauses, values, columnName: 'success', value: filters.success });
   addDateRangeFilters({
@@ -766,7 +887,7 @@ async function listActiveSessions(filters = {}) {
 
 async function getApplicationUserSummary(filters = {}) {
   const appCode = normalizeAppCodeFilter(filters.appCode, DEFAULT_ADMIN_APP_CODE);
-  const days = Math.max(1, toPositiveInteger(filters.days, 7, 31));
+  const days = Math.max(1, toPositiveInteger(filters.days, 7, 90));
 
   if (!appCode) {
     const error = new Error('Application code is required.');
@@ -783,12 +904,28 @@ async function getApplicationUserSummary(filters = {}) {
           AND active = TRUE
         LIMIT 1
       ),
+      bounds AS (
+        SELECT
+          date_trunc('day', CURRENT_TIMESTAMP) - (($2::int - 1) * INTERVAL '1 day') AS current_start,
+          date_trunc('day', CURRENT_TIMESTAMP) + INTERVAL '1 day' AS current_end,
+          date_trunc('day', CURRENT_TIMESTAMP) - (($2::int * 2 - 1) * INTERVAL '1 day') AS previous_start,
+          date_trunc('day', CURRENT_TIMESTAMP) - (($2::int - 1) * INTERVAL '1 day') AS previous_end
+      ),
       date_window AS (
         SELECT generate_series(
-          date_trunc('day', CURRENT_TIMESTAMP) - (($2::int - 1) * INTERVAL '1 day'),
-          date_trunc('day', CURRENT_TIMESTAMP),
+          bounds.current_start,
+          bounds.current_end - INTERVAL '1 day',
           INTERVAL '1 day'
         ) AS day_start
+        FROM bounds
+      ),
+      previous_date_window AS (
+        SELECT generate_series(
+          bounds.previous_start,
+          bounds.previous_end - INTERVAL '1 day',
+          INTERVAL '1 day'
+        ) AS day_start
+        FROM bounds
       ),
       user_stats AS (
         SELECT
@@ -805,17 +942,31 @@ async function getApplicationUserSummary(filters = {}) {
           COUNT(*) FILTER (
             WHERE u.is_system_user = FALSE
               AND (u.status = 'DISABLED' OR ua.status = 'DISABLED')
-          )::int AS disabled_users
+          )::int AS disabled_users,
+          COUNT(*) FILTER (
+            WHERE u.is_system_user = FALSE
+              AND ua.created_at >= bounds.current_start
+              AND ua.created_at < bounds.current_end
+          )::int AS new_users_current,
+          COUNT(*) FILTER (
+            WHERE u.is_system_user = FALSE
+              AND ua.created_at >= bounds.previous_start
+              AND ua.created_at < bounds.previous_end
+          )::int AS new_users_previous
         FROM auth.user_applications ua
         JOIN auth.users u
           ON u.user_id = ua.user_id
         JOIN target_app app
           ON app.app_id = ua.app_id
+        CROSS JOIN bounds
       ),
       session_stats AS (
         SELECT
           COUNT(*)::int AS active_sessions,
           COUNT(DISTINCT s.user_id)::int AS users_online,
+          COUNT(*) FILTER (
+            WHERE s.created_at <= CURRENT_TIMESTAMP - INTERVAL '12 hours'
+          )::int AS stale_sessions,
           COALESCE(
             MAX(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - s.created_at))),
             0
@@ -838,7 +989,20 @@ async function getApplicationUserSummary(filters = {}) {
         FROM auth.login_events le
         JOIN target_app app
           ON app.app_id = le.app_id
-        WHERE le.created_at >= date_trunc('day', CURRENT_TIMESTAMP) - (($2::int - 1) * INTERVAL '1 day')
+        CROSS JOIN bounds
+        WHERE le.created_at >= bounds.current_start
+          AND le.created_at < bounds.current_end
+      ),
+      previous_login_stats AS (
+        SELECT
+          COUNT(*) FILTER (WHERE le.success = TRUE)::int AS successful_logins,
+          COUNT(*) FILTER (WHERE le.success = FALSE)::int AS failed_logins
+        FROM auth.login_events le
+        JOIN target_app app
+          ON app.app_id = le.app_id
+        CROSS JOIN bounds
+        WHERE le.created_at >= bounds.previous_start
+          AND le.created_at < bounds.previous_end
       ),
       daily_activity AS (
         SELECT
@@ -874,6 +1038,37 @@ async function getApplicationUserSummary(filters = {}) {
               AND u.is_system_user = FALSE
           ) AS active_sessions
         FROM date_window day
+      ),
+      previous_daily_activity AS (
+        SELECT
+          day.day_start,
+          (
+            SELECT COUNT(*)::int
+            FROM auth.sessions s
+            JOIN auth.users u
+              ON u.user_id = s.user_id
+            JOIN target_app app
+              ON app.app_id = s.app_id
+            WHERE s.created_at < day.day_start + INTERVAL '1 day'
+              AND s.expires_at > day.day_start
+              AND (s.revoked_at IS NULL OR s.revoked_at > day.day_start)
+              AND u.is_system_user = FALSE
+          ) AS active_sessions
+        FROM previous_date_window day
+      ),
+      activity_stats AS (
+        SELECT
+          COALESCE(AVG(active_sessions), 0)::numeric(12,2) AS average_sessions,
+          COALESCE(MAX(active_sessions), 0)::int AS peak_sessions,
+          COALESCE((ARRAY_AGG(active_sessions ORDER BY day_start DESC))[1], 0)::int AS end_sessions
+        FROM daily_activity
+      ),
+      previous_activity_stats AS (
+        SELECT
+          COALESCE(AVG(active_sessions), 0)::numeric(12,2) AS average_sessions,
+          COALESCE(MAX(active_sessions), 0)::int AS peak_sessions,
+          COALESCE((ARRAY_AGG(active_sessions ORDER BY day_start DESC))[1], 0)::int AS end_sessions
+        FROM previous_daily_activity
       )
       SELECT
         app.app_code,
@@ -882,12 +1077,23 @@ async function getApplicationUserSummary(filters = {}) {
         user_stats.active_users,
         user_stats.locked_users,
         user_stats.disabled_users,
+        user_stats.new_users_current,
+        user_stats.new_users_previous,
         session_stats.active_sessions,
         session_stats.users_online,
+        session_stats.stale_sessions,
         session_stats.longest_session_seconds,
         login_stats.successful_logins,
         login_stats.failed_logins,
         login_stats.last_login_at,
+        previous_login_stats.successful_logins AS previous_successful_logins,
+        previous_login_stats.failed_logins AS previous_failed_logins,
+        activity_stats.average_sessions,
+        activity_stats.peak_sessions,
+        activity_stats.end_sessions,
+        previous_activity_stats.average_sessions AS previous_average_sessions,
+        previous_activity_stats.peak_sessions AS previous_peak_sessions,
+        previous_activity_stats.end_sessions AS previous_end_sessions,
         COALESCE(
           (
             SELECT jsonb_agg(
@@ -907,6 +1113,9 @@ async function getApplicationUserSummary(filters = {}) {
       CROSS JOIN user_stats
       CROSS JOIN session_stats
       CROSS JOIN login_stats
+      CROSS JOIN previous_login_stats
+      CROSS JOIN activity_stats
+      CROSS JOIN previous_activity_stats
     `,
     [appCode, days],
   );
@@ -919,6 +1128,35 @@ async function getApplicationUserSummary(filters = {}) {
 
   const row = result.rows[0];
   const activity = Array.isArray(row.activity) ? row.activity : [];
+  const newUsersComparison = buildComparisonMetric(row.new_users_current, row.new_users_previous);
+  const successfulLoginComparison = buildComparisonMetric(
+    row.successful_logins,
+    row.previous_successful_logins,
+  );
+  const failedLoginComparison = buildComparisonMetric(
+    row.failed_logins,
+    row.previous_failed_logins,
+  );
+  const sessionFootprintAverageComparison = buildComparisonMetric(
+    row.average_sessions,
+    row.previous_average_sessions,
+  );
+  const sessionFootprintEndComparison = buildComparisonMetric(
+    row.end_sessions,
+    row.previous_end_sessions,
+  );
+  const peakSessionFootprintComparison = buildComparisonMetric(
+    row.peak_sessions,
+    row.previous_peak_sessions,
+  );
+  const health = buildIdentityHealth({
+    failedLogins: row.failed_logins,
+    lockedUsers: row.locked_users,
+    sessionFootprintComparison: sessionFootprintAverageComparison,
+    staleSessions: row.stale_sessions,
+    successfulLogins: row.successful_logins,
+    successfulLoginComparison,
+  });
 
   return {
     appCode: row.app_code,
@@ -930,13 +1168,27 @@ async function getApplicationUserSummary(filters = {}) {
       activeUsers: Number(row.active_users || 0),
       lockedUsers: Number(row.locked_users || 0),
       disabledUsers: Number(row.disabled_users || 0),
+      newUsers: newUsersComparison.current,
       activeSessions: Number(row.active_sessions || 0),
       usersOnline: Number(row.users_online || 0),
+      staleSessions: Number(row.stale_sessions || 0),
       longestSessionSeconds: Number(row.longest_session_seconds || 0),
       successfulLogins: Number(row.successful_logins || 0),
       failedLogins: Number(row.failed_logins || 0),
+      failedLoginRate: health.failedLoginRate,
+      sessionFootprintAverage: Number(row.average_sessions || 0),
+      peakSessionFootprint: Number(row.peak_sessions || 0),
       lastLoginAt: row.last_login_at || null,
     },
+    comparison: {
+      newUsers: newUsersComparison,
+      successfulLogins: successfulLoginComparison,
+      failedLogins: failedLoginComparison,
+      sessionFootprintAverage: sessionFootprintAverageComparison,
+      sessionFootprintEnd: sessionFootprintEndComparison,
+      peakSessionFootprint: peakSessionFootprintComparison,
+    },
+    health,
     activity: activity.map((item) => ({
       date: item.date,
       successfulLogins: Number(item.successfulLogins || 0),

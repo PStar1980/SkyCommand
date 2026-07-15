@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
@@ -7,6 +8,14 @@ const DEFAULT_FILTERS = {
   appCode: 'ALL',
   limit: '50',
 };
+
+function getInitialSessionFilters(searchParams) {
+  return {
+    ...DEFAULT_FILTERS,
+    q: searchParams.get('q') || '',
+    appCode: searchParams.get('appCode') || 'ALL',
+  };
+}
 
 function formatDate(value) {
   if (!value) {
@@ -106,10 +115,13 @@ function formatApplicationLabel(application) {
 
 function AdminSessions() {
   const { hasPermission } = useAuth();
+  const [searchParams] = useSearchParams();
+  const initialFilters = getInitialSessionFilters(searchParams);
+  const observedDate = searchParams.get('observedDate') || '';
   const canRevoke = hasPermission('ADMIN_USER_WRITE');
   const [applications, setApplications] = useState([]);
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState(() => initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState(() => initialFilters);
   const [sessions, setSessions] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -223,7 +235,7 @@ function AdminSessions() {
       try {
         const [applicationsResult, sessionsResult] = await Promise.all([
           adminService.listApplications({ active: true, limit: 200 }),
-          adminService.listSessions(DEFAULT_FILTERS),
+          adminService.listSessions(initialFilters),
         ]);
 
         if (!active) {
@@ -279,6 +291,12 @@ function AdminSessions() {
 
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
+      {observedDate ? (
+        <div className="alert alert-info">
+          The Command Center chart point for {observedDate} opened this application filter. This
+          page shows sessions active now; the chart preserves the historical daily footprint.
+        </div>
+      ) : null}
 
       <div className="row g-3 mb-3">
         <div className="col-sm-6 col-xl-3">

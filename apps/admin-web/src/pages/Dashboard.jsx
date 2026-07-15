@@ -6,11 +6,7 @@ import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
-import {
-  StatusDot,
-  getStatusClass,
-  getStatusLabel,
-} from '../components/ui/StatusPill.jsx';
+import { StatusDot, getStatusClass, getStatusLabel } from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useSmartPolling, {
   SMART_POLLING_INTERVALS,
@@ -89,6 +85,7 @@ function Dashboard() {
   const { hasPermission, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshingAt, setRefreshingAt] = useState(null);
+  const [identityDays, setIdentityDays] = useState(7);
   const [summary, setSummary] = useState({
     apiHealth: null,
     dbHealth: null,
@@ -284,14 +281,10 @@ function Dashboard() {
       },
       {
         label: 'Sessions',
-        value: loading
-          ? '—'
-          : summary.userSummaries.skyCommand?.summary?.activeSessions || 0,
+        value: loading ? '—' : summary.userSummaries.skyCommand?.summary?.activeSessions || 0,
         help: 'Active SkyCommand sessions',
         status:
-          (summary.userSummaries.skyCommand?.summary?.activeSessions || 0) > 0
-            ? 'CURRENT'
-            : 'INFO',
+          (summary.userSummaries.skyCommand?.summary?.activeSessions || 0) > 0 ? 'CURRENT' : 'INFO',
       },
       {
         label: 'Tools',
@@ -363,7 +356,8 @@ function Dashboard() {
     }
 
     return recentExecutions.filter(
-      (execution) => String(execution.status || '').toUpperCase() === dashboardFilters.executionStatus,
+      (execution) =>
+        String(execution.status || '').toUpperCase() === dashboardFilters.executionStatus,
     );
   }, [dashboardFilters.executionStatus, recentExecutions]);
   const visualWorkflowRuns = useMemo(() => {
@@ -389,6 +383,12 @@ function Dashboard() {
     loadDashboard();
   }
 
+  function changeIdentityWindow(event) {
+    const nextDays = Number(event.target.value) || 7;
+    setIdentityDays(nextDays);
+    loadDashboard({ userSummaryDays: nextDays });
+  }
+
   async function loadOptional(name, loader) {
     try {
       return await loader();
@@ -398,7 +398,7 @@ function Dashboard() {
     }
   }
 
-  async function loadDashboard({ quiet = false } = {}) {
+  async function loadDashboard({ quiet = false, userSummaryDays = identityDays } = {}) {
     if (!quiet) {
       setLoading(true);
       setError('');
@@ -428,19 +428,26 @@ function Dashboard() {
           ? loadOptional('tools', () => toolService.listTools())
           : Promise.resolve(null),
         hasPermission('SCRIPT_EXECUTION_READ')
-          ? loadOptional('executions', () => adminService.listScriptExecutions({ limit: dashboardRecentLimit }))
+          ? loadOptional('executions', () =>
+              adminService.listScriptExecutions({ limit: dashboardRecentLimit }),
+            )
           : Promise.resolve(null),
         hasPermission('AUDIT_READ')
-          ? loadOptional('audit', () => adminService.listAuditEvents({ limit: dashboardRecentLimit }))
+          ? loadOptional('audit', () =>
+              adminService.listAuditEvents({ limit: dashboardRecentLimit }),
+            )
           : Promise.resolve(null),
         hasPermission('ADMIN_USER_READ')
           ? loadOptional('skycommand-user-summary', () =>
-              adminService.getApplicationUserSummary({ appCode: 'SKYSERVER_ADMIN', days: 7 }),
+              adminService.getApplicationUserSummary({
+                appCode: 'SKYSERVER_ADMIN',
+                days: userSummaryDays,
+              }),
             )
           : Promise.resolve(null),
         hasPermission('ADMIN_USER_READ')
           ? loadOptional('skyweb-user-summary', () =>
-              adminService.getApplicationUserSummary({ appCode: 'SKYWEB', days: 7 }),
+              adminService.getApplicationUserSummary({ appCode: 'SKYWEB', days: userSummaryDays }),
             )
           : Promise.resolve(null),
         hasPermission('INGESTION_VIEW_STATUS')
@@ -455,7 +462,9 @@ function Dashboard() {
           ? loadOptional('workflow-health', () => workflowService.getWorkerHealth())
           : Promise.resolve(null),
         hasPermission('WORKFLOW_READ')
-          ? loadOptional('workflow-runs', () => workflowService.listRuns({ limit: dashboardRecentLimit }))
+          ? loadOptional('workflow-runs', () =>
+              workflowService.listRuns({ limit: dashboardRecentLimit }),
+            )
           : Promise.resolve(null),
         hasPermission('ADMIN_REPOSITORY_READ')
           ? loadOptional('production-readiness', () => adminService.getProductionReadiness())
@@ -1054,7 +1063,31 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="sky-dashboard-section-heading mt-4 mb-2">
+        <div>
+          <div className="sky-page-kicker">Identity early warning</div>
+          <h2 className="h5 mb-0">Application access activity</h2>
+          <div className="small sky-muted mt-1">
+            Compare login and session pressure with the immediately preceding period.
+          </div>
+        </div>
+        <label className="sky-identity-window-control" htmlFor="identityWindowDays">
+          <span>Activity window</span>
+          <select
+            className="form-select form-select-sm sky-form-control"
+            disabled={loading}
+            id="identityWindowDays"
+            onChange={changeIdentityWindow}
+            value={identityDays}
+          >
+            <option value={7}>7 days</option>
+            <option value={30}>30 days</option>
+            <option value={90}>90 days</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-2">
         <ApplicationUserSummaryRow
           data={summary.userSummaries.skyCommand}
           loading={loading}
