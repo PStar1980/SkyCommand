@@ -3,9 +3,19 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
+const SESSION_AGE_OPTIONS = [
+  { value: '', label: 'All session ages' },
+  { value: 'UNDER_15_MIN', label: 'Under 15 min' },
+  { value: 'MIN_15_TO_60', label: '15–60 min' },
+  { value: 'HOUR_1_TO_4', label: '1–4 hours' },
+  { value: 'HOUR_4_TO_12', label: '4–12 hours' },
+  { value: 'OVER_12_HOURS', label: 'Over 12 hours' },
+];
+
 const DEFAULT_FILTERS = {
   q: '',
   appCode: 'ALL',
+  ageRange: '',
   limit: '50',
 };
 
@@ -14,6 +24,7 @@ function getInitialSessionFilters(searchParams) {
     ...DEFAULT_FILTERS,
     q: searchParams.get('q') || '',
     appCode: searchParams.get('appCode') || 'ALL',
+    ageRange: searchParams.get('ageRange') || '',
   };
 }
 
@@ -181,6 +192,7 @@ function AdminSessions() {
     const nextFilters = {
       q: filters.q.trim(),
       appCode: filters.appCode,
+      ageRange: filters.ageRange,
       limit: filters.limit,
     };
 
@@ -297,6 +309,12 @@ function AdminSessions() {
           page shows sessions active now; the chart preserves the historical daily footprint.
         </div>
       ) : null}
+      {initialFilters.ageRange ? (
+        <div className="alert alert-info">
+          Showing the current-session age band selected from the Command Center. Adjust or clear the
+          Session age filter below to broaden the result set.
+        </div>
+      ) : null}
 
       <div className="row g-3 mb-3">
         <div className="col-sm-6 col-xl-3">
@@ -340,7 +358,7 @@ function AdminSessions() {
       <section className="sky-card mb-3">
         <form className="sky-card-body" onSubmit={applyFilters}>
           <div className="row g-3 align-items-end">
-            <div className="col-lg-5">
+            <div className="col-lg-4">
               <label className="form-label sky-form-label" htmlFor="sessionSearch">
                 Search
               </label>
@@ -354,7 +372,7 @@ function AdminSessions() {
                 value={filters.q}
               />
             </div>
-            <div className="col-lg-3">
+            <div className="col-lg-2">
               <label className="form-label sky-form-label" htmlFor="sessionAppFilter">
                 Application
               </label>
@@ -370,6 +388,25 @@ function AdminSessions() {
                 {applications.map((application) => (
                   <option key={application.appCode} value={application.appCode}>
                     {formatApplicationLabel(application)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-lg-2">
+              <label className="form-label sky-form-label" htmlFor="sessionAgeFilter">
+                Session age
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="sessionAgeFilter"
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, ageRange: event.target.value }))
+                }
+                value={filters.ageRange}
+              >
+                {SESSION_AGE_OPTIONS.map((option) => (
+                  <option key={option.value || 'ALL'} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
