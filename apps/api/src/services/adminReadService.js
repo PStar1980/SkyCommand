@@ -764,6 +764,188 @@ async function listActiveSessions(filters = {}) {
   };
 }
 
+async function getApplicationUserSummary(filters = {}) {
+  const appCode = normalizeAppCodeFilter(filters.appCode, DEFAULT_ADMIN_APP_CODE);
+  const days = Math.max(1, toPositiveInteger(filters.days, 7, 31));
+
+  if (!appCode) {
+    const error = new Error('Application code is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const result = await query(
+    `
+      WITH target_app AS (
+        SELECT app_id, app_code, title
+        FROM core.applications
+        WHERE app_code = $1
+          AND active = TRUE
+        LIMIT 1
+      ),
+      date_window AS (
+        SELECT generate_series(
+          date_trunc('day', CURRENT_TIMESTAMP) - (($2::int - 1) * INTERVAL '1 day'),
+          date_trunc('day', CURRENT_TIMESTAMP),
+          INTERVAL '1 day'
+        ) AS day_start
+      ),
+      user_stats AS (
+        SELECT
+          COUNT(*) FILTER (WHERE u.is_system_user = FALSE)::int AS total_users,
+          COUNT(*) FILTER (
+            WHERE u.is_system_user = FALSE
+              AND u.status = 'ACTIVE'
+              AND ua.status = 'ACTIVE'
+          )::int AS active_users,
+          COUNT(*) FILTER (
+            WHERE u.is_system_user = FALSE
+              AND (u.status = 'LOCKED' OR u.locked_until > CURRENT_TIMESTAMP)
+          )::int AS locked_users,
+          COUNT(*) FILTER (
+            WHERE u.is_system_user = FALSE
+              AND (u.status = 'DISABLED' OR ua.status = 'DISABLED')
+          )::int AS disabled_users
+        FROM auth.user_applications ua
+        JOIN auth.users u
+          ON u.user_id = ua.user_id
+        JOIN target_app app
+          ON app.app_id = ua.app_id
+      ),
+      session_stats AS (
+        SELECT
+          COUNT(*)::int AS active_sessions,
+          COUNT(DISTINCT s.user_id)::int AS users_online,
+          COALESCE(
+            MAX(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - s.created_at))),
+            0
+          )::bigint AS longest_session_seconds
+        FROM auth.sessions s
+        JOIN auth.users u
+          ON u.user_id = s.user_id
+        JOIN target_app app
+          ON app.app_id = s.app_id
+        WHERE s.revoked_at IS NULL
+          AND s.expires_at > CURRENT_TIMESTAMP
+          AND u.status = 'ACTIVE'
+          AND u.is_system_user = FALSE
+      ),
+      login_stats AS (
+        SELECT
+          COUNT(*) FILTER (WHERE le.success = TRUE)::int AS successful_logins,
+          COUNT(*) FILTER (WHERE le.success = FALSE)::int AS failed_logins,
+          MAX(le.created_at) FILTER (WHERE le.success = TRUE) AS last_login_at
+        FROM auth.login_events le
+        JOIN target_app app
+          ON app.app_id = le.app_id
+        WHERE le.created_at >= date_trunc('day', CURRENT_TIMESTAMP) - (($2::int - 1) * INTERVAL '1 day')
+      ),
+      daily_activity AS (
+        SELECT
+          day.day_start,
+          (
+            SELECT COUNT(*)::int
+            FROM auth.login_events le
+            JOIN target_app app
+              ON app.app_id = le.app_id
+            WHERE le.success = TRUE
+              AND le.created_at >= day.day_start
+              AND le.created_at < day.day_start + INTERVAL '1 day'
+          ) AS successful_logins,
+          (
+            SELECT COUNT(*)::int
+            FROM auth.login_events le
+            JOIN target_app app
+              ON app.app_id = le.app_id
+            WHERE le.success = FALSE
+              AND le.created_at >= day.day_start
+              AND le.created_at < day.day_start + INTERVAL '1 day'
+          ) AS failed_logins,
+          (
+            SELECT COUNT(*)::int
+            FROM auth.sessions s
+            JOIN auth.users u
+              ON u.user_id = s.user_id
+            JOIN target_app app
+              ON app.app_id = s.app_id
+            WHERE s.created_at < day.day_start + INTERVAL '1 day'
+              AND s.expires_at > day.day_start
+              AND (s.revoked_at IS NULL OR s.revoked_at > day.day_start)
+              AND u.is_system_user = FALSE
+          ) AS active_sessions
+        FROM date_window day
+      )
+      SELECT
+        app.app_code,
+        app.title AS app_title,
+        user_stats.total_users,
+        user_stats.active_users,
+        user_stats.locked_users,
+        user_stats.disabled_users,
+        session_stats.active_sessions,
+        session_stats.users_online,
+        session_stats.longest_session_seconds,
+        login_stats.successful_logins,
+        login_stats.failed_logins,
+        login_stats.last_login_at,
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'date', TO_CHAR(activity.day_start, 'YYYY-MM-DD'),
+                'successfulLogins', activity.successful_logins,
+                'failedLogins', activity.failed_logins,
+                'activeSessions', activity.active_sessions
+              )
+              ORDER BY activity.day_start
+            )
+            FROM daily_activity activity
+          ),
+          '[]'::jsonb
+        ) AS activity
+      FROM target_app app
+      CROSS JOIN user_stats
+      CROSS JOIN session_stats
+      CROSS JOIN login_stats
+    `,
+    [appCode, days],
+  );
+
+  if (result.rowCount === 0) {
+    const error = new Error(`Application ${appCode} was not found or is inactive.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const row = result.rows[0];
+  const activity = Array.isArray(row.activity) ? row.activity : [];
+
+  return {
+    appCode: row.app_code,
+    appTitle: row.app_title,
+    days,
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalUsers: Number(row.total_users || 0),
+      activeUsers: Number(row.active_users || 0),
+      lockedUsers: Number(row.locked_users || 0),
+      disabledUsers: Number(row.disabled_users || 0),
+      activeSessions: Number(row.active_sessions || 0),
+      usersOnline: Number(row.users_online || 0),
+      longestSessionSeconds: Number(row.longest_session_seconds || 0),
+      successfulLogins: Number(row.successful_logins || 0),
+      failedLogins: Number(row.failed_logins || 0),
+      lastLoginAt: row.last_login_at || null,
+    },
+    activity: activity.map((item) => ({
+      date: item.date,
+      successfulLogins: Number(item.successfulLogins || 0),
+      failedLogins: Number(item.failedLogins || 0),
+      activeSessions: Number(item.activeSessions || 0),
+    })),
+  };
+}
+
 async function listApplications(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
@@ -1053,6 +1235,7 @@ module.exports = {
   listLoginEvents,
   listScriptExecutions,
   listActiveSessions,
+  getApplicationUserSummary,
   listApplications,
   listUsers,
   listRoles,

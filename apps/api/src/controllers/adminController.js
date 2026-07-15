@@ -162,6 +162,15 @@ async function revokeSession(req, res) {
   }
 }
 
+async function getApplicationUserSummary(req, res) {
+  try {
+    const payload = await adminReadService.getApplicationUserSummary(req.query || {});
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function listApplications(req, res) {
   try {
     const payload = await adminReadService.listApplications(req.query || {});
@@ -638,6 +647,7 @@ module.exports = {
   listLoginEvents,
   listScriptExecutions,
   listActiveSessions,
+  getApplicationUserSummary,
   listSessions,
   revokeSession,
   listApplications,

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ApplicationUserSummaryRow from '../components/charts/ApplicationUserSummaryRow.jsx';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
-import StatusPill, {
+import {
   StatusDot,
   getStatusClass,
   getStatusLabel,
@@ -54,89 +55,6 @@ function formatDateOnly(value) {
   }).format(date);
 }
 
-function formatDuration(value) {
-  if (value === undefined || value === null || value === '') {
-    return '—';
-  }
-
-  const milliseconds = Number(value);
-
-  if (!Number.isFinite(milliseconds)) {
-    return '—';
-  }
-
-  if (milliseconds < 1000) {
-    return `${milliseconds} ms`;
-  }
-
-  const totalSeconds = Math.round(milliseconds / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  if (minutes === 0) {
-    return `${totalSeconds} s`;
-  }
-
-  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
-
-function formatAction(value) {
-  if (!value) {
-    return '—';
-  }
-
-  return String(value)
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
-    .join(' ');
-}
-
-function getDisplaySummary(summary, fallback = '—') {
-  if (!summary) {
-    return fallback;
-  }
-
-  const lines = String(summary)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  return (
-    lines.find((line) => /✅|successfully|connected|complete|completed/i.test(line)) ||
-    lines.find((line) => !line.includes('[dotenv')) ||
-    lines[0] ||
-    String(summary)
-  );
-}
-
-function buildToolLabelMap(tools = []) {
-  return tools.reduce((toolLabels, tool) => {
-    if (tool.toolCode) {
-      toolLabels[tool.toolCode] = tool.label || tool.toolCode;
-    }
-
-    return toolLabels;
-  }, {});
-}
-
-function getToolDisplayName(execution, toolLabels = {}) {
-  if (!execution) {
-    return '—';
-  }
-
-  return (
-    execution.metadata?.toolLabel ||
-    execution.toolLabel ||
-    toolLabels[execution.scriptName] ||
-    toolLabels[execution.script_name] ||
-    execution.scriptName ||
-    execution.script_name ||
-    '—'
-  );
-}
-
 function countByStatus(items = [], fieldName = 'status') {
   return items.reduce((counts, item) => {
     const status = item?.[fieldName] || 'UNKNOWN';
@@ -167,28 +85,14 @@ function sumMacroIndicators(indicatorCounts = []) {
   );
 }
 
-function getPermissionCodes(permissions = []) {
-  return new Set(permissions.map((permission) => permission.permissionCode).filter(Boolean));
-}
-
-function buildDashboardTask(label, value, to, permissionCode, permissionCodes) {
-  return {
-    label,
-    value,
-    to,
-    visible: !permissionCode || permissionCodes.has(permissionCode),
-  };
-}
-
 function Dashboard() {
-  const { hasPermission, permissions, user } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshingAt, setRefreshingAt] = useState(null);
   const [summary, setSummary] = useState({
     apiHealth: null,
     dbHealth: null,
     tools: [],
-    toolLabels: {},
     executions: {
       total: 0,
       items: [],
@@ -197,9 +101,9 @@ function Dashboard() {
       total: 0,
       items: [],
     },
-    sessions: {
-      total: 0,
-      items: [],
+    userSummaries: {
+      skyCommand: null,
+      skyWeb: null,
     },
     ingestion: null,
     worker: null,
@@ -220,13 +124,9 @@ function Dashboard() {
     workflowStatus: '',
   });
 
-  const permissionCodes = useMemo(() => getPermissionCodes(permissions), [permissions]);
-  const permissionCount = permissions.length;
-
   const visibleToolsCount = summary.tools.length;
   const recentExecutions = summary.executions.items || [];
   const recentAudits = summary.audits.items || [];
-  const activeSessions = summary.sessions.items || [];
   const runningExecutions = recentExecutions.filter((execution) => execution.status === 'STARTED');
   const failedExecutions = recentExecutions.filter((execution) => execution.status === 'FAILED');
   const failedAuditEvents = recentAudits.filter((audit) => audit.success === false);
@@ -283,7 +183,6 @@ function Dashboard() {
   const workflowTaskQueue = workflowHealth?.taskQueue || {};
   const workflowWorker = workflowHealth?.worker || {};
   const macroIndicators = sumMacroIndicators(summary.macro?.indicatorCounts || []);
-  const executionStatusCounts = countByStatus(recentExecutions);
   const sourceStatusCounts = countByStatus(sourceHealth);
 
   const systemStatus = useMemo(() => {
@@ -321,79 +220,6 @@ function Dashboard() {
     workflowHealth?.overallStatus,
     productionReadiness?.overallStatus,
   ]);
-
-  const dashboardTasks = useMemo(
-    () =>
-      [
-        buildDashboardTask(
-          'Run tools',
-          visibleToolsCount,
-          '/tools/run',
-          'CORE_VIEW_TOOLS',
-          permissionCodes,
-        ),
-        buildDashboardTask(
-          'Review ingestion',
-          summary.ingestion?.overallStatus || '—',
-          '/dashboard/data-pipeline',
-          'INGESTION_VIEW_STATUS',
-          permissionCodes,
-        ),
-        buildDashboardTask(
-          'Automation',
-          summary.worker?.overallStatus || '—',
-          '/automation/scheduler',
-          'WORKER_SCHEDULE_READ',
-          permissionCodes,
-        ),
-        buildDashboardTask(
-          'Workflows',
-          workflowHealth?.overallStatus || '—',
-          '/workflows/worker-health',
-          'WORKFLOW_READ',
-          permissionCodes,
-        ),
-        buildDashboardTask(
-          'Readiness',
-          productionReadiness?.overallStatus || '—',
-          '/configuration/production-readiness',
-          'ADMIN_REPOSITORY_READ',
-          permissionCodes,
-        ),
-        buildDashboardTask(
-          'Inspect executions',
-          summary.executions.total,
-          '/tools/executions',
-          'SCRIPT_EXECUTION_READ',
-          permissionCodes,
-        ),
-        buildDashboardTask(
-          'Audit activity',
-          summary.audits.total,
-          '/audit/events',
-          'AUDIT_READ',
-          permissionCodes,
-        ),
-        buildDashboardTask(
-          'Manage users',
-          summary.sessions.total,
-          '/admin/users',
-          'ADMIN_USER_READ',
-          permissionCodes,
-        ),
-      ].filter((task) => task.visible),
-    [
-      permissionCodes,
-      summary.audits.total,
-      summary.executions.total,
-      summary.ingestion?.overallStatus,
-      summary.worker?.overallStatus,
-      workflowHealth?.overallStatus,
-      productionReadiness?.overallStatus,
-      summary.sessions.total,
-      visibleToolsCount,
-    ],
-  );
 
   const statCards = useMemo(
     () => [
@@ -458,9 +284,14 @@ function Dashboard() {
       },
       {
         label: 'Sessions',
-        value: loading ? '—' : summary.sessions.total,
-        help: 'Active authenticated sessions',
-        status: summary.sessions.total > 0 ? 'CURRENT' : 'INFO',
+        value: loading
+          ? '—'
+          : summary.userSummaries.skyCommand?.summary?.activeSessions || 0,
+        help: 'Active SkyCommand sessions',
+        status:
+          (summary.userSummaries.skyCommand?.summary?.activeSessions || 0) > 0
+            ? 'CURRENT'
+            : 'INFO',
       },
       {
         label: 'Tools',
@@ -516,73 +347,11 @@ function Dashboard() {
       summary.executions.total,
       summary.ingestion,
       summary.macro,
-      summary.sessions.total,
+      summary.userSummaries.skyCommand?.summary?.activeSessions,
       systemStatus,
       visibleToolsCount,
     ],
   );
-
-  const controlPlaneMetrics = [
-    {
-      label: 'Workflow runtime',
-      value: loading ? '—' : workflowHealth?.overallStatus || '—',
-      helper: `${workflowRuns.active || 0} active · ${workflowRuns.completedLast24h || 0} completed 24h`,
-      status: workflowHealth?.overallStatus || 'UNKNOWN',
-      to: '/workflows/worker-health',
-      visible: hasPermission('WORKFLOW_READ'),
-    },
-    {
-      label: 'Task queue',
-      value: loading ? '—' : workflowTaskQueue.healthy ? 'POLLING' : 'CHECK',
-      helper: `${workflowTaskQueue.pollerCount || 0} poller(s) · ${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'skyserver-local'}`,
-      status: workflowTaskQueue.healthy ? 'CURRENT' : 'WARNING',
-      to: '/workflows/worker-health',
-      visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
-    },
-    {
-      label: 'Readiness',
-      value: loading ? '—' : productionReadiness?.overallStatus || '—',
-      helper: `${productionReadiness?.counts?.pass || 0} pass · ${productionReadiness?.counts?.warning || 0} warning · ${productionReadiness?.counts?.fail || 0} fail`,
-      status: productionReadiness?.overallStatus || 'UNKNOWN',
-      to: '/configuration/production-readiness',
-      visible: hasPermission('ADMIN_REPOSITORY_READ'),
-    },
-    {
-      label: 'Ingestion',
-      value: loading ? '—' : summary.ingestion?.overallStatus || '—',
-      helper: `${ingestionCounts.currentIndicators || 0} current · ${ingestionCounts.staleIndicators || 0} stale`,
-      status: summary.ingestion?.overallStatus || 'UNKNOWN',
-      to: '/dashboard/data-pipeline',
-      visible: hasPermission('INGESTION_VIEW_STATUS'),
-    },
-  ].filter((metric) => metric.visible);
-
-  const commandLinks = [
-    {
-      label: 'Start workflow',
-      detail: 'Launch published flows',
-      to: '/workflows/start',
-      visible: hasPermission('WORKFLOW_READ'),
-    },
-    {
-      label: 'Worker health',
-      detail: 'Pollers and heartbeats',
-      to: '/workflows/worker-health',
-      visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
-    },
-    {
-      label: 'Run tools',
-      detail: 'Execute configured tools',
-      to: '/tools/run',
-      visible: hasPermission('CORE_VIEW_TOOLS'),
-    },
-    {
-      label: 'Production readiness',
-      detail: 'Launch checklist',
-      to: '/configuration/production-readiness',
-      visible: hasPermission('ADMIN_REPOSITORY_READ'),
-    },
-  ].filter((link) => link.visible);
 
   const secondaryStatCards = statCards.filter((card) =>
     ['Sessions', 'Tools', 'Executions', 'Audit events', 'Macro views'].includes(card.label),
@@ -642,7 +411,8 @@ function Dashboard() {
         toolsResult,
         executionsResult,
         auditResult,
-        sessionsResult,
+        skyCommandUserResult,
+        skyWebUserResult,
         ingestionResult,
         workerResult,
         workflowHealthResult,
@@ -664,7 +434,14 @@ function Dashboard() {
           ? loadOptional('audit', () => adminService.listAuditEvents({ limit: dashboardRecentLimit }))
           : Promise.resolve(null),
         hasPermission('ADMIN_USER_READ')
-          ? loadOptional('sessions', () => adminService.listActiveSessions({ limit: 8 }))
+          ? loadOptional('skycommand-user-summary', () =>
+              adminService.getApplicationUserSummary({ appCode: 'SKYSERVER_ADMIN', days: 7 }),
+            )
+          : Promise.resolve(null),
+        hasPermission('ADMIN_USER_READ')
+          ? loadOptional('skyweb-user-summary', () =>
+              adminService.getApplicationUserSummary({ appCode: 'SKYWEB', days: 7 }),
+            )
           : Promise.resolve(null),
         hasPermission('INGESTION_VIEW_STATUS')
           ? loadOptional('ingestion', () =>
@@ -698,7 +475,6 @@ function Dashboard() {
         apiHealth,
         dbHealth,
         tools: toolsResult?.tools || [],
-        toolLabels: buildToolLabelMap(toolsResult?.tools || []),
         executions: {
           total: executionsResult?.total || 0,
           items: executionsResult?.items || [],
@@ -707,9 +483,9 @@ function Dashboard() {
           total: auditResult?.total || 0,
           items: auditResult?.items || [],
         },
-        sessions: {
-          total: sessionsResult?.total || 0,
-          items: sessionsResult?.items || [],
+        userSummaries: {
+          skyCommand: skyCommandUserResult,
+          skyWeb: skyWebUserResult,
         },
         ingestion: ingestionResult,
         worker: workerResult,
@@ -800,8 +576,8 @@ function Dashboard() {
           </>
         }
         kicker="Workflow automation engine"
-        subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. Monitor API health, database status, macro ingestion, workflow runtime, tools, sessions, executions, and audit activity from one automation console.`}
-        title="SkyCommand"
+        subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. Monitor automation health, workflow runtime, data pipelines, and application access signals from one command surface.`}
+        title="Command Center"
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -824,7 +600,7 @@ function Dashboard() {
             </>
           }
           meta={`${visualRecentExecutions.length} tool run(s) · ${visualWorkflowRuns.length} workflow run(s) · ${ingestionCounts.currentIndicators || 0} current indicator(s)`}
-          title="Overview analytics filters"
+          title="Command Center analytics filters"
         >
           <div>
             <label className="form-label" htmlFor="overviewRecentLimit">
@@ -1278,200 +1054,20 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="row g-3 mt-1">
-        <div className="col-xl-6">
-          <section className="sky-card sky-table-card h-100">
-            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
-              <div>
-                <h2 className="h5 mb-0">Latest tool executions</h2>
-                <div className="small sky-muted">Recent tool and script activity</div>
-              </div>
-              {hasPermission('SCRIPT_EXECUTION_READ') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/tools/executions">
-                  Open executions
-                </Link>
-              )}
-            </div>
-
-            {recentExecutions.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table sky-table">
-                  <thead>
-                    <tr>
-                      <th>Tool</th>
-                      <th>Status</th>
-                      <th>Duration</th>
-                      <th>Started</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentExecutions.slice(0, 6).map((execution) => (
-                      <tr key={execution.executionId}>
-                        <td>
-                          <div className="fw-bold sky-detail-value">
-                            {getToolDisplayName(execution, summary.toolLabels)}
-                          </div>
-                          <div className="small sky-muted sky-mono">{execution.scriptName}</div>
-                        </td>
-                        <td>
-                          <span className={`sky-pill ${getStatusClass(execution.status)}`}>
-                            {getStatusLabel(execution.status)}
-                          </span>
-                        </td>
-                        <td>{formatDuration(execution.durationMs)}</td>
-                        <td>{formatDate(execution.startedAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="sky-empty-state">
-                {hasPermission('SCRIPT_EXECUTION_READ')
-                  ? 'No script executions found.'
-                  : 'Execution history requires SCRIPT_EXECUTION_READ.'}
-              </div>
-            )}
-
-            {recentExecutions.length > 0 && (
-              <div className="sky-card-body border-top border-secondary border-opacity-25">
-                <span className="sky-muted small">
-                  Loaded statuses: SUCCESS {executionStatusCounts.SUCCESS || 0} · RUNNING{' '}
-                  {executionStatusCounts.STARTED || 0} · FAILED {executionStatusCounts.FAILED || 0}
-                </span>
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="col-xl-6">
-          <section className="sky-card sky-table-card h-100">
-            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
-              <div>
-                <h2 className="h5 mb-0">Latest audit activity</h2>
-                <div className="small sky-muted">Authorization events and operational trail</div>
-              </div>
-              {hasPermission('AUDIT_READ') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/audit/events">
-                  Open audit
-                </Link>
-              )}
-            </div>
-
-            {recentAudits.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table sky-table">
-                  <thead>
-                    <tr>
-                      <th>Action</th>
-                      <th>Result</th>
-                      <th>Message</th>
-                      <th>Created</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentAudits.slice(0, 6).map((audit) => (
-                      <tr key={audit.auditEventId}>
-                        <td>
-                          <div className="fw-bold sky-detail-value">
-                            {formatAction(audit.action)}
-                          </div>
-                          <div className="small sky-muted">{audit.resourceType || '—'}</div>
-                        </td>
-                        <td>
-                          <span className={`sky-pill ${getStatusClass(audit.success)}`}>
-                            {audit.success === true
-                              ? 'SUCCESS'
-                              : audit.success === false
-                                ? 'FAILED'
-                                : 'UNKNOWN'}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="sky-truncate">{audit.message || '—'}</div>
-                        </td>
-                        <td>{formatDate(audit.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="sky-empty-state">
-                {hasPermission('AUDIT_READ')
-                  ? 'No audit events found.'
-                  : 'Audit history requires AUDIT_READ.'}
-              </div>
-            )}
-          </section>
-        </div>
+      <div className="mt-4">
+        <ApplicationUserSummaryRow
+          data={summary.userSummaries.skyCommand}
+          loading={loading}
+          title="SkyCommand User Summary"
+        />
       </div>
 
-      <div className="row g-3 mt-1">
-        <div className="col-xl-5">
-          <section className="sky-card h-100">
-            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
-              <div>
-                <h2 className="h5 mb-0">Active sessions</h2>
-                <div className="small sky-muted">Current authenticated operators</div>
-              </div>
-              {hasPermission('ADMIN_USER_READ') && (
-                <Link className="btn btn-sm sky-btn-ghost" to="/admin/users">
-                  Open users
-                </Link>
-              )}
-            </div>
-
-            {activeSessions.length > 0 ? (
-              <div className="sky-card-body">
-                <div className="sky-session-list">
-                  {activeSessions.slice(0, 6).map((session) => (
-                    <div className="sky-session-item" key={session.sessionId}>
-                      <div>
-                        <div className="fw-bold sky-detail-value">
-                          {session.displayName || session.username || session.email || 'Unknown'}
-                        </div>
-                        <div className="small sky-muted">
-                          Last seen {formatDate(session.lastSeenAt)}
-                        </div>
-                      </div>
-                      <span className="sky-pill sky-pill-success">ACTIVE</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="sky-empty-state">
-                {hasPermission('ADMIN_USER_READ')
-                  ? 'No active sessions returned.'
-                  : 'Active session view requires ADMIN_USER_READ.'}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="col-xl-7">
-          <section className="sky-card h-100">
-            <div className="sky-card-header">
-              <h2 className="h5 mb-0">Operator permissions</h2>
-              <div className="small sky-muted">Current session capabilities</div>
-            </div>
-
-            <div className="sky-card-body">
-              <div className="d-flex flex-wrap gap-2">
-                {permissions.length > 0 ? (
-                  permissions.map((permission) => (
-                    <span className="sky-pill" key={permission.permissionCode}>
-                      {permission.permissionCode}
-                    </span>
-                  ))
-                ) : (
-                  <div className="sky-empty-state w-100 py-4">No permissions loaded.</div>
-                )}
-              </div>
-            </div>
-          </section>
-        </div>
+      <div className="mt-3">
+        <ApplicationUserSummaryRow
+          data={summary.userSummaries.skyWeb}
+          loading={loading}
+          title="SkyWeb User Summary"
+        />
       </div>
     </>
   );
