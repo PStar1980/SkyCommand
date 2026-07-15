@@ -70,7 +70,7 @@ function NavIcon({ name }) {
 }
 
 const PAGE_LABELS = {
-  '/dashboard': 'Overview',
+  '/dashboard': 'Command Center',
   '/dashboard/data-pipeline': 'Data Pipeline',
   '/dashboard/tools': 'Tools',
   '/dashboard/workflows': 'Workflows',
@@ -163,11 +163,11 @@ function createNavGroups(hasPermission) {
       visible: true,
       items: [
         {
-          label: 'Overview',
+          label: 'Command Center',
           to: '/dashboard',
           icon: '◈',
           visible: true,
-          description: 'Operational pulse',
+          description: 'Operational command surface',
         },
         {
           label: 'Data Pipeline',

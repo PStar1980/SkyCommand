@@ -16,6 +16,10 @@ async function listActiveSessions(filters = {}) {
   return api.get('/api/admin/active-sessions', { query: filters });
 }
 
+async function getApplicationUserSummary(filters = {}) {
+  return api.get('/api/admin/user-summary', { query: filters });
+}
+
 async function listApplications(filters = {}) {
   return api.get('/api/admin/applications', { query: filters });
 }
@@ -189,6 +193,7 @@ const adminService = {
   listAuditEvents,
   listLoginEvents,
   listActiveSessions,
+  getApplicationUserSummary,
   listApplications,
   listSessions,
   revokeSession,

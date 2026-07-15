@@ -20,6 +20,12 @@ router.get(
   adminController.listActiveSessions,
 );
 
+router.get(
+  '/user-summary',
+  requirePermission('ADMIN_USER_READ'),
+  adminController.getApplicationUserSummary,
+);
+
 router.get('/sessions', requirePermission('ADMIN_USER_READ'), adminController.listSessions);
 router.post(
   '/sessions/:sessionId/revoke',
