@@ -41,9 +41,7 @@ function getViewportMetrics(chartAspectRatio) {
 
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const gap = viewportWidth < 900
-    ? 12
-    : clampNumber(Math.round(viewportWidth * 0.024), 24, 42);
+  const gap = viewportWidth < 900 ? 12 : clampNumber(Math.round(viewportWidth * 0.024), 24, 42);
   const headerEstimate = viewportWidth < 900 ? 116 : 128;
   const availableWidth = Math.max(320, viewportWidth - gap * 2);
   const availableHeight = Math.max(320, viewportHeight - gap * 2 - headerEstimate);
@@ -170,35 +168,28 @@ function cloneAndScaleChartOption(value, scale = OVERLAY_FONT_SCALE) {
       OVERLAY_AXIS_LINE_HEIGHT,
     ),
     nameTextStyle: axis.nameTextStyle
-      ? withMinimumFontSize(
-          axis.nameTextStyle,
-          OVERLAY_AXIS_FONT_SIZE,
-          OVERLAY_AXIS_LINE_HEIGHT,
-        )
+      ? withMinimumFontSize(axis.nameTextStyle, OVERLAY_AXIS_FONT_SIZE, OVERLAY_AXIS_LINE_HEIGHT)
       : axis.nameTextStyle,
   });
 
   const normalizeSeries = (series) => ({
     ...series,
     label: series.label
-      ? withMinimumFontSize(
-          series.label,
-          OVERLAY_LABEL_FONT_SIZE,
-          OVERLAY_LABEL_LINE_HEIGHT,
-        )
+      ? withMinimumFontSize(series.label, OVERLAY_LABEL_FONT_SIZE, OVERLAY_LABEL_LINE_HEIGHT)
       : series.label,
-    emphasis: series.emphasis && typeof series.emphasis === 'object'
-      ? {
-          ...series.emphasis,
-          label: series.emphasis.label
-            ? withMinimumFontSize(
-                series.emphasis.label,
-                OVERLAY_LABEL_FONT_SIZE,
-                OVERLAY_LABEL_LINE_HEIGHT,
-              )
-            : series.emphasis.label,
-        }
-      : series.emphasis,
+    emphasis:
+      series.emphasis && typeof series.emphasis === 'object'
+        ? {
+            ...series.emphasis,
+            label: series.emphasis.label
+              ? withMinimumFontSize(
+                  series.emphasis.label,
+                  OVERLAY_LABEL_FONT_SIZE,
+                  OVERLAY_LABEL_LINE_HEIGHT,
+                )
+              : series.emphasis.label,
+          }
+        : series.emphasis,
   });
 
   const normalizeGrid = (grid) => ({
@@ -256,12 +247,15 @@ function ChartFullscreenOverlay({
   chartAspectRatio = DEFAULT_CHART_RATIO,
   isOpen,
   kicker,
+  onChartClick,
   onClose,
   option,
   subtitle,
   title,
 }) {
-  const [viewportMetrics, setViewportMetrics] = useState(() => getViewportMetrics(chartAspectRatio));
+  const [viewportMetrics, setViewportMetrics] = useState(() =>
+    getViewportMetrics(chartAspectRatio),
+  );
   const expandedOption = useMemo(() => cloneAndScaleChartOption(option), [option]);
 
   useEffect(() => {
@@ -343,7 +337,12 @@ function ChartFullscreenOverlay({
           </button>
         </div>
         <div className="sky-chart-modal-body">
-          <EChartCanvas className="sky-chart-modal-canvas" height="100%" option={expandedOption} />
+          <EChartCanvas
+            className="sky-chart-modal-canvas"
+            height="100%"
+            onChartClick={onChartClick}
+            option={expandedOption}
+          />
         </div>
       </section>
     </div>,

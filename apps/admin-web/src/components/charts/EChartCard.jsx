@@ -23,9 +23,11 @@ function EChartCard({
   emptyMessage,
   emptyTitle,
   expandable = true,
+  footer,
   height = 260,
   isEmpty = false,
   kicker,
+  onChartClick,
   option,
   subtitle,
   title,
@@ -60,7 +62,9 @@ function EChartCard({
 
   return (
     <>
-      <section className={`sky-card sky-chart-card ${className}`.trim()}>
+      <section
+        className={`sky-card sky-chart-card ${onChartClick ? 'is-interactive' : ''} ${className}`.trim()}
+      >
         <div className="sky-card-header sky-chart-card-header">
           <div>
             {kicker && <div className="sky-page-kicker">{kicker}</div>}
@@ -83,15 +87,17 @@ function EChartCard({
           {isEmpty ? (
             <EmptyChartState message={emptyMessage} title={emptyTitle} />
           ) : (
-            <EChartCanvas height={height} option={option} />
+            <EChartCanvas height={height} onChartClick={onChartClick} option={option} />
           )}
         </div>
+        {footer ? <div className="sky-chart-card-footer">{footer}</div> : null}
       </section>
 
       <ChartFullscreenOverlay
         chartAspectRatio={chartAspectRatio}
         isOpen={isExpanded && !isEmpty}
         kicker={kicker}
+        onChartClick={onChartClick}
         onClose={closeExpanded}
         option={option}
         subtitle={subtitle}
