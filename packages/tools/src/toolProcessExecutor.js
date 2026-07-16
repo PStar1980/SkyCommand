@@ -56,6 +56,8 @@ async function executeToolProcess({
   toolCode,
   toolResultRequired = false,
   toolResultMaxBytes,
+  toolResultExpectedOutputType = null,
+  toolResultOutputSchema = null,
   rootDirectory,
 } = {}) {
   const resultTransport = createToolResultTransport({
@@ -63,6 +65,8 @@ async function executeToolProcess({
     toolCode,
     required: toolResultRequired,
     maxBytes: toolResultMaxBytes,
+    expectedOutputType: toolResultExpectedOutputType,
+    outputSchema: toolResultOutputSchema,
     rootDirectory,
   });
 
@@ -169,6 +173,8 @@ async function executeToolProcess({
       toolResult,
       toolResultContract: {
         required: Boolean(toolResultRequired),
+        expectedOutputType: toolResultExpectedOutputType,
+        schemaValidated: Boolean(toolResultOutputSchema),
         status: contractStatus,
         schemaVersion: toolResult?.schemaVersion || null,
         outputType: toolResult?.outputType || null,

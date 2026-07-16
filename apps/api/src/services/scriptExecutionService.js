@@ -4,6 +4,7 @@ const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
 const {
   executeToolProcess,
+  getRegisteredToolExecutionContract,
   isToolResultRequired,
 } = require('../../../../packages/tools/src');
 
@@ -742,18 +743,24 @@ async function executeChildProcess({
 }) {
   const runtime = getRuntimeCommand(tool);
   const commandArgs = [...runtime.prefixArgs, scriptFile, ...args];
+  const executionContract = getRegisteredToolExecutionContract(tool, {
+    repositoryRoot: tool.root_path,
+  });
 
   const result = await executeToolProcess({
     command: runtime.command,
     commandArgs,
     cwd: path.dirname(scriptFile),
     env: process.env,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutMs: executionContract?.timeoutMs || DEFAULT_TIMEOUT_MS,
     maxOutputBytes: MAX_OUTPUT_BYTES,
     outputTruncationLabel: 'SkyServer API',
     executionId,
     toolCode: tool.tool_code,
-    toolResultRequired,
+    toolResultRequired: Boolean(toolResultRequired || executionContract?.resultRequired),
+    toolResultExpectedOutputType: executionContract?.expectedOutputType || null,
+    toolResultOutputSchema: executionContract?.outputSchema || null,
+    rootDirectory: tool.root_path,
   });
 
   return {

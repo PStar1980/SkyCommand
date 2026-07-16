@@ -3,6 +3,7 @@ const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const {
   executeToolProcess,
+  getRegisteredToolExecutionContract,
   isToolResultRequired,
 } = require('../../../../packages/tools/src');
 
@@ -555,6 +556,9 @@ async function executeChildProcess({
 }) {
   const runtime = getRuntimeCommand(tool);
   const commandArgs = [...runtime.prefixArgs, scriptFile, ...args];
+  const executionContract = getRegisteredToolExecutionContract(tool, {
+    repositoryRoot: tool.root_path,
+  });
 
   const result = await executeToolProcess({
     command: runtime.command,
@@ -567,12 +571,15 @@ async function executeChildProcess({
       SKYWEB_ALERT_WORKER_NODE_ID: workerNode?.workerNodeId || '',
       SKYWEB_ALERT_WORKER_NODE_NAME: workerNode?.nodeName || '',
     },
-    timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutMs: executionContract?.timeoutMs || DEFAULT_TIMEOUT_MS,
     maxOutputBytes: MAX_OUTPUT_BYTES,
     outputTruncationLabel: 'SkyServer Worker',
     executionId,
     toolCode: tool.tool_code,
-    toolResultRequired,
+    toolResultRequired: Boolean(toolResultRequired || executionContract?.resultRequired),
+    toolResultExpectedOutputType: executionContract?.expectedOutputType || null,
+    toolResultOutputSchema: executionContract?.outputSchema || null,
+    rootDirectory: tool.root_path,
   });
 
   return {

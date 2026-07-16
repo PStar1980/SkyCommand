@@ -1,0 +1,64 @@
+{
+  "manifestVersion": "1.0",
+  "toolCode": "ingestion_fred",
+  "displayName": "Run FRED Ingestion",
+  "description": "Loads active FRED macroeconomic indicators into PostgreSQL with optional selected indicators and batched concurrency.",
+  "runtime": {
+    "type": "node",
+    "entrypoint": "packages/ingestion/src/loadFREDMacroData.js"
+  },
+  "parameters": [
+    {
+      "name": "indicators",
+      "label": "Indicators",
+      "description": "Optional FRED indicator codes. Leave blank to process the full configured catalogue.",
+      "type": "string_array",
+      "required": false,
+      "secret": false,
+      "defaultValue": [],
+      "binding": {
+        "mode": "argv_flag",
+        "flag": "--indicators",
+        "repeat": false,
+        "separator": ","
+      }
+    },
+    {
+      "name": "concurrency",
+      "label": "Concurrency",
+      "description": "Maximum number of FRED indicators processed concurrently.",
+      "type": "integer",
+      "required": false,
+      "secret": false,
+      "defaultValue": 3,
+      "binding": {
+        "mode": "argv_flag",
+        "flag": "--concurrency",
+        "repeat": false,
+        "separator": ","
+      }
+    }
+  ],
+  "resultContract": {
+    "required": true,
+    "schemaVersion": "1.0",
+    "outputType": "macro_ingestion_summary.v1",
+    "schemaPath": "packages/tools/contracts/macro_ingestion_summary.v1.schema.json",
+    "samplePath": "packages/ingestion/manifests/ingestion_fred/contract-check-result.json"
+  },
+  "permissions": ["INGESTION_RUN_FRED"],
+  "execution": {
+    "timeoutMs": 1800000,
+    "allowManual": true,
+    "allowSchedules": true,
+    "allowWorkflows": true,
+    "capturesOutput": true
+  },
+  "registration": {
+    "applicationCode": "SKYSERVER_CORE",
+    "categoryCode": "data_ingestion_tools",
+    "riskCode": "medium",
+    "requiresConfirmation": true,
+    "confirmationText": "This will call the FRED ingestion pipeline and write any new data into PostgreSQL."
+  }
+}
