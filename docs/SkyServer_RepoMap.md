@@ -298,6 +298,8 @@ SkyServer/
 │   │       │   └── statcanVectors.js
 │   │       ├── core/
 │   │       │   ├── cliOptions.js
+│   │       │   ├── macroIngestionCli.js
+│   │       │   ├── macroIngestionCliSelfTest.js
 │   │       │   ├── macroIngestionResult.js
 │   │       │   ├── macroIngestionResultSelfTest.js
 │   │       │   └── runPipeline.js
