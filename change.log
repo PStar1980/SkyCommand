@@ -792,3 +792,28 @@ SkyWeb Analytics owns:
 - Updated Workflow History to enable active-node following by default on the selected run workspace, keeping the node map and inspector synchronized during smart polling.
 - Added reduced-motion-safe CSS so operators who prefer less animation still get status highlighting without continuous motion.
 
+
+## Phase 14.1 — Structured ToolResult transport foundation
+
+- Began Phase 14 using the revised Structured Tool Results and Workflow Output Contracts architecture decision.
+- Added the shared `packages/tools` runtime foundation with:
+  - versioned `ToolResult` envelope validation;
+  - JSON-safe value, output type, message, nesting, and maximum-size guardrails;
+  - wrapper-owned result paths under `logs/tool-results`;
+  - atomic result writes and best-effort cleanup;
+  - optional and required result-contract behavior;
+  - explicit `legacy_tool_execution.v1` fallback results for non-migrated tools;
+  - a reusable child-process adapter shared by API and worker tool execution.
+- Updated API and worker tool launchers so every process receives the standard `SKYCOMMAND_TOOL_RESULT_*` environment contract while existing stdout/stderr capture and Tool History behavior remain intact.
+- Added structured result contract status to execution metadata and exposed validated tool results on API/worker execution responses without storing the domain payload in audit metadata.
+- Updated workflow tool nodes so stdout/stderr are no longer promoted into workflow output. Migrated tools use their emitted `ToolResult`; legacy tools receive an explicit completion object pointing diagnostics back to Tool History.
+- Established canonical workflow context paths:
+  - `nodes.<nodeKey>.result` for the complete validated envelope;
+  - `nodes.<nodeKey>.output` for the domain payload;
+  - matching `last.result` and `last.output` aliases.
+- Updated condition-node lookup so custom domain fields can be read directly from `nodes.<nodeKey>.output.<customPath>` without knowing anything about the execution wrapper.
+- Normalized node-output persistence to one authoritative `result` record and stores the declared `outputType` for structured tool results.
+- Added `npm run tool-result:self-test` and included the shared contract/process adapter in `npm run validate`.
+- Added `docs/SkyCommand_Phase_14_Structured_Tool_Results.md` and refreshed the README current status, architecture notes, design rules, documentation index, and roadmap. Phase 13 is now marked complete; Phase 14 is in progress; future registration, resilience, BI, and testing work has been placed into later roadmap phases.
+- Added `.env.example` settings for result-size limits and gradual strict-tool migration through `SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES`.
+- No database migration is required for Phase 14.1. FRED, BoC, and StatCan remain legacy-result tools until their source-specific aggregation contracts are added in the next Phase 14 increments.

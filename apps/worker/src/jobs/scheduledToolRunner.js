@@ -183,6 +183,17 @@ async function runClaimedSchedule(claim, workerNode) {
       metadata: {
         exitCode: result.exitCode,
         durationMs: result.durationMs,
+        toolResult: result.toolResult
+          ? {
+              available: true,
+              schemaVersion: result.toolResult.schemaVersion,
+              outputType: result.toolResult.outputType,
+              success: result.toolResult.success,
+            }
+          : {
+              available: false,
+              contractStatus: result.toolResultContract?.status || 'NOT_APPLICABLE',
+            },
         temporalWorkflow:
           result.workflow && schedule.toolCode === TEMPORAL_WORKFLOW_START_TOOL_CODE
             ? {

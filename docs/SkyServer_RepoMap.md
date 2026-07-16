@@ -189,6 +189,7 @@ SkyServer/
 │               ├── scheduleCalculator.js
 │               └── schedulePoller.js
 ├── docs/
+│   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyServer_RepoMap.md
 │   ├── SkyServer_Temporal_Local_Setup.md
 │   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
@@ -322,20 +323,27 @@ SkyServer/
 │   ├── skyweb/
 │   │   └── src/
 │   │       └── evaluateSkyWebAlerts.js
-│   └── temporal/
+│   ├── temporal/
+│   │   └── src/
+│   │       ├── config.js
+│   │       ├── startFredIngestionWorkflow.js
+│   │       ├── temporalHealth.js
+│   │       ├── worker.js
+│   │       ├── activities/
+│   │       │   ├── fredActivities.js
+│   │       │   ├── index.js
+│   │       │   └── skyserverWorkflowActivities.js
+│   │       └── workflows/
+│   │           ├── fredIngestionWorkflow.js
+│   │           ├── index.js
+│   │           └── skyserverWorkflowExecutorWorkflow.js
+│   └── tools/
 │       └── src/
-│           ├── config.js
-│           ├── startFredIngestionWorkflow.js
-│           ├── temporalHealth.js
-│           ├── worker.js
-│           ├── activities/
-│           │   ├── fredActivities.js
-│           │   ├── index.js
-│           │   └── skyserverWorkflowActivities.js
-│           └── workflows/
-│               ├── fredIngestionWorkflow.js
-│               ├── index.js
-│               └── skyserverWorkflowExecutorWorkflow.js
+│           ├── index.js
+│           ├── toolProcessExecutor.js
+│           ├── toolResultContract.js
+│           ├── toolResultSelfTest.js
+│           └── toolResultTransport.js
 ├── scripts/
 │   ├── db/
 │   │   ├── functions/

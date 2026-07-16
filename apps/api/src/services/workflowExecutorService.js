@@ -1,5 +1,10 @@
 const axios = require('axios');
 const { pool, query } = require('../../../../packages/db/src/connection');
+const {
+  createLegacyToolResult,
+  getToolResultDomainOutput,
+  isToolResult,
+} = require('../../../../packages/tools/src');
 const authService = require('./authService');
 const scriptExecutionService = require('./scriptExecutionService');
 const temporalService = require('./temporalService');
@@ -1985,21 +1990,32 @@ function buildConditionNodeLookup(runtimeNodes = {}, nodeOutputsByKey = {}) {
   for (const [rawNodeKey, rawOutput] of Object.entries(getSafeObject(nodeOutputsByKey))) {
     const nodeKey = String(rawNodeKey || '').trim();
     const normalizedNodeKey = normalizeContextKey(nodeKey, 'node');
-    const output = getSafeObject(rawOutput);
+    const result = getSafeObject(rawOutput);
+    const output = cloneJsonCompatible(getToolResultDomainOutput(result));
+    const outputObject = getSafeObject(output);
     const existingNode = getSafeObject(lookup[nodeKey] || lookup[normalizedNodeKey]);
-    const summary = output.summary || output.message || existingNode.summary || '';
+    const summary =
+      result.summary
+      || result.message
+      || outputObject.summary
+      || outputObject.message
+      || existingNode.summary
+      || '';
     const value = {
-      ...output,
+      ...outputObject,
       ...existingNode,
+      result,
       output,
-      result: output,
+      warnings: isToolResult(result) ? result.warnings : existingNode.warnings || [],
+      error: isToolResult(result) ? result.error : existingNode.error || null,
+      metadata: isToolResult(result) ? result.metadata : existingNode.metadata || {},
       nodeKey,
       summary,
       nodeStatus: existingNode.status || null,
       runStatus: existingNode.status || null,
-      outputStatus: output.status || null,
+      outputStatus: result.status || outputObject.status || null,
       outputSummary: summary,
-      durationMs: existingNode.durationMs ?? output.durationMs ?? null,
+      durationMs: existingNode.durationMs ?? result.durationMs ?? outputObject.durationMs ?? null,
     };
 
     if (nodeKey) {
@@ -2064,7 +2080,8 @@ function buildNodeContextPatch(nodeRun = {}) {
     return {};
   }
 
-  const output = getSafeObject(nodeRun.output);
+  const result = getSafeObject(nodeRun.output);
+  const output = cloneJsonCompatible(getToolResultDomainOutput(result));
   const nodeKey = normalizeContextKey(nodeRun.nodeKey, 'node');
   const patch = {
     [`nodes.${nodeKey}.nodeKey`]: nodeRun.nodeKey,
@@ -2074,10 +2091,12 @@ function buildNodeContextPatch(nodeRun = {}) {
     [`nodes.${nodeKey}.attemptCount`]: nodeRun.attemptCount ?? 0,
     [`nodes.${nodeKey}.startedAt`]: nodeRun.startedAt || null,
     [`nodes.${nodeKey}.completedAt`]: nodeRun.completedAt || null,
+    [`nodes.${nodeKey}.result`]: result,
     [`nodes.${nodeKey}.output`]: output,
-    [`nodes.${nodeKey}.summary`]: getNodeOutputPersistenceSummary(output),
+    [`nodes.${nodeKey}.summary`]: getNodeOutputPersistenceSummary(result),
     'last.nodeKey': nodeRun.nodeKey,
     'last.status': nodeRun.status || null,
+    'last.result': result,
     'last.output': output,
     'last.completedAt': nodeRun.completedAt || new Date().toISOString(),
   };
@@ -2095,7 +2114,8 @@ function buildNodeContextPatch(nodeRun = {}) {
     nodeRun.metadata?.parameters?.saveOutputAs
       || nodeRun.metadata?.parameters?.outputKey
       || nodeRun.metadata?.saveOutputAs
-      || output.saveOutputAs,
+      || result.saveOutputAs
+      || getSafeObject(result.output).saveOutputAs,
     '',
   );
 
@@ -2227,31 +2247,14 @@ function getNodeOutputPersistenceSummary(output = {}) {
 
 function buildNodeOutputPersistenceRecords(nodeRun = {}) {
   const output = toJsonbValue(nodeRun.output || {});
-  const outputRecords = [{
-    outputKey: 'result',
-    output,
-    outputSummary: getNodeOutputPersistenceSummary(output || {}),
-  }];
-
   const safeOutput = getSafeObject(output);
 
-  if (safeOutput.output && typeof safeOutput.output === 'object') {
-    outputRecords.push({
-      outputKey: 'output',
-      output: safeOutput.output,
-      outputSummary: safeOutput.output.summary || safeOutput.output.message || '',
-    });
-  }
-
-  if (safeOutput.error && typeof safeOutput.error === 'object') {
-    outputRecords.push({
-      outputKey: 'error',
-      output: safeOutput.error,
-      outputSummary: safeOutput.error.message || nodeRun.errorMessage || '',
-    });
-  }
-
-  return outputRecords;
+  return [{
+    outputKey: 'result',
+    output,
+    outputType: isToolResult(safeOutput) ? safeOutput.outputType : getJsonValueType(output),
+    outputSummary: getNodeOutputPersistenceSummary(output || {}),
+  }];
 }
 
 async function persistWorkflowNodeOutput(nodeRun = {}) {
@@ -2309,7 +2312,7 @@ async function persistWorkflowNodeOutput(nodeRun = {}) {
           nodeRun.nodeTypeCode || null,
           nodeRun.targetCode || null,
           normalizeOutputKey(record.outputKey),
-          getJsonValueType(output),
+          record.outputType || getJsonValueType(output),
           JSON.stringify(inputSnapshot),
           JSON.stringify(output),
           record.outputSummary || null,
@@ -3161,20 +3164,38 @@ async function runToolNode({ node, parameters, user, session, permissions, conte
     },
   });
 
+  const toolResult = result.toolResult || createLegacyToolResult({
+    success: result.status === 'SUCCESS',
+    message: result.summary,
+    executionId: result.executionId,
+    toolCode: node.targetCode,
+    status: result.status,
+    durationMs: result.durationMs,
+  });
   const output = {
+    ...toolResult,
     kind: 'tool_execution',
     toolCode: node.targetCode,
     executionId: result.executionId,
     status: result.status,
     exitCode: result.exitCode,
     durationMs: result.durationMs,
-    summary: result.summary,
-    stdoutPreview: truncateText(result.stdout),
-    stderrPreview: truncateText(result.stderr),
+    summary: toolResult.message || result.summary,
+    metadata: {
+      ...getSafeObject(toolResult.metadata),
+      executionId: result.executionId,
+      toolCode: node.targetCode,
+      structuredOutputAvailable: Boolean(result.toolResult),
+      resultContract: result.toolResultContract || null,
+    },
   };
 
-  if (result.status !== 'SUCCESS') {
-    throw new WorkflowServiceError(result.summary || 'Tool node failed.', 500, output);
+  if (result.status !== 'SUCCESS' || toolResult.success === false) {
+    throw new WorkflowServiceError(
+      toolResult.error?.message || toolResult.message || result.summary || 'Tool node failed.',
+      500,
+      output,
+    );
   }
 
   return output;
