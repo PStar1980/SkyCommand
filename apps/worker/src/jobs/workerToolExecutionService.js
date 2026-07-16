@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
 const { query } = require('../../../../packages/db/src/connection');
+const {
+  executeToolProcess,
+  isToolResultRequired,
+} = require('../../../../packages/tools/src');
 
 const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -227,7 +230,23 @@ function getUsefulOutputLine(output) {
     .find((line) => !line.includes('[dotenv'));
 }
 
-function buildSummary({ status, exitCode, stdout, stderr, timedOut }) {
+function buildSummary({
+  status,
+  exitCode,
+  stdout,
+  stderr,
+  timedOut,
+  toolResult = null,
+  toolResultContract = null,
+}) {
+  if (toolResultContract?.error?.message) {
+    return `Structured tool result rejected: ${toolResultContract.error.message}`;
+  }
+
+  if (toolResult?.message) {
+    return toolResult.message;
+  }
+
   const firstUsefulLine = getUsefulOutputLine(stdout) || getUsefulOutputLine(stderr);
   const firstLine =
     firstUsefulLine ||
@@ -245,38 +264,6 @@ function buildSummary({ status, exitCode, stdout, stderr, timedOut }) {
   }
 
   return firstLine || `Script failed with exit code ${exitCode}.`;
-}
-
-function collectOutput(bufferState, chunk) {
-  const text = chunk.toString();
-  const byteLength = Buffer.byteLength(text);
-
-  if (bufferState.totalBytes >= MAX_OUTPUT_BYTES) {
-    bufferState.truncated = true;
-    return;
-  }
-
-  const remainingBytes = MAX_OUTPUT_BYTES - bufferState.totalBytes;
-
-  if (byteLength <= remainingBytes) {
-    bufferState.chunks.push(text);
-    bufferState.totalBytes += byteLength;
-    return;
-  }
-
-  bufferState.chunks.push(text.slice(0, remainingBytes));
-  bufferState.totalBytes = MAX_OUTPUT_BYTES;
-  bufferState.truncated = true;
-}
-
-function stringifyOutput(bufferState) {
-  const output = bufferState.chunks.join('');
-
-  if (!bufferState.truncated) {
-    return output;
-  }
-
-  return `${output}\n\n[SkyServer Worker] Output truncated at ${MAX_OUTPUT_BYTES} bytes.`;
 }
 
 function getExecutionLockKey(tool) {
@@ -556,82 +543,43 @@ async function updateExecutionFinished({
   );
 }
 
-async function executeChildProcess({ tool, scriptFile, args, schedule, scheduleRun, workerNode }) {
+async function executeChildProcess({
+  tool,
+  scriptFile,
+  args,
+  schedule,
+  scheduleRun,
+  workerNode,
+  executionId,
+  toolResultRequired = false,
+}) {
   const runtime = getRuntimeCommand(tool);
   const commandArgs = [...runtime.prefixArgs, scriptFile, ...args];
 
-  return new Promise((resolve) => {
-    const startedAt = Date.now();
-    const stdoutState = { chunks: [], totalBytes: 0, truncated: false };
-    const stderrState = { chunks: [], totalBytes: 0, truncated: false };
-
-    let timedOut = false;
-    let settled = false;
-
-    const child = spawn(runtime.command, commandArgs, {
-      cwd: path.dirname(scriptFile),
-      shell: false,
-      env: {
-        ...process.env,
-        SKYWEB_ALERT_SCHEDULE_CODE: schedule?.scheduleCode || '',
-        SKYWEB_ALERT_SCHEDULE_RUN_ID: scheduleRun?.scheduleRunId || '',
-        SKYWEB_ALERT_WORKER_NODE_ID: workerNode?.workerNodeId || '',
-        SKYWEB_ALERT_WORKER_NODE_NAME: workerNode?.nodeName || '',
-      },
-      windowsHide: true,
-    });
-
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGTERM');
-    }, DEFAULT_TIMEOUT_MS);
-
-    child.stdout.on('data', (chunk) => collectOutput(stdoutState, chunk));
-    child.stderr.on('data', (chunk) => collectOutput(stderrState, chunk));
-
-    child.on('error', (error) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      clearTimeout(timeout);
-
-      resolve({
-        status: 'FAILED',
-        exitCode: null,
-        durationMs: Date.now() - startedAt,
-        stdout: stringifyOutput(stdoutState),
-        stderr: `${stringifyOutput(stderrState)}\n${error.message}`.trim(),
-        timedOut,
-        runtimeLabel: runtime.label,
-        commandArgs,
-      });
-    });
-
-    child.on('close', (code) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      clearTimeout(timeout);
-
-      const exitCode = timedOut ? -1 : code;
-      const status = exitCode === 0 ? 'SUCCESS' : 'FAILED';
-
-      resolve({
-        status,
-        exitCode,
-        durationMs: Date.now() - startedAt,
-        stdout: stringifyOutput(stdoutState),
-        stderr: stringifyOutput(stderrState),
-        timedOut,
-        runtimeLabel: runtime.label,
-        commandArgs,
-      });
-    });
+  const result = await executeToolProcess({
+    command: runtime.command,
+    commandArgs,
+    cwd: path.dirname(scriptFile),
+    env: {
+      ...process.env,
+      SKYWEB_ALERT_SCHEDULE_CODE: schedule?.scheduleCode || '',
+      SKYWEB_ALERT_SCHEDULE_RUN_ID: scheduleRun?.scheduleRunId || '',
+      SKYWEB_ALERT_WORKER_NODE_ID: workerNode?.workerNodeId || '',
+      SKYWEB_ALERT_WORKER_NODE_NAME: workerNode?.nodeName || '',
+    },
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    maxOutputBytes: MAX_OUTPUT_BYTES,
+    outputTruncationLabel: 'SkyServer Worker',
+    executionId,
+    toolCode: tool.tool_code,
+    toolResultRequired,
   });
+
+  return {
+    ...result,
+    runtimeLabel: runtime.label,
+    commandArgs,
+  };
 }
 
 async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun, workerNode }) {
@@ -667,6 +615,7 @@ async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun,
     });
     executionLock.setExecutionId(execution.execution_id);
 
+    const toolResultRequired = isToolResultRequired(tool);
     const childResult = await executeChildProcess({
       tool,
       scriptFile,
@@ -674,6 +623,8 @@ async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun,
       schedule,
       scheduleRun,
       workerNode,
+      executionId: execution.execution_id,
+      toolResultRequired,
     });
 
     const outputFiles = writeExecutionOutputFiles({
@@ -688,6 +639,8 @@ async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun,
       stdout: childResult.stdout,
       stderr: childResult.stderr,
       timedOut: childResult.timedOut,
+      toolResult: childResult.toolResult,
+      toolResultContract: childResult.toolResultContract,
     });
 
     await updateExecutionFinished({
@@ -704,6 +657,9 @@ async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun,
         outputTruncated:
           childResult.stdout.includes('Output truncated') ||
           childResult.stderr.includes('Output truncated'),
+        processStatus: childResult.processStatus,
+        toolResultAvailable: Boolean(childResult.toolResult),
+        toolResultContract: childResult.toolResultContract,
       },
     });
 
@@ -718,6 +674,8 @@ async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun,
       summary,
       stdout: childResult.stdout,
       stderr: childResult.stderr,
+      toolResult: childResult.toolResult,
+      toolResultContract: childResult.toolResultContract,
     };
   } catch (error) {
     if (execution?.execution_id) {

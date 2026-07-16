@@ -15,6 +15,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 | Auth | App-scoped login, hashed bearer sessions, RBAC permissions, audit events |
 | Worker/control plane | Node worker daemon, scheduler/listener schema, tool execution logs |
 | Durable orchestration | Temporal worker, workflow executor, task queue diagnostics, worker heartbeats |
+| Tool result contract | Universal child-process adapter, wrapper-owned structured result transport, versioned `ToolResult` envelopes |
 | Data ingestion | FRED, Bank of Canada, Statistics Canada, manual CSV/spreadsheet pipelines |
 | Repo automation | Dev commit workflow, repo map generation, lean repo zip generation |
 | Product consumer | SkyWeb Analytics via public/member macro and alert APIs |
@@ -30,10 +31,11 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 - **Clean system boundary with SkyWeb**, where SkyServer owns ingestion/evaluation/control-plane work while SkyWeb owns analytics presentation and member workflows.
 - **Repository automation discipline** through generated repo maps, generated lean handoff zips, and dev-commit tooling.
 - **SkyCommand visual operations layer** with reusable Apache ECharts/D3 chart cards, full-screen chart overlays, and dashboard/workflow/worker/ingestion/tool/readiness analytics.
+- **Workflow-native tool result architecture** that keeps stdout/stderr in Tool History while exposing validated, versioned, domain-specific results to workflows through one generic adapter.
 
 ## Current Status
 
-**Active status:** Phase 13 is expanding the live workflow intelligence layer. Workflow History now updates selected runs and node overlays without manual refresh, smart polling powers Tool History and the SkyCommand dashboard analytics pages, Phase 13.2 added shared live telemetry contracts with polling-safe warning behavior, Phase 13.3 persists structured node outputs, Phase 13.4 stores workflow run context values, Phase 13.5 supports explicit workflow-level runtime parameter schemas with cleaner separation from node-level tool defaults, Phase 13.6 lets condition nodes read runtime params, durable context, prior node outputs, previous output, and last-node state through predictable dot paths, Phase 13.7 adds animated execution focus with active-node following and flowing runtime edges, Phase 13.8 adds summary nodes plus structured run summaries for human-friendly workflow outcomes, and Phase 13.9 starts separating workflow configuration from runtime visualization with cleaner Overview controls plus Create/Start Workflow visual graph surfaces.
+**Active status:** Phase 14 is now in progress. Phase 14.1 establishes the universal structured-tool-result foundation: API and worker launches share one child-process adapter, each execution receives a wrapper-owned result path, emitted `ToolResult` envelopes are validated and bounded before use, stdout/stderr remain in Tool History, and workflow nodes receive either a structured domain result or an explicit legacy-tool result without parsing console text. Phase 13 is complete and remains the live telemetry, runtime context, parameterized workflow, condition, summary, and visual execution foundation that Phase 14 now strengthens.
 
 SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane behind **SkyCommand**, the branded Admin-Web experience for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and operational intelligence.
 
@@ -44,6 +46,8 @@ Phase 11 modernized Admin-Web into the **SkyCommand** product shell with a black
 Phase 12 added the **visual operations layer**: dashboard intelligence, Workflow History analytics, Worker Health pulse charts, Ingestion Status analytics, Tools History analytics, Production Readiness visualizations, reusable chart helper components, and full-screen chart overlays.
 
 Phase 13 adds the **live workflow intelligence layer**. Smart polling and live telemetry contracts keep Workflow History, selected run details, node status overlays, runtime summaries, Tool History, Data Pipeline, Readiness, and dashboard analytics surfaces fresh without full page reloads. Polling now preserves the last good UI state during transient refresh failures and escalates only after repeated polling errors. Structured node output persistence stores resolved inputs and returned outputs in dedicated run-output rows, the workflow context store merges run inputs and completed node outputs into durable context values, explicit workflow-level runtime parameter schemas let reusable workflows collect launch values before execution without confusing node-level tool defaults, condition gates can now branch from params/context/node-output paths while persisting their decisions back into run context, and the runtime graph now supports active-node following plus animated edge flow while live telemetry updates. Summary nodes can now generate reusable human-readable run summaries from params, workflow context, prior node outputs, warnings, errors, and timings, with the result persisted into the workflow run summary and visible in Workflow History. The workflow workbench now continues that separation by replacing command-heavy dashboard blocks with Dashboard Controls, moving Create Workflow toward a visual graph editor, and keeping Start Workflow focused on launching and watching live runtime overlays in place.
+
+Phase 14 adds the **workflow-native tool contract**. The generic process adapter now creates a unique, wrapper-owned result-file transport for every API or worker tool launch and injects the standard `SKYCOMMAND_TOOL_RESULT_*` environment contract. Tools may continue printing their existing operational logs while optionally emitting a versioned `ToolResult` object through the separate structured channel. The shared validator enforces JSON safety, supported schema versions, stable output types, maximum size, and required-result behavior. Workflow tool nodes no longer promote stdout/stderr into business output: migrated tools expose their deliberate domain payload under `nodes.<nodeKey>.output`, the complete envelope remains available under `nodes.<nodeKey>.result`, and non-migrated tools receive a clear `legacy_tool_execution.v1` result that points operators back to Tool History for logs. Phase 14.1 is the transport and adapter foundation; ingestion result aggregation, source migration, manifest validation, and purpose-built renderers follow in later Phase 14 increments.
 
 ## Core Product Surfaces
 
@@ -86,6 +90,8 @@ Admin-Web / Core CLI
   → SkyServer API / tool launcher / workflow launcher
       → PostgreSQL auth + core + worker manifests
       → ingestion, repo, DB, git, and operational scripts
+          ↳ stdout/stderr → Tool History and diagnostics
+          ↳ validated ToolResult → workflow node result and context
       → worker schedules and listener definitions
       → Temporal-backed SkyServer workflow definitions and run ledgers
       → audit + script execution history
@@ -121,6 +127,8 @@ The UI modernization changed the app shell, sidebar, topbar, spacing, dashboard 
 Phase 12 added the reusable visualization layer. Apache ECharts and D3 now power chart sections across the Dashboard, Workflow History, Worker Health, Ingestion Status, Tools History, and Production Readiness pages. Chart cards share a consistent anatomy, status color language, empty-state handling, and full-screen overlay behavior so visual analytics can expand without page-by-page chart sprawl.
 
 Phase 13 adds the live intelligence spine. Workflow and dashboard surfaces use smart polling against standardized telemetry contracts, while workflow node completions now persist structured node outputs into `worker.workflow_run_node_outputs`. The workflow context store now updates `worker.workflow_run_context_values` with initial workflow inputs, runtime parameters, per-node status/output summaries, `last.*` values, and selected custom context updates. Workflow definitions can now store an explicit runtime parameter schema, Start Workflow renders that schema as a launch form only when workflow-level params exist, and node input parameters can resolve template references such as `{{ params.commitMessage }}`, `{{ context.last.output }}`, and `{{ nodes.some_node.output }}` before execution. Workflow History now keeps the runtime map full-width and opens detailed run metadata in an overlay. Manage Workflows keeps workflow-level runtime params in the definition section while node-level defaults stay on selected graph nodes, backed by the versioned workflow node ledger.
+
+Phase 14 separates operational narration from workflow business results. Tool History remains the authoritative location for stdout/stderr, while Workflow History and condition nodes consume deliberate `ToolResult` payloads through stable result and output paths. The initial foundation is runtime-agnostic and shared by API and worker execution, preserving child-process isolation while preparing FRED, BoC, StatCan, repository tools, and future registered scripts to use the same contract.
 
 ## Workflow Pages
 
@@ -433,6 +441,7 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 | [`docs/SkyServer_RepoMap.md`](docs/SkyServer_RepoMap.md) | Generated repository structure map |
 | [`docs/SkyServer_Temporal_Local_Setup.md`](docs/SkyServer_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
 | [`docs/SkyServer_Temporal_Workflow_Architecture_Plan.md`](docs/SkyServer_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |
+| [`docs/SkyCommand_Phase_14_Structured_Tool_Results.md`](docs/SkyCommand_Phase_14_Structured_Tool_Results.md) | Current Phase 14 contract, transport, context-path, migration, and validation reference |
 
 Removed after Temporal implementation because their contents are now represented by `README.md`, `change.log`, the current UI, and the surviving architecture/setup references:
 
@@ -461,10 +470,12 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 | Phase 10 | ✅ Complete | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection |
 | Phase 11 | ✅ Complete | SkyCommand Admin-Web modernization: branded shell, black navigation frame, sidebar/page typography, dashboard wording, navbar search/popovers, login atmosphere, brand mark, and shared UI primitives |
 | Phase 12 | ✅ Complete | SkyCommand visual operations layer: ECharts/D3 dashboard intelligence, Workflow History charts, Worker Health pulse, Ingestion analytics, Tools History analytics, Production Readiness visuals, full-screen chart overlays, and reusable chart helpers |
-| Phase 13 | 🔄 In Progress | Live workflow telemetry, runtime context, and parameterized workflow execution: smart polling across history/dashboard surfaces, live telemetry contracts, clean run snapshots, durable node output persistence, workflow context, explicit workflow-level runtime parameter design, context-aware condition gates, active-node/edge animation, summaries, and runtime/workbench surface separation |
-| Phase 14 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, source failure recovery, and production deployment planning |
-| Phase 15 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
-| Phase 16 | 🔜 Planned | Testing and demo hardening: Playwright coverage, workflow/chart regression checks, portfolio demo scripts, and release-quality documentation |
+| Phase 13 | ✅ Complete | Live workflow telemetry, runtime context, parameterized execution, durable node outputs/context, context-aware conditions, active-node animation, summary nodes, and runtime/workbench surface separation |
+| Phase 14 | 🔄 In Progress | Structured Tool Results and workflow output contracts: one generic process adapter, separate log/result channels, versioned extensible `ToolResult` envelopes, canonical workflow paths, ingestion summaries, manifest-compatible validation, and purpose-built output rendering |
+| Phase 15 | 🔜 Planned | Repository-based tool discovery, contract checks, validation previews, transactional registration, versioning, and drift detection using `skycommand.tool.json` |
+| Phase 16 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, source failure recovery, and production deployment planning |
+| Phase 17 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
+| Phase 18 | 🔜 Planned | Testing and demo hardening: Playwright coverage, workflow/chart regression checks, portfolio demo scripts, and release-quality documentation |
 | Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, documentation, and chart/page polish |
 
 ## Design Philosophy
@@ -478,6 +489,8 @@ Practical rules:
 - Keep database builds deterministic.
 - Keep ingestion idempotent.
 - Keep browser-triggered script execution permission-aware and audited.
+- Keep human logs and machine workflow results on separate channels.
+- Keep workflow tool integration generic; domain flexibility belongs inside the validated output payload.
 - Keep scheduled automation explicit, observable, and reversible.
 - Keep the control-plane/product boundary clear between SkyServer and SkyWeb.
 - Keep architecture modular before it becomes painful to change.
