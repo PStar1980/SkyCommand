@@ -1,3 +1,4 @@
+const { validateJsonSchema } = require('./jsonSchemaValidator');
 const DEFAULT_TOOL_RESULT_MAX_BYTES = 1024 * 1024;
 const TOOL_RESULT_SCHEMA_VERSION = '1.0';
 const SUPPORTED_TOOL_RESULT_SCHEMA_VERSIONS = new Set([TOOL_RESULT_SCHEMA_VERSION]);
@@ -168,6 +169,16 @@ function validateToolResult(candidate, options = {}) {
     );
   }
 
+  const expectedOutputType = String(options.expectedOutputType || '').trim();
+
+  if (expectedOutputType && outputType !== expectedOutputType) {
+    throw new ToolResultContractError(
+      'TOOL_RESULT_OUTPUT_TYPE_MISMATCH',
+      `Structured tool result outputType ${outputType} does not match the declared contract ${expectedOutputType}.`,
+      { outputType, expectedOutputType },
+    );
+  }
+
   if (candidate.warnings !== undefined && !Array.isArray(candidate.warnings)) {
     throw new ToolResultContractError(
       'TOOL_RESULT_WARNINGS_NOT_ARRAY',
@@ -201,6 +212,25 @@ function validateToolResult(candidate, options = {}) {
   };
 
   assertJsonSafe(normalized);
+
+  if (options.outputSchema) {
+    try {
+      validateJsonSchema(normalized.output, options.outputSchema, {
+        schemaName: expectedOutputType || outputType,
+        path: '$.output',
+      });
+    } catch (error) {
+      throw new ToolResultContractError(
+        'TOOL_RESULT_OUTPUT_SCHEMA_INVALID',
+        error.message || 'Structured tool result output failed its declared JSON Schema.',
+        {
+          outputType,
+          expectedOutputType: expectedOutputType || null,
+          errors: Array.isArray(error.errors) ? error.errors : [],
+        },
+      );
+    }
+  }
 
   const serialized = JSON.stringify(normalized);
   const byteLength = Buffer.byteLength(serialized, 'utf8');

@@ -862,3 +862,20 @@ SkyWeb Analytics owns:
 - Updated README, Phase 14 documentation, roadmap wording, and repository map.
 - No database migration or seed is required for Phase 14.3.
 
+
+## Phase 14.4 — Tool manifest and contract-check foundation
+
+- Added versioned `skycommand.tool.json` manifests for FRED, Bank of Canada, and Statistics Canada. Each manifest declares repository-relative entrypoint, parameters and bindings, permission, execution policy, semantic result contract, output schema, and non-destructive sample result.
+- Added a dependency-free JSON Schema validator supporting the object, array, scalar, enum, local-reference, composition, bounds, pattern, and date/date-time rules used by SkyCommand contracts.
+- Added strict `skycommand.tool.v1` manifest validation with path traversal/symlink protection, supported runtime and binding checks, unique parameter/permission enforcement, secret-binding safeguards, default-value checks, referenced-file validation, and SHA-256 hashes for manifests, entrypoints, output schemas, and samples.
+- Added the strict `macro_ingestion_summary.v1` output JSON Schema and updated `validateToolResult()` so a result can be checked against both its declared semantic output type and its domain schema.
+- Added the generic `runToolCli()` adapter with non-destructive `--skycommand-describe` and `--skycommand-contract-check` modes. The macro ingestion adapter now delegates normal execution and special contract modes to this shared SDK layer.
+- Added repository-wide manifest discovery, validation, description, and contract-check commands:
+  - `npm run tool-manifest:discover`
+  - `npm run tool-manifest:validate`
+  - `npm run tool-contract:check`
+  - `npm run tool-manifest:self-test`
+- Added a runtime manifest registry. API and worker tool execution now resolve manifests generically, enforce manifest-required results, apply manifest timeouts, validate the emitted output again after process completion, and reject script-path/runtime/permission drift before launch.
+- Added manifest and contract-check self-tests covering valid discovery, strict output schemas, unsafe paths, secret command-line bindings, describe/contract-check non-execution guarantees, registry contracts, and drift detection.
+- Updated README, Phase 14 documentation, roadmap wording, and repository map.
+- No database migration or seed is required for Phase 14.4; hash persistence and transactional registration remain later increments.

@@ -287,6 +287,16 @@ SkyServer/
 │   │       ├── git_repo_status.js
 │   │       └── main_merge.js
 │   ├── ingestion/
+│   │   ├── manifests/
+│   │   │   ├── ingestion_boc/
+│   │   │   │   ├── contract-check-result.json
+│   │   │   │   └── skycommand.tool.json
+│   │   │   ├── ingestion_fred/
+│   │   │   │   ├── contract-check-result.json
+│   │   │   │   └── skycommand.tool.json
+│   │   │   └── ingestion_statcan/
+│   │   │       ├── contract-check-result.json
+│   │   │       └── skycommand.tool.json
 │   │   └── src/
 │   │       ├── loadBoCMacroData.js
 │   │       ├── loadFREDMacroData.js
@@ -344,8 +354,17 @@ SkyServer/
 │   │           ├── index.js
 │   │           └── skyserverWorkflowExecutorWorkflow.js
 │   └── tools/
+│       ├── contracts/
+│       │   ├── macro_ingestion_summary.v1.schema.json
+│       │   └── skycommand.tool.v1.schema.json
 │       └── src/
 │           ├── index.js
+│           ├── jsonSchemaValidator.js
+│           ├── toolCliAdapter.js
+│           ├── toolManifestCli.js
+│           ├── toolManifestContract.js
+│           ├── toolManifestRegistry.js
+│           ├── toolManifestSelfTest.js
 │           ├── toolProcessExecutor.js
 │           ├── toolResultContract.js
 │           ├── toolResultSelfTest.js

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/macro_ingestion_summary.v1.schema.json",
+  "title": "Macro Ingestion Summary v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sourceCode",
+    "outcome",
+    "selectedIndicators",
+    "startedAt",
+    "completedAt",
+    "durationMs",
+    "totals",
+    "indicators"
+  ],
+  "properties": {
+    "sourceCode": { "type": "string", "minLength": 2, "maxLength": 30 },
+    "outcome": {
+      "type": "string",
+      "enum": ["UPDATED", "UNCHANGED", "FAILED", "PARTIAL"]
+    },
+    "selectedIndicators": { "type": "boolean" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "durationMs": { "type": "number", "minimum": 0 },
+    "totals": { "$ref": "#/$defs/totals" },
+    "indicators": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": { "$ref": "#/$defs/indicator" }
+    }
+  },
+  "$defs": {
+    "nullableDate": {
+      "type": ["string", "null"],
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "nullableDateTime": {
+      "type": ["string", "null"],
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "indicatorsRequested",
+        "indicatorsSucceeded",
+        "indicatorsFailed",
+        "indicatorsUpdated",
+        "indicatorsUnchanged",
+        "rowsStaged",
+        "rowsDetectedAsNew",
+        "rowsInserted"
+      ],
+      "properties": {
+        "indicatorsRequested": { "type": "number", "minimum": 0 },
+        "indicatorsSucceeded": { "type": "number", "minimum": 0 },
+        "indicatorsFailed": { "type": "number", "minimum": 0 },
+        "indicatorsUpdated": { "type": "number", "minimum": 0 },
+        "indicatorsUnchanged": { "type": "number", "minimum": 0 },
+        "rowsStaged": { "type": "number", "minimum": 0 },
+        "rowsDetectedAsNew": { "type": "number", "minimum": 0 },
+        "rowsInserted": { "type": "number", "minimum": 0 }
+      }
+    },
+    "safeError": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      }
+    },
+    "indicator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "indicatorCode",
+        "outcome",
+        "stagingRows",
+        "stagingMinDate",
+        "stagingMaxDate",
+        "newRowsDetected",
+        "rowsInserted",
+        "previousTargetMaxDate",
+        "sourceMaxDate",
+        "currentTargetMaxDate",
+        "startedAt",
+        "completedAt",
+        "durationMs",
+        "error"
+      ],
+      "properties": {
+        "indicatorCode": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "outcome": {
+          "type": "string",
+          "enum": ["UPDATED", "UNCHANGED", "FAILED", "PARTIAL"]
+        },
+        "stagingRows": { "type": "number", "minimum": 0 },
+        "stagingMinDate": { "$ref": "#/$defs/nullableDate" },
+        "stagingMaxDate": { "$ref": "#/$defs/nullableDate" },
+        "newRowsDetected": { "type": "number", "minimum": 0 },
+        "rowsInserted": { "type": "number", "minimum": 0 },
+        "previousTargetMaxDate": { "$ref": "#/$defs/nullableDate" },
+        "sourceMaxDate": { "$ref": "#/$defs/nullableDate" },
+        "currentTargetMaxDate": { "$ref": "#/$defs/nullableDate" },
+        "startedAt": { "$ref": "#/$defs/nullableDateTime" },
+        "completedAt": { "$ref": "#/$defs/nullableDateTime" },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "error": { "$ref": "#/$defs/safeError" }
+      }
+    }
+  }
+}

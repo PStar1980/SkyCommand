@@ -107,7 +107,11 @@ function writeToolResult(toolResult, options = {}) {
       ?? process.env.SKYCOMMAND_TOOL_RESULT_MAX_BYTES
       ?? process.env.TOOL_RESULT_MAX_BYTES,
   );
-  const normalized = validateToolResult(toolResult, { maxBytes: maximumBytes });
+  const normalized = validateToolResult(toolResult, {
+    maxBytes: maximumBytes,
+    expectedOutputType: options.expectedOutputType,
+    outputSchema: options.outputSchema,
+  });
   const serialized = JSON.stringify(normalized);
   const byteLength = Buffer.byteLength(serialized, 'utf8');
   const temporaryPath = `${resolvedPaths.resultPath}.tmp`;
@@ -142,6 +146,8 @@ function createToolResultTransport({
   rootDirectory = getSkyServerRoot(),
   resultDirectory = getDefaultResultDirectory(rootDirectory),
   maxBytes,
+  expectedOutputType = null,
+  outputSchema = null,
 } = {}) {
   const maximumBytes = normalizeMaximumBytes(
     maxBytes
@@ -230,7 +236,11 @@ function createToolResultTransport({
       );
     }
 
-    const toolResult = validateToolResult(parsed, { maxBytes: maximumBytes });
+    const toolResult = validateToolResult(parsed, {
+      maxBytes: maximumBytes,
+      expectedOutputType,
+      outputSchema,
+    });
 
     return {
       status: 'VALID',
@@ -257,6 +267,7 @@ function createToolResultTransport({
     maxBytes: maximumBytes,
     readResult,
     required: Boolean(required),
+    expectedOutputType,
     resultDirectory: realResultDirectory,
     resultPath,
   };

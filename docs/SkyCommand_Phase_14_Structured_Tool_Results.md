@@ -6,7 +6,7 @@ Phase 14 is in progress.
 
 > Printing is for humans. Structured return values are for workflows.
 
-Phase 14.1 established the generic child-process result transport. Phase 14.2 proved the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript. Phase 14.3 extends that same contract to Bank of Canada and Statistics Canada and routes all three macro-source entrypoints through one shared ingestion CLI adapter.
+Phase 14.1 established the generic child-process result transport. Phase 14.2 proved the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript. Phase 14.3 extended that same contract to Bank of Canada and Statistics Canada and routed all three macro-source entrypoints through one shared ingestion CLI adapter. Phase 14.4 adds the versioned tool-manifest, output-schema, describe/contract-check, registry validation, hash, and drift-detection foundation required for future repository registration.
 
 ## Phase 14.1 foundation
 
@@ -139,6 +139,56 @@ Verbose stdout/stderr is not displayed as workflow output. It remains available 
 
 The source scripts remain thin adapters. FRED keeps its specialized batch runner, while BoC and StatCan keep the shared `runPipeline()` implementation. No source duplicates its ingestion logic for workflow use.
 
+## Phase 14.4 — Tool manifests and strict contract validation
+
+The migrated macro-source tools now declare repository manifests at:
+
+```text
+packages/ingestion/manifests/ingestion_fred/skycommand.tool.json
+packages/ingestion/manifests/ingestion_boc/skycommand.tool.json
+packages/ingestion/manifests/ingestion_statcan/skycommand.tool.json
+```
+
+Each manifest declares:
+
+- stable tool identity and display metadata;
+- repository-relative runtime and entrypoint;
+- parameter names, types, defaults, secret classification, and generic bindings;
+- permissions and registration hints;
+- timeout and allowed execution channels;
+- required ToolResult schema version and semantic output type;
+- output JSON Schema and non-destructive sample paths.
+
+The shared validator rejects unsupported versions, duplicate parameters or permissions, unsafe paths, secret values bound to command-line arguments, unsupported runtime/binding types, invalid defaults, missing entrypoints/contracts, and duplicate tool codes. It calculates SHA-256 hashes for the normalized manifest, entrypoint, output schema, and sample result. These hashes are not yet persisted to the database, but they establish the exact data required by later registration and drift-control services.
+
+### Strict output schema validation
+
+`validateToolResult()` now accepts a declared `expectedOutputType` and optional domain-output JSON Schema. Validation occurs both inside the shared CLI adapter before result emission and again in the API/worker wrapper after the child process exits. The macro ingestion schema validates totals, outcomes, non-negative row counts, date coverage, per-indicator results, and safe error objects.
+
+The runtime manifest registry discovers every `skycommand.tool.json` file beneath the approved repository root, indexes manifests by `toolCode`, and compares registered database values against the validated repository declaration. A script-path, runtime, or permission mismatch is reported as `TOOL_MANIFEST_REGISTRY_DRIFT` before execution.
+
+### Describe and contract-check modes
+
+The shared tool CLI adapter reserves two non-destructive modes:
+
+```text
+--skycommand-describe
+--skycommand-contract-check
+```
+
+Describe returns a validated manifest snapshot, resolved repository-relative paths, and hashes without calling the domain operation. Contract-check loads the declared sample ToolResult, validates the semantic output type and output schema, optionally emits it through the wrapper-owned result transport, and never runs ingestion.
+
+Repository-wide commands:
+
+```bash
+npm run tool-manifest:discover
+npm run tool-manifest:validate
+npm run tool-contract:check
+npm run tool-manifest:self-test
+```
+
+The temporary `SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES` configuration remains supported for legacy migration, but tools with validated manifests now declare their required result contract directly. API and worker execution treat the manifest requirement as authoritative.
+
 ## Workflow context paths
 
 For a completed node with key `example_node`, Phase 14 establishes these paths:
@@ -201,7 +251,7 @@ The macro-ingestion self-tests verify copy-loader metric parsing, aggregate tota
 
 ## Remaining Phase 14 increments
 
-1. Add strict manifest/output-contract validation and `skycommand.tool.json` foundations.
-2. Add contract-check/describe mode for future repository registration.
-3. Verify scheduled execution mode for all migrated macro sources and add explicit condition/summary proof cases.
-4. Expand structured results to additional tool categories using the generic adapter and renderer fallback.
+1. Verify scheduled execution mode for all migrated macro sources and add explicit condition/summary proof cases.
+2. Add a database registration snapshot model for manifest version, source path, hashes, and validation status without yet building the final repository-picker UI.
+3. Expand structured results to additional tool categories using the generic adapter and renderer fallback.
+4. Prepare the later transactional registration service and drift-review workflow described in Phase 15.
