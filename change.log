@@ -817,3 +817,17 @@ SkyWeb Analytics owns:
 - Added `docs/SkyCommand_Phase_14_Structured_Tool_Results.md` and refreshed the README current status, architecture notes, design rules, documentation index, and roadmap. Phase 13 is now marked complete; Phase 14 is in progress; future registration, resilience, BI, and testing work has been placed into later roadmap phases.
 - Added `.env.example` settings for result-size limits and gradual strict-tool migration through `SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES`.
 - No database migration is required for Phase 14.1. FRED, BoC, and StatCan remain legacy-result tools until their source-specific aggregation contracts are added in the next Phase 14 increments.
+
+## Phase 14.2 — FRED structured macro-ingestion results
+
+- Added `packages/ingestion/src/core/macroIngestionResult.js` with the reusable `macro_ingestion_summary.v1` contract, normalized indicator outcomes, aggregate totals, partial/failure semantics, and legacy CLI summary compatibility.
+- Updated `copyLoader.js` so PostgreSQL copy/load statistics are parsed and returned as a structured object while the existing `staging_*`, `new_rows`, `inserted_rows`, and `target_max` console output remains intact.
+- Added previous target maximum and staging minimum statistics so each indicator result can prove its before/source/after date coverage.
+- Updated the shared ingestion pipeline and FRED batch runner to retain per-indicator row counts, date coverage, outcome, timing, and safe error details.
+- Updated `loadFREDMacroData.js` to keep its existing CLI behavior while emitting a validated `macro_ingestion_summary.v1` ToolResult through the Phase 14 result channel when launched by SkyCommand.
+- Made FRED the first strict structured-result migration in `.env.example` through `SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred`.
+- Updated Workflow History focused-node output so `macro_ingestion_summary.v1` uses a purpose-built run totals table and indicator result table instead of generic key/value flattening.
+- Removed stdout/stderr preview parsing from the generic Workflow History output renderer; verbose script narration remains exclusively in Tool History.
+- Added `npm run macro-ingestion:self-test` and included copy-stat parsing, aggregation, outcome semantics, and structured-result assertions in `npm run validate`.
+- Updated README, Phase 14 documentation, and repository map for the Phase 14.2 proof case.
+- No database migration or seed is required for this increment.
