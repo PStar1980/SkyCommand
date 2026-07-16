@@ -4464,6 +4464,36 @@
   }
 }
 
+/* Focused workflow-node output table */
+.sky-focused-node-output-table-card {
+  max-height: 34rem;
+  overflow: auto;
+}
+
+.sky-focused-node-output-table-card .sky-table {
+  min-width: 48rem;
+}
+
+.sky-focused-node-output-table-card th:first-child,
+.sky-focused-node-output-table-card td:first-child {
+  width: 10rem;
+}
+
+.sky-focused-node-output-table-card th:nth-child(2),
+.sky-focused-node-output-table-card td:nth-child(2) {
+  width: 18rem;
+}
+
+.sky-focused-node-output-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.sky-focused-node-output-value .sky-node-output-readable-text {
+  max-height: 11rem;
+}
+
 /* Phase 13.5C — workflow history detail overlay */
 .sky-run-detail-modal-backdrop {
   z-index: 5000;
