@@ -2,15 +2,15 @@
 
 ## Status
 
-Phase 14 is in progress. Phase 14.1 establishes the shared runtime foundation described in the Phase 14 architecture decision:
+Phase 14 is in progress.
 
 > Printing is for humans. Structured return values are for workflows.
 
-The first increment preserves every existing execution mode while separating human operational logs from machine-consumable workflow results.
+Phase 14.1 established the generic child-process result transport. Phase 14.2 proves the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript.
 
 ## Phase 14.1 foundation
 
-The API launcher and worker launcher now call the same generic child-process adapter under `packages/tools/src/toolProcessExecutor.js`.
+The API launcher and worker launcher call the same generic child-process adapter under `packages/tools/src/toolProcessExecutor.js`.
 
 For each execution the adapter:
 
@@ -70,6 +70,50 @@ When no wrapper result path is present, `writeToolResult()` performs no write. D
 
 The envelope is universal. The `output` payload remains domain-specific and may contain bounded JSON-safe scalars, objects, and arrays.
 
+## Phase 14.2 — FRED macro-ingestion proof case
+
+The shared copy/load helper now returns structured statistics while printing the same operational lines used by CLI and Tool History.
+
+```json
+{
+  "stagingRows": 1337,
+  "stagingMinDate": "1913-01-01",
+  "stagingMaxDate": "2026-06-01",
+  "previousTargetMaxDate": "2026-04-01",
+  "newRowsDetected": 2,
+  "rowsInserted": 2,
+  "currentTargetMaxDate": "2026-06-01"
+}
+```
+
+FRED aggregates those values into one `macro_ingestion_summary.v1` result containing:
+
+- source-level outcome and duration;
+- requested, succeeded, failed, updated, and unchanged indicator totals;
+- staged, newly detected, and inserted row totals;
+- per-indicator outcome, date coverage, row counts, duration, and safe error details;
+- execution metadata such as concurrency and batch count.
+
+Outcome semantics are stable:
+
+| Outcome | Meaning |
+| --- | --- |
+| `UPDATED` | Processing succeeded and inserted one or more rows. |
+| `UNCHANGED` | Processing succeeded and found no new rows. |
+| `FAILED` | The indicator failed during download, normalization, or load. |
+| `PARTIAL` | The grouped run contains both successful and failed indicators. |
+
+`UNCHANGED` is a successful result and must not be treated as an error by conditions or summaries.
+
+### Workflow History rendering
+
+For focused FRED nodes, Workflow History now renders:
+
+1. A compact run-totals table.
+2. An indicator-results table with outcome, inserted rows, new rows, staging rows, date coverage, duration, and failure message.
+
+Verbose stdout/stderr is not displayed as workflow output. It remains available in Tool History.
+
 ## Workflow context paths
 
 For a completed node with key `example_node`, Phase 14 establishes these paths:
@@ -89,6 +133,7 @@ Condition nodes can therefore evaluate custom paths such as:
 ```text
 nodes.fred_ingestion.output.totals.rowsInserted
 nodes.fred_ingestion.output.totals.indicatorsFailed
+nodes.fred_ingestion.output.indicators
 nodes.package_repo.output.archivePath
 ```
 
@@ -101,19 +146,19 @@ nodes.package_repo.output.archivePath
 
 ## Result requirements
 
-Structured results are optional during migration. A tool can be made strict through validated catalogue/manifest metadata in later Phase 14 increments. The temporary configuration bridge is:
+Structured results are optional during migration. A migrated tool can be made strict through the temporary configuration bridge:
 
 ```text
-SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred,ingestion_boc,ingestion_statcan
+SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred
 ```
 
-When a required tool exits without a valid result, the execution fails with a contract error instead of silently substituting console output.
+When a required tool exits without a valid result, the execution fails with a contract error instead of silently substituting console output. Add `ingestion_boc` and `ingestion_statcan` after their Phase 14 migrations are enabled.
 
 ## Runtime configuration
 
 ```text
 SKYCOMMAND_TOOL_RESULT_MAX_BYTES=1048576
-SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=
+SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred
 ```
 
 Large files and datasets must be referenced as artifacts rather than embedded in `ToolResult`.
@@ -122,16 +167,16 @@ Large files and datasets must be referenced as artifacts rather than embedded in
 
 ```bash
 npm run tool-result:self-test
+npm run macro-ingestion:self-test
 npm run validate
 ```
 
-The self-test verifies contract validation, optional and required result behavior, atomic write/read/cleanup, child-process environment injection, log preservation, and structured-result capture.
+The macro-ingestion self-test verifies copy-loader metric parsing, aggregate totals, updated/unchanged/failed outcome semantics, partial-run handling, duration calculation, and the absence of stdout fields in the structured result.
 
 ## Remaining Phase 14 increments
 
-1. Return database load statistics from ingestion helpers while preserving current console output.
-2. Aggregate FRED, BoC, and StatCan into `macro_ingestion_summary.v1`.
-3. Add thin shared CLI adapters that emit results without duplicating domain scripts.
-4. Add strict manifest/output-contract validation and `skycommand.tool.json` foundations.
-5. Render purpose-built macro ingestion totals and indicator tables in Workflow History.
-6. Verify direct CLI, Run Tools, scheduled, and workflow execution modes.
+1. Migrate Bank of Canada and Statistics Canada to `macro_ingestion_summary.v1` using the same loader and aggregation contract.
+2. Consolidate the source CLI entrypoints behind the shared adapter without duplicating domain implementations.
+3. Add strict manifest/output-contract validation and `skycommand.tool.json` foundations.
+4. Add contract-check/describe mode for future repository registration.
+5. Verify direct CLI, Run Tools, scheduled, and workflow execution modes for all migrated sources.

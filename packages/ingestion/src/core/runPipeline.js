@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
+const { toLegacyPipelineSummary } = require('./macroIngestionResult');
 
 const DEFAULT_CONCURRENCY = 3;
 const MAX_CONCURRENCY = 10;
@@ -193,7 +194,7 @@ async function runPipelineItem({
       normalize(filePath, code, item);
     }
 
-    load(code, filePath, item);
+    const loadResult = await load(code, filePath, item);
 
     const finishedAt = new Date();
 
@@ -203,18 +204,39 @@ async function runPipelineItem({
       ok: true,
       source: name,
       indicatorCode: code,
+      outcome: loadResult?.rowsInserted > 0 ? 'UPDATED' : 'UNCHANGED',
+      stagingRows: loadResult?.stagingRows || 0,
+      stagingMinDate: loadResult?.stagingMinDate || null,
+      stagingMaxDate: loadResult?.stagingMaxDate || null,
+      sourceMaxDate: loadResult?.stagingMaxDate || null,
+      previousTargetMaxDate: loadResult?.previousTargetMaxDate || null,
+      newRowsDetected: loadResult?.newRowsDetected || 0,
+      rowsInserted: loadResult?.rowsInserted || 0,
+      currentTargetMaxDate: loadResult?.currentTargetMaxDate || null,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
+      completedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
   } catch (error) {
-    console.error(`❌ [${name}] Failed ${code}:`, error.message || String(error));
+    const completedAt = new Date();
+    const message = error.message || String(error);
+
+    console.error(`❌ [${name}] Failed ${code}:`, message);
 
     return {
       ok: false,
       source: name,
       indicatorCode: code,
-      error: error.message || String(error),
+      outcome: 'FAILED',
+      startedAt: startedAt.toISOString(),
+      finishedAt: completedAt.toISOString(),
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+      error: {
+        code: error.code || `${String(name || 'INGESTION').toUpperCase()}_INDICATOR_FAILED`,
+        message,
+      },
     };
   } finally {
     await cleanupTempDir(tempDir, { quiet: cleanupQuiet });
@@ -222,14 +244,7 @@ async function runPipelineItem({
 }
 
 function summarizeResults(results = []) {
-  const succeeded = results.filter((result) => result.ok).length;
-  const failed = results.length - succeeded;
-
-  return {
-    total: results.length,
-    succeeded,
-    failed,
-  };
+  return toLegacyPipelineSummary(results);
 }
 
 const runPipeline = async ({

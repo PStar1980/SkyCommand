@@ -6,6 +6,7 @@ const { getIndicators } = require('../sources/indicators');
 const { downloadFredCSV } = require('../sources/fred');
 const { normalizeFredCSV } = require('../transform/csvNormalizer');
 const { copyIntoTable } = require('../loaders/copyLoader');
+const { toLegacyPipelineSummary } = require('../core/macroIngestionResult');
 
 const DEFAULT_FRED_CONCURRENCY = 3;
 const MAX_FRED_CONCURRENCY = 10;
@@ -191,7 +192,7 @@ async function loadFredIndicator(input = {}) {
     const filePath = await downloadFredCSV(indicatorCode, tempDir);
 
     normalizeFredCSV(filePath, indicatorCode);
-    copyIntoTable(indicatorCode, filePath);
+    const loadResult = copyIntoTable(indicatorCode, filePath);
 
     const finishedAt = new Date();
 
@@ -201,8 +202,18 @@ async function loadFredIndicator(input = {}) {
       ok: true,
       source: 'FRED',
       indicatorCode,
+      outcome: loadResult.rowsInserted > 0 ? 'UPDATED' : 'UNCHANGED',
+      stagingRows: loadResult.stagingRows,
+      stagingMinDate: loadResult.stagingMinDate,
+      stagingMaxDate: loadResult.stagingMaxDate,
+      sourceMaxDate: loadResult.stagingMaxDate,
+      previousTargetMaxDate: loadResult.previousTargetMaxDate,
+      newRowsDetected: loadResult.newRowsDetected,
+      rowsInserted: loadResult.rowsInserted,
+      currentTargetMaxDate: loadResult.currentTargetMaxDate,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
+      completedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
   } finally {
@@ -216,6 +227,7 @@ async function loadFredIndicator(input = {}) {
 
 async function runFredIndicatorSafely(input = {}) {
   const indicatorCode = normalizeIndicatorCode(input.indicatorCode);
+  const startedAt = new Date();
 
   try {
     return await loadFredIndicator({
@@ -223,26 +235,30 @@ async function runFredIndicatorSafely(input = {}) {
       indicatorCode,
     });
   } catch (error) {
-    console.error(`❌ [FRED] Failed ${indicatorCode}: ${error.message || String(error)}`);
+    const completedAt = new Date();
+    const message = error.message || String(error);
+
+    console.error(`❌ [FRED] Failed ${indicatorCode}: ${message}`);
 
     return {
       ok: false,
       source: 'FRED',
       indicatorCode,
-      error: error.message || String(error),
+      outcome: 'FAILED',
+      startedAt: startedAt.toISOString(),
+      finishedAt: completedAt.toISOString(),
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+      error: {
+        code: error.code || 'FRED_INDICATOR_FAILED',
+        message,
+      },
     };
   }
 }
 
 function summarizeResults(results = []) {
-  const succeeded = results.filter((result) => result.ok).length;
-  const failed = results.length - succeeded;
-
-  return {
-    total: results.length,
-    succeeded,
-    failed,
-  };
+  return toLegacyPipelineSummary(results);
 }
 
 async function runFredIndicatorBatch(input = {}) {

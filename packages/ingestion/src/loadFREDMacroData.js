@@ -9,46 +9,53 @@ const {
   DEFAULT_FRED_CONCURRENCY,
   MAX_FRED_CONCURRENCY,
 } = require('./fred/fredBatchRunner');
+const {
+  createMacroIngestionFailureToolResult,
+  createMacroIngestionToolResult,
+} = require('./core/macroIngestionResult');
+const { writeToolResult } = require('../../tools/src/toolResultTransport');
 
-const cliArgs = process.argv.slice(2);
+function getCliArgs() {
+  return process.argv.slice(2);
+}
 
-function getArgValue(name) {
+function getArgValue(args, name) {
   const prefix = `--${name}=`;
-  const arg = cliArgs.find((value) => value.startsWith(prefix));
+  const arg = args.find((value) => value.startsWith(prefix));
 
   return arg ? arg.slice(prefix.length) : null;
 }
 
-function hasFlag(name) {
-  return cliArgs.includes(`--${name}`);
+function hasFlag(args, name) {
+  return args.includes(`--${name}`);
 }
 
-function getRepeatedArgValues(name) {
+function getRepeatedArgValues(args, name) {
   const prefix = `--${name}=`;
 
-  return cliArgs.filter((value) => value.startsWith(prefix)).map((value) => value.slice(prefix.length));
+  return args.filter((value) => value.startsWith(prefix)).map((value) => value.slice(prefix.length));
 }
 
-function getPositionalArgs() {
-  return cliArgs.filter((value) => !String(value || '').startsWith('--'));
+function getPositionalArgs(args) {
+  return args.filter((value) => !String(value || '').startsWith('--'));
 }
 
 function looksNumeric(value) {
   return /^\d+$/.test(String(value || '').trim());
 }
 
-function getRequestedIndicators() {
+function getRequestedIndicators(args) {
   const values = [];
 
-  values.push(...getRepeatedArgValues('indicator'));
+  values.push(...getRepeatedArgValues(args, 'indicator'));
 
-  const indicatorsArg = getArgValue('indicators');
+  const indicatorsArg = getArgValue(args, 'indicators');
 
   if (indicatorsArg) {
     values.push(indicatorsArg);
   }
 
-  const positionalArgs = getPositionalArgs();
+  const positionalArgs = getPositionalArgs(args);
   const firstPositional = positionalArgs[0];
 
   if (firstPositional && !looksNumeric(firstPositional)) {
@@ -58,21 +65,21 @@ function getRequestedIndicators() {
   return values;
 }
 
-function getConcurrency() {
-  const explicitConcurrency = getArgValue('concurrency') || process.env.FRED_INGESTION_CONCURRENCY;
+function getConcurrency(args) {
+  const explicitConcurrency = getArgValue(args, 'concurrency') || process.env.FRED_INGESTION_CONCURRENCY;
 
   if (explicitConcurrency) {
     return parsePositiveInteger(explicitConcurrency, DEFAULT_FRED_CONCURRENCY, MAX_FRED_CONCURRENCY);
   }
 
-  const positionalArgs = getPositionalArgs();
+  const positionalArgs = getPositionalArgs(args);
   const numericPositional = positionalArgs.find((value) => looksNumeric(value));
 
   return parsePositiveInteger(numericPositional, DEFAULT_FRED_CONCURRENCY, MAX_FRED_CONCURRENCY);
 }
 
-function getRunId() {
-  const explicitRunId = getArgValue('run-id') || process.env.FRED_INGESTION_RUN_ID;
+function getRunId(args) {
+  const explicitRunId = getArgValue(args, 'run-id') || process.env.FRED_INGESTION_RUN_ID;
 
   if (explicitRunId) {
     return explicitRunId;
@@ -81,7 +88,7 @@ function getRunId() {
   return `fred-tool-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
 }
 
-function printResult(result) {
+function printResult(result, args) {
   const summary = result.summary || {};
 
   console.log('');
@@ -94,30 +101,76 @@ function printResult(result) {
   console.log(`  total: ${summary.total ?? 0}`);
   console.log(`  succeeded: ${summary.succeeded ?? 0}`);
   console.log(`  failed: ${summary.failed ?? 0}`);
+  console.log(`  updated: ${summary.updated ?? 0}`);
+  console.log(`  unchanged: ${summary.unchanged ?? 0}`);
+  console.log(`  rows inserted: ${summary.rowsInserted ?? 0}`);
 
-  if (hasFlag('json')) {
+  if (hasFlag(args, 'json')) {
     console.log('');
     console.log(JSON.stringify(result, null, 2));
   }
 }
 
-async function main() {
-  const result = await runFredIndicatorBatch({
-    indicators: getRequestedIndicators(),
-    concurrency: getConcurrency(),
-    runId: getRunId(),
-    cleanupQuiet: true,
-  });
+function emitToolResult(toolResult) {
+  return writeToolResult(toolResult);
+}
 
-  printResult(result);
+async function main(args = getCliArgs()) {
+  const startedAt = new Date().toISOString();
 
-  if (!result.ok && !hasFlag('allow-failures')) {
+  try {
+    const result = await runFredIndicatorBatch({
+      indicators: getRequestedIndicators(args),
+      concurrency: getConcurrency(args),
+      runId: getRunId(args),
+      cleanupQuiet: true,
+    });
+    const toolResult = createMacroIngestionToolResult({
+      sourceCode: 'FRED',
+      batchResult: result,
+    });
+
+    printResult(result, args);
+    emitToolResult(toolResult);
+
+    if (!result.ok && !hasFlag(args, 'allow-failures')) {
+      process.exitCode = 1;
+    }
+
+    return { result, toolResult };
+  } catch (error) {
+    const completedAt = new Date().toISOString();
+    const toolResult = createMacroIngestionFailureToolResult({
+      sourceCode: 'FRED',
+      error,
+      startedAt,
+      completedAt,
+    });
+
+    console.error('[FRED] Ingestion failed');
+    console.error(error.stack || error.message || String(error));
+
+    try {
+      emitToolResult(toolResult);
+    } catch (resultError) {
+      console.error('[FRED] Structured ToolResult emission failed');
+      console.error(resultError.stack || resultError.message || String(resultError));
+    }
+
     process.exitCode = 1;
+    return { result: null, toolResult, error };
   }
 }
 
-main().catch((error) => {
-  console.error('[FRED] Ingestion failed');
-  console.error(error.stack || error.message || String(error));
-  process.exit(1);
-});
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  emitToolResult,
+  getConcurrency,
+  getRequestedIndicators,
+  getRunId,
+  main,
+  printResult,
+};

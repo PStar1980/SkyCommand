@@ -82,6 +82,9 @@ function printPipelineResult(result, args = []) {
   console.log(`  total: ${summary.total ?? 0}`);
   console.log(`  succeeded: ${summary.succeeded ?? 0}`);
   console.log(`  failed: ${summary.failed ?? 0}`);
+  console.log(`  updated: ${summary.updated ?? 0}`);
+  console.log(`  unchanged: ${summary.unchanged ?? 0}`);
+  console.log(`  rows inserted: ${summary.rowsInserted ?? 0}`);
 
   if (hasFlag(args, 'json')) {
     console.log('');

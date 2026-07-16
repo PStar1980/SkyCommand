@@ -243,6 +243,9 @@ const DUPLICATE_NODE_OUTPUT_FIELDS = new Set([
   'exitcode',
   'contextupdates',
   'saveoutputas',
+  'schemaversion',
+  'success',
+  'outputtype',
 ]);
 
 const DUPLICATE_NODE_CONTEXT_SUFFIXES = new Set([
@@ -256,6 +259,10 @@ const DUPLICATE_NODE_CONTEXT_SUFFIXES = new Set([
   'status',
   'summary',
   'targetcode',
+  'result',
+  'warnings',
+  'error',
+  'metadata',
 ]);
 
 function humanizeOutputKey(value) {
@@ -393,59 +400,6 @@ function FriendlyOutputScalar({ fieldKey = '', value }) {
   return <span className={mono ? 'sky-mono' : undefined}>{text}</span>;
 }
 
-function getPreviewRows(value, source) {
-  const lines = String(value || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const rows = [];
-
-  lines.forEach((line, index) => {
-    const keyValueMatch = line.match(/^([A-Za-z][A-Za-z0-9_.-]{0,80})\s*=\s*(.*)$/);
-    const taggedMatch = line.match(/^[^A-Za-z0-9[]*\[([^\]]+)\]\s*(.*)$/);
-    const colonMatch = line.match(/^([^:]{1,40}):\s+(.+)$/);
-
-    if (keyValueMatch) {
-      rows.push({
-        source,
-        field: humanizeOutputKey(keyValueMatch[1]),
-        fieldKey: keyValueMatch[1],
-        value: parseFriendlyOutputValue(keyValueMatch[2]),
-      });
-      return;
-    }
-
-    if (taggedMatch) {
-      rows.push({
-        source,
-        field: humanizeOutputKey(taggedMatch[1]),
-        fieldKey: taggedMatch[1],
-        value: taggedMatch[2] || 'Recorded',
-      });
-      return;
-    }
-
-    if (colonMatch) {
-      rows.push({
-        source,
-        field: humanizeOutputKey(colonMatch[1]),
-        fieldKey: colonMatch[1],
-        value: colonMatch[2],
-      });
-      return;
-    }
-
-    rows.push({
-      source,
-      field: `Message ${index + 1}`,
-      fieldKey: `message${index + 1}`,
-      value: line,
-    });
-  });
-
-  return rows;
-}
-
 function appendUniqueOutputRows(rows, value, { source = 'Result', path = [] } = {}) {
   const parsedValue = parseFriendlyOutputValue(value);
 
@@ -487,7 +441,6 @@ function appendUniqueOutputRows(rows, value, { source = 'Result', path = [] } = 
   const normalizedLeafKey = leafKey.toLowerCase();
 
   if (normalizedLeafKey === 'stdoutpreview' || normalizedLeafKey === 'stderrpreview') {
-    rows.push(...getPreviewRows(parsedValue, normalizedLeafKey === 'stdoutpreview' ? 'Standard output' : 'Error output'));
     return;
   }
 
@@ -526,6 +479,41 @@ function getContextDisplayPath(contextKey, nodeKey) {
     : value;
 }
 
+
+function isStructuredToolResult(value) {
+  return value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && typeof value.schemaVersion === 'string'
+    && typeof value.outputType === 'string'
+    && Object.prototype.hasOwnProperty.call(value, 'output');
+}
+
+function getFocusedToolResult(outputs = [], nodeKey = '') {
+  return outputs
+    .filter((output) => output.nodeKey === nodeKey)
+    .map((output) => parseFriendlyOutputValue(output.output))
+    .find(isStructuredToolResult) || null;
+}
+
+function macroOutcomeClass(outcome) {
+  const normalized = String(outcome || '').toUpperCase();
+
+  if (normalized === 'UPDATED') {
+    return 'sky-pill-success';
+  }
+
+  if (normalized === 'FAILED') {
+    return 'sky-pill-danger';
+  }
+
+  if (normalized === 'PARTIAL') {
+    return 'sky-pill-warning';
+  }
+
+  return 'sky-pill-info';
+}
+
 function buildFocusedNodeOutputRows({ outputs = [], contextValues = [], node = null } = {}) {
   if (!node?.nodeKey) {
     return [];
@@ -545,6 +533,18 @@ function buildFocusedNodeOutputRows({ outputs = [], contextValues = [], node = n
       if (keyOutputs && typeof keyOutputs === 'object') {
         appendUniqueOutputRows(rows, keyOutputs, { source: 'Key outputs' });
       }
+      return;
+    }
+
+    if (isStructuredToolResult(outputValue)) {
+      appendUniqueOutputRows(rows, outputValue.output, {
+        source: humanizeOutputKey(outputValue.outputType || 'Structured output'),
+      });
+
+      if (outputValue.error) {
+        appendUniqueOutputRows(rows, outputValue.error, { source: 'Error' });
+      }
+
       return;
     }
 
@@ -1236,6 +1236,113 @@ function WorkflowRunSummaryPanel({ run, outputs = [] }) {
   );
 }
 
+
+function MacroIngestionOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const totals = getSafeObject(output.totals);
+  const indicators = getSafeArray(output.indicators);
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+
+  return (
+    <div className="sky-macro-ingestion-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Macro ingestion result</div>
+          <h3 className="h6 mb-1">{output.sourceCode || 'Macro source'} update summary</h3>
+          <p className="small sky-muted mb-0">{toolResult.message || 'Structured ingestion result recorded.'}</p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${macroOutcomeClass(output.outcome)}`}>{output.outcome || 'UNKNOWN'}</span>
+          <span className="sky-pill sky-pill-info">{output.selectedIndicators ? 'Selected indicators' : 'Full catalogue'}</span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Run totals</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Requested</th>
+              <th>Succeeded</th>
+              <th>Updated</th>
+              <th>Unchanged</th>
+              <th>Failed</th>
+              <th>Rows staged</th>
+              <th>New rows</th>
+              <th>Rows inserted</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{Number(totals.indicatorsRequested || 0).toLocaleString()}</td>
+              <td>{Number(totals.indicatorsSucceeded || 0).toLocaleString()}</td>
+              <td>{Number(totals.indicatorsUpdated || 0).toLocaleString()}</td>
+              <td>{Number(totals.indicatorsUnchanged || 0).toLocaleString()}</td>
+              <td>{Number(totals.indicatorsFailed || 0).toLocaleString()}</td>
+              <td>{Number(totals.rowsStaged || 0).toLocaleString()}</td>
+              <td>{Number(totals.rowsDetectedAsNew || 0).toLocaleString()}</td>
+              <td className="fw-semibold">{Number(totals.rowsInserted || 0).toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div className="sky-page-kicker">Indicator results</div>
+        <span className="sky-pill sky-pill-info">{indicators.length} indicator(s)</span>
+      </div>
+
+      {indicators.length === 0 ? (
+        <div className="sky-empty-state">No indicator-level result records were emitted.</div>
+      ) : (
+        <div className="table-responsive sky-table-card sky-macro-ingestion-indicator-table">
+          <table className="table table-sm sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Indicator</th>
+                <th>Outcome</th>
+                <th>Rows inserted</th>
+                <th>New rows</th>
+                <th>Staging rows</th>
+                <th>Previous max</th>
+                <th>Source max</th>
+                <th>Current max</th>
+                <th>Duration</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {indicators.map((indicator, index) => (
+                <tr key={`${indicator.indicatorCode || 'indicator'}-${index}`}>
+                  <td className="fw-semibold sky-mono">{indicator.indicatorCode || '—'}</td>
+                  <td><span className={`sky-pill ${macroOutcomeClass(indicator.outcome)}`}>{indicator.outcome || 'UNKNOWN'}</span></td>
+                  <td>{Number(indicator.rowsInserted || 0).toLocaleString()}</td>
+                  <td>{Number(indicator.newRowsDetected || 0).toLocaleString()}</td>
+                  <td>{Number(indicator.stagingRows || 0).toLocaleString()}</td>
+                  <td><FriendlyOutputScalar fieldKey="previousTargetMaxDate" value={indicator.previousTargetMaxDate} /></td>
+                  <td><FriendlyOutputScalar fieldKey="sourceMaxDate" value={indicator.sourceMaxDate} /></td>
+                  <td><FriendlyOutputScalar fieldKey="currentTargetMaxDate" value={indicator.currentTargetMaxDate} /></td>
+                  <td>{formatDuration(indicator.durationMs)}</td>
+                  <td className="sky-macro-ingestion-error-cell">{indicator.error?.message || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {(warnings.length > 0 || failedMessage) ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning) => <div key={warning}>{warning}</div>)}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = [], selectedNodeIndex = null }) {
   const hasSelection = Number.isInteger(selectedNodeIndex)
     && selectedNodeIndex >= 0
@@ -1251,6 +1358,13 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
     () => buildFocusedNodeOutputRows({ outputs, contextValues, node: selectedNode }),
     [contextValues, outputs, selectedNode],
   );
+  const structuredToolResult = useMemo(
+    () => getFocusedToolResult(outputs, selectedNode?.nodeKey),
+    [outputs, selectedNode?.nodeKey],
+  );
+  const macroIngestionResult = structuredToolResult?.outputType === 'macro_ingestion_summary.v1'
+    ? structuredToolResult
+    : null;
   const displayName = selectedNode?.displayName || selectedNode?.nodeKey || 'Focused node';
 
   return (
@@ -1268,7 +1382,11 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
         {selectedNode && (
           <div className="d-flex flex-wrap gap-2 small">
             <span className="sky-pill sky-pill-info">{selectedOutputs.length} output record(s)</span>
-            <span className="sky-pill sky-pill-success">{rows.length} unique value(s)</span>
+            {macroIngestionResult ? (
+              <span className="sky-pill sky-pill-success">{getSafeArray(macroIngestionResult.output?.indicators).length} indicator result(s)</span>
+            ) : (
+              <span className="sky-pill sky-pill-success">{rows.length} unique value(s)</span>
+            )}
           </div>
         )}
       </div>
@@ -1277,6 +1395,8 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
           <div className="sky-empty-state">
             Select a node in the Runtime Status Overlay to inspect that node&apos;s unique output.
           </div>
+        ) : macroIngestionResult ? (
+          <MacroIngestionOutput toolResult={macroIngestionResult} />
         ) : rows.length === 0 ? (
           <div className="sky-empty-state">
             No additional node-specific output was recorded. Status, attempts, duration, target, and summary details are already shown above.
@@ -1305,7 +1425,7 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
             </table>
           </div>
         )}
-        {selectedNode && selectedContextValues.length > 0 && rows.length === 0 ? (
+        {selectedNode && !macroIngestionResult && selectedContextValues.length > 0 && rows.length === 0 ? (
           <div className="small sky-muted mt-2">
             {selectedContextValues.length} runtime context value(s) were omitted because they repeat graph telemetry or persisted output.
           </div>

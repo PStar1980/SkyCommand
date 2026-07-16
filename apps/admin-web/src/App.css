@@ -4851,3 +4851,31 @@
 .sky-identity-footer-delta.is-negative {
   color: #ff91a6;
 }
+
+/* Phase 14.2 — structured macro ingestion output */
+.sky-macro-ingestion-output {
+  min-width: 0;
+}
+
+.sky-macro-ingestion-indicator-table {
+  max-height: 34rem;
+  overflow: auto;
+}
+
+.sky-macro-ingestion-indicator-table .sky-table {
+  min-width: 92rem;
+}
+
+.sky-macro-ingestion-indicator-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #0b1424;
+}
+
+.sky-macro-ingestion-error-cell {
+  min-width: 14rem;
+  max-width: 24rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}

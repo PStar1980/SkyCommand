@@ -296,6 +296,8 @@ SkyServer/
 │   │       │   └── statcanVectors.js
 │   │       ├── core/
 │   │       │   ├── cliOptions.js
+│   │       │   ├── macroIngestionResult.js
+│   │       │   ├── macroIngestionResultSelfTest.js
 │   │       │   └── runPipeline.js
 │   │       ├── discovery/
 │   │       │   ├── discoverStatCanMetadata.js
