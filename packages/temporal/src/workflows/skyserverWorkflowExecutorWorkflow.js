@@ -1503,7 +1503,7 @@ async function executeNodeWithRetries({
   workflowRunRecordId,
 }) {
   const retryPolicy = getNodeRetryPolicy(node);
-  let lastError = null;
+  let lastExecutionError = null;
 
   for (let attempt = 1; attempt <= retryPolicy.maximumAttempts; attempt += 1) {
     const displayedAttemptCount = getDisplayedAttemptCount(attemptOffset, attempt);
@@ -1518,8 +1518,10 @@ async function executeNodeWithRetries({
       },
     });
 
+    let output;
+
     try {
-      const output = await nodeExecutionActivities.executeSkyserverWorkflowNodeActivity({
+      output = await nodeExecutionActivities.executeSkyserverWorkflowNodeActivity({
         node,
         parameters,
         user,
@@ -1531,8 +1533,23 @@ async function executeNodeWithRetries({
         workflowRunRecordId,
         nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
       });
+    } catch (error) {
+      lastExecutionError = error;
 
-      const completedNodeRun = await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
+      if (attempt < retryPolicy.maximumAttempts) {
+        await sleep(retryPolicy.initialIntervalSeconds * 1000 * attempt);
+        continue;
+      }
+
+      break;
+    }
+
+    // Completion persistence is intentionally outside the execution retry catch.
+    // The ledger activity has its own idempotent Temporal retry policy. If it
+    // exhausts those retries, fail the workflow rather than rerunning a tool
+    // whose side effects already completed successfully.
+    try {
+      return await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
         nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
         output,
         metadata: {
@@ -1543,18 +1560,24 @@ async function executeNodeWithRetries({
           retryPolicy,
         },
       });
+    } catch (persistenceError) {
+      const normalizedPersistenceError = serializeError(persistenceError);
 
-      return completedNodeRun;
-    } catch (error) {
-      lastError = error;
-
-      if (attempt < retryPolicy.maximumAttempts) {
-        await sleep(retryPolicy.initialIntervalSeconds * 1000 * attempt);
-      }
+      throw ApplicationFailure.create({
+        message: `Workflow node execution succeeded, but completion persistence failed: ${normalizedPersistenceError.message}`,
+        type: 'SkyServerWorkflowNodePersistenceFailure',
+        nonRetryable: true,
+        details: [{
+          nodeKey: node.nodeKey,
+          nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+          executionSucceeded: true,
+          persistenceError: normalizedPersistenceError,
+        }],
+      });
     }
   }
 
-  const normalizedError = serializeError(lastError);
+  const normalizedError = serializeError(lastExecutionError);
   await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
     nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
     output: normalizedError.details || {},

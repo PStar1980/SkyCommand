@@ -839,3 +839,14 @@ SkyWeb Analytics owns:
 - Updated all development nodemon scripts to load the shared configuration explicitly.
 - Changed ephemeral structured-result transport files from `.json` to the non-source `.tool-result` extension as defense in depth. The payload remains validated JSON; only the temporary transport filename changed.
 - Extended the ToolResult self-test to verify the opaque transport extension. Wrapper cleanup continues deleting the result and temporary files after reading, so an empty `logs/tool-results` directory after execution is expected.
+
+
+## Phase 14.2.2 — Semantic output persistence and retry-boundary fix
+
+- Diagnosed workflow-only FRED failures after successful tool execution. `worker.workflow_run_node_outputs.output_type` still enforced the original Phase 13 structural JSON whitelist, while Phase 14 correctly persisted the semantic ToolResult contract name `macro_ingestion_summary.v1`; PostgreSQL rejected the node-output record during completion persistence.
+- Added migration `00062__workflow_output_type_contracts.sql` to replace the structural whitelist with a non-blank semantic contract check, and updated migration `00055` so fresh databases use the corrected definition.
+- Preserved backward compatibility: generic node outputs may still store `object`, `array`, `string`, and other structural labels, while migrated tools store versioned contracts.
+- Moved the Temporal completed-node log message after successful ledger persistence so terminal output no longer claims completion before persistence finishes.
+- Separated tool execution retries from completion-ledger retries. A successful side-effecting tool is no longer executed again when only output/context persistence fails; the idempotent completion activity uses its own Temporal retry policy and surfaces a dedicated persistence failure if exhausted.
+- Updated README, Phase 14 documentation, and repository map.
+- Database migration `00062` is required before retesting the FRED workflow.
