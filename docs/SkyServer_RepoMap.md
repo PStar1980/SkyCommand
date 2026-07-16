@@ -245,7 +245,8 @@ SkyServer/
 │   │       │   ├── 00045__workflow_lifecycle_simplification.sql
 │   │       │   ├── 00051__workflow_human_approval_requests.sql
 │   │       │   ├── 00054__temporal_worker_heartbeats.sql
-│   │       │   └── 00055__workflow_node_output_persistence.sql
+│   │       │   ├── 00055__workflow_node_output_persistence.sql
+│   │       │   └── 00062__workflow_output_type_contracts.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

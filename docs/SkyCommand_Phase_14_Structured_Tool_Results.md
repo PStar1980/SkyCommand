@@ -58,6 +58,12 @@ When no wrapper result path is present, `writeToolResult()` performs no write. D
 
 The structured-result channel writes transient validated JSON payloads using the `.tool-result` filename extension under the wrapper-owned `logs/tool-results` directory. The non-source extension and shared `nodemon.json` ignore rules prevent development API, worker, and Temporal processes from restarting when a result is emitted. The wrapper removes both the completed result and any temporary sibling file after reading, so an empty result directory after a completed execution is expected.
 
+## Semantic output-type persistence
+
+Phase 14 stores one canonical ToolResult envelope per workflow tool node. The durable `worker.workflow_run_node_outputs.output_type` column accepts either a legacy structural JSON label (`object`, `array`, and similar) or a versioned semantic contract name such as `macro_ingestion_summary.v1`. The semantic value lets Workflow History and future condition/renderer services select the correct contract without parsing the payload.
+
+Node execution retries are separated from completion-ledger retries. If a tool finishes successfully but durable output/context persistence fails, Temporal retries the idempotent completion activity; it does not rerun the side-effecting tool.
+
 ## Canonical ToolResult envelope
 
 ```json

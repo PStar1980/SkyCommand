@@ -34,8 +34,7 @@ CREATE TABLE IF NOT EXISTS worker.workflow_run_node_outputs (
   node_type_code TEXT,
   target_code TEXT,
   output_key TEXT NOT NULL DEFAULT 'result',
-  output_type TEXT NOT NULL DEFAULT 'object'
-    CHECK (output_type IN ('object', 'array', 'string', 'number', 'boolean', 'null', 'unknown')),
+  output_type TEXT NOT NULL DEFAULT 'object',
   input_snapshot_json JSONB NOT NULL DEFAULT '{}'::jsonb,
   output_json JSONB NOT NULL DEFAULT '{}'::jsonb,
   output_summary TEXT,
@@ -47,6 +46,7 @@ CREATE TABLE IF NOT EXISTS worker.workflow_run_node_outputs (
 
   CONSTRAINT workflow_run_node_outputs_node_key_not_blank CHECK (btrim(node_key) <> ''),
   CONSTRAINT workflow_run_node_outputs_output_key_not_blank CHECK (btrim(output_key) <> ''),
+  CONSTRAINT workflow_run_node_outputs_output_type_not_blank CHECK (btrim(output_type) <> ''),
   CONSTRAINT workflow_run_node_outputs_input_snapshot_object CHECK (jsonb_typeof(input_snapshot_json) = 'object'),
   CONSTRAINT workflow_run_node_outputs_metadata_object CHECK (jsonb_typeof(metadata) = 'object'),
   UNIQUE (workflow_node_run_record_id, output_key)
@@ -66,6 +66,7 @@ EXECUTE FUNCTION worker.set_updated_at();
 
 COMMENT ON TABLE worker.workflow_run_node_outputs IS 'Durable structured node-output ledger for SkyCommand Workflow History, telemetry, and future workflow context mapping.';
 COMMENT ON COLUMN worker.workflow_run_node_outputs.output_key IS 'Stable output key for the node result, such as result, response, artifact, or summary.';
+COMMENT ON COLUMN worker.workflow_run_node_outputs.output_type IS 'Structural JSON type for generic nodes or a versioned semantic result contract such as macro_ingestion_summary.v1.';
 COMMENT ON COLUMN worker.workflow_run_node_outputs.input_snapshot_json IS 'Resolved input parameters captured when the node completed.';
 COMMENT ON COLUMN worker.workflow_run_node_outputs.output_json IS 'Structured output payload returned by the node/tool/API/wrapper.';
 

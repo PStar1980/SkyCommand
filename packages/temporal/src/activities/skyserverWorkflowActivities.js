@@ -118,8 +118,7 @@ async function executeSkyserverWorkflowNodeActivity(input = {}) {
 }
 
 async function completeSkyserverWorkflowNodeRunActivity(input = {}) {
-  console.log(`[Temporal:SkyWorkflow] Completed node run ${input.nodeRunRecordId}`);
-  return workflowExecutorService.completeWorkflowNodeRun({
+  const completedNodeRun = await workflowExecutorService.completeWorkflowNodeRun({
     nodeRunRecordId: input.nodeRunRecordId,
     output: input.output || {},
     metadata: {
@@ -128,6 +127,9 @@ async function completeSkyserverWorkflowNodeRunActivity(input = {}) {
       ...(input.metadata || {}),
     },
   });
+
+  console.log(`[Temporal:SkyWorkflow] Completed node run ${input.nodeRunRecordId}`);
+  return completedNodeRun;
 }
 
 async function failSkyserverWorkflowNodeRunActivity(input = {}) {
