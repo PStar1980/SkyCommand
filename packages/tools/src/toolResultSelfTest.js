@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
+  TOOL_RESULT_FILE_EXTENSION,
   TOOL_RESULT_SCHEMA_VERSION,
   ToolResultContractError,
   createLegacyToolResult,
@@ -36,6 +37,8 @@ async function runSelfTest() {
       required: true,
       rootDirectory: temporaryRoot,
     });
+
+    assert.equal(path.extname(transport.resultPath), TOOL_RESULT_FILE_EXTENSION);
 
     writeToolResult(validResult, {
       resultPath: transport.resultPath,

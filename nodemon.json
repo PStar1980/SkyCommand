@@ -1,0 +1,17 @@
+{
+  "watch": ["apps", "packages"],
+  "ext": "js,mjs,cjs,json",
+  "ignore": [
+    "logs/**",
+    "**/logs/**",
+    "**/tmp/**",
+    "dist/**",
+    "backup/**",
+    "processed/**",
+    "data/**",
+    "index/**",
+    "docs/**",
+    "**/*.zip"
+  ],
+  "delay": "250"
+}

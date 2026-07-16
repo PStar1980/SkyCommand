@@ -53,6 +53,11 @@ writeToolResult({
 
 When no wrapper result path is present, `writeToolResult()` performs no write. Direct CLI execution therefore remains unchanged.
 
+
+## Development watcher safety
+
+The structured-result channel writes transient validated JSON payloads using the `.tool-result` filename extension under the wrapper-owned `logs/tool-results` directory. The non-source extension and shared `nodemon.json` ignore rules prevent development API, worker, and Temporal processes from restarting when a result is emitted. The wrapper removes both the completed result and any temporary sibling file after reading, so an empty result directory after a completed execution is expected.
+
 ## Canonical ToolResult envelope
 
 ```json

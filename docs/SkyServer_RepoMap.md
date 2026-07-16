@@ -7,6 +7,7 @@ SkyServer/
 ├── .prettierrc.json
 ├── change.log
 ├── eslint.config.mjs
+├── nodemon.json
 ├── package-lock.json
 ├── package.json
 ├── README.md
