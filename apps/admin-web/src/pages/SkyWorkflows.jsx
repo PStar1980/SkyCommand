@@ -786,6 +786,24 @@ function isActiveRun(run) {
   return status === 'RUNNING' || status === 'QUEUED';
 }
 
+function getLastExecutedVisualNodeIndex(nodes = [], nodeRuns = []) {
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    const node = nodes[index];
+    const matchingRun = nodeRuns.find((nodeRun) => (
+      (nodeRun.nodeKey && nodeRun.nodeKey === node.nodeKey)
+      || (node.workflowNodeId && nodeRun.workflowNodeId === node.workflowNodeId)
+    ));
+
+    if (matchingRun) {
+      return index;
+    }
+  }
+
+  return nodeRuns.length > 0 && nodes.length > 0
+    ? Math.min(nodeRuns.length - 1, nodes.length - 1)
+    : -1;
+}
+
 function isRetryableRun(run) {
   return ['FAILED', 'CANCELED', 'TERMINATED'].includes(String(run?.status || '').toUpperCase());
 }
@@ -1576,6 +1594,11 @@ function SkyWorkflows({ mode = 'start' }) {
     warning: '',
   });
   const telemetryPollingRef = useRef(false);
+  const completionFocusRef = useRef({
+    applied: false,
+    runId: null,
+    wasActive: false,
+  });
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
@@ -1584,7 +1607,6 @@ function SkyWorkflows({ mode = 'start' }) {
   const selectedApprovals = selectedRunDetail?.approvals || [];
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const selectedRelations = selectedRunDetail?.relations || {};
-  const selectedRunTree = selectedRunDetail?.runTree || selectedRelations.runTree || null;
   const runtimeParameters = useMemo(
     () => normalizeRuntimeParameterDefinitions(selectedDefinitionDetail || selectedDefinition || {}),
     [selectedDefinition, selectedDefinitionDetail],
@@ -1997,7 +2019,67 @@ function SkyWorkflows({ mode = 'start' }) {
 
   useEffect(() => {
     setSelectedRuntimeNodeIndex(null);
+    completionFocusRef.current = {
+      applied: false,
+      runId: selectedRun?.workflowRunRecordId || null,
+      wasActive: isActiveRun(selectedRun),
+    };
   }, [selectedRun?.workflowRunRecordId]);
+
+  useEffect(() => {
+    if (!isHistoryMode || !selectedRun?.workflowRunRecordId) {
+      return;
+    }
+
+    const runId = selectedRun.workflowRunRecordId;
+    const focusState = completionFocusRef.current;
+
+    if (focusState.runId !== runId) {
+      completionFocusRef.current = {
+        applied: false,
+        runId,
+        wasActive: isActiveRun(selectedRun),
+      };
+      return;
+    }
+
+    if (isActiveRun(selectedRun)) {
+      focusState.wasActive = true;
+      focusState.applied = false;
+      return;
+    }
+
+    if (!followActiveRuntimeNode || !focusState.wasActive || focusState.applied) {
+      return;
+    }
+
+    const expectedCompletedNodeCount = Number(selectedRun.metadata?.completedNodeCount || 0);
+
+    if (
+      Number.isFinite(expectedCompletedNodeCount)
+      && expectedCompletedNodeCount > 0
+      && selectedNodeRuns.length < expectedCompletedNodeCount
+    ) {
+      return;
+    }
+
+    const finalNodeIndex = getLastExecutedVisualNodeIndex(runtimeVisualNodes, selectedNodeRuns);
+
+    if (finalNodeIndex < 0) {
+      return;
+    }
+
+    setSelectedRuntimeNodeIndex(finalNodeIndex);
+    focusState.applied = true;
+  }, [
+    followActiveRuntimeNode,
+    isHistoryMode,
+    runtimeVisualNodes,
+    selectedNodeRuns,
+    selectedRun?.metadata?.completedNodeCount,
+    selectedRun?.status,
+    selectedRun?.workflowRunRecordId,
+  ]);
 
   useEffect(() => {
     setRuntimeParameterValues(getInitialRuntimeParameterValues(runtimeParameters));
@@ -2488,6 +2570,7 @@ function SkyWorkflows({ mode = 'start' }) {
                       )}
                       headerActionsStandalone
                       followActiveNode={followActiveRuntimeNode}
+                      inspectorMode="navigation"
                       nodeRuns={selectedNodeRuns}
                       nodes={runtimeVisualNodes}
                       onFollowActiveNodeChange={setFollowActiveRuntimeNode}
@@ -2499,28 +2582,6 @@ function SkyWorkflows({ mode = 'start' }) {
                       temporalRuntime={selectedTemporalRuntime}
                       title="Runtime workflow map"
                     />
-                  )}
-                </div>
-              </section>
-
-              <WorkflowRunTreePanel
-                onOpenRun={loadRunDetail}
-                selectedRunId={selectedRun?.workflowRunRecordId}
-                tree={selectedRunTree}
-              />
-
-              <TemporalRuntimePanel runtime={selectedTemporalRuntime} />
-
-              <section className="sky-card">
-                <div className="sky-card-header">
-                  <div className="sky-page-kicker">Node runs</div>
-                  <h2 className="h5 mb-0">Timeline</h2>
-                </div>
-                <div className="sky-card-body">
-                  {selectedNodeRuns.length === 0 ? (
-                    <div className="sky-empty-state">Select a run to inspect node outcomes.</div>
-                  ) : (
-                    <WorkflowNodesTimeline nodes={selectedDefinitionDetail?.nodes || selectedNodeRuns} nodeRuns={selectedNodeRuns} approvals={selectedApprovals} onOpenRun={loadRunDetail} />
                   )}
                 </div>
               </section>

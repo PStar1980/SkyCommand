@@ -5426,7 +5426,14 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
   const nodeOutputsByKey = getSafeObject(context.previousOutputs);
   const counts = countRunNodeStatuses(nodeRuns);
   const totalNodeCount = Number(context.totalNodeCount || getSafeArray(definition.nodes).length || counts.total || 0);
-  const skippedNodeCount = Math.max(0, totalNodeCount - counts.total);
+  const summaryRunAlreadyPresent = nodeRuns.some((nodeRun) => (
+    (nodeRun.nodeKey && nodeRun.nodeKey === node.nodeKey)
+    || (node.workflowNodeId && nodeRun.workflowNodeId === node.workflowNodeId)
+  ));
+  const currentSummaryNodeCount = node.nodeTypeCode === 'SUMMARY' && !summaryRunAlreadyPresent ? 1 : 0;
+  const observedNodeCount = counts.total + currentSummaryNodeCount;
+  const completedNodeCount = counts.COMPLETED + currentSummaryNodeCount;
+  const skippedNodeCount = Math.max(0, totalNodeCount - observedNodeCount);
   const workflowName = summaryParameters.title
     || definition.displayName
     || workflowInfo.workflowDisplayName
@@ -5467,7 +5474,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
     warnings.push(`${skippedNodeCount} node(s) did not run before the summary node executed.`);
   }
 
-  const defaultSummary = `Workflow ${workflowName} summarized: ${counts.COMPLETED}/${totalNodeCount || counts.total} node(s) completed${counts.FAILED ? `, ${counts.FAILED} failed` : ''}${skippedNodeCount ? `, ${skippedNodeCount} not run` : ''}.`;
+  const defaultSummary = `Workflow ${workflowName} summarized: ${completedNodeCount}/${totalNodeCount || observedNodeCount} node(s) completed${counts.FAILED ? `, ${counts.FAILED} failed` : ''}${skippedNodeCount ? `, ${skippedNodeCount} not run` : ''}.`;
   const summary = renderSummaryTemplate(summaryParameters.summaryTemplate, scope, defaultSummary) || defaultSummary;
   const technicalDetails = renderSummaryTemplate(summaryParameters.technicalDetailsTemplate, scope, '');
   const recommendedNextActions = splitSummaryActions(summaryParameters.recommendedNextActions);
@@ -5485,8 +5492,8 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
     warnings: summaryParameters.includeWarnings ? warnings : [],
     errors: summaryParameters.includeWarnings ? errors : [],
     counts: {
-      totalNodes: totalNodeCount || counts.total,
-      completedNodes: counts.COMPLETED,
+      totalNodes: totalNodeCount || observedNodeCount,
+      completedNodes: completedNodeCount,
       failedNodes: counts.FAILED,
       runningNodes: counts.RUNNING,
       skippedNodes: skippedNodeCount,

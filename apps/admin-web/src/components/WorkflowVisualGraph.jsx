@@ -808,6 +808,35 @@ function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspe
   );
 }
 
+function WorkflowVisualNavigation({ nodes = [], selectedNodeIndex = null, onNodeSelect }) {
+  const hasSelection = Number.isInteger(selectedNodeIndex)
+    && selectedNodeIndex >= 0
+    && selectedNodeIndex < nodes.length;
+  const previousIndex = hasSelection ? selectedNodeIndex - 1 : -1;
+  const nextIndex = hasSelection ? selectedNodeIndex + 1 : 0;
+
+  return (
+    <div className="d-flex flex-wrap justify-content-end align-items-center gap-2 mt-3">
+      <button
+        className="btn btn-sm sky-btn-ghost"
+        disabled={previousIndex < 0}
+        onClick={() => onNodeSelect?.(previousIndex, { scrollToEditor: false })}
+        type="button"
+      >
+        Previous
+      </button>
+      <button
+        className="btn btn-sm sky-btn-ghost"
+        disabled={nextIndex >= nodes.length}
+        onClick={() => onNodeSelect?.(nextIndex, { scrollToEditor: false })}
+        type="button"
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
 function WorkflowVisualGraph({
   approvals = [],
   followActiveNode = false,
@@ -815,6 +844,7 @@ function WorkflowVisualGraph({
   headerActions = null,
   headerActionsStandalone = false,
   includeRuntimeInspectorRows = false,
+  inspectorMode = 'full',
   nodeRuns = [],
   nodes = [],
   runStatus = '',
@@ -1038,17 +1068,25 @@ function WorkflowVisualGraph({
             </div>
           </div>
 
-          <WorkflowVisualInspector
-            approvals={approvals}
-            catalogs={catalogs}
-            includeRuntimeInspectorRows={includeRuntimeInspectorRows}
-            nodeRuns={nodeRuns}
-            nodes={nodes}
-            runtimeMode={runtimeMode}
-            onNodeMove={onNodeMove}
-            onNodeSelect={onNodeSelect}
-            selectedNodeIndex={selectedNodeIndex}
-          />
+          {inspectorMode === 'full' ? (
+            <WorkflowVisualInspector
+              approvals={approvals}
+              catalogs={catalogs}
+              includeRuntimeInspectorRows={includeRuntimeInspectorRows}
+              nodeRuns={nodeRuns}
+              nodes={nodes}
+              runtimeMode={runtimeMode}
+              onNodeMove={onNodeMove}
+              onNodeSelect={onNodeSelect}
+              selectedNodeIndex={selectedNodeIndex}
+            />
+          ) : inspectorMode === 'navigation' ? (
+            <WorkflowVisualNavigation
+              nodes={nodes}
+              onNodeSelect={onNodeSelect}
+              selectedNodeIndex={selectedNodeIndex}
+            />
+          ) : null}
         </>
       )}
     </div>
