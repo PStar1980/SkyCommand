@@ -225,19 +225,38 @@ function formatPollingInterval(ms) {
   return `${seconds % 1 === 0 ? seconds.toFixed(0) : seconds.toFixed(1)} s`;
 }
 
-function formatJsonPreview(value, maxLength = 2800) {
-  try {
-    const text = typeof value === 'string' ? value : JSON.stringify(value ?? null, null, 2);
+const DUPLICATE_NODE_OUTPUT_FIELDS = new Set([
+  'kind',
+  'status',
+  'summary',
+  'message',
+  'toolcode',
+  'targetcode',
+  'nodetypecode',
+  'nodekey',
+  'attemptcount',
+  'durationms',
+  'startedat',
+  'completedat',
+  'createdat',
+  'updatedat',
+  'exitcode',
+  'contextupdates',
+  'saveoutputas',
+]);
 
-    if (text.length <= maxLength) {
-      return text;
-    }
-
-    return `${text.slice(0, maxLength)}\n\n… output preview truncated`;
-  } catch (error) {
-    return String(value ?? '');
-  }
-}
+const DUPLICATE_NODE_CONTEXT_SUFFIXES = new Set([
+  'attemptcount',
+  'completedat',
+  'durationms',
+  'nodekey',
+  'nodetypecode',
+  'output',
+  'startedat',
+  'status',
+  'summary',
+  'targetcode',
+]);
 
 function humanizeOutputKey(value) {
   const label = String(value || '')
@@ -289,10 +308,6 @@ function parseFriendlyOutputValue(value) {
   } catch (error) {
     return value;
   }
-}
-
-function isFriendlyComplexValue(value) {
-  return value !== null && typeof value === 'object';
 }
 
 function isIsoDateValue(value) {
@@ -378,132 +393,210 @@ function FriendlyOutputScalar({ fieldKey = '', value }) {
   return <span className={mono ? 'sky-mono' : undefined}>{text}</span>;
 }
 
-function FriendlyOutputValue({ fieldKey = '', value, depth = 0 }) {
+function getPreviewRows(value, source) {
+  const lines = String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const rows = [];
+
+  lines.forEach((line, index) => {
+    const keyValueMatch = line.match(/^([A-Za-z][A-Za-z0-9_.-]{0,80})\s*=\s*(.*)$/);
+    const taggedMatch = line.match(/^[^A-Za-z0-9[]*\[([^\]]+)\]\s*(.*)$/);
+    const colonMatch = line.match(/^([^:]{1,40}):\s+(.+)$/);
+
+    if (keyValueMatch) {
+      rows.push({
+        source,
+        field: humanizeOutputKey(keyValueMatch[1]),
+        fieldKey: keyValueMatch[1],
+        value: parseFriendlyOutputValue(keyValueMatch[2]),
+      });
+      return;
+    }
+
+    if (taggedMatch) {
+      rows.push({
+        source,
+        field: humanizeOutputKey(taggedMatch[1]),
+        fieldKey: taggedMatch[1],
+        value: taggedMatch[2] || 'Recorded',
+      });
+      return;
+    }
+
+    if (colonMatch) {
+      rows.push({
+        source,
+        field: humanizeOutputKey(colonMatch[1]),
+        fieldKey: colonMatch[1],
+        value: colonMatch[2],
+      });
+      return;
+    }
+
+    rows.push({
+      source,
+      field: `Message ${index + 1}`,
+      fieldKey: `message${index + 1}`,
+      value: line,
+    });
+  });
+
+  return rows;
+}
+
+function appendUniqueOutputRows(rows, value, { source = 'Result', path = [] } = {}) {
   const parsedValue = parseFriendlyOutputValue(value);
 
-  if (!isFriendlyComplexValue(parsedValue)) {
-    return <FriendlyOutputScalar fieldKey={fieldKey} value={parsedValue} />;
+  if (parsedValue === null || parsedValue === undefined || parsedValue === '') {
+    return;
   }
 
   if (Array.isArray(parsedValue)) {
-    if (parsedValue.length === 0) {
-      return <span className="sky-muted">No items</span>;
-    }
-
-    const scalarOnly = parsedValue.every((item) => !isFriendlyComplexValue(parseFriendlyOutputValue(item)));
-
-    if (scalarOnly) {
-      return (
-        <ul className="sky-node-output-list mb-0">
-          {parsedValue.map((item, index) => (
-            <li key={`${fieldKey}-${index}`}>
-              <FriendlyOutputScalar fieldKey={fieldKey} value={item} />
-            </li>
-          ))}
-        </ul>
-      );
-    }
-
-    return (
-      <div className="sky-node-output-array">
-        {parsedValue.map((item, index) => (
-          <div className="sky-node-output-array-item" key={`${fieldKey}-${index}`}>
-            <div className="sky-page-kicker mb-2">Item {index + 1}</div>
-            <FriendlyOutputValue fieldKey={`${fieldKey}.${index}`} value={item} depth={depth + 1} />
-          </div>
-        ))}
-      </div>
-    );
+    parsedValue.forEach((item, index) => {
+      appendUniqueOutputRows(rows, item, {
+        source,
+        path: [...path, `Item ${index + 1}`],
+      });
+    });
+    return;
   }
 
-  const entries = Object.entries(parsedValue);
+  if (typeof parsedValue === 'object') {
+    Object.entries(parsedValue).forEach(([key, nestedValue]) => {
+      const normalizedKey = String(key).toLowerCase();
 
-  if (entries.length === 0) {
-    return <span className="sky-muted">No values</span>;
+      if (path.length === 0 && DUPLICATE_NODE_OUTPUT_FIELDS.has(normalizedKey)) {
+        return;
+      }
+
+      const nextPath = path.length === 0 && normalizedKey === 'output'
+        ? path
+        : [...path, key];
+
+      appendUniqueOutputRows(rows, nestedValue, {
+        source,
+        path: nextPath,
+      });
+    });
+    return;
   }
 
-  return (
-    <div className={`sky-node-output-fields ${depth > 0 ? 'is-nested' : ''}`}>
-      {entries.map(([key, nestedValue]) => {
-        const parsedNestedValue = parseFriendlyOutputValue(nestedValue);
-        const complex = isFriendlyComplexValue(parsedNestedValue);
-        const itemCount = Array.isArray(parsedNestedValue)
-          ? parsedNestedValue.length
-          : complex
-            ? Object.keys(parsedNestedValue).length
-            : 0;
+  const leafKey = String(path[path.length - 1] || 'value');
+  const normalizedLeafKey = leafKey.toLowerCase();
 
-        if (complex) {
-          return (
-            <details className="sky-node-output-nested" key={key} open={depth === 0}>
-              <summary>
-                <span>{humanizeOutputKey(key)}</span>
-                <span className="sky-muted small">{itemCount} item(s)</span>
-              </summary>
-              <div className="sky-node-output-nested-body">
-                <FriendlyOutputValue fieldKey={key} value={parsedNestedValue} depth={depth + 1} />
-              </div>
-            </details>
-          );
-        }
+  if (normalizedLeafKey === 'stdoutpreview' || normalizedLeafKey === 'stderrpreview') {
+    rows.push(...getPreviewRows(parsedValue, normalizedLeafKey === 'stdoutpreview' ? 'Standard output' : 'Error output'));
+    return;
+  }
 
-        return (
-          <div className="sky-node-output-field" key={key}>
-            <div className="sky-node-output-label">{humanizeOutputKey(key)}</div>
-            <div className="sky-node-output-value">
-              <FriendlyOutputScalar fieldKey={key} value={parsedNestedValue} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  rows.push({
+    source,
+    field: path.length > 0 ? path.map(humanizeOutputKey).join(' › ') : 'Value',
+    fieldKey: leafKey,
+    value: parsedValue,
+  });
 }
 
-function buildNodeOutputGroups({ outputs = [], contextValues = [], nodes = [] } = {}) {
-  const nodeCatalog = new Map(
-    nodes.map((node, index) => [
-      String(node.nodeKey || ''),
-      {
-        node,
-        index,
-      },
-    ]),
-  );
-  const groups = new Map();
+function isDuplicateNodeContextValue(item, nodeKey) {
+  const contextKey = String(item?.contextKey || '').trim();
+  const normalizedContextKey = contextKey.toLowerCase();
+  const normalizedNodeKey = String(nodeKey || '').trim().toLowerCase();
 
-  function ensureGroup(nodeKey, fallback = {}) {
-    const normalizedKey = String(nodeKey || 'workflow').trim() || 'workflow';
-
-    if (!groups.has(normalizedKey)) {
-      const catalogEntry = nodeCatalog.get(normalizedKey);
-      groups.set(normalizedKey, {
-        nodeKey: normalizedKey,
-        node: catalogEntry?.node || null,
-        nodeIndex: catalogEntry?.index ?? Number.MAX_SAFE_INTEGER,
-        nodeTypeCode: fallback.nodeTypeCode || catalogEntry?.node?.nodeTypeCode || 'WORKFLOW',
-        targetCode: fallback.targetCode || catalogEntry?.node?.targetCode || '',
-        outputs: [],
-        contextValues: [],
-      });
-    }
-
-    return groups.get(normalizedKey);
+  if (normalizedContextKey.startsWith('last.')) {
+    return true;
   }
 
-  outputs.forEach((output) => {
-    ensureGroup(output.nodeKey, output).outputs.push(output);
+  const nodePrefix = normalizedNodeKey ? `nodes.${normalizedNodeKey}.` : '';
+
+  if (!nodePrefix || !normalizedContextKey.startsWith(nodePrefix)) {
+    return false;
+  }
+
+  return DUPLICATE_NODE_CONTEXT_SUFFIXES.has(normalizedContextKey.slice(nodePrefix.length));
+}
+
+function getContextDisplayPath(contextKey, nodeKey) {
+  const normalizedNodePrefix = `nodes.${String(nodeKey || '').trim()}.`;
+  const value = String(contextKey || 'context value');
+
+  return value.startsWith(normalizedNodePrefix)
+    ? value.slice(normalizedNodePrefix.length)
+    : value;
+}
+
+function buildFocusedNodeOutputRows({ outputs = [], contextValues = [], node = null } = {}) {
+  if (!node?.nodeKey) {
+    return [];
+  }
+
+  const rows = [];
+  const selectedOutputs = outputs.filter((output) => output.nodeKey === node.nodeKey);
+  const selectedContextValues = contextValues.filter((item) => item.sourceNodeKey === node.nodeKey);
+  const summaryNode = String(node.nodeTypeCode || '').toUpperCase() === 'SUMMARY';
+
+  selectedOutputs.forEach((output) => {
+    const outputValue = parseFriendlyOutputValue(output.output);
+
+    if (summaryNode && outputValue && typeof outputValue === 'object') {
+      const keyOutputs = outputValue.keyOutputs || outputValue.output?.keyOutputs;
+
+      if (keyOutputs && typeof keyOutputs === 'object') {
+        appendUniqueOutputRows(rows, keyOutputs, { source: 'Key outputs' });
+      }
+      return;
+    }
+
+    appendUniqueOutputRows(rows, outputValue, {
+      source: humanizeOutputKey(output.outputKey || 'result'),
+    });
   });
 
-  contextValues.forEach((item) => {
-    ensureGroup(item.sourceNodeKey || 'workflow').contextValues.push(item);
-  });
+  if (!summaryNode) {
+    const persistedOutputValues = new Set();
 
-  return Array.from(groups.values()).sort((left, right) => {
-    if (left.nodeKey === 'workflow') return 1;
-    if (right.nodeKey === 'workflow') return -1;
-    if (left.nodeIndex !== right.nodeIndex) return left.nodeIndex - right.nodeIndex;
-    return left.nodeKey.localeCompare(right.nodeKey);
+    selectedOutputs.forEach((output) => {
+      const outputValue = parseFriendlyOutputValue(output.output);
+
+      try {
+        persistedOutputValues.add(JSON.stringify(outputValue));
+        if (outputValue?.output && typeof outputValue.output === 'object') {
+          persistedOutputValues.add(JSON.stringify(outputValue.output));
+        }
+      } catch (error) {
+        // Non-serializable values still render from the persisted output record.
+      }
+    });
+
+    selectedContextValues
+      .filter((item) => !isDuplicateNodeContextValue(item, node.nodeKey))
+      .filter((item) => {
+        try {
+          return !persistedOutputValues.has(JSON.stringify(parseFriendlyOutputValue(item.value)));
+        } catch (error) {
+          return true;
+        }
+      })
+      .forEach((item) => {
+        appendUniqueOutputRows(rows, item.value, {
+          source: 'Context',
+          path: [getContextDisplayPath(item.contextKey, node.nodeKey)],
+        });
+      });
+  }
+
+  const seen = new Set();
+
+  return rows.filter((row) => {
+    const signature = JSON.stringify([row.field, row.value]);
+
+    if (seen.has(signature)) {
+      return false;
+    }
+
+    seen.add(signature);
+    return true;
   });
 }
 
@@ -1143,143 +1236,80 @@ function WorkflowRunSummaryPanel({ run, outputs = [] }) {
   );
 }
 
-function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = [] }) {
-  const hasOutputs = outputs.length > 0;
-  const hasContextValues = contextValues.length > 0;
-  const outputGroups = useMemo(
-    () => buildNodeOutputGroups({ outputs, contextValues, nodes }),
-    [contextValues, nodes, outputs],
+function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = [], selectedNodeIndex = null }) {
+  const hasSelection = Number.isInteger(selectedNodeIndex)
+    && selectedNodeIndex >= 0
+    && selectedNodeIndex < nodes.length;
+  const selectedNode = hasSelection ? nodes[selectedNodeIndex] : null;
+  const selectedOutputs = selectedNode
+    ? outputs.filter((output) => output.nodeKey === selectedNode.nodeKey)
+    : [];
+  const selectedContextValues = selectedNode
+    ? contextValues.filter((item) => item.sourceNodeKey === selectedNode.nodeKey)
+    : [];
+  const rows = useMemo(
+    () => buildFocusedNodeOutputRows({ outputs, contextValues, node: selectedNode }),
+    [contextValues, outputs, selectedNode],
   );
+  const displayName = selectedNode?.displayName || selectedNode?.nodeKey || 'Focused node';
 
   return (
     <section className="sky-card mb-4">
-      <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
         <div>
-          <div className="sky-page-kicker">Node outputs</div>
-          <h2 className="h5 mb-0">Node-by-node results</h2>
+          <div className="sky-page-kicker">Focused node output</div>
+          <h2 className="h5 mb-0">
+            {selectedNode ? `Node ${selectedNodeIndex + 1} · ${displayName}` : 'Select a workflow node'}
+          </h2>
           <p className="small sky-muted mb-0 mt-1">
-            Outputs and context values are grouped by workflow node and translated into readable fields. Raw JSON remains available for diagnostics.
+            Only node-specific result values not already shown in the runtime graph or run summary are displayed here.
           </p>
         </div>
-        <div className="d-flex flex-wrap gap-2 small">
-          <span className="sky-pill sky-pill-info">{outputs.length} output record(s)</span>
-          <span className="sky-pill sky-pill-info">{outputGroups.length} node group(s)</span>
-          {hasContextValues && <span className="sky-pill sky-pill-success">{contextValues.length} context value(s)</span>}
-        </div>
-      </div>
-      <div className="sky-card-body">
-        {!hasOutputs && !hasContextValues ? (
-          <div className="sky-empty-state">Structured node outputs will appear here after the run records node output persistence.</div>
-        ) : (
-          <div className="sky-node-output-groups">
-            {outputGroups.map((group) => {
-              const displayName = group.node?.displayName
-                || group.outputs[0]?.metadata?.displayName
-                || (group.nodeKey === 'workflow' ? 'Workflow-level context' : group.nodeKey);
-              const nodeNumber = Number.isInteger(group.nodeIndex) && group.nodeIndex >= 0 && group.nodeIndex < nodes.length
-                ? group.nodeIndex + 1
-                : null;
-              const groupScopeLabel = nodeNumber
-                ? `Node ${nodeNumber}`
-                : group.nodeKey === 'workflow'
-                  ? 'Workflow'
-                  : 'Node';
-
-              return (
-                <article className="sky-node-output-group" key={group.nodeKey}>
-                  <div className="sky-node-output-group-header">
-                    <div>
-                      <div className="sky-page-kicker">
-                        {groupScopeLabel} · {group.nodeTypeCode || 'NODE'}
-                      </div>
-                      <h3 className="h6 mb-1">{displayName}</h3>
-                      <div className="small sky-muted">
-                        <span className="sky-mono">{group.nodeKey}</span>
-                        {group.targetCode ? <> · <span className="sky-mono">{group.targetCode}</span></> : null}
-                      </div>
-                    </div>
-                    <div className="d-flex flex-wrap gap-2">
-                      {group.outputs.length > 0 && <span className="sky-pill sky-pill-info">{group.outputs.length} output(s)</span>}
-                      {group.contextValues.length > 0 && <span className="sky-pill sky-pill-success">{group.contextValues.length} context value(s)</span>}
-                    </div>
-                  </div>
-
-                  {group.outputs.length > 0 && (
-                    <div className="sky-node-output-records">
-                      {group.outputs.map((output, outputIndex) => (
-                        <section
-                          className="sky-node-output-record"
-                          key={output.workflowRunNodeOutputId || `${output.nodeKey}-${output.outputKey}-${outputIndex}`}
-                        >
-                          <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
-                            <div>
-                              <div className="sky-page-kicker">Output {outputIndex + 1}</div>
-                              <div className="fw-bold">{humanizeOutputKey(output.outputKey || 'result')}</div>
-                              <div className="small sky-muted">{humanizeOutputKey(output.outputType || 'object')}</div>
-                            </div>
-                            <div className="d-flex flex-wrap gap-2">
-                              <span className={`sky-pill ${statusClass(output.status)}`}>{output.status || 'SAVED'}</span>
-                              <span className="sky-pill sky-pill-info">Attempt {output.attemptCount ?? 0}</span>
-                              <span className="sky-pill sky-pill-info">Saved {formatDate(output.updatedAt || output.createdAt)}</span>
-                            </div>
-                          </div>
-
-                          {output.outputSummary && (
-                            <div className="sky-node-output-summary mb-3">
-                              <div className="sky-page-kicker mb-1">Summary</div>
-                              <div>{output.outputSummary}</div>
-                            </div>
-                          )}
-
-                          <div className="sky-page-kicker mb-2">Output details</div>
-                          <FriendlyOutputValue value={output.output} />
-
-                          {Object.keys(output.inputSnapshot || {}).length > 0 && (
-                            <details className="sky-node-output-diagnostic mt-3">
-                              <summary>Resolved input</summary>
-                              <div className="sky-node-output-diagnostic-body">
-                                <FriendlyOutputValue value={output.inputSnapshot} />
-                              </div>
-                            </details>
-                          )}
-
-                          <details className="sky-node-output-diagnostic mt-3">
-                            <summary>Raw JSON</summary>
-                            <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(output.output)}</pre>
-                          </details>
-                        </section>
-                      ))}
-                    </div>
-                  )}
-
-                  {group.contextValues.length > 0 && (
-                    <div className="sky-node-context-section">
-                      <div className="sky-page-kicker mb-2">Context values from this node</div>
-                      <div className="sky-node-context-grid">
-                        {group.contextValues.map((item) => (
-                          <section className="sky-node-context-item" key={item.workflowRunContextValueId || item.contextKey}>
-                            <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
-                              <div>
-                                <div className="fw-bold">{humanizeOutputKey(item.contextKey)}</div>
-                                <div className="small sky-muted sky-mono">{item.contextKey}</div>
-                              </div>
-                              <span className="sky-pill sky-pill-info">{humanizeOutputKey(item.valueType || 'value')}</span>
-                            </div>
-                            <FriendlyOutputValue fieldKey={item.contextKey} value={item.value} />
-                            <details className="sky-node-output-diagnostic mt-3">
-                              <summary>Raw context JSON</summary>
-                              <pre className="sky-json-block mt-2 mb-0">{formatJsonPreview(item.value, 1600)}</pre>
-                            </details>
-                          </section>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+        {selectedNode && (
+          <div className="d-flex flex-wrap gap-2 small">
+            <span className="sky-pill sky-pill-info">{selectedOutputs.length} output record(s)</span>
+            <span className="sky-pill sky-pill-success">{rows.length} unique value(s)</span>
           </div>
         )}
+      </div>
+      <div className="sky-card-body">
+        {!selectedNode ? (
+          <div className="sky-empty-state">
+            Select a node in the Runtime Status Overlay to inspect that node&apos;s unique output.
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="sky-empty-state">
+            No additional node-specific output was recorded. Status, attempts, duration, target, and summary details are already shown above.
+          </div>
+        ) : (
+          <div className="table-responsive sky-table-card sky-focused-node-output-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Field</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={`${row.source}-${row.field}-${index}`}>
+                    <td><span className="sky-pill sky-pill-info">{row.source}</span></td>
+                    <td className="fw-semibold">{row.field}</td>
+                    <td className="sky-focused-node-output-value">
+                      <FriendlyOutputScalar fieldKey={row.fieldKey} value={row.value} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {selectedNode && selectedContextValues.length > 0 && rows.length === 0 ? (
+          <div className="small sky-muted mt-2">
+            {selectedContextValues.length} runtime context value(s) were omitted because they repeat graph telemetry or persisted output.
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -2550,43 +2580,48 @@ function SkyWorkflows({ mode = 'start' }) {
           <div className="sky-workflow-history-detail-stack">
               <WorkflowRunSummaryPanel run={selectedRun} outputs={selectedNodeOutputs} />
 
-              <section className="sky-card">
-                <div className="sky-card-body">
-                  {!selectedRun ? (
+              {!selectedRun ? (
+                <section className="sky-card">
+                  <div className="sky-card-body">
                     <div className="sky-empty-state">Select a workflow run to view the runtime graph overlay.</div>
-                  ) : (
-                    <WorkflowVisualGraph
-                      approvals={selectedApprovals}
-                      headingKicker="Runtime status overlay"
-                      headerActions={(
-                        <button
-                          className="btn btn-sm sky-btn-ghost"
-                          disabled={!selectedRun}
-                          onClick={() => setRunDetailOverlayOpen(true)}
-                          type="button"
-                        >
-                          View details
-                        </button>
-                      )}
-                      headerActionsStandalone
-                      followActiveNode={followActiveRuntimeNode}
-                      inspectorMode="navigation"
-                      nodeRuns={selectedNodeRuns}
-                      nodes={runtimeVisualNodes}
-                      onFollowActiveNodeChange={setFollowActiveRuntimeNode}
-                      onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
-                      runStatus={selectedTemporalRuntime?.status || selectedRun.status}
-                      runtimeMode
-                      selectedNodeIndex={selectedRuntimeNodeIndex}
-                      subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
-                      temporalRuntime={selectedTemporalRuntime}
-                      title="Runtime workflow map"
-                    />
+                  </div>
+                </section>
+              ) : (
+                <WorkflowVisualGraph
+                  approvals={selectedApprovals}
+                  headingKicker="Runtime status overlay"
+                  headerActions={(
+                    <button
+                      className="btn btn-sm sky-btn-ghost"
+                      disabled={!selectedRun}
+                      onClick={() => setRunDetailOverlayOpen(true)}
+                      type="button"
+                    >
+                      View details
+                    </button>
                   )}
-                </div>
-              </section>
+                  headerActionsStandalone
+                  followActiveNode={followActiveRuntimeNode}
+                  inspectorMode="navigation"
+                  nodeRuns={selectedNodeRuns}
+                  nodes={runtimeVisualNodes}
+                  onFollowActiveNodeChange={setFollowActiveRuntimeNode}
+                  onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
+                  runStatus={selectedTemporalRuntime?.status || selectedRun.status}
+                  runtimeMode
+                  selectedNodeIndex={selectedRuntimeNodeIndex}
+                  subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
+                  temporalRuntime={selectedTemporalRuntime}
+                  title="Runtime workflow map"
+                />
+              )}
 
-              <WorkflowNodeOutputLedger outputs={selectedNodeOutputs} contextValues={selectedContextValues} nodes={runtimeVisualNodes} />
+              <WorkflowNodeOutputLedger
+                contextValues={selectedContextValues}
+                nodes={runtimeVisualNodes}
+                outputs={selectedNodeOutputs}
+                selectedNodeIndex={selectedRuntimeNodeIndex}
+              />
           </div>
         </section>
       </div>
