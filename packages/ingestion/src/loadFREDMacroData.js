@@ -9,11 +9,7 @@ const {
   DEFAULT_FRED_CONCURRENCY,
   MAX_FRED_CONCURRENCY,
 } = require('./fred/fredBatchRunner');
-const {
-  createMacroIngestionFailureToolResult,
-  createMacroIngestionToolResult,
-} = require('./core/macroIngestionResult');
-const { writeToolResult } = require('../../tools/src/toolResultTransport');
+const { runMacroIngestionCli } = require('./core/macroIngestionCli');
 
 function getCliArgs() {
   return process.argv.slice(2);
@@ -111,55 +107,25 @@ function printResult(result, args) {
   }
 }
 
-function emitToolResult(toolResult) {
-  return writeToolResult(toolResult);
+async function executeFredIngestion(args = getCliArgs()) {
+  return runFredIndicatorBatch({
+    indicators: getRequestedIndicators(args),
+    concurrency: getConcurrency(args),
+    runId: getRunId(args),
+    cleanupQuiet: true,
+  });
 }
 
-async function main(args = getCliArgs()) {
-  const startedAt = new Date().toISOString();
-
-  try {
-    const result = await runFredIndicatorBatch({
-      indicators: getRequestedIndicators(args),
-      concurrency: getConcurrency(args),
-      runId: getRunId(args),
-      cleanupQuiet: true,
-    });
-    const toolResult = createMacroIngestionToolResult({
-      sourceCode: 'FRED',
-      batchResult: result,
-    });
-
-    printResult(result, args);
-    emitToolResult(toolResult);
-
-    if (!result.ok && !hasFlag(args, 'allow-failures')) {
-      process.exitCode = 1;
-    }
-
-    return { result, toolResult };
-  } catch (error) {
-    const completedAt = new Date().toISOString();
-    const toolResult = createMacroIngestionFailureToolResult({
-      sourceCode: 'FRED',
-      error,
-      startedAt,
-      completedAt,
-    });
-
-    console.error('[FRED] Ingestion failed');
-    console.error(error.stack || error.message || String(error));
-
-    try {
-      emitToolResult(toolResult);
-    } catch (resultError) {
-      console.error('[FRED] Structured ToolResult emission failed');
-      console.error(resultError.stack || resultError.message || String(resultError));
-    }
-
-    process.exitCode = 1;
-    return { result: null, toolResult, error };
-  }
+function main(args = getCliArgs(), options = {}) {
+  return runMacroIngestionCli({
+    sourceCode: 'FRED',
+    args,
+    execute: options.execute || executeFredIngestion,
+    printResult: options.printResult || printResult,
+    emitResult: options.emitResult,
+    setExitCode: options.setExitCode,
+    logger: options.logger,
+  });
 }
 
 if (require.main === module) {
@@ -167,7 +133,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  emitToolResult,
+  executeFredIngestion,
   getConcurrency,
   getRequestedIndicators,
   getRunId,

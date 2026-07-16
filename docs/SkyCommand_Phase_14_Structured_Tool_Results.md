@@ -6,7 +6,7 @@ Phase 14 is in progress.
 
 > Printing is for humans. Structured return values are for workflows.
 
-Phase 14.1 established the generic child-process result transport. Phase 14.2 proves the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript.
+Phase 14.1 established the generic child-process result transport. Phase 14.2 proved the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript. Phase 14.3 extends that same contract to Bank of Canada and Statistics Canada and routes all three macro-source entrypoints through one shared ingestion CLI adapter.
 
 ## Phase 14.1 foundation
 
@@ -81,7 +81,7 @@ Node execution retries are separated from completion-ledger retries. If a tool f
 
 The envelope is universal. The `output` payload remains domain-specific and may contain bounded JSON-safe scalars, objects, and arrays.
 
-## Phase 14.2 — FRED macro-ingestion proof case
+## Phase 14.2–14.3 — Normalized macro-ingestion results
 
 The shared copy/load helper now returns structured statistics while printing the same operational lines used by CLI and Tool History.
 
@@ -97,7 +97,7 @@ The shared copy/load helper now returns structured statistics while printing the
 }
 ```
 
-FRED aggregates those values into one `macro_ingestion_summary.v1` result containing:
+FRED, Bank of Canada, and Statistics Canada aggregate those values into the same `macro_ingestion_summary.v1` result containing:
 
 - source-level outcome and duration;
 - requested, succeeded, failed, updated, and unchanged indicator totals;
@@ -118,12 +118,26 @@ Outcome semantics are stable:
 
 ### Workflow History rendering
 
-For focused FRED nodes, Workflow History now renders:
+For focused FRED, BoC, and StatCan nodes, Workflow History renders:
 
 1. A compact run-totals table.
 2. An indicator-results table with outcome, inserted rows, new rows, staging rows, date coverage, duration, and failure message.
 
 Verbose stdout/stderr is not displayed as workflow output. It remains available in Tool History.
+
+## Phase 14.3 — Shared macro-ingestion CLI adapter
+
+`packages/ingestion/src/core/macroIngestionCli.js` now owns the common source-entrypoint responsibilities:
+
+- invoke the source-specific domain function;
+- build the normalized macro-ingestion ToolResult;
+- preserve each source's existing console summary;
+- emit the result through the wrapper-owned transport when available;
+- emit a structured fatal result when execution fails before a batch result exists;
+- preserve `--allow-failures` exit behavior;
+- keep workflow integration free of source-specific wrapper branches.
+
+The source scripts remain thin adapters. FRED keeps its specialized batch runner, while BoC and StatCan keep the shared `runPipeline()` implementation. No source duplicates its ingestion logic for workflow use.
 
 ## Workflow context paths
 
@@ -160,16 +174,16 @@ nodes.package_repo.output.archivePath
 Structured results are optional during migration. A migrated tool can be made strict through the temporary configuration bridge:
 
 ```text
-SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred
+SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred,ingestion_boc,ingestion_statcan
 ```
 
-When a required tool exits without a valid result, the execution fails with a contract error instead of silently substituting console output. Add `ingestion_boc` and `ingestion_statcan` after their Phase 14 migrations are enabled.
+When a required tool exits without a valid result, the execution fails with a contract error instead of silently substituting console output. All three macro-source ingestion tools are now strict structured-result producers.
 
 ## Runtime configuration
 
 ```text
 SKYCOMMAND_TOOL_RESULT_MAX_BYTES=1048576
-SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred
+SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES=ingestion_fred,ingestion_boc,ingestion_statcan
 ```
 
 Large files and datasets must be referenced as artifacts rather than embedded in `ToolResult`.
@@ -179,15 +193,15 @@ Large files and datasets must be referenced as artifacts rather than embedded in
 ```bash
 npm run tool-result:self-test
 npm run macro-ingestion:self-test
+npm run macro-ingestion-cli:self-test
 npm run validate
 ```
 
-The macro-ingestion self-test verifies copy-loader metric parsing, aggregate totals, updated/unchanged/failed outcome semantics, partial-run handling, duration calculation, and the absence of stdout fields in the structured result.
+The macro-ingestion self-tests verify copy-loader metric parsing, aggregate totals, updated/unchanged/failed outcome semantics, partial-run handling, duration calculation, source-neutral CLI adaptation for FRED/BoC/StatCan, fatal-result emission, allow-failures behavior, and the absence of stdout fields in the structured result.
 
 ## Remaining Phase 14 increments
 
-1. Migrate Bank of Canada and Statistics Canada to `macro_ingestion_summary.v1` using the same loader and aggregation contract.
-2. Consolidate the source CLI entrypoints behind the shared adapter without duplicating domain implementations.
-3. Add strict manifest/output-contract validation and `skycommand.tool.json` foundations.
-4. Add contract-check/describe mode for future repository registration.
-5. Verify direct CLI, Run Tools, scheduled, and workflow execution modes for all migrated sources.
+1. Add strict manifest/output-contract validation and `skycommand.tool.json` foundations.
+2. Add contract-check/describe mode for future repository registration.
+3. Verify scheduled execution mode for all migrated macro sources and add explicit condition/summary proof cases.
+4. Expand structured results to additional tool categories using the generic adapter and renderer fallback.

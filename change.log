@@ -850,3 +850,15 @@ SkyWeb Analytics owns:
 - Separated tool execution retries from completion-ledger retries. A successful side-effecting tool is no longer executed again when only output/context persistence fails; the idempotent completion activity uses its own Temporal retry policy and surfaces a dedicated persistence failure if exhausted.
 - Updated README, Phase 14 documentation, and repository map.
 - Database migration `00062` is required before retesting the FRED workflow.
+
+## Phase 14.3 — BoC and StatCan structured results
+
+- Added `packages/ingestion/src/core/macroIngestionCli.js`, a reusable source-neutral CLI adapter that invokes the domain runner, preserves the existing console presentation, creates `macro_ingestion_summary.v1`, emits through the wrapper-owned result channel, converts fatal execution errors into structured results, and preserves `--allow-failures` exit semantics.
+- Refactored FRED to use the shared macro-ingestion CLI adapter without changing its specialized batch runner or familiar console summary.
+- Migrated Bank of Canada and Statistics Canada ingestion entrypoints to emit the same normalized `macro_ingestion_summary.v1` contract used by FRED. No source-specific workflow wrappers were introduced.
+- Exported source execution and main functions so the CLI adapters can be tested and later consumed by manifest/contract-check infrastructure without duplicating domain logic.
+- Made `ingestion_fred`, `ingestion_boc`, and `ingestion_statcan` strict structured-result tools in `.env.example`.
+- Added `npm run macro-ingestion-cli:self-test` and included shared-adapter success, fatal failure, partial-result, allow-failures, source-code, and emission checks in `npm run validate`.
+- Updated README, Phase 14 documentation, roadmap wording, and repository map.
+- No database migration or seed is required for Phase 14.3.
+

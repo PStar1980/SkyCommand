@@ -1,0 +1,143 @@
+const assert = require('assert');
+const { runMacroIngestionCli } = require('./macroIngestionCli');
+
+function createSuccessfulBatch(source) {
+  return {
+    ok: true,
+    source,
+    mode: 'indicator_batch',
+    selectedIndicators: true,
+    concurrency: 2,
+    batchCount: 1,
+    startedAt: '2026-07-16T10:00:00.000Z',
+    completedAt: '2026-07-16T10:00:02.000Z',
+    results: [
+      {
+        ok: true,
+        indicatorCode: `${source}_UPDATED`,
+        rowsInserted: 3,
+        newRowsDetected: 3,
+        stagingRows: 10,
+        stagingMaxDate: '2026-06-01',
+        currentTargetMaxDate: '2026-06-01',
+        durationMs: 750,
+      },
+      {
+        ok: true,
+        indicatorCode: `${source}_UNCHANGED`,
+        rowsInserted: 0,
+        newRowsDetected: 0,
+        stagingRows: 8,
+        stagingMaxDate: '2026-05-01',
+        currentTargetMaxDate: '2026-05-01',
+        durationMs: 500,
+      },
+    ],
+  };
+}
+
+async function runSourceSuccessCase(sourceCode) {
+  const emitted = [];
+  const printed = [];
+  const exitCodes = [];
+  const batchResult = createSuccessfulBatch(sourceCode);
+  const response = await runMacroIngestionCli({
+    sourceCode,
+    args: ['--indicators=TEST'],
+    execute: async () => batchResult,
+    printResult: (result) => printed.push(result),
+    emitResult: (toolResult) => {
+      emitted.push(toolResult);
+      return { emitted: true };
+    },
+    setExitCode: (code) => exitCodes.push(code),
+    logger: () => {},
+  });
+
+  assert.strictEqual(response.result, batchResult);
+  assert.strictEqual(response.toolResult.outputType, 'macro_ingestion_summary.v1');
+  assert.strictEqual(response.toolResult.output.sourceCode, sourceCode);
+  assert.strictEqual(response.toolResult.output.outcome, 'UPDATED');
+  assert.strictEqual(response.toolResult.output.totals.indicatorsRequested, 2);
+  assert.strictEqual(response.toolResult.output.totals.indicatorsUpdated, 1);
+  assert.strictEqual(response.toolResult.output.totals.indicatorsUnchanged, 1);
+  assert.strictEqual(response.toolResult.output.totals.rowsInserted, 3);
+  assert.strictEqual(emitted.length, 1);
+  assert.strictEqual(printed.length, 1);
+  assert.deepStrictEqual(exitCodes, []);
+}
+
+async function runFailureCase() {
+  const emitted = [];
+  const exitCodes = [];
+  const response = await runMacroIngestionCli({
+    sourceCode: 'STATCAN',
+    args: [],
+    execute: async () => {
+      throw Object.assign(new Error('catalog unavailable'), { code: 'CATALOG_UNAVAILABLE' });
+    },
+    emitResult: (toolResult) => {
+      emitted.push(toolResult);
+      return { emitted: true };
+    },
+    setExitCode: (code) => exitCodes.push(code),
+    logger: () => {},
+  });
+
+  assert.strictEqual(response.result, null);
+  assert.strictEqual(response.toolResult.success, false);
+  assert.strictEqual(response.toolResult.output.sourceCode, 'STATCAN');
+  assert.strictEqual(response.toolResult.output.outcome, 'FAILED');
+  assert.strictEqual(response.toolResult.error.code, 'CATALOG_UNAVAILABLE');
+  assert.strictEqual(emitted.length, 1);
+  assert.deepStrictEqual(exitCodes, [1]);
+}
+
+async function runPartialAllowFailuresCase() {
+  const emitted = [];
+  const exitCodes = [];
+  const batchResult = createSuccessfulBatch('BOC');
+  batchResult.ok = false;
+  batchResult.results.push({
+    ok: false,
+    indicatorCode: 'BOC_FAILED',
+    durationMs: 200,
+    error: {
+      code: 'DOWNLOAD_FAILED',
+      message: 'download failed',
+    },
+  });
+
+  const response = await runMacroIngestionCli({
+    sourceCode: 'BOC',
+    args: ['--allow-failures'],
+    execute: async () => batchResult,
+    emitResult: (toolResult) => {
+      emitted.push(toolResult);
+      return { emitted: true };
+    },
+    setExitCode: (code) => exitCodes.push(code),
+    logger: () => {},
+  });
+
+  assert.strictEqual(response.toolResult.success, false);
+  assert.strictEqual(response.toolResult.output.outcome, 'PARTIAL');
+  assert.strictEqual(response.toolResult.output.totals.indicatorsFailed, 1);
+  assert.strictEqual(emitted.length, 1);
+  assert.deepStrictEqual(exitCodes, []);
+}
+
+async function run() {
+  await runSourceSuccessCase('FRED');
+  await runSourceSuccessCase('BOC');
+  await runSourceSuccessCase('STATCAN');
+  await runFailureCase();
+  await runPartialAllowFailuresCase();
+
+  console.log('[SkyCommand] Macro ingestion CLI adapter self-test passed.');
+}
+
+run().catch((error) => {
+  console.error(error.stack || error.message || String(error));
+  process.exitCode = 1;
+});
