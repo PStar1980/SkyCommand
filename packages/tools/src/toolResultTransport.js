@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const TOOL_RESULT_FILE_EXTENSION = '.tool-result';
+
 const {
   ToolResultContractError,
   normalizeMaximumBytes,
@@ -165,7 +167,7 @@ function createToolResultTransport({
   const safeExecutionId = normalizeFileToken(executionId, 'execution');
   const token = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
   const resultPath = assertPathInsideRoot(
-    path.join(realResultDirectory, `${safeExecutionId}-${token}.json`),
+    path.join(realResultDirectory, `${safeExecutionId}-${token}${TOOL_RESULT_FILE_EXTENSION}`),
     realResultDirectory,
   );
 
@@ -261,6 +263,7 @@ function createToolResultTransport({
 }
 
 module.exports = {
+  TOOL_RESULT_FILE_EXTENSION,
   createToolResultTransport,
   getDefaultResultDirectory,
   getSkyServerRoot,
