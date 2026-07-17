@@ -1,3 +1,12 @@
+## 2026-07-17 — Phase 14 SkyServer Core Runtime Parameter Parity
+
+- Added published workflow runtime-parameter discovery and typed CLI prompts to `SkyServer_Core.js`, including required values, defaults, select options, numbers, booleans, JSON values, and max-length validation.
+- Standardized CLI workflow input so prompted values are submitted under both `params` and `runtimeParameters`, matching Admin-Web and Temporal execution semantics.
+- Confirmed node defaults use the shared expression syntax `{{ params.commitMessage }}` and added a focused helper/self-test for normalization, coercion, merging, and reference generation.
+- Added optional Temporal workflow following in SkyServer Core. The CLI now monitors PostgreSQL workflow and node ledgers to terminal completion without relying on Admin-Web or Vite.
+- Documented CLI follow controls in `.env.example` and updated Phase 14/README guidance for the Repository Map → Repository ZIP → Dev Commit workflow.
+- Renamed the stale Run Tools page kicker from “Manifest tools” to “Registered tools” after removal of the manifest experiment.
+
 ## 2026-07-17 — Phase 14 Structured-Result Safety Simplification
 
 - Removed repository `skycommand.tool.json` manifests, contract-check samples, hash calculations, accepted snapshot persistence, runtime drift gates, and all manifest preview/sync/check commands.

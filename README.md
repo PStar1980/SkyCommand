@@ -51,6 +51,27 @@ Phase 14 adds the **workflow-native tool contract**. The generic process adapter
 
 The runtime contract is intentionally **fail-open after successful domain execution**. Tool identity, path, parameters, runtime, permissions, and visibility remain controlled by the existing PostgreSQL tool catalogue. Structured output validation and transport are supplementary reporting concerns: if they fail, SkyCommand records a warning and preserves the tool's real process outcome rather than blocking access to generated files or rerunning side-effecting work. FRED, Bank of Canada, and Statistics Canada emit `macro_ingestion_summary.v1`; Repository Map emits `repository_map_summary.v1`; Repository Zip emits `repository_package_summary.v1`; and Dev Commit emits `git_commit_summary.v1`. Their output-specific Workflow History renderers and canonical condition paths remain unchanged.
 
+SkyServer Core now reads each published workflow's runtime-parameter schema and prompts for those values directly before launch. A node default such as `{{ params.commitMessage }}` resolves identically for Admin-Web, inline CLI execution, and Temporal-backed CLI execution. Temporal launches can be followed to completion from the CLI through the PostgreSQL workflow ledger, so Git-oriented workflows remain operable even when Vite or the browser refreshes during repository changes.
+
+### SkyServer Core workflow runtime parameters
+
+Published workflow runtime parameters are shared across Admin-Web and the `npm run core` launcher. SkyServer Core lists the schema count, prompts for each typed value, validates required/default/select/number/boolean/JSON rules, and submits the values under both `input.params` and `input.runtimeParameters`. Node defaults reference them with the same syntax used by Admin-Web:
+
+```text
+{{ params.commitMessage }}
+```
+
+The CLI still accepts an optional additional workflow-input JSON object for advanced overrides. Temporal-backed runs can be followed without Admin-Web by leaving the follow prompt at its default `Y`; progress is read from `worker.workflow_run_records` and `worker.workflow_node_run_records`.
+
+Optional environment controls are documented in `.env.example`:
+
+```text
+SKYSERVER_CORE_WORKFLOW_EXECUTOR_MODE=temporal
+SKYSERVER_CORE_WORKFLOW_FOLLOW=true
+SKYSERVER_CORE_WORKFLOW_POLL_MS=2000
+SKYSERVER_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS=1800000
+```
+
 ### Structured result consumption and summary aggregation
 
 Phase 14.5 centralizes the deterministic result-to-workflow view in `packages/tools/src/workflowResultContext.js`. Both inline execution and the Temporal workflow bundle now use the same rules:

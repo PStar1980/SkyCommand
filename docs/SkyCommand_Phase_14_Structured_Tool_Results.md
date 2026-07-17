@@ -225,6 +225,20 @@ Recommended execution verification:
 6. Confirm Workflow History displays structured tables when available.
 7. Confirm a deliberately missing ToolResult produces a successful tool run with a legacy workflow fallback.
 
+## SkyServer Core workflow launch parity
+
+The `npm run core` launcher reads the runtime-parameter schema from the published workflow definition and prompts for each value before execution. The collected values are submitted under both `params` and `runtimeParameters`, matching the API/Admin-Web contract.
+
+Use this exact node-default expression for the `commitMessage` workflow parameter:
+
+```text
+{{ params.commitMessage }}
+```
+
+The same expression resolves in inline execution and in the Temporal workflow bundle. Advanced callers may still supply additional workflow input JSON; explicitly prompted values take precedence over duplicate parameter keys in that JSON.
+
+Temporal-backed CLI launches can optionally remain attached until the run reaches a terminal state. The monitor reads the PostgreSQL run and node ledgers directly, so it is independent of Admin-Web and Vite. This is the preferred launch path for the Repository Map → Repository ZIP → Dev Commit workflow.
+
 ## Future tool onboarding
 
 Until a dedicated catalogue UI is built, a new tool is added by:

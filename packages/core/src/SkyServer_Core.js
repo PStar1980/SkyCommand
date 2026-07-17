@@ -11,6 +11,8 @@
  * - Lists CLI-visible categories/tools only
  * - Adds a top-level Run Tools / Run Workflows launcher
  * - Starts active, published SkyServer workflows through the Temporal-backed executor
+ * - Prompts for workflow-level runtime parameters from the published schema
+ * - Can follow Temporal workflow progress without depending on Admin-Web/Vite
  * - Prompts for configured tool parameters
  * - Resolves script locations from database-backed repository roots
  * - Executes target scripts through configured runtime
@@ -46,6 +48,13 @@ dotenv.config({ path: ENV_PATH });
 
 const { pool } = require('../../db/src/connection');
 const workflowExecutorService = require('../../../apps/api/src/services/workflowExecutorService');
+const {
+  coerceWorkflowRuntimeParameterValue,
+  getWorkflowRuntimeParameterDefinitions,
+  getWorkflowRuntimeParameterReference,
+  isBlankRuntimeParameterValue,
+  mergeWorkflowRuntimeParameters,
+} = require('./workflowCliRuntimeParameters');
 
 const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -60,6 +69,17 @@ const DEFAULT_WORKFLOW_EXECUTOR_MODE = String(
   .trim()
   .toLowerCase();
 const CLI_USER_AGENT = 'SkyServer_Core CLI';
+const DEFAULT_WORKFLOW_FOLLOW =
+  String(process.env.SKYSERVER_CORE_WORKFLOW_FOLLOW || 'true').trim().toLowerCase() !== 'false';
+const WORKFLOW_POLL_INTERVAL_MS = Math.max(
+  500,
+  Number(process.env.SKYSERVER_CORE_WORKFLOW_POLL_MS) || 2000,
+);
+const WORKFLOW_FOLLOW_TIMEOUT_MS = Math.max(
+  30000,
+  Number(process.env.SKYSERVER_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS) || 1800000,
+);
+const ACTIVE_WORKFLOW_STATUSES = new Set(['QUEUED', 'RUNNING']);
 
 // ------------------------------------------------------------
 // Colors
@@ -232,6 +252,8 @@ function mapWorkflowDefinition(row) {
     enabled: row.enabled,
     visibleInAdmin: row.visible_in_admin,
     startPermissionCode: row.start_permission_code,
+    config: row.config || {},
+    runtimeParameters: getWorkflowRuntimeParameterDefinitions(row.config || {}),
     publishedVersionId: row.published_version_id,
     publishedVersionNumber: row.published_version_number,
     nodeCount: row.published_node_count || row.latest_node_count || 0,
@@ -443,6 +465,7 @@ async function loadWorkflowDefinitions() {
         enabled,
         visible_in_admin,
         start_permission_code,
+        config,
         published_version_id,
         published_version_number,
         latest_node_count,
@@ -934,7 +957,7 @@ async function workflowMenu(config) {
     );
     console.log(
       gray(
-        `   v${workflow.publishedVersionNumber || '?'} · ${workflow.nodeCount} node(s) · ${workflow.edgeCount} edge(s)${workflow.startPermissionCode ? ` · permission ${workflow.startPermissionCode}` : ''}`,
+        `   v${workflow.publishedVersionNumber || '?'} · ${workflow.nodeCount} node(s) · ${workflow.edgeCount} edge(s) · ${workflow.runtimeParameters.length} runtime param(s)${workflow.startPermissionCode ? ` · permission ${workflow.startPermissionCode}` : ''}`,
       ),
     );
 
@@ -983,6 +1006,236 @@ function parseWorkflowInputJson(inputJson) {
   return parsed;
 }
 
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function getRuntimeParameterPrompt(parameter) {
+  const requiredLabel = parameter.required ? ' *' : '';
+  const defaultLabel = isBlankRuntimeParameterValue(parameter.defaultValue)
+    ? ''
+    : ` [default: ${
+        typeof parameter.defaultValue === 'object'
+          ? JSON.stringify(parameter.defaultValue)
+          : parameter.defaultValue
+      }]`;
+
+  return `${parameter.label || parameter.key}${requiredLabel}${defaultLabel}: `;
+}
+
+async function collectWorkflowRuntimeParameters(workflow) {
+  const definitions = Array.isArray(workflow.runtimeParameters)
+    ? workflow.runtimeParameters
+    : getWorkflowRuntimeParameterDefinitions(workflow.config || {});
+  const values = {};
+
+  if (definitions.length === 0) {
+    return values;
+  }
+
+  console.log('');
+  console.log(cyan('Workflow runtime parameters'));
+  console.log(
+    gray(
+      'Values entered here are stored under params and can be referenced by node defaults such as {{ params.commitMessage }}.',
+    ),
+  );
+
+  for (const parameter of definitions) {
+    console.log('');
+    console.log(`${yellow(parameter.label || parameter.key)} ${gray(`(${parameter.type})`)}`);
+
+    if (parameter.description) {
+      console.log(gray(parameter.description));
+    }
+
+    console.log(gray(`Node reference: ${getWorkflowRuntimeParameterReference(parameter.key)}`));
+
+    let rawValue;
+
+    if (parameter.type === 'select' && parameter.options.length > 0) {
+      parameter.options.forEach((option, index) => {
+        console.log(`${index + 1}) ${option.label}`);
+      });
+
+      const answer = await askQuestion(yellow(getRuntimeParameterPrompt(parameter)));
+
+      if (answer === '') {
+        rawValue = parameter.defaultValue;
+      } else {
+        const selectedIndex = Number.parseInt(answer, 10);
+        rawValue =
+          Number.isFinite(selectedIndex) &&
+          selectedIndex >= 1 &&
+          selectedIndex <= parameter.options.length
+            ? parameter.options[selectedIndex - 1].value
+            : answer;
+      }
+    } else if (parameter.type === 'boolean') {
+      const defaultBoolean = isBlankRuntimeParameterValue(parameter.defaultValue)
+        ? false
+        : coerceWorkflowRuntimeParameterValue(parameter.defaultValue, parameter);
+      const answer = await askQuestion(
+        yellow(
+          `${parameter.label || parameter.key}${parameter.required ? ' *' : ''} (${defaultBoolean ? 'Y/n' : 'y/N'}): `,
+        ),
+      );
+      rawValue = answer === '' ? defaultBoolean : answer;
+    } else {
+      rawValue = await askQuestion(yellow(getRuntimeParameterPrompt(parameter)));
+    }
+
+    const value = coerceWorkflowRuntimeParameterValue(rawValue, parameter);
+
+    if (!isBlankRuntimeParameterValue(value) || parameter.type === 'boolean') {
+      values[parameter.key] = value;
+    }
+  }
+
+  return values;
+}
+
+function formatRuntimeParameterValue(value) {
+  if (value && typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+async function loadWorkflowRunProgress(workflowRunRecordId) {
+  const runRows = await queryRows(
+    `
+      SELECT
+        workflow_run_record_id,
+        status,
+        summary,
+        started_at,
+        completed_at,
+        duration_ms
+      FROM worker.workflow_run_records
+      WHERE workflow_run_record_id = $1
+      LIMIT 1
+    `,
+    [workflowRunRecordId],
+  );
+
+  if (runRows.length === 0) {
+    return null;
+  }
+
+  const nodeRows = await queryRows(
+    `
+      SELECT
+        node_key,
+        target_code,
+        status,
+        attempt_count,
+        duration_ms,
+        error_message
+      FROM worker.workflow_node_run_records
+      WHERE workflow_run_record_id = $1
+      ORDER BY created_at, node_key
+    `,
+    [workflowRunRecordId],
+  );
+
+  return {
+    run: runRows[0],
+    nodes: nodeRows,
+  };
+}
+
+function getWorkflowProgressSignature(progress) {
+  if (!progress) {
+    return 'missing';
+  }
+
+  return JSON.stringify({
+    status: progress.run.status,
+    nodes: progress.nodes.map((node) => [
+      node.node_key,
+      node.status,
+      node.attempt_count,
+      node.duration_ms,
+      node.error_message,
+    ]),
+  });
+}
+
+function printWorkflowProgress(progress) {
+  const status = String(progress.run.status || 'UNKNOWN').toUpperCase();
+  const color = status === 'COMPLETED' ? green : status === 'FAILED' ? red : yellow;
+
+  console.log('');
+  console.log(color(`Workflow status: ${status}`));
+
+  for (const node of progress.nodes) {
+    const nodeStatus = String(node.status || 'UNKNOWN').toUpperCase();
+    const nodeColor = nodeStatus === 'COMPLETED' ? green : nodeStatus === 'FAILED' ? red : gray;
+    const duration = Number.isFinite(Number(node.duration_ms))
+      ? ` · ${Number(node.duration_ms)} ms`
+      : '';
+    const attempts = Number(node.attempt_count || 0) > 0 ? ` · attempt ${node.attempt_count}` : '';
+
+    console.log(
+      nodeColor(
+        `  ${node.node_key} (${node.target_code || 'no target'}): ${nodeStatus}${attempts}${duration}`,
+      ),
+    );
+
+    if (node.error_message) {
+      console.log(red(`    ${node.error_message}`));
+    }
+  }
+
+  if (progress.run.summary) {
+    console.log(gray(`  ${progress.run.summary}`));
+  }
+}
+
+async function followWorkflowRun(workflowRunRecordId) {
+  const startedAt = Date.now();
+  let previousSignature = '';
+
+  console.log('');
+  console.log(cyan(`Following workflow run ${workflowRunRecordId}...`));
+  console.log(
+    gray(
+      'This monitor reads the PostgreSQL workflow ledger and does not depend on Admin-Web or Vite.',
+    ),
+  );
+
+  while (Date.now() - startedAt <= WORKFLOW_FOLLOW_TIMEOUT_MS) {
+    const progress = await loadWorkflowRunProgress(workflowRunRecordId);
+
+    if (!progress) {
+      throw new Error(
+        `Workflow run ${workflowRunRecordId} could not be found while following it.`,
+      );
+    }
+
+    const signature = getWorkflowProgressSignature(progress);
+
+    if (signature !== previousSignature) {
+      printWorkflowProgress(progress);
+      previousSignature = signature;
+    }
+
+    const status = String(progress.run.status || '').trim().toUpperCase();
+
+    if (!ACTIVE_WORKFLOW_STATUSES.has(status)) {
+      return progress;
+    }
+
+    await sleep(WORKFLOW_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `Workflow follow timed out after ${Math.round(WORKFLOW_FOLLOW_TIMEOUT_MS / 1000)} seconds. The run may still be active.`,
+  );
+}
+
 async function collectWorkflowInput(workflow) {
   console.log('');
   console.log(yellow(`Workflow: ${workflow.displayName} (${workflow.workflowCode})`));
@@ -1006,14 +1259,20 @@ async function collectWorkflowInput(workflow) {
     throw new Error('Executor mode must be temporal or inline.');
   }
 
+  const runtimeParameters = await collectWorkflowRuntimeParameters(workflow);
   const workflowId = await askQuestion(
     yellow('Optional Temporal workflow ID override (leave blank for auto-generated): '),
   );
   const inputJson = await askQuestion(
-    yellow('Optional workflow input JSON object (leave blank for saved node defaults): '),
+    yellow(
+      'Optional additional workflow input JSON object (leave blank for saved node defaults): ',
+    ),
   );
 
-  const input = parseWorkflowInputJson(inputJson);
+  let input = mergeWorkflowRuntimeParameters(
+    parseWorkflowInputJson(inputJson),
+    runtimeParameters,
+  );
 
   if (workflowId.trim()) {
     input.workflowId = workflowId.trim();
@@ -1026,6 +1285,7 @@ async function collectWorkflowInput(workflow) {
   return {
     executorMode,
     input,
+    runtimeParameters: input.params || {},
   };
 }
 
@@ -1047,6 +1307,15 @@ async function runWorkflow(config, workflow) {
   console.log(yellow('⚠️  Confirmation required for workflow start'));
   console.log(yellow(`Workflow: ${workflow.displayName} (${workflow.workflowCode})`));
   console.log(yellow(`Executor: ${launch.executorMode}`));
+
+  const runtimeParameterEntries = Object.entries(launch.runtimeParameters || {});
+  if (runtimeParameterEntries.length > 0) {
+    console.log(yellow('Runtime parameters:'));
+    runtimeParameterEntries.forEach(([key, value]) => {
+      console.log(yellow(`  ${key} = ${formatRuntimeParameterValue(value)}`));
+    });
+  }
+
   console.log(yellow('Type YES to start this workflow.'));
 
   const confirmed = await askQuestion(yellow('Confirm: '));
@@ -1105,6 +1374,27 @@ async function runWorkflow(config, workflow) {
 
     if (temporalWorkflow.runId || run.temporalRunId) {
       console.log(`Temporal run ID: ${temporalWorkflow.runId || run.temporalRunId}`);
+    }
+
+    if (launch.executorMode === 'temporal' && run.workflowRunRecordId) {
+      const followAnswer = await askQuestion(
+        yellow(`Follow workflow until completion? (${DEFAULT_WORKFLOW_FOLLOW ? 'Y/n' : 'y/N'}): `),
+      );
+      const shouldFollow =
+        followAnswer === ''
+          ? DEFAULT_WORKFLOW_FOLLOW
+          : ['y', 'yes', 'true', '1'].includes(followAnswer.toLowerCase());
+
+      if (shouldFollow) {
+        const finalProgress = await followWorkflowRun(run.workflowRunRecordId);
+        const finalStatus = String(finalProgress.run.status || 'UNKNOWN').toUpperCase();
+
+        if (finalStatus === 'COMPLETED') {
+          console.log(green(`\nWorkflow ${workflow.displayName} completed successfully.`));
+        } else {
+          console.log(red(`\nWorkflow ${workflow.displayName} finished with status ${finalStatus}.`));
+        }
+      }
     }
   } catch (error) {
     console.error(red('\nERROR starting workflow:'));
