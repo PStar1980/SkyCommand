@@ -2,11 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
-const {
-  executeToolProcess,
-  getRegisteredToolExecutionContract,
-  isToolResultRequired,
-} = require('../../../../packages/tools/src');
+const { executeToolProcess } = require('../../../../packages/tools/src');
 
 const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -437,18 +433,6 @@ async function loadToolForExecution(toolCode) {
         m.category_label,
         m.tool_id,
         r.repo_id AS script_repo_id,
-        snapshot.tool_manifest_snapshot_id,
-        snapshot.validation_status AS manifest_snapshot_status,
-        snapshot.manifest_version,
-        snapshot.manifest_path,
-        snapshot.runtime_type AS manifest_runtime_type,
-        snapshot.entrypoint_path AS manifest_entrypoint_path,
-        snapshot.output_type AS manifest_output_type,
-        snapshot.result_required AS manifest_result_required,
-        snapshot.manifest_hash,
-        snapshot.entrypoint_hash,
-        snapshot.output_schema_hash,
-        snapshot.contract_sample_hash,
         m.tool_code,
         m.name,
         m.label,
@@ -469,9 +453,6 @@ async function loadToolForExecution(toolCode) {
       FROM core.vw_tool_manifest m
       JOIN core.repositories r
         ON r.repo_code = m.script_repo_code
-      LEFT JOIN core.tool_manifest_snapshots snapshot
-        ON snapshot.tool_id = m.tool_id
-       AND snapshot.is_current = TRUE
       JOIN core.repository_paths rp
         ON rp.repo_id = r.repo_id
       JOIN core.config_profiles cp
@@ -755,27 +736,20 @@ async function executeChildProcess({
   scriptFile,
   args,
   executionId,
-  toolResultRequired = false,
 }) {
   const runtime = getRuntimeCommand(tool);
   const commandArgs = [...runtime.prefixArgs, scriptFile, ...args];
-  const executionContract = getRegisteredToolExecutionContract(tool, {
-    repositoryRoot: tool.root_path,
-  });
 
   const result = await executeToolProcess({
     command: runtime.command,
     commandArgs,
     cwd: path.dirname(scriptFile),
     env: process.env,
-    timeoutMs: executionContract?.timeoutMs || DEFAULT_TIMEOUT_MS,
+    timeoutMs: DEFAULT_TIMEOUT_MS,
     maxOutputBytes: MAX_OUTPUT_BYTES,
     outputTruncationLabel: 'SkyServer API',
     executionId,
     toolCode: tool.tool_code,
-    toolResultRequired: Boolean(toolResultRequired || executionContract?.resultRequired),
-    toolResultExpectedOutputType: executionContract?.expectedOutputType || null,
-    toolResultOutputSchema: executionContract?.outputSchema || null,
     rootDirectory: tool.root_path,
   });
 
@@ -783,16 +757,6 @@ async function executeChildProcess({
     ...result,
     runtimeLabel: runtime.label,
     commandArgs,
-    manifestContract: executionContract
-      ? {
-          snapshotId: executionContract.snapshotId || null,
-          snapshotStatus: executionContract.snapshotStatus || null,
-          manifestHash: executionContract.manifestHash || null,
-          entrypointHash: executionContract.entrypointHash || null,
-          outputType: executionContract.expectedOutputType || null,
-          resultRequired: executionContract.resultRequired === true,
-        }
-      : null,
   };
 }
 
@@ -1124,13 +1088,11 @@ async function runTool({
       console.error('[SkyServer API] Failed to record tool start audit event:', auditError);
     }
 
-    const toolResultRequired = isToolResultRequired(tool);
     const childResult = await executeChildProcess({
       tool,
       scriptFile,
       args,
       executionId: execution.execution_id,
-      toolResultRequired,
     });
 
     const outputFiles = writeExecutionOutputFiles({
@@ -1166,7 +1128,6 @@ async function runTool({
         processStatus: childResult.processStatus,
         toolResultAvailable: Boolean(childResult.toolResult),
         toolResultContract: childResult.toolResultContract,
-        manifestContract: childResult.manifestContract,
       },
     });
 
@@ -1205,7 +1166,6 @@ async function runTool({
       stderr: childResult.stderr,
       toolResult: childResult.toolResult,
       toolResultContract: childResult.toolResultContract,
-      manifestContract: childResult.manifestContract,
     };
   } catch (error) {
     if (execution?.execution_id) {

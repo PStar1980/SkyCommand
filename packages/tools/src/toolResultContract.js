@@ -294,29 +294,6 @@ function createLegacyToolResult({
   });
 }
 
-function parseToolCodeSet(value) {
-  return new Set(
-    String(value || '')
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
-  );
-}
-
-function isToolResultRequired(tool = {}, options = {}) {
-  const directValue = tool.result_contract_required ?? tool.resultContractRequired;
-
-  if ([true, 'true', 't', 1, '1'].includes(directValue)) {
-    return true;
-  }
-
-  const requiredToolCodes = parseToolCodeSet(
-    options.requiredToolCodes ?? process.env.SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES,
-  );
-
-  return requiredToolCodes.has(tool.tool_code || tool.toolCode);
-}
-
 function serializeContractError(error) {
   if (!error) {
     return null;
@@ -339,7 +316,6 @@ module.exports = {
   getToolResultDomainOutput,
   isPlainObject,
   isToolResult,
-  isToolResultRequired,
   normalizeMaximumBytes,
   serializeContractError,
   validateToolResult,

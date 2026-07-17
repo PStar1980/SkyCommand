@@ -19,10 +19,8 @@ const {
   createRepositoryPackageToolResult,
 } = require('./repositoryPackageResult');
 
-const MANIFEST_PATH = path.resolve(
-  __dirname,
-  '../manifests/repo_zip_generate/skycommand.tool.json',
-);
+const TOOL_CODE = 'repo_zip_generate';
+const OUTPUT_TYPE = 'repository_package_summary.v1';
 
 const ZIP32_MAX_VALUE = 0xffffffff;
 const ZIP32_MAX_ENTRY_COUNT = 0xffff;
@@ -550,7 +548,8 @@ async function main(args = process.argv.slice(2)) {
   const startedAt = new Date().toISOString();
 
   return runToolCli({
-    manifestPath: MANIFEST_PATH,
+    toolCode: TOOL_CODE,
+    outputType: OUTPUT_TYPE,
     args,
     execute: executeRepositoryZip,
     createToolResult: createRepositoryPackageToolResult,
@@ -569,7 +568,8 @@ if (require.main === module) {
 }
 
 module.exports = {
-  MANIFEST_PATH,
+  OUTPUT_TYPE,
+  TOOL_CODE,
   executeRepositoryZip,
   flattenFiles,
   main,

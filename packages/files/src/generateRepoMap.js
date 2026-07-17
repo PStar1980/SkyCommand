@@ -4,7 +4,7 @@
  * Generates a readable repository map for documentation and structural review.
  *
  * Human-readable console output remains available for direct CLI and Run Tools.
- * Manifest-backed workflow launches additionally receive a deliberate
+ * SkyCommand workflow launches additionally receive a deliberate
  * repository_map_summary.v1 ToolResult through the shared result transport.
  *
  * Usage:
@@ -20,10 +20,8 @@ const {
   createRepositoryMapToolResult,
 } = require('./repositoryMapResult');
 
-const MANIFEST_PATH = path.resolve(
-  __dirname,
-  '../manifests/repo_map_generate/skycommand.tool.json',
-);
+const TOOL_CODE = 'repo_map_generate';
+const OUTPUT_TYPE = 'repository_map_summary.v1';
 
 const IGNORED_ENTRIES = new Set([
   'node_modules',
@@ -247,7 +245,8 @@ function printRepositoryMapResult(result) {
 async function main(args = process.argv.slice(2)) {
   const startedAt = new Date().toISOString();
   return runToolCli({
-    manifestPath: MANIFEST_PATH,
+    toolCode: TOOL_CODE,
+    outputType: OUTPUT_TYPE,
     args,
     execute: executeRepositoryMap,
     createToolResult: createRepositoryMapToolResult,
@@ -264,7 +263,8 @@ async function main(args = process.argv.slice(2)) {
 if (require.main === module) main();
 
 module.exports = {
-  MANIFEST_PATH,
+  OUTPUT_TYPE,
+  TOOL_CODE,
   createScanStatistics,
   executeRepositoryMap,
   main,
