@@ -29,7 +29,9 @@ export function cleanSummaryParameterValues(values = {}) {
   return {
     title: String(input.title || '').trim(),
     summaryTemplate: String(input.summaryTemplate || input.template || '').trim(),
-    technicalDetailsTemplate: String(input.technicalDetailsTemplate || input.technicalTemplate || '').trim(),
+    technicalDetailsTemplate: String(
+      input.technicalDetailsTemplate || input.technicalTemplate || '',
+    ).trim(),
     recommendedNextActions: String(input.recommendedNextActions || '').trim(),
     includeKeyOutputs: toBoolean(input.includeKeyOutputs, true),
     includeWarnings: toBoolean(input.includeWarnings, true),
@@ -47,7 +49,11 @@ export function getSummaryExpressionSummary(parameters = {}) {
   return 'auto summary from params, context, outputs, and timings';
 }
 
-export default function SummaryParameterEditor({ idPrefix = 'summary-parameter', parameters = {}, onChange }) {
+export default function SummaryParameterEditor({
+  idPrefix = 'summary-parameter',
+  parameters = {},
+  onChange,
+}) {
   const values = {
     ...DEFAULT_SUMMARY_PARAMETERS,
     ...getSafeObject(parameters),
@@ -60,7 +66,9 @@ export default function SummaryParameterEditor({ idPrefix = 'summary-parameter',
   return (
     <div className="row g-3">
       <div className="col-lg-6">
-        <label className="form-label" htmlFor={`${idPrefix}-title`}>Summary title</label>
+        <label className="form-label" htmlFor={`${idPrefix}-title`}>
+          Summary title
+        </label>
         <input
           className="form-control sky-form-control"
           id={`${idPrefix}-title`}
@@ -72,7 +80,9 @@ export default function SummaryParameterEditor({ idPrefix = 'summary-parameter',
       </div>
 
       <div className="col-lg-6">
-        <label className="form-label" htmlFor={`${idPrefix}-actions`}>Recommended next actions</label>
+        <label className="form-label" htmlFor={`${idPrefix}-actions`}>
+          Recommended next actions
+        </label>
         <input
           className="form-control sky-form-control"
           id={`${idPrefix}-actions`}
@@ -83,22 +93,29 @@ export default function SummaryParameterEditor({ idPrefix = 'summary-parameter',
       </div>
 
       <div className="col-12">
-        <label className="form-label" htmlFor={`${idPrefix}-summary-template`}>Summary template</label>
+        <label className="form-label" htmlFor={`${idPrefix}-summary-template`}>
+          Summary template
+        </label>
         <textarea
           className="form-control sky-form-control"
           id={`${idPrefix}-summary-template`}
           onChange={(event) => patch({ summaryTemplate: event.target.value })}
-          placeholder="Optional. Example: Dev commit completed for {{ params.repoName }} with {{ nodes.dev_commit.summary }}"
+          placeholder="Optional. Example: Macro refresh inserted {{ nodes.fred_ingestion.output.totals.rowsInserted }} FRED row(s)."
           rows={3}
           value={values.summaryTemplate || ''}
         />
         <div className="form-text">
-          Supports templates such as <span className="sky-mono">{'{{ params.commitMessage }}'}</span>, <span className="sky-mono">{'{{ context.last.summary }}'}</span>, and <span className="sky-mono">{'{{ nodes.some_node.output }}'}</span>.
+          Supports canonical paths such as{' '}
+          <span className="sky-mono">{'{{ nodes.some_node.output.customField }}'}</span> for domain
+          results and <span className="sky-mono">{'{{ nodes.some_node.result.success }}'}</span> for
+          the complete ToolResult envelope.
         </div>
       </div>
 
       <div className="col-12">
-        <label className="form-label" htmlFor={`${idPrefix}-technical-template`}>Technical details template</label>
+        <label className="form-label" htmlFor={`${idPrefix}-technical-template`}>
+          Technical details template
+        </label>
         <textarea
           className="form-control sky-form-control"
           id={`${idPrefix}-technical-template`}

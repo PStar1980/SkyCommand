@@ -6,7 +6,7 @@ Phase 14 is in progress.
 
 > Printing is for humans. Structured return values are for workflows.
 
-Phase 14.1 established the generic child-process result transport. Phase 14.2 proved the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript. Phase 14.3 extended that same contract to Bank of Canada and Statistics Canada and routed all three macro-source entrypoints through one shared ingestion CLI adapter. Phase 14.4 adds the versioned tool-manifest, output-schema, describe/contract-check, registry validation, hash, and drift-detection foundation required for future repository registration.
+Phase 14.1 established the generic child-process result transport. Phase 14.2 proved the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript. Phase 14.3 extended that same contract to Bank of Canada and Statistics Canada and routed all three macro-source entrypoints through one shared ingestion CLI adapter. Phase 14.4 added the versioned tool-manifest, output-schema, describe/contract-check, registry validation, hash, and drift-detection foundation required for future repository registration. Phase 14.5 now unifies inline and Temporal result scopes, makes condition paths enforceable, aggregates all macro sources symmetrically in Summary nodes, and records compact structured-result evidence for scheduled tool runs.
 
 ## Phase 14.1 foundation
 
@@ -52,7 +52,6 @@ writeToolResult({
 ```
 
 When no wrapper result path is present, `writeToolResult()` performs no write. Direct CLI execution therefore remains unchanged.
-
 
 ## Development watcher safety
 
@@ -107,12 +106,12 @@ FRED, Bank of Canada, and Statistics Canada aggregate those values into the same
 
 Outcome semantics are stable:
 
-| Outcome | Meaning |
-| --- | --- |
-| `UPDATED` | Processing succeeded and inserted one or more rows. |
-| `UNCHANGED` | Processing succeeded and found no new rows. |
-| `FAILED` | The indicator failed during download, normalization, or load. |
-| `PARTIAL` | The grouped run contains both successful and failed indicators. |
+| Outcome     | Meaning                                                         |
+| ----------- | --------------------------------------------------------------- |
+| `UPDATED`   | Processing succeeded and inserted one or more rows.             |
+| `UNCHANGED` | Processing succeeded and found no new rows.                     |
+| `FAILED`    | The indicator failed during download, normalization, or load.   |
+| `PARTIAL`   | The grouped run contains both successful and failed indicators. |
 
 `UNCHANGED` is a successful result and must not be treated as an error by conditions or summaries.
 
@@ -255,3 +254,97 @@ The macro-ingestion self-tests verify copy-loader metric parsing, aggregate tota
 2. Add a database registration snapshot model for manifest version, source path, hashes, and validation status without yet building the final repository-picker UI.
 3. Expand structured results to additional tool categories using the generic adapter and renderer fallback.
 4. Prepare the later transactional registration service and drift-review workflow described in Phase 15.
+
+## Phase 14.5 — Workflow consumption, symmetric summaries, and scheduled proof
+
+Phase 14.5 makes the structured contract active workflow data instead of a display-only result.
+
+### One canonical result view in both executors
+
+`packages/tools/src/workflowResultContext.js` is a deterministic, runtime-safe helper shared by the inline API executor and the Temporal workflow bundle. It separates the complete result from the domain payload consistently:
+
+```text
+nodes.<nodeKey>.result      complete ToolResult envelope
+nodes.<nodeKey>.output      domain-specific output payload
+nodes.<nodeKey>.warnings    non-fatal warnings
+nodes.<nodeKey>.error       structured error
+nodes.<nodeKey>.metadata    safe metadata
+last.result                 latest complete result
+last.output                 latest domain payload
+previousResult              previous complete result
+previousOutput              previous domain payload
+```
+
+The shared lookup preserves convenience fields for existing workflow definitions, but the canonical `result` and `output` aliases are now identical in inline and Temporal-backed runs. This closes the gap where persisted context was correct but the in-memory Temporal condition/template scope still exposed the wrapper object as `output`.
+
+### Condition-path enforcement
+
+A condition can evaluate domain values directly:
+
+```text
+nodes.fred_ingestion.output.totals.rowsInserted
+nodes.boc_ingestion.output.totals.indicatorsFailed
+nodes.statcan_ingestion.result.success
+previousOutput.outcome
+```
+
+When a configured `leftPath` does not resolve and no fallback literal is supplied, execution fails clearly with `WORKFLOW_CONDITION_PATH_NOT_FOUND`. Supplying a fallback preserves optional-path behavior. Condition output records whether the path resolved or a fallback was used.
+
+### Symmetric Summary-node aggregation
+
+Summary nodes now build two deliberately compact structures:
+
+1. `keyOutputs` — one concise node-result index containing node key, kind, status, summary, output contract, duration, execution identity, warning count, and a bounded output synopsis.
+2. `structuredResults.macroIngestion` — a normalized macro rollup containing every FRED, Bank of Canada, and Statistics Canada source result plus combined totals.
+
+The macro rollup contains:
+
+```json
+{
+  "outcome": "UPDATED",
+  "sourceCount": 3,
+  "durationMs": 21000,
+  "totals": {
+    "indicatorsRequested": 69,
+    "indicatorsSucceeded": 69,
+    "indicatorsFailed": 0,
+    "indicatorsUpdated": 8,
+    "indicatorsUnchanged": 61,
+    "rowsStaged": 205600,
+    "rowsDetectedAsNew": 8,
+    "rowsInserted": 8
+  },
+  "sources": [
+    { "nodeKey": "fred_ingestion", "sourceCode": "FRED", "outcome": "UPDATED", "totals": {} },
+    { "nodeKey": "boc_ingestion", "sourceCode": "BOC", "outcome": "UNCHANGED", "totals": {} },
+    {
+      "nodeKey": "statcan_ingestion",
+      "sourceCode": "STATCAN",
+      "outcome": "UNCHANGED",
+      "totals": {}
+    }
+  ]
+}
+```
+
+The focused Summary node in Workflow History renders a source table, a combined totals row, and a concise node-result index. It no longer displays source-labelled JSON previews, and no source can disappear because of source-specific formatting.
+
+### Scheduled execution proof
+
+Direct scheduled tool runs now retain compact ToolResult evidence in `worker.schedule_runs.metadata`:
+
+- schema version and output type;
+- success, message, warning count, and error code;
+- for macro ingestion, source code, outcome, duration, selected/full-catalogue mode, and aggregate totals.
+
+Indicator arrays and stdout/stderr are deliberately excluded from scheduler metadata. Tool History remains the log authority, and workflow ledgers remain the structured-output authority.
+
+### Verification
+
+```bash
+npm run workflow-result-context:self-test
+npm run validate
+npm run web:build
+```
+
+The workflow-result-context self-test verifies canonical condition paths, all three macro sources, aggregate totals, compact Summary-node output, and scheduled metadata summaries. The Temporal workflow bundle is also compiled to confirm the shared deterministic helper is bundle-safe.

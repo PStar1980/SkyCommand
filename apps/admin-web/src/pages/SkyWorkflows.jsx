@@ -54,21 +54,29 @@ function normalizeRuntimeParameterDefinitions(definition = {}) {
   const config = getSafeObject(definition.config);
   const parameterSchema = getSafeObject(config.parameterSchema);
   const rawParameters = getSafeArray(
-    definition.runtimeParameters
-      || config.runtimeParameters
-      || parameterSchema.runtimeParameters
-      || parameterSchema.parameters,
+    definition.runtimeParameters ||
+      config.runtimeParameters ||
+      parameterSchema.runtimeParameters ||
+      parameterSchema.parameters,
   );
 
   return rawParameters
     .map((parameter, index) => {
       const raw = getSafeObject(parameter);
-      const key = String(raw.key || raw.parameterName || raw.name || raw.paramName || `param_${index + 1}`)
+      const key = String(
+        raw.key || raw.parameterName || raw.name || raw.paramName || `param_${index + 1}`,
+      )
         .trim()
         .replace(/[^A-Za-z0-9_.:-]+/g, '_')
         .replace(/^_+|_+$/g, '');
-      const type = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string').trim().toLowerCase();
-      const normalizedType = ['string', 'number', 'boolean', 'select', 'date', 'json'].includes(type) ? type : 'string';
+      const type = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string')
+        .trim()
+        .toLowerCase();
+      const normalizedType = ['string', 'number', 'boolean', 'select', 'date', 'json'].includes(
+        type,
+      )
+        ? type
+        : 'string';
 
       return {
         key,
@@ -82,7 +90,9 @@ function normalizeRuntimeParameterDefinitions(definition = {}) {
         prompt: raw.prompt || raw.description || '',
         options: normalizeRuntimeParameterOptions(raw.options || raw.allowedValues || raw.values),
         maxLength: Number.isFinite(Number(raw.maxLength)) ? Number(raw.maxLength) : null,
-        displayOrder: Number.isFinite(Number(raw.displayOrder)) ? Number(raw.displayOrder) : index * 10 + 10,
+        displayOrder: Number.isFinite(Number(raw.displayOrder))
+          ? Number(raw.displayOrder)
+          : index * 10 + 10,
       };
     })
     .filter((parameter) => parameter.key)
@@ -92,11 +102,13 @@ function normalizeRuntimeParameterDefinitions(definition = {}) {
 function getInitialRuntimeParameterValues(parameters = []) {
   return parameters.reduce((accumulator, parameter) => {
     if (parameter.type === 'boolean') {
-      accumulator[parameter.key] = parameter.defaultValue === true || parameter.defaultValue === 'true';
+      accumulator[parameter.key] =
+        parameter.defaultValue === true || parameter.defaultValue === 'true';
     } else if (parameter.type === 'json') {
-      accumulator[parameter.key] = parameter.defaultValue && typeof parameter.defaultValue === 'object'
-        ? JSON.stringify(parameter.defaultValue, null, 2)
-        : String(parameter.defaultValue || '');
+      accumulator[parameter.key] =
+        parameter.defaultValue && typeof parameter.defaultValue === 'object'
+          ? JSON.stringify(parameter.defaultValue, null, 2)
+          : String(parameter.defaultValue || '');
     } else {
       accumulator[parameter.key] = parameter.defaultValue ?? '';
     }
@@ -139,7 +151,8 @@ function parseRuntimeParameterValues(parameters = [], values = {}) {
 
     if (parameter.type === 'json') {
       try {
-        accumulator[parameter.key] = typeof rawValue === 'object' ? rawValue : JSON.parse(String(rawValue));
+        accumulator[parameter.key] =
+          typeof rawValue === 'object' ? rawValue : JSON.parse(String(rawValue));
       } catch (error) {
         throw new Error(`${parameter.label || parameter.key} must be valid JSON.`);
       }
@@ -149,7 +162,9 @@ function parseRuntimeParameterValues(parameters = [], values = {}) {
     const stringValue = String(rawValue);
 
     if (parameter.maxLength && stringValue.length > parameter.maxLength) {
-      throw new Error(`${parameter.label || parameter.key} must be ${parameter.maxLength} characters or less.`);
+      throw new Error(
+        `${parameter.label || parameter.key} must be ${parameter.maxLength} characters or less.`,
+      );
     }
 
     accumulator[parameter.key] = stringValue;
@@ -306,7 +321,10 @@ function parseFriendlyOutputValue(value) {
 
   const text = value.trim();
 
-  if (!text || !((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']')))) {
+  if (
+    !text ||
+    !((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']')))
+  ) {
     return value;
   }
 
@@ -318,9 +336,11 @@ function parseFriendlyOutputValue(value) {
 }
 
 function isIsoDateValue(value) {
-  return typeof value === 'string'
-    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
-    && !Number.isNaN(new Date(value).getTime());
+  return (
+    typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) &&
+    !Number.isNaN(new Date(value).getTime())
+  );
 }
 
 function formatByteCount(value) {
@@ -354,7 +374,11 @@ function FriendlyOutputScalar({ fieldKey = '', value }) {
   }
 
   if (typeof value === 'boolean') {
-    return <span className={`sky-pill ${value ? 'sky-pill-success' : 'sky-pill-info'}`}>{value ? 'Yes' : 'No'}</span>;
+    return (
+      <span className={`sky-pill ${value ? 'sky-pill-success' : 'sky-pill-info'}`}>
+        {value ? 'Yes' : 'No'}
+      </span>
+    );
   }
 
   if (typeof value === 'number') {
@@ -384,18 +408,23 @@ function FriendlyOutputScalar({ fieldKey = '', value }) {
   }
 
   if (/^https?:\/\//i.test(text)) {
-    return <a href={text} rel="noreferrer" target="_blank">{text}</a>;
+    return (
+      <a href={text} rel="noreferrer" target="_blank">
+        {text}
+      </a>
+    );
   }
 
   if (text.includes('\n') || text.length > 180) {
     return <pre className="sky-node-output-readable-text mb-0">{text}</pre>;
   }
 
-  const mono = normalizedKey.endsWith('id')
-    || normalizedKey.endsWith('key')
-    || normalizedKey.endsWith('code')
-    || normalizedKey.includes('hash')
-    || normalizedKey.includes('path');
+  const mono =
+    normalizedKey.endsWith('id') ||
+    normalizedKey.endsWith('key') ||
+    normalizedKey.endsWith('code') ||
+    normalizedKey.includes('hash') ||
+    normalizedKey.includes('path');
 
   return <span className={mono ? 'sky-mono' : undefined}>{text}</span>;
 }
@@ -425,9 +454,7 @@ function appendUniqueOutputRows(rows, value, { source = 'Result', path = [] } = 
         return;
       }
 
-      const nextPath = path.length === 0 && normalizedKey === 'output'
-        ? path
-        : [...path, key];
+      const nextPath = path.length === 0 && normalizedKey === 'output' ? path : [...path, key];
 
       appendUniqueOutputRows(rows, nestedValue, {
         source,
@@ -455,7 +482,9 @@ function appendUniqueOutputRows(rows, value, { source = 'Result', path = [] } = 
 function isDuplicateNodeContextValue(item, nodeKey) {
   const contextKey = String(item?.contextKey || '').trim();
   const normalizedContextKey = contextKey.toLowerCase();
-  const normalizedNodeKey = String(nodeKey || '').trim().toLowerCase();
+  const normalizedNodeKey = String(nodeKey || '')
+    .trim()
+    .toLowerCase();
 
   if (normalizedContextKey.startsWith('last.')) {
     return true;
@@ -474,26 +503,43 @@ function getContextDisplayPath(contextKey, nodeKey) {
   const normalizedNodePrefix = `nodes.${String(nodeKey || '').trim()}.`;
   const value = String(contextKey || 'context value');
 
-  return value.startsWith(normalizedNodePrefix)
-    ? value.slice(normalizedNodePrefix.length)
-    : value;
+  return value.startsWith(normalizedNodePrefix) ? value.slice(normalizedNodePrefix.length) : value;
 }
 
-
 function isStructuredToolResult(value) {
-  return value
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && typeof value.schemaVersion === 'string'
-    && typeof value.outputType === 'string'
-    && Object.prototype.hasOwnProperty.call(value, 'output');
+  return (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    typeof value.schemaVersion === 'string' &&
+    typeof value.outputType === 'string' &&
+    Object.prototype.hasOwnProperty.call(value, 'output')
+  );
 }
 
 function getFocusedToolResult(outputs = [], nodeKey = '') {
-  return outputs
-    .filter((output) => output.nodeKey === nodeKey)
-    .map((output) => parseFriendlyOutputValue(output.output))
-    .find(isStructuredToolResult) || null;
+  return (
+    outputs
+      .filter((output) => output.nodeKey === nodeKey)
+      .map((output) => parseFriendlyOutputValue(output.output))
+      .find(isStructuredToolResult) || null
+  );
+}
+
+function getFocusedWorkflowSummaryResult(outputs = [], nodeKey = '') {
+  for (const record of outputs.filter((output) => output.nodeKey === nodeKey)) {
+    const output = parseFriendlyOutputValue(record.output);
+
+    if (output?.kind === 'workflow_run_summary') {
+      return output;
+    }
+
+    if (output?.output?.kind === 'workflow_run_summary') {
+      return output.output;
+    }
+  }
+
+  return null;
 }
 
 function macroOutcomeClass(outcome) {
@@ -600,7 +646,11 @@ function buildFocusedNodeOutputRows({ outputs = [], contextValues = [], node = n
   });
 }
 
-function getWorkflowHistoryPollingDelay({ activeRunCount = 0, hidden = false, selectedRunActive = false } = {}) {
+function getWorkflowHistoryPollingDelay({
+  activeRunCount = 0,
+  hidden = false,
+  selectedRunActive = false,
+} = {}) {
   if (hidden) {
     return HISTORY_POLL_HIDDEN_MS;
   }
@@ -620,7 +670,12 @@ function getDateDiffMs(start, end) {
   const startDate = start ? new Date(start) : null;
   const endDate = end ? new Date(end) : null;
 
-  if (!startDate || !endDate || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+  if (
+    !startDate ||
+    !endDate ||
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime())
+  ) {
     return null;
   }
 
@@ -628,11 +683,16 @@ function getDateDiffMs(start, end) {
 }
 
 function getRunDurationMs(run) {
-  return run?.metadata?.durationMs || getDateDiffMs(run?.startedAt || run?.createdAt, run?.completedAt);
+  return (
+    run?.metadata?.durationMs || getDateDiffMs(run?.startedAt || run?.createdAt, run?.completedAt)
+  );
 }
 
 function getNodeRunDurationMs(nodeRun) {
-  return nodeRun?.metadata?.durationMs || getDateDiffMs(nodeRun?.startedAt || nodeRun?.createdAt, nodeRun?.completedAt);
+  return (
+    nodeRun?.metadata?.durationMs ||
+    getDateDiffMs(nodeRun?.startedAt || nodeRun?.createdAt, nodeRun?.completedAt)
+  );
 }
 
 function getTemporalRuntime(runDetail) {
@@ -644,7 +704,11 @@ function getRunRelationLabel(run) {
     return null;
   }
 
-  if (run.parentWorkflowRunRecordId || run.triggerType === 'CHILD_WORKFLOW' || run.runSource === 'child_workflow') {
+  if (
+    run.parentWorkflowRunRecordId ||
+    run.triggerType === 'CHILD_WORKFLOW' ||
+    run.runSource === 'child_workflow'
+  ) {
     return 'CHILD';
   }
 
@@ -652,10 +716,12 @@ function getRunRelationLabel(run) {
 }
 
 function getChildRunIdFromNodeRun(nodeRun) {
-  return nodeRun?.output?.childWorkflowRunRecordId
-    || nodeRun?.output?.workflowRunRecordId
-    || nodeRun?.metadata?.childWorkflowRunRecordId
-    || null;
+  return (
+    nodeRun?.output?.childWorkflowRunRecordId ||
+    nodeRun?.output?.workflowRunRecordId ||
+    nodeRun?.metadata?.childWorkflowRunRecordId ||
+    null
+  );
 }
 
 function flattenRunTree(tree, output = []) {
@@ -679,7 +745,12 @@ function statusClass(status) {
     return 'sky-pill-success';
   }
 
-  if (normalized === 'FAILED' || normalized === 'TERMINATED' || normalized === 'REJECTED' || normalized === 'TIMED_OUT') {
+  if (
+    normalized === 'FAILED' ||
+    normalized === 'TERMINATED' ||
+    normalized === 'REJECTED' ||
+    normalized === 'TIMED_OUT'
+  ) {
     return 'sky-pill-danger';
   }
 
@@ -702,7 +773,6 @@ function SmartRunStatusBadges({ run }) {
     </div>
   );
 }
-
 
 function eventCategoryClass(category) {
   const normalized = String(category || '').toLowerCase();
@@ -729,7 +799,6 @@ function jsonPreview(value) {
 
   return JSON.stringify(value, null, 2);
 }
-
 
 function shortenIdentifier(value, head = 18, tail = 10) {
   const text = String(value || '');
@@ -770,7 +839,9 @@ function TemporalIdentifierCard({ href, label, value }) {
   return (
     <div className="sky-temporal-id-card">
       <div className="sky-page-kicker">{label}</div>
-      <div className="sky-mono sky-temporal-id-value" title={value || ''}>{shortenIdentifier(value)}</div>
+      <div className="sky-mono sky-temporal-id-value" title={value || ''}>
+        {shortenIdentifier(value)}
+      </div>
       <div className="d-flex flex-wrap gap-2 mt-2">
         <TemporalCopyButton label="Copy" value={value} />
         {href && (
@@ -810,14 +881,20 @@ function TemporalCliCommands({ commands = {} }) {
   );
 }
 
-function TemporalEventTable({ emptyText = 'No Temporal event preview available.', events = [], title }) {
+function TemporalEventTable({
+  emptyText = 'No Temporal event preview available.',
+  events = [],
+  title,
+}) {
   if (!events || events.length === 0) {
     return title ? (
       <div className="mb-3">
         <div className="sky-page-kicker mb-2">{title}</div>
         <div className="sky-empty-state">{emptyText}</div>
       </div>
-    ) : <div className="sky-empty-state">{emptyText}</div>;
+    ) : (
+      <div className="sky-empty-state">{emptyText}</div>
+    );
   }
 
   return (
@@ -839,13 +916,19 @@ function TemporalEventTable({ emptyText = 'No Temporal event preview available.'
               <tr key={`${event.eventId}-${event.eventType}-${event.eventTime}`}>
                 <td className="sky-mono">{event.eventId || '—'}</td>
                 <td>
-                  <span className={`sky-pill ${eventCategoryClass(event.category)}`}>{event.eventType}</span>
+                  <span className={`sky-pill ${eventCategoryClass(event.category)}`}>
+                    {event.eventType}
+                  </span>
                 </td>
                 <td>{formatDate(event.eventTime)}</td>
                 <td>
                   <div>{event.summary}</div>
-                  {event.failureMessage && <div className="small text-danger-emphasis mt-1">{event.failureMessage}</div>}
-                  {event.retryState && <div className="small sky-muted mt-1">Retry state: {event.retryState}</div>}
+                  {event.failureMessage && (
+                    <div className="small text-danger-emphasis mt-1">{event.failureMessage}</div>
+                  )}
+                  {event.retryState && (
+                    <div className="small sky-muted mt-1">Retry state: {event.retryState}</div>
+                  )}
                 </td>
                 <td className="sky-mono small text-break">
                   {event.target || event.identity || '—'}
@@ -882,10 +965,11 @@ function isActiveRun(run) {
 function getLastExecutedVisualNodeIndex(nodes = [], nodeRuns = []) {
   for (let index = nodes.length - 1; index >= 0; index -= 1) {
     const node = nodes[index];
-    const matchingRun = nodeRuns.find((nodeRun) => (
-      (nodeRun.nodeKey && nodeRun.nodeKey === node.nodeKey)
-      || (node.workflowNodeId && nodeRun.workflowNodeId === node.workflowNodeId)
-    ));
+    const matchingRun = nodeRuns.find(
+      (nodeRun) =>
+        (nodeRun.nodeKey && nodeRun.nodeKey === node.nodeKey) ||
+        (node.workflowNodeId && nodeRun.workflowNodeId === node.workflowNodeId),
+    );
 
     if (matchingRun) {
       return index;
@@ -931,7 +1015,8 @@ function WorkflowRunControls({
           <div className="sky-page-kicker">Run controls</div>
           <div className="fw-bold">Run operation</div>
           <p className="small sky-muted mb-0">
-            Cancel requests a graceful stop, terminate force-closes the Temporal execution, and retry starts a fresh run from the same workflow input.
+            Cancel requests a graceful stop, terminate force-closes the Temporal execution, and
+            retry starts a fresh run from the same workflow input.
           </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
@@ -992,12 +1077,8 @@ function WorkflowDefinitionCard({ definition, selected, onSelect }) {
       </div>
       <p className="small sky-muted mb-2 mt-2">{definition.description || 'No description.'}</p>
       <div className="d-flex flex-wrap gap-2">
-        <span className="sky-pill sky-pill-info">
-          {definition.publishedNodeCount || 0} node(s)
-        </span>
-        <span className="sky-pill sky-pill-info">
-          {definition.publishedEdgeCount || 0} edge(s)
-        </span>
+        <span className="sky-pill sky-pill-info">{definition.publishedNodeCount || 0} node(s)</span>
+        <span className="sky-pill sky-pill-info">{definition.publishedEdgeCount || 0} edge(s)</span>
       </div>
     </button>
   );
@@ -1017,7 +1098,10 @@ function getNodeOutputSummary(output = {}) {
   }
 
   if (output.kind === 'temporal_workflow_execution') {
-    return output.summary || `Temporal workflow template ${output.workflowDisplayName || output.workflowCode || ''} completed.`.trim();
+    return (
+      output.summary ||
+      `Temporal workflow template ${output.workflowDisplayName || output.workflowCode || ''} completed.`.trim()
+    );
   }
 
   if (output.kind === 'temporal_workflow_start') {
@@ -1025,11 +1109,16 @@ function getNodeOutputSummary(output = {}) {
   }
 
   if (output.kind === 'api_call') {
-    return output.summary || `API ${output.method || ''} ${output.url || ''} returned ${output.statusCode || 'unknown status'}`.trim();
+    return (
+      output.summary ||
+      `API ${output.method || ''} ${output.url || ''} returned ${output.statusCode || 'unknown status'}`.trim()
+    );
   }
 
   if (output.kind === 'wait_delay') {
-    return output.summary || `Waited ${output.requestedDurationMs || output.actualDurationMs || 0} ms.`;
+    return (
+      output.summary || `Waited ${output.requestedDurationMs || output.actualDurationMs || 0} ms.`
+    );
   }
 
   if (output.kind === 'human_approval') {
@@ -1053,7 +1142,9 @@ function getNodeOutputSummary(output = {}) {
 
 function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOpenRun }) {
   const runsByNodeKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
-  const approvalsByNodeRunId = new Map(approvals.map((approval) => [approval.workflowNodeRunRecordId, approval]));
+  const approvalsByNodeRunId = new Map(
+    approvals.map((approval) => [approval.workflowNodeRunRecordId, approval]),
+  );
   const approvalsByNodeKey = new Map(approvals.map((approval) => [approval.nodeKey, approval]));
 
   return (
@@ -1064,18 +1155,25 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
         const nodeTypeCode = node.nodeTypeCode || nodeRun?.nodeTypeCode || 'NODE';
         const targetCode = node.targetCode || nodeRun?.targetCode || 'No target';
         const displayName = node.displayName || nodeKey || 'Workflow node';
-        const description = node.description || getNodeOutputSummary(nodeRun?.output) || 'No description';
+        const description =
+          node.description || getNodeOutputSummary(nodeRun?.output) || 'No description';
         const durationMs = getNodeRunDurationMs(nodeRun);
         const outputSummary = getNodeOutputSummary(nodeRun?.output);
         const approval = nodeRun
-          ? approvalsByNodeRunId.get(nodeRun.workflowNodeRunRecordId) || approvalsByNodeKey.get(nodeRun.nodeKey)
+          ? approvalsByNodeRunId.get(nodeRun.workflowNodeRunRecordId) ||
+            approvalsByNodeKey.get(nodeRun.nodeKey)
           : approvalsByNodeKey.get(nodeKey);
 
         return (
-          <div className="sky-worker-command-card" key={node.workflowNodeId || node.workflowNodeRunRecordId || nodeKey}>
+          <div
+            className="sky-worker-command-card"
+            key={node.workflowNodeId || node.workflowNodeRunRecordId || nodeKey}
+          >
             <div className="d-flex justify-content-between gap-3">
               <div>
-                <div className="sky-page-kicker">Node {index + 1} · {nodeTypeCode}</div>
+                <div className="sky-page-kicker">
+                  Node {index + 1} · {nodeTypeCode}
+                </div>
                 <div className="fw-bold">{displayName}</div>
                 <div className="small sky-muted">
                   {targetCode} · {description}
@@ -1089,26 +1187,38 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
             {nodeRun && (
               <div className="d-flex flex-wrap gap-2 mt-3 small">
                 <span className="sky-pill sky-pill-info">Attempts {nodeRun.attemptCount ?? 0}</span>
-                <span className="sky-pill sky-pill-info">Started {formatDate(nodeRun.startedAt || nodeRun.createdAt)}</span>
-                <span className="sky-pill sky-pill-info">Duration {formatDuration(durationMs)}</span>
+                <span className="sky-pill sky-pill-info">
+                  Started {formatDate(nodeRun.startedAt || nodeRun.createdAt)}
+                </span>
+                <span className="sky-pill sky-pill-info">
+                  Duration {formatDuration(durationMs)}
+                </span>
                 {nodeRun.metadata?.temporalBacked && (
                   <span className="sky-pill sky-pill-success">Temporal activity</span>
                 )}
               </div>
             )}
 
-            {outputSummary && (
-              <div className="small sky-muted mt-2">{outputSummary}</div>
-            )}
+            {outputSummary && <div className="small sky-muted mt-2">{outputSummary}</div>}
             {approval && (
               <div className="alert alert-secondary mt-3 mb-0 py-2">
                 <div className="d-flex flex-wrap align-items-center gap-2">
-                  <span className={`sky-pill ${statusClass(approval.status)}`}>{approval.status}</span>
+                  <span className={`sky-pill ${statusClass(approval.status)}`}>
+                    {approval.status}
+                  </span>
                   <span className="fw-semibold">{approval.approvalTitle}</span>
-                  <span className="small sky-muted">Requested {formatDate(approval.requestedAt)}</span>
-                  {approval.decidedAt && <span className="small sky-muted">Decided {formatDate(approval.decidedAt)}</span>}
+                  <span className="small sky-muted">
+                    Requested {formatDate(approval.requestedAt)}
+                  </span>
+                  {approval.decidedAt && (
+                    <span className="small sky-muted">
+                      Decided {formatDate(approval.decidedAt)}
+                    </span>
+                  )}
                 </div>
-                {approval.decisionNote && <div className="small mt-1">Decision note: {approval.decisionNote}</div>}
+                {approval.decisionNote && (
+                  <div className="small mt-1">Decision note: {approval.decisionNote}</div>
+                )}
               </div>
             )}
             {nodeRun?.output?.executionId && (
@@ -1118,7 +1228,9 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
             )}
             {getChildRunIdFromNodeRun(nodeRun) && (
               <div className="small sky-muted mt-2 d-flex flex-wrap align-items-center gap-2">
-                <span>Child run <span className="sky-mono">{getChildRunIdFromNodeRun(nodeRun)}</span></span>
+                <span>
+                  Child run <span className="sky-mono">{getChildRunIdFromNodeRun(nodeRun)}</span>
+                </span>
                 {onOpenRun && (
                   <button
                     className="btn btn-sm sky-btn-ghost"
@@ -1130,14 +1242,17 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
                 )}
               </div>
             )}
-            {nodeRun?.output?.workflowDisplayName && nodeRun?.output?.kind === 'child_workflow_execution' && (
-              <div className="small sky-muted mt-1">
-                Child workflow <span className="fw-semibold">{nodeRun.output.workflowDisplayName}</span>
-              </div>
-            )}
+            {nodeRun?.output?.workflowDisplayName &&
+              nodeRun?.output?.kind === 'child_workflow_execution' && (
+                <div className="small sky-muted mt-1">
+                  Child workflow{' '}
+                  <span className="fw-semibold">{nodeRun.output.workflowDisplayName}</span>
+                </div>
+              )}
             {nodeRun?.output?.temporalWorkflowId && (
               <div className="small sky-muted mt-1">
-                Child Temporal workflow <span className="sky-mono">{nodeRun.output.temporalWorkflowId}</span>
+                Child Temporal workflow{' '}
+                <span className="sky-mono">{nodeRun.output.temporalWorkflowId}</span>
               </div>
             )}
             {nodeRun?.errorMessage && (
@@ -1149,8 +1264,6 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
     </div>
   );
 }
-
-
 
 function getWorkflowRunSummaryFromOutputs(outputs = []) {
   for (const record of outputs) {
@@ -1192,7 +1305,9 @@ function WorkflowRunSummaryPanel({ run, outputs = [] }) {
 
   const counts = summaryOutput?.counts || {};
   const timings = summaryOutput?.timings || {};
-  const recommendedNextActions = Array.isArray(summaryOutput?.recommendedNextActions) ? summaryOutput.recommendedNextActions : [];
+  const recommendedNextActions = Array.isArray(summaryOutput?.recommendedNextActions)
+    ? summaryOutput.recommendedNextActions
+    : [];
   const warnings = Array.isArray(summaryOutput?.warnings) ? summaryOutput.warnings : [];
   const errors = Array.isArray(summaryOutput?.errors) ? summaryOutput.errors : [];
 
@@ -1201,41 +1316,74 @@ function WorkflowRunSummaryPanel({ run, outputs = [] }) {
       <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
         <div>
           <div className="sky-page-kicker">Run summary</div>
-          <h2 className="h5 mb-0">{summaryOutput?.title || run.workflowDisplayName || 'Workflow run summary'}</h2>
+          <h2 className="h5 mb-0">
+            {summaryOutput?.title || run.workflowDisplayName || 'Workflow run summary'}
+          </h2>
           <p className="small sky-muted mb-0 mt-1">{summaryText}</p>
         </div>
         <div className="d-flex flex-wrap gap-2 small">
-          <span className={`sky-pill ${statusClass(summaryOutput?.status || run.status)}`}>{summaryOutput?.status || run.status}</span>
-          {summaryOutput?.nodeKey && <span className="sky-pill sky-pill-info">{summaryOutput.nodeKey}</span>}
-          {timings.durationMs !== undefined && timings.durationMs !== null && <span className="sky-pill sky-pill-info">{formatDuration(timings.durationMs)}</span>}
+          <span className={`sky-pill ${statusClass(summaryOutput?.status || run.status)}`}>
+            {summaryOutput?.status || run.status}
+          </span>
+          {summaryOutput?.nodeKey && (
+            <span className="sky-pill sky-pill-info">{summaryOutput.nodeKey}</span>
+          )}
+          {timings.durationMs !== undefined && timings.durationMs !== null && (
+            <span className="sky-pill sky-pill-info">{formatDuration(timings.durationMs)}</span>
+          )}
         </div>
       </div>
       <div className="sky-card-body">
         <div className="row g-3">
-          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Completed</div><div className="sky-stat-value">{counts.completedNodes ?? '—'}</div></div></div>
-          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Failed</div><div className="sky-stat-value">{counts.failedNodes ?? 0}</div></div></div>
-          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Skipped</div><div className="sky-stat-value">{counts.skippedNodes ?? 0}</div></div></div>
-          <div className="col-md-3"><div className="sky-worker-command-card h-100"><div className="sky-page-kicker">Total nodes</div><div className="sky-stat-value">{counts.totalNodes ?? '—'}</div></div></div>
+          <div className="col-md-3">
+            <div className="sky-worker-command-card h-100">
+              <div className="sky-page-kicker">Completed</div>
+              <div className="sky-stat-value">{counts.completedNodes ?? '—'}</div>
+            </div>
+          </div>
+          <div className="col-md-3">
+            <div className="sky-worker-command-card h-100">
+              <div className="sky-page-kicker">Failed</div>
+              <div className="sky-stat-value">{counts.failedNodes ?? 0}</div>
+            </div>
+          </div>
+          <div className="col-md-3">
+            <div className="sky-worker-command-card h-100">
+              <div className="sky-page-kicker">Skipped</div>
+              <div className="sky-stat-value">{counts.skippedNodes ?? 0}</div>
+            </div>
+          </div>
+          <div className="col-md-3">
+            <div className="sky-worker-command-card h-100">
+              <div className="sky-page-kicker">Total nodes</div>
+              <div className="sky-stat-value">{counts.totalNodes ?? '—'}</div>
+            </div>
+          </div>
         </div>
-        {summaryOutput?.technicalDetails && <pre className="sky-json-block mt-3 mb-0">{summaryOutput.technicalDetails}</pre>}
+        {summaryOutput?.technicalDetails && (
+          <pre className="sky-json-block mt-3 mb-0">{summaryOutput.technicalDetails}</pre>
+        )}
         {recommendedNextActions.length > 0 && (
           <div className="mt-3">
             <div className="sky-page-kicker mb-2">Recommended next actions</div>
             <ul className="small sky-muted mb-0">
-              {recommendedNextActions.map((action) => <li key={action}>{action}</li>)}
+              {recommendedNextActions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
             </ul>
           </div>
         )}
         {(warnings.length > 0 || errors.length > 0) && (
           <div className="alert alert-warning mt-3 mb-0 py-2">
-            {[...warnings, ...errors.map((error) => error.message || String(error))].map((item) => <div key={item}>{item}</div>)}
+            {[...warnings, ...errors.map((error) => error.message || String(error))].map((item) => (
+              <div key={item}>{item}</div>
+            ))}
           </div>
         )}
       </div>
     </section>
   );
 }
-
 
 function MacroIngestionOutput({ toolResult }) {
   const output = getSafeObject(toolResult?.output);
@@ -1250,11 +1398,17 @@ function MacroIngestionOutput({ toolResult }) {
         <div>
           <div className="sky-page-kicker">Macro ingestion result</div>
           <h3 className="h6 mb-1">{output.sourceCode || 'Macro source'} update summary</h3>
-          <p className="small sky-muted mb-0">{toolResult.message || 'Structured ingestion result recorded.'}</p>
+          <p className="small sky-muted mb-0">
+            {toolResult.message || 'Structured ingestion result recorded.'}
+          </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
-          <span className={`sky-pill ${macroOutcomeClass(output.outcome)}`}>{output.outcome || 'UNKNOWN'}</span>
-          <span className="sky-pill sky-pill-info">{output.selectedIndicators ? 'Selected indicators' : 'Full catalogue'}</span>
+          <span className={`sky-pill ${macroOutcomeClass(output.outcome)}`}>
+            {output.outcome || 'UNKNOWN'}
+          </span>
+          <span className="sky-pill sky-pill-info">
+            {output.selectedIndicators ? 'Selected indicators' : 'Full catalogue'}
+          </span>
           <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
         </div>
       </div>
@@ -1317,15 +1471,36 @@ function MacroIngestionOutput({ toolResult }) {
               {indicators.map((indicator, index) => (
                 <tr key={`${indicator.indicatorCode || 'indicator'}-${index}`}>
                   <td className="fw-semibold sky-mono">{indicator.indicatorCode || '—'}</td>
-                  <td><span className={`sky-pill ${macroOutcomeClass(indicator.outcome)}`}>{indicator.outcome || 'UNKNOWN'}</span></td>
+                  <td>
+                    <span className={`sky-pill ${macroOutcomeClass(indicator.outcome)}`}>
+                      {indicator.outcome || 'UNKNOWN'}
+                    </span>
+                  </td>
                   <td>{Number(indicator.rowsInserted || 0).toLocaleString()}</td>
                   <td>{Number(indicator.newRowsDetected || 0).toLocaleString()}</td>
                   <td>{Number(indicator.stagingRows || 0).toLocaleString()}</td>
-                  <td><FriendlyOutputScalar fieldKey="previousTargetMaxDate" value={indicator.previousTargetMaxDate} /></td>
-                  <td><FriendlyOutputScalar fieldKey="sourceMaxDate" value={indicator.sourceMaxDate} /></td>
-                  <td><FriendlyOutputScalar fieldKey="currentTargetMaxDate" value={indicator.currentTargetMaxDate} /></td>
+                  <td>
+                    <FriendlyOutputScalar
+                      fieldKey="previousTargetMaxDate"
+                      value={indicator.previousTargetMaxDate}
+                    />
+                  </td>
+                  <td>
+                    <FriendlyOutputScalar
+                      fieldKey="sourceMaxDate"
+                      value={indicator.sourceMaxDate}
+                    />
+                  </td>
+                  <td>
+                    <FriendlyOutputScalar
+                      fieldKey="currentTargetMaxDate"
+                      value={indicator.currentTargetMaxDate}
+                    />
+                  </td>
                   <td>{formatDuration(indicator.durationMs)}</td>
-                  <td className="sky-macro-ingestion-error-cell">{indicator.error?.message || '—'}</td>
+                  <td className="sky-macro-ingestion-error-cell">
+                    {indicator.error?.message || '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1333,9 +1508,11 @@ function MacroIngestionOutput({ toolResult }) {
         </div>
       )}
 
-      {(warnings.length > 0 || failedMessage) ? (
+      {warnings.length > 0 || failedMessage ? (
         <div className="alert alert-warning mt-3 mb-0 py-2">
-          {warnings.map((warning) => <div key={warning}>{warning}</div>)}
+          {warnings.map((warning) => (
+            <div key={warning}>{warning}</div>
+          ))}
           {failedMessage ? <div>{failedMessage}</div> : null}
         </div>
       ) : null}
@@ -1343,10 +1520,176 @@ function MacroIngestionOutput({ toolResult }) {
   );
 }
 
-function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = [], selectedNodeIndex = null }) {
-  const hasSelection = Number.isInteger(selectedNodeIndex)
-    && selectedNodeIndex >= 0
-    && selectedNodeIndex < nodes.length;
+function WorkflowSummaryNodeOutput({ summaryResult }) {
+  const structuredResults = getSafeObject(
+    summaryResult?.structuredResults || summaryResult?.output?.structuredResults,
+  );
+  const macroIngestion = getSafeObject(
+    summaryResult?.macroIngestion || summaryResult?.output?.macroIngestion,
+  );
+  const macroSources = getSafeArray(macroIngestion.sources);
+  const macroTotals = getSafeObject(macroIngestion.totals);
+  const keyOutputs = getSafeObject(summaryResult?.keyOutputs || summaryResult?.output?.keyOutputs);
+  const nodeSummaries = Object.values(keyOutputs);
+  const warnings = getSafeArray(summaryResult?.warnings);
+  const errors = getSafeArray(summaryResult?.errors);
+
+  return (
+    <div className="sky-workflow-summary-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Structured workflow summary</div>
+          <h3 className="h6 mb-1">{summaryResult?.title || 'Workflow summary'}</h3>
+          <p className="small sky-muted mb-0">
+            {summaryResult?.summary || summaryResult?.message || 'Summary node completed.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${statusClass(summaryResult?.status || 'SUCCESS')}`}>
+            {summaryResult?.status || 'SUCCESS'}
+          </span>
+          {structuredResults.resultCount !== undefined ? (
+            <span className="sky-pill sky-pill-info">
+              {structuredResults.resultCount} structured result(s)
+            </span>
+          ) : null}
+          {macroSources.length > 0 ? (
+            <span className={`sky-pill ${macroOutcomeClass(macroIngestion.outcome)}`}>
+              {macroIngestion.outcome || 'UNKNOWN'}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      {macroSources.length > 0 ? (
+        <>
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div className="sky-page-kicker">Macro source results</div>
+            <span className="sky-pill sky-pill-info">{macroSources.length} source(s)</span>
+          </div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Node</th>
+                  <th>Outcome</th>
+                  <th>Requested</th>
+                  <th>Updated</th>
+                  <th>Unchanged</th>
+                  <th>Failed</th>
+                  <th>Rows inserted</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {macroSources.map((source) => (
+                  <tr key={`${source.nodeKey || source.sourceCode}-${source.sourceCode}`}>
+                    <td className="fw-semibold">{source.sourceCode || 'Macro source'}</td>
+                    <td className="sky-mono">{source.nodeKey || '—'}</td>
+                    <td>
+                      <span className={`sky-pill ${macroOutcomeClass(source.outcome)}`}>
+                        {source.outcome || 'UNKNOWN'}
+                      </span>
+                    </td>
+                    <td>{Number(source.totals?.indicatorsRequested || 0).toLocaleString()}</td>
+                    <td>{Number(source.totals?.indicatorsUpdated || 0).toLocaleString()}</td>
+                    <td>{Number(source.totals?.indicatorsUnchanged || 0).toLocaleString()}</td>
+                    <td>{Number(source.totals?.indicatorsFailed || 0).toLocaleString()}</td>
+                    <td className="fw-semibold">
+                      {Number(source.totals?.rowsInserted || 0).toLocaleString()}
+                    </td>
+                    <td>{formatDuration(source.durationMs)}</td>
+                  </tr>
+                ))}
+                <tr className="fw-semibold">
+                  <td>Combined</td>
+                  <td>{macroSources.length} nodes</td>
+                  <td>
+                    <span className={`sky-pill ${macroOutcomeClass(macroIngestion.outcome)}`}>
+                      {macroIngestion.outcome || 'UNKNOWN'}
+                    </span>
+                  </td>
+                  <td>{Number(macroTotals.indicatorsRequested || 0).toLocaleString()}</td>
+                  <td>{Number(macroTotals.indicatorsUpdated || 0).toLocaleString()}</td>
+                  <td>{Number(macroTotals.indicatorsUnchanged || 0).toLocaleString()}</td>
+                  <td>{Number(macroTotals.indicatorsFailed || 0).toLocaleString()}</td>
+                  <td>{Number(macroTotals.rowsInserted || 0).toLocaleString()}</td>
+                  <td>{formatDuration(macroIngestion.durationMs)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {nodeSummaries.length > 0 ? (
+        <>
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div className="sky-page-kicker">Node result index</div>
+            <span className="sky-pill sky-pill-info">{nodeSummaries.length} node(s)</span>
+          </div>
+          <div className="table-responsive sky-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Node</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Summary</th>
+                  <th>Output contract</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {nodeSummaries.map((item) => (
+                  <tr key={item.nodeKey || item.toolCode || item.summary}>
+                    <td className="sky-mono">{item.nodeKey || '—'}</td>
+                    <td>{humanizeOutputKey(item.kind || 'node output')}</td>
+                    <td>
+                      <span
+                        className={`sky-pill ${statusClass(item.status || (item.success === false ? 'FAILED' : 'SUCCESS'))}`}
+                      >
+                        {item.status || (item.success === false ? 'FAILED' : 'SUCCESS')}
+                      </span>
+                    </td>
+                    <td>{item.summary || '—'}</td>
+                    <td className="sky-mono">{item.outputType || 'generic'}</td>
+                    <td>{formatDuration(item.durationMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {warnings.length > 0 || errors.length > 0 ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning, index) => (
+            <div key={`warning-${index}`}>
+              {typeof warning === 'string' ? warning : warning.message || JSON.stringify(warning)}
+            </div>
+          ))}
+          {errors.map((error, index) => (
+            <div key={`error-${index}`}>{error?.message || String(error)}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkflowNodeOutputLedger({
+  outputs = [],
+  contextValues = [],
+  nodes = [],
+  selectedNodeIndex = null,
+}) {
+  const hasSelection =
+    Number.isInteger(selectedNodeIndex) &&
+    selectedNodeIndex >= 0 &&
+    selectedNodeIndex < nodes.length;
   const selectedNode = hasSelection ? nodes[selectedNodeIndex] : null;
   const selectedOutputs = selectedNode
     ? outputs.filter((output) => output.nodeKey === selectedNode.nodeKey)
@@ -1362,9 +1705,16 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
     () => getFocusedToolResult(outputs, selectedNode?.nodeKey),
     [outputs, selectedNode?.nodeKey],
   );
-  const macroIngestionResult = structuredToolResult?.outputType === 'macro_ingestion_summary.v1'
-    ? structuredToolResult
-    : null;
+  const workflowSummaryResult = useMemo(
+    () => getFocusedWorkflowSummaryResult(outputs, selectedNode?.nodeKey),
+    [outputs, selectedNode?.nodeKey],
+  );
+  const macroIngestionResult =
+    structuredToolResult?.outputType === 'macro_ingestion_summary.v1' ? structuredToolResult : null;
+  const summaryMacroSources = getSafeArray(
+    workflowSummaryResult?.macroIngestion?.sources ||
+      workflowSummaryResult?.output?.macroIngestion?.sources,
+  );
   const displayName = selectedNode?.displayName || selectedNode?.nodeKey || 'Focused node';
 
   return (
@@ -1373,17 +1723,30 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
         <div>
           <div className="sky-page-kicker">Focused node output</div>
           <h2 className="h5 mb-0">
-            {selectedNode ? `Node ${selectedNodeIndex + 1} · ${displayName}` : 'Select a workflow node'}
+            {selectedNode
+              ? `Node ${selectedNodeIndex + 1} · ${displayName}`
+              : 'Select a workflow node'}
           </h2>
           <p className="small sky-muted mb-0 mt-1">
-            Only node-specific result values not already shown in the runtime graph or run summary are displayed here.
+            Only node-specific result values not already shown in the runtime graph or run summary
+            are displayed here.
           </p>
         </div>
         {selectedNode && (
           <div className="d-flex flex-wrap gap-2 small">
-            <span className="sky-pill sky-pill-info">{selectedOutputs.length} output record(s)</span>
+            <span className="sky-pill sky-pill-info">
+              {selectedOutputs.length} output record(s)
+            </span>
             {macroIngestionResult ? (
-              <span className="sky-pill sky-pill-success">{getSafeArray(macroIngestionResult.output?.indicators).length} indicator result(s)</span>
+              <span className="sky-pill sky-pill-success">
+                {getSafeArray(macroIngestionResult.output?.indicators).length} indicator result(s)
+              </span>
+            ) : workflowSummaryResult ? (
+              <span className="sky-pill sky-pill-success">
+                {summaryMacroSources.length ||
+                  Object.keys(getSafeObject(workflowSummaryResult.keyOutputs)).length}{' '}
+                summarized node(s)
+              </span>
             ) : (
               <span className="sky-pill sky-pill-success">{rows.length} unique value(s)</span>
             )}
@@ -1397,9 +1760,12 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
           </div>
         ) : macroIngestionResult ? (
           <MacroIngestionOutput toolResult={macroIngestionResult} />
+        ) : workflowSummaryResult ? (
+          <WorkflowSummaryNodeOutput summaryResult={workflowSummaryResult} />
         ) : rows.length === 0 ? (
           <div className="sky-empty-state">
-            No additional node-specific output was recorded. Status, attempts, duration, target, and summary details are already shown above.
+            No additional node-specific output was recorded. Status, attempts, duration, target, and
+            summary details are already shown above.
           </div>
         ) : (
           <div className="table-responsive sky-table-card sky-focused-node-output-table-card">
@@ -1414,7 +1780,9 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
               <tbody>
                 {rows.map((row, index) => (
                   <tr key={`${row.source}-${row.field}-${index}`}>
-                    <td><span className="sky-pill sky-pill-info">{row.source}</span></td>
+                    <td>
+                      <span className="sky-pill sky-pill-info">{row.source}</span>
+                    </td>
                     <td className="fw-semibold">{row.field}</td>
                     <td className="sky-focused-node-output-value">
                       <FriendlyOutputScalar fieldKey={row.fieldKey} value={row.value} />
@@ -1425,9 +1793,14 @@ function WorkflowNodeOutputLedger({ outputs = [], contextValues = [], nodes = []
             </table>
           </div>
         )}
-        {selectedNode && !macroIngestionResult && selectedContextValues.length > 0 && rows.length === 0 ? (
+        {selectedNode &&
+        !macroIngestionResult &&
+        !workflowSummaryResult &&
+        selectedContextValues.length > 0 &&
+        rows.length === 0 ? (
           <div className="small sky-muted mt-2">
-            {selectedContextValues.length} runtime context value(s) were omitted because they repeat graph telemetry or persisted output.
+            {selectedContextValues.length} runtime context value(s) were omitted because they repeat
+            graph telemetry or persisted output.
           </div>
         ) : null}
       </div>
@@ -1451,30 +1824,48 @@ function WorkflowRunTreeNode({ node, selectedRunId, onOpenRun }) {
   }
 
   return (
-    <div className={`sky-worker-command-card ${run.workflowRunRecordId === selectedRunId ? 'sky-selected-row' : ''}`}>
+    <div
+      className={`sky-worker-command-card ${run.workflowRunRecordId === selectedRunId ? 'sky-selected-row' : ''}`}
+    >
       <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
         <div>
-          <div className="sky-page-kicker">{node.depth === 0 ? 'Root workflow' : `Child workflow · depth ${node.depth}`}</div>
+          <div className="sky-page-kicker">
+            {node.depth === 0 ? 'Root workflow' : `Child workflow · depth ${node.depth}`}
+          </div>
           <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
           <div className="small sky-mono sky-muted">{run.workflowCode}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
-          {run.workflowRunRecordId === selectedRunId && <span className="sky-pill sky-pill-info">Selected</span>}
+          {run.workflowRunRecordId === selectedRunId && (
+            <span className="sky-pill sky-pill-info">Selected</span>
+          )}
           <span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span>
         </div>
       </div>
 
       <div className="d-flex flex-wrap gap-2 mt-2 small">
-        <span className="sky-pill sky-pill-info">Started {formatDate(run.startedAt || run.createdAt)}</span>
-        <span className="sky-pill sky-pill-info">Duration {formatDuration(getRunDurationMs(run))}</span>
-        {run.temporalWorkflowId && <span className="sky-pill sky-pill-success">Temporal-backed</span>}
+        <span className="sky-pill sky-pill-info">
+          Started {formatDate(run.startedAt || run.createdAt)}
+        </span>
+        <span className="sky-pill sky-pill-info">
+          Duration {formatDuration(getRunDurationMs(run))}
+        </span>
+        {run.temporalWorkflowId && (
+          <span className="sky-pill sky-pill-success">Temporal-backed</span>
+        )}
         {run.childWorkflow && <span className="sky-pill sky-pill-warning">Child</span>}
       </div>
 
       <div className="d-flex flex-wrap align-items-center gap-2 mt-2 small">
-        <span className="sky-muted">Run <span className="sky-mono">{run.workflowRunRecordId}</span></span>
+        <span className="sky-muted">
+          Run <span className="sky-mono">{run.workflowRunRecordId}</span>
+        </span>
         {run.workflowRunRecordId !== selectedRunId && onOpenRun && (
-          <button className="btn btn-sm sky-btn-ghost" onClick={() => onOpenRun(run.workflowRunRecordId)} type="button">
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            onClick={() => onOpenRun(run.workflowRunRecordId)}
+            type="button"
+          >
             Open run
           </button>
         )}
@@ -1486,14 +1877,25 @@ function WorkflowRunTreeNode({ node, selectedRunId, onOpenRun }) {
             const childNodes = childNodesByParentKey.get(nodeRun.nodeKey) || [];
 
             return (
-              <div className="border rounded p-2" key={nodeRun.workflowNodeRunRecordId || `${run.workflowRunRecordId}-${nodeRun.nodeKey}`}>
+              <div
+                className="border rounded p-2"
+                key={
+                  nodeRun.workflowNodeRunRecordId || `${run.workflowRunRecordId}-${nodeRun.nodeKey}`
+                }
+              >
                 <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
-                    <div className="sky-page-kicker">Node {index + 1} · {nodeRun.nodeTypeCode}</div>
-                    <div className="fw-semibold">{nodeRun.metadata?.displayName || nodeRun.nodeKey}</div>
+                    <div className="sky-page-kicker">
+                      Node {index + 1} · {nodeRun.nodeTypeCode}
+                    </div>
+                    <div className="fw-semibold">
+                      {nodeRun.metadata?.displayName || nodeRun.nodeKey}
+                    </div>
                     <div className="small sky-muted">{nodeRun.targetCode || 'No target'}</div>
                   </div>
-                  <span className={`sky-pill ${statusClass(nodeRun.status)}`}>{nodeRun.status}</span>
+                  <span className={`sky-pill ${statusClass(nodeRun.status)}`}>
+                    {nodeRun.status}
+                  </span>
                 </div>
                 {getNodeOutputSummary(nodeRun.output) && (
                   <div className="small sky-muted mt-1">{getNodeOutputSummary(nodeRun.output)}</div>
@@ -1518,14 +1920,16 @@ function WorkflowRunTreeNode({ node, selectedRunId, onOpenRun }) {
 
       {(node.children || []).filter((child) => !child.parentNodeKey).length > 0 && (
         <div className="mt-3 ms-3 d-flex flex-column gap-2">
-          {(node.children || []).filter((child) => !child.parentNodeKey).map((child) => (
-            <WorkflowRunTreeNode
-              key={child.run.workflowRunRecordId}
-              node={child}
-              onOpenRun={onOpenRun}
-              selectedRunId={selectedRunId}
-            />
-          ))}
+          {(node.children || [])
+            .filter((child) => !child.parentNodeKey)
+            .map((child) => (
+              <WorkflowRunTreeNode
+                key={child.run.workflowRunRecordId}
+                node={child}
+                onOpenRun={onOpenRun}
+                selectedRunId={selectedRunId}
+              />
+            ))}
         </div>
       )}
     </div>
@@ -1541,7 +1945,9 @@ function WorkflowRunTreePanel({ tree, selectedRunId, onOpenRun }) {
           <h2 className="h5 mb-0">Workflow family</h2>
         </div>
         <div className="sky-card-body">
-          <div className="sky-empty-state">Select a workflow run to inspect parent/child relationships.</div>
+          <div className="sky-empty-state">
+            Select a workflow run to inspect parent/child relationships.
+          </div>
         </div>
       </section>
     );
@@ -1578,7 +1984,9 @@ function TemporalRuntimePanel({ runtime }) {
           <h2 className="h5 mb-0">Execution diagnostics</h2>
         </div>
         <div className="sky-card-body">
-          <div className="sky-empty-state">Select a Temporal-backed run to inspect runtime details.</div>
+          <div className="sky-empty-state">
+            Select a Temporal-backed run to inspect runtime details.
+          </div>
         </div>
       </section>
     );
@@ -1604,19 +2012,36 @@ function TemporalRuntimePanel({ runtime }) {
           <h2 className="h5 mb-0">Execution diagnostics</h2>
         </div>
         <div className="d-flex flex-wrap gap-2">
-          <span className={`sky-pill ${statusClass(runtime.status || 'UNKNOWN')}`}>{runtime.status || 'UNKNOWN'}</span>
+          <span className={`sky-pill ${statusClass(runtime.status || 'UNKNOWN')}`}>
+            {runtime.status || 'UNKNOWN'}
+          </span>
           {(links.workflow || runtime.uiUrl) && (
-            <a className="btn btn-sm sky-btn-ghost" href={links.workflow || runtime.uiUrl} rel="noreferrer" target="_blank">
+            <a
+              className="btn btn-sm sky-btn-ghost"
+              href={links.workflow || runtime.uiUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
               Open workflow
             </a>
           )}
           {links.history && (
-            <a className="btn btn-sm sky-btn-ghost" href={links.history} rel="noreferrer" target="_blank">
+            <a
+              className="btn btn-sm sky-btn-ghost"
+              href={links.history}
+              rel="noreferrer"
+              target="_blank"
+            >
               Open history
             </a>
           )}
           {links.query && (
-            <a className="btn btn-sm sky-btn-ghost" href={links.query} rel="noreferrer" target="_blank">
+            <a
+              className="btn btn-sm sky-btn-ghost"
+              href={links.query}
+              rel="noreferrer"
+              target="_blank"
+            >
               Search Temporal
             </a>
           )}
@@ -1624,9 +2049,7 @@ function TemporalRuntimePanel({ runtime }) {
       </div>
       <div className="sky-card-body">
         {runtime.warnings?.length > 0 && (
-          <div className="alert alert-warning py-2">
-            {runtime.warnings.join(' ')}
-          </div>
+          <div className="alert alert-warning py-2">{runtime.warnings.join(' ')}</div>
         )}
 
         <div className="row g-2 mb-3">
@@ -1645,7 +2068,9 @@ function TemporalRuntimePanel({ runtime }) {
           <div className="col-md-3 col-6">
             <div className="sky-mini-metric">
               <div className="sky-page-kicker">History events</div>
-              <div className="sky-mini-metric-value">{history.eventCount || runtime.historyLength || '—'}</div>
+              <div className="sky-mini-metric-value">
+                {history.eventCount || runtime.historyLength || '—'}
+              </div>
             </div>
           </div>
           <div className="col-md-3 col-6">
@@ -1657,24 +2082,43 @@ function TemporalRuntimePanel({ runtime }) {
         </div>
 
         <div className="sky-temporal-id-grid mb-3">
-          <TemporalIdentifierCard label="Workflow ID" href={links.workflow || runtime.uiUrl} value={runtime.workflowId} />
-          <TemporalIdentifierCard label="Run ID" href={links.history || links.workflow || runtime.uiUrl} value={runtime.runId} />
+          <TemporalIdentifierCard
+            label="Workflow ID"
+            href={links.workflow || runtime.uiUrl}
+            value={runtime.workflowId}
+          />
+          <TemporalIdentifierCard
+            label="Run ID"
+            href={links.history || links.workflow || runtime.uiUrl}
+            value={runtime.runId}
+          />
           <TemporalIdentifierCard label="Workflow type" value={runtime.workflowType} />
           <TemporalIdentifierCard label="Address" value={runtime.address || diagnostics.address} />
         </div>
 
         <div className="d-flex flex-wrap gap-2 mb-3 small">
-          <span className="sky-pill sky-pill-info">Workflow tasks {workflowTaskCounts.completed || 0}/{workflowTaskCounts.scheduled || 0}</span>
-          <span className="sky-pill sky-pill-success">Activities completed {activityCounts.completed || 0}</span>
+          <span className="sky-pill sky-pill-info">
+            Workflow tasks {workflowTaskCounts.completed || 0}/{workflowTaskCounts.scheduled || 0}
+          </span>
+          <span className="sky-pill sky-pill-success">
+            Activities completed {activityCounts.completed || 0}
+          </span>
           {(activityCounts.failed || activityCounts.timedOut || activityCounts.canceled) > 0 && (
             <span className="sky-pill sky-pill-danger">
-              Activity issues {(activityCounts.failed || 0) + (activityCounts.timedOut || 0) + (activityCounts.canceled || 0)}
+              Activity issues{' '}
+              {(activityCounts.failed || 0) +
+                (activityCounts.timedOut || 0) +
+                (activityCounts.canceled || 0)}
             </span>
           )}
           {Object.keys(signalCounts).map((signalName) => (
-            <span className="sky-pill sky-pill-info" key={signalName}>Signal {signalName}: {signalCounts[signalName]}</span>
+            <span className="sky-pill sky-pill-info" key={signalName}>
+              Signal {signalName}: {signalCounts[signalName]}
+            </span>
           ))}
-          {history.truncated && <span className="sky-pill sky-pill-warning">History preview truncated</span>}
+          {history.truncated && (
+            <span className="sky-pill sky-pill-warning">History preview truncated</span>
+          )}
         </div>
 
         <TemporalCliCommands commands={diagnostics.cliCommands} />
@@ -1758,7 +2202,8 @@ function SkyWorkflows({ mode = 'start' }) {
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const selectedRelations = selectedRunDetail?.relations || {};
   const runtimeParameters = useMemo(
-    () => normalizeRuntimeParameterDefinitions(selectedDefinitionDetail || selectedDefinition || {}),
+    () =>
+      normalizeRuntimeParameterDefinitions(selectedDefinitionDetail || selectedDefinition || {}),
     [selectedDefinition, selectedDefinitionDetail],
   );
   const runtimeVisualNodes = selectedRunDetail?.definitionGraph?.nodes?.length
@@ -1791,12 +2236,15 @@ function SkyWorkflows({ mode = 'start' }) {
 
   const runStats = useMemo(() => {
     const completed = runs.filter((run) => run.status === 'COMPLETED').length;
-    const running = runs.filter((run) => run.status === 'RUNNING' || run.status === 'QUEUED').length;
-    const failed = runs.filter((run) => run.status === 'FAILED' || run.status === 'TERMINATED').length;
+    const running = runs.filter(
+      (run) => run.status === 'RUNNING' || run.status === 'QUEUED',
+    ).length;
+    const failed = runs.filter(
+      (run) => run.status === 'FAILED' || run.status === 'TERMINATED',
+    ).length;
 
     return { completed, running, failed };
   }, [runs]);
-
 
   const historyRuns = useMemo(
     () => runs.filter((run) => runMatchesRuntimeFilter(run, filters.runtime)),
@@ -1805,7 +2253,10 @@ function SkyWorkflows({ mode = 'start' }) {
   const historyPageCount = Math.max(1, Math.ceil(historyRuns.length / HISTORY_PAGE_SIZE));
   const currentHistoryPage = Math.min(historyPage, historyPageCount);
   const historyPageStart = (currentHistoryPage - 1) * HISTORY_PAGE_SIZE;
-  const pagedHistoryRuns = historyRuns.slice(historyPageStart, historyPageStart + HISTORY_PAGE_SIZE);
+  const pagedHistoryRuns = historyRuns.slice(
+    historyPageStart,
+    historyPageStart + HISTORY_PAGE_SIZE,
+  );
   const historyRangeStart = historyRuns.length === 0 ? 0 : historyPageStart + 1;
   const historyRangeEnd = Math.min(historyPageStart + HISTORY_PAGE_SIZE, historyRuns.length);
 
@@ -1817,7 +2268,9 @@ function SkyWorkflows({ mode = 'start' }) {
     const nextSelection =
       (keepSelection && selectedDefinition
         ? items.find((item) => item.workflowCode === selectedDefinition.workflowCode)
-        : null) || items[0] || null;
+        : null) ||
+      items[0] ||
+      null;
 
     setSelectedDefinition(nextSelection);
 
@@ -1880,7 +2333,6 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
-
   async function handleDefinitionSelect(workflowCode) {
     const definition = definitions.find((item) => item.workflowCode === workflowCode) || null;
 
@@ -1893,7 +2345,10 @@ function SkyWorkflows({ mode = 'start' }) {
     await loadDefinitionDetail(definition);
   }
 
-  async function loadRunDetail(workflowRunRecordId, { quiet = false, telemetry = isHistoryMode } = {}) {
+  async function loadRunDetail(
+    workflowRunRecordId,
+    { quiet = false, telemetry = isHistoryMode } = {},
+  ) {
     if (!workflowRunRecordId) {
       return null;
     }
@@ -1922,7 +2377,6 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
-
   async function refreshWorkflowHistoryTelemetry({ quiet = true } = {}) {
     if (!isHistoryMode || telemetryPollingRef.current) {
       return null;
@@ -1941,7 +2395,10 @@ function SkyWorkflows({ mode = 'start' }) {
       const visiblePageCount = Math.max(1, Math.ceil(visibleRuns.length / HISTORY_PAGE_SIZE));
       const visibleCurrentPage = Math.min(historyPage, visiblePageCount);
       const visiblePageStart = (visibleCurrentPage - 1) * HISTORY_PAGE_SIZE;
-      const visiblePageRuns = visibleRuns.slice(visiblePageStart, visiblePageStart + HISTORY_PAGE_SIZE);
+      const visiblePageRuns = visibleRuns.slice(
+        visiblePageStart,
+        visiblePageStart + HISTORY_PAGE_SIZE,
+      );
       const selectedRunId = selectedRun?.workflowRunRecordId;
       const selectedVisibleRun = selectedRunId
         ? visiblePageRuns.find((run) => run.workflowRunRecordId === selectedRunId)
@@ -2060,7 +2517,9 @@ function SkyWorkflows({ mode = 'start' }) {
       return;
     }
 
-    const confirmed = window.confirm('Cancel this workflow run? Temporal will receive a graceful cancellation request when available.');
+    const confirmed = window.confirm(
+      'Cancel this workflow run? Temporal will receive a graceful cancellation request when available.',
+    );
 
     if (!confirmed) {
       return;
@@ -2089,7 +2548,10 @@ function SkyWorkflows({ mode = 'start' }) {
       return;
     }
 
-    const reason = window.prompt('Terminate this workflow run? Add a cleanup reason:', 'Terminated from SkyCommand Workflow History.');
+    const reason = window.prompt(
+      'Terminate this workflow run? Add a cleanup reason:',
+      'Terminated from SkyCommand Workflow History.',
+    );
 
     if (reason === null) {
       return;
@@ -2100,7 +2562,9 @@ function SkyWorkflows({ mode = 'start' }) {
     setMessage('');
 
     try {
-      const result = await workflowService.terminateRun(selectedRun.workflowRunRecordId, { reason });
+      const result = await workflowService.terminateRun(selectedRun.workflowRunRecordId, {
+        reason,
+      });
       setMessage(result.message || 'Workflow run terminated.');
       await loadRuns(filters, { keepSelection: true });
       await loadRunDetail(result.run?.workflowRunRecordId || selectedRun.workflowRunRecordId);
@@ -2116,7 +2580,9 @@ function SkyWorkflows({ mode = 'start' }) {
       return;
     }
 
-    const confirmed = window.confirm('Retry this workflow run using the same saved input and current published workflow definition?');
+    const confirmed = window.confirm(
+      'Retry this workflow run using the same saved input and current published workflow definition?',
+    );
 
     if (!confirmed) {
       return;
@@ -2206,9 +2672,9 @@ function SkyWorkflows({ mode = 'start' }) {
     const expectedCompletedNodeCount = Number(selectedRun.metadata?.completedNodeCount || 0);
 
     if (
-      Number.isFinite(expectedCompletedNodeCount)
-      && expectedCompletedNodeCount > 0
-      && selectedNodeRuns.length < expectedCompletedNodeCount
+      Number.isFinite(expectedCompletedNodeCount) &&
+      expectedCompletedNodeCount > 0 &&
+      selectedNodeRuns.length < expectedCompletedNodeCount
     ) {
       return;
     }
@@ -2235,7 +2701,6 @@ function SkyWorkflows({ mode = 'start' }) {
     setRuntimeParameterValues(getInitialRuntimeParameterValues(runtimeParameters));
     setRuntimeParameterError('');
   }, [selectedDefinitionDetail?.workflowCode]);
-
 
   useEffect(() => {
     if (historyPage > historyPageCount) {
@@ -2276,11 +2741,13 @@ function SkyWorkflows({ mode = 'start' }) {
 
       const fallbackActiveRunCount = runs.filter(isActiveRun).length;
       const fallbackSelectedRunActive = isActiveRun(selectedRun);
-      const delay = pollResult?.intervalMs || getWorkflowHistoryPollingDelay({
-        activeRunCount: pollResult?.activeRunCount ?? fallbackActiveRunCount,
-        hidden: document.visibilityState === 'hidden',
-        selectedRunActive: pollResult?.selectedRunActive ?? fallbackSelectedRunActive,
-      });
+      const delay =
+        pollResult?.intervalMs ||
+        getWorkflowHistoryPollingDelay({
+          activeRunCount: pollResult?.activeRunCount ?? fallbackActiveRunCount,
+          hidden: document.visibilityState === 'hidden',
+          selectedRunActive: pollResult?.selectedRunActive ?? fallbackSelectedRunActive,
+        });
 
       timerId = window.setTimeout(pollWorkflowHistory, delay);
     }
@@ -2306,7 +2773,13 @@ function SkyWorkflows({ mode = 'start' }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHistoryMode, filters.status, filters.runtime, selectedRun?.workflowRunRecordId, selectedRun?.status]);
+  }, [
+    isHistoryMode,
+    filters.status,
+    filters.runtime,
+    selectedRun?.workflowRunRecordId,
+    selectedRun?.status,
+  ]);
 
   useEffect(() => {
     if (isHistoryMode || !selectedRun?.workflowRunRecordId || !isActiveRun(selectedRun)) {
@@ -2363,14 +2836,20 @@ function SkyWorkflows({ mode = 'start' }) {
     return (
       <>
         <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
-          <span className={`sky-pill ${statusClass(selectedRun.status)}`}>{selectedRun.status}</span>
+          <span className={`sky-pill ${statusClass(selectedRun.status)}`}>
+            {selectedRun.status}
+          </span>
           <span className="small sky-muted">{formatDuration(getRunDurationMs(selectedRun))}</span>
         </div>
         <dl className="row small mb-3">
           <dt className="col-4 sky-detail-label">Workflow</dt>
-          <dd className="col-8 sky-detail-value">{selectedRun.workflowDisplayName || selectedRun.workflowCode}</dd>
+          <dd className="col-8 sky-detail-value">
+            {selectedRun.workflowDisplayName || selectedRun.workflowCode}
+          </dd>
           <dt className="col-4 sky-detail-label">Run</dt>
-          <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.workflowRunRecordId}</dd>
+          <dd className="col-8 sky-detail-value sky-mono text-break">
+            {selectedRun.workflowRunRecordId}
+          </dd>
           {selectedRelations.parentRun && (
             <>
               <dt className="col-4 sky-detail-label">Parent</dt>
@@ -2380,7 +2859,8 @@ function SkyWorkflows({ mode = 'start' }) {
                   onClick={() => loadRunDetail(selectedRelations.parentRun.workflowRunRecordId)}
                   type="button"
                 >
-                  {selectedRelations.parentRun.workflowDisplayName || selectedRelations.parentRun.workflowCode}
+                  {selectedRelations.parentRun.workflowDisplayName ||
+                    selectedRelations.parentRun.workflowCode}
                 </button>
                 {selectedRun.parentNodeKey && (
                   <div className="small sky-muted sky-mono">via {selectedRun.parentNodeKey}</div>
@@ -2392,7 +2872,9 @@ function SkyWorkflows({ mode = 'start' }) {
             <>
               <dt className="col-4 sky-detail-label">Children</dt>
               <dd className="col-8 sky-detail-value">
-                <span className="sky-pill sky-pill-info">{selectedRelations.childRuns.length} child run(s)</span>
+                <span className="sky-pill sky-pill-info">
+                  {selectedRelations.childRuns.length} child run(s)
+                </span>
               </dd>
             </>
           )}
@@ -2401,14 +2883,19 @@ function SkyWorkflows({ mode = 'start' }) {
               <dt className="col-4 sky-detail-label">Approvals</dt>
               <dd className="col-8 sky-detail-value">
                 <span className="sky-pill sky-pill-warning">
-                  {selectedApprovals.filter((approval) => approval.status === 'PENDING').length} pending
+                  {selectedApprovals.filter((approval) => approval.status === 'PENDING').length}{' '}
+                  pending
                 </span>
-                <span className="sky-pill sky-pill-info ms-1">{selectedApprovals.length} total</span>
+                <span className="sky-pill sky-pill-info ms-1">
+                  {selectedApprovals.length} total
+                </span>
               </dd>
             </>
           )}
           <dt className="col-4 sky-detail-label">Started</dt>
-          <dd className="col-8 sky-detail-value">{formatDate(selectedRun.startedAt || selectedRun.createdAt)}</dd>
+          <dd className="col-8 sky-detail-value">
+            {formatDate(selectedRun.startedAt || selectedRun.createdAt)}
+          </dd>
           <dt className="col-4 sky-detail-label">Completed</dt>
           <dd className="col-8 sky-detail-value">{formatDate(selectedRun.completedAt)}</dd>
           <dt className="col-4 sky-detail-label">Source</dt>
@@ -2416,17 +2903,29 @@ function SkyWorkflows({ mode = 'start' }) {
           <dt className="col-4 sky-detail-label">Runtime params</dt>
           <dd className="col-8 sky-detail-value">
             {Object.keys(getSafeObject(selectedRun.input?.params)).length > 0 ? (
-              <span className="sky-pill sky-pill-info">{Object.keys(getSafeObject(selectedRun.input.params)).length} parameter(s)</span>
-            ) : '—'}
+              <span className="sky-pill sky-pill-info">
+                {Object.keys(getSafeObject(selectedRun.input.params)).length} parameter(s)
+              </span>
+            ) : (
+              '—'
+            )}
           </dd>
           <dt className="col-4 sky-detail-label">Started by</dt>
-          <dd className="col-8 sky-detail-value">{selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}</dd>
+          <dd className="col-8 sky-detail-value">
+            {selectedRun.startedByDisplayName || selectedRun.startedByEmail || '—'}
+          </dd>
           <dt className="col-4 sky-detail-label">Executor</dt>
-          <dd className="col-8 sky-detail-value sky-mono">{selectedRun.metadata?.executor || '—'}</dd>
+          <dd className="col-8 sky-detail-value sky-mono">
+            {selectedRun.metadata?.executor || '—'}
+          </dd>
           <dt className="col-4 sky-detail-label">Temporal workflow</dt>
-          <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalWorkflowId || '—'}</dd>
+          <dd className="col-8 sky-detail-value sky-mono text-break">
+            {selectedRun.temporalWorkflowId || '—'}
+          </dd>
           <dt className="col-4 sky-detail-label">Temporal run</dt>
-          <dd className="col-8 sky-detail-value sky-mono text-break">{selectedRun.temporalRunId || '—'}</dd>
+          <dd className="col-8 sky-detail-value sky-mono text-break">
+            {selectedRun.temporalRunId || '—'}
+          </dd>
           <dt className="col-4 sky-detail-label">Runtime</dt>
           <dd className="col-8 sky-detail-value">
             {selectedRun.temporalWorkflowId ? (
@@ -2437,17 +2936,25 @@ function SkyWorkflows({ mode = 'start' }) {
           </dd>
           <dt className="col-4 sky-detail-label">Temporal status</dt>
           <dd className="col-8 sky-detail-value">
-            <span className={`sky-pill ${statusClass(selectedTemporalRuntime?.status || selectedRun.status)}`}>
+            <span
+              className={`sky-pill ${statusClass(selectedTemporalRuntime?.status || selectedRun.status)}`}
+            >
               {selectedTemporalRuntime?.status || selectedRun.status || '—'}
             </span>
           </dd>
           <dt className="col-4 sky-detail-label">History events</dt>
-          <dd className="col-8 sky-detail-value">{selectedTemporalRuntime?.history?.eventCount || selectedTemporalRuntime?.historyLength || '—'}</dd>
+          <dd className="col-8 sky-detail-value">
+            {selectedTemporalRuntime?.history?.eventCount ||
+              selectedTemporalRuntime?.historyLength ||
+              '—'}
+          </dd>
           {selectedTemporalRuntime?.uiUrl && (
             <>
               <dt className="col-4 sky-detail-label">Temporal UI</dt>
               <dd className="col-8 sky-detail-value">
-                <a href={selectedTemporalRuntime.uiUrl} rel="noreferrer" target="_blank">Open diagnostics</a>
+                <a href={selectedTemporalRuntime.uiUrl} rel="noreferrer" target="_blank">
+                  Open diagnostics
+                </a>
               </dd>
             </>
           )}
@@ -2484,12 +2991,18 @@ function SkyWorkflows({ mode = 'start' }) {
         }}
         role="dialog"
       >
-        <section className="sky-chart-modal sky-run-detail-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <section
+          className="sky-chart-modal sky-run-detail-modal"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
           <div className="sky-chart-modal-header">
             <div>
               <div className="sky-page-kicker sky-chart-modal-kicker">Run detail</div>
               <h2>Selected workflow</h2>
-              <p>Review run identity, runtime source, controls, Temporal diagnostics, and raw metadata without compressing the workflow map.</p>
+              <p>
+                Review run identity, runtime source, controls, Temporal diagnostics, and raw
+                metadata without compressing the workflow map.
+              </p>
             </div>
             <button
               aria-label="Close run detail"
@@ -2504,9 +3017,7 @@ function SkyWorkflows({ mode = 'start' }) {
               </svg>
             </button>
           </div>
-          <div className="sky-run-detail-modal-body">
-            {renderSelectedRunDetailContent()}
-          </div>
+          <div className="sky-run-detail-modal-body">{renderSelectedRunDetailContent()}</div>
         </section>
       </div>,
       document.body,
@@ -2536,7 +3047,9 @@ function SkyWorkflows({ mode = 'start' }) {
           >
             Back
           </button>
-          <label className="sky-pagination-select-label" htmlFor="workflowHistoryPageSelect">Page</label>
+          <label className="sky-pagination-select-label" htmlFor="workflowHistoryPageSelect">
+            Page
+          </label>
           <select
             className="form-select form-select-sm sky-form-control sky-pagination-select"
             id="workflowHistoryPageSelect"
@@ -2544,7 +3057,9 @@ function SkyWorkflows({ mode = 'start' }) {
             value={currentHistoryPage}
           >
             {Array.from({ length: historyPageCount }, (_, index) => index + 1).map((page) => (
-              <option key={page} value={page}>{page}</option>
+              <option key={page} value={page}>
+                {page}
+              </option>
             ))}
           </select>
           <span className="small sky-muted">of {historyPageCount}</span>
@@ -2578,20 +3093,37 @@ function SkyWorkflows({ mode = 'start' }) {
               <div className="sky-page-kicker">Run browser</div>
               <h2 className="h5 mb-0">Workflow history data</h2>
               <p className="sky-muted small mb-0">
-                Select the execution surface and status, then inspect a run in the detail workspace below.
+                Select the execution surface and status, then inspect a run in the detail workspace
+                below.
               </p>
               <div className="d-flex flex-wrap align-items-center gap-2 mt-2 small">
-                <span className={`sky-pill ${telemetryState.error ? 'sky-pill-warning' : telemetryState.warning ? 'sky-pill-info' : 'sky-pill-success'}`}>
-                  Smart polling {telemetryState.error ? 'checking' : telemetryState.warning ? 'reconnecting' : 'live'}
+                <span
+                  className={`sky-pill ${telemetryState.error ? 'sky-pill-warning' : telemetryState.warning ? 'sky-pill-info' : 'sky-pill-success'}`}
+                >
+                  Smart polling{' '}
+                  {telemetryState.error
+                    ? 'checking'
+                    : telemetryState.warning
+                      ? 'reconnecting'
+                      : 'live'}
                 </span>
-                <span className="sky-pill sky-pill-info">Every {formatPollingInterval(telemetryState.intervalMs)}</span>
-                <span className="sky-pill sky-pill-info">Active runs {telemetryState.activeRunCount}</span>
+                <span className="sky-pill sky-pill-info">
+                  Every {formatPollingInterval(telemetryState.intervalMs)}
+                </span>
+                <span className="sky-pill sky-pill-info">
+                  Active runs {telemetryState.activeRunCount}
+                </span>
                 {(telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt) && (
-                  <span className="sky-muted">Updated {formatDate(telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt)}</span>
+                  <span className="sky-muted">
+                    Updated{' '}
+                    {formatDate(telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt)}
+                  </span>
                 )}
               </div>
               {telemetryState.warning && !telemetryState.error && (
-                <div className="small sky-muted mt-2">Last poll warning: {telemetryState.warning}</div>
+                <div className="small sky-muted mt-2">
+                  Last poll warning: {telemetryState.warning}
+                </div>
               )}
               {telemetryState.error && (
                 <div className="small text-warning-emphasis mt-2">{telemetryState.error}</div>
@@ -2599,7 +3131,9 @@ function SkyWorkflows({ mode = 'start' }) {
             </div>
             <div className="sky-history-filter-grid">
               <div>
-                <label className="form-label" htmlFor="workflowHistoryRuntime">Runtime source</label>
+                <label className="form-label" htmlFor="workflowHistoryRuntime">
+                  Runtime source
+                </label>
                 <select
                   className="form-select sky-form-control"
                   id="workflowHistoryRuntime"
@@ -2607,12 +3141,16 @@ function SkyWorkflows({ mode = 'start' }) {
                   value={filters.runtime}
                 >
                   {RUNTIME_FILTER_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="form-label" htmlFor="workflowHistoryStatus">Status</label>
+                <label className="form-label" htmlFor="workflowHistoryStatus">
+                  Status
+                </label>
                 <select
                   className="form-select sky-form-control"
                   id="workflowHistoryStatus"
@@ -2620,7 +3158,9 @@ function SkyWorkflows({ mode = 'start' }) {
                   value={filters.status}
                 >
                   {STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2641,47 +3181,58 @@ function SkyWorkflows({ mode = 'start' }) {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="6"><div className="sky-empty-state">Loading workflow runs...</div></td>
+                    <td colSpan="6">
+                      <div className="sky-empty-state">Loading workflow runs...</div>
+                    </td>
                   </tr>
                 )}
                 {!loading && historyRuns.length === 0 && (
                   <tr>
-                    <td colSpan="6"><div className="sky-empty-state">No workflow runs found for these filters.</div></td>
+                    <td colSpan="6">
+                      <div className="sky-empty-state">
+                        No workflow runs found for these filters.
+                      </div>
+                    </td>
                   </tr>
                 )}
-                {!loading && pagedHistoryRuns.map((run) => (
-                  <tr
-                    className={`sky-clickable-row ${selectedRun?.workflowRunRecordId === run.workflowRunRecordId ? 'sky-selected-row' : ''}`}
-                    key={run.workflowRunRecordId}
-                    onClick={() => loadRunDetail(run.workflowRunRecordId)}
-                  >
-                    <td>
-                      <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
-                      <div className="small sky-mono sky-muted">{run.workflowCode}</div>
-                      {(getRunRelationLabel(run) || run.metadata?.parentWorkflowRunRecordId) && (
-                        <div className="d-flex flex-wrap gap-1 mt-1">
-                          {getRunRelationLabel(run) && (
-                            <span className="sky-pill sky-pill-warning">{getRunRelationLabel(run)}</span>
-                          )}
-                          {run.metadata?.parentWorkflowRunRecordId && (
-                            <span className="sky-pill sky-pill-info">Has parent</span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td><span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span></td>
-                    <td>{formatDate(run.startedAt || run.createdAt)}</td>
-                    <td>{formatDuration(getRunDurationMs(run))}</td>
-                    <td>{formatDate(run.completedAt)}</td>
-                    <td>
-                      {run.temporalWorkflowId ? (
-                        <span className="sky-pill sky-pill-success">Temporal-backed</span>
-                      ) : (
-                        <span className="sky-pill sky-pill-info">Inline/local</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {!loading &&
+                  pagedHistoryRuns.map((run) => (
+                    <tr
+                      className={`sky-clickable-row ${selectedRun?.workflowRunRecordId === run.workflowRunRecordId ? 'sky-selected-row' : ''}`}
+                      key={run.workflowRunRecordId}
+                      onClick={() => loadRunDetail(run.workflowRunRecordId)}
+                    >
+                      <td>
+                        <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
+                        <div className="small sky-mono sky-muted">{run.workflowCode}</div>
+                        {(getRunRelationLabel(run) || run.metadata?.parentWorkflowRunRecordId) && (
+                          <div className="d-flex flex-wrap gap-1 mt-1">
+                            {getRunRelationLabel(run) && (
+                              <span className="sky-pill sky-pill-warning">
+                                {getRunRelationLabel(run)}
+                              </span>
+                            )}
+                            {run.metadata?.parentWorkflowRunRecordId && (
+                              <span className="sky-pill sky-pill-info">Has parent</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span>
+                      </td>
+                      <td>{formatDate(run.startedAt || run.createdAt)}</td>
+                      <td>{formatDuration(getRunDurationMs(run))}</td>
+                      <td>{formatDate(run.completedAt)}</td>
+                      <td>
+                        {run.temporalWorkflowId ? (
+                          <span className="sky-pill sky-pill-success">Temporal-backed</span>
+                        ) : (
+                          <span className="sky-pill sky-pill-info">Inline/local</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -2694,54 +3245,58 @@ function SkyWorkflows({ mode = 'start' }) {
               <div className="sky-page-kicker">Selected run workspace</div>
               <h2 className="h5 mb-0">Execution detail</h2>
             </div>
-            <div className="small sky-muted">Detail panels scroll independently from the run browser.</div>
+            <div className="small sky-muted">
+              Detail panels scroll independently from the run browser.
+            </div>
           </div>
 
           <div className="sky-workflow-history-detail-stack">
-              <WorkflowRunSummaryPanel run={selectedRun} outputs={selectedNodeOutputs} />
+            <WorkflowRunSummaryPanel run={selectedRun} outputs={selectedNodeOutputs} />
 
-              {!selectedRun ? (
-                <section className="sky-card">
-                  <div className="sky-card-body">
-                    <div className="sky-empty-state">Select a workflow run to view the runtime graph overlay.</div>
+            {!selectedRun ? (
+              <section className="sky-card">
+                <div className="sky-card-body">
+                  <div className="sky-empty-state">
+                    Select a workflow run to view the runtime graph overlay.
                   </div>
-                </section>
-              ) : (
-                <WorkflowVisualGraph
-                  approvals={selectedApprovals}
-                  headingKicker="Runtime status overlay"
-                  headerActions={(
-                    <button
-                      className="btn btn-sm sky-btn-ghost"
-                      disabled={!selectedRun}
-                      onClick={() => setRunDetailOverlayOpen(true)}
-                      type="button"
-                    >
-                      View details
-                    </button>
-                  )}
-                  headerActionsStandalone
-                  followActiveNode={followActiveRuntimeNode}
-                  inspectorMode="navigation"
-                  nodeRuns={selectedNodeRuns}
-                  nodes={runtimeVisualNodes}
-                  onFollowActiveNodeChange={setFollowActiveRuntimeNode}
-                  onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
-                  runStatus={selectedTemporalRuntime?.status || selectedRun.status}
-                  runtimeMode
-                  selectedNodeIndex={selectedRuntimeNodeIndex}
-                  subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
-                  temporalRuntime={selectedTemporalRuntime}
-                  title="Runtime workflow map"
-                />
-              )}
-
-              <WorkflowNodeOutputLedger
-                contextValues={selectedContextValues}
+                </div>
+              </section>
+            ) : (
+              <WorkflowVisualGraph
+                approvals={selectedApprovals}
+                headingKicker="Runtime status overlay"
+                headerActions={
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    disabled={!selectedRun}
+                    onClick={() => setRunDetailOverlayOpen(true)}
+                    type="button"
+                  >
+                    View details
+                  </button>
+                }
+                headerActionsStandalone
+                followActiveNode={followActiveRuntimeNode}
+                inspectorMode="navigation"
+                nodeRuns={selectedNodeRuns}
                 nodes={runtimeVisualNodes}
-                outputs={selectedNodeOutputs}
+                onFollowActiveNodeChange={setFollowActiveRuntimeNode}
+                onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
+                runStatus={selectedTemporalRuntime?.status || selectedRun.status}
+                runtimeMode
                 selectedNodeIndex={selectedRuntimeNodeIndex}
+                subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
+                temporalRuntime={selectedTemporalRuntime}
+                title="Runtime workflow map"
               />
+            )}
+
+            <WorkflowNodeOutputLedger
+              contextValues={selectedContextValues}
+              nodes={runtimeVisualNodes}
+              outputs={selectedNodeOutputs}
+              selectedNodeIndex={selectedRuntimeNodeIndex}
+            />
           </div>
         </section>
       </div>
@@ -2775,7 +3330,9 @@ function SkyWorkflows({ mode = 'start' }) {
       {error && <div className="alert alert-danger">{error}</div>}
       {message && <div className="alert alert-success">{message}</div>}
 
-      {isHistoryMode ? renderHistoryView() : (
+      {isHistoryMode ? (
+        renderHistoryView()
+      ) : (
         <div className="d-flex flex-column gap-4">
           <section className="sky-card">
             <div className="sky-card-header">
@@ -2786,7 +3343,9 @@ function SkyWorkflows({ mode = 'start' }) {
               {definitions.length > 0 ? (
                 <div className="row g-3 align-items-end mb-4">
                   <div className="col-xl-7">
-                    <label className="form-label" htmlFor="workflowStartDefinition">Active workflow</label>
+                    <label className="form-label" htmlFor="workflowStartDefinition">
+                      Active workflow
+                    </label>
                     <select
                       className="form-select sky-form-control"
                       id="workflowStartDefinition"
@@ -2802,10 +3361,18 @@ function SkyWorkflows({ mode = 'start' }) {
                   </div>
                   <div className="col-xl-5">
                     <div className="d-flex flex-wrap align-items-center gap-2">
-                      <span className="fw-bold">{selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}</span>
-                      <span className="sky-pill sky-pill-success">{selectedDefinitionDetail?.status || 'ACTIVE'}</span>
-                      <span className="sky-pill sky-pill-info">{selectedDefinitionDetail?.nodes?.length || 0} node(s)</span>
-                      <span className="sky-pill sky-pill-info">{runtimeParameters.length} runtime param(s)</span>
+                      <span className="fw-bold">
+                        {selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}
+                      </span>
+                      <span className="sky-pill sky-pill-success">
+                        {selectedDefinitionDetail?.status || 'ACTIVE'}
+                      </span>
+                      <span className="sky-pill sky-pill-info">
+                        {selectedDefinitionDetail?.nodes?.length || 0} node(s)
+                      </span>
+                      <span className="sky-pill sky-pill-info">
+                        {runtimeParameters.length} runtime param(s)
+                      </span>
                     </div>
                     <div className="small sky-muted mt-2">
                       {selectedDefinitionDetail?.description || 'No workflow description.'}
@@ -2813,12 +3380,15 @@ function SkyWorkflows({ mode = 'start' }) {
                   </div>
                 </div>
               ) : (
-                <div className="sky-empty-state mb-4">No active workflow definitions are available.</div>
+                <div className="sky-empty-state mb-4">
+                  No active workflow definitions are available.
+                </div>
               )}
 
               <div className="sky-empty-state text-start mb-3">
-                Runtime values are saved into workflow context as <code>params</code>.
-                Configure workflow-level parameter definitions in Create Workflow / Manage Workflows, then reference them inside node defaults with <code>{'{{ params.example }}'}</code>.
+                Runtime values are saved into workflow context as <code>params</code>. Configure
+                workflow-level parameter definitions in Create Workflow / Manage Workflows, then
+                reference them inside node defaults with <code>{'{{ params.example }}'}</code>.
               </div>
 
               {runtimeParameters.length > 0 ? (
@@ -2835,14 +3405,21 @@ function SkyWorkflows({ mode = 'start' }) {
                               checked={Boolean(value)}
                               className="form-check-input"
                               id={inputId}
-                              onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.checked }))}
+                              onChange={(event) =>
+                                setRuntimeParameterValues((current) => ({
+                                  ...current,
+                                  [parameter.key]: event.target.checked,
+                                }))
+                              }
                               type="checkbox"
                             />
                             <label className="form-check-label" htmlFor={inputId}>
                               {parameter.label}
                             </label>
                           </div>
-                          {parameter.description && <div className="form-text sky-muted">{parameter.description}</div>}
+                          {parameter.description && (
+                            <div className="form-text sky-muted">{parameter.description}</div>
+                          )}
                         </div>
                       );
                     }
@@ -2857,20 +3434,34 @@ function SkyWorkflows({ mode = 'start' }) {
                           <select
                             className="form-select sky-form-control"
                             id={inputId}
-                            onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                            onChange={(event) =>
+                              setRuntimeParameterValues((current) => ({
+                                ...current,
+                                [parameter.key]: event.target.value,
+                              }))
+                            }
                             required={parameter.required}
                             value={String(value)}
                           >
-                            <option value="">{parameter.prompt || `Select ${parameter.label}`}</option>
+                            <option value="">
+                              {parameter.prompt || `Select ${parameter.label}`}
+                            </option>
                             {parameter.options.map((option) => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
                             ))}
                           </select>
                         ) : parameter.type === 'json' ? (
                           <textarea
                             className="form-control sky-form-control sky-mono"
                             id={inputId}
-                            onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                            onChange={(event) =>
+                              setRuntimeParameterValues((current) => ({
+                                ...current,
+                                [parameter.key]: event.target.value,
+                              }))
+                            }
                             placeholder={parameter.prompt || '{ }'}
                             required={parameter.required}
                             rows={4}
@@ -2881,15 +3472,27 @@ function SkyWorkflows({ mode = 'start' }) {
                             className="form-control sky-form-control sky-mono"
                             id={inputId}
                             maxLength={parameter.maxLength || undefined}
-                            onChange={(event) => setRuntimeParameterValues((current) => ({ ...current, [parameter.key]: event.target.value }))}
+                            onChange={(event) =>
+                              setRuntimeParameterValues((current) => ({
+                                ...current,
+                                [parameter.key]: event.target.value,
+                              }))
+                            }
                             placeholder={parameter.prompt || parameter.key}
                             required={parameter.required}
-                            type={parameter.type === 'number' ? 'number' : parameter.type === 'date' ? 'date' : 'text'}
+                            type={
+                              parameter.type === 'number'
+                                ? 'number'
+                                : parameter.type === 'date'
+                                  ? 'date'
+                                  : 'text'
+                            }
                             value={String(value)}
                           />
                         )}
                         <div className="form-text sky-muted">
-                          {parameter.description || `${parameter.type} parameter saved as params.${parameter.key}`}
+                          {parameter.description ||
+                            `${parameter.type} parameter saved as params.${parameter.key}`}
                         </div>
                       </div>
                     );
@@ -2897,23 +3500,28 @@ function SkyWorkflows({ mode = 'start' }) {
                 </div>
               ) : (
                 <div className="sky-empty-state text-start mb-3">
-                  This workflow has no runtime parameter schema yet. It will run with saved node defaults only.
+                  This workflow has no runtime parameter schema yet. It will run with saved node
+                  defaults only.
                 </div>
               )}
 
-              {runtimeParameterError && <div className="alert alert-danger py-2">{runtimeParameterError}</div>}
+              {runtimeParameterError && (
+                <div className="alert alert-danger py-2">{runtimeParameterError}</div>
+              )}
 
               <button
                 className="btn sky-btn-primary"
                 disabled={starting || !selectedDefinitionDetail || !canStart}
                 type="submit"
               >
-                {starting ? 'Running workflow...' : runtimeParameters.length > 0 ? 'Start workflow with parameters' : 'Start workflow'}
+                {starting
+                  ? 'Running workflow...'
+                  : runtimeParameters.length > 0
+                    ? 'Start workflow with parameters'
+                    : 'Start workflow'}
               </button>
               {!canStart && (
-                <div className="small sky-muted mt-2">
-                  WORKFLOW_RUN permission is required.
-                </div>
+                <div className="small sky-muted mt-2">WORKFLOW_RUN permission is required.</div>
               )}
             </form>
           </section>
