@@ -246,7 +246,8 @@ SkyServer/
 │   │       │   ├── 00051__workflow_human_approval_requests.sql
 │   │       │   ├── 00054__temporal_worker_heartbeats.sql
 │   │       │   ├── 00055__workflow_node_output_persistence.sql
-│   │       │   └── 00062__workflow_output_type_contracts.sql
+│   │       │   ├── 00062__workflow_output_type_contracts.sql
+│   │       │   └── 00063__tool_manifest_registration_snapshots.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -365,6 +366,9 @@ SkyServer/
 │           ├── toolManifestContract.js
 │           ├── toolManifestRegistry.js
 │           ├── toolManifestSelfTest.js
+│           ├── toolManifestSnapshotCli.js
+│           ├── toolManifestSnapshotSelfTest.js
+│           ├── toolManifestSnapshotService.js
 │           ├── toolProcessExecutor.js
 │           ├── toolResultContract.js
 │           ├── toolResultSelfTest.js
