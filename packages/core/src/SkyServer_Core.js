@@ -1112,7 +1112,15 @@ async function loadWorkflowRunProgress(workflowRunRecordId) {
         summary,
         started_at,
         completed_at,
-        duration_ms
+        CASE
+          WHEN started_at IS NULL THEN NULL
+          ELSE GREATEST(
+            0,
+            FLOOR(
+              EXTRACT(EPOCH FROM (COALESCE(completed_at, CURRENT_TIMESTAMP) - started_at)) * 1000
+            )
+          )::BIGINT
+        END AS duration_ms
       FROM worker.workflow_run_records
       WHERE workflow_run_record_id = $1
       LIMIT 1
@@ -1131,7 +1139,15 @@ async function loadWorkflowRunProgress(workflowRunRecordId) {
         target_code,
         status,
         attempt_count,
-        duration_ms,
+        CASE
+          WHEN started_at IS NULL THEN NULL
+          ELSE GREATEST(
+            0,
+            FLOOR(
+              EXTRACT(EPOCH FROM (COALESCE(completed_at, CURRENT_TIMESTAMP) - started_at)) * 1000
+            )
+          )::BIGINT
+        END AS duration_ms,
         error_message
       FROM worker.workflow_node_run_records
       WHERE workflow_run_record_id = $1

@@ -1,3 +1,9 @@
+## 2026-07-17 — Phase 14.10.1 Core Workflow Follow Duration Fix
+
+- Fixed the SkyServer Core workflow follower query so it no longer selects a nonexistent `duration_ms` column from workflow run and node ledgers.
+- Derived live and terminal durations from `started_at` and `completed_at`, allowing CLI monitoring to remain attached through workflow completion while Admin-Web or Vite restarts during Git activity.
+- Confirmed the workflow execution path itself was unaffected; the prior error occurred only in the read-only PostgreSQL progress monitor after the Temporal workflow had started successfully.
+
 ## 2026-07-17 — Phase 14 SkyServer Core Runtime Parameter Parity
 
 - Added published workflow runtime-parameter discovery and typed CLI prompts to `SkyServer_Core.js`, including required values, defaults, select options, numbers, booleans, JSON values, and max-length validation.
