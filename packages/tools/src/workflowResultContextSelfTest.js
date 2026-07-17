@@ -49,6 +49,45 @@ function macroResult({
   };
 }
 
+
+function repositoryPackageResult() {
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'Repository package created.',
+    outputType: 'repository_package_summary.v1',
+    output: {
+      artifactKind: 'REPOSITORY_ZIP',
+      outcome: 'CREATED',
+      repositoryName: 'SkyServer',
+      repositoryRoot: 'C:/Projects/SkyServer',
+      fileName: 'SkyServer_Repo.zip',
+      artifactPath: 'C:/Projects/SkyServer/zip/SkyServer_Repo.zip',
+      startedAt: '2026-07-17T02:00:00.000Z',
+      completedAt: '2026-07-17T02:00:03.000Z',
+      durationMs: 3000,
+      filesIncluded: 412,
+      sourceBytes: 1840000,
+      archiveBytes: 910000,
+      compressionRatio: 0.4945652173913043,
+      options: {
+        nodeModulesIncluded: false,
+        imagesIncluded: false,
+        sensitiveEnvironmentFilesExcluded: true,
+        generatedArtifactsExcluded: true,
+      },
+    },
+    warnings: [],
+    error: null,
+    metadata: { extension: '.zip' },
+    kind: 'tool_execution',
+    toolCode: 'repo_zip_generate',
+    status: 'SUCCESS',
+    durationMs: 3000,
+    executionId: 'repo-zip-execution',
+  };
+}
+
 function run() {
   const results = {
     fred_ingestion: macroResult({
@@ -111,6 +150,23 @@ function run() {
   assert.equal(scheduled.outputType, 'macro_ingestion_summary.v1');
   assert.equal(scheduled.macroIngestion.sourceCode, 'BOC');
   assert.equal(scheduled.macroIngestion.totals.indicatorsUnchanged, 2);
+
+  const repositoryResult = repositoryPackageResult();
+  const repositoryLookup = buildConditionNodeLookup({}, { package_repo: repositoryResult });
+  assert.equal(repositoryLookup.package_repo.output.filesIncluded, 412);
+  assert.equal(
+    repositoryLookup.package_repo.output.artifactPath,
+    'C:/Projects/SkyServer/zip/SkyServer_Repo.zip',
+  );
+
+  const repositoryKeyOutputs = buildSummaryKeyOutputs({ package_repo: repositoryResult });
+  assert.equal(repositoryKeyOutputs.package_repo.output.fileName, 'SkyServer_Repo.zip');
+  assert.equal(repositoryKeyOutputs.package_repo.output.filesIncluded, 412);
+
+  const scheduledRepository = buildScheduledToolResultSummary(repositoryResult);
+  assert.equal(scheduledRepository.outputType, 'repository_package_summary.v1');
+  assert.equal(scheduledRepository.repositoryPackage.filesIncluded, 412);
+  assert.equal(scheduledRepository.repositoryPackage.archiveBytes, 910000);
 
   console.log('[SkyCommand] Workflow result context self-test passed.');
 }

@@ -1520,6 +1520,102 @@ function MacroIngestionOutput({ toolResult }) {
   );
 }
 
+
+function RepositoryPackageOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const options = getSafeObject(output.options);
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+  const compressionPercent = Number.isFinite(Number(output.compressionRatio))
+    ? `${(Number(output.compressionRatio) * 100).toFixed(1)}%`
+    : '—';
+
+  return (
+    <div className="sky-repository-package-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Repository package result</div>
+          <h3 className="h6 mb-1">{output.fileName || 'Repository archive'}</h3>
+          <p className="small sky-muted mb-0">
+            {toolResult.message || 'Structured repository package result recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${output.outcome === 'CREATED' ? 'sky-pill-success' : 'sky-pill-danger'}`}>
+            {output.outcome || 'UNKNOWN'}
+          </span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Artifact summary</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Repository</th>
+              <td>{output.repositoryName || '—'}</td>
+              <th>Files included</th>
+              <td>{Number(output.filesIncluded || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <th>Source size</th>
+              <td>{formatByteCount(output.sourceBytes)}</td>
+              <th>Archive size</th>
+              <td>{formatByteCount(output.archiveBytes)}</td>
+            </tr>
+            <tr>
+              <th>Compression ratio</th>
+              <td>{compressionPercent}</td>
+              <th>Created</th>
+              <td>
+                <FriendlyOutputScalar fieldKey="completedAt" value={output.completedAt} />
+              </td>
+            </tr>
+            <tr>
+              <th>Archive path</th>
+              <td colSpan="3" className="sky-mono text-break">
+                {output.artifactPath || '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Packaging policy</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Node modules</th>
+              <th>Images</th>
+              <th>Sensitive environment files</th>
+              <th>Generated artifacts</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{options.nodeModulesIncluded ? 'Included' : 'Excluded'}</td>
+              <td>{options.imagesIncluded ? 'Included' : 'Excluded'}</td>
+              <td>{options.sensitiveEnvironmentFilesExcluded ? 'Excluded' : 'Included'}</td>
+              <td>{options.generatedArtifactsExcluded ? 'Excluded' : 'Included'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {warnings.length > 0 || failedMessage ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning) => (
+            <div key={warning}>{warning}</div>
+          ))}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function WorkflowSummaryNodeOutput({ summaryResult }) {
   const structuredResults = getSafeObject(
     summaryResult?.structuredResults || summaryResult?.output?.structuredResults,
@@ -1711,6 +1807,10 @@ function WorkflowNodeOutputLedger({
   );
   const macroIngestionResult =
     structuredToolResult?.outputType === 'macro_ingestion_summary.v1' ? structuredToolResult : null;
+  const repositoryPackageResult =
+    structuredToolResult?.outputType === 'repository_package_summary.v1'
+      ? structuredToolResult
+      : null;
   const summaryMacroSources = getSafeArray(
     workflowSummaryResult?.macroIngestion?.sources ||
       workflowSummaryResult?.output?.macroIngestion?.sources,
@@ -1741,6 +1841,10 @@ function WorkflowNodeOutputLedger({
               <span className="sky-pill sky-pill-success">
                 {getSafeArray(macroIngestionResult.output?.indicators).length} indicator result(s)
               </span>
+            ) : repositoryPackageResult ? (
+              <span className="sky-pill sky-pill-success">
+                {Number(repositoryPackageResult.output?.filesIncluded || 0).toLocaleString()} file(s)
+              </span>
             ) : workflowSummaryResult ? (
               <span className="sky-pill sky-pill-success">
                 {summaryMacroSources.length ||
@@ -1760,6 +1864,8 @@ function WorkflowNodeOutputLedger({
           </div>
         ) : macroIngestionResult ? (
           <MacroIngestionOutput toolResult={macroIngestionResult} />
+        ) : repositoryPackageResult ? (
+          <RepositoryPackageOutput toolResult={repositoryPackageResult} />
         ) : workflowSummaryResult ? (
           <WorkflowSummaryNodeOutput summaryResult={workflowSummaryResult} />
         ) : rows.length === 0 ? (
@@ -1795,6 +1901,7 @@ function WorkflowNodeOutputLedger({
         )}
         {selectedNode &&
         !macroIngestionResult &&
+        !repositoryPackageResult &&
         !workflowSummaryResult &&
         selectedContextValues.length > 0 &&
         rows.length === 0 ? (

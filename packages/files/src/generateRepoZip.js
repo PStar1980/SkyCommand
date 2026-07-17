@@ -1,38 +1,32 @@
 #!/usr/bin/env node
 
 /**
- * generateRepoZip.js
+ * Generates a compact repository zip for project handoff and emits a structured
+ * repository_package_summary.v1 ToolResult when launched by SkyCommand.
  *
- * Generates a zip archive of a repository/folder for project handoff and review.
- * Uses the same ignore rules and CLI parameter shape as generateRepoMap.js.
- * Dependency folders are excluded by default to keep project handoff zips small,
- * upload-friendly, and platform-neutral.
- *
- * Usage:
- *   node generateRepoZip.js <location> <fileName> [outputPath] [options]
- *
- * Options:
- *   --include-node-modules   Optional diagnostic mode. Includes dependency folders.
- *                            Not recommended for normal project handoff zips.
- *   --include-images         Optional diagnostic mode. Includes image assets/screenshots.
- *                            Normal project handoff zips exclude images to stay compact.
- *
- * Examples:
- *   node generateRepoZip.js "C:\\Projects\\SkyServer" "SkyServer_Repo.zip" "C:\\Projects\\SkyServer\\zip"
- *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/zip"
- *   node generateRepoZip.js "./SkyWeb" "SkyWeb_Repo.zip" "./SkyWeb/zip" --include-node-modules
+ * Human-readable console output remains unchanged for direct CLI and Run Tools.
+ * Workflow consumers receive only the structured result through the shared
+ * ToolResult transport.
  */
 
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-// ------------------------------------------------------------
-// PHASE 1: Parse CLI arguments
-// ------------------------------------------------------------
-const rawArgs = process.argv.slice(2);
-const optionArgs = rawArgs.filter((arg) => arg.startsWith('--'));
-const args = rawArgs.filter((arg) => !arg.startsWith('--'));
+const { runToolCli } = require('../../tools/src/toolCliAdapter');
+const {
+  createRepositoryPackageFailureToolResult,
+  createRepositoryPackageToolResult,
+} = require('./repositoryPackageResult');
+
+const MANIFEST_PATH = path.resolve(
+  __dirname,
+  '../manifests/repo_zip_generate/skycommand.tool.json',
+);
+
+const ZIP32_MAX_VALUE = 0xffffffff;
+const ZIP32_MAX_ENTRY_COUNT = 0xffff;
+const DEPENDENCY_FOLDER_NAME = 'node_modules';
 
 const SUPPORTED_OPTIONS = new Set([
   '--include-node-modules',
@@ -40,95 +34,6 @@ const SUPPORTED_OPTIONS = new Set([
   '--include-images',
   '--slim',
 ]);
-const unknownOptions = optionArgs.filter((option) => !SUPPORTED_OPTIONS.has(option));
-
-if (unknownOptions.length > 0) {
-  console.error(`❌ Error: Unsupported option(s): ${unknownOptions.join(', ')}`);
-  console.error(
-    '   Supported options: --include-node-modules, --exclude-node-modules, --include-images, --slim',
-  );
-  process.exit(1);
-}
-
-if (args.length < 2) {
-  console.error('❌ Error: You must provide at least 2 arguments:');
-  console.error('   location (required)');
-  console.error('   fileName (required)');
-  console.error('   outputPath (optional)');
-  console.error('   options (optional): --include-node-modules, --include-images');
-  process.exit(1);
-}
-
-let [location, fileName, outputPath] = args;
-const includeNodeModules = optionArgs.includes('--include-node-modules');
-const includeImages = optionArgs.includes('--include-images');
-
-function hasPathSeparators(value) {
-  return /[\\/]/.test(value);
-}
-
-function normalizeOutputFileName(value) {
-  if (!value || typeof value !== 'string' || value.trim() === '') {
-    throw new Error('❌ Error: fileName cannot be blank.');
-  }
-
-  const normalized = value.trim();
-
-  if (normalized.includes('\0')) {
-    throw new Error('❌ Error: fileName cannot contain null bytes.');
-  }
-
-  if (hasPathSeparators(normalized)) {
-    throw new Error('❌ Error: fileName must be a file name only, not a path.');
-  }
-
-  if (path.extname(normalized).toLowerCase() !== '.zip') {
-    return `${normalized}.zip`;
-  }
-
-  return normalized;
-}
-
-try {
-  fileName = normalizeOutputFileName(fileName);
-} catch (error) {
-  console.error(error.message);
-  process.exit(1);
-}
-
-// Normalize paths
-location = path.resolve(location);
-
-// If outputPath missing → default to location
-if (!outputPath) {
-  outputPath = location;
-} else {
-  outputPath = path.resolve(outputPath);
-}
-
-// Validate existence of location
-if (!fs.existsSync(location)) {
-  console.error(`❌ Error: The location path does not exist:\n   ${location}`);
-  process.exit(1);
-}
-
-const outputFilePath = path.resolve(outputPath, fileName);
-
-function normalizeComparablePath(value) {
-  const resolved = path.resolve(value);
-
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-}
-
-const comparableOutputFilePath = normalizeComparablePath(outputFilePath);
-
-// ------------------------------------------------------------
-// PHASE 2: Recursive directory walker
-// ------------------------------------------------------------
-const ZIP32_MAX_VALUE = 0xffffffff;
-const ZIP32_MAX_ENTRY_COUNT = 0xffff;
-
-const DEPENDENCY_FOLDER_NAME = 'node_modules';
 
 const ALWAYS_IGNORED_DIRECTORIES = new Set([
   '.git',
@@ -178,11 +83,83 @@ const IMAGE_FILE_EXTENSIONS = new Set([
 
 const PRESERVED_IMAGE_RELATIVE_PATHS = new Set(['apps/admin-web/public/favicon.svg']);
 
-function normalizeRelativeAssetPath(fullPath) {
+function hasPathSeparators(value) {
+  return /[\\/]/.test(value);
+}
+
+function normalizeOutputFileName(value) {
+  if (!value || typeof value !== 'string' || value.trim() === '') {
+    throw new Error('❌ Error: fileName cannot be blank.');
+  }
+
+  const normalized = value.trim();
+
+  if (normalized.includes('\0')) {
+    throw new Error('❌ Error: fileName cannot contain null bytes.');
+  }
+
+  if (hasPathSeparators(normalized)) {
+    throw new Error('❌ Error: fileName must be a file name only, not a path.');
+  }
+
+  return path.extname(normalized).toLowerCase() === '.zip' ? normalized : `${normalized}.zip`;
+}
+
+function parseRepositoryZipArgs(args = []) {
+  const rawArgs = Array.isArray(args) ? args.map(String) : [];
+  const optionArgs = rawArgs.filter((arg) => arg.startsWith('--'));
+  const positionalArgs = rawArgs.filter((arg) => !arg.startsWith('--'));
+  const unknownOptions = optionArgs.filter((option) => !SUPPORTED_OPTIONS.has(option));
+
+  if (unknownOptions.length > 0) {
+    throw new Error(
+      `❌ Error: Unsupported option(s): ${unknownOptions.join(', ')}. Supported options: ${[
+        ...SUPPORTED_OPTIONS,
+      ].join(', ')}`,
+    );
+  }
+
+  if (positionalArgs.length < 2) {
+    throw new Error(
+      '❌ Error: You must provide location and fileName. outputPath is optional.',
+    );
+  }
+
+  const [rawLocation, rawFileName, rawOutputPath] = positionalArgs;
+  const location = path.resolve(rawLocation);
+  const fileName = normalizeOutputFileName(rawFileName);
+  const outputPath = rawOutputPath ? path.resolve(rawOutputPath) : location;
+
+  if (!fs.existsSync(location)) {
+    throw new Error(`❌ Error: The location path does not exist:\n   ${location}`);
+  }
+
+  const locationStats = fs.statSync(location);
+
+  if (!locationStats.isDirectory()) {
+    throw new Error(`❌ Error: The location must be a directory:\n   ${location}`);
+  }
+
+  return {
+    location,
+    fileName,
+    outputPath,
+    outputFilePath: path.resolve(outputPath, fileName),
+    includeNodeModules: optionArgs.includes('--include-node-modules'),
+    includeImages: optionArgs.includes('--include-images'),
+  };
+}
+
+function normalizeComparablePath(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function normalizeRelativeAssetPath(fullPath, location) {
   return path.relative(location, fullPath).split(path.sep).join('/').toLowerCase();
 }
 
-function isWithinNodeModules(fullPath) {
+function isWithinNodeModules(fullPath, location) {
   const relativePath = path.relative(location, fullPath);
 
   if (!relativePath || relativePath.startsWith('..')) {
@@ -195,31 +172,27 @@ function isWithinNodeModules(fullPath) {
     .includes(DEPENDENCY_FOLDER_NAME);
 }
 
-function shouldIgnoreDirectory(entryName, fullPath) {
+function shouldIgnoreDirectory(entryName, fullPath, options) {
   const lowerName = entryName.toLowerCase();
 
   if (lowerName === DEPENDENCY_FOLDER_NAME) {
-    return !includeNodeModules;
+    return !options.includeNodeModules;
   }
 
   if (ALWAYS_IGNORED_DIRECTORIES.has(lowerName)) {
     return true;
   }
 
-  // When --include-node-modules is used, keep package-owned dist/build/out/bin/obj folders
-  // inside node_modules. Many npm packages ship their runnable code there.
-  if (!isWithinNodeModules(fullPath) && WORKSPACE_IGNORED_DIRECTORIES.has(lowerName)) {
-    return true;
-  }
-
-  return false;
+  return (
+    !isWithinNodeModules(fullPath, options.location) &&
+    WORKSPACE_IGNORED_DIRECTORIES.has(lowerName)
+  );
 }
 
 function sortEntries(entries) {
   const files = entries
     .filter((entry) => entry.type === 'file')
     .sort((a, b) => a.name.localeCompare(b.name));
-
   const folders = entries
     .filter((entry) => entry.type === 'directory')
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -231,8 +204,8 @@ function toZipPath(value) {
   return value.split(path.sep).join('/');
 }
 
-function shouldSkipFile(fullPath) {
-  if (normalizeComparablePath(fullPath) === comparableOutputFilePath) {
+function shouldSkipFile(fullPath, options) {
+  if (normalizeComparablePath(fullPath) === normalizeComparablePath(options.outputFilePath)) {
     return true;
   }
 
@@ -243,18 +216,16 @@ function shouldSkipFile(fullPath) {
   }
 
   const extension = path.extname(fullPath).toLowerCase();
-
-  const relativeAssetPath = normalizeRelativeAssetPath(fullPath);
+  const relativeAssetPath = normalizeRelativeAssetPath(fullPath, options.location);
 
   if (
-    !includeImages &&
+    !options.includeImages &&
     IMAGE_FILE_EXTENSIONS.has(extension) &&
     !PRESERVED_IMAGE_RELATIVE_PATHS.has(relativeAssetPath)
   ) {
     return true;
   }
 
-  // Keep the project documentation change log while still excluding runtime *.log files.
   if (fileNameOnly === 'change.log') {
     return false;
   }
@@ -262,51 +233,46 @@ function shouldSkipFile(fullPath) {
   return ['.zip', '.log', '.patch'].includes(extension);
 }
 
-function scanDirectory(dir, baseDir = dir) {
+function scanDirectory(dir, baseDir, options) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-  const results = entries
-    .map((entry) => {
-      const fullPath = path.join(dir, entry.name);
+  return sortEntries(
+    entries
+      .map((entry) => {
+        const fullPath = path.join(dir, entry.name);
 
-      if (entry.isDirectory()) {
-        if (shouldIgnoreDirectory(entry.name, fullPath)) {
+        if (entry.isDirectory()) {
+          if (shouldIgnoreDirectory(entry.name, fullPath, options)) {
+            return null;
+          }
+
+          return {
+            type: 'directory',
+            name: entry.name,
+            children: scanDirectory(fullPath, baseDir, options),
+          };
+        }
+
+        if (!entry.isFile() || shouldSkipFile(fullPath, options)) {
           return null;
         }
 
         return {
-          type: 'directory',
+          type: 'file',
           name: entry.name,
-          children: scanDirectory(fullPath, baseDir),
+          fullPath,
+          relativePath: path.relative(baseDir, fullPath),
         };
-      }
-
-      // Symlinks and special files are intentionally skipped. This keeps the archive
-      // portable on Windows and avoids accidentally following dependency symlink loops.
-      if (!entry.isFile() || shouldSkipFile(fullPath)) {
-        return null;
-      }
-
-      return {
-        type: 'file',
-        name: entry.name,
-        fullPath,
-        relativePath: path.relative(baseDir, fullPath),
-      };
-    })
-    .filter(Boolean);
-
-  return sortEntries(results);
+      })
+      .filter(Boolean),
+  );
 }
 
 function flattenFiles(items, files = []) {
   for (const item of items) {
     if (item.type === 'file') {
       files.push(item);
-      continue;
-    }
-
-    if (item.type === 'directory') {
+    } else if (item.type === 'directory') {
       flattenFiles(item.children, files);
     }
   }
@@ -314,9 +280,6 @@ function flattenFiles(items, files = []) {
   return files;
 }
 
-// ------------------------------------------------------------
-// PHASE 3: ZIP helpers
-// ------------------------------------------------------------
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
 
@@ -351,10 +314,10 @@ function toDosDateTime(date = new Date()) {
   const minutes = date.getMinutes();
   const seconds = Math.floor(date.getSeconds() / 2);
 
-  const dosTime = (hours << 11) | (minutes << 5) | seconds;
-  const dosDate = ((year - 1980) << 9) | (month << 5) | day;
-
-  return { dosDate, dosTime };
+  return {
+    dosTime: (hours << 11) | (minutes << 5) | seconds,
+    dosDate: ((year - 1980) << 9) | (month << 5) | day,
+  };
 }
 
 function uint16(value) {
@@ -386,17 +349,17 @@ function createLocalFileHeader({
   dosDate,
 }) {
   return Buffer.concat([
-    uint32(0x04034b50), // local file header signature
-    uint16(20), // version needed to extract
-    uint16(0x0800), // general purpose bit flag: UTF-8 file names
-    uint16(8), // compression method: deflate
+    uint32(0x04034b50),
+    uint16(20),
+    uint16(0x0800),
+    uint16(8),
     uint16(dosTime),
     uint16(dosDate),
     uint32(crc),
     uint32(compressedSize),
     uint32(uncompressedSize),
     uint16(fileNameBuffer.length),
-    uint16(0), // extra field length
+    uint16(0),
     fileNameBuffer,
   ]);
 }
@@ -411,22 +374,22 @@ function createCentralDirectoryHeader({
   localHeaderOffset,
 }) {
   return Buffer.concat([
-    uint32(0x02014b50), // central directory signature
-    uint16(20), // version made by
-    uint16(20), // version needed to extract
-    uint16(0x0800), // general purpose bit flag: UTF-8 file names
-    uint16(8), // compression method: deflate
+    uint32(0x02014b50),
+    uint16(20),
+    uint16(20),
+    uint16(0x0800),
+    uint16(8),
     uint16(dosTime),
     uint16(dosDate),
     uint32(crc),
     uint32(compressedSize),
     uint32(uncompressedSize),
     uint16(fileNameBuffer.length),
-    uint16(0), // extra field length
-    uint16(0), // file comment length
-    uint16(0), // disk number start
-    uint16(0), // internal file attributes
-    uint32(0), // external file attributes
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint32(0),
     uint32(localHeaderOffset),
     fileNameBuffer,
   ]);
@@ -434,14 +397,14 @@ function createCentralDirectoryHeader({
 
 function createEndOfCentralDirectory({ entryCount, centralDirectorySize, centralDirectoryOffset }) {
   return Buffer.concat([
-    uint32(0x06054b50), // EOCD signature
-    uint16(0), // number of this disk
-    uint16(0), // disk where central directory starts
+    uint32(0x06054b50),
+    uint16(0),
+    uint16(0),
     uint16(entryCount),
     uint16(entryCount),
     uint32(centralDirectorySize),
     uint32(centralDirectoryOffset),
-    uint16(0), // comment length
+    uint16(0),
   ]);
 }
 
@@ -450,11 +413,7 @@ function writeBuffer(fd, buffer) {
 }
 
 function logProgress(current, total) {
-  if (total < 500) {
-    return;
-  }
-
-  if (current === total || current % 500 === 0) {
+  if (total >= 500 && (current === total || current % 500 === 0)) {
     console.log(`   Zipped ${current}/${total} files...`);
   }
 }
@@ -492,7 +451,6 @@ function writeZipArchive(files, rootName, targetFilePath) {
         dosTime,
         dosDate,
       });
-
       const centralHeader = createCentralDirectoryHeader({
         fileNameBuffer,
         crc: checksum,
@@ -506,7 +464,6 @@ function writeZipArchive(files, rootName, targetFilePath) {
       writeBuffer(fd, localHeader);
       writeBuffer(fd, compressedData);
       centralParts.push(centralHeader);
-
       offset += localHeader.length + compressedData.length;
       assertZip32Value(offset, `Archive offset after ${file.relativePath}`);
       logProgress(index + 1, files.length);
@@ -519,49 +476,106 @@ function writeZipArchive(files, rootName, targetFilePath) {
     assertZip32Value(centralDirectoryOffset, 'Central directory offset');
     assertZip32Value(centralDirectorySize, 'Central directory size');
 
-    const endOfCentralDirectory = createEndOfCentralDirectory({
-      entryCount: files.length,
-      centralDirectorySize,
-      centralDirectoryOffset,
-    });
-
     writeBuffer(fd, centralDirectory);
-    writeBuffer(fd, endOfCentralDirectory);
+    writeBuffer(
+      fd,
+      createEndOfCentralDirectory({
+        entryCount: files.length,
+        centralDirectorySize,
+        centralDirectoryOffset,
+      }),
+    );
   } finally {
     fs.closeSync(fd);
   }
 }
 
-// ------------------------------------------------------------
-// PHASE 4: Build archive + write output file
-// ------------------------------------------------------------
-const rootName = path.basename(location);
-const structure = scanDirectory(location);
-const files = flattenFiles(structure);
+function executeRepositoryZip(args = []) {
+  const startedAt = new Date().toISOString();
+  const options = parseRepositoryZipArgs(args);
+  const rootName = path.basename(options.location);
+  const structure = scanDirectory(options.location, options.location, options);
+  const files = flattenFiles(structure);
 
-// Ensure output directory exists after scanning so a newly-created docs/output folder is not included.
-if (!fs.existsSync(outputPath)) {
-  fs.mkdirSync(outputPath, { recursive: true });
-}
-
-try {
-  writeZipArchive(files, rootName, outputFilePath);
-} catch (error) {
-  if (fs.existsSync(outputFilePath)) {
-    fs.rmSync(outputFilePath, { force: true });
+  if (!fs.existsSync(options.outputPath)) {
+    fs.mkdirSync(options.outputPath, { recursive: true });
   }
 
-  console.error(error.message);
-  process.exit(1);
+  try {
+    writeZipArchive(files, rootName, options.outputFilePath);
+  } catch (error) {
+    if (fs.existsSync(options.outputFilePath)) {
+      fs.rmSync(options.outputFilePath, { force: true });
+    }
+    throw error;
+  }
+
+  const completedAt = new Date().toISOString();
+  const sourceBytes = files.reduce(
+    (total, file) => total + fs.statSync(file.fullPath).size,
+    0,
+  );
+  const archiveBytes = fs.statSync(options.outputFilePath).size;
+
+  return {
+    ok: true,
+    repositoryName: rootName,
+    repositoryRoot: options.location,
+    fileName: options.fileName,
+    artifactPath: options.outputFilePath,
+    startedAt,
+    completedAt,
+    durationMs: Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime()),
+    filesIncluded: files.length,
+    sourceBytes,
+    archiveBytes,
+    nodeModulesIncluded: options.includeNodeModules,
+    imagesIncluded: options.includeImages,
+    sensitiveEnvironmentFilesExcluded: true,
+    generatedArtifactsExcluded: true,
+  };
 }
 
-const totalInputBytes = files.reduce((total, file) => total + fs.statSync(file.fullPath).size, 0);
-const outputBytes = fs.statSync(outputFilePath).size;
+function printRepositoryZipResult(result) {
+  console.log('\n✅ Repository zip generated successfully!');
+  console.log(`📦 Output file: ${result.artifactPath}`);
+  console.log(`📄 Files included: ${result.filesIncluded}`);
+  console.log(`📦 node_modules included: ${result.nodeModulesIncluded ? 'yes' : 'no'}`);
+  console.log(`🖼️  images included: ${result.imagesIncluded ? 'yes' : 'no'}`);
+  console.log(`📥 Source bytes: ${result.sourceBytes}`);
+  console.log(`📤 Zip bytes: ${result.archiveBytes}\n`);
+}
 
-console.log('\n✅ Repository zip generated successfully!');
-console.log(`📦 Output file: ${outputFilePath}`);
-console.log(`📄 Files included: ${files.length}`);
-console.log(`📦 node_modules included: ${includeNodeModules ? 'yes' : 'no'}`);
-console.log(`🖼️  images included: ${includeImages ? 'yes' : 'no'}`);
-console.log(`📥 Source bytes: ${totalInputBytes}`);
-console.log(`📤 Zip bytes: ${outputBytes}\n`);
+async function main(args = process.argv.slice(2)) {
+  const startedAt = new Date().toISOString();
+
+  return runToolCli({
+    manifestPath: MANIFEST_PATH,
+    args,
+    execute: executeRepositoryZip,
+    createToolResult: createRepositoryPackageToolResult,
+    createFailureToolResult: (error) =>
+      createRepositoryPackageFailureToolResult({
+        error,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      }),
+    renderConsole: printRepositoryZipResult,
+  });
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  MANIFEST_PATH,
+  executeRepositoryZip,
+  flattenFiles,
+  main,
+  normalizeOutputFileName,
+  parseRepositoryZipArgs,
+  printRepositoryZipResult,
+  scanDirectory,
+  writeZipArchive,
+};

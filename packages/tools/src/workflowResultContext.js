@@ -1,4 +1,5 @@
 const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
+const REPOSITORY_PACKAGE_OUTPUT_TYPE = 'repository_package_summary.v1';
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -384,11 +385,26 @@ function buildScheduledToolResultSummary(toolResult = {}) {
       : null;
   }
 
+  if (result.outputType === REPOSITORY_PACKAGE_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.repositoryPackage = {
+      outcome: output.outcome || null,
+      repositoryName: output.repositoryName || null,
+      fileName: output.fileName || null,
+      artifactPath: output.artifactPath || null,
+      filesIncluded: Number(output.filesIncluded || 0),
+      sourceBytes: Number(output.sourceBytes || 0),
+      archiveBytes: Number(output.archiveBytes || 0),
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   return summary;
 }
 
 module.exports = {
   MACRO_INGESTION_OUTPUT_TYPE,
+  REPOSITORY_PACKAGE_OUTPUT_TYPE,
   buildCanonicalNodeResultView,
   buildConditionNodeLookup,
   buildMacroIngestionRollup,
