@@ -979,3 +979,9 @@ SkyWeb Analytics owns:
 - A broken or incomplete manifest now blocks its own tool while unrelated accepted tools remain executable. Repository-wide `npm run validate`, manifest validation, snapshot preview/sync/check, and readiness checks remain deliberately strict and still report every broken manifest.
 - Added a regression test proving that a tool with a valid contract can load when an unrelated manifest references a missing sample, while the broken tool still fails with `TOOL_MANIFEST_REFERENCED_FILE_MISSING`.
 - No database migration or seed is required. Re-run validation and the manifest snapshot lifecycle after restoring the files.
+
+## 2026-07-17 - Phase 14 workflow execution and history control hardening
+- Authorized a high-risk workflow tool only when the immediately preceding result is an approved human checkpoint; the configured confirmation phrase is passed through the generic workflow tool bridge.
+- Kept failed/terminated workflow focus on the terminal issue node while preserving unrestricted manual inspection of every graph node, including completed and not-run nodes.
+- Manual node selection now disables Follow active node so polling cannot immediately override the operator's choice.
+- Replaced runtime graph `scrollIntoView` with horizontal viewport scrolling so Workflow History polling and row selection never pull the page down from the run table.
