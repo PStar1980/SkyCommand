@@ -1,3 +1,14 @@
+## 2026-07-17 — Phase 14.11 Development Promotion Results
+
+- Migrated the existing `main_merge` tool to the shared fail-open `runToolCli()` adapter while preserving its direct CLI, Run Tools, workflow, and Git console behavior.
+- Added `git_branch_sync_summary.v1` with repository identity, Main → Dev direction, branch-head evidence, commits applied, synchronization state, optional tag details, timings, and step-by-step fetch/pull/merge/push outcomes.
+- Added a strict documentation/test JSON Schema and `npm run git-branch-sync:self-test`; validation now syntax-checks `main_merge.js` and its result contract.
+- Added canonical condition/summary/scheduler support for branch synchronization fields such as `nodes.main_merge_node.output.branchesSynchronized` and `nodes.main_merge_node.output.synchronizedHeadSha`.
+- Added a purpose-built Workflow History renderer for Main Merge output with synchronization, head movement, and Git-step tables.
+- Added a purpose-built focused output display for human approval nodes, including decision, workflow action, approver, role, timestamp, note, key, and instructions.
+- Added automatic Development Promotion Summary aggregation for Repository Map → Repository ZIP → Dev Commit → Merge Approval → Main Merge workflows, including artifacts, commit evidence, approval evidence, synchronized branch state, and stage-by-stage results.
+- No database migration or seed is required. Existing workflow definitions can use the new output after the updated scripts are deployed.
+
 ## 2026-07-17 — Phase 14.10.1 Core Workflow Follow Duration Fix
 
 - Fixed the SkyServer Core workflow follower query so it no longer selects a nonexistent `duration_ms` column from workflow run and node ledgers.

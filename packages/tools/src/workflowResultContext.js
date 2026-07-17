@@ -2,6 +2,7 @@ const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
 const REPOSITORY_PACKAGE_OUTPUT_TYPE = 'repository_package_summary.v1';
 const REPOSITORY_MAP_OUTPUT_TYPE = 'repository_map_summary.v1';
 const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
+const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -308,6 +309,20 @@ function compactDomainOutput(result = {}) {
     };
   }
 
+  if (isToolResultEnvelope(result) && result.outputType === GIT_BRANCH_SYNC_OUTPUT_TYPE) {
+    return {
+      outcome: safeOutput.outcome || null,
+      repositoryCode: safeOutput.repositoryCode || null,
+      sourceBranch: safeOutput.sourceBranch || safeOutput.mainBranch || null,
+      targetBranch: safeOutput.targetBranch || safeOutput.devBranch || null,
+      synchronizedHeadSha: safeOutput.synchronizedHeadSha || safeOutput.devHeadAfterSha || null,
+      commitsApplied: normalizeNonNegativeNumber(safeOutput.commitsApplied),
+      branchesSynchronized: Boolean(safeOutput.branchesSynchronized),
+      tagName: safeOutput.tagName || null,
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
   if (!isPlainObject(output)) {
     return cloneJsonCompatible(output);
   }
@@ -373,8 +388,192 @@ function buildSummaryKeyOutputs(nodeOutputsByKey = {}) {
   );
 }
 
+function buildGitPromotionRollup(nodeOutputsByKey = {}) {
+  const stages = [];
+  let repositoryMap = null;
+  let repositoryPackage = null;
+  let gitCommit = null;
+  let approval = null;
+  let branchSync = null;
+
+  for (const [nodeKey, rawResult] of Object.entries(getSafeObject(nodeOutputsByKey))) {
+    const result = getSafeObject(rawResult);
+    const output = getSafeObject(getToolResultDomainOutput(result));
+    const durationMs = getResultDurationMs(result, output);
+
+    if (isToolResultEnvelope(result) && result.outputType === REPOSITORY_MAP_OUTPUT_TYPE) {
+      repositoryMap = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'REPOSITORY_MAP',
+        label: 'Repository map',
+        status: result.success === false ? 'FAILED' : 'SUCCESS',
+        outcome: output.outcome || null,
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: `${normalizeNonNegativeNumber(output.filesDocumented)} file(s) documented`,
+      });
+      continue;
+    }
+
+    if (isToolResultEnvelope(result) && result.outputType === REPOSITORY_PACKAGE_OUTPUT_TYPE) {
+      repositoryPackage = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'REPOSITORY_PACKAGE',
+        label: 'Repository package',
+        status: result.success === false ? 'FAILED' : 'SUCCESS',
+        outcome: output.outcome || null,
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: `${normalizeNonNegativeNumber(output.filesIncluded)} file(s) packaged`,
+      });
+      continue;
+    }
+
+    if (isToolResultEnvelope(result) && result.outputType === GIT_COMMIT_OUTPUT_TYPE) {
+      gitCommit = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'DEV_COMMIT',
+        label: 'Development commit',
+        status: result.success === false ? 'FAILED' : 'SUCCESS',
+        outcome: output.outcome || null,
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: output.commitSha || output.currentHeadSha || `${normalizeNonNegativeNumber(output.changedFiles)} change(s)`,
+      });
+      continue;
+    }
+
+    if (output.kind === 'human_approval') {
+      approval = { nodeKey, output };
+      const decision = String(output.decision || output.status || 'UNKNOWN').toUpperCase();
+      stages.push({
+        nodeKey,
+        stageCode: 'MERGE_APPROVAL',
+        label: output.approvalTitle || 'Merge approval',
+        status: decision === 'APPROVED' ? 'SUCCESS' : decision === 'REJECTED' ? 'STOPPED' : 'FAILED',
+        outcome: decision,
+        summary: output.summary || '',
+        outputType: 'human_approval',
+        durationMs,
+        evidence: output.decidedByDisplayName || output.requiredRoleCode || 'Human decision',
+      });
+      continue;
+    }
+
+    if (isToolResultEnvelope(result) && result.outputType === GIT_BRANCH_SYNC_OUTPUT_TYPE) {
+      branchSync = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'BRANCH_SYNC',
+        label: 'Main/development synchronization',
+        status: result.success === false ? 'FAILED' : 'SUCCESS',
+        outcome: output.outcome || null,
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: output.synchronizedHeadSha || output.devHeadAfterSha || `${normalizeNonNegativeNumber(output.commitsApplied)} commit(s) applied`,
+      });
+    }
+  }
+
+  if (!gitCommit && !branchSync) {
+    return null;
+  }
+
+  const failed = stages.some((stage) => stage.status === 'FAILED');
+  const stopped = stages.some((stage) => stage.status === 'STOPPED');
+  const commitOutput = getSafeObject(gitCommit?.output);
+  const syncOutput = getSafeObject(branchSync?.output);
+  const approvalOutput = getSafeObject(approval?.output);
+  const repositoryCode =
+    syncOutput.repositoryCode ||
+    commitOutput.repositoryCode ||
+    repositoryMap?.output?.repositoryName ||
+    repositoryPackage?.output?.repositoryName ||
+    null;
+  const repositoryName =
+    syncOutput.repositoryName ||
+    commitOutput.repositoryName ||
+    repositoryMap?.output?.repositoryName ||
+    repositoryPackage?.output?.repositoryName ||
+    repositoryCode;
+  const developmentBranch = commitOutput.branch || syncOutput.targetBranch || syncOutput.devBranch || null;
+  const mainBranch = syncOutput.sourceBranch || syncOutput.mainBranch || null;
+  const outcome = failed
+    ? 'FAILED'
+    : stopped
+      ? 'STOPPED'
+      : branchSync
+        ? 'PROMOTED'
+        : approvalOutput.decision === 'APPROVED'
+          ? 'APPROVED'
+          : 'COMMITTED';
+
+  return {
+    outcome,
+    repositoryCode,
+    repositoryName,
+    developmentBranch,
+    mainBranch,
+    pullRequestDirection:
+      developmentBranch && mainBranch ? `${developmentBranch} → ${mainBranch}` : null,
+    synchronizationDirection:
+      mainBranch && developmentBranch ? `${mainBranch} → ${developmentBranch}` : null,
+    devCommitSha: commitOutput.commitSha || commitOutput.currentHeadSha || null,
+    synchronizedHeadSha: syncOutput.synchronizedHeadSha || syncOutput.devHeadAfterSha || null,
+    changedFiles: normalizeNonNegativeNumber(commitOutput.changedFiles),
+    commitsApplied: normalizeNonNegativeNumber(syncOutput.commitsApplied),
+    branchesSynchronized: Boolean(syncOutput.branchesSynchronized),
+    tagName: syncOutput.tagName || null,
+    tagCreated: Boolean(syncOutput.tagCreated),
+    approval: approval
+      ? {
+          nodeKey: approval.nodeKey,
+          decision: approvalOutput.decision || approvalOutput.status || null,
+          action: approvalOutput.action || null,
+          title: approvalOutput.approvalTitle || null,
+          requiredRoleCode: approvalOutput.requiredRoleCode || null,
+          decidedByDisplayName: approvalOutput.decidedByDisplayName || null,
+          decidedAt: approvalOutput.decidedAt || null,
+          decisionNote: approvalOutput.decisionNote || null,
+        }
+      : null,
+    artifacts: {
+      repositoryMap: repositoryMap
+        ? {
+            nodeKey: repositoryMap.nodeKey,
+            fileName: repositoryMap.output.fileName || null,
+            artifactPath: repositoryMap.output.artifactPath || null,
+            filesDocumented: normalizeNonNegativeNumber(repositoryMap.output.filesDocumented),
+          }
+        : null,
+      repositoryPackage: repositoryPackage
+        ? {
+            nodeKey: repositoryPackage.nodeKey,
+            fileName: repositoryPackage.output.fileName || null,
+            artifactPath: repositoryPackage.output.artifactPath || null,
+            filesIncluded: normalizeNonNegativeNumber(repositoryPackage.output.filesIncluded),
+            archiveBytes: normalizeNonNegativeNumber(repositoryPackage.output.archiveBytes),
+          }
+        : null,
+    },
+    durationMs: stages.reduce(
+      (sum, stage) => sum + normalizeNonNegativeNumber(stage.durationMs),
+      0,
+    ),
+    stages,
+  };
+}
+
 function buildStructuredResultRollup(nodeOutputsByKey = {}) {
   const macroIngestion = buildMacroIngestionRollup(nodeOutputsByKey);
+  const gitPromotion = buildGitPromotionRollup(nodeOutputsByKey);
   const outputTypes = {};
 
   for (const rawResult of Object.values(getSafeObject(nodeOutputsByKey))) {
@@ -391,6 +590,7 @@ function buildStructuredResultRollup(nodeOutputsByKey = {}) {
     resultCount: Object.values(outputTypes).reduce((sum, count) => sum + count, 0),
     outputTypes,
     macroIngestion,
+    gitPromotion,
   };
 }
 
@@ -463,16 +663,33 @@ function buildScheduledToolResultSummary(toolResult = {}) {
     };
   }
 
+  if (result.outputType === GIT_BRANCH_SYNC_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.gitBranchSync = {
+      outcome: output.outcome || null,
+      repositoryCode: output.repositoryCode || null,
+      sourceBranch: output.sourceBranch || output.mainBranch || null,
+      targetBranch: output.targetBranch || output.devBranch || null,
+      synchronizedHeadSha: output.synchronizedHeadSha || output.devHeadAfterSha || null,
+      commitsApplied: Number(output.commitsApplied || 0),
+      branchesSynchronized: Boolean(output.branchesSynchronized),
+      tagName: output.tagName || null,
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   return summary;
 }
 
 module.exports = {
   MACRO_INGESTION_OUTPUT_TYPE,
   GIT_COMMIT_OUTPUT_TYPE,
+  GIT_BRANCH_SYNC_OUTPUT_TYPE,
   REPOSITORY_MAP_OUTPUT_TYPE,
   REPOSITORY_PACKAGE_OUTPUT_TYPE,
   buildCanonicalNodeResultView,
   buildConditionNodeLookup,
+  buildGitPromotionRollup,
   buildMacroIngestionRollup,
   buildScheduledToolResultSummary,
   buildStructuredResultRollup,

@@ -1,0 +1,112 @@
+const {
+  TOOL_RESULT_SCHEMA_VERSION,
+  validateToolResult,
+} = require('../../tools/src/toolResultContract');
+
+const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
+
+function normalizeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function nullable(value) {
+  return value === undefined || value === null || value === '' ? null : String(value);
+}
+
+function normalizeError(error) {
+  return error
+    ? {
+        code: String(error.code || 'MAIN_BRANCH_SYNC_FAILED'),
+        message: String(error.message || error),
+      }
+    : null;
+}
+
+function createGitBranchSyncToolResult(result = {}) {
+  const success = result.ok !== false;
+  const outcome = String(
+    result.outcome || (success ? 'SYNCHRONIZED' : 'FAILED'),
+  ).toUpperCase();
+  const repositoryLabel = result.repositoryCode || result.repositoryName || 'repository';
+  const sourceBranch = result.sourceBranch || result.mainBranch || 'main';
+  const targetBranch = result.targetBranch || result.devBranch || 'dev';
+  const message = success
+    ? outcome === 'ALREADY_SYNCHRONIZED'
+      ? `${repositoryLabel} ${sourceBranch} and ${targetBranch} were already synchronized.`
+      : result.tagCreated
+        ? `${repositoryLabel} ${sourceBranch} was synchronized into ${targetBranch} and tag ${result.tagName} was pushed.`
+        : `${repositoryLabel} ${sourceBranch} was synchronized into ${targetBranch} successfully.`
+    : `${repositoryLabel} branch synchronization failed.`;
+
+  return validateToolResult({
+    schemaVersion: TOOL_RESULT_SCHEMA_VERSION,
+    success,
+    message,
+    outputType: GIT_BRANCH_SYNC_OUTPUT_TYPE,
+    output: {
+      operationKind: 'MAIN_TO_DEV_SYNC',
+      outcome,
+      repositoryCode: nullable(result.repositoryCode),
+      repositoryName: nullable(result.repositoryName),
+      repositoryRoot: nullable(result.repositoryRoot),
+      remote: String(result.remote || 'origin'),
+      sourceBranch: nullable(sourceBranch),
+      targetBranch: nullable(targetBranch),
+      mainBranch: nullable(result.mainBranch || sourceBranch),
+      devBranch: nullable(result.devBranch || targetBranch),
+      mainHeadBeforeSha: nullable(result.mainHeadBeforeSha),
+      mainHeadSha: nullable(result.mainHeadSha),
+      devHeadBeforePullSha: nullable(result.devHeadBeforePullSha),
+      devHeadBeforeSha: nullable(result.devHeadBeforeSha),
+      devHeadAfterSha: nullable(result.devHeadAfterSha),
+      synchronizedHeadSha: nullable(result.synchronizedHeadSha || result.devHeadAfterSha),
+      commitsApplied: normalizeNumber(result.commitsApplied),
+      devAdvanced: Boolean(result.devAdvanced),
+      branchesSynchronized: Boolean(result.branchesSynchronized),
+      tagName: nullable(result.tagName),
+      tagCreated: Boolean(result.tagCreated),
+      startedAt: nullable(result.startedAt),
+      completedAt: nullable(result.completedAt),
+      durationMs: normalizeNumber(result.durationMs),
+      steps: {
+        fetched: Boolean(result.fetched),
+        mainBranchSelected: Boolean(result.mainBranchSelected),
+        mainBranchPulled: Boolean(result.mainBranchPulled),
+        devBranchSelected: Boolean(result.devBranchSelected),
+        devBranchPulled: Boolean(result.devBranchPulled),
+        fastForwardMerged: Boolean(result.fastForwardMerged),
+        mainBranchPushed: Boolean(result.mainBranchPushed),
+        devBranchPushed: Boolean(result.devBranchPushed),
+        tagCreated: Boolean(result.tagCreated),
+        tagsPushed: Boolean(result.tagsPushed),
+      },
+    },
+    warnings: Array.isArray(result.warnings) ? result.warnings.map(String) : [],
+    error: success ? null : normalizeError(result.error),
+    metadata: {
+      profileCode: nullable(result.profileCode),
+      transport: 'git_cli',
+    },
+  });
+}
+
+function createGitBranchSyncFailureToolResult({ error, startedAt, completedAt } = {}) {
+  const finishedAt = completedAt || new Date().toISOString();
+  const beganAt = startedAt || finishedAt;
+
+  return createGitBranchSyncToolResult({
+    ok: false,
+    outcome: 'FAILED',
+    startedAt: beganAt,
+    completedAt: finishedAt,
+    durationMs: Math.max(0, new Date(finishedAt).getTime() - new Date(beganAt).getTime()),
+    error,
+  });
+}
+
+module.exports = {
+  GIT_BRANCH_SYNC_OUTPUT_TYPE,
+  createGitBranchSyncFailureToolResult,
+  createGitBranchSyncToolResult,
+};

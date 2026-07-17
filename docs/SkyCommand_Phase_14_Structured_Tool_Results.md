@@ -117,6 +117,7 @@ The tool writes atomically. The wrapper reads, validates, and deletes the file. 
 | Repository map | `repo_map_generate` | `repository_map_summary.v1` |
 | Repository package | `repo_zip_generate` | `repository_package_summary.v1` |
 | Git commit | `dev_commit` | `git_commit_summary.v1` |
+| Git branch synchronization | `main_merge` | `git_branch_sync_summary.v1` |
 | Legacy fallback | Any tool without usable structured output | `legacy_tool_execution.v1` |
 
 Domain JSON Schemas remain as documentation and test assets. They are not runtime launch gates.
@@ -139,6 +140,8 @@ nodes.fred_ingestion.output.totals.rowsInserted
 nodes.repo_map_node.output.filesDocumented
 nodes.repo_zip_node.output.filesIncluded
 nodes.dev_commit_node.output.commitSha
+nodes.main_merge_node.output.branchesSynchronized
+nodes.main_merge_node.output.synchronizedHeadSha
 ```
 
 Condition paths remain strict: a configured path that does not exist fails clearly unless a deliberate fallback value is supplied.
@@ -151,14 +154,16 @@ Purpose-built renderers remain active:
 - repository map summary, policy, and extension breakdown;
 - repository ZIP artifact and packaging policy;
 - Git commit summary;
-- structured Summary-node rollups;
+- Git main/development branch synchronization;
+- human approval decision details;
+- structured Summary-node rollups, including development-promotion stages;
 - generic structured key/value fallback.
 
 Raw stdout/stderr is never promoted into normal workflow output.
 
 ## Summary nodes
 
-Summary nodes receive compact, normalized prior-node results. Macro ingestion sources are aggregated symmetrically, and generic workflows receive a node-result index with status, summary, output contract, and duration.
+Summary nodes receive compact, normalized prior-node results. Macro ingestion sources are aggregated symmetrically. Repository delivery workflows receive a development-promotion rollup covering Repository Map, Repository ZIP, Dev Commit, human merge approval, and Main → Dev synchronization. Other workflows receive a node-result index with status, summary, output contract, and duration.
 
 Large arrays and verbose logs are not duplicated into Summary output.
 
@@ -251,3 +256,31 @@ Until a dedicated catalogue UI is built, a new tool is added by:
 6. testing direct, Run Tools, schedule, and workflow execution.
 
 No repository hash acceptance ceremony is required.
+
+
+## Development promotion contract
+
+The recommended repository promotion workflow is:
+
+```text
+Repository Map
+→ Repository ZIP
+→ Dev Commit
+→ Human Merge Approval
+→ Main → Dev Synchronization
+→ Summary
+```
+
+The approval checkpoint represents the operator's confirmation that the Dev → Main pull request has been completed on GitHub. `main_merge` then pulls both branches, fast-forwards the development branch from main, optionally creates a tag, and pushes the synchronized branch state.
+
+`git_branch_sync_summary.v1` records:
+
+- source and target branches;
+- main and development commit SHAs before and after synchronization;
+- commits applied;
+- whether the development branch advanced;
+- whether both branches ended at the same commit;
+- optional tag creation and push evidence;
+- step-level fetch, pull, merge, and push completion.
+
+The Summary node's `gitPromotion` rollup combines these results with repository artifacts, Dev Commit evidence, and the approval decision. Conditions can reference `nodes.main_merge_node.output.branchesSynchronized` without parsing Git output.

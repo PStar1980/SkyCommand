@@ -292,6 +292,8 @@ SkyServer/
 │   │   └── src/
 │   │       ├── dev_commit.js
 │   │       ├── git_repo_status.js
+│   │       ├── gitBranchSyncResult.js
+│   │       ├── gitBranchSyncResultSelfTest.js
 │   │       ├── gitCommitResult.js
 │   │       ├── gitCommitResultSelfTest.js
 │   │       └── main_merge.js
@@ -354,6 +356,7 @@ SkyServer/
 │   │           └── skyserverWorkflowExecutorWorkflow.js
 │   └── tools/
 │       ├── contracts/
+│       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── macro_ingestion_summary.v1.schema.json
 │       │   ├── repository_map_summary.v1.schema.json
