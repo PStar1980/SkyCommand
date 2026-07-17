@@ -578,7 +578,7 @@ function Tools() {
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Manifest tools</div>
+          <div className="sky-page-kicker">Registered tools</div>
           <h1 className="sky-page-title">Tools</h1>
           <p className="sky-page-subtitle">
             Run permission-filtered, Admin-Web-visible tools through the API execution layer.

@@ -1,4 +1,4 @@
-skycmd_refactor/
+SkyServer/
 ├── .editorconfig
 ├── .env.example
 ├── .gitattributes
@@ -11,6 +11,27 @@ skycmd_refactor/
 ├── package-lock.json
 ├── package.json
 ├── README.md
+├── .husky/
+│   ├── pre-commit
+│   ├── pre-push
+│   └── _/
+│       ├── .gitignore
+│       ├── applypatch-msg
+│       ├── commit-msg
+│       ├── h
+│       ├── husky.sh
+│       ├── post-applypatch
+│       ├── post-checkout
+│       ├── post-commit
+│       ├── post-merge
+│       ├── post-rewrite
+│       ├── pre-applypatch
+│       ├── pre-auto-gc
+│       ├── pre-commit
+│       ├── pre-merge-commit
+│       ├── pre-push
+│       ├── pre-rebase
+│       └── prepare-commit-msg
 ├── apps/
 │   ├── admin-web/
 │   │   ├── index.html
@@ -172,7 +193,12 @@ skycmd_refactor/
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_RepoMap.md
 │   ├── SkyServer_Temporal_Local_Setup.md
-│   └── SkyServer_Temporal_Workflow_Architecture_Plan.md
+│   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
+│   └── assets/
+│       ├── auth_schema_ERD.png
+│       ├── core_schema_ERD.png
+│       ├── skyweb_schema_ERD.png
+│       └── worker_schema_ERD.png
 ├── packages/
 │   ├── auth/
 │   │   └── src/
@@ -180,7 +206,9 @@ skycmd_refactor/
 │   │       └── password.js
 │   ├── core/
 │   │   └── src/
-│   │       └── SkyServer_Core.js
+│   │       ├── SkyServer_Core.js
+│   │       ├── workflowCliRuntimeParameters.js
+│   │       └── workflowCliRuntimeParametersSelfTest.js
 │   ├── db/
 │   │   └── src/
 │   │       ├── connection.js
@@ -302,6 +330,11 @@ skycmd_refactor/
 │   │       │   └── statcan.js
 │   │       └── transform/
 │   │           └── csvNormalizer.js
+│   ├── shared/
+│   │   └── src/
+│   │       ├── constants/
+│   │       ├── contracts/
+│   │       └── validators/
 │   ├── skyweb/
 │   │   └── src/
 │   │       └── evaluateSkyWebAlerts.js
