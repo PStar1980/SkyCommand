@@ -21,7 +21,8 @@ const {
 } = require('./gitCommitResult');
 
 const SKY_SERVER_ROOT = path.resolve(__dirname, '../../..');
-const MANIFEST_PATH = path.resolve(__dirname, '../manifests/dev_commit/skycommand.tool.json');
+const TOOL_CODE = 'dev_commit';
+const OUTPUT_TYPE = 'git_commit_summary.v1';
 dotenv.config({ path: path.join(SKY_SERVER_ROOT, '.env') });
 const { pool } = require('../../db/src/connection');
 
@@ -191,7 +192,8 @@ async function main(args = process.argv.slice(2)) {
   const startedAt = new Date().toISOString();
   try {
     return await runToolCli({
-      manifestPath: MANIFEST_PATH,
+      toolCode: TOOL_CODE,
+      outputType: OUTPUT_TYPE,
       args,
       execute: executeDevCommit,
       createToolResult: createGitCommitToolResult,
@@ -210,4 +212,4 @@ async function main(args = process.argv.slice(2)) {
 
 if (require.main === module) main();
 
-module.exports = { MANIFEST_PATH, executeDevCommit, main, printDevCommitResult };
+module.exports = { OUTPUT_TYPE, TOOL_CODE, executeDevCommit, main, printDevCommitResult };

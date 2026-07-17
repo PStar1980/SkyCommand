@@ -54,21 +54,37 @@ async function executeToolProcess({
   outputTruncationLabel = 'SkyCommand',
   executionId,
   toolCode,
-  toolResultRequired = false,
   toolResultMaxBytes,
   toolResultExpectedOutputType = null,
   toolResultOutputSchema = null,
   rootDirectory,
 } = {}) {
-  const resultTransport = createToolResultTransport({
-    executionId,
-    toolCode,
-    required: toolResultRequired,
-    maxBytes: toolResultMaxBytes,
-    expectedOutputType: toolResultExpectedOutputType,
-    outputSchema: toolResultOutputSchema,
-    rootDirectory,
-  });
+  let resultTransport = null;
+  let transportInitializationError = null;
+
+  try {
+    resultTransport = createToolResultTransport({
+      executionId,
+      toolCode,
+      maxBytes: toolResultMaxBytes,
+      expectedOutputType: toolResultExpectedOutputType,
+      outputSchema: toolResultOutputSchema,
+      rootDirectory,
+    });
+  } catch (error) {
+    transportInitializationError = error;
+    resultTransport = {
+      cleanup() {},
+      getEnvironment() { return {}; },
+      readResult() {
+        return {
+          status: 'UNAVAILABLE',
+          toolResult: null,
+          byteLength: 0,
+        };
+      },
+    };
+  }
 
   try {
     const processResult = await new Promise((resolve) => {
@@ -139,27 +155,29 @@ async function executeToolProcess({
     });
 
     let readResult = null;
-    let contractError = null;
+    let contractError = transportInitializationError;
 
-    try {
+    if (!contractError) {
+      try {
+        readResult = resultTransport.readResult();
+      } catch (error) {
+        contractError = error;
+      }
+    } else {
       readResult = resultTransport.readResult();
-    } catch (error) {
-      contractError = error;
     }
 
     const toolResult = readResult?.toolResult || null;
     const businessResultFailed = toolResult?.success === false;
     const finalStatus =
-      processResult.processStatus === 'SUCCESS' && !contractError && !businessResultFailed
+      processResult.processStatus === 'SUCCESS' && !businessResultFailed
         ? 'SUCCESS'
         : 'FAILED';
     const contractStatus = contractError
-      ? contractError.code === 'TOOL_RESULT_MISSING'
-        ? 'MISSING_REQUIRED'
-        : 'INVALID'
+      ? 'INVALID'
       : readResult?.status || 'NOT_EMITTED';
     const contractDiagnostic = contractError
-      ? `[SkyCommand ToolResult] ${contractError.code}: ${contractError.message}`
+      ? `[SkyCommand ToolResult Warning] ${contractError.code}: ${contractError.message}`
       : null;
     const businessDiagnostic = getBusinessFailureDiagnostic(toolResult);
 
@@ -172,7 +190,7 @@ async function executeToolProcess({
       ),
       toolResult,
       toolResultContract: {
-        required: Boolean(toolResultRequired),
+        required: false,
         expectedOutputType: toolResultExpectedOutputType,
         schemaValidated: Boolean(toolResultOutputSchema),
         status: contractStatus,

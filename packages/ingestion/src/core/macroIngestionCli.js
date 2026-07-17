@@ -1,5 +1,3 @@
-const path = require('path');
-
 const {
   createMacroIngestionFailureToolResult,
   createMacroIngestionToolResult,
@@ -7,7 +5,8 @@ const {
 const { runToolCli } = require('../../../tools/src/toolCliAdapter');
 const { writeToolResult } = require('../../../tools/src/toolResultTransport');
 
-const SOURCE_MANIFEST_DIRECTORIES = {
+const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
+const SOURCE_TOOL_CODES = {
   FRED: 'ingestion_fred',
   BOC: 'ingestion_boc',
   STATCAN: 'ingestion_statcan',
@@ -25,33 +24,27 @@ function emitMacroIngestionToolResult(toolResult, emitResult = writeToolResult, 
   return emitResult(toolResult, options);
 }
 
-function getDefaultMacroManifestPath(sourceCode) {
+function getMacroToolCode(sourceCode) {
   const normalizedSourceCode = String(sourceCode || '').toUpperCase();
-  const manifestDirectory = SOURCE_MANIFEST_DIRECTORIES[normalizedSourceCode];
+  const toolCode = SOURCE_TOOL_CODES[normalizedSourceCode];
 
-  if (!manifestDirectory) {
-    throw new Error(`No macro-ingestion manifest is configured for source ${normalizedSourceCode || '(blank)'}.`);
+  if (!toolCode) {
+    throw new Error(
+      `No macro-ingestion tool code is configured for source ${normalizedSourceCode || '(blank)'}.`,
+    );
   }
 
-  return path.resolve(
-    __dirname,
-    '../../manifests',
-    manifestDirectory,
-    'skycommand.tool.json',
-  );
+  return toolCode;
 }
 
 function runMacroIngestionCli({
   sourceCode,
-  manifestPath = null,
   args = process.argv.slice(2),
   execute,
   printResult = null,
   emitResult = writeToolResult,
   setExitCode = setProcessExitCode,
   logger = console.error,
-  writer = console.log,
-  repositoryRoot,
 } = {}) {
   if (typeof execute !== 'function') {
     throw new TypeError('runMacroIngestionCli requires an execute function.');
@@ -61,8 +54,8 @@ function runMacroIngestionCli({
   const startedAt = new Date().toISOString();
 
   return runToolCli({
-    manifestPath: manifestPath || getDefaultMacroManifestPath(normalizedSourceCode),
-    repositoryRoot,
+    toolCode: getMacroToolCode(normalizedSourceCode),
+    outputType: MACRO_INGESTION_OUTPUT_TYPE,
     args,
     execute,
     createToolResult: (result) => createMacroIngestionToolResult({
@@ -80,14 +73,14 @@ function runMacroIngestionCli({
     emitResult,
     setExitCode,
     logger,
-    writer,
   });
 }
 
 module.exports = {
-  SOURCE_MANIFEST_DIRECTORIES,
+  MACRO_INGESTION_OUTPUT_TYPE,
+  SOURCE_TOOL_CODES,
   emitMacroIngestionToolResult,
-  getDefaultMacroManifestPath,
+  getMacroToolCode,
   hasFlag,
   runMacroIngestionCli,
 };

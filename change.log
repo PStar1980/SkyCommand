@@ -1,3 +1,15 @@
+## 2026-07-17 — Phase 14 Structured-Result Safety Simplification
+
+- Removed repository `skycommand.tool.json` manifests, contract-check samples, hash calculations, accepted snapshot persistence, runtime drift gates, and all manifest preview/sync/check commands.
+- Preserved the successful Phase 14 behavior: separate stdout/stderr and ToolResult channels, canonical workflow paths, purpose-built output renderers, Summary-node aggregation, and domain-specific results for ingestion, repository map/package, and Dev Commit tools.
+- Made structured-result handling fail-open after successful domain execution. Missing, invalid, or unwriteable ToolResult data now records a warning and falls back to `legacy_tool_execution.v1` instead of failing a completed tool or blocking artifact access.
+- Removed `SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES`; structured result files are optional reporting artifacts and can no longer be used as launch gates.
+- Restored PostgreSQL as the sole runtime tool catalogue for script path, runtime, parameters, permissions, risk, visibility, schedules, and workflow selection.
+- Added migration `00064__remove_tool_manifest_snapshot_enforcement.sql` to drop the retired snapshot table and status view from existing databases.
+- Removed Tool Manifest Registration checks and commands from Production Readiness.
+- Established a permanent recovery rule: Repository ZIP generation must never depend on manifests, hashes, snapshots, schemas, generated maps, or validation-suite health before it can create an archive.
+- Updated validation, README, and Phase 14 implementation documentation for the simplified architecture.
+
 ## 2026-07-17 — Phase 14.8 Repository Map and Dev Commit Contracts
 
 - Migrated `repo_map_generate` to the universal `runToolCli()` adapter and added the strict `repository_map_summary.v1` contract, manifest, contract-check sample, output schema, scheduled evidence, workflow condition paths, and purpose-built Workflow History renderer.
@@ -932,3 +944,12 @@ SkyWeb Analytics owns:
 - Added compact repository-package evidence to scheduled result metadata and verified canonical condition paths such as `nodes.<nodeKey>.output.filesIncluded` and `nodes.<nodeKey>.output.artifactPath`.
 - Added `npm run repository-package:self-test` and included repository archive generation, sensitive-file exclusion, result validation, condition lookup, summary compaction, and scheduled metadata checks in `npm run validate`.
 - No database migration or seed is required. Because this increment adds a new manifest-backed tool, run snapshot preview, sync, and check after merging.
+
+## Phase 14.8.1 — Manifest sample recovery and per-tool failure isolation
+
+- Restored the repository-map and Dev Commit non-destructive contract-check samples required by their `skycommand.tool.json` manifests.
+- Diagnosed `resultContract.samplePath was not found` as a missing repository validation artifact, not a `SKYCOMMAND_TOOL_RESULT_REQUIRED_CODES` failure. The environment override is evaluated after manifest resolution and was not responsible for the outage.
+- Changed runtime manifest lookup from eager validation of every repository manifest to isolated lookup and validation of the requested tool only.
+- A broken or incomplete manifest now blocks its own tool while unrelated accepted tools remain executable. Repository-wide `npm run validate`, manifest validation, snapshot preview/sync/check, and readiness checks remain deliberately strict and still report every broken manifest.
+- Added a regression test proving that a tool with a valid contract can load when an unrelated manifest references a missing sample, while the broken tool still fails with `TOOL_MANIFEST_REFERENCED_FILE_MISSING`.
+- No database migration or seed is required. Re-run validation and the manifest snapshot lifecycle after restoring the files.

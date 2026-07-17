@@ -142,7 +142,6 @@ function writeToolResult(toolResult, options = {}) {
 function createToolResultTransport({
   executionId,
   toolCode,
-  required = false,
   rootDirectory = getSkyServerRoot(),
   resultDirectory = getDefaultResultDirectory(rootDirectory),
   maxBytes,
@@ -183,21 +182,13 @@ function createToolResultTransport({
       SKYCOMMAND_TOOL_RESULT_DIRECTORY: realResultDirectory,
       SKYCOMMAND_EXECUTION_ID: String(executionId || ''),
       SKYCOMMAND_TOOL_CODE: String(toolCode || ''),
-      SKYCOMMAND_TOOL_RESULT_REQUIRED: required ? 'true' : 'false',
+      SKYCOMMAND_TOOL_RESULT_REQUIRED: 'false',
       SKYCOMMAND_TOOL_RESULT_MAX_BYTES: String(maximumBytes),
     };
   }
 
   function readResult() {
     if (!fs.existsSync(resultPath)) {
-      if (required) {
-        throw new ToolResultContractError(
-          'TOOL_RESULT_MISSING',
-          'Tool process completed, but the required structured workflow result was not produced.',
-          { executionId: executionId || null, toolCode: toolCode || null },
-        );
-      }
-
       return {
         status: 'NOT_EMITTED',
         toolResult: null,
@@ -266,7 +257,7 @@ function createToolResultTransport({
     getEnvironment,
     maxBytes: maximumBytes,
     readResult,
-    required: Boolean(required),
+    required: false,
     expectedOutputType,
     resultDirectory: realResultDirectory,
     resultPath,

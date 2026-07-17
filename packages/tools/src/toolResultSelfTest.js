@@ -9,6 +9,7 @@ const {
   createLegacyToolResult,
   createToolResultTransport,
   executeToolProcess,
+  runToolCli,
   validateToolResult,
   writeToolResult,
 } = require('./index');
@@ -61,17 +62,15 @@ async function runSelfTest() {
     assert.equal(optionalTransport.readResult().status, 'NOT_EMITTED');
     optionalTransport.cleanup();
 
-    const requiredTransport = createToolResultTransport({
-      executionId: 'required-self-test',
-      toolCode: 'required_tool',
+    const formerlyRequiredTransport = createToolResultTransport({
+      executionId: 'formerly-required-self-test',
+      toolCode: 'formerly_required_tool',
       required: true,
       rootDirectory: temporaryRoot,
     });
-    assert.throws(
-      () => requiredTransport.readResult(),
-      (error) => error instanceof ToolResultContractError && error.code === 'TOOL_RESULT_MISSING',
-    );
-    requiredTransport.cleanup();
+    assert.equal(formerlyRequiredTransport.readResult().status, 'NOT_EMITTED');
+    assert.equal(formerlyRequiredTransport.required, false);
+    formerlyRequiredTransport.cleanup();
 
 
     assert.throws(
@@ -129,6 +128,71 @@ async function runSelfTest() {
     assert.equal(processResult.toolResultContract.status, 'VALID');
     assert.equal(processResult.toolResult.output.answer, 42);
     assert.match(processResult.stdout, /Human-readable fixture log/);
+
+    const noResultFixturePath = path.join(temporaryRoot, 'no-result-fixture.js');
+    fs.writeFileSync(
+      noResultFixturePath,
+      "console.log('Business operation completed without structured output.');\n",
+      'utf8',
+    );
+    const noResultProcess = await executeToolProcess({
+      command: process.execPath,
+      commandArgs: [noResultFixturePath],
+      cwd: temporaryRoot,
+      executionId: 'no-result-process-self-test',
+      toolCode: 'no_result_fixture',
+      toolResultRequired: true,
+      rootDirectory: temporaryRoot,
+      timeoutMs: 10000,
+    });
+    assert.equal(noResultProcess.status, 'SUCCESS');
+    assert.equal(noResultProcess.processStatus, 'SUCCESS');
+    assert.equal(noResultProcess.toolResultContract.status, 'NOT_EMITTED');
+    assert.equal(noResultProcess.toolResultContract.required, false);
+
+    const unavailableTransportRoot = path.join(temporaryRoot, 'transport-root-is-a-file');
+    fs.writeFileSync(unavailableTransportRoot, 'not a directory', 'utf8');
+    const unavailableTransportProcess = await executeToolProcess({
+      command: process.execPath,
+      commandArgs: [noResultFixturePath],
+      cwd: temporaryRoot,
+      executionId: 'unavailable-transport-self-test',
+      toolCode: 'unavailable_transport_fixture',
+      rootDirectory: unavailableTransportRoot,
+      timeoutMs: 10000,
+    });
+    assert.equal(unavailableTransportProcess.status, 'SUCCESS');
+    assert.equal(unavailableTransportProcess.processStatus, 'SUCCESS');
+    assert.equal(unavailableTransportProcess.toolResultContract.status, 'INVALID');
+    assert.ok(unavailableTransportProcess.toolResultContract.error);
+    assert.match(unavailableTransportProcess.stdout, /Business operation completed/);
+
+    const failOpenExitCodes = [];
+    const failOpenResult = await runToolCli({
+      toolCode: 'fail_open_fixture',
+      outputType: 'fail_open_fixture.v1',
+      args: [],
+      execute: async () => ({ ok: true, artifactPath: 'fixture.txt' }),
+      createToolResult: () => ({
+        schemaVersion: '1.0',
+        success: true,
+        message: 'Artifact created.',
+        outputType: 'fail_open_fixture.v1',
+        output: { artifactPath: 'fixture.txt' },
+        warnings: [],
+        error: null,
+        metadata: {},
+      }),
+      emitResult: () => {
+        throw new Error('simulated result transport failure');
+      },
+      setExitCode: (code) => failOpenExitCodes.push(code),
+      logger: () => {},
+    });
+    assert.equal(failOpenResult.result.ok, true);
+    assert.equal(failOpenResult.toolResult.success, true);
+    assert.match(failOpenResult.structuredResultWarning.message, /simulated result transport failure/);
+    assert.deepEqual(failOpenExitCodes, []);
 
     console.log('[SkyCommand] ToolResult contract and process-adapter self-test passed.');
   } finally {
