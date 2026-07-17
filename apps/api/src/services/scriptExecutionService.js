@@ -436,6 +436,19 @@ async function loadToolForExecution(toolCode) {
         m.category_code,
         m.category_label,
         m.tool_id,
+        r.repo_id AS script_repo_id,
+        snapshot.tool_manifest_snapshot_id,
+        snapshot.validation_status AS manifest_snapshot_status,
+        snapshot.manifest_version,
+        snapshot.manifest_path,
+        snapshot.runtime_type AS manifest_runtime_type,
+        snapshot.entrypoint_path AS manifest_entrypoint_path,
+        snapshot.output_type AS manifest_output_type,
+        snapshot.result_required AS manifest_result_required,
+        snapshot.manifest_hash,
+        snapshot.entrypoint_hash,
+        snapshot.output_schema_hash,
+        snapshot.contract_sample_hash,
         m.tool_code,
         m.name,
         m.label,
@@ -456,6 +469,9 @@ async function loadToolForExecution(toolCode) {
       FROM core.vw_tool_manifest m
       JOIN core.repositories r
         ON r.repo_code = m.script_repo_code
+      LEFT JOIN core.tool_manifest_snapshots snapshot
+        ON snapshot.tool_id = m.tool_id
+       AND snapshot.is_current = TRUE
       JOIN core.repository_paths rp
         ON rp.repo_id = r.repo_id
       JOIN core.config_profiles cp
@@ -767,6 +783,16 @@ async function executeChildProcess({
     ...result,
     runtimeLabel: runtime.label,
     commandArgs,
+    manifestContract: executionContract
+      ? {
+          snapshotId: executionContract.snapshotId || null,
+          snapshotStatus: executionContract.snapshotStatus || null,
+          manifestHash: executionContract.manifestHash || null,
+          entrypointHash: executionContract.entrypointHash || null,
+          outputType: executionContract.expectedOutputType || null,
+          resultRequired: executionContract.resultRequired === true,
+        }
+      : null,
   };
 }
 
@@ -1140,6 +1166,7 @@ async function runTool({
         processStatus: childResult.processStatus,
         toolResultAvailable: Boolean(childResult.toolResult),
         toolResultContract: childResult.toolResultContract,
+        manifestContract: childResult.manifestContract,
       },
     });
 
@@ -1178,6 +1205,7 @@ async function runTool({
       stderr: childResult.stderr,
       toolResult: childResult.toolResult,
       toolResultContract: childResult.toolResultContract,
+      manifestContract: childResult.manifestContract,
     };
   } catch (error) {
     if (execution?.execution_id) {

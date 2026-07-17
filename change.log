@@ -893,3 +893,21 @@ SkyWeb Analytics owns:
 - Added `npm run workflow-result-context:self-test` and included canonical path, three-source aggregation, compact summary, and scheduled-result assertions in `npm run validate`.
 - Updated condition and summary editor guidance, README, Phase 14 documentation, and repository map.
 - No database migration or seed is required for Phase 14.5.
+
+## Phase 14.6 — Accepted manifest snapshots and runtime drift enforcement
+
+- Added migration `00063__tool_manifest_registration_snapshots.sql` with versioned historical snapshots for accepted `skycommand.tool.json` contracts, including source repository, manifest path/version, runtime, entrypoint, semantic output type, required-result flag, normalized manifest JSON, validator version, validation status, and SHA-256 hashes for the manifest, entrypoint, output schema, and contract sample.
+- Added a partial unique current-snapshot constraint, historical `SUPERSEDED` retention, status/hash indexes, updated-at maintenance, and `core.vw_tool_manifest_snapshot_status`.
+- Added reusable manifest snapshot preview, sync, check, candidate, and drift-comparison services under `packages/tools`.
+- Added CLI commands:
+  - `npm run tool-manifest:snapshot:preview`
+  - `npm run tool-manifest:snapshot:sync`
+  - `npm run tool-manifest:snapshot:check`
+- Snapshot sync accepts validated repository changes while blocking database registry mismatches or unregistered manifest tools. Prior accepted snapshots remain historical rather than being overwritten.
+- API and worker tool queries now load the current accepted snapshot. Manifest-backed tools fail before launch when no accepted snapshot exists or when repository files/contract metadata differ from the current `VALID` snapshot.
+- Added `TOOL_MANIFEST_SNAPSHOT_REQUIRED` and `TOOL_MANIFEST_SNAPSHOT_DRIFT` enforcement to the generic manifest registry contract.
+- Added accepted snapshot ID/status/hash evidence to script execution metadata and returned execution details.
+- Added Tool Manifest Registration checks and snapshot commands to Production Readiness.
+- Added `npm run tool-manifest-snapshot:self-test` and included snapshot candidate, matching, drift, missing, unregistered, and registry-mismatch scenarios in `npm run validate`.
+- Updated README, Phase 14 documentation, roadmap wording, and repository map.
+- Migration `00063` and an initial `npm run tool-manifest:snapshot:sync` are required before running manifest-backed tools after this increment.

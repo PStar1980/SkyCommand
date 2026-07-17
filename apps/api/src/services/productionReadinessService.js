@@ -3,6 +3,9 @@ const os = require('os');
 const { query } = require('../../../../packages/db/src/connection');
 const { getTemporalConfig } = require('../../../../packages/temporal/src/config');
 const workflowHealthService = require('./workflowHealthService');
+const {
+  buildToolManifestSnapshotPreview,
+} = require('../../../../packages/tools/src/toolManifestSnapshotService');
 
 const STATUS_WEIGHT = {
   PASS: 0,
@@ -18,6 +21,8 @@ const REQUIRED_RELATIONS = [
   'auth.role_permissions',
   'auth.sessions',
   'core.tools',
+  'core.tool_manifest_snapshots',
+  'core.vw_tool_manifest_snapshot_status',
   'worker.schedules',
   'worker.workflow_definitions',
   'worker.workflow_versions',
@@ -391,6 +396,107 @@ async function buildDatabaseSection() {
     'Checks required tables/views and looks for stale or orphaned operational records.',
     checks,
   );
+}
+
+
+async function buildToolManifestSection() {
+  const snapshotTableExists = await relationExists('core.tool_manifest_snapshots');
+  const snapshotViewExists = await relationExists('core.vw_tool_manifest_snapshot_status');
+
+  if (!snapshotTableExists || !snapshotViewExists) {
+    return buildSection(
+      'tool_manifests',
+      'Tool manifest registration',
+      'Checks validated repository manifests, registered tools, durable snapshots, and live drift.',
+      [
+        buildCheck(
+          'tool_manifest_snapshot_schema',
+          'Tool manifest snapshot schema exists',
+          'FAIL',
+          'Apply migration 00063__tool_manifest_registration_snapshots.sql before registering manifest snapshots.',
+          {
+            snapshotTableExists,
+            snapshotViewExists,
+          },
+        ),
+      ],
+    );
+  }
+
+  try {
+    const preview = await buildToolManifestSnapshotPreview({
+      db: { query },
+      forceReload: true,
+    });
+    const checks = [
+      buildCheck(
+        'repository_manifests_valid',
+        'Repository tool manifests validate',
+        preview.manifestCount > 0 ? 'PASS' : 'WARNING',
+        preview.manifestCount > 0
+          ? `${preview.manifestCount} repository tool manifest(s) validated.`
+          : 'No repository tool manifests were discovered.',
+      ),
+      buildCheck(
+        'manifest_tools_registered',
+        'Manifest-backed tools exist in core.tools',
+        preview.unregisteredCount === 0 ? 'PASS' : 'FAIL',
+        preview.unregisteredCount === 0
+          ? `All ${preview.registeredCount} manifest-backed tool(s) resolve to registered database tools.`
+          : `${preview.unregisteredCount} repository manifest(s) do not have a registered core.tools record.`,
+        preview.tools
+          .filter((tool) => tool.status === 'UNREGISTERED')
+          .map((tool) => ({ toolCode: tool.toolCode, mismatches: tool.mismatches })),
+      ),
+      buildCheck(
+        'manifest_snapshots_registered',
+        'Validated manifest snapshots are registered',
+        preview.unsnapshottedCount === 0 ? 'PASS' : 'WARNING',
+        preview.unsnapshottedCount === 0
+          ? `${preview.validCount} current manifest snapshot(s) are registered.`
+          : `${preview.unsnapshottedCount} manifest-backed tool(s) require an initial snapshot sync.`,
+        preview.tools
+          .filter((tool) => tool.status === 'UNSNAPSHOTTED')
+          .map((tool) => tool.toolCode),
+      ),
+      buildCheck(
+        'manifest_snapshot_drift',
+        'Repository files match accepted snapshots',
+        preview.driftedCount === 0 ? 'PASS' : 'FAIL',
+        preview.driftedCount === 0
+          ? 'No manifest, entrypoint, schema, sample, runtime, path, or permission drift was detected.'
+          : `${preview.driftedCount} manifest-backed tool(s) differ from their accepted snapshot or database registration.`,
+        preview.tools
+          .filter((tool) => tool.status === 'DRIFTED')
+          .map((tool) => ({ toolCode: tool.toolCode, mismatches: tool.mismatches })),
+      ),
+    ];
+
+    return buildSection(
+      'tool_manifests',
+      'Tool manifest registration',
+      'Checks validated repository manifests, registered tools, durable snapshots, and live drift.',
+      checks,
+    );
+  } catch (error) {
+    return buildSection(
+      'tool_manifests',
+      'Tool manifest registration',
+      'Checks validated repository manifests, registered tools, durable snapshots, and live drift.',
+      [
+        buildCheck(
+          'tool_manifest_validation',
+          'Repository manifests and snapshots can be evaluated',
+          'FAIL',
+          error.message || 'Tool manifest validation failed.',
+          {
+            code: error.code || null,
+            details: error.details || null,
+          },
+        ),
+      ],
+    );
+  }
 }
 
 async function buildWorkflowSafetySection() {
@@ -780,6 +886,8 @@ function buildCommands(workerHealthResult) {
       commands.describeTaskQueue ||
       `temporal task-queue describe --address ${config.address} --namespace ${config.namespace} --task-queue ${config.taskQueue}`,
     dbHealth: 'npm run db:health',
+    toolManifestSnapshotSync: 'npm run tool-manifest:snapshot:sync',
+    toolManifestSnapshotCheck: 'npm run tool-manifest:snapshot:check',
   };
 }
 
@@ -809,6 +917,7 @@ async function getProductionReadiness({ user = null, permissions = [] } = {}) {
     buildEnvironmentSection(),
     await buildTemporalSection(workerHealthResult),
     await buildDatabaseSection(),
+    await buildToolManifestSection(),
     await buildWorkflowSafetySection(),
     await buildAuthSection({ user, permissions }),
     buildOperationsSection(workerHealthResult),

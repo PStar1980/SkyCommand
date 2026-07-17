@@ -72,11 +72,26 @@ async function run() {
     'skycommand.tool.json',
   );
   const loadedFred = loadToolManifest(fredManifestPath, { repositoryRoot });
+  const acceptedSnapshot = {
+    tool_manifest_snapshot_id: '00000000-0000-4000-8000-000000000010',
+    manifest_snapshot_status: 'VALID',
+    manifest_version: loadedFred.manifest.manifestVersion,
+    manifest_path: path.relative(repositoryRoot, loadedFred.manifestPath).replace(/\\/g, '/'),
+    manifest_runtime_type: loadedFred.manifest.runtime.type,
+    manifest_entrypoint_path: loadedFred.manifest.runtime.entrypoint,
+    manifest_output_type: loadedFred.manifest.resultContract.outputType,
+    manifest_result_required: loadedFred.manifest.resultContract.required,
+    manifest_hash: loadedFred.hashes.manifest,
+    entrypoint_hash: loadedFred.hashes.entrypoint,
+    output_schema_hash: loadedFred.hashes.outputSchema,
+    contract_sample_hash: loadedFred.hashes.sample,
+  };
   const executionContract = getRegisteredToolExecutionContract({
     tool_code: 'ingestion_fred',
     script_path: 'packages/ingestion/src/loadFREDMacroData.js',
     runtime_code: 'node',
     permission_code: 'INGESTION_RUN_FRED',
+    ...acceptedSnapshot,
   }, { repositoryRoot, forceReload: true });
 
   assert.strictEqual(executionContract.expectedOutputType, 'macro_ingestion_summary.v1');
@@ -89,8 +104,32 @@ async function run() {
       script_path: 'packages/ingestion/src/not-the-fred-script.js',
       runtime_code: 'node',
       permission_code: 'INGESTION_RUN_FRED',
+      ...acceptedSnapshot,
     }, { repositoryRoot }),
     (error) => error.code === 'TOOL_MANIFEST_REGISTRY_DRIFT',
+  );
+
+
+  assert.throws(
+    () => getRegisteredToolExecutionContract({
+      tool_code: 'ingestion_fred',
+      script_path: 'packages/ingestion/src/loadFREDMacroData.js',
+      runtime_code: 'node',
+      permission_code: 'INGESTION_RUN_FRED',
+    }, { repositoryRoot }),
+    (error) => error.code === 'TOOL_MANIFEST_SNAPSHOT_REQUIRED',
+  );
+
+  assert.throws(
+    () => getRegisteredToolExecutionContract({
+      tool_code: 'ingestion_fred',
+      script_path: 'packages/ingestion/src/loadFREDMacroData.js',
+      runtime_code: 'node',
+      permission_code: 'INGESTION_RUN_FRED',
+      ...acceptedSnapshot,
+      manifest_hash: '0'.repeat(64),
+    }, { repositoryRoot }),
+    (error) => error.code === 'TOOL_MANIFEST_SNAPSHOT_DRIFT',
   );
 
   const invalidOutput = JSON.parse(JSON.stringify(loadedFred.sampleToolResult));

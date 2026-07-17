@@ -6,7 +6,7 @@ Phase 14 is in progress.
 
 > Printing is for humans. Structured return values are for workflows.
 
-Phase 14.1 established the generic child-process result transport. Phase 14.2 proved the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript. Phase 14.3 extended that same contract to Bank of Canada and Statistics Canada and routed all three macro-source entrypoints through one shared ingestion CLI adapter. Phase 14.4 added the versioned tool-manifest, output-schema, describe/contract-check, registry validation, hash, and drift-detection foundation required for future repository registration. Phase 14.5 now unifies inline and Temporal result scopes, makes condition paths enforceable, aggregates all macro sources symmetrically in Summary nodes, and records compact structured-result evidence for scheduled tool runs.
+Phase 14.1 established the generic child-process result transport. Phase 14.2 proved the architecture with FRED by returning deliberate loader statistics, emitting `macro_ingestion_summary.v1`, and rendering those results as purpose-built tables in Workflow History while preserving the existing console transcript. Phase 14.3 extended that same contract to Bank of Canada and Statistics Canada and routed all three macro-source entrypoints through one shared ingestion CLI adapter. Phase 14.4 added the versioned tool-manifest, output-schema, describe/contract-check, registry validation, hash, and drift-detection foundation required for future repository registration. Phase 14.5 unified inline and Temporal result scopes, made condition paths enforceable, aggregated all macro sources symmetrically in Summary nodes, and recorded compact structured-result evidence for scheduled tool runs. Phase 14.6 now persists accepted manifest snapshots and enforces them at API and worker launch time.
 
 ## Phase 14.1 foundation
 
@@ -250,9 +250,9 @@ The macro-ingestion self-tests verify copy-loader metric parsing, aggregate tota
 
 ## Remaining Phase 14 increments
 
-1. Verify scheduled execution mode for all migrated macro sources and add explicit condition/summary proof cases.
-2. Add a database registration snapshot model for manifest version, source path, hashes, and validation status without yet building the final repository-picker UI.
-3. Expand structured results to additional tool categories using the generic adapter and renderer fallback.
+1. Expand structured results to additional tool categories using the generic adapter and renderer fallback.
+2. Add a small cross-category proof tool or migrate an existing repository/file tool to demonstrate custom output fields outside macro ingestion.
+3. Complete Phase 14 acceptance testing across CLI, Run Tools, schedules, workflows, conditions, summaries, missing-result failures, and drift rejection.
 4. Prepare the later transactional registration service and drift-review workflow described in Phase 15.
 
 ## Phase 14.5 — Workflow consumption, symmetric summaries, and scheduled proof
@@ -348,3 +348,63 @@ npm run web:build
 ```
 
 The workflow-result-context self-test verifies canonical condition paths, all three macro sources, aggregate totals, compact Summary-node output, and scheduled metadata summaries. The Temporal workflow bundle is also compiled to confirm the shared deterministic helper is bundle-safe.
+
+
+## Phase 14.6 — Accepted manifest snapshots and runtime enforcement
+
+Phase 14.6 converts repository hashes from transient validation output into a durable database contract.
+
+### Snapshot model
+
+Migration `00063__tool_manifest_registration_snapshots.sql` creates `core.tool_manifest_snapshots` and `core.vw_tool_manifest_snapshot_status`. Each accepted version stores:
+
+- the registered tool and source repository;
+- manifest version and repository-relative manifest path;
+- runtime, entrypoint, semantic output type, and required-result flag;
+- SHA-256 hashes for the normalized manifest, entrypoint, output schema, and contract sample;
+- validator version, validation status, safe validation details, and the normalized manifest snapshot;
+- current/superseded state and registration/check timestamps.
+
+Historical snapshots remain available. Only one snapshot may be current for a tool.
+
+### Snapshot commands
+
+```bash
+npm run tool-manifest:snapshot:preview
+npm run tool-manifest:snapshot:sync
+npm run tool-manifest:snapshot:check
+```
+
+- `preview` validates repository manifests and compares them with `core.tools` and the current accepted snapshot without writing.
+- `sync` transactionally accepts the current validated contracts. A changed accepted contract supersedes the prior snapshot rather than deleting it.
+- `check` compares live repository files with the accepted snapshot, persists `VALID` or `DRIFTED`, and exits non-zero when attention is required.
+
+A registry mismatch such as a changed script path, runtime, or permission blocks snapshot sync. A legitimate validated repository change may be accepted by running `sync`, which creates the next historical snapshot.
+
+### Runtime enforcement
+
+Manifest-backed API and worker launches join the current snapshot and verify it before child-process execution. A missing snapshot fails with:
+
+```text
+TOOL_MANIFEST_SNAPSHOT_REQUIRED
+```
+
+A non-`VALID` snapshot or changed manifest, entrypoint, output schema, contract sample, version, path, runtime, or output type fails with:
+
+```text
+TOOL_MANIFEST_SNAPSHOT_DRIFT
+```
+
+The accepted snapshot ID, status, hashes, output type, and required-result flag are retained in script-execution metadata. This proves which repository contract authorized each run without copying the entire manifest into every execution row.
+
+### Production Readiness
+
+Production Readiness now includes a Tool Manifest Registration section that checks:
+
+- snapshot table/view availability;
+- successful repository manifest validation;
+- matching `core.tools` registrations;
+- initial accepted snapshots;
+- live repository-versus-snapshot drift.
+
+This remains intentionally separate from the final repository picker and transactional self-service registration UI planned for Phase 15.
