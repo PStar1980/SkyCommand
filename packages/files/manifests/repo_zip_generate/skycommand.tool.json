@@ -1,0 +1,71 @@
+{
+  "manifestVersion": "1.0",
+  "toolCode": "repo_zip_generate",
+  "displayName": "Generate Repository Zip",
+  "description": "Generates a compact repository archive for project handoff while excluding dependencies, runtime logs, sensitive environment files, and generated archives by default.",
+  "runtime": {
+    "type": "node",
+    "entrypoint": "packages/files/src/generateRepoZip.js"
+  },
+  "parameters": [
+    {
+      "name": "location",
+      "label": "Root Folder Location",
+      "description": "Repository or folder to package.",
+      "type": "path",
+      "required": true,
+      "secret": false,
+      "binding": {
+        "mode": "argv_positional",
+        "position": 0
+      }
+    },
+    {
+      "name": "file_name",
+      "label": "Output Zip File Name",
+      "description": "Archive file name. The .zip extension is added when omitted.",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "binding": {
+        "mode": "argv_positional",
+        "position": 1
+      }
+    },
+    {
+      "name": "output_path",
+      "label": "Optional Output Path",
+      "description": "Optional destination folder. When omitted, the archive is written beside the repository contents.",
+      "type": "path",
+      "required": false,
+      "secret": false,
+      "defaultValue": "",
+      "binding": {
+        "mode": "argv_positional",
+        "position": 2
+      }
+    }
+  ],
+  "resultContract": {
+    "required": true,
+    "schemaVersion": "1.0",
+    "outputType": "repository_package_summary.v1",
+    "schemaPath": "packages/tools/contracts/repository_package_summary.v1.schema.json",
+    "samplePath": "packages/files/manifests/repo_zip_generate/contract-check-result.json"
+  },
+  "permissions": ["REPO_ZIP_GENERATE"],
+  "execution": {
+    "timeoutMs": 1800000,
+    "allowManual": true,
+    "allowSchedules": true,
+    "allowWorkflows": true,
+    "capturesOutput": true
+  },
+  "registration": {
+    "applicationCode": "SKYSERVER_CORE",
+    "categoryCode": "file_tools",
+    "riskCode": "low",
+    "requiresConfirmation": false,
+    "confirmationText": ""
+  }
+}

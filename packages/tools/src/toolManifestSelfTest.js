@@ -21,7 +21,7 @@ async function run() {
 
   assert.deepStrictEqual(
     reports.map((report) => report.toolCode).sort(),
-    ['ingestion_boc', 'ingestion_fred', 'ingestion_statcan'],
+    ['ingestion_boc', 'ingestion_fred', 'ingestion_statcan', 'repo_zip_generate'],
   );
   assert.ok(reports.every((report) => report.schemaValidated));
   assert.ok(reports.every((report) => report.sampleSuccess));
@@ -196,6 +196,22 @@ async function run() {
   assert.strictEqual(emitted[0].options.expectedOutputType, 'macro_ingestion_summary.v1');
   assert.ok(emitted[0].options.outputSchema);
   assert.strictEqual(contractLines.length, 1);
+
+  const repositoryZipManifestPath = path.join(
+    repositoryRoot,
+    'packages',
+    'files',
+    'manifests',
+    'repo_zip_generate',
+    'skycommand.tool.json',
+  );
+  const loadedRepositoryZip = loadToolManifest(repositoryZipManifestPath, { repositoryRoot });
+  assert.strictEqual(
+    loadedRepositoryZip.manifest.resultContract.outputType,
+    'repository_package_summary.v1',
+  );
+  assert.strictEqual(loadedRepositoryZip.manifest.permissions[0], 'REPO_ZIP_GENERATE');
+  assert.strictEqual(loadedRepositoryZip.sampleToolResult.output.filesIncluded, 412);
 
   console.log('[SkyCommand] Tool manifest and contract-check self-test passed.');
 }

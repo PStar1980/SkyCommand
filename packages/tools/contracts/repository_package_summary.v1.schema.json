@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/repository_package_summary.v1.schema.json",
+  "title": "Repository Package Summary v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifactKind",
+    "outcome",
+    "repositoryName",
+    "repositoryRoot",
+    "fileName",
+    "artifactPath",
+    "startedAt",
+    "completedAt",
+    "durationMs",
+    "filesIncluded",
+    "sourceBytes",
+    "archiveBytes",
+    "compressionRatio",
+    "options"
+  ],
+  "properties": {
+    "artifactKind": { "const": "REPOSITORY_ZIP" },
+    "outcome": { "type": "string", "enum": ["CREATED", "FAILED"] },
+    "repositoryName": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "repositoryRoot": { "type": ["string", "null"], "maxLength": 4000 },
+    "fileName": { "type": ["string", "null"], "maxLength": 500 },
+    "artifactPath": { "type": ["string", "null"], "maxLength": 4000 },
+    "startedAt": {
+      "type": ["string", "null"],
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "completedAt": {
+      "type": ["string", "null"],
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "durationMs": { "type": "number", "minimum": 0 },
+    "filesIncluded": { "type": "number", "minimum": 0 },
+    "sourceBytes": { "type": "number", "minimum": 0 },
+    "archiveBytes": { "type": "number", "minimum": 0 },
+    "compressionRatio": { "type": "number", "minimum": 0 },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodeModulesIncluded",
+        "imagesIncluded",
+        "sensitiveEnvironmentFilesExcluded",
+        "generatedArtifactsExcluded"
+      ],
+      "properties": {
+        "nodeModulesIncluded": { "type": "boolean" },
+        "imagesIncluded": { "type": "boolean" },
+        "sensitiveEnvironmentFilesExcluded": { "type": "boolean" },
+        "generatedArtifactsExcluded": { "type": "boolean" }
+      }
+    }
+  }
+}

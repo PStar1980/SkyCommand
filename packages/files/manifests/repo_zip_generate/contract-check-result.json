@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0",
+  "success": true,
+  "message": "Repository package SkyServer_Repo.zip was created successfully.",
+  "outputType": "repository_package_summary.v1",
+  "output": {
+    "artifactKind": "REPOSITORY_ZIP",
+    "outcome": "CREATED",
+    "repositoryName": "SkyServer",
+    "repositoryRoot": "C:/Projects/SkyServer",
+    "fileName": "SkyServer_Repo.zip",
+    "artifactPath": "C:/Projects/SkyServer/zip/SkyServer_Repo.zip",
+    "startedAt": "2026-07-17T02:00:00.000Z",
+    "completedAt": "2026-07-17T02:00:03.000Z",
+    "durationMs": 3000,
+    "filesIncluded": 412,
+    "sourceBytes": 1840000,
+    "archiveBytes": 910000,
+    "compressionRatio": 0.4945652173913043,
+    "options": {
+      "nodeModulesIncluded": false,
+      "imagesIncluded": false,
+      "sensitiveEnvironmentFilesExcluded": true,
+      "generatedArtifactsExcluded": true
+    }
+  },
+  "warnings": [],
+  "error": null,
+  "metadata": {
+    "extension": ".zip",
+    "transport": "filesystem"
+  }
+}

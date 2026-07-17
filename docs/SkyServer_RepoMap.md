@@ -279,9 +279,15 @@ SkyServer/
 │   │           ├── 00060__temporal_listener_audit_privileges_seed.sql
 │   │           └── 00061__skycommand_application_brand_seed.sql
 │   ├── files/
+│   │   ├── manifests/
+│   │   │   └── repo_zip_generate/
+│   │   │       ├── contract-check-result.json
+│   │   │       └── skycommand.tool.json
 │   │   └── src/
 │   │       ├── generateRepoMap.js
-│   │       └── generateRepoZip.js
+│   │       ├── generateRepoZip.js
+│   │       ├── repositoryPackageResult.js
+│   │       └── repositoryPackageResultSelfTest.js
 │   ├── git/
 │   │   └── src/
 │   │       ├── dev_commit.js
@@ -357,6 +363,7 @@ SkyServer/
 │   └── tools/
 │       ├── contracts/
 │       │   ├── macro_ingestion_summary.v1.schema.json
+│       │   ├── repository_package_summary.v1.schema.json
 │       │   └── skycommand.tool.v1.schema.json
 │       └── src/
 │           ├── index.js

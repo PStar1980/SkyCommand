@@ -911,3 +911,15 @@ SkyWeb Analytics owns:
 - Added `npm run tool-manifest-snapshot:self-test` and included snapshot candidate, matching, drift, missing, unregistered, and registry-mismatch scenarios in `npm run validate`.
 - Updated README, Phase 14 documentation, roadmap wording, and repository map.
 - Migration `00063` and an initial `npm run tool-manifest:snapshot:sync` are required before running manifest-backed tools after this increment.
+
+
+## Phase 14.7 — Repository package structured-result proof
+
+- Migrated the existing `repo_zip_generate` file tool to the same generic `runToolCli()` adapter used by manifest-backed ingestion tools, without adding a repository-specific workflow wrapper.
+- Preserved direct CLI and Run Tools console output while emitting the strict `repository_package_summary.v1` ToolResult for workflows and schedules.
+- Added repository package output fields for archive path, repository name/root, file count, source/archive bytes, compression ratio, duration, and packaging policy.
+- Added a versioned `skycommand.tool.json` manifest, strict output JSON Schema, non-destructive contract-check sample, and accepted-snapshot participation for `repo_zip_generate`.
+- Added purpose-built Workflow History Artifact Summary and Packaging Policy tables for focused repository-package nodes.
+- Added compact repository-package evidence to scheduled result metadata and verified canonical condition paths such as `nodes.<nodeKey>.output.filesIncluded` and `nodes.<nodeKey>.output.artifactPath`.
+- Added `npm run repository-package:self-test` and included repository archive generation, sensitive-file exclusion, result validation, condition lookup, summary compaction, and scheduled metadata checks in `npm run validate`.
+- No database migration or seed is required. Because this increment adds a new manifest-backed tool, run snapshot preview, sync, and check after merging.
