@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/git_branch_sync_summary.v1.schema.json",
+  "title": "Git Branch Synchronization Summary v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationKind",
+    "outcome",
+    "repositoryCode",
+    "repositoryName",
+    "repositoryRoot",
+    "remote",
+    "sourceBranch",
+    "targetBranch",
+    "mainBranch",
+    "devBranch",
+    "mainHeadBeforeSha",
+    "mainHeadSha",
+    "devHeadBeforePullSha",
+    "devHeadBeforeSha",
+    "devHeadAfterSha",
+    "synchronizedHeadSha",
+    "commitsApplied",
+    "devAdvanced",
+    "branchesSynchronized",
+    "tagName",
+    "tagCreated",
+    "startedAt",
+    "completedAt",
+    "durationMs",
+    "steps"
+  ],
+  "properties": {
+    "operationKind": {
+      "const": "MAIN_TO_DEV_SYNC"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["SYNCHRONIZED", "ALREADY_SYNCHRONIZED", "TAGGED", "FAILED"]
+    },
+    "repositoryCode": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "repositoryName": {
+      "type": ["string", "null"],
+      "maxLength": 240
+    },
+    "repositoryRoot": {
+      "type": ["string", "null"],
+      "maxLength": 4000
+    },
+    "remote": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "sourceBranch": {
+      "type": ["string", "null"],
+      "maxLength": 500
+    },
+    "targetBranch": {
+      "type": ["string", "null"],
+      "maxLength": 500
+    },
+    "mainBranch": {
+      "type": ["string", "null"],
+      "maxLength": 500
+    },
+    "devBranch": {
+      "type": ["string", "null"],
+      "maxLength": 500
+    },
+    "mainHeadBeforeSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "mainHeadSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "devHeadBeforePullSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "devHeadBeforeSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "devHeadAfterSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "synchronizedHeadSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "commitsApplied": {
+      "type": "number",
+      "minimum": 0
+    },
+    "devAdvanced": {
+      "type": "boolean"
+    },
+    "branchesSynchronized": {
+      "type": "boolean"
+    },
+    "tagName": {
+      "type": ["string", "null"],
+      "maxLength": 500
+    },
+    "tagCreated": {
+      "type": "boolean"
+    },
+    "startedAt": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "completedAt": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fetched",
+        "mainBranchSelected",
+        "mainBranchPulled",
+        "devBranchSelected",
+        "devBranchPulled",
+        "fastForwardMerged",
+        "mainBranchPushed",
+        "devBranchPushed",
+        "tagCreated",
+        "tagsPushed"
+      ],
+      "properties": {
+        "fetched": { "type": "boolean" },
+        "mainBranchSelected": { "type": "boolean" },
+        "mainBranchPulled": { "type": "boolean" },
+        "devBranchSelected": { "type": "boolean" },
+        "devBranchPulled": { "type": "boolean" },
+        "fastForwardMerged": { "type": "boolean" },
+        "mainBranchPushed": { "type": "boolean" },
+        "devBranchPushed": { "type": "boolean" },
+        "tagCreated": { "type": "boolean" },
+        "tagsPushed": { "type": "boolean" }
+      }
+    }
+  }
+}

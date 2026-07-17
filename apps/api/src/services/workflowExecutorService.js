@@ -5929,6 +5929,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
     : {};
   const structuredResults = buildStructuredResultRollup(nodeOutputsByKey);
   const macroIngestion = structuredResults.macroIngestion;
+  const gitPromotion = structuredResults.gitPromotion;
   const scope = buildTemplateResolutionScope({
     input: workflowInfo.input || {},
     context: {
@@ -5940,6 +5941,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
       nodes: getSafeObject(context.nodes || workflowContext.nodes),
       structuredResults,
       macroIngestion,
+      gitPromotion,
       keyOutputs,
     },
   });
@@ -5967,7 +5969,13 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
   const macroSummary = macroIngestion
     ? ` Macro ingestion: ${macroIngestion.sourceCount} source(s), ${macroIngestion.totals.indicatorsRequested} indicator(s), ${macroIngestion.totals.indicatorsUpdated} updated, ${macroIngestion.totals.indicatorsUnchanged} unchanged, ${macroIngestion.totals.indicatorsFailed} failed, ${macroIngestion.totals.rowsInserted} row(s) inserted.`
     : '';
-  const defaultSummary = `Workflow ${workflowName} summarized: ${completedNodeCount}/${totalNodeCount || observedNodeCount} node(s) completed${counts.FAILED ? `, ${counts.FAILED} failed` : ''}${skippedNodeCount ? `, ${skippedNodeCount} not run` : ''}.${macroSummary}`;
+  const promotionApproval = gitPromotion?.approval?.decision
+    ? ` Approval ${String(gitPromotion.approval.decision).toLowerCase()}${gitPromotion.approval.decidedByDisplayName ? ` by ${gitPromotion.approval.decidedByDisplayName}` : ''}.`
+    : '';
+  const promotionSummary = gitPromotion
+    ? ` Development promotion: ${gitPromotion.repositoryCode || gitPromotion.repositoryName || 'repository'} ${gitPromotion.pullRequestDirection || ''}${gitPromotion.synchronizationDirection ? `; synchronized ${gitPromotion.synchronizationDirection}` : ''}${gitPromotion.synchronizedHeadSha ? ` at ${gitPromotion.synchronizedHeadSha.slice(0, 12)}` : ''}. ${promotionApproval}`
+    : '';
+  const defaultSummary = `Workflow ${workflowName} summarized: ${completedNodeCount}/${totalNodeCount || observedNodeCount} node(s) completed${counts.FAILED ? `, ${counts.FAILED} failed` : ''}${skippedNodeCount ? `, ${skippedNodeCount} not run` : ''}.${macroSummary}${promotionSummary}`;
   const summary =
     renderSummaryTemplate(summaryParameters.summaryTemplate, scope, defaultSummary) ||
     defaultSummary;
@@ -5990,6 +5998,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
     keyOutputs,
     structuredResults,
     macroIngestion,
+    gitPromotion,
     warnings: summaryParameters.includeWarnings ? warnings : [],
     errors: summaryParameters.includeWarnings ? errors : [],
     counts: {
@@ -6014,6 +6023,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
       keyOutputs,
       structuredResults,
       macroIngestion,
+      gitPromotion,
       recommendedNextActions,
     },
     contextUpdates: {
@@ -6025,6 +6035,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
       'summary.keyOutputs': keyOutputs,
       'summary.structuredResults': structuredResults,
       'summary.macroIngestion': macroIngestion,
+      'summary.gitPromotion': gitPromotion,
     },
   };
 }

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const {
   buildCanonicalNodeResultView,
   buildConditionNodeLookup,
+  buildGitPromotionRollup,
   buildMacroIngestionRollup,
   buildScheduledToolResultSummary,
   buildStructuredResultRollup,
@@ -124,6 +125,75 @@ function repositoryMapResult() {
     status: 'SUCCESS',
     durationMs: 100,
     executionId: 'repo-map-execution',
+  };
+}
+
+function gitBranchSyncResult() {
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'Main was synchronized into dev.',
+    outputType: 'git_branch_sync_summary.v1',
+    output: {
+      operationKind: 'MAIN_TO_DEV_SYNC',
+      outcome: 'SYNCHRONIZED',
+      repositoryCode: 'SkyServer',
+      repositoryName: 'SkyServer',
+      repositoryRoot: 'C:/Projects/SkyServer',
+      sourceBranch: 'main',
+      targetBranch: 'dev',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      mainHeadSha: '3'.repeat(40),
+      devHeadBeforeSha: '2'.repeat(40),
+      devHeadAfterSha: '3'.repeat(40),
+      synchronizedHeadSha: '3'.repeat(40),
+      commitsApplied: 1,
+      devAdvanced: true,
+      branchesSynchronized: true,
+      tagName: null,
+      tagCreated: false,
+      durationMs: 500,
+      steps: {
+        fetched: true,
+        mainBranchSelected: true,
+        mainBranchPulled: true,
+        devBranchSelected: true,
+        devBranchPulled: true,
+        fastForwardMerged: true,
+        mainBranchPushed: true,
+        devBranchPushed: true,
+        tagCreated: false,
+        tagsPushed: false,
+      },
+    },
+    warnings: [],
+    error: null,
+    metadata: {},
+    kind: 'tool_execution',
+    toolCode: 'main_merge',
+    status: 'SUCCESS',
+    durationMs: 500,
+    executionId: 'main-merge-execution',
+  };
+}
+
+function humanApprovalResult() {
+  return {
+    kind: 'human_approval',
+    status: 'APPROVED',
+    approved: true,
+    rejected: false,
+    timedOut: false,
+    decision: 'APPROVED',
+    action: 'CONTINUE',
+    approvalTitle: 'Merge approval',
+    approvalKey: 'merge_approval_node',
+    requiredRoleCode: 'SUPER_ADMIN',
+    decisionNote: 'Pull request merged successfully.',
+    decidedByDisplayName: 'Paul-SuperAdmin',
+    decidedAt: '2026-07-17T21:00:00.000Z',
+    summary: 'Approval granted; continuing workflow.',
   };
 }
 
@@ -270,6 +340,39 @@ function run() {
   const scheduledCommit = buildScheduledToolResultSummary(commitResult);
   assert.equal(scheduledCommit.gitCommit.branch, 'dev');
   assert.equal(scheduledCommit.gitCommit.changedFiles, 6);
+
+  const branchSyncResult = gitBranchSyncResult();
+  const branchSyncLookup = buildConditionNodeLookup({}, { main_merge_node: branchSyncResult });
+  assert.equal(branchSyncLookup.main_merge_node.output.branchesSynchronized, true);
+  assert.equal(branchSyncLookup.main_merge_node.output.commitsApplied, 1);
+  const scheduledBranchSync = buildScheduledToolResultSummary(branchSyncResult);
+  assert.equal(scheduledBranchSync.gitBranchSync.sourceBranch, 'main');
+  assert.equal(scheduledBranchSync.gitBranchSync.targetBranch, 'dev');
+
+  const promotion = buildGitPromotionRollup({
+    repo_map_node: mapResult,
+    repo_zip_node: repositoryResult,
+    dev_commit_node: commitResult,
+    merge_approval_node: humanApprovalResult(),
+    main_merge_node: branchSyncResult,
+  });
+  assert.equal(promotion.outcome, 'PROMOTED');
+  assert.equal(promotion.repositoryCode, 'SkyServer');
+  assert.equal(promotion.pullRequestDirection, 'dev → main');
+  assert.equal(promotion.synchronizationDirection, 'main → dev');
+  assert.equal(promotion.approval.decision, 'APPROVED');
+  assert.equal(promotion.stages.length, 5);
+  assert.equal(promotion.branchesSynchronized, true);
+
+  const promotionStructured = buildStructuredResultRollup({
+    repo_map_node: mapResult,
+    repo_zip_node: repositoryResult,
+    dev_commit_node: commitResult,
+    merge_approval_node: humanApprovalResult(),
+    main_merge_node: branchSyncResult,
+  });
+  assert.equal(promotionStructured.outputTypes['git_branch_sync_summary.v1'], 1);
+  assert.equal(promotionStructured.gitPromotion.outcome, 'PROMOTED');
 
   console.log('[SkyCommand] Workflow result context self-test passed.');
 }

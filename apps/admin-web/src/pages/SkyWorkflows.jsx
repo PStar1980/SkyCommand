@@ -542,6 +542,22 @@ function getFocusedWorkflowSummaryResult(outputs = [], nodeKey = '') {
   return null;
 }
 
+function getFocusedHumanApprovalResult(outputs = [], nodeKey = '') {
+  for (const record of outputs.filter((output) => output.nodeKey === nodeKey)) {
+    const output = parseFriendlyOutputValue(record.output);
+
+    if (output?.kind === 'human_approval') {
+      return output;
+    }
+
+    if (output?.output?.kind === 'human_approval') {
+      return output.output;
+    }
+  }
+
+  return null;
+}
+
 function macroOutcomeClass(outcome) {
   const normalized = String(outcome || '').toUpperCase();
 
@@ -555,6 +571,35 @@ function macroOutcomeClass(outcome) {
 
   if (normalized === 'PARTIAL') {
     return 'sky-pill-warning';
+  }
+
+  return 'sky-pill-info';
+}
+
+function operationOutcomeClass(outcome) {
+  const normalized = String(outcome || '').toUpperCase();
+
+  if (['FAILED', 'REJECTED', 'TIMED_OUT'].includes(normalized)) {
+    return 'sky-pill-danger';
+  }
+
+  if (['PARTIAL', 'WARNING', 'STOPPED'].includes(normalized)) {
+    return 'sky-pill-warning';
+  }
+
+  if (
+    [
+      'SUCCESS',
+      'COMPLETED',
+      'CREATED',
+      'PUSHED',
+      'APPROVED',
+      'PROMOTED',
+      'SYNCHRONIZED',
+      'TAGGED',
+    ].includes(normalized)
+  ) {
+    return 'sky-pill-success';
   }
 
   return 'sky-pill-info';
@@ -1838,6 +1883,373 @@ function GitCommitOutput({ toolResult }) {
   );
 }
 
+function GitBranchSyncOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const steps = getSafeObject(output.steps);
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+  const sourceBranch = output.sourceBranch || output.mainBranch || 'main';
+  const targetBranch = output.targetBranch || output.devBranch || 'dev';
+
+  return (
+    <div className="sky-git-branch-sync-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Git branch synchronization result</div>
+          <h3 className="h6 mb-1">
+            {output.repositoryCode || output.repositoryName || 'Repository'} · {sourceBranch} →{' '}
+            {targetBranch}
+          </h3>
+          <p className="small sky-muted mb-0">
+            {toolResult.message || 'Structured branch synchronization result recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${operationOutcomeClass(output.outcome)}`}>
+            {output.outcome || 'UNKNOWN'}
+          </span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Synchronization summary</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Source branch</th>
+              <td className="sky-mono">{sourceBranch}</td>
+              <th>Target branch</th>
+              <td className="sky-mono">{targetBranch}</td>
+            </tr>
+            <tr>
+              <th>Commits applied</th>
+              <td>{Number(output.commitsApplied || 0).toLocaleString()}</td>
+              <th>Branches synchronized</th>
+              <td>{output.branchesSynchronized ? 'Yes' : 'No'}</td>
+            </tr>
+            <tr>
+              <th>Development branch advanced</th>
+              <td>{output.devAdvanced ? 'Yes' : 'No'}</td>
+              <th>Tag</th>
+              <td>{output.tagCreated ? output.tagName || 'Created' : 'Not created'}</td>
+            </tr>
+            <tr>
+              <th>Synchronized head</th>
+              <td colSpan="3" className="sky-mono text-break">
+                {output.synchronizedHeadSha || output.devHeadAfterSha || '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Branch head movement</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Checkpoint</th>
+              <th>Commit SHA</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Main after pull</td>
+              <td className="sky-mono text-break">{output.mainHeadSha || '—'}</td>
+            </tr>
+            <tr>
+              <td>Development before synchronization</td>
+              <td className="sky-mono text-break">{output.devHeadBeforeSha || '—'}</td>
+            </tr>
+            <tr>
+              <td>Development after synchronization</td>
+              <td className="sky-mono text-break">{output.devHeadAfterSha || '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Git steps</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Fetched</th>
+              <th>Main pulled</th>
+              <th>Dev pulled</th>
+              <th>Fast-forward merge</th>
+              <th>Main pushed</th>
+              <th>Dev pushed</th>
+              <th>Tag pushed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {[
+                'fetched',
+                'mainBranchPulled',
+                'devBranchPulled',
+                'fastForwardMerged',
+                'mainBranchPushed',
+                'devBranchPushed',
+                'tagsPushed',
+              ].map((key) => (
+                <td key={key}>{steps[key] ? 'Completed' : 'Not performed'}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {warnings.length > 0 || failedMessage ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning) => (
+            <div key={warning}>{warning}</div>
+          ))}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function HumanApprovalOutput({ approvalResult }) {
+  const approval = getSafeObject(approvalResult);
+  const decision = String(approval.decision || approval.status || 'UNKNOWN').toUpperCase();
+
+  return (
+    <div className="sky-human-approval-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Human approval result</div>
+          <h3 className="h6 mb-1">{approval.approvalTitle || 'Approval checkpoint'}</h3>
+          <p className="small sky-muted mb-0">
+            {approval.summary || 'Approval decision recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${operationOutcomeClass(decision)}`}>{decision}</span>
+          {approval.requiredRoleCode ? (
+            <span className="sky-pill sky-pill-info">{approval.requiredRoleCode}</span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Decision</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Decision</th>
+              <td>
+                <span className={`sky-pill ${operationOutcomeClass(decision)}`}>{decision}</span>
+              </td>
+              <th>Workflow action</th>
+              <td>{humanizeOutputKey(approval.action || 'continue')}</td>
+            </tr>
+            <tr>
+              <th>Decided by</th>
+              <td>{approval.decidedByDisplayName || '—'}</td>
+              <th>Decided at</th>
+              <td>
+                <FriendlyOutputScalar fieldKey="decidedAt" value={approval.decidedAt} />
+              </td>
+            </tr>
+            <tr>
+              <th>Required role</th>
+              <td>{approval.requiredRoleCode || 'Any authorized approver'}</td>
+              <th>Approval key</th>
+              <td className="sky-mono">{approval.approvalKey || '—'}</td>
+            </tr>
+            {approval.decisionNote ? (
+              <tr>
+                <th>Decision note</th>
+                <td colSpan="3">{approval.decisionNote}</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      {approval.instructions ? (
+        <>
+          <div className="sky-page-kicker mb-2">Instructions</div>
+          <div className="sky-table-card p-3 small">{approval.instructions}</div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function GitPromotionSummary({ promotion }) {
+  const value = getSafeObject(promotion);
+  const stages = getSafeArray(value.stages);
+  const approval = getSafeObject(value.approval);
+  const artifacts = getSafeObject(value.artifacts);
+  const repositoryMap = getSafeObject(artifacts.repositoryMap, null);
+  const repositoryPackage = getSafeObject(artifacts.repositoryPackage, null);
+
+  return (
+    <div className="sky-git-promotion-summary mb-3">
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div className="sky-page-kicker">Development promotion</div>
+        <span className={`sky-pill ${operationOutcomeClass(value.outcome)}`}>
+          {value.outcome || 'UNKNOWN'}
+        </span>
+      </div>
+
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Repository</th>
+              <td>{value.repositoryCode || value.repositoryName || '—'}</td>
+              <th>Pull request direction</th>
+              <td className="sky-mono">{value.pullRequestDirection || '—'}</td>
+            </tr>
+            <tr>
+              <th>Synchronization direction</th>
+              <td className="sky-mono">{value.synchronizationDirection || '—'}</td>
+              <th>Branches synchronized</th>
+              <td>{value.branchesSynchronized ? 'Yes' : 'No'}</td>
+            </tr>
+            <tr>
+              <th>Development commit</th>
+              <td className="sky-mono text-break">{value.devCommitSha || '—'}</td>
+              <th>Synchronized head</th>
+              <td className="sky-mono text-break">{value.synchronizedHeadSha || '—'}</td>
+            </tr>
+            <tr>
+              <th>Changed files</th>
+              <td>{Number(value.changedFiles || 0).toLocaleString()}</td>
+              <th>Commits synchronized</th>
+              <td>{Number(value.commitsApplied || 0).toLocaleString()}</td>
+            </tr>
+            {value.tagCreated ? (
+              <tr>
+                <th>Tag</th>
+                <td colSpan="3" className="sky-mono">{value.tagName || 'Created'}</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      {approval && Object.keys(approval).length > 0 ? (
+        <>
+          <div className="sky-page-kicker mb-2">Merge approval</div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <tbody>
+                <tr>
+                  <th>Decision</th>
+                  <td>
+                    <span className={`sky-pill ${operationOutcomeClass(approval.decision)}`}>
+                      {approval.decision || 'UNKNOWN'}
+                    </span>
+                  </td>
+                  <th>Decided by</th>
+                  <td>{approval.decidedByDisplayName || '—'}</td>
+                </tr>
+                <tr>
+                  <th>Approval title</th>
+                  <td>{approval.title || '—'}</td>
+                  <th>Decided at</th>
+                  <td>
+                    <FriendlyOutputScalar fieldKey="decidedAt" value={approval.decidedAt} />
+                  </td>
+                </tr>
+                {approval.decisionNote ? (
+                  <tr>
+                    <th>Decision note</th>
+                    <td colSpan="3">{approval.decisionNote}</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {repositoryMap || repositoryPackage ? (
+        <>
+          <div className="sky-page-kicker mb-2">Generated artifacts</div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Artifact</th>
+                  <th>File</th>
+                  <th>Evidence</th>
+                  <th>Path</th>
+                </tr>
+              </thead>
+              <tbody>
+                {repositoryMap ? (
+                  <tr>
+                    <td>Repository map</td>
+                    <td>{repositoryMap.fileName || '—'}</td>
+                    <td>{Number(repositoryMap.filesDocumented || 0).toLocaleString()} file(s)</td>
+                    <td className="sky-mono text-break">{repositoryMap.artifactPath || '—'}</td>
+                  </tr>
+                ) : null}
+                {repositoryPackage ? (
+                  <tr>
+                    <td>Repository package</td>
+                    <td>{repositoryPackage.fileName || '—'}</td>
+                    <td>{Number(repositoryPackage.filesIncluded || 0).toLocaleString()} file(s)</td>
+                    <td className="sky-mono text-break">{repositoryPackage.artifactPath || '—'}</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {stages.length > 0 ? (
+        <>
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div className="sky-page-kicker">Promotion stage results</div>
+            <span className="sky-pill sky-pill-info">{stages.length} stage(s)</span>
+          </div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Node</th>
+                  <th>Status</th>
+                  <th>Outcome</th>
+                  <th>Evidence</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stages.map((stage) => (
+                  <tr key={`${stage.nodeKey}-${stage.stageCode}`}>
+                    <td className="fw-semibold">{stage.label || humanizeOutputKey(stage.stageCode)}</td>
+                    <td className="sky-mono">{stage.nodeKey || '—'}</td>
+                    <td>
+                      <span className={`sky-pill ${operationOutcomeClass(stage.status)}`}>
+                        {stage.status || 'UNKNOWN'}
+                      </span>
+                    </td>
+                    <td>{stage.outcome || '—'}</td>
+                    <td className="sky-mono text-break">{stage.evidence || '—'}</td>
+                    <td>{formatDuration(stage.durationMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function WorkflowSummaryNodeOutput({ summaryResult }) {
   const structuredResults = getSafeObject(
     summaryResult?.structuredResults || summaryResult?.output?.structuredResults,
@@ -1847,6 +2259,12 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
   );
   const macroSources = getSafeArray(macroIngestion.sources);
   const macroTotals = getSafeObject(macroIngestion.totals);
+  const gitPromotion = getSafeObject(
+    summaryResult?.gitPromotion ||
+      summaryResult?.output?.gitPromotion ||
+      structuredResults.gitPromotion,
+    null,
+  );
   const keyOutputs = getSafeObject(summaryResult?.keyOutputs || summaryResult?.output?.keyOutputs);
   const nodeSummaries = Object.values(keyOutputs);
   const warnings = getSafeArray(summaryResult?.warnings);
@@ -1876,8 +2294,15 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
               {macroIngestion.outcome || 'UNKNOWN'}
             </span>
           ) : null}
+          {gitPromotion ? (
+            <span className={`sky-pill ${operationOutcomeClass(gitPromotion.outcome)}`}>
+              {gitPromotion.outcome || 'UNKNOWN'}
+            </span>
+          ) : null}
         </div>
       </div>
+
+      {gitPromotion ? <GitPromotionSummary promotion={gitPromotion} /> : null}
 
       {macroSources.length > 0 ? (
         <>
@@ -2027,6 +2452,10 @@ function WorkflowNodeOutputLedger({
     () => getFocusedWorkflowSummaryResult(outputs, selectedNode?.nodeKey),
     [outputs, selectedNode?.nodeKey],
   );
+  const humanApprovalResult = useMemo(
+    () => getFocusedHumanApprovalResult(outputs, selectedNode?.nodeKey),
+    [outputs, selectedNode?.nodeKey],
+  );
   const macroIngestionResult =
     structuredToolResult?.outputType === 'macro_ingestion_summary.v1' ? structuredToolResult : null;
   const repositoryPackageResult =
@@ -2037,6 +2466,10 @@ function WorkflowNodeOutputLedger({
     structuredToolResult?.outputType === 'repository_map_summary.v1' ? structuredToolResult : null;
   const gitCommitResult =
     structuredToolResult?.outputType === 'git_commit_summary.v1' ? structuredToolResult : null;
+  const gitBranchSyncResult =
+    structuredToolResult?.outputType === 'git_branch_sync_summary.v1'
+      ? structuredToolResult
+      : null;
   const summaryMacroSources = getSafeArray(
     workflowSummaryResult?.macroIngestion?.sources ||
       workflowSummaryResult?.output?.macroIngestion?.sources,
@@ -2080,6 +2513,15 @@ function WorkflowNodeOutputLedger({
               <span className="sky-pill sky-pill-success">
                 {Number(gitCommitResult.output?.changedFiles || 0).toLocaleString()} change(s)
               </span>
+            ) : gitBranchSyncResult ? (
+              <span className="sky-pill sky-pill-success">
+                {Number(gitBranchSyncResult.output?.commitsApplied || 0).toLocaleString()} commit(s)
+                synchronized
+              </span>
+            ) : humanApprovalResult ? (
+              <span className={`sky-pill ${operationOutcomeClass(humanApprovalResult.decision)}`}>
+                {humanApprovalResult.decision || humanApprovalResult.status || 'UNKNOWN'}
+              </span>
             ) : workflowSummaryResult ? (
               <span className="sky-pill sky-pill-success">
                 {summaryMacroSources.length ||
@@ -2105,6 +2547,10 @@ function WorkflowNodeOutputLedger({
           <RepositoryMapOutput toolResult={repositoryMapResult} />
         ) : gitCommitResult ? (
           <GitCommitOutput toolResult={gitCommitResult} />
+        ) : gitBranchSyncResult ? (
+          <GitBranchSyncOutput toolResult={gitBranchSyncResult} />
+        ) : humanApprovalResult ? (
+          <HumanApprovalOutput approvalResult={humanApprovalResult} />
         ) : workflowSummaryResult ? (
           <WorkflowSummaryNodeOutput summaryResult={workflowSummaryResult} />
         ) : rows.length === 0 ? (
@@ -2143,6 +2589,8 @@ function WorkflowNodeOutputLedger({
         !repositoryPackageResult &&
         !repositoryMapResult &&
         !gitCommitResult &&
+        !gitBranchSyncResult &&
+        !humanApprovalResult &&
         !workflowSummaryResult &&
         selectedContextValues.length > 0 &&
         rows.length === 0 ? (
