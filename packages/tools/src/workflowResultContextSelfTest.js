@@ -49,7 +49,6 @@ function macroResult({
   };
 }
 
-
 function repositoryPackageResult() {
   return {
     schemaVersion: '1.0',
@@ -85,6 +84,87 @@ function repositoryPackageResult() {
     status: 'SUCCESS',
     durationMs: 3000,
     executionId: 'repo-zip-execution',
+  };
+}
+
+function repositoryMapResult() {
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'Repository map created.',
+    outputType: 'repository_map_summary.v1',
+    output: {
+      artifactKind: 'REPOSITORY_MAP',
+      outcome: 'CREATED',
+      repositoryName: 'SkyServer',
+      repositoryRoot: 'C:/Projects/SkyServer',
+      fileName: 'SkyServer_RepoMap.md',
+      artifactPath: 'C:/Projects/SkyServer/docs/SkyServer_RepoMap.md',
+      format: 'MARKDOWN',
+      durationMs: 100,
+      directoriesDocumented: 42,
+      filesDocumented: 468,
+      directoriesExcluded: 8,
+      filesExcluded: 12,
+      outputBytes: 86123,
+      topLevelEntries: ['apps', 'packages'],
+      extensionCounts: { '.js': 200 },
+      policy: {
+        nodeModulesExcluded: true,
+        sensitiveEnvironmentFilesExcluded: true,
+        generatedArtifactsExcluded: true,
+        e2eTestsExcluded: true,
+      },
+    },
+    warnings: [],
+    error: null,
+    metadata: {},
+    kind: 'tool_execution',
+    toolCode: 'repo_map_generate',
+    status: 'SUCCESS',
+    durationMs: 100,
+    executionId: 'repo-map-execution',
+  };
+}
+
+function gitCommitResult() {
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'Changes pushed.',
+    outputType: 'git_commit_summary.v1',
+    output: {
+      operationKind: 'DEV_COMMIT',
+      outcome: 'PUSHED',
+      repositoryCode: 'SkyServer',
+      repositoryName: 'SkyServer',
+      repositoryRoot: 'C:/Projects/SkyServer',
+      branch: 'dev',
+      remote: 'origin',
+      commitMessage: 'Test',
+      previousHeadSha: '1'.repeat(40),
+      currentHeadSha: '2'.repeat(40),
+      commitSha: '2'.repeat(40),
+      durationMs: 300,
+      changedFiles: 6,
+      changes: { added: 2, modified: 4, deleted: 0, renamed: 0, untracked: 0, other: 0 },
+      steps: {
+        fetched: true,
+        switchedBranch: true,
+        pulled: true,
+        staged: true,
+        committed: true,
+        pushed: true,
+      },
+    },
+    warnings: [],
+    error: null,
+    metadata: {},
+    kind: 'tool_execution',
+    toolCode: 'dev_commit',
+    status: 'SUCCESS',
+    durationMs: 300,
+    executionId: 'dev-commit-execution',
   };
 }
 
@@ -167,6 +247,29 @@ function run() {
   assert.equal(scheduledRepository.outputType, 'repository_package_summary.v1');
   assert.equal(scheduledRepository.repositoryPackage.filesIncluded, 412);
   assert.equal(scheduledRepository.repositoryPackage.archiveBytes, 910000);
+
+  const mapResult = repositoryMapResult();
+  const mapLookup = buildConditionNodeLookup({}, { repo_map_node: mapResult });
+  assert.equal(mapLookup.repo_map_node.output.filesDocumented, 468);
+  assert.equal(mapLookup.repo_map_node.output.outputBytes, 86123);
+  const mapKeyOutputs = buildSummaryKeyOutputs({ repo_map_node: mapResult });
+  assert.equal(mapKeyOutputs.repo_map_node.output.filesDocumented, 468);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(mapKeyOutputs.repo_map_node.output, 'extensionCounts'),
+    false,
+  );
+  const scheduledMap = buildScheduledToolResultSummary(mapResult);
+  assert.equal(scheduledMap.repositoryMap.directoriesDocumented, 42);
+
+  const commitResult = gitCommitResult();
+  const commitLookup = buildConditionNodeLookup({}, { dev_commit_node: commitResult });
+  assert.equal(commitLookup.dev_commit_node.output.changedFiles, 6);
+  assert.equal(commitLookup.dev_commit_node.output.commitSha, '2'.repeat(40));
+  const commitKeyOutputs = buildSummaryKeyOutputs({ dev_commit_node: commitResult });
+  assert.equal(commitKeyOutputs.dev_commit_node.output.outcome, 'PUSHED');
+  const scheduledCommit = buildScheduledToolResultSummary(commitResult);
+  assert.equal(scheduledCommit.gitCommit.branch, 'dev');
+  assert.equal(scheduledCommit.gitCommit.changedFiles, 6);
 
   console.log('[SkyCommand] Workflow result context self-test passed.');
 }

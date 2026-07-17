@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "success": true,
+  "message": "SkyServer changes were committed and pushed successfully.",
+  "outputType": "git_commit_summary.v1",
+  "output": {
+    "operationKind": "DEV_COMMIT",
+    "outcome": "PUSHED",
+    "repositoryCode": "SkyServer",
+    "repositoryName": "SkyServer",
+    "repositoryRoot": "C:/Projects/SkyServer",
+    "branch": "dev",
+    "remote": "origin",
+    "commitMessage": "Phase 14 workflow-native tool results",
+    "previousHeadSha": "1111111111111111111111111111111111111111",
+    "currentHeadSha": "2222222222222222222222222222222222222222",
+    "commitSha": "2222222222222222222222222222222222222222",
+    "startedAt": "2026-07-17T04:00:00.000Z",
+    "completedAt": "2026-07-17T04:00:03.000Z",
+    "durationMs": 3000,
+    "changedFiles": 6,
+    "changes": {
+      "added": 2,
+      "modified": 3,
+      "deleted": 0,
+      "renamed": 1,
+      "untracked": 0,
+      "other": 0
+    },
+    "steps": {
+      "fetched": true,
+      "switchedBranch": true,
+      "pulled": true,
+      "staged": true,
+      "committed": true,
+      "pushed": true
+    }
+  },
+  "warnings": [],
+  "error": null,
+  "metadata": {
+    "profileCode": "DEV_LOCAL",
+    "transport": "git_cli"
+  }
+}

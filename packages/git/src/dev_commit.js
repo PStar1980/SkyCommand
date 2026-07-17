@@ -1,24 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * dev_commit.js
+ * Commits and pushes existing repository changes to the configured dev branch.
+ * Repository-map and repository-zip generation are intentionally separate tools
+ * and can be orchestrated before this tool by a SkyCommand workflow.
  *
- * Commits and pushes changes to the dev branch for a configured repository.
- *
- * Database config:
- *   core.repositories
- *   core.repository_paths
- *   core.config_profiles
- *
- * Environment:
- *   Loads .env from the SkyServer repository root:
- *   packages/git/src -> ../../.. -> SkyServer/.env
- *
- * Usage:
- *   node dev_commit.js <repoName> <commitMessage>
- *
- * Example:
- *   node dev_commit.js SkyServer "Updated SkyServer Core config flow"
+ * Usage: node dev_commit.js <repoName> <commitMessage>
  */
 
 const fs = require('fs');
@@ -26,29 +13,16 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const dotenv = require('dotenv');
 
-const SCRIPT_DIR = __dirname;
-const SKY_SERVER_ROOT = path.resolve(SCRIPT_DIR, '../../..');
-const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
-const GENERATE_REPO_MAP_SCRIPT = path.join(
-  SKY_SERVER_ROOT,
-  'packages',
-  'files',
-  'src',
-  'generateRepoMap.js',
-);
-const GENERATE_REPO_ZIP_SCRIPT = path.join(
-  SKY_SERVER_ROOT,
-  'packages',
-  'files',
-  'src',
-  'generateRepoZip.js',
-);
+const { runToolCli } = require('../../tools/src/toolCliAdapter');
+const {
+  createGitCommitFailureToolResult,
+  createGitCommitToolResult,
+  parseGitStatusPorcelain,
+} = require('./gitCommitResult');
 
-const REPO_MAP_FILE_SUFFIX = '_RepoMap.md';
-const REPO_ZIP_FILE_SUFFIX = '_RepoZip.zip';
-
-dotenv.config({ path: ENV_PATH });
-
+const SKY_SERVER_ROOT = path.resolve(__dirname, '../../..');
+const MANIFEST_PATH = path.resolve(__dirname, '../manifests/dev_commit/skycommand.tool.json');
+dotenv.config({ path: path.join(SKY_SERVER_ROOT, '.env') });
 const { pool } = require('../../db/src/connection');
 
 const PROFILE_CODE =
@@ -57,186 +31,47 @@ const PROFILE_CODE =
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 
-// ------------------------------------------------------------
-// Utility
-// ------------------------------------------------------------
 function fail(message) {
   throw new Error(message);
 }
 
 function runCommand(command, args, cwd, label = command) {
   console.log(`> ${label} ${args.join(' ')}`);
-
-  const result = spawnSync(command, args, {
-    cwd,
-    stdio: 'inherit',
-    shell: false,
-  });
-
-  if (result.error) {
-    fail(`${label} command failed: ${result.error.message}`);
-  }
-
-  if (result.status !== 0) {
-    fail(`${label} command failed: ${label} ${args.join(' ')}`);
-  }
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: false });
+  if (result.error) fail(`${label} command failed: ${result.error.message}`);
+  if (result.status !== 0) fail(`${label} command failed: ${label} ${args.join(' ')}`);
 }
-
 function runGit(args, cwd) {
   runCommand('git', args, cwd, 'git');
 }
-
 function getGitOutput(args, cwd) {
-  const result = spawnSync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    shell: false,
-  });
-
-  if (result.error) {
-    fail(`Git command failed: ${result.error.message}`);
-  }
-
-  if (result.status !== 0) {
-    fail(`Git command failed: git ${args.join(' ')}`);
-  }
-
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });
+  if (result.error) fail(`Git command failed: ${result.error.message}`);
+  if (result.status !== 0) fail(`Git command failed: git ${args.join(' ')}`);
   return result.stdout.trim();
-}
-
-function getRepoRootFolderName(repoRootPath) {
-  return path.basename(path.resolve(repoRootPath));
-}
-
-function getRepoMapConfig(repo) {
-  const repoRootFolderName = getRepoRootFolderName(repo.rootPath);
-  const outputPath = path.join(repo.rootPath, 'docs');
-  const fileName = `${repoRootFolderName}${REPO_MAP_FILE_SUFFIX}`;
-
-  return {
-    fileName,
-    outputPath,
-    outputFilePath: path.join(outputPath, fileName),
-  };
-}
-
-function getRepoZipConfig(repo) {
-  const repoRootFolderName = getRepoRootFolderName(repo.rootPath);
-  const outputPath = path.join(repo.rootPath, 'zip');
-  const fileName = `${repoRootFolderName}${REPO_ZIP_FILE_SUFFIX}`;
-
-  return {
-    fileName,
-    outputPath,
-    outputFilePath: path.join(outputPath, fileName),
-  };
-}
-
-function generateRepoMap(repo) {
-  if (!fs.existsSync(GENERATE_REPO_MAP_SCRIPT)) {
-    fail(`Repository map generator does not exist: ${GENERATE_REPO_MAP_SCRIPT}`);
-  }
-
-  const repoMap = getRepoMapConfig(repo);
-
-  console.log('');
-  console.log('🗺️  Generating repository map before staging changes...');
-  console.log(`📂 Source folder: ${repo.rootPath}`);
-  console.log(`📄 Repo map file: ${repoMap.outputFilePath}`);
-  console.log('');
-
-  runCommand(
-    process.execPath,
-    [GENERATE_REPO_MAP_SCRIPT, repo.rootPath, repoMap.fileName, repoMap.outputPath],
-    SKY_SERVER_ROOT,
-    'node',
-  );
-}
-
-function generateRepoZip(repo) {
-  if (!fs.existsSync(GENERATE_REPO_ZIP_SCRIPT)) {
-    fail(`Repository zip generator does not exist: ${GENERATE_REPO_ZIP_SCRIPT}`);
-  }
-
-  const repoZip = getRepoZipConfig(repo);
-
-  console.log('');
-  console.log('📦 Generating repository zip after repo map generation...');
-  console.log(`📂 Source folder: ${repo.rootPath}`);
-  console.log(`🗜️  Repo zip file: ${repoZip.outputFilePath}`);
-  console.log('');
-
-  runCommand(
-    process.execPath,
-    [GENERATE_REPO_ZIP_SCRIPT, repo.rootPath, repoZip.fileName, repoZip.outputPath],
-    SKY_SERVER_ROOT,
-    'node',
-  );
 }
 
 async function listAvailableRepositories() {
   const result = await pool.query(
-    `
-      SELECT r.repo_code
-      FROM core.repositories r
-      JOIN core.repository_paths rp
-        ON rp.repo_id = r.repo_id
-      JOIN core.config_profiles cp
-        ON cp.profile_id = rp.profile_id
-      WHERE cp.profile_code = $1
-        AND cp.active = TRUE
-        AND r.active = TRUE
-        AND rp.active = TRUE
-      ORDER BY r.display_order, r.repo_code
-    `,
+    `SELECT r.repo_code FROM core.repositories r JOIN core.repository_paths rp ON rp.repo_id = r.repo_id JOIN core.config_profiles cp ON cp.profile_id = rp.profile_id WHERE cp.profile_code = $1 AND cp.active = TRUE AND r.active = TRUE AND rp.active = TRUE ORDER BY r.display_order, r.repo_code`,
     [PROFILE_CODE],
   );
-
   return result.rows.map((row) => row.repo_code);
 }
 
 async function loadRepository(repoName) {
-  if (!repoName) {
-    fail('Missing repoName. Usage: node dev_commit.js <repoName> <commitMessage>');
-  }
-
+  if (!repoName) fail('Missing repoName. Usage: node dev_commit.js <repoName> <commitMessage>');
   const result = await pool.query(
-    `
-      SELECT
-        r.repo_code,
-        r.repo_name,
-        r.main_branch,
-        r.dev_branch,
-        rp.root_path
-      FROM core.repositories r
-      JOIN core.repository_paths rp
-        ON rp.repo_id = r.repo_id
-      JOIN core.config_profiles cp
-        ON cp.profile_id = rp.profile_id
-      WHERE cp.profile_code = $1
-        AND cp.active = TRUE
-        AND r.active = TRUE
-        AND rp.active = TRUE
-        AND (
-          LOWER(r.repo_code) = LOWER($2)
-          OR LOWER(r.repo_name) = LOWER($2)
-        )
-      LIMIT 1
-    `,
+    `SELECT r.repo_code, r.repo_name, r.main_branch, r.dev_branch, rp.root_path FROM core.repositories r JOIN core.repository_paths rp ON rp.repo_id = r.repo_id JOIN core.config_profiles cp ON cp.profile_id = rp.profile_id WHERE cp.profile_code = $1 AND cp.active = TRUE AND r.active = TRUE AND rp.active = TRUE AND (LOWER(r.repo_code) = LOWER($2) OR LOWER(r.repo_name) = LOWER($2)) LIMIT 1`,
     [PROFILE_CODE, repoName],
   );
-
-  if (result.rowCount === 0) {
-    const availableRepos = await listAvailableRepositories();
-    fail(`Unknown repo '${repoName}'. Available repos: ${availableRepos.join(', ')}`);
-  }
-
+  if (result.rowCount === 0)
+    fail(
+      `Unknown repo '${repoName}'. Available repos: ${(await listAvailableRepositories()).join(', ')}`,
+    );
   const repo = result.rows[0];
-
-  if (!repo.root_path || !fs.existsSync(repo.root_path)) {
+  if (!repo.root_path || !fs.existsSync(repo.root_path))
     fail(`Repo path does not exist: ${repo.root_path}`);
-  }
-
   return {
     repoCode: repo.repo_code,
     repoName: repo.repo_name,
@@ -246,58 +81,133 @@ async function loadRepository(repoName) {
   };
 }
 
-async function closePool() {
-  try {
-    await pool.end();
-  } catch {
-    // Nothing useful to do during CLI shutdown.
-  }
-}
-
-// ------------------------------------------------------------
-// Main
-// ------------------------------------------------------------
-async function main() {
-  const [repoName, commitMessage] = process.argv.slice(2);
-
-  if (!commitMessage || commitMessage.trim() === '') {
+async function executeDevCommit(args = []) {
+  const startedAt = new Date().toISOString();
+  const [repoName, commitMessage] = (Array.isArray(args) ? args : [])
+    .map(String)
+    .filter((arg) => !arg.startsWith('--'));
+  if (!commitMessage || commitMessage.trim() === '')
     fail('Missing commitMessage. Usage: node dev_commit.js <repoName> <commitMessage>');
-  }
-
   const repo = await loadRepository(repoName);
 
   console.log('');
   console.log(`🚀 Starting dev commit for repo: ${repo.repoCode}`);
   console.log(`📂 Repo path: ${repo.rootPath}`);
   console.log(`🌿 Dev branch: ${repo.devBranch}`);
+  console.log('🧩 Repository map and zip generation are handled by separate workflow nodes.');
   console.log('');
 
+  const previousHeadSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
   runGit(['fetch', 'origin'], repo.rootPath);
   runGit(['switch', repo.devBranch], repo.rootPath);
   runGit(['pull', 'origin', repo.devBranch], repo.rootPath);
-
-  generateRepoMap(repo);
-  generateRepoZip(repo);
-
   const status = getGitOutput(['status', '--porcelain'], repo.rootPath);
+  const changeSummary = parseGitStatusPorcelain(status);
 
   if (status === '') {
+    const completedAt = new Date().toISOString();
     console.log('✨ Nothing to commit — working directory clean.');
-    return;
+    return {
+      ok: true,
+      outcome: 'NO_CHANGES',
+      repositoryCode: repo.repoCode,
+      repositoryName: repo.repoName,
+      repositoryRoot: repo.rootPath,
+      branch: repo.devBranch,
+      remote: 'origin',
+      commitMessage,
+      previousHeadSha,
+      currentHeadSha: getGitOutput(['rev-parse', 'HEAD'], repo.rootPath),
+      commitSha: null,
+      startedAt,
+      completedAt,
+      durationMs: Math.max(0, new Date(completedAt) - new Date(startedAt)),
+      ...changeSummary,
+      fetched: true,
+      switchedBranch: true,
+      pulled: true,
+      staged: false,
+      committed: false,
+      pushed: false,
+      profileCode: PROFILE_CODE,
+    };
   }
 
   runGit(['add', '-A'], repo.rootPath);
   runGit(['commit', '-m', commitMessage], repo.rootPath);
+  const commitSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
   runGit(['push', 'origin', repo.devBranch], repo.rootPath);
-
+  const completedAt = new Date().toISOString();
   console.log('');
   console.log('🎉 Dev commit completed successfully!');
+  console.log(`🔖 Commit: ${commitSha}`);
   console.log('');
+
+  return {
+    ok: true,
+    outcome: 'PUSHED',
+    repositoryCode: repo.repoCode,
+    repositoryName: repo.repoName,
+    repositoryRoot: repo.rootPath,
+    branch: repo.devBranch,
+    remote: 'origin',
+    commitMessage,
+    previousHeadSha,
+    currentHeadSha: commitSha,
+    commitSha,
+    startedAt,
+    completedAt,
+    durationMs: Math.max(0, new Date(completedAt) - new Date(startedAt)),
+    ...changeSummary,
+    fetched: true,
+    switchedBranch: true,
+    pulled: true,
+    staged: true,
+    committed: true,
+    pushed: true,
+    profileCode: PROFILE_CODE,
+  };
 }
 
-main()
-  .catch((error) => {
-    console.error(`❌ ${error.message}`);
-    process.exitCode = 1;
-  })
-  .finally(closePool);
+function printDevCommitResult(result) {
+  if (result.outcome === 'NO_CHANGES') {
+    console.log(`📋 Structured result: ${result.repositoryCode} had no changes to commit.`);
+  } else {
+    console.log(
+      `📋 Structured result: ${result.changedFiles} changed file(s) committed to ${result.branch}.`,
+    );
+  }
+}
+
+async function closePool() {
+  try {
+    await pool.end();
+  } catch {
+    /* CLI shutdown */
+  }
+}
+
+async function main(args = process.argv.slice(2)) {
+  const startedAt = new Date().toISOString();
+  try {
+    return await runToolCli({
+      manifestPath: MANIFEST_PATH,
+      args,
+      execute: executeDevCommit,
+      createToolResult: createGitCommitToolResult,
+      createFailureToolResult: (error) =>
+        createGitCommitFailureToolResult({
+          error,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        }),
+      renderConsole: printDevCommitResult,
+    });
+  } finally {
+    await closePool();
+  }
+}
+
+if (require.main === module) main();
+
+module.exports = { MANIFEST_PATH, executeDevCommit, main, printDevCommitResult };

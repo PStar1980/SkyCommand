@@ -11,56 +11,63 @@ const {
 } = require('./toolManifestContract');
 const { validateToolResult } = require('./toolResultContract');
 const { validateToolManifests } = require('./toolManifestCli');
-const {
-  getRegisteredToolExecutionContract,
-} = require('./toolManifestRegistry');
+const { getRegisteredToolExecutionContract } = require('./toolManifestRegistry');
 
 async function run() {
   const repositoryRoot = getSkyServerRoot();
   const reports = validateToolManifests({ repositoryRoot });
 
-  assert.deepStrictEqual(
-    reports.map((report) => report.toolCode).sort(),
-    ['ingestion_boc', 'ingestion_fred', 'ingestion_statcan', 'repo_zip_generate'],
-  );
+  assert.deepStrictEqual(reports.map((report) => report.toolCode).sort(), [
+    'dev_commit',
+    'ingestion_boc',
+    'ingestion_fred',
+    'ingestion_statcan',
+    'repo_map_generate',
+    'repo_zip_generate',
+  ]);
   assert.ok(reports.every((report) => report.schemaValidated));
   assert.ok(reports.every((report) => report.sampleSuccess));
 
   assert.throws(
-    () => normalizeManifest({
-      manifestVersion: '1.0',
-      toolCode: 'bad_tool',
-      displayName: 'Bad Tool',
-      runtime: { type: 'node', entrypoint: '../outside.js' },
-      parameters: [],
-      resultContract: { required: true, outputType: 'bad_result.v1' },
-      permissions: ['BAD_TOOL_RUN'],
-      execution: {},
-    }),
-    (error) => error instanceof ToolManifestContractError
-      && error.code === 'TOOL_MANIFEST_PATH_TRAVERSAL',
+    () =>
+      normalizeManifest({
+        manifestVersion: '1.0',
+        toolCode: 'bad_tool',
+        displayName: 'Bad Tool',
+        runtime: { type: 'node', entrypoint: '../outside.js' },
+        parameters: [],
+        resultContract: { required: true, outputType: 'bad_result.v1' },
+        permissions: ['BAD_TOOL_RUN'],
+        execution: {},
+      }),
+    (error) =>
+      error instanceof ToolManifestContractError && error.code === 'TOOL_MANIFEST_PATH_TRAVERSAL',
   );
 
   assert.throws(
-    () => normalizeManifest({
-      manifestVersion: '1.0',
-      toolCode: 'secret_tool',
-      displayName: 'Secret Tool',
-      runtime: { type: 'node', entrypoint: 'packages/tools/src/toolManifestSelfTest.js' },
-      parameters: [{
-        name: 'token',
-        label: 'Token',
-        type: 'string',
-        required: true,
-        secret: true,
-        binding: { mode: 'argv_flag', flag: '--token' },
-      }],
-      resultContract: { required: true, outputType: 'secret_result.v1' },
-      permissions: ['SECRET_TOOL_RUN'],
-      execution: {},
-    }),
-    (error) => error instanceof ToolManifestContractError
-      && error.code === 'TOOL_MANIFEST_SECRET_ARGV_FORBIDDEN',
+    () =>
+      normalizeManifest({
+        manifestVersion: '1.0',
+        toolCode: 'secret_tool',
+        displayName: 'Secret Tool',
+        runtime: { type: 'node', entrypoint: 'packages/tools/src/toolManifestSelfTest.js' },
+        parameters: [
+          {
+            name: 'token',
+            label: 'Token',
+            type: 'string',
+            required: true,
+            secret: true,
+            binding: { mode: 'argv_flag', flag: '--token' },
+          },
+        ],
+        resultContract: { required: true, outputType: 'secret_result.v1' },
+        permissions: ['SECRET_TOOL_RUN'],
+        execution: {},
+      }),
+    (error) =>
+      error instanceof ToolManifestContractError &&
+      error.code === 'TOOL_MANIFEST_SECRET_ARGV_FORBIDDEN',
   );
 
   const fredManifestPath = path.join(
@@ -86,49 +93,63 @@ async function run() {
     output_schema_hash: loadedFred.hashes.outputSchema,
     contract_sample_hash: loadedFred.hashes.sample,
   };
-  const executionContract = getRegisteredToolExecutionContract({
-    tool_code: 'ingestion_fred',
-    script_path: 'packages/ingestion/src/loadFREDMacroData.js',
-    runtime_code: 'node',
-    permission_code: 'INGESTION_RUN_FRED',
-    ...acceptedSnapshot,
-  }, { repositoryRoot, forceReload: true });
+  const executionContract = getRegisteredToolExecutionContract(
+    {
+      tool_code: 'ingestion_fred',
+      script_path: 'packages/ingestion/src/loadFREDMacroData.js',
+      runtime_code: 'node',
+      permission_code: 'INGESTION_RUN_FRED',
+      ...acceptedSnapshot,
+    },
+    { repositoryRoot, forceReload: true },
+  );
 
   assert.strictEqual(executionContract.expectedOutputType, 'macro_ingestion_summary.v1');
   assert.strictEqual(executionContract.resultRequired, true);
   assert.ok(executionContract.outputSchema);
 
   assert.throws(
-    () => getRegisteredToolExecutionContract({
-      tool_code: 'ingestion_fred',
-      script_path: 'packages/ingestion/src/not-the-fred-script.js',
-      runtime_code: 'node',
-      permission_code: 'INGESTION_RUN_FRED',
-      ...acceptedSnapshot,
-    }, { repositoryRoot }),
+    () =>
+      getRegisteredToolExecutionContract(
+        {
+          tool_code: 'ingestion_fred',
+          script_path: 'packages/ingestion/src/not-the-fred-script.js',
+          runtime_code: 'node',
+          permission_code: 'INGESTION_RUN_FRED',
+          ...acceptedSnapshot,
+        },
+        { repositoryRoot },
+      ),
     (error) => error.code === 'TOOL_MANIFEST_REGISTRY_DRIFT',
   );
 
-
   assert.throws(
-    () => getRegisteredToolExecutionContract({
-      tool_code: 'ingestion_fred',
-      script_path: 'packages/ingestion/src/loadFREDMacroData.js',
-      runtime_code: 'node',
-      permission_code: 'INGESTION_RUN_FRED',
-    }, { repositoryRoot }),
+    () =>
+      getRegisteredToolExecutionContract(
+        {
+          tool_code: 'ingestion_fred',
+          script_path: 'packages/ingestion/src/loadFREDMacroData.js',
+          runtime_code: 'node',
+          permission_code: 'INGESTION_RUN_FRED',
+        },
+        { repositoryRoot },
+      ),
     (error) => error.code === 'TOOL_MANIFEST_SNAPSHOT_REQUIRED',
   );
 
   assert.throws(
-    () => getRegisteredToolExecutionContract({
-      tool_code: 'ingestion_fred',
-      script_path: 'packages/ingestion/src/loadFREDMacroData.js',
-      runtime_code: 'node',
-      permission_code: 'INGESTION_RUN_FRED',
-      ...acceptedSnapshot,
-      manifest_hash: '0'.repeat(64),
-    }, { repositoryRoot }),
+    () =>
+      getRegisteredToolExecutionContract(
+        {
+          tool_code: 'ingestion_fred',
+          script_path: 'packages/ingestion/src/loadFREDMacroData.js',
+          runtime_code: 'node',
+          permission_code: 'INGESTION_RUN_FRED',
+          ...acceptedSnapshot,
+          manifest_hash: '0'.repeat(64),
+        },
+        { repositoryRoot },
+      ),
     (error) => error.code === 'TOOL_MANIFEST_SNAPSHOT_DRIFT',
   );
 
@@ -136,10 +157,11 @@ async function run() {
   invalidOutput.output.totals.rowsInserted = -1;
 
   assert.throws(
-    () => validateToolResult(invalidOutput, {
-      expectedOutputType: loadedFred.manifest.resultContract.outputType,
-      outputSchema: loadedFred.outputSchema,
-    }),
+    () =>
+      validateToolResult(invalidOutput, {
+        expectedOutputType: loadedFred.manifest.resultContract.outputType,
+        outputSchema: loadedFred.outputSchema,
+      }),
     (error) => error.code === 'TOOL_RESULT_OUTPUT_SCHEMA_INVALID',
   );
 
@@ -212,6 +234,30 @@ async function run() {
   );
   assert.strictEqual(loadedRepositoryZip.manifest.permissions[0], 'REPO_ZIP_GENERATE');
   assert.strictEqual(loadedRepositoryZip.sampleToolResult.output.filesIncluded, 412);
+
+  const loadedRepositoryMap = loadToolManifest(
+    path.join(
+      repositoryRoot,
+      'packages',
+      'files',
+      'manifests',
+      'repo_map_generate',
+      'skycommand.tool.json',
+    ),
+    { repositoryRoot },
+  );
+  assert.strictEqual(
+    loadedRepositoryMap.manifest.resultContract.outputType,
+    'repository_map_summary.v1',
+  );
+  assert.strictEqual(loadedRepositoryMap.sampleToolResult.output.filesDocumented, 468);
+
+  const loadedDevCommit = loadToolManifest(
+    path.join(repositoryRoot, 'packages', 'git', 'manifests', 'dev_commit', 'skycommand.tool.json'),
+    { repositoryRoot },
+  );
+  assert.strictEqual(loadedDevCommit.manifest.resultContract.outputType, 'git_commit_summary.v1');
+  assert.strictEqual(loadedDevCommit.sampleToolResult.output.outcome, 'PUSHED');
 
   console.log('[SkyCommand] Tool manifest and contract-check self-test passed.');
 }

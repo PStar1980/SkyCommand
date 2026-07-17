@@ -1,3 +1,12 @@
+## 2026-07-17 — Phase 14.8 Repository Map and Dev Commit Contracts
+
+- Migrated `repo_map_generate` to the universal `runToolCli()` adapter and added the strict `repository_map_summary.v1` contract, manifest, contract-check sample, output schema, scheduled evidence, workflow condition paths, and purpose-built Workflow History renderer.
+- Added repository-map statistics for documented/excluded files and directories, output size, top-level entries, extension counts, and documentation-policy flags while preserving the familiar CLI/Tool History transcript.
+- Refactored `dev_commit.js` so it no longer invokes repository-map or repository-zip generation; those operations are now independent workflow nodes.
+- Migrated `dev_commit` to the same manifest-backed execution path with `git_commit_summary.v1`, including repository, branch, commit SHA, changed-file counts, change categories, Git-step evidence, and clean `NO_CHANGES` semantics.
+- Added generic condition, summary, scheduler, and Workflow History support for both new output contracts without adding custom workflow wrappers.
+- Expanded validation with repository-map and Git-commit self-tests and six-manifest contract validation.
+
 ## 2026-07-15 — Command Center Identity Distribution Charts
 
 - Filled the Command Center identity chart columns with stacked operational visualizations instead of elongated single-chart cards.

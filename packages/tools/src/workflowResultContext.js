@@ -1,5 +1,7 @@
 const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
 const REPOSITORY_PACKAGE_OUTPUT_TYPE = 'repository_package_summary.v1';
+const REPOSITORY_MAP_OUTPUT_TYPE = 'repository_map_summary.v1';
+const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -270,6 +272,42 @@ function compactDomainOutput(result = {}) {
     };
   }
 
+  if (isToolResultEnvelope(result) && result.outputType === REPOSITORY_PACKAGE_OUTPUT_TYPE) {
+    return {
+      outcome: safeOutput.outcome || null,
+      repositoryName: safeOutput.repositoryName || null,
+      fileName: safeOutput.fileName || null,
+      artifactPath: safeOutput.artifactPath || null,
+      filesIncluded: normalizeNonNegativeNumber(safeOutput.filesIncluded),
+      archiveBytes: normalizeNonNegativeNumber(safeOutput.archiveBytes),
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
+  if (isToolResultEnvelope(result) && result.outputType === REPOSITORY_MAP_OUTPUT_TYPE) {
+    return {
+      outcome: safeOutput.outcome || null,
+      repositoryName: safeOutput.repositoryName || null,
+      fileName: safeOutput.fileName || null,
+      artifactPath: safeOutput.artifactPath || null,
+      directoriesDocumented: normalizeNonNegativeNumber(safeOutput.directoriesDocumented),
+      filesDocumented: normalizeNonNegativeNumber(safeOutput.filesDocumented),
+      outputBytes: normalizeNonNegativeNumber(safeOutput.outputBytes),
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
+  if (isToolResultEnvelope(result) && result.outputType === GIT_COMMIT_OUTPUT_TYPE) {
+    return {
+      outcome: safeOutput.outcome || null,
+      repositoryCode: safeOutput.repositoryCode || null,
+      branch: safeOutput.branch || null,
+      commitSha: safeOutput.commitSha || safeOutput.currentHeadSha || null,
+      changedFiles: normalizeNonNegativeNumber(safeOutput.changedFiles),
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
   if (!isPlainObject(output)) {
     return cloneJsonCompatible(output);
   }
@@ -399,11 +437,39 @@ function buildScheduledToolResultSummary(toolResult = {}) {
     };
   }
 
+  if (result.outputType === REPOSITORY_MAP_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.repositoryMap = {
+      outcome: output.outcome || null,
+      repositoryName: output.repositoryName || null,
+      fileName: output.fileName || null,
+      artifactPath: output.artifactPath || null,
+      directoriesDocumented: Number(output.directoriesDocumented || 0),
+      filesDocumented: Number(output.filesDocumented || 0),
+      outputBytes: Number(output.outputBytes || 0),
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
+  if (result.outputType === GIT_COMMIT_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.gitCommit = {
+      outcome: output.outcome || null,
+      repositoryCode: output.repositoryCode || null,
+      branch: output.branch || null,
+      commitSha: output.commitSha || output.currentHeadSha || null,
+      changedFiles: Number(output.changedFiles || 0),
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   return summary;
 }
 
 module.exports = {
   MACRO_INGESTION_OUTPUT_TYPE,
+  GIT_COMMIT_OUTPUT_TYPE,
+  REPOSITORY_MAP_OUTPUT_TYPE,
   REPOSITORY_PACKAGE_OUTPUT_TYPE,
   buildCanonicalNodeResultView,
   buildConditionNodeLookup,

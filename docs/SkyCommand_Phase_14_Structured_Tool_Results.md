@@ -347,7 +347,6 @@ npm run web:build
 
 The workflow-result-context self-test verifies canonical condition paths, all three macro sources, aggregate totals, compact Summary-node output, and scheduled metadata summaries. The Temporal workflow bundle is also compiled to confirm the shared deterministic helper is bundle-safe.
 
-
 ## Phase 14.6 — Accepted manifest snapshots and runtime enforcement
 
 Phase 14.6 converts repository hashes from transient validation output into a durable database contract.
@@ -421,3 +420,53 @@ nodes.package_repo.output.options.imagesIncluded
 ```
 
 Workflow History renders the result as Artifact Summary and Packaging Policy tables. Scheduled executions retain a compact repository-package summary, while Tool History remains the detailed log surface. Adding this manifest requires the normal accepted-snapshot lifecycle: preview, deliberate sync, and check. No new workflow is required to install the increment; one small repository-packaging workflow can be created later for end-to-end condition/summary acceptance testing.
+
+## Phase 14.8 — Repository map contract and Dev Commit separation
+
+Phase 14.8 finishes the repository-artifact proof and prepares the existing development workflow for a clean Git step.
+
+### Generate Repository Map
+
+`repo_map_generate` now uses the same generic `runToolCli()` adapter and accepted-manifest lifecycle as the ingestion and repository-package tools. It emits `repository_map_summary.v1` with:
+
+- repository identity, map file, and artifact path;
+- directories and files documented;
+- excluded directory/file counts;
+- generated map size and duration;
+- top-level entries and file-extension distribution;
+- explicit exclusion policy for dependencies, environment files, generated artifacts, and E2E tests.
+
+Stable workflow paths include:
+
+```text
+nodes.repo_map_node.output.filesDocumented
+nodes.repo_map_node.output.directoriesDocumented
+nodes.repo_map_node.output.outputBytes
+nodes.repo_map_node.output.artifactPath
+```
+
+Workflow History renders Map Summary, Documentation Policy, and File Extension Breakdown tables.
+
+### Dev Commit decomposition
+
+`dev_commit.js` no longer invokes `generateRepoMap.js` or `generateRepoZip.js`. Those tools remain independently executable and can be sequenced explicitly in a workflow. Dev Commit now has one responsibility: fetch, select/pull the configured development branch, inspect existing changes, stage, commit, and push.
+
+The tool now declares a manifest and emits `git_commit_summary.v1`, including:
+
+- repository and branch;
+- previous/current/created commit SHA;
+- changed-file count and added/modified/deleted/renamed/untracked distribution;
+- fetch, branch-switch, pull, stage, commit, and push evidence;
+- `PUSHED`, `NO_CHANGES`, or `FAILED` outcome.
+
+`NO_CHANGES` is a successful business outcome. This lets the future workflow complete cleanly when repository map/zip nodes produce no tracked changes requiring another commit.
+
+The existing workflow can remain:
+
+```text
+Generate Repository Map
+→ Generate Repository Zip
+→ Summary
+```
+
+After verification, Dev Commit can be appended as a fourth node without reintroducing script-level orchestration or custom workflow wrappers.

@@ -1520,7 +1520,6 @@ function MacroIngestionOutput({ toolResult }) {
   );
 }
 
-
 function RepositoryPackageOutput({ toolResult }) {
   const output = getSafeObject(toolResult?.output);
   const options = getSafeObject(output.options);
@@ -1541,7 +1540,9 @@ function RepositoryPackageOutput({ toolResult }) {
           </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
-          <span className={`sky-pill ${output.outcome === 'CREATED' ? 'sky-pill-success' : 'sky-pill-danger'}`}>
+          <span
+            className={`sky-pill ${output.outcome === 'CREATED' ? 'sky-pill-success' : 'sky-pill-danger'}`}
+          >
             {output.outcome || 'UNKNOWN'}
           </span>
           <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
@@ -1612,6 +1613,227 @@ function RepositoryPackageOutput({ toolResult }) {
           {failedMessage ? <div>{failedMessage}</div> : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function RepositoryMapOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const policy = getSafeObject(output.policy);
+  const extensions = Object.entries(getSafeObject(output.extensionCounts)).sort(
+    (a, b) => Number(b[1]) - Number(a[1]),
+  );
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+
+  return (
+    <div className="sky-repository-map-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Repository map result</div>
+          <h3 className="h6 mb-1">{output.fileName || 'Repository map'}</h3>
+          <p className="small sky-muted mb-0">
+            {toolResult.message || 'Structured repository map result recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span
+            className={`sky-pill ${output.outcome === 'CREATED' ? 'sky-pill-success' : 'sky-pill-danger'}`}
+          >
+            {output.outcome || 'UNKNOWN'}
+          </span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+      <div className="sky-page-kicker mb-2">Map summary</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Repository</th>
+              <td>{output.repositoryName || '—'}</td>
+              <th>Format</th>
+              <td>{output.format || '—'}</td>
+            </tr>
+            <tr>
+              <th>Directories documented</th>
+              <td>{Number(output.directoriesDocumented || 0).toLocaleString()}</td>
+              <th>Files documented</th>
+              <td>{Number(output.filesDocumented || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <th>Directories excluded</th>
+              <td>{Number(output.directoriesExcluded || 0).toLocaleString()}</td>
+              <th>Files excluded</th>
+              <td>{Number(output.filesExcluded || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <th>Output size</th>
+              <td>{formatByteCount(output.outputBytes)}</td>
+              <th>Created</th>
+              <td>
+                <FriendlyOutputScalar fieldKey="completedAt" value={output.completedAt} />
+              </td>
+            </tr>
+            <tr>
+              <th>Map path</th>
+              <td colSpan="3" className="sky-mono text-break">
+                {output.artifactPath || '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="sky-page-kicker mb-2">Documentation policy</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Node modules</th>
+              <th>Environment files</th>
+              <th>Generated artifacts</th>
+              <th>E2E tests</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{policy.nodeModulesExcluded ? 'Excluded' : 'Included'}</td>
+              <td>{policy.sensitiveEnvironmentFilesExcluded ? 'Excluded' : 'Included'}</td>
+              <td>{policy.generatedArtifactsExcluded ? 'Excluded' : 'Included'}</td>
+              <td>{policy.e2eTestsExcluded ? 'Excluded' : 'Included'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {extensions.length > 0 ? (
+        <>
+          <div className="sky-page-kicker mb-2">File extension breakdown</div>
+          <div className="table-responsive sky-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Extension</th>
+                  <th>Files</th>
+                </tr>
+              </thead>
+              <tbody>
+                {extensions.map(([extension, count]) => (
+                  <tr key={extension}>
+                    <td className="sky-mono">{extension}</td>
+                    <td>{Number(count || 0).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+      {warnings.length > 0 || failedMessage ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning) => (
+            <div key={warning}>{warning}</div>
+          ))}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function GitCommitOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const changes = getSafeObject(output.changes);
+  const steps = getSafeObject(output.steps);
+  return (
+    <div className="sky-git-commit-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Git commit result</div>
+          <h3 className="h6 mb-1">
+            {output.repositoryCode || output.repositoryName || 'Repository'}
+          </h3>
+          <p className="small sky-muted mb-0">
+            {toolResult.message || 'Structured git commit result recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span
+            className={`sky-pill ${output.outcome === 'FAILED' ? 'sky-pill-danger' : output.outcome === 'NO_CHANGES' ? 'sky-pill-info' : 'sky-pill-success'}`}
+          >
+            {output.outcome || 'UNKNOWN'}
+          </span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+      <div className="sky-page-kicker mb-2">Commit summary</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Branch</th>
+              <td className="sky-mono">{output.branch || '—'}</td>
+              <th>Changed files</th>
+              <td>{Number(output.changedFiles || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <th>Commit</th>
+              <td colSpan="3" className="sky-mono text-break">
+                {output.commitSha || output.currentHeadSha || 'No new commit'}
+              </td>
+            </tr>
+            <tr>
+              <th>Message</th>
+              <td colSpan="3">{output.commitMessage || '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="sky-page-kicker mb-2">Change set</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Added</th>
+              <th>Modified</th>
+              <th>Deleted</th>
+              <th>Renamed</th>
+              <th>Untracked</th>
+              <th>Other</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {['added', 'modified', 'deleted', 'renamed', 'untracked', 'other'].map((key) => (
+                <td key={key}>{Number(changes[key] || 0).toLocaleString()}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="sky-page-kicker mb-2">Git steps</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Fetched</th>
+              <th>Branch selected</th>
+              <th>Pulled</th>
+              <th>Staged</th>
+              <th>Committed</th>
+              <th>Pushed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {['fetched', 'switchedBranch', 'pulled', 'staged', 'committed', 'pushed'].map(
+                (key) => (
+                  <td key={key}>{steps[key] ? 'Completed' : 'Not performed'}</td>
+                ),
+              )}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1811,6 +2033,10 @@ function WorkflowNodeOutputLedger({
     structuredToolResult?.outputType === 'repository_package_summary.v1'
       ? structuredToolResult
       : null;
+  const repositoryMapResult =
+    structuredToolResult?.outputType === 'repository_map_summary.v1' ? structuredToolResult : null;
+  const gitCommitResult =
+    structuredToolResult?.outputType === 'git_commit_summary.v1' ? structuredToolResult : null;
   const summaryMacroSources = getSafeArray(
     workflowSummaryResult?.macroIngestion?.sources ||
       workflowSummaryResult?.output?.macroIngestion?.sources,
@@ -1843,7 +2069,16 @@ function WorkflowNodeOutputLedger({
               </span>
             ) : repositoryPackageResult ? (
               <span className="sky-pill sky-pill-success">
-                {Number(repositoryPackageResult.output?.filesIncluded || 0).toLocaleString()} file(s)
+                {Number(repositoryPackageResult.output?.filesIncluded || 0).toLocaleString()}{' '}
+                file(s)
+              </span>
+            ) : repositoryMapResult ? (
+              <span className="sky-pill sky-pill-success">
+                {Number(repositoryMapResult.output?.filesDocumented || 0).toLocaleString()} file(s)
+              </span>
+            ) : gitCommitResult ? (
+              <span className="sky-pill sky-pill-success">
+                {Number(gitCommitResult.output?.changedFiles || 0).toLocaleString()} change(s)
               </span>
             ) : workflowSummaryResult ? (
               <span className="sky-pill sky-pill-success">
@@ -1866,6 +2101,10 @@ function WorkflowNodeOutputLedger({
           <MacroIngestionOutput toolResult={macroIngestionResult} />
         ) : repositoryPackageResult ? (
           <RepositoryPackageOutput toolResult={repositoryPackageResult} />
+        ) : repositoryMapResult ? (
+          <RepositoryMapOutput toolResult={repositoryMapResult} />
+        ) : gitCommitResult ? (
+          <GitCommitOutput toolResult={gitCommitResult} />
         ) : workflowSummaryResult ? (
           <WorkflowSummaryNodeOutput summaryResult={workflowSummaryResult} />
         ) : rows.length === 0 ? (
@@ -1902,6 +2141,8 @@ function WorkflowNodeOutputLedger({
         {selectedNode &&
         !macroIngestionResult &&
         !repositoryPackageResult &&
+        !repositoryMapResult &&
+        !gitCommitResult &&
         !workflowSummaryResult &&
         selectedContextValues.length > 0 &&
         rows.length === 0 ? (

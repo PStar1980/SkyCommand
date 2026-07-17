@@ -1,0 +1,59 @@
+{
+  "manifestVersion": "1.0",
+  "toolCode": "dev_commit",
+  "displayName": "Dev Commit",
+  "description": "Stages, commits, and pushes existing repository changes to the configured development branch. Repository map and zip generation are separate workflow tools.",
+  "runtime": {
+    "type": "node",
+    "entrypoint": "packages/git/src/dev_commit.js"
+  },
+  "parameters": [
+    {
+      "name": "repo_name",
+      "label": "Repository",
+      "description": "Configured repository code or name.",
+      "type": "select",
+      "required": true,
+      "secret": false,
+      "allowedValues": null,
+      "binding": {
+        "mode": "argv_positional",
+        "position": 0
+      }
+    },
+    {
+      "name": "commit_message",
+      "label": "Commit Message",
+      "description": "Git commit message.",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "binding": {
+        "mode": "argv_positional",
+        "position": 1
+      }
+    }
+  ],
+  "resultContract": {
+    "required": true,
+    "schemaVersion": "1.0",
+    "outputType": "git_commit_summary.v1",
+    "schemaPath": "packages/tools/contracts/git_commit_summary.v1.schema.json",
+    "samplePath": "packages/git/manifests/dev_commit/contract-check-result.json"
+  },
+  "permissions": ["GIT_COMMIT_RUN"],
+  "execution": {
+    "timeoutMs": 900000,
+    "allowManual": true,
+    "allowSchedules": true,
+    "allowWorkflows": true,
+    "capturesOutput": true
+  },
+  "registration": {
+    "applicationCode": "SKYSERVER_CORE",
+    "categoryCode": "git_tools",
+    "riskCode": "medium",
+    "requiresConfirmation": true,
+    "confirmationText": "This will stage, commit, and push existing changes for the selected repository."
+  }
+}

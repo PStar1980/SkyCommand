@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/git_commit_summary.v1.schema.json",
+  "title": "Git Commit Summary v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationKind",
+    "outcome",
+    "repositoryCode",
+    "repositoryName",
+    "repositoryRoot",
+    "branch",
+    "remote",
+    "commitMessage",
+    "previousHeadSha",
+    "currentHeadSha",
+    "commitSha",
+    "startedAt",
+    "completedAt",
+    "durationMs",
+    "changedFiles",
+    "changes",
+    "steps"
+  ],
+  "properties": {
+    "operationKind": {
+      "const": "DEV_COMMIT"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["PUSHED", "NO_CHANGES", "FAILED"]
+    },
+    "repositoryCode": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "repositoryName": {
+      "type": ["string", "null"],
+      "maxLength": 240
+    },
+    "repositoryRoot": {
+      "type": ["string", "null"],
+      "maxLength": 4000
+    },
+    "branch": {
+      "type": ["string", "null"],
+      "maxLength": 500
+    },
+    "remote": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "commitMessage": {
+      "type": ["string", "null"],
+      "maxLength": 4000
+    },
+    "previousHeadSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "currentHeadSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "commitSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "startedAt": {
+      "type": ["string", "null"],
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "completedAt": {
+      "type": ["string", "null"],
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "changedFiles": {
+      "type": "number",
+      "minimum": 0
+    },
+    "changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "modified", "deleted", "renamed", "untracked", "other"],
+      "properties": {
+        "added": {
+          "type": "number",
+          "minimum": 0
+        },
+        "modified": {
+          "type": "number",
+          "minimum": 0
+        },
+        "deleted": {
+          "type": "number",
+          "minimum": 0
+        },
+        "renamed": {
+          "type": "number",
+          "minimum": 0
+        },
+        "untracked": {
+          "type": "number",
+          "minimum": 0
+        },
+        "other": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fetched", "switchedBranch", "pulled", "staged", "committed", "pushed"],
+      "properties": {
+        "fetched": {
+          "type": "boolean"
+        },
+        "switchedBranch": {
+          "type": "boolean"
+        },
+        "pulled": {
+          "type": "boolean"
+        },
+        "staged": {
+          "type": "boolean"
+        },
+        "committed": {
+          "type": "boolean"
+        },
+        "pushed": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
