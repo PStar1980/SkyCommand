@@ -893,7 +893,21 @@ function WorkflowVisualGraph({
   }, { completed: 0, active: 0, failed: 0, notRun: 0 });
   const activeNodeIndex = runtimeMode ? getActiveRuntimeNodeIndex(nodes, nodeRuns, approvals) : -1;
   const nextIncompleteNodeIndex = runtimeMode ? getNextIncompleteRuntimeNodeIndex(nodes, nodeRuns, approvals) : -1;
-  const followTargetIndex = activeNodeIndex >= 0 ? activeNodeIndex : nextIncompleteNodeIndex;
+  const normalizedRunStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
+  const terminalIssueRun = ['FAILED', 'REJECTED', 'TIMED_OUT', 'TERMINATED', 'CANCELED', 'CANCELLED'].includes(normalizedRunStatus);
+  const lastIssueNodeIndex = runtimeMode
+    ? runtimeOverlays.reduce((lastIndex, overlay, index) => {
+        const status = normalizeRuntimeStatus(overlay?.status);
+        return ['FAILED', 'REJECTED', 'TIMED_OUT', 'TERMINATED', 'CANCELED', 'CANCELLED'].includes(status)
+          ? index
+          : lastIndex;
+      }, -1)
+    : -1;
+  const followTargetIndex = terminalIssueRun && lastIssueNodeIndex >= 0
+    ? lastIssueNodeIndex
+    : activeNodeIndex >= 0
+      ? activeNodeIndex
+      : nextIncompleteNodeIndex;
   const activeEdgeIndex = followTargetIndex > 0 ? followTargetIndex - 1 : -1;
   const activeNode = followTargetIndex >= 0 ? nodes[followTargetIndex] : null;
   const runStatusMeta = runtimeMode ? getRuntimeStatusMeta(runStatus || temporalRuntime?.status || 'UNKNOWN') : null;
@@ -916,9 +930,14 @@ function WorkflowVisualGraph({
     }
 
     const nodeElement = nodeRefs.current[followTargetIndex];
+    const viewport = nodeElement?.closest?.('.sky-workflow-visual-viewport');
 
-    if (nodeElement?.scrollIntoView) {
-      nodeElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    if (nodeElement && viewport) {
+      const targetLeft = Math.max(
+        0,
+        nodeElement.offsetLeft - (viewport.clientWidth - nodeElement.offsetWidth) / 2,
+      );
+      viewport.scrollTo({ behavior: 'smooth', left: targetLeft });
     }
   }, [followActiveNode, followTargetIndex, onNodeSelect, runtimeMode, selectedNodeIndex]);
 

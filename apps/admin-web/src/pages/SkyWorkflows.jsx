@@ -3009,6 +3009,17 @@ function SkyWorkflows({ mode = 'start' }) {
       : selectedNodeRuns;
   const isHistoryMode = mode === 'history';
 
+  function handleRuntimeNodeSelect(index, options = {}) {
+    setSelectedRuntimeNodeIndex(index);
+
+    // Manual inspection must remain under user control, including for failed,
+    // terminated, and not-run nodes. Only telemetry-driven selection keeps
+    // follow mode enabled.
+    if (!options.followActiveNode) {
+      setFollowActiveRuntimeNode(false);
+    }
+  }
+
   useEffect(() => {
     if (!runDetailOverlayOpen) {
       return undefined;
@@ -4077,7 +4088,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 nodeRuns={selectedNodeRuns}
                 nodes={runtimeVisualNodes}
                 onFollowActiveNodeChange={setFollowActiveRuntimeNode}
-                onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
+                onNodeSelect={handleRuntimeNodeSelect}
                 runStatus={selectedTemporalRuntime?.status || selectedRun.status}
                 runtimeMode
                 selectedNodeIndex={selectedRuntimeNodeIndex}
@@ -4332,7 +4343,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 nodeRuns={selectedNodeRuns}
                 nodes={runtimeVisualNodes}
                 onFollowActiveNodeChange={setFollowActiveRuntimeNode}
-                onNodeSelect={(index) => setSelectedRuntimeNodeIndex(index)}
+                onNodeSelect={handleRuntimeNodeSelect}
                 runStatus={selectedTemporalRuntime?.status || selectedRun?.status || 'NOT_RUN'}
                 runtimeMode
                 selectedNodeIndex={selectedRuntimeNodeIndex}

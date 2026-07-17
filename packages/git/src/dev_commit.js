@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { setTimeout: sleep } = require('timers/promises');
 const dotenv = require('dotenv');
 
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
@@ -44,6 +45,49 @@ function runCommand(command, args, cwd, label = command) {
 }
 function runGit(args, cwd) {
   runCommand('git', args, cwd, 'git');
+}
+
+function runGitCaptured(args, cwd) {
+  console.log(`> git ${args.join(' ')}`);
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.error) fail(`Git command failed: ${result.error.message}`);
+  return result;
+}
+
+function isRetryableGitIndexFailure(result) {
+  const message = `${result?.stdout || ''}
+${result?.stderr || ''}`.toLowerCase();
+  return (
+    message.includes('unable to write new index file') ||
+    message.includes('index.lock') ||
+    message.includes('could not lock index') ||
+    message.includes('another git process seems to be running')
+  );
+}
+
+async function stageChangesWithRetry(cwd) {
+  const delaysMs = [0, 500, 1000, 2000];
+
+  for (let attempt = 0; attempt < delaysMs.length; attempt += 1) {
+    if (delaysMs[attempt] > 0) {
+      console.log(`⏳ Git index is busy; retrying git add -A in ${delaysMs[attempt]} ms...`);
+      await sleep(delaysMs[attempt]);
+    }
+
+    const result = runGitCaptured(['add', '-A'], cwd);
+    if (result.status === 0) return;
+    if (!isRetryableGitIndexFailure(result) || attempt === delaysMs.length - 1) {
+      fail('git command failed: git add -A');
+    }
+  }
+}
+
+function getAheadCount(cwd, branch) {
+  const output = getGitOutput(['rev-list', '--count', `origin/${branch}..${branch}`], cwd);
+  const parsed = Number.parseInt(output, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 function getGitOutput(args, cwd) {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });
@@ -106,11 +150,24 @@ async function executeDevCommit(args = []) {
   const changeSummary = parseGitStatusPorcelain(status);
 
   if (status === '') {
+    const aheadCount = getAheadCount(repo.rootPath, repo.devBranch);
+    let pushedExistingCommit = false;
+
+    if (aheadCount > 0) {
+      console.log(`📤 Working tree is clean, but ${aheadCount} local commit(s) still need to be pushed.`);
+      runGit(['push', 'origin', repo.devBranch], repo.rootPath);
+      pushedExistingCommit = true;
+    }
+
     const completedAt = new Date().toISOString();
-    console.log('✨ Nothing to commit — working directory clean.');
+    console.log(
+      pushedExistingCommit
+        ? '🎉 Existing local commit(s) pushed successfully.'
+        : '✨ Nothing to commit — working directory clean.',
+    );
     return {
       ok: true,
-      outcome: 'NO_CHANGES',
+      outcome: pushedExistingCommit ? 'PUSHED_EXISTING' : 'NO_CHANGES',
       repositoryCode: repo.repoCode,
       repositoryName: repo.repoName,
       repositoryRoot: repo.rootPath,
@@ -129,12 +186,12 @@ async function executeDevCommit(args = []) {
       pulled: true,
       staged: false,
       committed: false,
-      pushed: false,
+      pushed: pushedExistingCommit,
       profileCode: PROFILE_CODE,
     };
   }
 
-  runGit(['add', '-A'], repo.rootPath);
+  await stageChangesWithRetry(repo.rootPath);
   runGit(['commit', '-m', commitMessage], repo.rootPath);
   const commitSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
   runGit(['push', 'origin', repo.devBranch], repo.rootPath);
