@@ -6,19 +6,19 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Stack at a Glance
 
-| Layer | Technology |
-| --- | --- |
-| API | Node.js, Express |
-| Admin client | React, Vite, React Router, Bootstrap, Axios, Apache ECharts, D3 |
-| Database | PostgreSQL |
-| Data access | `pg`, SQL migrations/seeds, relational manifests |
-| Auth | App-scoped login, hashed bearer sessions, RBAC permissions, audit events |
-| Worker/control plane | Node worker daemon, scheduler/listener schema, tool execution logs |
-| Durable orchestration | Temporal worker, workflow executor, task queue diagnostics, worker heartbeats |
-| Tool result contract | Universal child-process adapter, wrapper-owned structured result transport, versioned `ToolResult` envelopes |
-| Data ingestion | FRED, Bank of Canada, Statistics Canada, manual CSV/spreadsheet pipelines |
-| Repo automation | Dev commit workflow, repo map generation, lean repo zip generation |
-| Product consumer | SkyWeb Analytics via public/member macro and alert APIs |
+| Layer                 | Technology                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| API                   | Node.js, Express                                                                                             |
+| Admin client          | React, Vite, React Router, Bootstrap, Axios, Apache ECharts, D3                                              |
+| Database              | PostgreSQL                                                                                                   |
+| Data access           | `pg`, SQL migrations/seeds, relational manifests                                                             |
+| Auth                  | App-scoped login, hashed bearer sessions, RBAC permissions, audit events                                     |
+| Worker/control plane  | Node worker daemon, scheduler/listener schema, tool execution logs                                           |
+| Durable orchestration | Temporal worker, workflow executor, task queue diagnostics, worker heartbeats                                |
+| Tool result contract  | Universal child-process adapter, wrapper-owned structured result transport, versioned `ToolResult` envelopes |
+| Data ingestion        | FRED, Bank of Canada, Statistics Canada, manual CSV/spreadsheet pipelines                                    |
+| Repo automation       | Dev commit workflow, repo map generation, lean repo zip generation                                           |
+| Product consumer      | SkyWeb Analytics via public/member macro and alert APIs                                                      |
 
 ## What This Project Demonstrates
 
@@ -35,7 +35,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 ## Current Status
 
-**Active status:** Phase 14 is now in progress. Phase 14.1 established the universal structured-tool-result transport and generic child-process adapter. Phase 14.2 delivered the first workflow-native proof case with FRED, including deliberate loader statistics, `macro_ingestion_summary.v1`, purpose-built Workflow History rendering, and stable condition paths such as `nodes.fred_ingestion.output.totals.rowsInserted`. Phase 14.2.1 hardened development watcher safety, and Phase 14.2.2 aligned semantic output persistence while separating tool retries from ledger-persistence retries. Phase 14.3 migrated Bank of Canada and Statistics Canada to the same structured contract and consolidated all three macro-source entrypoints behind one reusable ingestion CLI adapter. Phase 14.4 now adds versioned `skycommand.tool.json` manifests, strict output JSON Schema validation, non-destructive describe/contract-check modes, repository path and hash validation, and runtime drift checks between registered database tools and their repository manifests. Phase 13 remains the live telemetry, runtime context, parameterized workflow, condition, summary, and visual execution foundation that Phase 14 strengthens.
+**Active status:** Phase 14 is now in progress. Phase 14.1 established the universal structured-tool-result transport and generic child-process adapter. Phase 14.2 delivered the first workflow-native proof case with FRED, including deliberate loader statistics, `macro_ingestion_summary.v1`, purpose-built Workflow History rendering, and stable condition paths such as `nodes.fred_ingestion.output.totals.rowsInserted`. Phase 14.2.1 hardened development watcher safety, and Phase 14.2.2 aligned semantic output persistence while separating tool retries from ledger-persistence retries. Phase 14.3 migrated Bank of Canada and Statistics Canada to the same structured contract and consolidated all three macro-source entrypoints behind one reusable ingestion CLI adapter. Phase 14.4 added versioned `skycommand.tool.json` manifests, strict output JSON Schema validation, non-destructive describe/contract-check modes, repository path and hash validation, and runtime drift checks between registered database tools and their repository manifests. Phase 14.5 now makes structured results active workflow data: Temporal and inline execution share the same canonical result/output aliases, condition paths fail clearly when required values are missing, Summary nodes aggregate every macro source symmetrically, and scheduled tool runs retain a compact structured-result proof in their run metadata. Phase 13 remains the live telemetry, runtime context, parameterized workflow, condition, summary, and visual execution foundation that Phase 14 strengthens.
 
 SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane behind **SkyCommand**, the branded Admin-Web experience for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and operational intelligence.
 
@@ -47,7 +47,27 @@ Phase 12 added the **visual operations layer**: dashboard intelligence, Workflow
 
 Phase 13 adds the **live workflow intelligence layer**. Smart polling and live telemetry contracts keep Workflow History, selected run details, node status overlays, runtime summaries, Tool History, Data Pipeline, Readiness, and dashboard analytics surfaces fresh without full page reloads. Polling now preserves the last good UI state during transient refresh failures and escalates only after repeated polling errors. Structured node output persistence stores resolved inputs and returned outputs in dedicated run-output rows, the workflow context store merges run inputs and completed node outputs into durable context values, explicit workflow-level runtime parameter schemas let reusable workflows collect launch values before execution without confusing node-level tool defaults, condition gates can now branch from params/context/node-output paths while persisting their decisions back into run context, and the runtime graph now supports active-node following plus animated edge flow while live telemetry updates. Summary nodes can now generate reusable human-readable run summaries from params, workflow context, prior node outputs, warnings, errors, and timings, with the result persisted into the workflow run summary and visible in Workflow History. The workflow workbench now continues that separation by replacing command-heavy dashboard blocks with Dashboard Controls, moving Create Workflow toward a visual graph editor, and keeping Start Workflow focused on launching and watching live runtime overlays in place.
 
-Phase 14 adds the **workflow-native tool contract**. The generic process adapter creates a unique, wrapper-owned result-file transport for every API or worker tool launch and injects the standard `SKYCOMMAND_TOOL_RESULT_*` environment contract. Tools continue printing their existing operational logs while emitting versioned `ToolResult` objects through the separate structured channel. The shared validator enforces JSON safety, supported schema versions, stable output types, maximum size, required-result behavior, and optional domain-output JSON Schemas. Workflow tool nodes no longer promote stdout/stderr into business output: migrated tools expose their deliberate domain payload under `nodes.<nodeKey>.output`, the complete envelope remains available under `nodes.<nodeKey>.result`, and non-migrated tools receive a clear `legacy_tool_execution.v1` result that points operators back to Tool History for logs. FRED, Bank of Canada, and Statistics Canada now all emit the normalized `macro_ingestion_summary.v1` contract through one shared macro-ingestion CLI adapter, while retaining each source's existing console transcript and domain execution implementation. Each migrated source now declares a versioned `skycommand.tool.json` manifest covering identity, entrypoint, parameters, permission, execution policy, and result contract. API and worker execution resolve those manifests generically, reject registered-tool drift, require the declared result, and validate the output payload against its schema after the child process exits. Non-destructive describe and contract-check modes prepare the same tool packages for later repository registration without running ingestion work.
+Phase 14 adds the **workflow-native tool contract**. The generic process adapter creates a unique, wrapper-owned result-file transport for every API or worker tool launch and injects the standard `SKYCOMMAND_TOOL_RESULT_*` environment contract. Tools continue printing their existing operational logs while emitting versioned `ToolResult` objects through the separate structured channel. The shared validator enforces JSON safety, supported schema versions, stable output types, maximum size, required-result behavior, and optional domain-output JSON Schemas. Workflow tool nodes no longer promote stdout/stderr into business output: migrated tools expose their deliberate domain payload under `nodes.<nodeKey>.output`, the complete envelope remains available under `nodes.<nodeKey>.result`, and non-migrated tools receive a clear `legacy_tool_execution.v1` result that points operators back to Tool History for logs. FRED, Bank of Canada, and Statistics Canada now all emit the normalized `macro_ingestion_summary.v1` contract through one shared macro-ingestion CLI adapter, while retaining each source's existing console transcript and domain execution implementation. Each migrated source declares a versioned `skycommand.tool.json` manifest covering identity, entrypoint, parameters, permission, execution policy, and result contract. API and worker execution resolve those manifests generically, reject registered-tool drift, require the declared result, and validate the output payload against its schema after the child process exits. Phase 14.5 completes the first consumption loop: the same deterministic helper builds condition-node views for inline and Temporal execution, Summary nodes produce compact per-node indexes plus normalized macro-source/combined totals, Workflow History renders those summaries as tables, and scheduler ledgers retain compact contract evidence without copying indicator arrays or logs. Non-destructive describe and contract-check modes prepare the same tool packages for later repository registration without running ingestion work.
+
+### Structured result consumption and summary aggregation
+
+Phase 14.5 centralizes the deterministic result-to-workflow view in `packages/tools/src/workflowResultContext.js`. Both inline execution and the Temporal workflow bundle now use the same rules:
+
+```text
+nodes.<nodeKey>.result      complete ToolResult envelope
+nodes.<nodeKey>.output      domain-specific payload
+nodes.<nodeKey>.warnings    non-fatal warnings
+nodes.<nodeKey>.error       structured error
+nodes.<nodeKey>.metadata    safe result metadata
+previousResult              previous complete result
+previousOutput              previous domain payload
+```
+
+Condition nodes can branch on paths such as `nodes.fred_ingestion.output.totals.rowsInserted`. A configured path that does not exist now fails with `WORKFLOW_CONDITION_PATH_NOT_FOUND` unless a fallback literal is supplied, preventing silent branches caused by misspelled paths.
+
+Summary nodes no longer create source-labelled JSON previews. They build a compact node-result index and, when macro ingestion results are present, a normalized rollup containing one row for every source plus combined requested/updated/unchanged/failed/row totals. The Workflow History focused Summary node renderer displays these values as tables, keeping FRED, Bank of Canada, and Statistics Canada symmetrical.
+
+Scheduled direct-tool runs store only a compact contract summary in `worker.schedule_runs.metadata`: schema/output type, success/message/warning count, and macro source totals where applicable. Full output remains in the tool execution result and workflow ledger rather than being duplicated into scheduler metadata.
 
 ### Development watcher safety
 
@@ -61,6 +81,7 @@ Phase 14.4 introduces repository manifests under `packages/ingestion/manifests/<
 npm run tool-manifest:discover
 npm run tool-manifest:validate
 npm run tool-contract:check
+npm run workflow-result-context:self-test
 ```
 
 Migrated entrypoints also support:
@@ -72,19 +93,18 @@ node packages/ingestion/src/loadFREDMacroData.js --skycommand-contract-check
 
 Both modes skip the ingestion operation. Describe returns the validated manifest snapshot; contract-check validates and emits the declared sample `ToolResult`. Normal API and worker executions independently revalidate the emitted payload against the same manifest contract after process completion.
 
-
 ## Core Product Surfaces
 
-| Surface | Purpose |
-| --- | --- |
+| Surface              | Purpose                                                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | SkyCommand Dashboard | Private operational intelligence dashboard for API/DB health, ingestion, automation, workflows, task queue health, readiness, tools, sessions, scripts, audits, and chart-based visual summaries |
-| Tools | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging |
-| Workflows | Versioned workflow builder, visual graph editor, start/history, approvals, run controls, Temporal diagnostics, and worker health |
-| Automation | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyServer workflows |
-| Ingestion Status | Source health, indicator freshness, stale-data detection, run history, per-indicator diagnostics, and macro pipeline analytics |
-| Access Control | User, role, permission, session, password administration, and User History audit review |
-| Tools History | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability plus usage, speed, category, and outcome analytics |
-| SkyWeb APIs | Public/member macro, profile, preference, dashboard, alert, and alert-evaluation support for SkyWeb Analytics |
+| Tools                | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging                                                                                                  |
+| Workflows            | Versioned workflow builder, visual graph editor, start/history, approvals, run controls, Temporal diagnostics, and worker health                                                                 |
+| Automation           | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyServer workflows                                                                                             |
+| Ingestion Status     | Source health, indicator freshness, stale-data detection, run history, per-indicator diagnostics, and macro pipeline analytics                                                                   |
+| Access Control       | User, role, permission, session, password administration, and User History audit review                                                                                                          |
+| Tools History        | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability plus usage, speed, category, and outcome analytics                                                 |
+| SkyWeb APIs          | Public/member macro, profile, preference, dashboard, alert, and alert-evaluation support for SkyWeb Analytics                                                                                    |
 
 ## Architecture
 
@@ -129,18 +149,17 @@ SkyWeb Analytics
 
 SkyServer and SkyWeb now have a clean boundary:
 
-| SkyServer owns | SkyWeb owns |
-| --- | --- |
-| Ingestion pipelines | Public/member analytics UI |
-| Worker scheduling | Dashboards and saved views |
-| Alert evaluation execution | Alert rules and Signal Center presentation |
-| Admin-Web and RBAC administration | Account/profile/preferences UX |
+| SkyServer owns                                      | SkyWeb owns                                     |
+| --------------------------------------------------- | ----------------------------------------------- |
+| Ingestion pipelines                                 | Public/member analytics UI                      |
+| Worker scheduling                                   | Dashboards and saved views                      |
+| Alert evaluation execution                          | Alert rules and Signal Center presentation      |
+| Admin-Web and RBAC administration                   | Account/profile/preferences UX                  |
 | Script/tool execution and admin visual intelligence | Public/member ECharts/D3 analytics presentation |
-| Repo map/zip/dev-commit utilities | Portfolio-ready product presentation |
-| Temporal orchestration and workflow diagnostics | Public/member API consumption |
+| Repo map/zip/dev-commit utilities                   | Portfolio-ready product presentation            |
+| Temporal orchestration and workflow diagnostics     | Public/member API consumption                   |
 
 SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
-
 
 ## SkyCommand UI and Visualization Direction
 
@@ -273,38 +292,38 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 
 ## Primary Local URLs
 
-| Surface | URL |
-| --- | --- |
-| SkyServer API health | `http://localhost:7171/_health` |
-| SkyServer DB health | `http://localhost:7171/_db/health` |
-| Temporal Web UI | `http://localhost:8233` |
-| SkyServer Admin-Web | `http://localhost:5173` |
-| SkyWeb Analytics client | `http://localhost:5175` |
-| SkyWeb.Api Swagger | `http://localhost:7280/swagger` |
+| Surface                 | URL                                |
+| ----------------------- | ---------------------------------- |
+| SkyServer API health    | `http://localhost:7171/_health`    |
+| SkyServer DB health     | `http://localhost:7171/_db/health` |
+| Temporal Web UI         | `http://localhost:8233`            |
+| SkyServer Admin-Web     | `http://localhost:5173`            |
+| SkyWeb Analytics client | `http://localhost:5175`            |
+| SkyWeb.Api Swagger      | `http://localhost:7280/swagger`    |
 
 ## NPM Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run start` | Starts the API server. |
-| `npm run api` | Starts the API server with Nodemon. |
-| `npm run web` | Starts the Admin-Web Vite development server. |
-| `npm run web:build` | Builds the Admin-Web frontend. |
-| `npm run web:preview` | Previews the built Admin-Web frontend. |
-| `npm run worker` | Starts the worker daemon. |
-| `npm run worker:dev` | Starts the worker daemon with Nodemon. |
-| `npm run temporal:worker` | Starts the SkyServer Temporal worker. |
-| `npm run temporal:worker:dev` | Starts the SkyServer Temporal worker with Nodemon. |
-| `npm run temporal:health` | Checks connectivity to the configured Temporal service. |
-| `npm run temporal:fred` | Starts the FRED ingestion workflow pilot and waits for the result. |
-| `npm run daemon` | Starts the API daemon entry point with Nodemon. |
-| `npm run core` | Starts the SkyServer Core CLI with top-level Run Tools / Run Workflows menus. |
-| `npm run db:health` | Tests PostgreSQL connectivity. |
-| `npm run db:build` | Rebuilds the configured PostgreSQL database from SQL files. |
-| `npm run auth:create-admin` | Runs the first-admin/user creation script. |
-| `npm run lint` | Runs ESLint checks. |
-| `npm run format:check` | Verifies Prettier formatting. |
-| `npm run prepush` | Lightweight reminder; run `npm run validate` intentionally before phase handoff/release snapshots. |
+| Command                       | Description                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `npm run start`               | Starts the API server.                                                                             |
+| `npm run api`                 | Starts the API server with Nodemon.                                                                |
+| `npm run web`                 | Starts the Admin-Web Vite development server.                                                      |
+| `npm run web:build`           | Builds the Admin-Web frontend.                                                                     |
+| `npm run web:preview`         | Previews the built Admin-Web frontend.                                                             |
+| `npm run worker`              | Starts the worker daemon.                                                                          |
+| `npm run worker:dev`          | Starts the worker daemon with Nodemon.                                                             |
+| `npm run temporal:worker`     | Starts the SkyServer Temporal worker.                                                              |
+| `npm run temporal:worker:dev` | Starts the SkyServer Temporal worker with Nodemon.                                                 |
+| `npm run temporal:health`     | Checks connectivity to the configured Temporal service.                                            |
+| `npm run temporal:fred`       | Starts the FRED ingestion workflow pilot and waits for the result.                                 |
+| `npm run daemon`              | Starts the API daemon entry point with Nodemon.                                                    |
+| `npm run core`                | Starts the SkyServer Core CLI with top-level Run Tools / Run Workflows menus.                      |
+| `npm run db:health`           | Tests PostgreSQL connectivity.                                                                     |
+| `npm run db:build`            | Rebuilds the configured PostgreSQL database from SQL files.                                        |
+| `npm run auth:create-admin`   | Runs the first-admin/user creation script.                                                         |
+| `npm run lint`                | Runs ESLint checks.                                                                                |
+| `npm run format:check`        | Verifies Prettier formatting.                                                                      |
+| `npm run prepush`             | Lightweight reminder; run `npm run validate` intentionally before phase handoff/release snapshots. |
 
 ## Repository Layout
 
@@ -341,41 +360,41 @@ Generated handoff zips exclude dependency/build/runtime clutter such as `node_mo
 
 ## API Families
 
-| Family | Purpose |
-| --- | --- |
-| `/_health`, `/_db/health` | API and database health checks |
-| `/api/auth/*` | Login, logout, current session, and permissions |
-| `/api/tools/*` | Permission-filtered tool catalog and tool execution |
-| `/api/admin/*` | Users, roles, permissions, sessions, settings, script executions, and audit events |
-| `/api/macro/*` | Private macro summary, view, indicator, and series endpoints |
-| `/api/public/macro/*` | Public macro endpoints consumed by SkyWeb during the transition path |
-| `/api/ingestion/*` | Ingestion health, source status, recent runs, and indicator diagnostics |
-| `/api/worker/*` | Worker health, tools, nodes, schedules, runs, listeners, and listener events |
-| `/api/workflows/*` | Workflow definitions, drafts, starts, runs, approvals, run controls, worker health, and version guardrails |
-| `/api/temporal/*` | Lower-level Temporal health, template starts, workflow listings, and diagnostics |
-| `/api/admin/production-readiness` | Production readiness checks for environment, Temporal, DB, workflow, auth, and operations |
-| `/api/skyweb/*` | SkyWeb member/profile/preference/dashboard/alert support and alert evaluation |
+| Family                            | Purpose                                                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/_health`, `/_db/health`         | API and database health checks                                                                             |
+| `/api/auth/*`                     | Login, logout, current session, and permissions                                                            |
+| `/api/tools/*`                    | Permission-filtered tool catalog and tool execution                                                        |
+| `/api/admin/*`                    | Users, roles, permissions, sessions, settings, script executions, and audit events                         |
+| `/api/macro/*`                    | Private macro summary, view, indicator, and series endpoints                                               |
+| `/api/public/macro/*`             | Public macro endpoints consumed by SkyWeb during the transition path                                       |
+| `/api/ingestion/*`                | Ingestion health, source status, recent runs, and indicator diagnostics                                    |
+| `/api/worker/*`                   | Worker health, tools, nodes, schedules, runs, listeners, and listener events                               |
+| `/api/workflows/*`                | Workflow definitions, drafts, starts, runs, approvals, run controls, worker health, and version guardrails |
+| `/api/temporal/*`                 | Lower-level Temporal health, template starts, workflow listings, and diagnostics                           |
+| `/api/admin/production-readiness` | Production readiness checks for environment, Temporal, DB, workflow, auth, and operations                  |
+| `/api/skyweb/*`                   | SkyWeb member/profile/preference/dashboard/alert support and alert evaluation                              |
 
 ## Data and Automation Layers
 
 ### PostgreSQL schemas
 
-| Schema | Purpose |
-| --- | --- |
-| `auth` | Users, roles, permissions, sessions, login events, audit events, script execution logs |
-| `core` | Applications, repositories, tool manifest, visibility channels, runtimes, parameters, risk levels |
-| `macro` | Indicator registry, physical indicator tables, macro analysis views |
-| `skyweb` | SkyWeb profiles, preferences, saved views, dashboards, alert rules, events, notifications |
+| Schema   | Purpose                                                                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth`   | Users, roles, permissions, sessions, login events, audit events, script execution logs                                                      |
+| `core`   | Applications, repositories, tool manifest, visibility channels, runtimes, parameters, risk levels                                           |
+| `macro`  | Indicator registry, physical indicator tables, macro analysis views                                                                         |
+| `skyweb` | SkyWeb profiles, preferences, saved views, dashboards, alert rules, events, notifications                                                   |
 | `worker` | Worker nodes, schedules, schedule runs, listeners, workflow definitions/versions/runs, approvals, Temporal templates, and worker heartbeats |
 
 ### Ingestion sources
 
-| Source | Loader |
-| --- | --- |
-| FRED | `packages/ingestion/src/loadFREDMacroData.js` |
-| Bank of Canada | `packages/ingestion/src/loadBoCMacroData.js` |
-| Statistics Canada | `packages/ingestion/src/loadStatCanMacroData.js` |
-| Manual CSV/spreadsheet | `packages/ingestion/src/loadManualData.js` |
+| Source                 | Loader                                           |
+| ---------------------- | ------------------------------------------------ |
+| FRED                   | `packages/ingestion/src/loadFREDMacroData.js`    |
+| Bank of Canada         | `packages/ingestion/src/loadBoCMacroData.js`     |
+| Statistics Canada      | `packages/ingestion/src/loadStatCanMacroData.js` |
+| Manual CSV/spreadsheet | `packages/ingestion/src/loadManualData.js`       |
 
 The ingestion pattern is intentionally idempotent: discover configured indicators, download source data, normalize rows, load staging, merge new data into target tables, log outcomes, and clean temporary files.
 
@@ -420,15 +439,15 @@ The browser/Admin-Web should call SkyServer API rather than Temporal directly, p
 
 The Admin-Web visualization layer is built around reusable chart primitives under `apps/admin-web/src/components/charts`:
 
-| Component/helper | Purpose |
-| --- | --- |
-| `EChartCard` | Shared chart card shell with title, subtitle, expand action, empty state, and chart canvas |
-| `ChartFullscreenOverlay` | Reusable full-screen chart inspection overlay with close/Escape/backdrop behavior |
-| `TrendAreaChart` | Standard line/area trend chart for activity, run pressure, and status movement |
-| `DurationTrendChart` | Duration-specific trend chart for runtime pressure and execution timing |
-| `StatusDonut` | Donut chart helper for health/outcome/status mix visualizations |
-| `OutcomeBarChart` | Horizontal/vertical bar chart helper for outcome counts and ranked categories |
-| `chartTheme`, `chartOptions`, `chartData` | Centralized status colors, tooltip/legend/axis styling, and grouping helpers |
+| Component/helper                          | Purpose                                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `EChartCard`                              | Shared chart card shell with title, subtitle, expand action, empty state, and chart canvas |
+| `ChartFullscreenOverlay`                  | Reusable full-screen chart inspection overlay with close/Escape/backdrop behavior          |
+| `TrendAreaChart`                          | Standard line/area trend chart for activity, run pressure, and status movement             |
+| `DurationTrendChart`                      | Duration-specific trend chart for runtime pressure and execution timing                    |
+| `StatusDonut`                             | Donut chart helper for health/outcome/status mix visualizations                            |
+| `OutcomeBarChart`                         | Horizontal/vertical bar chart helper for outcome counts and ranked categories              |
+| `chartTheme`, `chartOptions`, `chartData` | Centralized status colors, tooltip/legend/axis styling, and grouping helpers               |
 
 Current visual pages include:
 
@@ -459,13 +478,13 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 
 `README.md` is now a current-state overview. Detailed implementation history lives in `change.log`; generated structure lives in the repo map. Older phase-specific Temporal notes were removed after Phase 10 completion to avoid repeating the same implementation story in several places. The current visualization expansion plan is represented in the roadmap below and implemented through the reusable chart system.
 
-| Asset | Purpose |
-| --- | --- |
-| [`change.log`](change.log) | Canonical phase history, implementation notes, and documentation cleanup record |
-| [`docs/SkyServer_RepoMap.md`](docs/SkyServer_RepoMap.md) | Generated repository structure map |
-| [`docs/SkyServer_Temporal_Local_Setup.md`](docs/SkyServer_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
-| [`docs/SkyServer_Temporal_Workflow_Architecture_Plan.md`](docs/SkyServer_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |
-| [`docs/SkyCommand_Phase_14_Structured_Tool_Results.md`](docs/SkyCommand_Phase_14_Structured_Tool_Results.md) | Current Phase 14 contract, transport, context-path, migration, and validation reference |
+| Asset                                                                                                            | Purpose                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`change.log`](change.log)                                                                                       | Canonical phase history, implementation notes, and documentation cleanup record         |
+| [`docs/SkyServer_RepoMap.md`](docs/SkyServer_RepoMap.md)                                                         | Generated repository structure map                                                      |
+| [`docs/SkyServer_Temporal_Local_Setup.md`](docs/SkyServer_Temporal_Local_Setup.md)                               | Current local Temporal setup, commands, and troubleshooting                             |
+| [`docs/SkyServer_Temporal_Workflow_Architecture_Plan.md`](docs/SkyServer_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration                      |
+| [`docs/SkyCommand_Phase_14_Structured_Tool_Results.md`](docs/SkyCommand_Phase_14_Structured_Tool_Results.md)     | Current Phase 14 contract, transport, context-path, migration, and validation reference |
 
 Removed after Temporal implementation because their contents are now represented by `README.md`, `change.log`, the current UI, and the surviving architecture/setup references:
 
@@ -480,27 +499,27 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 
 ## Roadmap
 
-| Phase | Status | Objective |
-| --- | --- | --- |
-| Phase 1 | ✅ Complete | Install Node.js, initialize the application, and establish npm tooling |
-| Phase 2 | ✅ Complete | ESLint, Prettier, Husky, and lint-staged automation |
-| Phase 3 | ✅ Complete | PostgreSQL schema, indicator registry, migrations, seeds, and views |
-| Phase 4 | ✅ Complete | FRED, BoC, StatCan, and manual ingestion pipelines |
-| Phase 5 | ✅ Complete | SkyServer Core CLI tool with configurable script launcher model and direct active-workflow start menu |
-| Phase 6 | ✅ Complete | Private Admin-Web with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety UX |
-| Phase 7 | ✅ Complete | Macro, ingestion status, admin-action APIs, Access Control, Ingestion Status, and Dashboard v2 |
-| Phase 8 | ✅ Complete | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation |
-| Phase 9 | ✅ Complete | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support |
-| Phase 10 | ✅ Complete | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection |
-| Phase 11 | ✅ Complete | SkyCommand Admin-Web modernization: branded shell, black navigation frame, sidebar/page typography, dashboard wording, navbar search/popovers, login atmosphere, brand mark, and shared UI primitives |
-| Phase 12 | ✅ Complete | SkyCommand visual operations layer: ECharts/D3 dashboard intelligence, Workflow History charts, Worker Health pulse, Ingestion analytics, Tools History analytics, Production Readiness visuals, full-screen chart overlays, and reusable chart helpers |
-| Phase 13 | ✅ Complete | Live workflow telemetry, runtime context, parameterized execution, durable node outputs/context, context-aware conditions, active-node animation, summary nodes, and runtime/workbench surface separation |
-| Phase 14 | 🔄 In Progress | Structured Tool Results and workflow output contracts: one generic process adapter, separate log/result channels, versioned extensible `ToolResult` envelopes, canonical workflow paths, normalized FRED/BoC/StatCan summaries, strict `skycommand.tool.json` and output-schema validation, non-destructive contract checks, drift detection, and purpose-built output rendering |
-| Phase 15 | 🔜 Planned | Repository-based tool discovery, contract checks, validation previews, transactional registration, versioning, and drift detection using `skycommand.tool.json` |
-| Phase 16 | 🔜 Planned | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, source failure recovery, and production deployment planning |
-| Phase 17 | 🔜 Planned | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers |
-| Phase 18 | 🔜 Planned | Testing and demo hardening: Playwright coverage, workflow/chart regression checks, portfolio demo scripts, and release-quality documentation |
-| Continuous | 🔄 Ongoing | Expand reusable operational tools, workflow templates, diagnostics, tests, documentation, and chart/page polish |
+| Phase      | Status         | Objective                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 1    | ✅ Complete    | Install Node.js, initialize the application, and establish npm tooling                                                                                                                                                                                                                                                                                                                                                                                        |
+| Phase 2    | ✅ Complete    | ESLint, Prettier, Husky, and lint-staged automation                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Phase 3    | ✅ Complete    | PostgreSQL schema, indicator registry, migrations, seeds, and views                                                                                                                                                                                                                                                                                                                                                                                           |
+| Phase 4    | ✅ Complete    | FRED, BoC, StatCan, and manual ingestion pipelines                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Phase 5    | ✅ Complete    | SkyServer Core CLI tool with configurable script launcher model and direct active-workflow start menu                                                                                                                                                                                                                                                                                                                                                         |
+| Phase 6    | ✅ Complete    | Private Admin-Web with auth, RBAC, relational tool manifest, execution logging, audit trail, dynamic parameters, and safety UX                                                                                                                                                                                                                                                                                                                                |
+| Phase 7    | ✅ Complete    | Macro, ingestion status, admin-action APIs, Access Control, Ingestion Status, and Dashboard v2                                                                                                                                                                                                                                                                                                                                                                |
+| Phase 8    | ✅ Complete    | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation                                                                                                                                                                                                                                                                                                            |
+| Phase 9    | ✅ Complete    | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support                                                                                                                                                                                                                                                                                                  |
+| Phase 10   | ✅ Complete    | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection                                                                                                                                                                                                                                                 |
+| Phase 11   | ✅ Complete    | SkyCommand Admin-Web modernization: branded shell, black navigation frame, sidebar/page typography, dashboard wording, navbar search/popovers, login atmosphere, brand mark, and shared UI primitives                                                                                                                                                                                                                                                         |
+| Phase 12   | ✅ Complete    | SkyCommand visual operations layer: ECharts/D3 dashboard intelligence, Workflow History charts, Worker Health pulse, Ingestion analytics, Tools History analytics, Production Readiness visuals, full-screen chart overlays, and reusable chart helpers                                                                                                                                                                                                       |
+| Phase 13   | ✅ Complete    | Live workflow telemetry, runtime context, parameterized execution, durable node outputs/context, context-aware conditions, active-node animation, summary nodes, and runtime/workbench surface separation                                                                                                                                                                                                                                                     |
+| Phase 14   | 🔄 In Progress | Structured Tool Results and workflow output contracts: one generic process adapter, separate log/result channels, versioned extensible `ToolResult` envelopes, canonical inline/Temporal workflow paths, normalized FRED/BoC/StatCan summaries, strict `skycommand.tool.json` and output-schema validation, non-destructive contract checks, drift detection, condition-path enforcement, scheduled-result evidence, and purpose-built tool/summary rendering |
+| Phase 15   | 🔜 Planned     | Repository-based tool discovery, contract checks, validation previews, transactional registration, versioning, and drift detection using `skycommand.tool.json`                                                                                                                                                                                                                                                                                               |
+| Phase 16   | 🔜 Planned     | Ingestion resilience and workflow hardening: retry/backoff review, resumable runs, richer source diagnostics, source failure recovery, and production deployment planning                                                                                                                                                                                                                                                                                     |
+| Phase 17   | 🔜 Planned     | Data mart, cloud warehouse, and analytics-ready PostgreSQL/BI model refinement for public, admin, and reporting consumers                                                                                                                                                                                                                                                                                                                                     |
+| Phase 18   | 🔜 Planned     | Testing and demo hardening: Playwright coverage, workflow/chart regression checks, portfolio demo scripts, and release-quality documentation                                                                                                                                                                                                                                                                                                                  |
+| Continuous | 🔄 Ongoing     | Expand reusable operational tools, workflow templates, diagnostics, tests, documentation, and chart/page polish                                                                                                                                                                                                                                                                                                                                               |
 
 ## Design Philosophy
 

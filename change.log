@@ -879,3 +879,17 @@ SkyWeb Analytics owns:
 - Added manifest and contract-check self-tests covering valid discovery, strict output schemas, unsafe paths, secret command-line bindings, describe/contract-check non-execution guarantees, registry contracts, and drift detection.
 - Updated README, Phase 14 documentation, roadmap wording, and repository map.
 - No database migration or seed is required for Phase 14.4; hash persistence and transactional registration remain later increments.
+
+## Phase 14.5 — Structured workflow consumption and summary aggregation
+
+- Added `packages/tools/src/workflowResultContext.js`, a deterministic shared helper used by both inline API execution and the Temporal workflow bundle to expose the complete ToolResult under `nodes.<nodeKey>.result` and the domain payload under `nodes.<nodeKey>.output`.
+- Aligned `warnings`, `error`, `metadata`, `last.result`, `last.output`, `previousResult`, and `previousOutput` aliases across inline and Temporal-backed workflows.
+- Fixed the Temporal in-memory result scope so condition nodes and runtime templates no longer see the wrapper envelope where the documented domain output path is expected.
+- Added explicit `WORKFLOW_CONDITION_PATH_NOT_FOUND` failures when a configured condition path is missing and no fallback value is supplied; condition results now record whether the path resolved or used a fallback.
+- Reworked Summary-node key outputs into compact, bounded result indexes rather than JSON output previews.
+- Added normalized macro-ingestion rollups containing every FRED, Bank of Canada, and Statistics Canada source plus combined requested/succeeded/updated/unchanged/failed/staged/new/inserted totals.
+- Added a purpose-built Workflow History Summary-node renderer with symmetric macro-source rows, a combined totals row, and a concise node-result index.
+- Added compact ToolResult evidence to scheduled tool-run metadata without copying indicator arrays, stdout, or stderr into the scheduler ledger.
+- Added `npm run workflow-result-context:self-test` and included canonical path, three-source aggregation, compact summary, and scheduled-result assertions in `npm run validate`.
+- Updated condition and summary editor guidance, README, Phase 14 documentation, and repository map.
+- No database migration or seed is required for Phase 14.5.

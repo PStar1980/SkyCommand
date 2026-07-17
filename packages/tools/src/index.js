@@ -6,4 +6,5 @@ module.exports = {
   ...require('./toolResultTransport'),
   ...require('./toolProcessExecutor'),
   ...require('./toolCliAdapter'),
+  ...require('./workflowResultContext'),
 };

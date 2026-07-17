@@ -368,7 +368,9 @@ SkyServer/
 │           ├── toolProcessExecutor.js
 │           ├── toolResultContract.js
 │           ├── toolResultSelfTest.js
-│           └── toolResultTransport.js
+│           ├── toolResultTransport.js
+│           ├── workflowResultContext.js
+│           └── workflowResultContextSelfTest.js
 ├── scripts/
 │   ├── db/
 │   │   ├── functions/

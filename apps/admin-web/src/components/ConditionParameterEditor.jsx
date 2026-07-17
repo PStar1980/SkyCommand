@@ -51,10 +51,15 @@ function normalizeConditionParameters(parameters = {}) {
     operator: String(parameters.operator || DEFAULT_CONDITION_PARAMETERS.operator).toUpperCase(),
     onFalse: String(parameters.onFalse || DEFAULT_CONDITION_PARAMETERS.onFalse).toUpperCase(),
     trueTargetNodeKey: String(parameters.trueTargetNodeKey || parameters.trueTarget || '').trim(),
-    falseTargetNodeKey: String(parameters.falseTargetNodeKey || parameters.falseTarget || '').trim(),
+    falseTargetNodeKey: String(
+      parameters.falseTargetNodeKey || parameters.falseTarget || '',
+    ).trim(),
     leftType: String(parameters.leftType || DEFAULT_CONDITION_PARAMETERS.leftType).toUpperCase(),
     rightType: String(parameters.rightType || DEFAULT_CONDITION_PARAMETERS.rightType).toUpperCase(),
-    caseSensitive: parameters.caseSensitive === true || parameters.caseSensitive === 'true' || parameters.caseSensitive === '1',
+    caseSensitive:
+      parameters.caseSensitive === true ||
+      parameters.caseSensitive === 'true' ||
+      parameters.caseSensitive === '1',
   };
 }
 
@@ -120,7 +125,12 @@ function getBranchTargetLabel(targetNodeKey, branchTargetOptions = []) {
   return target?.label || targetNodeKey || 'next sequential node';
 }
 
-function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condition-parameter', parameters = {}, onChange }) {
+function ConditionParameterEditor({
+  branchTargetOptions = [],
+  idPrefix = 'condition-parameter',
+  parameters = {},
+  onChange,
+}) {
   const values = normalizeConditionParameters(parameters);
   const unaryOperator = isUnaryOperator(values.operator);
 
@@ -138,52 +148,72 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
   return (
     <div className="row g-3">
       <div className="col-lg-8">
-        <label className="form-label" htmlFor={`${idPrefix}-leftPath`}>Left path</label>
+        <label className="form-label" htmlFor={`${idPrefix}-leftPath`}>
+          Left path
+        </label>
         <input
           className="form-control sky-form-control sky-mono"
           id={`${idPrefix}-leftPath`}
           onChange={(event) => patch({ leftPath: event.target.value })}
-          placeholder="params.commitMessage or nodes.fred_ingestion.output.status"
+          placeholder="params.commitMessage or nodes.fred_ingestion.output.totals.rowsInserted"
           value={values.leftPath || ''}
         />
         <div className="form-text sky-muted">
-          Use dot paths from the live workflow scope: params.*, context.*, workflow.*, nodes.&lt;node_key&gt;.*, previous.*, previousOutput.*, or last.*.
+          Use dot paths from the live workflow scope. For migrated tools,
+          nodes.&lt;node_key&gt;.output contains the domain payload and
+          nodes.&lt;node_key&gt;.result contains the complete ToolResult envelope.
         </div>
       </div>
       <div className="col-lg-4">
-        <label className="form-label" htmlFor={`${idPrefix}-leftType`}>Left fallback type</label>
+        <label className="form-label" htmlFor={`${idPrefix}-leftType`}>
+          Left fallback type
+        </label>
         <select
           className="form-select sky-form-control"
           id={`${idPrefix}-leftType`}
           onChange={(event) => patch({ leftType: event.target.value })}
           value={values.leftType || 'AUTO'}
         >
-          {CONDITION_VALUE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+          {CONDITION_VALUE_TYPES.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="col-12">
-        <label className="form-label" htmlFor={`${idPrefix}-leftValue`}>Left literal / fallback value</label>
+        <label className="form-label" htmlFor={`${idPrefix}-leftValue`}>
+          Left literal / fallback value
+        </label>
         <input
           className="form-control sky-form-control sky-mono"
           id={`${idPrefix}-leftValue`}
           onChange={(event) => patch({ leftValue: event.target.value })}
-          placeholder="Optional; used when no left path is set or the path is missing"
+          placeholder="Optional fallback. A missing path without a fallback fails clearly."
           value={values.leftValue ?? ''}
         />
       </div>
       <div className="col-lg-5">
-        <label className="form-label" htmlFor={`${idPrefix}-operator`}>Operator</label>
+        <label className="form-label" htmlFor={`${idPrefix}-operator`}>
+          Operator
+        </label>
         <select
           className="form-select sky-form-control"
           id={`${idPrefix}-operator`}
           onChange={(event) => patch({ operator: event.target.value })}
           value={values.operator || 'TRUTHY'}
         >
-          {CONDITION_OPERATORS.map((operator) => <option key={operator.value} value={operator.value}>{operator.label}</option>)}
+          {CONDITION_OPERATORS.map((operator) => (
+            <option key={operator.value} value={operator.value}>
+              {operator.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="col-lg-5">
-        <label className="form-label" htmlFor={`${idPrefix}-rightValue`}>Comparison value</label>
+        <label className="form-label" htmlFor={`${idPrefix}-rightValue`}>
+          Comparison value
+        </label>
         <input
           className="form-control sky-form-control sky-mono"
           disabled={unaryOperator}
@@ -194,7 +224,9 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
         />
       </div>
       <div className="col-lg-2">
-        <label className="form-label" htmlFor={`${idPrefix}-rightType`}>Type</label>
+        <label className="form-label" htmlFor={`${idPrefix}-rightType`}>
+          Type
+        </label>
         <select
           className="form-select sky-form-control"
           disabled={unaryOperator}
@@ -202,18 +234,28 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
           onChange={(event) => patch({ rightType: event.target.value })}
           value={values.rightType || 'AUTO'}
         >
-          {CONDITION_VALUE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+          {CONDITION_VALUE_TYPES.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="col-lg-6">
-        <label className="form-label" htmlFor={`${idPrefix}-onFalse`}>When false</label>
+        <label className="form-label" htmlFor={`${idPrefix}-onFalse`}>
+          When false
+        </label>
         <select
           className="form-select sky-form-control"
           id={`${idPrefix}-onFalse`}
           onChange={(event) => patch({ onFalse: event.target.value })}
           value={values.onFalse || 'STOP_SUCCESS'}
         >
-          {CONDITION_FALSE_ACTIONS.map((action) => <option key={action.value} value={action.value}>{action.label}</option>)}
+          {CONDITION_FALSE_ACTIONS.map((action) => (
+            <option key={action.value} value={action.value}>
+              {action.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="col-lg-6 d-flex align-items-end">
@@ -225,11 +267,15 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
             onChange={(event) => patch({ caseSensitive: event.target.checked })}
             type="checkbox"
           />
-          <label className="form-check-label" htmlFor={`${idPrefix}-caseSensitive`}>Case-sensitive string comparison</label>
+          <label className="form-check-label" htmlFor={`${idPrefix}-caseSensitive`}>
+            Case-sensitive string comparison
+          </label>
         </div>
       </div>
       <div className="col-lg-6">
-        <label className="form-label" htmlFor={`${idPrefix}-trueTargetNodeKey`}>When true, jump to</label>
+        <label className="form-label" htmlFor={`${idPrefix}-trueTargetNodeKey`}>
+          When true, jump to
+        </label>
         <select
           className="form-select sky-form-control"
           id={`${idPrefix}-trueTargetNodeKey`}
@@ -238,13 +284,19 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
         >
           <option value="">Next sequential node</option>
           {branchTargetOptions.map((target) => (
-            <option key={target.nodeKey} value={target.nodeKey}>{target.label}</option>
+            <option key={target.nodeKey} value={target.nodeKey}>
+              {target.label}
+            </option>
           ))}
         </select>
-        <div className="form-text sky-muted">Optional forward branch. Blank keeps the normal sequential edge.</div>
+        <div className="form-text sky-muted">
+          Optional forward branch. Blank keeps the normal sequential edge.
+        </div>
       </div>
       <div className="col-lg-6">
-        <label className="form-label" htmlFor={`${idPrefix}-falseTargetNodeKey`}>When false, jump to</label>
+        <label className="form-label" htmlFor={`${idPrefix}-falseTargetNodeKey`}>
+          When false, jump to
+        </label>
         <select
           className="form-select sky-form-control"
           id={`${idPrefix}-falseTargetNodeKey`}
@@ -253,19 +305,30 @@ function ConditionParameterEditor({ branchTargetOptions = [], idPrefix = 'condit
         >
           <option value="">Use false action below</option>
           {branchTargetOptions.map((target) => (
-            <option key={target.nodeKey} value={target.nodeKey}>{target.label}</option>
+            <option key={target.nodeKey} value={target.nodeKey}>
+              {target.label}
+            </option>
           ))}
         </select>
-        <div className="form-text sky-muted">Optional forward branch. When set, it overrides the false action.</div>
+        <div className="form-text sky-muted">
+          Optional forward branch. When set, it overrides the false action.
+        </div>
       </div>
       <div className="col-12">
         <div className="sky-empty-state text-start py-3">
           <div className="small sky-muted mb-2">
-            Examples: <span className="sky-mono">params.commitMessage</span>, <span className="sky-mono">context.last.status</span>, <span className="sky-mono">nodes.fred_ingestion.output.status</span>, <span className="sky-mono">previousOutput.summary</span>.
+            Examples: <span className="sky-mono">params.commitMessage</span>,{' '}
+            <span className="sky-mono">nodes.fred_ingestion.output.totals.rowsInserted</span>,{' '}
+            <span className="sky-mono">nodes.boc_ingestion.result.success</span>,{' '}
+            <span className="sky-mono">previousOutput.outcome</span>.
           </div>
-          <span className="fw-semibold">Preview:</span> {getConditionExpressionSummary(values)}.
-          {' '}True: {getBranchTargetLabel(values.trueTargetNodeKey, branchTargetOptions)}.
-          {' '}False: {values.falseTargetNodeKey ? `jump to ${getBranchTargetLabel(values.falseTargetNodeKey, branchTargetOptions)}` : (CONDITION_FALSE_ACTIONS.find((action) => action.value === values.onFalse)?.label || values.onFalse)}.
+          <span className="fw-semibold">Preview:</span> {getConditionExpressionSummary(values)}.{' '}
+          True: {getBranchTargetLabel(values.trueTargetNodeKey, branchTargetOptions)}. False:{' '}
+          {values.falseTargetNodeKey
+            ? `jump to ${getBranchTargetLabel(values.falseTargetNodeKey, branchTargetOptions)}`
+            : CONDITION_FALSE_ACTIONS.find((action) => action.value === values.onFalse)?.label ||
+              values.onFalse}
+          .
         </div>
       </div>
     </div>

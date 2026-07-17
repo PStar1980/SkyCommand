@@ -3,6 +3,9 @@ const { calculateNextRunAfterExecution } = require('../schedulers/scheduleCalcul
 const { runWorkerTool } = require('./workerToolExecutionService');
 const { runScheduledTemporalWorkflow } = require('./scheduledTemporalWorkflowRunner');
 const { runScheduledSkyserverWorkflow } = require('./scheduledSkyserverWorkflowRunner');
+const {
+  buildScheduledToolResultSummary,
+} = require('../../../../packages/tools/src/workflowResultContext');
 
 const TEMPORAL_WORKFLOW_START_TOOL_CODE = 'temporal_workflow_start';
 const SKYSERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
@@ -186,9 +189,7 @@ async function runClaimedSchedule(claim, workerNode) {
         toolResult: result.toolResult
           ? {
               available: true,
-              schemaVersion: result.toolResult.schemaVersion,
-              outputType: result.toolResult.outputType,
-              success: result.toolResult.success,
+              ...buildScheduledToolResultSummary(result.toolResult),
             }
           : {
               available: false,

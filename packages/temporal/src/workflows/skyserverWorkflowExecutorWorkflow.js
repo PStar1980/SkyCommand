@@ -1,4 +1,19 @@
-const { ApplicationFailure, condition, defineSignal, executeChild, proxyActivities, setHandler, sleep, startChild, workflowInfo } = require('@temporalio/workflow');
+const {
+  ApplicationFailure,
+  condition,
+  defineSignal,
+  executeChild,
+  proxyActivities,
+  setHandler,
+  sleep,
+  startChild,
+  workflowInfo,
+} = require('@temporalio/workflow');
+const {
+  buildConditionNodeLookup: buildStructuredConditionNodeLookup,
+  getToolResultDomainOutput,
+  isToolResultEnvelope,
+} = require('../../../tools/src/workflowResultContext');
 
 const definitionActivities = proxyActivities({
   startToCloseTimeout: '2 minutes',
@@ -77,12 +92,14 @@ function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
     ...nodeOverride,
   };
 
-  return resolveRuntimeTemplates(mergedParameters, buildTemplateResolutionScope({
-    requestInput: input,
-    context: executionContext,
-  }));
+  return resolveRuntimeTemplates(
+    mergedParameters,
+    buildTemplateResolutionScope({
+      requestInput: input,
+      context: executionContext,
+    }),
+  );
 }
-
 
 function cloneJsonCompatible(value) {
   if (value === undefined) {
@@ -110,10 +127,10 @@ function getWorkflowRuntimeParams(input = {}) {
   const safeInput = getSafeObject(input);
 
   return getSafeObject(
-    safeInput.params
-      || safeInput.runtimeParameters
-      || safeInput.workflowParameters
-      || safeInput.parameters,
+    safeInput.params ||
+      safeInput.runtimeParameters ||
+      safeInput.workflowParameters ||
+      safeInput.parameters,
   );
 }
 
@@ -145,7 +162,9 @@ function buildTemplateResolutionScope({ requestInput = {}, context = {} } = {}) 
 
   return {
     input: getSafeObject(requestInput),
-    params: getSafeObject(context.params || workflowContext.params || getWorkflowRuntimeParams(requestInput)),
+    params: getSafeObject(
+      context.params || workflowContext.params || getWorkflowRuntimeParams(requestInput),
+    ),
     context: workflowContext,
     workflowContext,
     workflow: getSafeObject(workflowContext.workflow),
@@ -192,7 +211,10 @@ function resolveRuntimeTemplates(value, scope = {}) {
 
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([key, nestedValue]) => [key, resolveRuntimeTemplates(nestedValue, scope)]),
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        resolveRuntimeTemplates(nestedValue, scope),
+      ]),
     );
   }
 
@@ -238,12 +260,12 @@ function mergeContextObjects(base = {}, patchObject = {}) {
 
   for (const [key, value] of Object.entries(getSafeObject(patchObject))) {
     if (
-      value
-      && typeof value === 'object'
-      && !Array.isArray(value)
-      && output[key]
-      && typeof output[key] === 'object'
-      && !Array.isArray(output[key])
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      output[key] &&
+      typeof output[key] === 'object' &&
+      !Array.isArray(output[key])
     ) {
       output[key] = mergeContextObjects(output[key], value);
     } else {
@@ -258,7 +280,11 @@ function applyContextPatch(runtimeContext = {}, patch = {}) {
   return mergeContextObjects(runtimeContext, buildContextObjectFromPatch(patch));
 }
 
-function buildInitialWorkflowContextPatch({ workflowRunRecordId, definition = {}, requestInput = {} } = {}) {
+function buildInitialWorkflowContextPatch({
+  workflowRunRecordId,
+  definition = {},
+  requestInput = {},
+} = {}) {
   return {
     'workflow.workflowRunRecordId': workflowRunRecordId || null,
     'workflow.workflowCode': definition.workflowCode || null,
@@ -282,8 +308,12 @@ function buildNodeContextPatch(nodeRun = {}) {
     return {};
   }
 
-  const output = getSafeObject(nodeRun.output);
+  const result = getSafeObject(nodeRun.output);
+  const output = cloneJsonCompatible(getToolResultDomainOutput(result));
+  const outputObject = getSafeObject(output);
   const nodeKey = normalizeContextKey(nodeRun.nodeKey, 'node');
+  const summary =
+    getWorkflowNodeOutputSummary(result) || getWorkflowNodeOutputSummary(outputObject);
   const patch = {
     [`nodes.${nodeKey}.nodeKey`]: nodeRun.nodeKey,
     [`nodes.${nodeKey}.nodeTypeCode`]: nodeRun.nodeTypeCode || null,
@@ -292,24 +322,44 @@ function buildNodeContextPatch(nodeRun = {}) {
     [`nodes.${nodeKey}.attemptCount`]: nodeRun.attemptCount ?? 0,
     [`nodes.${nodeKey}.startedAt`]: nodeRun.startedAt || null,
     [`nodes.${nodeKey}.completedAt`]: nodeRun.completedAt || null,
+    [`nodes.${nodeKey}.result`]: result,
     [`nodes.${nodeKey}.output`]: output,
-    [`nodes.${nodeKey}.summary`]: getWorkflowNodeOutputSummary(output),
+    [`nodes.${nodeKey}.warnings`]: isToolResultEnvelope(result)
+      ? getSafeArray(result.warnings)
+      : [],
+    [`nodes.${nodeKey}.error`]: isToolResultEnvelope(result) ? result.error || null : null,
+    [`nodes.${nodeKey}.metadata`]: isToolResultEnvelope(result)
+      ? getSafeObject(result.metadata)
+      : {},
+    [`nodes.${nodeKey}.summary`]: summary,
     'last.nodeKey': nodeRun.nodeKey,
     'last.status': nodeRun.status || null,
+    'last.result': result,
     'last.output': output,
     'last.completedAt': nodeRun.completedAt || null,
   };
 
-  if (output.durationMs !== undefined && output.durationMs !== null) {
-    patch[`nodes.${nodeKey}.durationMs`] = output.durationMs;
-    patch['last.durationMs'] = output.durationMs;
+  const resultDurationMs = Number(result.durationMs);
+  const outputDurationMs = Number(outputObject.durationMs);
+  const durationMs = Number.isFinite(Number(nodeRun.durationMs))
+    ? Number(nodeRun.durationMs)
+    : Number.isFinite(resultDurationMs)
+      ? resultDurationMs
+      : Number.isFinite(outputDurationMs)
+        ? outputDurationMs
+        : null;
+
+  if (durationMs !== null && durationMs >= 0) {
+    patch[`nodes.${nodeKey}.durationMs`] = durationMs;
+    patch['last.durationMs'] = durationMs;
   }
 
   const saveOutputAs = normalizeContextKey(
-    nodeRun.metadata?.parameters?.saveOutputAs
-      || nodeRun.metadata?.parameters?.outputKey
-      || nodeRun.metadata?.saveOutputAs
-      || output.saveOutputAs,
+    nodeRun.metadata?.parameters?.saveOutputAs ||
+      nodeRun.metadata?.parameters?.outputKey ||
+      nodeRun.metadata?.saveOutputAs ||
+      result.saveOutputAs ||
+      outputObject.saveOutputAs,
     '',
   );
 
@@ -318,8 +368,8 @@ function buildNodeContextPatch(nodeRun = {}) {
   }
 
   const contextUpdates = {
-    ...getSafeObject(output.contextUpdates),
-    ...getSafeObject(getSafeObject(output.output).contextUpdates),
+    ...getSafeObject(result.contextUpdates),
+    ...getSafeObject(outputObject.contextUpdates),
   };
 
   for (const [contextKey, value] of Object.entries(contextUpdates)) {
@@ -330,36 +380,7 @@ function buildNodeContextPatch(nodeRun = {}) {
 }
 
 function buildConditionNodeLookup(runtimeNodes = {}, nodeOutputsByKey = {}) {
-  const lookup = { ...getSafeObject(runtimeNodes) };
-
-  for (const [rawNodeKey, rawOutput] of Object.entries(getSafeObject(nodeOutputsByKey))) {
-    const nodeKey = String(rawNodeKey || '').trim();
-    const normalizedNodeKey = normalizeContextKey(nodeKey, 'node');
-    const output = getSafeObject(rawOutput);
-    const existingNode = getSafeObject(lookup[nodeKey] || lookup[normalizedNodeKey]);
-    const summary = output.summary || output.message || existingNode.summary || '';
-    const value = {
-      ...output,
-      ...existingNode,
-      output,
-      result: output,
-      nodeKey,
-      summary,
-      nodeStatus: existingNode.status || null,
-      runStatus: existingNode.status || null,
-      outputStatus: output.status || null,
-      outputSummary: summary,
-      durationMs: existingNode.durationMs ?? output.durationMs ?? null,
-    };
-
-    if (nodeKey) {
-      lookup[nodeKey] = value;
-    }
-
-    lookup[normalizedNodeKey] = value;
-  }
-
-  return lookup;
+  return buildStructuredConditionNodeLookup(runtimeNodes, nodeOutputsByKey);
 }
 
 function buildWorkflowExecutionContext({
@@ -373,6 +394,8 @@ function buildWorkflowExecutionContext({
   const safeRuntimeContext = getSafeObject(runtimeContext);
   const params = getSafeObject(safeRuntimeContext.params || getWorkflowRuntimeParams(requestInput));
   const previousOutputs = getSafeObject(nodeOutputsByKey);
+  const previousResult = getSafeObject(previousNodeOutput);
+  const previousOutput = cloneJsonCompatible(getToolResultDomainOutput(previousResult));
   const conditionNodes = buildConditionNodeLookup(safeRuntimeContext.nodes, previousOutputs);
 
   return {
@@ -381,7 +404,8 @@ function buildWorkflowExecutionContext({
     params,
     nodes: getSafeObject(safeRuntimeContext.nodes),
     previousOutputs,
-    previousOutput: previousNodeOutput,
+    previousResult,
+    previousOutput,
     conditionEvaluation: {
       input: requestInput,
       workflow: getSafeObject(safeRuntimeContext.workflow),
@@ -391,8 +415,9 @@ function buildWorkflowExecutionContext({
       nodes: conditionNodes,
       nodeOutputs: previousOutputs,
       previousOutputs,
-      previous: previousNodeOutput,
-      previousOutput: previousNodeOutput,
+      previous: previousOutput,
+      previousResult,
+      previousOutput,
       last: getSafeObject(safeRuntimeContext.last),
       currentNodeKey,
     },
@@ -431,7 +456,10 @@ function getNodeAttemptOffset(requestInput = {}, nodeKey) {
 }
 
 function getDisplayedAttemptCount(attemptOffset = 0, internalAttempt = 1) {
-  return normalizeNonNegativeInteger(attemptOffset, 0) + normalizePositiveInteger(internalAttempt, 1, 100000);
+  return (
+    normalizeNonNegativeInteger(attemptOffset, 0) +
+    normalizePositiveInteger(internalAttempt, 1, 100000)
+  );
 }
 
 function getNodeRetryPolicy(node = {}) {
@@ -460,7 +488,6 @@ function serializeError(error) {
     details: getSafeObject(error?.details, {}),
   };
 }
-
 
 function getPermissionSet(permissions = []) {
   return new Set(
@@ -491,13 +518,15 @@ function normalizeStringArray(value) {
   const rawValues = Array.isArray(value)
     ? value
     : String(value || '')
-      .split(/[,\s]+/)
-      .map((item) => item.trim());
+        .split(/[,\s]+/)
+        .map((item) => item.trim());
   const seen = new Set();
   const output = [];
 
   for (const rawValue of rawValues) {
-    const normalized = String(rawValue || '').trim().toUpperCase();
+    const normalized = String(rawValue || '')
+      .trim()
+      .toUpperCase();
 
     if (normalized && !seen.has(normalized)) {
       seen.add(normalized);
@@ -553,7 +582,9 @@ function buildTemporalTemplateInput({ template, parameters, workflowId }) {
 function buildTemporalResultPreview(value, maxLength = 4000) {
   try {
     const text = JSON.stringify(value || {}, null, 2);
-    return text.length > maxLength ? `${text.slice(0, maxLength)}\n\n[SkyServer Workflow Executor] Temporal result preview truncated.` : text;
+    return text.length > maxLength
+      ? `${text.slice(0, maxLength)}\n\n[SkyServer Workflow Executor] Temporal result preview truncated.`
+      : text;
   } catch (error) {
     const text = String(value || '');
     return text.length > maxLength ? text.slice(0, maxLength) : text;
@@ -625,7 +656,11 @@ function parseWaitDurationMs(parameters = {}) {
   }
 
   const unit = normalizeWaitUnit(input.unit || input.durationUnit || 'SECONDS');
-  const rawDuration = input.duration ?? input.waitDuration ?? input.delayDuration ?? DEFAULT_WAIT_DURATION_MS / WAIT_UNIT_MULTIPLIERS_MS[unit];
+  const rawDuration =
+    input.duration ??
+    input.waitDuration ??
+    input.delayDuration ??
+    DEFAULT_WAIT_DURATION_MS / WAIT_UNIT_MULTIPLIERS_MS[unit];
   const parsedDuration = Number(rawDuration);
 
   if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
@@ -658,7 +693,9 @@ function normalizeWaitParameters(parameters = {}) {
     duration,
     unit,
     durationMs,
-    reason: String(input.reason || input.note || '').trim().slice(0, 500),
+    reason: String(input.reason || input.note || '')
+      .trim()
+      .slice(0, 500),
   };
 }
 
@@ -757,7 +794,10 @@ function normalizeConditionOnFalseAction(value) {
 }
 
 function buildConditionStopSummary({ definition, output, completedNodeCount, totalNodeCount }) {
-  const skippedNodeCount = Math.max(0, Number(totalNodeCount || 0) - Number(completedNodeCount || 0));
+  const skippedNodeCount = Math.max(
+    0,
+    Number(totalNodeCount || 0) - Number(completedNodeCount || 0),
+  );
 
   return `Workflow ${definition.displayName} stopped successfully by condition gate: ${output?.summary || 'condition returned false'} (${skippedNodeCount} remaining node(s) skipped).`;
 }
@@ -790,7 +830,9 @@ function normalizeConditionBranchTargetNodeKey(value) {
 }
 
 function getConditionBranchTargetKeyFromOutput(output = {}) {
-  return normalizeConditionBranchTargetNodeKey(output.branchTargetNodeKey || output.nextNodeKey || output.targetNodeKey);
+  return normalizeConditionBranchTargetNodeKey(
+    output.branchTargetNodeKey || output.nextNodeKey || output.targetNodeKey,
+  );
 }
 
 function buildWorkflowExecutionPlan(nodes = []) {
@@ -826,23 +868,28 @@ function resolveConditionBranchIndex({ output, currentIndex, executionPlan }) {
   const targetIndex = executionPlan.nodeIndexByKey.get(branchTargetNodeKey);
 
   if (!Number.isInteger(targetIndex)) {
-    throw createConditionBranchFailure('Condition branch target was not found in the workflow graph.', {
-      branchTargetNodeKey,
-      output,
-    });
+    throw createConditionBranchFailure(
+      'Condition branch target was not found in the workflow graph.',
+      {
+        branchTargetNodeKey,
+        output,
+      },
+    );
   }
 
   if (targetIndex <= currentIndex) {
-    throw createConditionBranchFailure('Condition branch target must point to a later node in the sequential lane.', {
-      branchTargetNodeKey,
-      currentIndex,
-      targetIndex,
-    });
+    throw createConditionBranchFailure(
+      'Condition branch target must point to a later node in the sequential lane.',
+      {
+        branchTargetNodeKey,
+        currentIndex,
+        targetIndex,
+      },
+    );
   }
 
   return targetIndex;
 }
-
 
 function createHumanApprovalInputFailure(message, details = {}) {
   return ApplicationFailure.create({
@@ -916,9 +963,12 @@ function parseHumanApprovalTimeoutMs(parameters = {}) {
     const parsedTimeoutMs = Number(rawTimeoutMs);
 
     if (!Number.isFinite(parsedTimeoutMs) || parsedTimeoutMs <= 0) {
-      throw createHumanApprovalInputFailure('HUMAN_APPROVAL timeoutMs must be a positive number or blank.', {
-        timeoutMs: rawTimeoutMs,
-      });
+      throw createHumanApprovalInputFailure(
+        'HUMAN_APPROVAL timeoutMs must be a positive number or blank.',
+        {
+          timeoutMs: rawTimeoutMs,
+        },
+      );
     }
 
     return Math.round(parsedTimeoutMs);
@@ -934,9 +984,12 @@ function parseHumanApprovalTimeoutMs(parameters = {}) {
   const parsedDuration = Number(rawDuration);
 
   if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
-    throw createHumanApprovalInputFailure('HUMAN_APPROVAL timeout duration must be a positive number or blank.', {
-      timeoutDuration: rawDuration,
-    });
+    throw createHumanApprovalInputFailure(
+      'HUMAN_APPROVAL timeout duration must be a positive number or blank.',
+      {
+        timeoutDuration: rawDuration,
+      },
+    );
   }
 
   return Math.round(parsedDuration * HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS[unit]);
@@ -944,8 +997,13 @@ function parseHumanApprovalTimeoutMs(parameters = {}) {
 
 function normalizeHumanApprovalParameters(parameters = {}, node = {}) {
   const input = getSafeObject(parameters);
-  const approvalTitle = String(input.approvalTitle || input.title || node.displayName || 'Approval required').trim();
-  const approvalKey = normalizeWorkflowIdPart(input.approvalKey || node.nodeKey || 'approval', 'approval').replace(/-/g, '_');
+  const approvalTitle = String(
+    input.approvalTitle || input.title || node.displayName || 'Approval required',
+  ).trim();
+  const approvalKey = normalizeWorkflowIdPart(
+    input.approvalKey || node.nodeKey || 'approval',
+    'approval',
+  ).replace(/-/g, '_');
   const timeoutMs = parseHumanApprovalTimeoutMs(input);
 
   if (!approvalTitle) {
@@ -965,13 +1023,26 @@ function normalizeHumanApprovalParameters(parameters = {}, node = {}) {
     ...input,
     approvalTitle,
     approvalKey,
-    instructions: String(input.instructions || input.prompt || '').trim().slice(0, 4000),
-    requiredRoleCode: String(input.requiredRoleCode || input.requiredRole || '').trim().toUpperCase() || null,
-    onReject: normalizeHumanApprovalAction(input.onReject || input.rejectAction || 'STOP_SUCCESS', 'STOP_SUCCESS'),
-    onTimeout: normalizeHumanApprovalAction(input.onTimeout || input.timeoutAction || 'FAIL_WORKFLOW', 'FAIL_WORKFLOW'),
+    instructions: String(input.instructions || input.prompt || '')
+      .trim()
+      .slice(0, 4000),
+    requiredRoleCode:
+      String(input.requiredRoleCode || input.requiredRole || '')
+        .trim()
+        .toUpperCase() || null,
+    onReject: normalizeHumanApprovalAction(
+      input.onReject || input.rejectAction || 'STOP_SUCCESS',
+      'STOP_SUCCESS',
+    ),
+    onTimeout: normalizeHumanApprovalAction(
+      input.onTimeout || input.timeoutAction || 'FAIL_WORKFLOW',
+      'FAIL_WORKFLOW',
+    ),
     timeoutMs,
     timeoutDuration: input.timeoutDuration ?? input.duration ?? null,
-    timeoutUnit: timeoutMs ? normalizeHumanApprovalTimeoutUnit(input.timeoutUnit || input.unit || 'HOURS') : null,
+    timeoutUnit: timeoutMs
+      ? normalizeHumanApprovalTimeoutUnit(input.timeoutUnit || input.unit || 'HOURS')
+      : null,
   };
 }
 
@@ -1008,11 +1079,17 @@ function getApprovalActionForDecision(decision, approvalParameters = {}) {
   }
 
   if (decision === 'REJECTED') {
-    return normalizeHumanApprovalAction(approvalParameters.onReject || 'STOP_SUCCESS', 'STOP_SUCCESS');
+    return normalizeHumanApprovalAction(
+      approvalParameters.onReject || 'STOP_SUCCESS',
+      'STOP_SUCCESS',
+    );
   }
 
   if (decision === 'TIMED_OUT') {
-    return normalizeHumanApprovalAction(approvalParameters.onTimeout || 'FAIL_WORKFLOW', 'FAIL_WORKFLOW');
+    return normalizeHumanApprovalAction(
+      approvalParameters.onTimeout || 'FAIL_WORKFLOW',
+      'FAIL_WORKFLOW',
+    );
   }
 
   return 'FAIL_WORKFLOW';
@@ -1021,28 +1098,36 @@ function getApprovalActionForDecision(decision, approvalParameters = {}) {
 function getApprovalDecisionLookupKeys(payload = {}) {
   const item = getSafeObject(payload);
 
-  return [
-    item.approvalRequestId,
-    item.workflowNodeRunRecordId,
-    item.nodeKey,
-    item.approvalKey,
-  ]
+  return [item.approvalRequestId, item.workflowNodeRunRecordId, item.nodeKey, item.approvalKey]
     .map((key) => String(key || '').trim())
     .filter(Boolean);
 }
 
-function buildHumanApprovalOutput({ approval, approvalParameters, decisionPayload = {}, timedOut = false } = {}) {
-  const decision = normalizeApprovalDecision(decisionPayload.decision || (timedOut ? 'TIMED_OUT' : 'REJECTED'));
+function buildHumanApprovalOutput({
+  approval,
+  approvalParameters,
+  decisionPayload = {},
+  timedOut = false,
+} = {}) {
+  const decision = normalizeApprovalDecision(
+    decisionPayload.decision || (timedOut ? 'TIMED_OUT' : 'REJECTED'),
+  );
   const action = getApprovalActionForDecision(decision, approvalParameters || approval || {});
   const actor = getSafeObject(decisionPayload.actor, {});
-  const actorName = actor.displayName || actor.email || approval?.decidedByDisplayName || approval?.decidedByEmail || null;
+  const actorName =
+    actor.displayName ||
+    actor.email ||
+    approval?.decidedByDisplayName ||
+    approval?.decidedByEmail ||
+    null;
   const title = approval?.approvalTitle || approvalParameters?.approvalTitle || 'Approval required';
   const decisionNote = decisionPayload.decisionNote || approval?.decisionNote || null;
-  const summary = decision === 'APPROVED'
-    ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
-    : decision === 'REJECTED'
-      ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
-      : `Approval timed out for ${title}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
+  const summary =
+    decision === 'APPROVED'
+      ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
+      : decision === 'REJECTED'
+        ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
+        : `Approval timed out for ${title}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
 
   return {
     kind: 'human_approval',
@@ -1053,7 +1138,11 @@ function buildHumanApprovalOutput({ approval, approvalParameters, decisionPayloa
     decision,
     action,
     approvalRequestId: approval?.approvalRequestId || decisionPayload.approvalRequestId || null,
-    approvalKey: approval?.approvalKey || approvalParameters?.approvalKey || decisionPayload.approvalKey || null,
+    approvalKey:
+      approval?.approvalKey ||
+      approvalParameters?.approvalKey ||
+      decisionPayload.approvalKey ||
+      null,
     approvalTitle: title,
     instructions: approval?.instructions || approvalParameters?.instructions || null,
     requiredRoleCode: approval?.requiredRoleCode || approvalParameters?.requiredRoleCode || null,
@@ -1067,7 +1156,10 @@ function buildHumanApprovalOutput({ approval, approvalParameters, decisionPayloa
 }
 
 function buildHumanApprovalStopSummary({ definition, output, completedNodeCount, totalNodeCount }) {
-  const skippedNodeCount = Math.max(0, Number(totalNodeCount || 0) - Number(completedNodeCount || 0));
+  const skippedNodeCount = Math.max(
+    0,
+    Number(totalNodeCount || 0) - Number(completedNodeCount || 0),
+  );
 
   return `Workflow ${definition.displayName} stopped successfully by human approval gate: ${output?.summary || 'approval did not continue'} (${skippedNodeCount} remaining node(s) skipped).`;
 }
@@ -1128,30 +1220,33 @@ async function executeHumanApprovalNode({
     }
 
     const receivedDecision = waitKeys.map((key) => approvalDecisions[key]).find(Boolean);
-    const decisionPayload = completedBySignal && receivedDecision
-      ? getSafeObject(receivedDecision)
-      : {
-        approvalRequestId: approval?.approvalRequestId,
-        workflowRunRecordId,
-        workflowNodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-        nodeKey: node.nodeKey,
-        approvalKey: approvalParameters.approvalKey,
-        decision: 'TIMED_OUT',
-        decisionNote: 'Approval request timed out.',
-        actor: null,
-      };
+    const decisionPayload =
+      completedBySignal && receivedDecision
+        ? getSafeObject(receivedDecision)
+        : {
+            approvalRequestId: approval?.approvalRequestId,
+            workflowRunRecordId,
+            workflowNodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+            nodeKey: node.nodeKey,
+            approvalKey: approvalParameters.approvalKey,
+            decision: 'TIMED_OUT',
+            decisionNote: 'Approval request timed out.',
+            actor: null,
+          };
     const decision = normalizeApprovalDecision(decisionPayload.decision);
-    const resolvedApproval = await ledgerActivities.resolveSkyserverWorkflowApprovalRequestActivity({
-      approvalRequestId: approval.approvalRequestId,
-      decision,
-      decisionNote: decisionPayload.decisionNote || null,
-      user: getSafeObject(decisionPayload.actor, {}),
-      metadata: {
-        humanApprovalNode: true,
-        resolvedByWorkflow: true,
-        timedOut: decision === 'TIMED_OUT',
+    const resolvedApproval = await ledgerActivities.resolveSkyserverWorkflowApprovalRequestActivity(
+      {
+        approvalRequestId: approval.approvalRequestId,
+        decision,
+        decisionNote: decisionPayload.decisionNote || null,
+        user: getSafeObject(decisionPayload.actor, {}),
+        metadata: {
+          humanApprovalNode: true,
+          resolvedByWorkflow: true,
+          timedOut: decision === 'TIMED_OUT',
+        },
       },
-    });
+    );
     const output = buildHumanApprovalOutput({
       approval: resolvedApproval || approval,
       approvalParameters,
@@ -1193,7 +1288,6 @@ async function executeHumanApprovalNode({
     });
   }
 }
-
 
 async function executeChildWorkflowNodeWithRetries({
   definition,
@@ -1277,16 +1371,18 @@ async function executeChildWorkflowNodeWithRetries({
       const childResult = await executeChild(skyserverWorkflowExecutorWorkflow, {
         workflowId: childWorkflowId,
         taskQueue: taskQueue || undefined,
-        args: [{
-          workflowCode: childRun.definition.workflowCode,
-          workflowRunRecordId: childRun.run.workflowRunRecordId,
-          input: childInput,
-          user,
-          session,
-          permissions,
-          context: childContext,
-          taskQueue,
-        }],
+        args: [
+          {
+            workflowCode: childRun.definition.workflowCode,
+            workflowRunRecordId: childRun.run.workflowRunRecordId,
+            input: childInput,
+            user,
+            session,
+            permissions,
+            context: childContext,
+            taskQueue,
+          },
+        ],
       });
 
       const output = {
@@ -1567,12 +1663,14 @@ async function executeNodeWithRetries({
         message: `Workflow node execution succeeded, but completion persistence failed: ${normalizedPersistenceError.message}`,
         type: 'SkyServerWorkflowNodePersistenceFailure',
         nonRetryable: true,
-        details: [{
-          nodeKey: node.nodeKey,
-          nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-          executionSucceeded: true,
-          persistenceError: normalizedPersistenceError,
-        }],
+        details: [
+          {
+            nodeKey: node.nodeKey,
+            nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+            executionSucceeded: true,
+            persistenceError: normalizedPersistenceError,
+          },
+        ],
       });
     }
   }
@@ -1640,13 +1738,17 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     });
   }
 
-  const definition = await definitionActivities.loadSkyserverWorkflowDefinitionActivity({ workflowCode });
+  const definition = await definitionActivities.loadSkyserverWorkflowDefinitionActivity({
+    workflowCode,
+  });
 
-  workflowRuntimeContext = buildContextObjectFromPatch(buildInitialWorkflowContextPatch({
-    workflowRunRecordId,
-    definition,
-    requestInput,
-  }));
+  workflowRuntimeContext = buildContextObjectFromPatch(
+    buildInitialWorkflowContextPatch({
+      workflowRunRecordId,
+      definition,
+      requestInput,
+    }),
+  );
 
   await ledgerActivities.linkSkyserverWorkflowRunToTemporalActivity({
     workflowRunRecordId,
@@ -1764,7 +1866,10 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
       nodeRuns.push(completedNodeRun);
       nodeOutputsByKey[node.nodeKey] = completedNodeRun?.output || {};
       previousNodeOutput = completedNodeRun?.output || {};
-      workflowRuntimeContext = applyContextPatch(workflowRuntimeContext, buildNodeContextPatch(completedNodeRun));
+      workflowRuntimeContext = applyContextPatch(
+        workflowRuntimeContext,
+        buildNodeContextPatch(completedNodeRun),
+      );
 
       if (node.nodeTypeCode === 'CONDITION') {
         const branchTargetIndex = resolveConditionBranchIndex({
@@ -1776,7 +1881,9 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         if (Number.isInteger(branchTargetIndex)) {
           conditionBranchRoutes.push({
             nodeKey: node.nodeKey,
-            branchLabel: completedNodeRun.output.branchLabel || (completedNodeRun.output.passed ? 'TRUE' : 'FALSE'),
+            branchLabel:
+              completedNodeRun.output.branchLabel ||
+              (completedNodeRun.output.passed ? 'TRUE' : 'FALSE'),
             targetNodeKey: completedNodeRun.output.branchTargetNodeKey,
           });
           nextNodeIndex = branchTargetIndex;
@@ -1799,7 +1906,10 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         }
       }
 
-      if (node.nodeTypeCode === 'HUMAN_APPROVAL' && completedNodeRun?.output?.status !== 'APPROVED') {
+      if (
+        node.nodeTypeCode === 'HUMAN_APPROVAL' &&
+        completedNodeRun?.output?.status !== 'APPROVED'
+      ) {
         const action = completedNodeRun.output.action || 'FAIL_WORKFLOW';
 
         if (action === 'FAIL_WORKFLOW') {
@@ -1824,19 +1934,20 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     const summaryOutput = getWorkflowRunSummaryOutput(nodeOutputsByKey);
     const summary = conditionStop
       ? buildConditionStopSummary({
-        definition,
-        output: conditionStop.output,
-        completedNodeCount: nodeRuns.length,
-        totalNodeCount: definition.nodes.length,
-      })
-      : approvalStop
-        ? buildHumanApprovalStopSummary({
           definition,
-          output: approvalStop.output,
+          output: conditionStop.output,
           completedNodeCount: nodeRuns.length,
           totalNodeCount: definition.nodes.length,
         })
-        : summaryOutput?.summary || `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
+      : approvalStop
+        ? buildHumanApprovalStopSummary({
+            definition,
+            output: approvalStop.output,
+            completedNodeCount: nodeRuns.length,
+            totalNodeCount: definition.nodes.length,
+          })
+        : summaryOutput?.summary ||
+          `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
     const completedRun = await ledgerActivities.completeSkyserverWorkflowRunActivity({
       workflowRunRecordId,
       summary,
