@@ -1,17 +1,17 @@
 {
   "manifestVersion": "1.0",
-  "toolCode": "repo_zip_generate",
-  "displayName": "Generate Repository Zip",
-  "description": "Generates a compact repository archive for project handoff while excluding dependencies, runtime logs, sensitive environment files, and generated archives by default.",
+  "toolCode": "repo_map_generate",
+  "displayName": "Generate Repository Map",
+  "description": "Generates a readable repository structure map for documentation and structural review while excluding dependencies, runtime files, sensitive environment files, and generated artifacts.",
   "runtime": {
     "type": "node",
-    "entrypoint": "packages/files/src/generateRepoZip.js"
+    "entrypoint": "packages/files/src/generateRepoMap.js"
   },
   "parameters": [
     {
       "name": "location",
       "label": "Root Folder Location",
-      "description": "Repository or folder to package.",
+      "description": "Repository or folder to document.",
       "type": "path",
       "required": true,
       "secret": false,
@@ -22,8 +22,8 @@
     },
     {
       "name": "file_name",
-      "label": "Output Zip File Name",
-      "description": "Archive file name. The .zip extension is added when omitted.",
+      "label": "Output File Name",
+      "description": "Repository-map output file name.",
       "type": "string",
       "required": true,
       "secret": false,
@@ -35,7 +35,7 @@
     {
       "name": "output_path",
       "label": "Optional Output Path",
-      "description": "Optional destination folder. When omitted, the archive is written beside the repository contents.",
+      "description": "Optional destination folder. When omitted, the map is written in the repository root.",
       "type": "path",
       "required": false,
       "secret": false,
@@ -49,13 +49,13 @@
   "resultContract": {
     "required": true,
     "schemaVersion": "1.0",
-    "outputType": "repository_package_summary.v1",
-    "schemaPath": "packages/tools/contracts/repository_package_summary.v1.schema.json",
-    "samplePath": "packages/files/manifests/repo_zip_generate/contract-check-result.json"
+    "outputType": "repository_map_summary.v1",
+    "schemaPath": "packages/tools/contracts/repository_map_summary.v1.schema.json",
+    "samplePath": "packages/files/manifests/repo_map_generate/contract-check-result.json"
   },
-  "permissions": ["REPO_ZIP_GENERATE"],
+  "permissions": ["REPO_MAP_GENERATE"],
   "execution": {
-    "timeoutMs": 1800000,
+    "timeoutMs": 600000,
     "allowManual": true,
     "allowSchedules": true,
     "allowWorkflows": true,

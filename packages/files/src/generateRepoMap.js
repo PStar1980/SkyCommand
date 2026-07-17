@@ -1,55 +1,30 @@
 #!/usr/bin/env node
 
 /**
- * generateRepoMap.js
- *
  * Generates a readable repository map for documentation and structural review.
+ *
+ * Human-readable console output remains available for direct CLI and Run Tools.
+ * Manifest-backed workflow launches additionally receive a deliberate
+ * repository_map_summary.v1 ToolResult through the shared result transport.
  *
  * Usage:
  *   node generateRepoMap.js <location> <fileName> [outputPath]
- *
- * Example:
- *   node generateRepoMap.js "C:\\Projects\\SkyServer" "SkyServer_RepoMap.md" "C:\\Projects\\SkyServer\\docs"
- *   node generateRepoMap.js "./SkyWeb" "SkyWeb_RepoMap.md" "./SkyWeb/docs"
  */
 
 const fs = require('fs');
 const path = require('path');
 
-// ------------------------------------------------------------
-// PHASE 1: Parse CLI arguments
-// ------------------------------------------------------------
-const args = process.argv.slice(2);
+const { runToolCli } = require('../../tools/src/toolCliAdapter');
+const {
+  createRepositoryMapFailureToolResult,
+  createRepositoryMapToolResult,
+} = require('./repositoryMapResult');
 
-if (args.length < 2) {
-  console.error('❌ Error: You must provide at least 2 arguments:');
-  console.error('   location (required)');
-  console.error('   fileName (required)');
-  console.error('   outputPath (optional)');
-  process.exit(1);
-}
+const MANIFEST_PATH = path.resolve(
+  __dirname,
+  '../manifests/repo_map_generate/skycommand.tool.json',
+);
 
-let [location, fileName, outputPath] = args;
-
-// Normalize paths
-location = path.resolve(location);
-
-// If outputPath missing → default to location
-if (!outputPath) {
-  outputPath = location;
-} else {
-  outputPath = path.resolve(outputPath);
-}
-
-// Validate existence of location
-if (!fs.existsSync(location)) {
-  console.error(`❌ Error: The location path does not exist:\n   ${location}`);
-  process.exit(1);
-}
-
-// ------------------------------------------------------------
-// PHASE 2: Recursive directory walker
-// ------------------------------------------------------------
 const IGNORED_ENTRIES = new Set([
   'node_modules',
   '.git',
@@ -70,9 +45,7 @@ const IGNORED_ENTRIES = new Set([
   'logs',
   'zip',
 ]);
-
 const IGNORED_RELATIVE_PATHS = new Set(['tests/e2e']);
-
 const SENSITIVE_ENV_FILES = new Set([
   '.env',
   '.env.local',
@@ -87,10 +60,54 @@ function normalizeRelativePath(relativePath) {
     .toLowerCase();
 }
 
+function normalizeOutputFileName(value) {
+  const normalized = String(value || '').trim();
+
+  if (!normalized) {
+    throw new Error('❌ Error: fileName cannot be blank.');
+  }
+  if (normalized.includes('\0')) {
+    throw new Error('❌ Error: fileName cannot contain null bytes.');
+  }
+  if (/[\\/]/.test(normalized)) {
+    throw new Error('❌ Error: fileName must be a file name only, not a path.');
+  }
+
+  return normalized;
+}
+
+function parseRepositoryMapArgs(args = []) {
+  const positionalArgs = (Array.isArray(args) ? args : [])
+    .map(String)
+    .filter((arg) => !arg.startsWith('--'));
+
+  if (positionalArgs.length < 2) {
+    throw new Error('❌ Error: You must provide location and fileName. outputPath is optional.');
+  }
+
+  const [rawLocation, rawFileName, rawOutputPath] = positionalArgs;
+  const location = path.resolve(rawLocation);
+  const fileName = normalizeOutputFileName(rawFileName);
+  const outputPath = rawOutputPath ? path.resolve(rawOutputPath) : location;
+
+  if (!fs.existsSync(location)) {
+    throw new Error(`❌ Error: The location path does not exist:\n   ${location}`);
+  }
+  if (!fs.statSync(location).isDirectory()) {
+    throw new Error(`❌ Error: The location must be a directory:\n   ${location}`);
+  }
+
+  return {
+    location,
+    fileName,
+    outputPath,
+    outputFilePath: path.resolve(outputPath, fileName),
+  };
+}
+
 function shouldIgnoreEntry(entryName, relativePath = '') {
   const normalizedEntryName = String(entryName || '').toLowerCase();
   const normalizedRelativePath = normalizeRelativePath(relativePath);
-
   return (
     IGNORED_ENTRIES.has(normalizedEntryName) || IGNORED_RELATIVE_PATHS.has(normalizedRelativePath)
   );
@@ -99,15 +116,8 @@ function shouldIgnoreEntry(entryName, relativePath = '') {
 function shouldSkipFile(fileName) {
   const normalizedFileName = String(fileName || '').toLowerCase();
 
-  if (SENSITIVE_ENV_FILES.has(normalizedFileName)) {
-    return true;
-  }
-
-  // Keep the project documentation change log while still excluding runtime *.log files.
-  if (normalizedFileName === 'change.log') {
-    return false;
-  }
-
+  if (SENSITIVE_ENV_FILES.has(normalizedFileName)) return true;
+  if (normalizedFileName === 'change.log') return false;
   return ['.zip', '.log', '.patch'].includes(path.extname(normalizedFileName));
 }
 
@@ -115,51 +125,59 @@ function sortEntries(entries) {
   const files = entries
     .filter((entry) => entry.type === 'file')
     .sort((a, b) => a.name.localeCompare(b.name));
-
   const folders = entries
     .filter((entry) => entry.type === 'directory')
     .sort((a, b) => a.name.localeCompare(b.name));
-
   return [...files, ...folders];
 }
 
-function scanDirectory(dir, relativeDir = '') {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
+function createScanStatistics() {
+  return {
+    directoriesDocumented: 1,
+    filesDocumented: 0,
+    directoriesExcluded: 0,
+    filesExcluded: 0,
+    extensionCounts: {},
+  };
+}
 
+function scanDirectory(dir, relativeDir = '', statistics = createScanStatistics()) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
   const results = entries
     .map((entry) => {
       const fullPath = path.join(dir, entry.name);
       const relativePath = normalizeRelativePath(path.join(relativeDir, entry.name));
 
       if (shouldIgnoreEntry(entry.name, relativePath)) {
+        if (entry.isDirectory()) statistics.directoriesExcluded += 1;
+        else statistics.filesExcluded += 1;
         return null;
       }
 
       if (entry.isDirectory()) {
+        statistics.directoriesDocumented += 1;
         return {
           type: 'directory',
           name: entry.name,
-          children: scanDirectory(fullPath, relativePath),
+          children: scanDirectory(fullPath, relativePath, statistics),
         };
       }
 
       if (!entry.isFile() || shouldSkipFile(entry.name)) {
+        if (entry.isFile()) statistics.filesExcluded += 1;
         return null;
       }
 
-      return {
-        type: 'file',
-        name: entry.name,
-      };
+      statistics.filesDocumented += 1;
+      const extension = path.extname(entry.name).toLowerCase() || '[no extension]';
+      statistics.extensionCounts[extension] = (statistics.extensionCounts[extension] || 0) + 1;
+      return { type: 'file', name: entry.name };
     })
     .filter(Boolean);
 
   return sortEntries(results);
 }
 
-// ------------------------------------------------------------
-// PHASE 3: Render tree into ASCII format
-// ------------------------------------------------------------
 function renderTree(nodeName, children, prefix = '') {
   let output = `${nodeName}/\n`;
 
@@ -171,10 +189,7 @@ function renderTree(nodeName, children, prefix = '') {
 
       if (item.type === 'file') {
         output += `${currentPrefix}${branch}${item.name}\n`;
-        return;
-      }
-
-      if (item.type === 'directory') {
+      } else {
         output += `${currentPrefix}${branch}${item.name}/\n`;
         traverse(item.children, nextPrefix);
       }
@@ -185,22 +200,77 @@ function renderTree(nodeName, children, prefix = '') {
   return output;
 }
 
-// ------------------------------------------------------------
-// PHASE 4: Build tree + write output file
-// ------------------------------------------------------------
-const rootName = path.basename(location);
-const structure = scanDirectory(location);
-const asciiTree = renderTree(rootName, structure);
+function executeRepositoryMap(args = []) {
+  const startedAt = new Date().toISOString();
+  const options = parseRepositoryMapArgs(args);
+  const repositoryName = path.basename(options.location);
+  const statistics = createScanStatistics();
+  const structure = scanDirectory(options.location, '', statistics);
+  const asciiTree = renderTree(repositoryName, structure);
 
-// Ensure output directory exists
-if (!fs.existsSync(outputPath)) {
-  fs.mkdirSync(outputPath, { recursive: true });
+  fs.mkdirSync(options.outputPath, { recursive: true });
+  fs.writeFileSync(options.outputFilePath, asciiTree, 'utf8');
+
+  const completedAt = new Date().toISOString();
+  return {
+    ok: true,
+    repositoryName,
+    repositoryRoot: options.location,
+    fileName: options.fileName,
+    artifactPath: options.outputFilePath,
+    format: path.extname(options.fileName).toLowerCase() === '.md' ? 'MARKDOWN' : 'TEXT',
+    startedAt,
+    completedAt,
+    durationMs: Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime()),
+    directoriesDocumented: statistics.directoriesDocumented,
+    filesDocumented: statistics.filesDocumented,
+    directoriesExcluded: statistics.directoriesExcluded,
+    filesExcluded: statistics.filesExcluded,
+    outputBytes: fs.statSync(options.outputFilePath).size,
+    topLevelEntries: structure.map((entry) => entry.name),
+    extensionCounts: statistics.extensionCounts,
+    nodeModulesExcluded: true,
+    sensitiveEnvironmentFilesExcluded: true,
+    generatedArtifactsExcluded: true,
+    e2eTestsExcluded: true,
+  };
 }
 
-const outputFilePath = path.join(outputPath, fileName);
+function printRepositoryMapResult(result) {
+  console.log('\n✅ Repository map generated successfully!');
+  console.log(`📄 Output file: ${result.artifactPath}`);
+  console.log(`📁 Directories documented: ${result.directoriesDocumented}`);
+  console.log(`📄 Files documented: ${result.filesDocumented}`);
+  console.log(`📦 Output bytes: ${result.outputBytes}\n`);
+}
 
-// Write to disk
-fs.writeFileSync(outputFilePath, asciiTree, 'utf8');
+async function main(args = process.argv.slice(2)) {
+  const startedAt = new Date().toISOString();
+  return runToolCli({
+    manifestPath: MANIFEST_PATH,
+    args,
+    execute: executeRepositoryMap,
+    createToolResult: createRepositoryMapToolResult,
+    createFailureToolResult: (error) =>
+      createRepositoryMapFailureToolResult({
+        error,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      }),
+    renderConsole: printRepositoryMapResult,
+  });
+}
 
-console.log('\n✅ Repository map generated successfully!');
-console.log(`📄 Output file: ${outputFilePath}\n`);
+if (require.main === module) main();
+
+module.exports = {
+  MANIFEST_PATH,
+  createScanStatistics,
+  executeRepositoryMap,
+  main,
+  normalizeOutputFileName,
+  parseRepositoryMapArgs,
+  printRepositoryMapResult,
+  renderTree,
+  scanDirectory,
+};

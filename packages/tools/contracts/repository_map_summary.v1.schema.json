@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/repository_map_summary.v1.schema.json",
+  "title": "Repository Map Summary v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifactKind",
+    "outcome",
+    "repositoryName",
+    "repositoryRoot",
+    "fileName",
+    "artifactPath",
+    "format",
+    "startedAt",
+    "completedAt",
+    "durationMs",
+    "directoriesDocumented",
+    "filesDocumented",
+    "directoriesExcluded",
+    "filesExcluded",
+    "outputBytes",
+    "topLevelEntries",
+    "extensionCounts",
+    "policy"
+  ],
+  "properties": {
+    "artifactKind": {
+      "const": "REPOSITORY_MAP"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["CREATED", "FAILED"]
+    },
+    "repositoryName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "repositoryRoot": {
+      "type": ["string", "null"],
+      "maxLength": 4000
+    },
+    "fileName": {
+      "type": ["string", "null"],
+      "maxLength": 500
+    },
+    "artifactPath": {
+      "type": ["string", "null"],
+      "maxLength": 4000
+    },
+    "format": {
+      "type": "string",
+      "enum": ["MARKDOWN", "TEXT"]
+    },
+    "startedAt": {
+      "type": ["string", "null"],
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "completedAt": {
+      "type": ["string", "null"],
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "directoriesDocumented": {
+      "type": "number",
+      "minimum": 0
+    },
+    "filesDocumented": {
+      "type": "number",
+      "minimum": 0
+    },
+    "directoriesExcluded": {
+      "type": "number",
+      "minimum": 0
+    },
+    "filesExcluded": {
+      "type": "number",
+      "minimum": 0
+    },
+    "outputBytes": {
+      "type": "number",
+      "minimum": 0
+    },
+    "topLevelEntries": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "extensionCounts": {
+      "type": "object",
+      "maxProperties": 300,
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodeModulesExcluded",
+        "sensitiveEnvironmentFilesExcluded",
+        "generatedArtifactsExcluded",
+        "e2eTestsExcluded"
+      ],
+      "properties": {
+        "nodeModulesExcluded": {
+          "type": "boolean"
+        },
+        "sensitiveEnvironmentFilesExcluded": {
+          "type": "boolean"
+        },
+        "generatedArtifactsExcluded": {
+          "type": "boolean"
+        },
+        "e2eTestsExcluded": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

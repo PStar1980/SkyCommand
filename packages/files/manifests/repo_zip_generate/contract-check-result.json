@@ -1,33 +1,42 @@
 {
   "schemaVersion": "1.0",
   "success": true,
-  "message": "Repository package SkyServer_Repo.zip was created successfully.",
-  "outputType": "repository_package_summary.v1",
+  "message": "Repository map SkyServer_RepoMap.md was created successfully.",
+  "outputType": "repository_map_summary.v1",
   "output": {
-    "artifactKind": "REPOSITORY_ZIP",
+    "artifactKind": "REPOSITORY_MAP",
     "outcome": "CREATED",
     "repositoryName": "SkyServer",
     "repositoryRoot": "C:/Projects/SkyServer",
-    "fileName": "SkyServer_Repo.zip",
-    "artifactPath": "C:/Projects/SkyServer/zip/SkyServer_Repo.zip",
-    "startedAt": "2026-07-17T02:00:00.000Z",
-    "completedAt": "2026-07-17T02:00:03.000Z",
-    "durationMs": 3000,
-    "filesIncluded": 412,
-    "sourceBytes": 1840000,
-    "archiveBytes": 910000,
-    "compressionRatio": 0.4945652173913043,
-    "options": {
-      "nodeModulesIncluded": false,
-      "imagesIncluded": false,
+    "fileName": "SkyServer_RepoMap.md",
+    "artifactPath": "C:/Projects/SkyServer/docs/SkyServer_RepoMap.md",
+    "format": "MARKDOWN",
+    "startedAt": "2026-07-17T03:00:00.000Z",
+    "completedAt": "2026-07-17T03:00:01.000Z",
+    "durationMs": 1000,
+    "directoriesDocumented": 42,
+    "filesDocumented": 468,
+    "directoriesExcluded": 9,
+    "filesExcluded": 14,
+    "outputBytes": 86123,
+    "topLevelEntries": ["apps", "docs", "packages", "scripts"],
+    "extensionCounts": {
+      ".js": 201,
+      ".json": 28,
+      ".md": 6,
+      ".sql": 91
+    },
+    "policy": {
+      "nodeModulesExcluded": true,
       "sensitiveEnvironmentFilesExcluded": true,
-      "generatedArtifactsExcluded": true
+      "generatedArtifactsExcluded": true,
+      "e2eTestsExcluded": true
     }
   },
   "warnings": [],
   "error": null,
   "metadata": {
-    "extension": ".zip",
+    "extension": ".md",
     "transport": "filesystem"
   }
 }
