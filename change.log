@@ -1,3 +1,14 @@
+## 2026-07-17 — Phase 14.12.1 Watcher-Safe Main Merge
+
+- Reworked `main_merge` into a checkout-free remote synchronization operation so Temporal workers, API processes, and Vite are not restarted by `git switch`, `git pull`, or working-tree rewrites during a live workflow.
+- Hardened orchestrated `dev_commit` runs so they require the repository to already be on the configured development branch and refuse pull-based working-tree rewrites; direct CLI execution retains its branch-switch/pull convenience path.
+- The tool now fetches remote refs, proves `origin/dev` is an ancestor of `origin/main`, fast-forwards the remote development branch directly to the approved main head, and verifies both remote refs match before reporting success.
+- Local `main` and `dev` references are updated without checking out branches. When the checked-out branch tree is identical to the approved merge tree, SkyCommand advances the local branch with a soft reset that does not rewrite watched files.
+- When the trees differ, the workflow still completes after remote synchronization and returns an explicit local-refresh warning plus the safe follow-up command instead of hanging the Temporal activity.
+- Added non-interactive Git environment settings and per-command timeouts so credentials, editors, or remote stalls fail clearly rather than leaving a node running indefinitely.
+- Expanded `git_branch_sync_summary.v1`, the Workflow History renderer, and Development Promotion summaries with synchronization strategy, watcher-safety, local-reference status, local-workspace status, and refresh guidance.
+- No database migration or seed update is required.
+
 ## 2026-07-17 — Phase 14.11 Development Promotion Results
 
 - Migrated the existing `main_merge` tool to the shared fail-open `runToolCli()` adapter while preserving its direct CLI, Run Tools, workflow, and Git console behavior.

@@ -21,18 +21,31 @@ function run() {
     repositoryCode: 'SkyServer',
     repositoryName: 'SkyServer',
     repositoryRoot: 'C:/Projects/SkyServer',
+    executionStrategy: 'CHECKOUT_FREE_REMOTE_SYNC',
+    watcherSafe: true,
+    currentBranch: 'dev',
+    localHeadBeforeSha: '3'.repeat(40),
+    localHeadAfterSha: '2'.repeat(40),
     mainBranch: 'main',
     devBranch: 'dev',
     sourceBranch: 'main',
     targetBranch: 'dev',
     mainHeadBeforeSha: '1'.repeat(40),
     mainHeadSha: '2'.repeat(40),
+    localDevHeadBeforeSha: '3'.repeat(40),
+    remoteDevHeadBeforeSha: '3'.repeat(40),
+    remoteDevHeadAfterSha: '2'.repeat(40),
     devHeadBeforePullSha: '3'.repeat(40),
     devHeadBeforeSha: '3'.repeat(40),
     devHeadAfterSha: '2'.repeat(40),
     commitsApplied: 1,
     devAdvanced: true,
     branchesSynchronized: true,
+    localMainRefUpdated: true,
+    localDevRefUpdated: true,
+    localWorkspaceUpdated: true,
+    localWorkspaceRefreshRequired: false,
+    localRefreshCommand: null,
     durationMs: 250,
     fetched: true,
     mainBranchSelected: true,
@@ -42,6 +55,7 @@ function run() {
     fastForwardMerged: true,
     mainBranchPushed: true,
     devBranchPushed: true,
+    remoteFastForwardVerified: true,
   });
 
   assert.equal(synchronized.outputType, GIT_BRANCH_SYNC_OUTPUT_TYPE);
@@ -49,6 +63,9 @@ function run() {
   assert.equal(synchronized.output.outcome, 'SYNCHRONIZED');
   assert.equal(synchronized.output.commitsApplied, 1);
   assert.equal(synchronized.output.branchesSynchronized, true);
+  assert.equal(synchronized.output.executionStrategy, 'CHECKOUT_FREE_REMOTE_SYNC');
+  assert.equal(synchronized.output.watcherSafe, true);
+  assert.equal(synchronized.output.localWorkspaceRefreshRequired, false);
   assert.equal(synchronized.output.synchronizedHeadSha, '2'.repeat(40));
   validateToolResult(synchronized, {
     expectedOutputType: GIT_BRANCH_SYNC_OUTPUT_TYPE,

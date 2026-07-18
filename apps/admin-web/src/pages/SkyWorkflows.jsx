@@ -1935,11 +1935,31 @@ function GitBranchSyncOutput({ toolResult }) {
               <td>{output.tagCreated ? output.tagName || 'Created' : 'Not created'}</td>
             </tr>
             <tr>
+              <th>Execution strategy</th>
+              <td>{output.executionStrategy === 'CHECKOUT_FREE_REMOTE_SYNC' ? 'Checkout-free remote sync' : output.executionStrategy || '—'}</td>
+              <th>Watcher safe</th>
+              <td>{output.watcherSafe ? 'Yes' : 'No'}</td>
+            </tr>
+            <tr>
+              <th>Local workspace</th>
+              <td>{output.localWorkspaceUpdated ? 'Updated without file rewrite' : 'Not rewritten'}</td>
+              <th>Refresh required</th>
+              <td>{output.localWorkspaceRefreshRequired ? 'Yes' : 'No'}</td>
+            </tr>
+            <tr>
               <th>Synchronized head</th>
               <td colSpan="3" className="sky-mono text-break">
                 {output.synchronizedHeadSha || output.devHeadAfterSha || '—'}
               </td>
             </tr>
+            {output.localRefreshCommand ? (
+              <tr>
+                <th>Local refresh command</th>
+                <td colSpan="3" className="sky-mono text-break">
+                  {output.localRefreshCommand}
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -1976,11 +1996,11 @@ function GitBranchSyncOutput({ toolResult }) {
           <thead>
             <tr>
               <th>Fetched</th>
-              <th>Main pulled</th>
-              <th>Dev pulled</th>
-              <th>Fast-forward merge</th>
-              <th>Main pushed</th>
-              <th>Dev pushed</th>
+              <th>Remote fast-forward</th>
+              <th>Remote verified</th>
+              <th>Main ref updated</th>
+              <th>Dev ref updated</th>
+              <th>Workspace updated</th>
               <th>Tag pushed</th>
             </tr>
           </thead>
@@ -1988,11 +2008,11 @@ function GitBranchSyncOutput({ toolResult }) {
             <tr>
               {[
                 'fetched',
-                'mainBranchPulled',
-                'devBranchPulled',
                 'fastForwardMerged',
-                'mainBranchPushed',
-                'devBranchPushed',
+                'remoteFastForwardVerified',
+                'localMainRefUpdated',
+                'localDevRefUpdated',
+                'localWorkspaceUpdated',
                 'tagsPushed',
               ].map((key) => (
                 <td key={key}>{steps[key] ? 'Completed' : 'Not performed'}</td>
@@ -2126,6 +2146,20 @@ function GitPromotionSummary({ promotion }) {
               <th>Commits synchronized</th>
               <td>{Number(value.commitsApplied || 0).toLocaleString()}</td>
             </tr>
+            <tr>
+              <th>Watcher-safe synchronization</th>
+              <td>{value.watcherSafe ? 'Yes' : 'No'}</td>
+              <th>Local refresh required</th>
+              <td>{value.localWorkspaceRefreshRequired ? 'Yes' : 'No'}</td>
+            </tr>
+            {value.localRefreshCommand ? (
+              <tr>
+                <th>Local refresh command</th>
+                <td colSpan="3" className="sky-mono text-break">
+                  {value.localRefreshCommand}
+                </td>
+              </tr>
+            ) : null}
             {value.tagCreated ? (
               <tr>
                 <th>Tag</th>

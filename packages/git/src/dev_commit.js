@@ -24,8 +24,17 @@ const {
 const SKY_SERVER_ROOT = path.resolve(__dirname, '../../..');
 const TOOL_CODE = 'dev_commit';
 const OUTPUT_TYPE = 'git_commit_summary.v1';
+const DEFAULT_GIT_COMMAND_TIMEOUT_MS = 60000;
 dotenv.config({ path: path.join(SKY_SERVER_ROOT, '.env') });
 const { pool } = require('../../db/src/connection');
+
+const ORCHESTRATED_EXECUTION = Boolean(
+  process.env.SKYCOMMAND_TOOL_RESULT_PATH || process.env.SKYCOMMAND_EXECUTION_ID,
+);
+const GIT_COMMAND_TIMEOUT_MS = Math.max(
+  10000,
+  Number(process.env.SKYCOMMAND_GIT_COMMAND_TIMEOUT_MS || DEFAULT_GIT_COMMAND_TIMEOUT_MS),
+);
 
 const PROFILE_CODE =
   process.env.SKYSERVER_CONFIG_PROFILE ||
@@ -37,10 +46,33 @@ function fail(message) {
   throw new Error(message);
 }
 
+function getCommandEnvironment() {
+  return {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GCM_INTERACTIVE: 'Never',
+    GIT_EDITOR: 'true',
+    GIT_MERGE_AUTOEDIT: 'no',
+  };
+}
+
 function runCommand(command, args, cwd, label = command) {
   console.log(`> ${label} ${args.join(' ')}`);
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: false });
-  if (result.error) fail(`${label} command failed: ${result.error.message}`);
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: false,
+    timeout: GIT_COMMAND_TIMEOUT_MS,
+    env: getCommandEnvironment(),
+  });
+  if (result.error) {
+    const timedOut = result.error.code === 'ETIMEDOUT';
+    fail(
+      timedOut
+        ? `${label} command timed out after ${GIT_COMMAND_TIMEOUT_MS} ms: ${label} ${args.join(' ')}`
+        : `${label} command failed: ${result.error.message}`,
+    );
+  }
   if (result.status !== 0) fail(`${label} command failed: ${label} ${args.join(' ')}`);
 }
 function runGit(args, cwd) {
@@ -49,7 +81,13 @@ function runGit(args, cwd) {
 
 function runGitCaptured(args, cwd) {
   console.log(`> git ${args.join(' ')}`);
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    shell: false,
+    timeout: GIT_COMMAND_TIMEOUT_MS,
+    env: getCommandEnvironment(),
+  });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   if (result.error) fail(`Git command failed: ${result.error.message}`);
@@ -90,10 +128,33 @@ function getAheadCount(cwd, branch) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 function getGitOutput(args, cwd) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    shell: false,
+    timeout: GIT_COMMAND_TIMEOUT_MS,
+    env: getCommandEnvironment(),
+  });
   if (result.error) fail(`Git command failed: ${result.error.message}`);
   if (result.status !== 0) fail(`Git command failed: git ${args.join(' ')}`);
   return result.stdout.trim();
+}
+
+function isGitAncestor(ancestorRef, descendantRef, cwd) {
+  const result = spawnSync('git', ['merge-base', '--is-ancestor', ancestorRef, descendantRef], {
+    cwd,
+    encoding: 'utf8',
+    shell: false,
+    timeout: GIT_COMMAND_TIMEOUT_MS,
+    env: getCommandEnvironment(),
+  });
+
+  if (result.error) fail(`Git command failed: ${result.error.message}`);
+  if (![0, 1].includes(result.status)) {
+    fail(`Git command failed: git merge-base --is-ancestor ${ancestorRef} ${descendantRef}`);
+  }
+
+  return result.status === 0;
 }
 
 async function listAvailableRepositories() {
@@ -143,9 +204,38 @@ async function executeDevCommit(args = []) {
   console.log('');
 
   const previousHeadSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
-  runGit(['fetch', 'origin'], repo.rootPath);
-  runGit(['switch', repo.devBranch], repo.rootPath);
-  runGit(['pull', 'origin', repo.devBranch], repo.rootPath);
+  const currentBranch = getGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], repo.rootPath);
+  runGit(['fetch', '--prune', 'origin'], repo.rootPath);
+
+  let switchedBranch = false;
+  let pulled = false;
+
+  if (ORCHESTRATED_EXECUTION) {
+    if (currentBranch !== repo.devBranch) {
+      fail(
+        `Watcher-safe Dev Commit requires the repository to already be on ${repo.devBranch}. Current branch: ${currentBranch}. Switch branches before starting the workflow.`,
+      );
+    }
+
+    const remoteDevHeadSha = getGitOutput(
+      ['rev-parse', `refs/remotes/origin/${repo.devBranch}`],
+      repo.rootPath,
+    );
+
+    if (!isGitAncestor(remoteDevHeadSha, previousHeadSha, repo.rootPath)) {
+      fail(
+        `Local ${repo.devBranch} is behind or diverged from origin/${repo.devBranch}. Pull or reconcile the branch before starting the workflow.`,
+      );
+    }
+
+    console.log('🛡️ Watcher-safe mode: branch switching and pull-based working-tree rewrites are disabled.');
+  } else {
+    runGit(['switch', repo.devBranch], repo.rootPath);
+    switchedBranch = currentBranch !== repo.devBranch;
+    runGit(['pull', '--ff-only', 'origin', repo.devBranch], repo.rootPath);
+    pulled = true;
+  }
+
   const status = getGitOutput(['status', '--porcelain'], repo.rootPath);
   const changeSummary = parseGitStatusPorcelain(status);
 
@@ -182,8 +272,8 @@ async function executeDevCommit(args = []) {
       durationMs: Math.max(0, new Date(completedAt) - new Date(startedAt)),
       ...changeSummary,
       fetched: true,
-      switchedBranch: true,
-      pulled: true,
+      switchedBranch,
+      pulled,
       staged: false,
       committed: false,
       pushed: pushedExistingCommit,
@@ -218,8 +308,8 @@ async function executeDevCommit(args = []) {
     durationMs: Math.max(0, new Date(completedAt) - new Date(startedAt)),
     ...changeSummary,
     fetched: true,
-    switchedBranch: true,
-    pulled: true,
+    switchedBranch,
+    pulled,
     staged: true,
     committed: true,
     pushed: true,
