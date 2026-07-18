@@ -530,6 +530,11 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     changedFiles: normalizeNonNegativeNumber(commitOutput.changedFiles),
     commitsApplied: normalizeNonNegativeNumber(syncOutput.commitsApplied),
     branchesSynchronized: Boolean(syncOutput.branchesSynchronized),
+    executionStrategy: syncOutput.executionStrategy || null,
+    watcherSafe: syncOutput.watcherSafe !== false,
+    localWorkspaceUpdated: Boolean(syncOutput.localWorkspaceUpdated),
+    localWorkspaceRefreshRequired: Boolean(syncOutput.localWorkspaceRefreshRequired),
+    localRefreshCommand: syncOutput.localRefreshCommand || null,
     tagName: syncOutput.tagName || null,
     tagCreated: Boolean(syncOutput.tagCreated),
     approval: approval

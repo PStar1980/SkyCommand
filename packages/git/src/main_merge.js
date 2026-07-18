@@ -4,6 +4,10 @@
  * Synchronizes the configured development branch from the repository main branch.
  * This tool is intended to run after the pull request into main has been completed.
  *
+ * The synchronization is deliberately checkout-free. SkyCommand workers and Vite
+ * can watch the repository while this tool runs without being restarted by branch
+ * switches or working-tree rewrites.
+ *
  * Usage: node main_merge.js <repoName> [tagName]
  */
 
@@ -23,6 +27,7 @@ const SKY_SERVER_ROOT = path.resolve(SCRIPT_DIR, '../../..');
 const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
 const TOOL_CODE = 'main_merge';
 const OUTPUT_TYPE = 'git_branch_sync_summary.v1';
+const DEFAULT_GIT_COMMAND_TIMEOUT_MS = 60000;
 
 dotenv.config({ path: ENV_PATH });
 
@@ -33,45 +38,168 @@ const PROFILE_CODE =
   process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
+const GIT_COMMAND_TIMEOUT_MS = Math.max(
+  10000,
+  Number(process.env.SKYCOMMAND_GIT_COMMAND_TIMEOUT_MS || DEFAULT_GIT_COMMAND_TIMEOUT_MS),
+);
 
 function fail(message) {
   throw new Error(message);
 }
 
-function runGit(args, cwd) {
-  console.log(`> git ${args.join(' ')}`);
+function getGitEnvironment() {
+  return {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GCM_INTERACTIVE: 'Never',
+    GIT_EDITOR: 'true',
+    GIT_MERGE_AUTOEDIT: 'no',
+  };
+}
+
+function executeGit(args, cwd, options = {}) {
+  const capture = options.capture === true;
+  const allowedStatuses = new Set(options.allowedStatuses || [0]);
+  const printCommand = options.printCommand !== false;
+
+  if (printCommand) {
+    console.log(`> git ${args.join(' ')}`);
+  }
 
   const result = spawnSync('git', args, {
     cwd,
-    stdio: 'inherit',
+    encoding: capture ? 'utf8' : undefined,
+    stdio: capture ? 'pipe' : 'inherit',
     shell: false,
+    timeout: GIT_COMMAND_TIMEOUT_MS,
+    env: getGitEnvironment(),
   });
 
-  if (result.error) {
-    fail(`Git command failed: ${result.error.message}`);
+  if (capture && options.echoOutput === true) {
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
   }
 
-  if (result.status !== 0) {
-    fail(`Git command failed: git ${args.join(' ')}`);
+  if (result.error) {
+    const timedOut = result.error.code === 'ETIMEDOUT';
+    fail(
+      timedOut
+        ? `Git command timed out after ${GIT_COMMAND_TIMEOUT_MS} ms: git ${args.join(' ')}`
+        : `Git command failed: ${result.error.message}`,
+    );
+  }
+
+  if (!allowedStatuses.has(result.status)) {
+    const detail = capture
+      ? String(result.stderr || result.stdout || '').trim()
+      : '';
+    fail(
+      [`Git command failed: git ${args.join(' ')}`, detail]
+        .filter(Boolean)
+        .join(' - '),
+    );
+  }
+
+  return result;
+}
+
+function runGit(args, cwd) {
+  return executeGit(args, cwd);
+}
+
+function getGitOutput(args, cwd, options = {}) {
+  const result = executeGit(args, cwd, {
+    capture: true,
+    printCommand: options.printCommand === true,
+    allowedStatuses: options.allowedStatuses || [0],
+  });
+
+  return String(result.stdout || '').trim();
+}
+
+function tryGetGitOutput(args, cwd) {
+  const result = executeGit(args, cwd, {
+    capture: true,
+    printCommand: false,
+    allowedStatuses: [0, 1, 128],
+  });
+
+  return result.status === 0 ? String(result.stdout || '').trim() : null;
+}
+
+function isGitAncestor(ancestorRef, descendantRef, cwd) {
+  const result = executeGit(['merge-base', '--is-ancestor', ancestorRef, descendantRef], cwd, {
+    capture: true,
+    printCommand: false,
+    allowedStatuses: [0, 1],
+  });
+
+  return result.status === 0;
+}
+
+function getTreeSha(ref, cwd) {
+  return getGitOutput(['rev-parse', `${ref}^{tree}`], cwd);
+}
+
+function getCurrentBranch(cwd) {
+  return getGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
+}
+
+function assertCleanWorkingTree(cwd) {
+  const status = getGitOutput(['status', '--porcelain'], cwd);
+
+  if (status) {
+    fail(
+      'Main Merge requires a clean working tree. Complete or stash local changes before branch synchronization.',
+    );
   }
 }
 
-function getGitOutput(args, cwd) {
-  const result = spawnSync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    shell: false,
-  });
+function updateLocalBranchRefWithoutCheckout({
+  branch,
+  targetSha,
+  currentBranch,
+  cwd,
+}) {
+  const branchRef = `refs/heads/${branch}`;
+  const branchExists = Boolean(tryGetGitOutput(['rev-parse', '--verify', branchRef], cwd));
 
-  if (result.error) {
-    fail(`Git command failed: ${result.error.message}`);
+  if (currentBranch !== branch) {
+    runGit(branchExists ? ['branch', '-f', branch, targetSha] : ['branch', branch, targetSha], cwd);
+    return {
+      branch,
+      updated: true,
+      workspaceUpdated: false,
+      refreshRequired: false,
+      reason: null,
+    };
   }
 
-  if (result.status !== 0) {
-    fail(`Git command failed: git ${args.join(' ')}`);
+  const currentTreeSha = getTreeSha('HEAD', cwd);
+  const targetTreeSha = getTreeSha(targetSha, cwd);
+
+  if (currentTreeSha !== targetTreeSha) {
+    return {
+      branch,
+      updated: false,
+      workspaceUpdated: false,
+      refreshRequired: true,
+      reason: `The checked-out ${branch} tree differs from ${targetSha}.`,
+    };
   }
 
-  return String(result.stdout || '').trim();
+  // The trees are identical (the usual PR merge case), so moving the branch
+  // pointer does not rewrite files and therefore does not disturb watchers.
+  runGit(['reset', '--soft', targetSha], cwd);
+  assertCleanWorkingTree(cwd);
+
+  return {
+    branch,
+    updated: true,
+    workspaceUpdated: true,
+    refreshRequired: false,
+    reason: null,
+  };
 }
 
 async function listAvailableRepositories() {
@@ -146,6 +274,10 @@ async function loadRepository(repoName) {
   };
 }
 
+function createLocalRefreshCommand(repo) {
+  return `git switch ${repo.devBranch} && git pull --ff-only origin ${repo.devBranch}`;
+}
+
 async function executeMainMerge(args = []) {
   const startedAt = new Date().toISOString();
   const [repoName, rawTagName] = (Array.isArray(args) ? args : [])
@@ -153,60 +285,112 @@ async function executeMainMerge(args = []) {
     .filter((arg) => !arg.startsWith('--'));
   const tagName = String(rawTagName || '').trim();
   const repo = await loadRepository(repoName);
+  const warnings = [];
 
   console.log('');
   console.log(
-    `🚀 Starting ${repo.mainBranch} → ${repo.devBranch} synchronization for repo: ${repo.repoCode}`,
+    `🚀 Starting checkout-free ${repo.mainBranch} → ${repo.devBranch} synchronization for repo: ${repo.repoCode}`,
   );
   console.log('ℹ️ This step is intended to run after the pull request into main is complete.');
+  console.log('🛡️ Working-tree branch switches are intentionally avoided so live SkyCommand processes are not restarted.');
   console.log(`📂 Repo root: ${repo.rootPath}`);
   console.log(`🌿 Main branch: ${repo.mainBranch}`);
   console.log(`🌿 Dev branch: ${repo.devBranch}`);
   console.log('');
 
-  runGit(['fetch', 'origin'], repo.rootPath);
+  assertCleanWorkingTree(repo.rootPath);
 
-  runGit(['switch', repo.mainBranch], repo.rootPath);
-  const mainHeadBeforeSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
-  runGit(['pull', 'origin', repo.mainBranch], repo.rootPath);
-  const mainHeadSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
+  const currentBranch = getCurrentBranch(repo.rootPath);
+  const localHeadBeforeSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
+  const mainHeadBeforeSha = tryGetGitOutput(
+    ['rev-parse', '--verify', `refs/heads/${repo.mainBranch}`],
+    repo.rootPath,
+  );
+  const localDevHeadBeforeSha = tryGetGitOutput(
+    ['rev-parse', '--verify', `refs/heads/${repo.devBranch}`],
+    repo.rootPath,
+  );
 
-  runGit(['switch', repo.devBranch], repo.rootPath);
-  const devHeadBeforePullSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
-  runGit(['pull', 'origin', repo.devBranch], repo.rootPath);
-  const devHeadBeforeSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
+  runGit(['fetch', '--prune', 'origin'], repo.rootPath);
+
+  const remoteMainRef = `refs/remotes/origin/${repo.mainBranch}`;
+  const remoteDevRef = `refs/remotes/origin/${repo.devBranch}`;
+  const mainHeadSha = getGitOutput(['rev-parse', remoteMainRef], repo.rootPath);
+  const remoteDevHeadBeforeSha = getGitOutput(['rev-parse', remoteDevRef], repo.rootPath);
+
+  if (!isGitAncestor(remoteDevHeadBeforeSha, mainHeadSha, repo.rootPath)) {
+    fail(
+      `origin/${repo.devBranch} cannot be fast-forwarded to origin/${repo.mainBranch}. The branches have diverged and require manual reconciliation.`,
+    );
+  }
+
   const commitsApplied = Number(
-    getGitOutput(['rev-list', '--count', `${devHeadBeforeSha}..${mainHeadSha}`], repo.rootPath) || 0,
+    getGitOutput(
+      ['rev-list', '--count', `${remoteDevHeadBeforeSha}..${mainHeadSha}`],
+      repo.rootPath,
+    ) || 0,
   );
+  const devAdvanced = remoteDevHeadBeforeSha !== mainHeadSha;
 
-  console.log(
-    `\n🔄 Attempting fast-forward synchronization from ${repo.mainBranch} → ${repo.devBranch}...`,
-  );
-  runGit(['merge', '--ff-only', repo.mainBranch], repo.rootPath);
-  const devHeadAfterSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
-  const devAdvanced = devHeadBeforeSha !== devHeadAfterSha;
-  const branchesSynchronized = mainHeadSha === devHeadAfterSha;
+  if (devAdvanced) {
+    console.log(
+      `\n🔄 Fast-forwarding origin/${repo.devBranch} to the approved origin/${repo.mainBranch} head without checking out either branch...`,
+    );
+    runGit(
+      ['push', 'origin', `${mainHeadSha}:refs/heads/${repo.devBranch}`],
+      repo.rootPath,
+    );
+  } else {
+    console.log(`\n✨ origin/${repo.devBranch} is already synchronized with origin/${repo.mainBranch}.`);
+  }
 
   let tagCreated = false;
 
   if (tagName) {
-    console.log(`\n🏷️ Creating tag: ${tagName}`);
-    runGit(['tag', tagName], repo.rootPath);
+    console.log(`\n🏷️ Creating tag ${tagName} at ${mainHeadSha}...`);
+    runGit(['tag', tagName, mainHeadSha], repo.rootPath);
+    runGit(['push', 'origin', `refs/tags/${tagName}`], repo.rootPath);
     tagCreated = true;
   }
 
-  console.log('\n📤 Pushing synchronized branches to origin...');
-  runGit(['push', 'origin', repo.mainBranch], repo.rootPath);
-  runGit(['push', 'origin', repo.devBranch], repo.rootPath);
+  runGit(['fetch', '--prune', 'origin'], repo.rootPath);
 
-  let tagsPushed = false;
+  const remoteDevHeadAfterSha = getGitOutput(['rev-parse', remoteDevRef], repo.rootPath);
+  const branchesSynchronized = remoteDevHeadAfterSha === mainHeadSha;
 
-  if (tagCreated) {
-    console.log('📤 Pushing tags...');
-    runGit(['push', '--tags'], repo.rootPath);
-    tagsPushed = true;
+  if (!branchesSynchronized) {
+    fail(
+      `Remote branch verification failed: origin/${repo.devBranch} does not match origin/${repo.mainBranch}.`,
+    );
   }
 
+  const mainRefUpdate = updateLocalBranchRefWithoutCheckout({
+    branch: repo.mainBranch,
+    targetSha: mainHeadSha,
+    currentBranch,
+    cwd: repo.rootPath,
+  });
+  const devRefUpdate = updateLocalBranchRefWithoutCheckout({
+    branch: repo.devBranch,
+    targetSha: remoteDevHeadAfterSha,
+    currentBranch,
+    cwd: repo.rootPath,
+  });
+  const localWorkspaceRefreshRequired =
+    mainRefUpdate.refreshRequired || devRefUpdate.refreshRequired;
+  const localWorkspaceUpdated =
+    mainRefUpdate.workspaceUpdated || devRefUpdate.workspaceUpdated;
+  const localRefreshCommand = localWorkspaceRefreshRequired
+    ? createLocalRefreshCommand(repo)
+    : null;
+
+  if (localWorkspaceRefreshRequired) {
+    warnings.push(
+      `Remote branches are synchronized, but the checked-out workspace contains a different tree. After the workflow completes, run: ${localRefreshCommand}`,
+    );
+  }
+
+  const localHeadAfterSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
   const completedAt = new Date().toISOString();
   const outcome = tagCreated
     ? 'TAGGED'
@@ -216,18 +400,22 @@ async function executeMainMerge(args = []) {
 
   console.log('');
   console.log(
-    `🎉 ${repo.mainBranch} → ${repo.devBranch} synchronization completed successfully!`,
+    `🎉 origin/${repo.mainBranch} → origin/${repo.devBranch} synchronization completed successfully!`,
   );
-  console.log(`🔖 Synchronized head: ${devHeadAfterSha}`);
+  console.log(`🔖 Synchronized head: ${remoteDevHeadAfterSha}`);
   console.log(`📈 Commits applied to ${repo.devBranch}: ${commitsApplied}`);
-  if (!devAdvanced) {
-    console.log('✨ Development branch was already synchronized with main.');
+  if (localWorkspaceRefreshRequired) {
+    console.log(`⚠️ Local workspace refresh required after workflow completion: ${localRefreshCommand}`);
+  } else {
+    console.log('✅ Local branch references were synchronized without rewriting watched files.');
   }
   console.log('');
 
   return {
     ok: true,
     outcome,
+    executionStrategy: 'CHECKOUT_FREE_REMOTE_SYNC',
+    watcherSafe: true,
     repositoryCode: repo.repoCode,
     repositoryName: repo.repoName,
     repositoryRoot: repo.rootPath,
@@ -236,37 +424,53 @@ async function executeMainMerge(args = []) {
     targetBranch: repo.devBranch,
     mainBranch: repo.mainBranch,
     devBranch: repo.devBranch,
+    currentBranch,
+    localHeadBeforeSha,
+    localHeadAfterSha,
     mainHeadBeforeSha,
     mainHeadSha,
-    devHeadBeforePullSha,
-    devHeadBeforeSha,
-    devHeadAfterSha,
-    synchronizedHeadSha: devHeadAfterSha,
+    localDevHeadBeforeSha,
+    remoteDevHeadBeforeSha,
+    remoteDevHeadAfterSha,
+    devHeadBeforePullSha: remoteDevHeadBeforeSha,
+    devHeadBeforeSha: remoteDevHeadBeforeSha,
+    devHeadAfterSha: remoteDevHeadAfterSha,
+    synchronizedHeadSha: remoteDevHeadAfterSha,
     commitsApplied,
     devAdvanced,
     branchesSynchronized,
+    localMainRefUpdated: mainRefUpdate.updated,
+    localDevRefUpdated: devRefUpdate.updated,
+    localWorkspaceUpdated,
+    localWorkspaceRefreshRequired,
+    localRefreshCommand,
     tagName: tagName || null,
     tagCreated,
     startedAt,
     completedAt,
     durationMs: Math.max(0, new Date(completedAt) - new Date(startedAt)),
     fetched: true,
-    mainBranchSelected: true,
-    mainBranchPulled: true,
-    devBranchSelected: true,
-    devBranchPulled: true,
+    mainBranchSelected: false,
+    mainBranchPulled: false,
+    devBranchSelected: false,
+    devBranchPulled: false,
     fastForwardMerged: true,
-    mainBranchPushed: true,
-    devBranchPushed: true,
-    tagsPushed,
+    mainBranchPushed: false,
+    devBranchPushed: devAdvanced,
+    remoteFastForwardVerified: true,
+    tagsPushed: tagCreated,
+    warnings,
     profileCode: PROFILE_CODE,
   };
 }
 
 function printMainMergeResult(result) {
   const tagSummary = result.tagCreated ? ` Tag ${result.tagName} was pushed.` : '';
+  const refreshSummary = result.localWorkspaceRefreshRequired
+    ? ` Local refresh required: ${result.localRefreshCommand}.`
+    : ' Local references were updated without a working-tree rewrite.';
   console.log(
-    `📋 Structured result: ${result.repositoryCode} ${result.sourceBranch} → ${result.targetBranch} ${String(result.outcome || 'synchronized').toLowerCase()}.${tagSummary}`,
+    `📋 Structured result: ${result.repositoryCode} ${result.sourceBranch} → ${result.targetBranch} ${String(result.outcome || 'synchronized').toLowerCase()}.${tagSummary}${refreshSummary}`,
   );
 }
 
