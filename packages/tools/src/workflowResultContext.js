@@ -3,6 +3,7 @@ const REPOSITORY_PACKAGE_OUTPUT_TYPE = 'repository_package_summary.v1';
 const REPOSITORY_MAP_OUTPUT_TYPE = 'repository_map_summary.v1';
 const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
 const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
+const GIT_REPOSITORY_STATUS_OUTPUT_TYPE = 'git_repository_status.v1';
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -298,6 +299,23 @@ function compactDomainOutput(result = {}) {
     };
   }
 
+  if (isToolResultEnvelope(result) && result.outputType === GIT_REPOSITORY_STATUS_OUTPUT_TYPE) {
+    const workingTree = getSafeObject(safeOutput.workingTree);
+    const relationship = getSafeObject(safeOutput.relationship);
+
+    return {
+      outcome: safeOutput.outcome || null,
+      repositoryCode: safeOutput.repositoryCode || null,
+      currentBranch: safeOutput.currentBranch || null,
+      expectedBranch: safeOutput.expectedBranch || null,
+      readyForDevelopmentPromotion: Boolean(safeOutput.readyForDevelopmentPromotion),
+      blockerCount: getSafeArray(safeOutput.blockers).length,
+      totalChanges: normalizeNonNegativeNumber(workingTree.totalChanges),
+      remoteBranchesSynchronized: Boolean(relationship.remoteBranchesSynchronized),
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
   if (isToolResultEnvelope(result) && result.outputType === GIT_COMMIT_OUTPUT_TYPE) {
     return {
       outcome: safeOutput.outcome || null,
@@ -390,6 +408,7 @@ function buildSummaryKeyOutputs(nodeOutputsByKey = {}) {
 
 function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   const stages = [];
+  let repositoryStatus = null;
   let repositoryMap = null;
   let repositoryPackage = null;
   let gitCommit = null;
@@ -400,6 +419,26 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     const result = getSafeObject(rawResult);
     const output = getSafeObject(getToolResultDomainOutput(result));
     const durationMs = getResultDurationMs(result, output);
+
+    if (isToolResultEnvelope(result) && result.outputType === GIT_REPOSITORY_STATUS_OUTPUT_TYPE) {
+      repositoryStatus = { nodeKey, result, output };
+      const ready = Boolean(output.readyForDevelopmentPromotion);
+      const blockerCount = getSafeArray(output.blockers).length;
+      stages.push({
+        nodeKey,
+        stageCode: 'REPOSITORY_PREFLIGHT',
+        label: 'Repository preflight',
+        status: result.success === false ? 'FAILED' : ready ? 'SUCCESS' : 'STOPPED',
+        outcome: output.outcome || null,
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: ready
+          ? `${normalizeNonNegativeNumber(output.workingTree?.totalChanges)} working-tree change(s); baseline synchronized`
+          : `${blockerCount} promotion blocker(s)`,
+      });
+      continue;
+    }
 
     if (isToolResultEnvelope(result) && result.outputType === REPOSITORY_MAP_OUTPUT_TYPE) {
       repositoryMap = { nodeKey, result, output };
@@ -491,15 +530,18 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   const commitOutput = getSafeObject(gitCommit?.output);
   const syncOutput = getSafeObject(branchSync?.output);
   const approvalOutput = getSafeObject(approval?.output);
+  const repositoryStatusOutput = getSafeObject(repositoryStatus?.output);
   const repositoryCode =
     syncOutput.repositoryCode ||
     commitOutput.repositoryCode ||
+    repositoryStatusOutput.repositoryCode ||
     repositoryMap?.output?.repositoryName ||
     repositoryPackage?.output?.repositoryName ||
     null;
   const repositoryName =
     syncOutput.repositoryName ||
     commitOutput.repositoryName ||
+    repositoryStatusOutput.repositoryName ||
     repositoryMap?.output?.repositoryName ||
     repositoryPackage?.output?.repositoryName ||
     repositoryCode;
@@ -537,6 +579,24 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     localRefreshCommand: syncOutput.localRefreshCommand || null,
     tagName: syncOutput.tagName || null,
     tagCreated: Boolean(syncOutput.tagCreated),
+    preflight: repositoryStatus
+      ? {
+          nodeKey: repositoryStatus.nodeKey,
+          outcome: repositoryStatusOutput.outcome || null,
+          readyForDevelopmentPromotion: Boolean(
+            repositoryStatusOutput.readyForDevelopmentPromotion,
+          ),
+          currentBranch: repositoryStatusOutput.currentBranch || null,
+          expectedBranch: repositoryStatusOutput.expectedBranch || null,
+          blockerCount: getSafeArray(repositoryStatusOutput.blockers).length,
+          workingTreeChanges: normalizeNonNegativeNumber(
+            repositoryStatusOutput.workingTree?.totalChanges,
+          ),
+          remoteBranchesSynchronized: Boolean(
+            repositoryStatusOutput.relationship?.remoteBranchesSynchronized,
+          ),
+        }
+      : null,
     approval: approval
       ? {
           nodeKey: approval.nodeKey,
@@ -656,6 +716,23 @@ function buildScheduledToolResultSummary(toolResult = {}) {
     };
   }
 
+  if (result.outputType === GIT_REPOSITORY_STATUS_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.gitRepositoryStatus = {
+      outcome: output.outcome || null,
+      repositoryCode: output.repositoryCode || null,
+      currentBranch: output.currentBranch || null,
+      expectedBranch: output.expectedBranch || null,
+      readyForDevelopmentPromotion: Boolean(output.readyForDevelopmentPromotion),
+      blockerCount: getSafeArray(output.blockers).length,
+      totalChanges: Number(output.workingTree?.totalChanges || 0),
+      remoteBranchesSynchronized: Boolean(
+        output.relationship?.remoteBranchesSynchronized,
+      ),
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   if (result.outputType === GIT_COMMIT_OUTPUT_TYPE) {
     const output = getSafeObject(result.output);
     summary.gitCommit = {
@@ -690,6 +767,7 @@ module.exports = {
   MACRO_INGESTION_OUTPUT_TYPE,
   GIT_COMMIT_OUTPUT_TYPE,
   GIT_BRANCH_SYNC_OUTPUT_TYPE,
+  GIT_REPOSITORY_STATUS_OUTPUT_TYPE,
   REPOSITORY_MAP_OUTPUT_TYPE,
   REPOSITORY_PACKAGE_OUTPUT_TYPE,
   buildCanonicalNodeResultView,

@@ -114,6 +114,7 @@ The tool writes atomically. The wrapper reads, validates, and deletes the file. 
 | Tool category | Tool codes | Output contract |
 | --- | --- | --- |
 | Macro ingestion | `ingestion_fred`, `ingestion_boc`, `ingestion_statcan` | `macro_ingestion_summary.v1` |
+| Repository intelligence | `git_repo_status` | `git_repository_status.v1` |
 | Repository map | `repo_map_generate` | `repository_map_summary.v1` |
 | Repository package | `repo_zip_generate` | `repository_package_summary.v1` |
 | Git commit | `dev_commit` | `git_commit_summary.v1` |
@@ -137,6 +138,8 @@ Examples:
 
 ```text
 nodes.fred_ingestion.output.totals.rowsInserted
+nodes.repo_status_node.output.readyForDevelopmentPromotion
+nodes.repo_status_node.output.blockers
 nodes.repo_map_node.output.filesDocumented
 nodes.repo_zip_node.output.filesIncluded
 nodes.dev_commit_node.output.commitSha
@@ -151,6 +154,7 @@ Condition paths remain strict: a configured path that does not exist fails clear
 Purpose-built renderers remain active:
 
 - macro ingestion totals and indicator results;
+- watcher-safe repository readiness, branch tracking, operation state, blockers, advisories, and recent history;
 - repository map summary, policy, and extension breakdown;
 - repository ZIP artifact and packaging policy;
 - Git commit summary;
@@ -163,7 +167,7 @@ Raw stdout/stderr is never promoted into normal workflow output.
 
 ## Summary nodes
 
-Summary nodes receive compact, normalized prior-node results. Macro ingestion sources are aggregated symmetrically. Repository delivery workflows receive a development-promotion rollup covering Repository Map, Repository ZIP, Dev Commit, human merge approval, and Main → Dev synchronization. Other workflows receive a node-result index with status, summary, output contract, and duration.
+Summary nodes receive compact, normalized prior-node results. Macro ingestion sources are aggregated symmetrically. Repository delivery workflows receive a development-promotion rollup covering optional Repository Intelligence preflight evidence, Repository Map, Repository ZIP, Dev Commit, human merge approval, and Main → Dev synchronization. Other workflows receive a node-result index with status, summary, output contract, and duration.
 
 Large arrays and verbose logs are not duplicated into Summary output.
 
@@ -222,13 +226,16 @@ There are no manifest preview/sync/check commands.
 
 Recommended execution verification:
 
-1. Run Repository ZIP through Run Tools.
-2. Run Repository Map through Run Tools.
-3. Run the Repository Map → Repository ZIP → Summary workflow.
-4. Run the macro refresh workflow and inspect each source result.
-5. Confirm Tool History retains stdout/stderr.
-6. Confirm Workflow History displays structured tables when available.
-7. Confirm a deliberately missing ToolResult produces a successful tool run with a legacy workflow fallback.
+1. Run `npm run git-repository-status:self-test` and `npm run workflow-result-context:self-test`.
+2. Run Repository Intelligence through Run Tools and confirm the active branch and working tree are unchanged.
+3. Run Repository ZIP through Run Tools.
+4. Run Repository Map through Run Tools.
+5. Run a Repository Intelligence → Summary proof workflow and inspect `git_repository_status.v1`.
+6. Run the Repository Map → Repository ZIP → Summary workflow.
+7. Run the macro refresh workflow and inspect each source result.
+8. Confirm Tool History retains stdout/stderr.
+9. Confirm Workflow History displays structured tables when available.
+10. Confirm a deliberately missing ToolResult produces a successful tool run with a legacy workflow fallback.
 
 ## SkyServer Core workflow launch parity
 
@@ -242,7 +249,7 @@ Use this exact node-default expression for the `commitMessage` workflow paramete
 
 The same expression resolves in inline execution and in the Temporal workflow bundle. Advanced callers may still supply additional workflow input JSON; explicitly prompted values take precedence over duplicate parameter keys in that JSON.
 
-Temporal-backed CLI launches can optionally remain attached until the run reaches a terminal state. The monitor reads the PostgreSQL run and node ledgers directly, so it is independent of Admin-Web and Vite. This is the preferred launch path for the Repository Map → Repository ZIP → Dev Commit workflow.
+Temporal-backed CLI launches can optionally remain attached until the run reaches a terminal state. The monitor reads the PostgreSQL run and node ledgers directly, so it is independent of Admin-Web and Vite. This is the preferred launch path for the Repository Intelligence → Repository Map → Repository ZIP → Dev Commit → Approval → Main Merge workflow.
 
 ## Future tool onboarding
 
@@ -263,7 +270,8 @@ No repository hash acceptance ceremony is required.
 The recommended repository promotion workflow is:
 
 ```text
-Repository Map
+Repository Intelligence
+→ Repository Map
 → Repository ZIP
 → Dev Commit
 → Human Merge Approval
@@ -271,7 +279,15 @@ Repository Map
 → Summary
 ```
 
-The approval checkpoint represents the operator's confirmation that the Dev → Main pull request has been completed on GitHub. `main_merge` then pulls both branches, fast-forwards the development branch from main, optionally creates a tag, and pushes the synchronized branch state.
+Repository Intelligence is a checkout-free, watcher-safe preflight. It performs a non-interactive `git fetch --prune`, reads local and remote branch refs, calculates ahead/behind counts, detects locks or in-progress Git operations, reports working-tree state, and emits `git_repository_status.v1`. It never runs `git switch`, `git checkout`, `git pull`, `git reset`, or any working-tree rewrite. Dirty files are advisory because they are the intended input to Dev Commit; conflicts, stale/divergent development refs, the wrong active branch, incomplete Git operations, and an unsynchronized remote baseline are blockers.
+
+A condition can use:
+
+```text
+nodes.repo_status_node.output.readyForDevelopmentPromotion
+```
+
+The approval checkpoint represents the operator's confirmation that the Dev → Main pull request has been completed on GitHub. `main_merge` then performs checkout-free remote synchronization, verifies the approved Main head, advances remote Dev, updates compatible local refs without rewriting watched files, optionally creates a tag, and returns explicit local-refresh guidance when a workspace refresh is still required.
 
 `git_branch_sync_summary.v1` records:
 
@@ -281,6 +297,6 @@ The approval checkpoint represents the operator's confirmation that the Dev → 
 - whether the development branch advanced;
 - whether both branches ended at the same commit;
 - optional tag creation and push evidence;
-- step-level fetch, pull, merge, and push completion.
+- step-level fetch, remote fast-forward, verification, local-reference update, and tag-push completion.
 
-The Summary node's `gitPromotion` rollup combines these results with repository artifacts, Dev Commit evidence, and the approval decision. Conditions can reference `nodes.main_merge_node.output.branchesSynchronized` without parsing Git output.
+The Summary node's `gitPromotion` rollup combines optional preflight evidence with repository artifacts, Dev Commit evidence, the approval decision, and branch synchronization. Conditions can reference `nodes.main_merge_node.output.branchesSynchronized` without parsing Git output.

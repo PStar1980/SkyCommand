@@ -1,37 +1,39 @@
 #!/usr/bin/env node
 
 /**
- * git_repo_status.js
+ * Watcher-safe repository intelligence for configured Git repositories.
  *
- * Sequential dual-branch health checker for configured git repositories.
+ * The inspection is checkout-free: it never switches branches, pulls into the
+ * working tree, resets files, or rewrites watched source paths. A remote fetch
+ * refreshes tracking references, then structured evidence is collected for
+ * branch synchronization, working-tree state, in-progress Git operations, and
+ * development-promotion readiness.
  *
- * Database config:
- *   core.repositories
- *   core.repository_paths
- *   core.config_profiles
- *
- * Environment:
- *   Loads .env from the SkyServer repository root:
- *   packages/git/src -> ../../.. -> SkyServer/.env
- *
- * Usage:
- *   node git_repo_status.js <repoName>
- *
- * Example:
- *   node git_repo_status.js SkyServer
+ * Usage: node git_repo_status.js <repoName>
  */
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
 const dotenv = require('dotenv');
+
+const { runToolCli } = require('../../tools/src/toolCliAdapter');
+const {
+  DEFAULT_GIT_COMMAND_TIMEOUT_MS,
+  inspectGitRepository,
+} = require('./gitRepositoryStatusInspector');
+const {
+  createGitRepositoryStatusFailureToolResult,
+  createGitRepositoryStatusToolResult,
+} = require('./gitRepositoryStatusResult');
 
 const SCRIPT_DIR = __dirname;
 const SKY_SERVER_ROOT = path.resolve(SCRIPT_DIR, '../../..');
 const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
+const TOOL_CODE = 'git_repo_status';
+const OUTPUT_TYPE = 'git_repository_status.v1';
 
+// The configured repository database remains the runtime source of truth.
 dotenv.config({ path: ENV_PATH });
-
 const { pool } = require('../../db/src/connection');
 
 const PROFILE_CODE =
@@ -39,30 +41,18 @@ const PROFILE_CODE =
   process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
+const GIT_COMMAND_TIMEOUT_MS = Math.max(
+  10000,
+  Number(
+    process.env.SKYCOMMAND_GIT_COMMAND_TIMEOUT_MS ||
+      DEFAULT_GIT_COMMAND_TIMEOUT_MS,
+  ),
+);
 
-// ------------------------------------------------------------
-// Utility
-// ------------------------------------------------------------
-function fail(message) {
-  throw new Error(message);
-}
-
-function runGitCapture(args, cwd) {
-  const result = spawnSync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    shell: false,
-  });
-
-  if (result.error) {
-    return `ERROR: ${result.error.message}`;
-  }
-
-  if (result.status !== 0) {
-    return `ERROR: ${result.stderr?.toString().trim() || `git ${args.join(' ')}`}`;
-  }
-
-  return result.stdout.trim();
+function fail(message, code = 'GIT_REPOSITORY_STATUS_FAILED') {
+  const error = new Error(message);
+  error.code = code;
+  throw error;
 }
 
 async function listAvailableRepositories() {
@@ -88,7 +78,10 @@ async function listAvailableRepositories() {
 
 async function loadRepository(repoName) {
   if (!repoName) {
-    fail('Missing repoName. Usage: node git_repo_status.js <repoName>');
+    fail(
+      'Missing repoName. Usage: node git_repo_status.js <repoName>',
+      'REPOSITORY_NAME_REQUIRED',
+    );
   }
 
   const result = await pool.query(
@@ -119,13 +112,16 @@ async function loadRepository(repoName) {
 
   if (result.rowCount === 0) {
     const availableRepos = await listAvailableRepositories();
-    fail(`Unknown repo '${repoName}'. Available repos: ${availableRepos.join(', ')}`);
+    fail(
+      `Unknown repo '${repoName}'. Available repos: ${availableRepos.join(', ')}`,
+      'REPOSITORY_NOT_REGISTERED',
+    );
   }
 
   const repo = result.rows[0];
 
   if (!repo.root_path || !fs.existsSync(repo.root_path)) {
-    fail(`Repo path does not exist: ${repo.root_path}`);
+    fail(`Repo path does not exist: ${repo.root_path}`, 'REPOSITORY_PATH_INVALID');
   }
 
   return {
@@ -137,63 +133,132 @@ async function loadRepository(repoName) {
   };
 }
 
-function cleanFileList(output) {
-  if (!output || output.startsWith('ERROR:')) {
-    return [];
+function formatBoolean(value) {
+  return value ? 'Yes' : 'No';
+}
+
+function formatCount(value) {
+  return value === null || value === undefined ? 'n/a' : String(value);
+}
+
+function formatSha(value) {
+  return value ? String(value).slice(0, 12) : 'missing';
+}
+
+function printBranchStatus(label, branch) {
+  console.log(`[ ${label.toUpperCase()} ]`);
+  console.log(`  Local head:  ${formatSha(branch.localSha)}`);
+  console.log(`  Remote head: ${formatSha(branch.remoteSha)}`);
+  console.log(`  Ahead: ${formatCount(branch.ahead)} · Behind: ${formatCount(branch.behind)}`);
+  console.log(`  Local matches remote: ${formatBoolean(branch.localMatchesRemote)}`);
+  if (branch.latestRemoteCommit?.subject) {
+    console.log(
+      `  Latest remote commit: ${branch.latestRemoteCommit.shortSha || formatSha(branch.remoteSha)} ${branch.latestRemoteCommit.subject}`,
+    );
+  }
+  console.log('');
+}
+
+function printRepositoryStatusResult(result) {
+  const workingTree = result.workingTree || {};
+  const repositoryState = result.repositoryState || {};
+  const relationship = result.relationship || {};
+
+  console.log('');
+  console.log('=========================================');
+  console.log(` Repository Intelligence: ${result.repositoryCode}`);
+  console.log(` Profile: ${PROFILE_CODE}`);
+  console.log(` Root: ${result.repositoryRoot}`);
+  console.log(' Strategy: checkout-free watcher-safe inspection');
+  console.log('=========================================');
+  console.log('');
+  console.log(`Readiness: ${result.outcome}`);
+  console.log(`Active branch: ${result.currentBranch || 'DETACHED HEAD'}`);
+  console.log(`Expected branch: ${result.expectedBranch}`);
+  console.log(`Remote fetch succeeded: ${formatBoolean(result.fetchSucceeded)}`);
+  console.log('');
+  console.log('[ WORKING TREE ]');
+  console.log(`  Clean: ${formatBoolean(workingTree.clean)}`);
+  console.log(
+    `  Staged: ${workingTree.staged || 0} · Modified: ${workingTree.modified || 0} · Untracked: ${workingTree.untracked || 0} · Conflicted: ${workingTree.conflicted || 0}`,
+  );
+  console.log('');
+  printBranchStatus(result.branches?.dev?.name || 'dev', result.branches?.dev || {});
+  printBranchStatus(result.branches?.main?.name || 'main', result.branches?.main || {});
+  console.log('[ BRANCH RELATIONSHIP ]');
+  console.log(
+    `  Remote branches synchronized: ${formatBoolean(relationship.remoteBranchesSynchronized)}`,
+  );
+  console.log(
+    `  Main contains development: ${
+      relationship.mainContainsDev === null ? 'Unknown' : formatBoolean(relationship.mainContainsDev)
+    }`,
+  );
+  console.log(
+    `  Development contains main: ${
+      relationship.devContainsMain === null ? 'Unknown' : formatBoolean(relationship.devContainsMain)
+    }`,
+  );
+  console.log('');
+  console.log('[ REPOSITORY STATE ]');
+  console.log(`  Index lock present: ${formatBoolean(repositoryState.indexLockPresent)}`);
+  console.log(`  Git operation in progress: ${formatBoolean(repositoryState.operationInProgress)}`);
+  console.log('');
+
+  if (result.blockers?.length) {
+    console.log('[ PROMOTION BLOCKERS ]');
+    result.blockers.forEach((blocker) => {
+      console.log(`  - ${blocker.code}: ${blocker.message}`);
+    });
+    console.log('');
   }
 
-  return output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-function collectBranchStatus(repoRoot, branchName) {
-  runGitCapture(['switch', branchName], repoRoot);
-  runGitCapture(['fetch', 'origin'], repoRoot);
-
-  const currentBranch = runGitCapture(['branch', '--show-current'], repoRoot);
-  const ahead = runGitCapture(
-    ['rev-list', '--left-only', '--count', `${branchName}...origin/${branchName}`],
-    repoRoot,
-  );
-  const behind = runGitCapture(
-    ['rev-list', '--right-only', '--count', `${branchName}...origin/${branchName}`],
-    repoRoot,
-  );
-  const latestCommit = runGitCapture(['log', '-1', '--oneline'], repoRoot);
-
-  const modified = cleanFileList(runGitCapture(['ls-files', '-m'], repoRoot));
-  const untracked = cleanFileList(
-    runGitCapture(['ls-files', '--others', '--exclude-standard'], repoRoot),
-  );
-
-  return {
-    branch: currentBranch,
-    ahead,
-    behind,
-    latestCommit,
-    modified,
-    untracked,
-  };
-}
-
-function formatList(items) {
-  if (!items.length) {
-    return 'None';
+  if (result.advisories?.length) {
+    console.log('[ ADVISORIES ]');
+    result.advisories.forEach((advisory) => console.log(`  - ${advisory}`));
+    console.log('');
   }
 
-  return items.map((item) => `- ${item}`).join('\n    ');
+  if (result.recommendedActions?.length) {
+    console.log('[ RECOMMENDED ACTIONS ]');
+    result.recommendedActions.forEach((action) => console.log(`  - ${action}`));
+    console.log('');
+  }
+
+  if (result.recentCommits?.length) {
+    console.log('[ RECENT HISTORY ]');
+    result.recentCommits.forEach((commit) => {
+      const decorations = commit.decorations ? ` (${commit.decorations})` : '';
+      console.log(`  ${commit.shortSha || formatSha(commit.sha)}${decorations} ${commit.subject || ''}`);
+    });
+    console.log('');
+  }
+
+  console.log(
+    `📋 Structured result: ${result.repositoryCode} is ${
+      result.readyForDevelopmentPromotion ? 'ready' : 'not ready'
+    } for development promotion.`,
+  );
+  console.log('🛡️ No branch switch, pull, reset, checkout, or working-tree rewrite was performed.');
+  console.log('');
 }
 
-function formatTimestamp(date) {
-  const pad = (value) => String(value).padStart(2, '0');
+async function executeRepositoryStatus(args = []) {
+  const [repoName] = (Array.isArray(args) ? args : [])
+    .map(String)
+    .filter((arg) => !arg.startsWith('--'));
+  const repo = await loadRepository(repoName);
 
-  return (
-    [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join('-') +
-    ' ' +
-    [pad(date.getHours()), pad(date.getMinutes())].join(':')
-  );
+  return inspectGitRepository({
+    repositoryCode: repo.repoCode,
+    repositoryName: repo.repoName,
+    repositoryRoot: repo.rootPath,
+    mainBranchName: repo.mainBranch,
+    devBranchName: repo.devBranch,
+    remote: 'origin',
+    timeoutMs: GIT_COMMAND_TIMEOUT_MS,
+    profileCode: PROFILE_CODE,
+  });
 }
 
 async function closePool() {
@@ -204,75 +269,36 @@ async function closePool() {
   }
 }
 
-// ------------------------------------------------------------
-// Main
-// ------------------------------------------------------------
-async function main() {
-  const [repoName] = process.argv.slice(2);
+async function main(args = process.argv.slice(2)) {
+  const startedAt = new Date().toISOString();
 
-  const repo = await loadRepository(repoName);
-  const originalBranch = runGitCapture(['branch', '--show-current'], repo.rootPath);
-
-  const devStatus = collectBranchStatus(repo.rootPath, repo.devBranch);
-  const mainStatus = collectBranchStatus(repo.rootPath, repo.mainBranch);
-
-  // Safety default: return to configured dev branch if it exists.
-  // If dev switch fails, return to original branch.
-  const returnToDev = runGitCapture(['switch', repo.devBranch], repo.rootPath);
-
-  if (returnToDev.startsWith('ERROR:') && originalBranch && !originalBranch.startsWith('ERROR:')) {
-    runGitCapture(['switch', originalBranch], repo.rootPath);
+  try {
+    return await runToolCli({
+      toolCode: TOOL_CODE,
+      outputType: OUTPUT_TYPE,
+      args,
+      execute: executeRepositoryStatus,
+      createToolResult: createGitRepositoryStatusToolResult,
+      createFailureToolResult: (error) =>
+        createGitRepositoryStatusFailureToolResult({
+          error,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        }),
+      renderConsole: printRepositoryStatusResult,
+    });
+  } finally {
+    await closePool();
   }
-
-  const timestamp = formatTimestamp(new Date());
-
-  console.log(`
-=========================================
- Repo Status Report: ${repo.repoCode}
- Generated: ${timestamp}
- Profile: ${PROFILE_CODE}
- Root: ${repo.rootPath}
-=========================================
-
-[ ${repo.devBranch.toUpperCase()} BRANCH ]
------------------------------------------
-Branch: ${devStatus.branch}
-Latest commit: ${devStatus.latestCommit}
-Ahead: ${devStatus.ahead}
-Behind: ${devStatus.behind}
-
-Working Directory:
-  Modified:
-    ${formatList(devStatus.modified)}
-
-  Untracked:
-    ${formatList(devStatus.untracked)}
-
-
-[ ${repo.mainBranch.toUpperCase()} BRANCH ]
------------------------------------------
-Branch: ${mainStatus.branch}
-Latest commit: ${mainStatus.latestCommit}
-Ahead: ${mainStatus.ahead}
-Behind: ${mainStatus.behind}
-
-Working Directory:
-  Modified:
-    ${formatList(mainStatus.modified)}
-
-  Untracked:
-    ${formatList(mainStatus.untracked)}
-
------------------------------------------
-Status check completed.
-Returned to ${repo.devBranch} branch safely.
-=========================================
-`);
 }
 
-main()
-  .catch((error) => {
-    console.error(`❌ ${error.message}`);
-    process.exitCode = 1;
-  })
-  .finally(closePool);
+if (require.main === module) main();
+
+module.exports = {
+  OUTPUT_TYPE,
+  TOOL_CODE,
+  executeRepositoryStatus,
+  loadRepository,
+  main,
+  printRepositoryStatusResult,
+};
