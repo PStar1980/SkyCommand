@@ -44,17 +44,25 @@ function run() {
         displayOrder: 40,
       },
       {
+        key: 'repository',
+        label: 'Repository',
+        type: 'repo',
+        optionSourceCode: 'repositories',
+        required: true,
+        displayOrder: 50,
+      },
+      {
         key: 'metadata',
         label: 'Metadata',
         type: 'json',
-        displayOrder: 50,
+        displayOrder: 60,
       },
     ],
   });
 
   assert.deepStrictEqual(
     definitions.map((parameter) => parameter.key),
-    ['commitMessage', 'attempts', 'pushEnabled', 'mode', 'metadata'],
+    ['commitMessage', 'attempts', 'pushEnabled', 'mode', 'repository', 'metadata'],
   );
   assert.strictEqual(
     coerceWorkflowRuntimeParameterValue('Phase 14 CLI runtime params', definitions[0]),
@@ -63,7 +71,9 @@ function run() {
   assert.strictEqual(coerceWorkflowRuntimeParameterValue('', definitions[1]), 2);
   assert.strictEqual(coerceWorkflowRuntimeParameterValue('yes', definitions[2]), true);
   assert.strictEqual(coerceWorkflowRuntimeParameterValue('safe', definitions[3]), 'safe');
-  assert.deepStrictEqual(coerceWorkflowRuntimeParameterValue('{"ok":true}', definitions[4]), {
+  assert.strictEqual(coerceWorkflowRuntimeParameterValue('SkyServer', definitions[4]), 'SkyServer');
+  assert.strictEqual(definitions[4].optionSourceCode, 'repositories');
+  assert.deepStrictEqual(coerceWorkflowRuntimeParameterValue('{"ok":true}', definitions[5]), {
     ok: true,
   });
   assert.throws(

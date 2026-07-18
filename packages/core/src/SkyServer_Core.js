@@ -1023,7 +1023,7 @@ function getRuntimeParameterPrompt(parameter) {
   return `${parameter.label || parameter.key}${requiredLabel}${defaultLabel}: `;
 }
 
-async function collectWorkflowRuntimeParameters(workflow) {
+async function collectWorkflowRuntimeParameters(workflow, config) {
   const definitions = Array.isArray(workflow.runtimeParameters)
     ? workflow.runtimeParameters
     : getWorkflowRuntimeParameterDefinitions(workflow.config || {});
@@ -1052,9 +1052,15 @@ async function collectWorkflowRuntimeParameters(workflow) {
     console.log(gray(`Node reference: ${getWorkflowRuntimeParameterReference(parameter.key)}`));
 
     let rawValue;
+    const parameterOptions =
+      parameter.type === 'repo'
+        ? getRepositoryOptions(config)
+        : Array.isArray(parameter.options)
+          ? parameter.options
+          : [];
 
-    if (parameter.type === 'select' && parameter.options.length > 0) {
-      parameter.options.forEach((option, index) => {
+    if ((parameter.type === 'select' || parameter.type === 'repo') && parameterOptions.length > 0) {
+      parameterOptions.forEach((option, index) => {
         console.log(`${index + 1}) ${option.label}`);
       });
 
@@ -1067,8 +1073,8 @@ async function collectWorkflowRuntimeParameters(workflow) {
         rawValue =
           Number.isFinite(selectedIndex) &&
           selectedIndex >= 1 &&
-          selectedIndex <= parameter.options.length
-            ? parameter.options[selectedIndex - 1].value
+          selectedIndex <= parameterOptions.length
+            ? parameterOptions[selectedIndex - 1].value
             : answer;
       }
     } else if (parameter.type === 'boolean') {
@@ -1252,7 +1258,7 @@ async function followWorkflowRun(workflowRunRecordId) {
   );
 }
 
-async function collectWorkflowInput(workflow) {
+async function collectWorkflowInput(workflow, config) {
   console.log('');
   console.log(yellow(`Workflow: ${workflow.displayName} (${workflow.workflowCode})`));
   console.log(gray(`Published version: v${workflow.publishedVersionNumber || '?'}`));
@@ -1275,7 +1281,7 @@ async function collectWorkflowInput(workflow) {
     throw new Error('Executor mode must be temporal or inline.');
   }
 
-  const runtimeParameters = await collectWorkflowRuntimeParameters(workflow);
+  const runtimeParameters = await collectWorkflowRuntimeParameters(workflow, config);
   const workflowId = await askQuestion(
     yellow('Optional Temporal workflow ID override (leave blank for auto-generated): '),
   );
@@ -1312,7 +1318,7 @@ async function runWorkflow(config, workflow) {
   let launch;
 
   try {
-    launch = await collectWorkflowInput(workflow);
+    launch = await collectWorkflowInput(workflow, config);
   } catch (error) {
     console.error(red(`\nERROR: ${error.message}`));
     await waitForEnter();

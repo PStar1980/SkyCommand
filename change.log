@@ -1,3 +1,11 @@
+## 2026-07-18 — Phase 14.13.1 Typed Workflow Parameter Bindings
+
+- Added a first-class `repo` / Repository workflow runtime-parameter type backed by the active SkyCommand repository catalogue rather than duplicated static choices.
+- Added type-aware workflow-parameter bindings to tool and Temporal-template node editors. Compatible node fields can now save canonical references such as `{{ params.repoName }}`; repository dropdowns show both configured repositories and compatible workflow parameters in separate groups.
+- Added repository selectors to Create/Manage Workflow defaults and Start Workflow, plus equivalent numbered repository choices in `SkyServer_Core.js`.
+- Added API-side repository validation and canonicalization so runtime values must resolve to an active configured repository before workflow execution begins.
+- Preserved existing literal node defaults and all current runtime parameter types. No database migration or seed update is required.
+
 ## 2026-07-18 — Phase 14.13 Watcher-Safe Repository Intelligence
 
 - Replaced the branch-switching `git_repo_status` implementation with a checkout-free, non-interactive repository inspector that never runs `git switch`, `git checkout`, `git pull`, `git reset`, or rewrites watched source files.

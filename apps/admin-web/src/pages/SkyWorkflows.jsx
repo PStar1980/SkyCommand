@@ -69,10 +69,11 @@ function normalizeRuntimeParameterDefinitions(definition = {}) {
         .trim()
         .replace(/[^A-Za-z0-9_.:-]+/g, '_')
         .replace(/^_+|_+$/g, '');
-      const type = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string')
+      const requestedType = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string')
         .trim()
         .toLowerCase();
-      const normalizedType = ['string', 'number', 'boolean', 'select', 'date', 'json'].includes(
+      const type = requestedType === 'repository' ? 'repo' : requestedType;
+      const normalizedType = ['string', 'number', 'boolean', 'select', 'date', 'json', 'repo'].includes(
         type,
       )
         ? type
@@ -89,6 +90,7 @@ function normalizeRuntimeParameterDefinitions(definition = {}) {
         description: raw.description || raw.prompt || '',
         prompt: raw.prompt || raw.description || '',
         options: normalizeRuntimeParameterOptions(raw.options || raw.allowedValues || raw.values),
+        optionSourceCode: raw.optionSourceCode || (normalizedType === 'repo' ? 'repositories' : null),
         maxLength: Number.isFinite(Number(raw.maxLength)) ? Number(raw.maxLength) : null,
         displayOrder: Number.isFinite(Number(raw.displayOrder))
           ? Number(raw.displayOrder)
@@ -170,6 +172,14 @@ function parseRuntimeParameterValues(parameters = [], values = {}) {
     accumulator[parameter.key] = stringValue;
     return accumulator;
   }, {});
+}
+
+function getRuntimeParameterOptions(parameter = {}, repositoryOptions = []) {
+  if (parameter.type === 'repo' || parameter.optionSourceCode === 'repositories') {
+    return Array.isArray(repositoryOptions) ? repositoryOptions : [];
+  }
+
+  return Array.isArray(parameter.options) ? parameter.options : [];
 }
 
 function normalizeRuntimeFilter(value) {
@@ -3379,6 +3389,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
   const [followActiveRuntimeNode, setFollowActiveRuntimeNode] = useState(true);
   const [runtimeParameterValues, setRuntimeParameterValues] = useState({});
+  const [repositoryOptions, setRepositoryOptions] = useState([]);
   const [runtimeParameterError, setRuntimeParameterError] = useState('');
   const [runDetailOverlayOpen, setRunDetailOverlayOpen] = useState(false);
   const [telemetryState, setTelemetryState] = useState({
@@ -3477,9 +3488,16 @@ function SkyWorkflows({ mode = 'start' }) {
   const historyRangeEnd = Math.min(historyPageStart + HISTORY_PAGE_SIZE, historyRuns.length);
 
   async function loadDefinitions({ keepSelection = true } = {}) {
-    const result = await workflowService.listDefinitions();
+    const [result, catalogResult] = await Promise.all([
+      workflowService.listDefinitions(),
+      mode === 'start' ? workflowService.getBuilderCatalog() : Promise.resolve(null),
+    ]);
     const items = result.items || [];
     setDefinitions(items);
+
+    if (catalogResult) {
+      setRepositoryOptions(catalogResult.repositoryOptions || []);
+    }
 
     const nextSelection =
       (keepSelection && selectedDefinition
@@ -4612,6 +4630,7 @@ function SkyWorkflows({ mode = 'start' }) {
                   {runtimeParameters.map((parameter) => {
                     const inputId = `runtime-param-${parameter.key}`;
                     const value = runtimeParameterValues[parameter.key] ?? '';
+                    const parameterOptions = getRuntimeParameterOptions(parameter, repositoryOptions);
 
                     if (parameter.type === 'boolean') {
                       return (
@@ -4646,7 +4665,7 @@ function SkyWorkflows({ mode = 'start' }) {
                           {parameter.label}
                           {parameter.required && <span className="text-danger ms-1">*</span>}
                         </label>
-                        {parameter.type === 'select' ? (
+                        {parameter.type === 'select' || parameter.type === 'repo' ? (
                           <select
                             className="form-select sky-form-control"
                             id={inputId}
@@ -4662,7 +4681,7 @@ function SkyWorkflows({ mode = 'start' }) {
                             <option value="">
                               {parameter.prompt || `Select ${parameter.label}`}
                             </option>
-                            {parameter.options.map((option) => (
+                            {parameterOptions.map((option) => (
                               <option key={option.value} value={option.value}>
                                 {option.label}
                               </option>

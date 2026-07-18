@@ -260,6 +260,8 @@ function mapTemporalParameter(parameter = {}) {
     STRING_ARRAY: 'string',
     ARRAY: 'string',
     STRING: 'string',
+    REPO: 'repo',
+    REPOSITORY: 'repo',
   };
 
   return {
@@ -402,7 +404,7 @@ function getManagerNodeExpressionSummary(node, selectedTool) {
   return node.targetCode || selectedTool?.targetCode || 'target tool';
 }
 
-function EditableNodeCard({ index, node, allNodes = [], highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], onChange, onMoveDown, onMoveUp, onRemove }) {
+function EditableNodeCard({ index, node, allNodes = [], highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], runtimeParameters = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
@@ -694,6 +696,7 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameterValues={node.inputParameters || {}}
                 parameters={getTemporalEditorParameters(selectedTemporalWorkflow)}
+                workflowParameters={runtimeParameters}
               />
               <div className="form-text mt-2">
                 Runs the approved Temporal-native template as a child execution and waits for completion. Use this for specialized durable subprocesses.
@@ -757,6 +760,7 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameterValues={node.inputParameters || {}}
                 parameters={selectedTool?.parameters || []}
+                workflowParameters={runtimeParameters}
               />
               <div className="form-text mt-2">
                 Stored as node default tool parameters from the manifest configuration. Start Workflow uses these defaults.
@@ -888,7 +892,7 @@ function ReadOnlyNodeParameterPanel({
 
 
 function WorkflowManager() {
-  const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [] });
+  const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [], repositoryOptions: [] });
   const [definitions, setDefinitions] = useState([]);
   const [selectedCode, setSelectedCode] = useState('');
   const [detail, setDetail] = useState(null);
@@ -963,6 +967,7 @@ function WorkflowManager() {
         workflowTargets: catalogResult.workflowTargets || [],
         temporalWorkflowTargets: catalogResult.temporalWorkflowTargets || [],
         approvalRoleTargets: catalogResult.approvalRoleTargets || [],
+        repositoryOptions: catalogResult.repositoryOptions || [],
       });
 
       const selectedExists = items.some((item) => item.workflowCode === nextSelectedCode);
@@ -1724,6 +1729,7 @@ function WorkflowManager() {
                         idPrefix="workflow-manager-runtime-param"
                         onChange={(runtimeParameters) => setMetadataForm((current) => ({ ...current, runtimeParameters }))}
                         parameters={metadataForm.runtimeParameters}
+                        repositoryOptions={catalog.repositoryOptions || []}
                       />
                     </div>
                   </div>
@@ -1943,6 +1949,7 @@ function WorkflowManager() {
                             highlighted
                             key={`${selectedEditorNodeIndex}-${selectedEditorNode.nodeKey || selectedEditorNode.targetCode}`}
                             node={selectedEditorNode}
+                            runtimeParameters={normalizeRuntimeParameterDefinitions(metadataForm.runtimeParameters)}
                             onChange={updateEditorNode}
                             onMoveDown={() => moveEditorNode(selectedEditorNodeIndex, 1, { selectMovedNode: true })}
                             onMoveUp={() => moveEditorNode(selectedEditorNodeIndex, -1, { selectMovedNode: true })}

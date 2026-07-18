@@ -247,6 +247,14 @@ Use this exact node-default expression for the `commitMessage` workflow paramete
 {{ params.commitMessage }}
 ```
 
+Phase 14.13.1 adds a first-class `repo` runtime type whose choices come from the active repository catalogue. Compatible repository tool fields expose the workflow parameter beside literal repository choices and save the same canonical expression form:
+
+```text
+{{ params.repoName }}
+```
+
+Admin-Web and SkyServer Core both render repository selectors, while the API validates and canonicalizes the value before execution. Type-aware binding rules prevent unrelated workflow parameter types from appearing in incompatible node fields.
+
 The same expression resolves in inline execution and in the Temporal workflow bundle. Advanced callers may still supply additional workflow input JSON; explicitly prompted values take precedence over duplicate parameter keys in that JSON.
 
 Temporal-backed CLI launches can optionally remain attached until the run reaches a terminal state. The monitor reads the PostgreSQL run and node ledgers directly, so it is independent of Admin-Web and Vite. This is the preferred launch path for the Repository Intelligence → Repository Map → Repository ZIP → Dev Commit → Approval → Main Merge workflow.
