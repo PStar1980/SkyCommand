@@ -193,6 +193,8 @@ function mapTemporalParameter(parameter = {}) {
     STRING_ARRAY: 'string',
     ARRAY: 'string',
     STRING: 'string',
+    REPO: 'repo',
+    REPOSITORY: 'repo',
   };
 
   return {
@@ -363,6 +365,7 @@ function WorkflowBuilderNodeCard({
   workflowTargets = [],
   temporalWorkflowTargets = [],
   approvalRoleTargets = [],
+  runtimeParameters = [],
   onChange,
   onMoveDown,
   onMoveUp,
@@ -657,6 +660,7 @@ function WorkflowBuilderNodeCard({
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameterValues={node.inputParameters || {}}
                 parameters={getTemporalEditorParameters(selectedTemporalWorkflow)}
+                workflowParameters={runtimeParameters}
               />
               <div className="form-text mt-2">
                 Runs the approved Temporal-native template as a child execution and waits for completion. Use this for specialized durable subprocesses.
@@ -720,6 +724,7 @@ function WorkflowBuilderNodeCard({
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameterValues={node.inputParameters || {}}
                 parameters={selectedTool?.parameters || []}
+                workflowParameters={runtimeParameters}
               />
               <div className="form-text mt-2">
                 Stored as node default tool parameters from the manifest configuration. Start Workflow uses these defaults.
@@ -743,7 +748,7 @@ function WorkflowBuilderNodeCard({
 }
 
 function WorkflowBuilder() {
-  const [catalog, setCatalog] = useState({ nodeTypes: [], toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [] });
+  const [catalog, setCatalog] = useState({ nodeTypes: [], toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [], repositoryOptions: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -869,6 +874,7 @@ function WorkflowBuilder() {
         workflowTargets: result.workflowTargets || [],
         temporalWorkflowTargets: result.temporalWorkflowTargets || [],
         approvalRoleTargets: result.approvalRoleTargets || [],
+        repositoryOptions: result.repositoryOptions || [],
       });
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow builder catalog.'));
@@ -1341,6 +1347,7 @@ function WorkflowBuilder() {
                   idPrefix="workflow-create-runtime-param"
                   onChange={(runtimeParameters) => patchForm({ runtimeParameters })}
                   parameters={form.runtimeParameters}
+                  repositoryOptions={catalog.repositoryOptions || []}
                 />
               </div>
             </div>
@@ -1389,6 +1396,7 @@ function WorkflowBuilder() {
                   index={selectedBuilderNodeIndex}
                   key={`${selectedBuilderNodeIndex}-${selectedBuilderNode.nodeKey || selectedBuilderNode.targetCode || selectedBuilderNode.nodeTypeCode}`}
                   node={selectedBuilderNode}
+                  runtimeParameters={normalizeRuntimeParameterDefinitions(form.runtimeParameters)}
                   onChange={updateNode}
                   onMoveDown={() => moveNode(selectedBuilderNodeIndex, 1)}
                   onMoveUp={() => moveNode(selectedBuilderNodeIndex, -1)}

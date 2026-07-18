@@ -16,6 +16,11 @@ const toolManifestService = require('./toolManifestService');
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const MAX_WORKFLOW_RUNTIME_PARAMETERS = 10;
+const PROFILE_CODE =
+  process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.CONFIG_PROFILE ||
+  'DEV_LOCAL';
 const SUPPORTED_NODE_TYPES = new Set([
   'TOOL',
   'API_CALL',
@@ -1781,10 +1786,11 @@ function normalizeWorkflowParameterDefinitions(parameters = []) {
         raw.key || raw.parameterName || raw.name || raw.paramName || `param_${index + 1}`,
         `param_${index + 1}`,
       );
-      const type = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string')
+      const requestedType = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string')
         .trim()
         .toLowerCase();
-      const allowedType = ['string', 'number', 'boolean', 'select', 'date', 'json'].includes(type)
+      const type = requestedType === 'repository' ? 'repo' : requestedType;
+      const allowedType = ['string', 'number', 'boolean', 'select', 'date', 'json', 'repo'].includes(type)
         ? type
         : 'string';
 
@@ -1799,6 +1805,7 @@ function normalizeWorkflowParameterDefinitions(parameters = []) {
         description: raw.description || raw.prompt || '',
         prompt: raw.prompt || raw.description || '',
         options: normalizeRuntimeParameterOptions(raw.options || raw.allowedValues || raw.values),
+        optionSourceCode: raw.optionSourceCode || (allowedType === 'repo' ? 'repositories' : null),
         maxLength: Number.isFinite(Number(raw.maxLength)) ? Number(raw.maxLength) : null,
         displayOrder: Number.isFinite(Number(raw.displayOrder))
           ? Number(raw.displayOrder)
@@ -1926,7 +1933,42 @@ function coerceRuntimeParameterValue(value, parameter) {
   return stringValue;
 }
 
-function validateWorkflowRuntimeInput(definition = {}, input = {}) {
+async function resolveRepositoryRuntimeParameterValue(value, parameter = {}) {
+  const requestedValue = String(value || '').trim();
+  const result = await query(
+    `
+      SELECT
+        repo_code,
+        repo_name,
+        display_order
+      FROM core.vw_repository_paths
+      WHERE profile_code = $1
+        AND (
+          LOWER(repo_code) = LOWER($2)
+          OR LOWER(repo_name) = LOWER($2)
+        )
+      ORDER BY display_order, repo_code
+      LIMIT 1
+    `,
+    [PROFILE_CODE, requestedValue],
+  );
+
+  if (result.rows.length === 0) {
+    throw new WorkflowServiceError(
+      `Runtime parameter ${parameter.label || parameter.key} must reference an active configured repository.`,
+      400,
+      {
+        parameterKey: parameter.key,
+        value: requestedValue,
+        optionSourceCode: 'repositories',
+      },
+    );
+  }
+
+  return result.rows[0].repo_code;
+}
+
+async function validateWorkflowRuntimeInput(definition = {}, input = {}) {
   const safeInput = getSafeObject(input);
   const parameters = getDefinitionRuntimeParameters(definition);
   const suppliedParams = getWorkflowRuntimeParams(safeInput);
@@ -1952,7 +1994,11 @@ function validateWorkflowRuntimeInput(definition = {}, input = {}) {
       );
     }
 
-    const coercedValue = coerceRuntimeParameterValue(supplied, parameter);
+    let coercedValue = coerceRuntimeParameterValue(supplied, parameter);
+
+    if (parameter.type === 'repo' && !isBlankRuntimeParameterValue(coercedValue)) {
+      coercedValue = await resolveRepositoryRuntimeParameterValue(coercedValue, parameter);
+    }
 
     if (!isBlankRuntimeParameterValue(coercedValue) || parameter.type === 'boolean') {
       normalizedParams[parameter.key] = coercedValue;
@@ -3537,6 +3583,7 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     workflowTargetResult,
     temporalWorkflowTargetResult,
     approvalRoleResult,
+    repositoryResult,
   ] = await Promise.all([
     query(
       `
@@ -3594,6 +3641,18 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
           AND r.active = TRUE
         ORDER BY r.is_system_role DESC, r.role_code
       `,
+    ),
+    query(
+      `
+        SELECT
+          repo_code,
+          repo_name,
+          display_order
+        FROM core.vw_repository_paths
+        WHERE profile_code = $1
+        ORDER BY display_order, repo_name, repo_code
+      `,
+      [PROFILE_CODE],
     ),
   ]);
 
@@ -3686,6 +3745,18 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     };
   });
 
+  const repositoryOptions = repositoryResult.rows.map((row) => {
+    const item = camelizeRow(row);
+
+    return {
+      value: item.repoCode,
+      label: item.repoName || item.repoCode,
+      repoCode: item.repoCode,
+      repoName: item.repoName || item.repoCode,
+      displayOrder: item.displayOrder || 0,
+    };
+  });
+
   return {
     nodeTypes,
     supportedNodeTypes: nodeTypes.filter((nodeType) => nodeType.initiallySupported),
@@ -3693,6 +3764,7 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     workflowTargets,
     temporalWorkflowTargets,
     approvalRoleTargets,
+    repositoryOptions,
   };
 }
 
@@ -6152,7 +6224,7 @@ async function startWorkflowWithTemporal({
     });
   }
 
-  const normalizedInput = validateWorkflowRuntimeInput(definition, input);
+  const normalizedInput = await validateWorkflowRuntimeInput(definition, input);
 
   const run = await insertWorkflowRun({
     definition,
@@ -6301,7 +6373,7 @@ async function executeWorkflow({
     });
   }
 
-  const normalizedInput = validateWorkflowRuntimeInput(definition, input);
+  const normalizedInput = await validateWorkflowRuntimeInput(definition, input);
 
   const run = await insertWorkflowRun({ definition, input: normalizedInput, user, context });
   const nodeRuns = [];

@@ -7,6 +7,7 @@ const PARAMETER_TYPE_OPTIONS = [
   { value: 'select', label: 'Select' },
   { value: 'date', label: 'Date' },
   { value: 'json', label: 'JSON' },
+  { value: 'repo', label: 'Repository' },
 ];
 
 function slugifyParameterKey(value, fallback = '') {
@@ -65,7 +66,8 @@ function normalizeRuntimeParameterDefinitions(parameters = []) {
     .map((parameter, index) => {
       const raw = parameter && typeof parameter === 'object' ? parameter : {};
       const key = slugifyParameterKey(raw.key || raw.parameterName || raw.name || raw.paramName || '', '');
-      const type = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string').trim().toLowerCase();
+      const requestedType = String(raw.type || raw.paramTypeCode || raw.parameterType || 'string').trim().toLowerCase();
+      const type = requestedType === 'repository' ? 'repo' : requestedType;
       const normalizedType = PARAMETER_TYPE_OPTIONS.some((option) => option.value === type) ? type : 'string';
       const options = normalizeParameterOptions(raw.options || raw.allowedValues || raw.values);
 
@@ -80,6 +82,7 @@ function normalizeRuntimeParameterDefinitions(parameters = []) {
         prompt: raw.prompt || raw.description || '',
         options,
         optionsText: formatOptionsText(options),
+        optionSourceCode: raw.optionSourceCode || (normalizedType === 'repo' ? 'repositories' : null),
         maxLength: raw.maxLength ?? '',
         displayOrder: Number.isFinite(Number(raw.displayOrder)) ? Number(raw.displayOrder) : index * 10 + 10,
       };
@@ -118,6 +121,10 @@ function cleanRuntimeParameterDefinitions(parameters = []) {
       prompt: String(parameter.prompt || parameter.description || '').trim(),
       displayOrder: (index + 1) * 10,
     };
+
+    if (cleaned.type === 'repo') {
+      cleaned.optionSourceCode = 'repositories';
+    }
 
     if (parameter.defaultValue !== undefined && parameter.defaultValue !== null && String(parameter.defaultValue) !== '') {
       cleaned.defaultValue = parameter.defaultValue;
@@ -158,6 +165,7 @@ function createBlankParameter(index = 0) {
     options: [],
     optionsText: '',
     maxLength: '',
+    optionSourceCode: null,
     displayOrder: index * 10 + 10,
   };
 }
@@ -167,6 +175,7 @@ function RuntimeParameterSchemaEditor({
   idPrefix = 'runtime-param-schema',
   onChange,
   parameters = [],
+  repositoryOptions = [],
 }) {
   const normalizedParameters = normalizeRuntimeParameterDefinitions(parameters);
   const canAdd = !disabled && normalizedParameters.length < MAX_RUNTIME_PARAMETERS;
@@ -209,6 +218,9 @@ function RuntimeParameterSchemaEditor({
       {normalizedParameters.map((parameter, index) => {
         const inputBase = `${idPrefix}-${index}`;
         const referenceText = parameter.key ? `{{ params.${parameter.key} }}` : '{{ params.name }}';
+        const repositoryDefaultAvailable = repositoryOptions.some(
+          (option) => String(option.value) === String(parameter.defaultValue ?? ''),
+        );
 
         return (
           <div className="sky-worker-command-card" key={`${index}-${parameter.key || 'param'}`}>
@@ -273,14 +285,34 @@ function RuntimeParameterSchemaEditor({
               </div>
               <div className="col-lg-3">
                 <label className="form-label" htmlFor={`${inputBase}-default`}>Default value</label>
-                <input
-                  className="form-control sky-form-control sky-mono"
-                  disabled={disabled || parameter.type === 'json'}
-                  id={`${inputBase}-default`}
-                  onChange={(event) => updateParameter(index, { defaultValue: event.target.value })}
-                  placeholder={parameter.type === 'json' ? 'Set at runtime' : 'Optional'}
-                  value={parameter.type === 'json' ? '' : String(parameter.defaultValue ?? '')}
-                />
+                {parameter.type === 'repo' ? (
+                  <select
+                    className="form-select sky-form-control"
+                    disabled={disabled}
+                    id={`${inputBase}-default`}
+                    onChange={(event) => updateParameter(index, { defaultValue: event.target.value })}
+                    value={String(parameter.defaultValue ?? '')}
+                  >
+                    <option value="">Optional</option>
+                    {repositoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                    {parameter.defaultValue && !repositoryDefaultAvailable && (
+                      <option value={String(parameter.defaultValue)}>
+                        Current value — {String(parameter.defaultValue)}
+                      </option>
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    className="form-control sky-form-control sky-mono"
+                    disabled={disabled || parameter.type === 'json'}
+                    id={`${inputBase}-default`}
+                    onChange={(event) => updateParameter(index, { defaultValue: event.target.value })}
+                    placeholder={parameter.type === 'json' ? 'Set at runtime' : 'Optional'}
+                    value={parameter.type === 'json' ? '' : String(parameter.defaultValue ?? '')}
+                  />
+                )}
               </div>
               <div className="col-lg-3">
                 <label className="form-label" htmlFor={`${inputBase}-max`}>Max length</label>
@@ -307,6 +339,13 @@ function RuntimeParameterSchemaEditor({
                     value={parameter.optionsText || ''}
                   />
                   <div className="form-text sky-muted">One option per line. Use value|Label when the display label differs.</div>
+                </div>
+              )}
+              {parameter.type === 'repo' && (
+                <div className="col-12">
+                  <div className="sky-empty-state text-start py-2">
+                    Repository choices are loaded from the active SkyCommand repository catalogue at runtime. Compatible repository fields can bind to this parameter as <code>{referenceText}</code>.
+                  </div>
                 </div>
               )}
               <div className="col-12">

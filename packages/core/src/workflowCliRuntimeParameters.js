@@ -7,6 +7,7 @@ const SUPPORTED_PARAMETER_TYPES = new Set([
   'select',
   'date',
   'json',
+  'repo',
 ]);
 
 function getSafeObject(value, fallback = {}) {
@@ -107,7 +108,8 @@ function getWorkflowRuntimeParameterDefinitions(config = {}) {
       )
         .trim()
         .toLowerCase();
-      const type = SUPPORTED_PARAMETER_TYPES.has(requestedType) ? requestedType : 'string';
+      const canonicalType = requestedType === 'repository' ? 'repo' : requestedType;
+      const type = SUPPORTED_PARAMETER_TYPES.has(canonicalType) ? canonicalType : 'string';
 
       return {
         key,
@@ -119,6 +121,7 @@ function getWorkflowRuntimeParameterDefinitions(config = {}) {
         description: String(raw.description || raw.prompt || '').trim(),
         prompt: String(raw.prompt || raw.description || '').trim(),
         options: normalizeRuntimeParameterOptions(raw.options || raw.allowedValues || raw.values),
+        optionSourceCode: raw.optionSourceCode || (type === 'repo' ? 'repositories' : null),
         maxLength: Number.isFinite(Number(raw.maxLength)) ? Number(raw.maxLength) : null,
         displayOrder: Number.isFinite(Number(raw.displayOrder))
           ? Number(raw.displayOrder)
