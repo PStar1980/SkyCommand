@@ -178,6 +178,99 @@ function gitBranchSyncResult() {
   };
 }
 
+function gitRepositoryStatusResult() {
+  const sha = '4'.repeat(40);
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'SkyServer is ready for development promotion.',
+    outputType: 'git_repository_status.v1',
+    output: {
+      operationKind: 'REPOSITORY_STATUS',
+      executionStrategy: 'CHECKOUT_FREE_INSPECTION',
+      watcherSafe: true,
+      outcome: 'READY',
+      repositoryCode: 'SkyServer',
+      repositoryName: 'SkyServer',
+      repositoryRoot: 'C:/Projects/SkyServer',
+      remote: 'origin',
+      expectedBranch: 'dev',
+      currentBranch: 'dev',
+      detachedHead: false,
+      fetchPerformed: true,
+      fetchSucceeded: true,
+      workingTree: {
+        clean: false,
+        hasChanges: true,
+        staged: 0,
+        modified: 4,
+        untracked: 2,
+        conflicted: 0,
+        totalChanges: 6,
+        entries: [],
+      },
+      branches: {
+        main: {
+          name: 'main',
+          localSha: sha,
+          remoteSha: sha,
+          ahead: 0,
+          behind: 0,
+          localMatchesRemote: true,
+          latestLocalCommit: null,
+          latestRemoteCommit: null,
+        },
+        dev: {
+          name: 'dev',
+          localSha: sha,
+          remoteSha: sha,
+          ahead: 0,
+          behind: 0,
+          localMatchesRemote: true,
+          latestLocalCommit: null,
+          latestRemoteCommit: null,
+        },
+      },
+      relationship: {
+        localBranchesSynchronized: true,
+        remoteBranchesSynchronized: true,
+        localMainContainsDev: true,
+        localDevContainsMain: true,
+        mainContainsDev: true,
+        devContainsMain: true,
+        commonAncestorSha: sha,
+      },
+      repositoryState: {
+        gitDir: 'C:/Projects/SkyServer/.git',
+        commonDir: 'C:/Projects/SkyServer/.git',
+        indexLockPresent: false,
+        mergeInProgress: false,
+        rebaseInProgress: false,
+        cherryPickInProgress: false,
+        revertInProgress: false,
+        bisectInProgress: false,
+        operationInProgress: false,
+      },
+      readyForDevelopmentPromotion: true,
+      blockers: [],
+      advisories: ['6 working-tree changes are available for commit.'],
+      recommendedActions: [],
+      recentCommits: [],
+      startedAt: '2026-07-18T16:00:00.000Z',
+      completedAt: '2026-07-18T16:00:01.000Z',
+      durationMs: 1000,
+    },
+    warnings: [],
+    error: null,
+    metadata: {},
+    kind: 'tool_execution',
+    toolCode: 'git_repo_status',
+    status: 'SUCCESS',
+    durationMs: 1000,
+    executionId: 'git-repository-status-execution',
+  };
+}
+
 function humanApprovalResult() {
   return {
     kind: 'human_approval',
@@ -331,6 +424,28 @@ function run() {
   const scheduledMap = buildScheduledToolResultSummary(mapResult);
   assert.equal(scheduledMap.repositoryMap.directoriesDocumented, 42);
 
+  const repositoryStatusResult = gitRepositoryStatusResult();
+  const repositoryStatusLookup = buildConditionNodeLookup(
+    {},
+    { repo_status_node: repositoryStatusResult },
+  );
+  assert.equal(
+    repositoryStatusLookup.repo_status_node.output.readyForDevelopmentPromotion,
+    true,
+  );
+  assert.equal(repositoryStatusLookup.repo_status_node.output.workingTree.totalChanges, 6);
+  const repositoryStatusKeyOutputs = buildSummaryKeyOutputs({
+    repo_status_node: repositoryStatusResult,
+  });
+  assert.equal(repositoryStatusKeyOutputs.repo_status_node.output.outcome, 'READY');
+  assert.equal(repositoryStatusKeyOutputs.repo_status_node.output.blockerCount, 0);
+  const scheduledRepositoryStatus = buildScheduledToolResultSummary(repositoryStatusResult);
+  assert.equal(scheduledRepositoryStatus.gitRepositoryStatus.currentBranch, 'dev');
+  assert.equal(
+    scheduledRepositoryStatus.gitRepositoryStatus.readyForDevelopmentPromotion,
+    true,
+  );
+
   const commitResult = gitCommitResult();
   const commitLookup = buildConditionNodeLookup({}, { dev_commit_node: commitResult });
   assert.equal(commitLookup.dev_commit_node.output.changedFiles, 6);
@@ -350,6 +465,7 @@ function run() {
   assert.equal(scheduledBranchSync.gitBranchSync.targetBranch, 'dev');
 
   const promotion = buildGitPromotionRollup({
+    repo_status_node: repositoryStatusResult,
     repo_map_node: mapResult,
     repo_zip_node: repositoryResult,
     dev_commit_node: commitResult,
@@ -361,16 +477,19 @@ function run() {
   assert.equal(promotion.pullRequestDirection, 'dev → main');
   assert.equal(promotion.synchronizationDirection, 'main → dev');
   assert.equal(promotion.approval.decision, 'APPROVED');
-  assert.equal(promotion.stages.length, 5);
+  assert.equal(promotion.stages.length, 6);
+  assert.equal(promotion.preflight.readyForDevelopmentPromotion, true);
   assert.equal(promotion.branchesSynchronized, true);
 
   const promotionStructured = buildStructuredResultRollup({
+    repo_status_node: repositoryStatusResult,
     repo_map_node: mapResult,
     repo_zip_node: repositoryResult,
     dev_commit_node: commitResult,
     merge_approval_node: humanApprovalResult(),
     main_merge_node: branchSyncResult,
   });
+  assert.equal(promotionStructured.outputTypes['git_repository_status.v1'], 1);
   assert.equal(promotionStructured.outputTypes['git_branch_sync_summary.v1'], 1);
   assert.equal(promotionStructured.gitPromotion.outcome, 'PROMOTED');
 

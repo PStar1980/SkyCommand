@@ -1,3 +1,13 @@
+## 2026-07-18 — Phase 14.13 Watcher-Safe Repository Intelligence
+
+- Replaced the branch-switching `git_repo_status` implementation with a checkout-free, non-interactive repository inspector that never runs `git switch`, `git checkout`, `git pull`, `git reset`, or rewrites watched source files.
+- Added remote refresh, local/remote `main` and `dev` branch heads, ahead/behind counts, ancestry relationships, working-tree classifications, index-lock and in-progress-operation detection, recent commit evidence, promotion blockers, advisories, and recommended recovery actions.
+- Added the versioned `git_repository_status.v1` ToolResult contract, strict documentation/test schema, and `npm run git-repository-status:self-test` while preserving human-readable CLI and Tool History output.
+- Dirty working-tree files remain advisory because they are the intended input to Dev Commit; conflicts, stale or divergent development refs, the wrong active branch, incomplete Git operations, missing refs, failed remote refresh, and an unsynchronized remote baseline block promotion readiness.
+- Added canonical condition support for `nodes.repo_status_node.output.readyForDevelopmentPromotion`, compact scheduler evidence, and optional Repository Preflight evidence in the Development Promotion Summary rollup.
+- Added a purpose-built Workflow History renderer for readiness, working-tree totals and paths, branch tracking, repository-operation state, blockers, recent history, advisories, and corrective actions.
+- Added migration `00065__repository_intelligence_tool.sql` to update the existing tool label and description and expose this low-risk read-only diagnostic to the worker scheduler; no hash, manifest, snapshot, or execution gate was added.
+
 ## 2026-07-17 — Phase 14.12.1 Watcher-Safe Main Merge
 
 - Reworked `main_merge` into a checkout-free remote synchronization operation so Temporal workers, API processes, and Vite are not restarted by `git switch`, `git pull`, or working-tree rewrites during a live workflow.

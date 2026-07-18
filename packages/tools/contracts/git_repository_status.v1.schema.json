@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/git_repository_status.v1.schema.json",
+  "title": "Git Repository Status v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationKind",
+    "executionStrategy",
+    "watcherSafe",
+    "outcome",
+    "repositoryCode",
+    "repositoryName",
+    "repositoryRoot",
+    "remote",
+    "expectedBranch",
+    "currentBranch",
+    "detachedHead",
+    "fetchPerformed",
+    "fetchSucceeded",
+    "workingTree",
+    "branches",
+    "relationship",
+    "repositoryState",
+    "readyForDevelopmentPromotion",
+    "blockers",
+    "advisories",
+    "recommendedActions",
+    "recentCommits",
+    "startedAt",
+    "completedAt",
+    "durationMs"
+  ],
+  "properties": {
+    "operationKind": { "const": "REPOSITORY_STATUS" },
+    "executionStrategy": { "const": "CHECKOUT_FREE_INSPECTION" },
+    "watcherSafe": { "const": true },
+    "outcome": { "type": "string", "enum": ["READY", "BLOCKED", "FAILED"] },
+    "repositoryCode": { "type": ["string", "null"], "maxLength": 240 },
+    "repositoryName": { "type": ["string", "null"], "maxLength": 240 },
+    "repositoryRoot": { "type": ["string", "null"], "maxLength": 4000 },
+    "remote": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "expectedBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "currentBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "detachedHead": { "type": "boolean" },
+    "fetchPerformed": { "type": "boolean" },
+    "fetchSucceeded": { "type": "boolean" },
+    "workingTree": { "$ref": "#/$defs/workingTree" },
+    "branches": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["main", "dev"],
+      "properties": {
+        "main": { "$ref": "#/$defs/branch" },
+        "dev": { "$ref": "#/$defs/branch" }
+      }
+    },
+    "relationship": { "$ref": "#/$defs/relationship" },
+    "repositoryState": { "$ref": "#/$defs/repositoryState" },
+    "readyForDevelopmentPromotion": { "type": "boolean" },
+    "blockers": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "message": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    },
+    "advisories": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "maxLength": 2000 }
+    },
+    "recommendedActions": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "maxLength": 2000 }
+    },
+    "recentCommits": {
+      "type": "array",
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/commit" }
+    },
+    "startedAt": { "type": ["string", "null"], "format": "date-time" },
+    "completedAt": { "type": ["string", "null"], "format": "date-time" },
+    "durationMs": { "type": "number", "minimum": 0 }
+  },
+  "$defs": {
+    "nullableSha": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-fA-F]{40,64}$"
+    },
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha", "shortSha", "decorations", "subject", "authorName", "authoredAt"],
+      "properties": {
+        "sha": { "$ref": "#/$defs/nullableSha" },
+        "shortSha": { "type": ["string", "null"], "maxLength": 64 },
+        "decorations": { "type": ["string", "null"], "maxLength": 2000 },
+        "subject": { "type": ["string", "null"], "maxLength": 4000 },
+        "authorName": { "type": ["string", "null"], "maxLength": 1000 },
+        "authoredAt": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "workingTreeEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "indexStatus",
+        "workTreeStatus",
+        "staged",
+        "modified",
+        "untracked",
+        "conflicted"
+      ],
+      "properties": {
+        "path": { "type": "string", "maxLength": 4000 },
+        "indexStatus": { "type": "string", "maxLength": 1 },
+        "workTreeStatus": { "type": "string", "maxLength": 1 },
+        "staged": { "type": "boolean" },
+        "modified": { "type": "boolean" },
+        "untracked": { "type": "boolean" },
+        "conflicted": { "type": "boolean" }
+      }
+    },
+    "workingTree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clean",
+        "hasChanges",
+        "staged",
+        "modified",
+        "untracked",
+        "conflicted",
+        "totalChanges",
+        "entries"
+      ],
+      "properties": {
+        "clean": { "type": "boolean" },
+        "hasChanges": { "type": "boolean" },
+        "staged": { "type": "integer", "minimum": 0 },
+        "modified": { "type": "integer", "minimum": 0 },
+        "untracked": { "type": "integer", "minimum": 0 },
+        "conflicted": { "type": "integer", "minimum": 0 },
+        "totalChanges": { "type": "integer", "minimum": 0 },
+        "entries": {
+          "type": "array",
+          "maxItems": 500,
+          "items": { "$ref": "#/$defs/workingTreeEntry" }
+        }
+      }
+    },
+    "branch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "localSha",
+        "remoteSha",
+        "ahead",
+        "behind",
+        "localMatchesRemote",
+        "latestLocalCommit",
+        "latestRemoteCommit"
+      ],
+      "properties": {
+        "name": { "type": ["string", "null"], "maxLength": 500 },
+        "localSha": { "$ref": "#/$defs/nullableSha" },
+        "remoteSha": { "$ref": "#/$defs/nullableSha" },
+        "ahead": { "type": ["integer", "null"], "minimum": 0 },
+        "behind": { "type": ["integer", "null"], "minimum": 0 },
+        "localMatchesRemote": { "type": "boolean" },
+        "latestLocalCommit": { "anyOf": [{ "$ref": "#/$defs/commit" }, { "type": "null" }] },
+        "latestRemoteCommit": { "anyOf": [{ "$ref": "#/$defs/commit" }, { "type": "null" }] }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "localBranchesSynchronized",
+        "remoteBranchesSynchronized",
+        "localMainContainsDev",
+        "localDevContainsMain",
+        "mainContainsDev",
+        "devContainsMain",
+        "commonAncestorSha"
+      ],
+      "properties": {
+        "localBranchesSynchronized": { "type": "boolean" },
+        "remoteBranchesSynchronized": { "type": "boolean" },
+        "localMainContainsDev": { "type": ["boolean", "null"] },
+        "localDevContainsMain": { "type": ["boolean", "null"] },
+        "mainContainsDev": { "type": ["boolean", "null"] },
+        "devContainsMain": { "type": ["boolean", "null"] },
+        "commonAncestorSha": { "$ref": "#/$defs/nullableSha" }
+      }
+    },
+    "repositoryState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gitDir",
+        "commonDir",
+        "indexLockPresent",
+        "mergeInProgress",
+        "rebaseInProgress",
+        "cherryPickInProgress",
+        "revertInProgress",
+        "bisectInProgress",
+        "operationInProgress"
+      ],
+      "properties": {
+        "gitDir": { "type": ["string", "null"], "maxLength": 4000 },
+        "commonDir": { "type": ["string", "null"], "maxLength": 4000 },
+        "indexLockPresent": { "type": "boolean" },
+        "mergeInProgress": { "type": "boolean" },
+        "rebaseInProgress": { "type": "boolean" },
+        "cherryPickInProgress": { "type": "boolean" },
+        "revertInProgress": { "type": "boolean" },
+        "bisectInProgress": { "type": "boolean" },
+        "operationInProgress": { "type": "boolean" }
+      }
+    }
+  }
+}

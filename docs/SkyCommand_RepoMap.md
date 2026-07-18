@@ -249,7 +249,8 @@ SkyServer/
 │   │       │   ├── 00054__temporal_worker_heartbeats.sql
 │   │       │   ├── 00055__workflow_node_output_persistence.sql
 │   │       │   ├── 00062__workflow_output_type_contracts.sql
-│   │       │   └── 00064__remove_tool_manifest_snapshot_enforcement.sql
+│   │       │   ├── 00064__remove_tool_manifest_snapshot_enforcement.sql
+│   │       │   └── 00065__repository_intelligence_tool.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -296,6 +297,9 @@ SkyServer/
 │   │       ├── gitBranchSyncResultSelfTest.js
 │   │       ├── gitCommitResult.js
 │   │       ├── gitCommitResultSelfTest.js
+│   │       ├── gitRepositoryStatusInspector.js
+│   │       ├── gitRepositoryStatusResult.js
+│   │       ├── gitRepositoryStatusSelfTest.js
 │   │       └── main_merge.js
 │   ├── ingestion/
 │   │   └── src/
@@ -358,6 +362,7 @@ SkyServer/
 │       ├── contracts/
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
+│       │   ├── git_repository_status.v1.schema.json
 │       │   ├── macro_ingestion_summary.v1.schema.json
 │       │   ├── repository_map_summary.v1.schema.json
 │       │   └── repository_package_summary.v1.schema.json
