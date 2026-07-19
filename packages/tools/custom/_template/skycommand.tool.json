@@ -1,0 +1,31 @@
+{
+  "descriptorVersion": "1.0",
+  "toolCode": "example_greeting",
+  "label": "Example Greeting",
+  "description": "Creates a greeting and returns a structured example result.",
+  "runtimeCode": "node",
+  "entrypoint": "tool.js",
+  "categoryCode": "file_tools",
+  "permissionCode": "CORE_VIEW_TOOLS",
+  "riskCode": "low",
+  "requiresConfirmation": false,
+  "confirmationText": null,
+  "capturesOutput": true,
+  "allowParams": true,
+  "parameters": [
+    {
+      "name": "name",
+      "label": "Name",
+      "type": "string",
+      "prompt": "Enter the name to greet.",
+      "required": false,
+      "defaultValue": "SkyCommand",
+      "position": 1
+    }
+  ],
+  "resultContract": {
+    "outputType": "example_greeting_summary.v1",
+    "schemaPath": "example_greeting_summary.v1.schema.json"
+  },
+  "visibility": ["cli", "admin-web", "api", "worker"]
+}

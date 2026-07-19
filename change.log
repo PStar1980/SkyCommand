@@ -1,3 +1,13 @@
+## 2026-07-18 - Phase 15.1 Assisted Tool Catalogue Architecture and Authoring Kit
+
+- Began Phase 15 with a deliberately narrow administration design: manage PostgreSQL catalogue configuration first, then add trusted Node.js onboarding assistance without redesigning the generic API/worker/Temporal execution path.
+- Added `docs/SkyCommand_Phase_15_Tool_Catalogue_Administration.md` with the approved Manage Tools and Add Tool scope, one-repository designation, managed package location, static validation boundary, optional descriptor/schema model, disabled-first registration sequence, security constraints, phase increments, acceptance criteria, and definition of done.
+- Added the self-contained `docs/SkyCommand_Tool_Authoring_Guide.md` and `docs/SkyCommand_AI_Tool_Build_Prompt.md` so a developer or AI coding assistant can create a reviewable Node.js tool package without receiving the full repository.
+- Added `packages/tools/custom/_template` with a working shared-adapter script, onboarding descriptor, output schema, and README. The template proves the first-release conventions: CommonJS, one entry script, positional parameters, versioned ToolResult output, optional schema, and no runtime manifest authority.
+- Updated README current status, Phase 15 architecture summary, documentation index, and roadmap. Phase 15 is now in progress; Phase 15.2 will implement catalogue CRUD and the Tools > Manage Tools page.
+- Added the template syntax/execution check to `npm run validate` and regenerated the repository map.
+- No database migration, seed, API, worker, Temporal, or Admin-Web behavior change is included in Phase 15.1.
+
 ## 2026-07-18 — Phase 14.14 Condition and Schedule Proof
 
 - Added focused true-branch, false-branch, fallback, and missing-path self-tests for condition evaluation through `npm run workflow-condition:self-test`; missing canonical paths continue to fail with `WORKFLOW_CONDITION_PATH_NOT_FOUND` rather than silently routing.
