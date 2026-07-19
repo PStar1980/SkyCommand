@@ -191,8 +191,11 @@ SkyServer/
 │               ├── scheduleCalculator.js
 │               └── schedulePoller.js
 ├── docs/
+│   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
+│   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
 │   ├── SkyCommand_RepoMap.md
+│   ├── SkyCommand_Tool_Authoring_Guide.md
 │   ├── SkyServer_Temporal_Local_Setup.md
 │   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
 │   └── assets/
@@ -367,6 +370,12 @@ SkyServer/
 │       │   ├── macro_ingestion_summary.v1.schema.json
 │       │   ├── repository_map_summary.v1.schema.json
 │       │   └── repository_package_summary.v1.schema.json
+│       ├── custom/
+│       │   └── _template/
+│       │       ├── example_greeting_summary.v1.schema.json
+│       │       ├── README.md
+│       │       ├── skycommand.tool.json
+│       │       └── tool.js
 │       └── src/
 │           ├── index.js
 │           ├── jsonSchemaValidator.js

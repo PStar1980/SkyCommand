@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "example_greeting_summary.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "greeting", "generatedAt"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "greeting": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
