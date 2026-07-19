@@ -1023,3 +1023,12 @@ SkyWeb Analytics owns:
 - Kept failed/terminated workflow focus on the terminal issue node while preserving unrestricted manual inspection of every graph node, including completed and not-run nodes.
 - Manual node selection now disables Follow active node so polling cannot immediately override the operator's choice.
 - Replaced runtime graph `scrollIntoView` with horizontal viewport scrolling so Workflow History polling and row selection never pull the page down from the run table.
+
+## 2026-07-18 - Phase 14.15 closure and documentation
+
+- Marked Phase 14 complete after the eight-node Development Promotion workflow successfully consumed `git_repository_status.v1`, evaluated `nodes.repo_intel_node.output.readyForDevelopmentPromotion`, followed the true branch, completed approval and branch synchronization, and produced the final structured promotion summary.
+- Updated README status and roadmap language so Phase 15 Tool Catalogue administration is the next planned increment.
+- Finalized the Phase 14 architecture reference around the fail-open execution rule: the existing PostgreSQL tool catalogue remains the runtime authority, while structured-result transport, schema validation, renderers, and scheduled evidence remain supplementary reporting concerns after successful domain execution.
+- Removed the remaining obsolete repository-contract planning language from the Word architecture plan and replaced it with the delivered PostgreSQL-catalogue onboarding handoff for Phase 15.
+- Preserved strict condition-path behavior, purpose-built Workflow History rendering, Tool History log authority, wrapper-owned result transport, and recovery access for Repository Map, Repository ZIP, and Dev Commit.
+- No database migration, seed, API, worker, Temporal, or Admin-Web code change is required for Phase 14.15.

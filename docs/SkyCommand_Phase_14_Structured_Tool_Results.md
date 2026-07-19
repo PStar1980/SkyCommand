@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 14 retains the successful workflow-native output architecture while removing the repository-manifest, hash, accepted-snapshot, and runtime-drift gates that proved too tightly coupled to essential tools.
+Phase 14 is complete. It delivers the workflow-native output architecture while keeping runtime authority in the existing PostgreSQL tool catalogue and structured reporting fail-open after successful domain execution.
 
 The current design preserves the core principle:
 
@@ -138,8 +138,8 @@ Examples:
 
 ```text
 nodes.fred_ingestion.output.totals.rowsInserted
-nodes.repo_status_node.output.readyForDevelopmentPromotion
-nodes.repo_status_node.output.blockers
+nodes.repo_intel_node.output.readyForDevelopmentPromotion
+nodes.repo_intel_node.output.blockers
 nodes.repo_map_node.output.filesDocumented
 nodes.repo_zip_node.output.filesIncluded
 nodes.dev_commit_node.output.commitSha
@@ -189,27 +189,15 @@ The following remain enforced independently of structured output:
 - result files remain atomic and temporary;
 - secrets must not be placed in ToolResult.
 
-## Removed manifest/snapshot experiment
+## Retired repository contract gate
 
-The following Phase 14 mechanisms are retired:
-
-- `skycommand.tool.json` repository manifests;
-- contract-check sample JSON files;
-- repository-wide manifest discovery/validation commands;
-- describe/contract-check CLI modes;
-- SHA-256 manifest, entrypoint, schema, and sample hashes;
-- accepted manifest snapshots;
-- snapshot preview/sync/check commands;
-- runtime execution blocking based on snapshot state or drift;
-- Production Readiness manifest-snapshot checks.
-
-Migration `00064__remove_tool_manifest_snapshot_enforcement.sql` removes the previously created snapshot table and status view from existing databases.
+The repository-enforced contract experiment was removed because it coupled essential operational and recovery tools to secondary reporting metadata. Migration `00064__remove_tool_manifest_snapshot_enforcement.sql` removes the experimental database objects from existing installations. Runtime launch decisions now come exclusively from the PostgreSQL tool catalogue and normal path, permission, parameter, runtime, and risk controls.
 
 ## Critical recovery rule
 
 Repository ZIP generation is a recovery-critical utility.
 
-It must remain runnable through direct CLI, Run Tools, schedules, and workflows without depending on structured-result validation, schema files, manifests, snapshots, hashes, generated maps, or validation-suite health.
+It must remain runnable through direct CLI, Run Tools, schedules, and workflows without depending on secondary structured-reporting metadata, generated maps, or validation-suite health.
 
 The same rule applies to Repository Map and Dev Commit: reporting may degrade, but the underlying registered operation remains accessible.
 
@@ -222,7 +210,6 @@ npm run validate
 npm run web:build
 ```
 
-There are no manifest preview/sync/check commands.
 
 Recommended execution verification:
 
@@ -270,7 +257,6 @@ Until a dedicated catalogue UI is built, a new tool is added by:
 5. optionally adding a purpose-built Workflow History renderer;
 6. testing direct, Run Tools, schedule, and workflow execution.
 
-No repository hash acceptance ceremony is required.
 
 
 ## Phase 14.14 — Condition and schedule proof
@@ -280,7 +266,7 @@ Phase 14.14 proves that deliberate structured results are not merely displayed; 
 The promotion-preflight condition reads the canonical domain path:
 
 ```text
-nodes.repo_status_node.output.readyForDevelopmentPromotion
+nodes.repo_intel_node.output.readyForDevelopmentPromotion
 ```
 
 Recommended condition configuration:
@@ -307,6 +293,18 @@ npm run validate
 
 Manual proof consists of one ready repository run through the true branch, one deliberately blocked repository run through the false Summary branch, and one scheduled Repository Intelligence run whose structured evidence appears in Scheduler run detail.
 
+## Phase 14 closure
+
+Phase 14.14 supplied the final execution proof. The eight-node Development Promotion workflow used Repository Intelligence output to drive a strict condition gate on:
+
+```text
+nodes.repo_intel_node.output.readyForDevelopmentPromotion
+```
+
+The ready path completed Repository Map, Repository ZIP, Dev Commit, Human Merge Approval, Main-to-Development synchronization, and the final structured Summary. Workflow History displayed the persisted condition decision, all completed node contracts, approval evidence, promotion artifacts, branch synchronization, and the final rollup. Scheduler integration separately retained compact Repository Intelligence evidence without promoting stdout/stderr into schedule or workflow business output.
+
+With the transport, contracts, fail-open behavior, catalogue authority, parameter bindings, condition routing, schedule evidence, renderers, and end-to-end proof complete, Phase 14 is closed. Phase 15 can now build the guided Tool Catalogue administration experience without redesigning the execution path.
+
 ## Development promotion contract
 
 The recommended repository promotion workflow is:
@@ -323,7 +321,7 @@ Repository Intelligence is a checkout-free, watcher-safe preflight. It performs 
 A condition can use:
 
 ```text
-nodes.repo_status_node.output.readyForDevelopmentPromotion
+nodes.repo_intel_node.output.readyForDevelopmentPromotion
 ```
 
 The approval checkpoint represents the operator's confirmation that the Dev → Main pull request has been completed on GitHub. `main_merge` then performs checkout-free remote synchronization, verifies the approved Main head, advances remote Dev, updates compatible local refs without rewriting watched files, optionally creates a tag, and returns explicit local-refresh guidance when a workspace refresh is still required.
