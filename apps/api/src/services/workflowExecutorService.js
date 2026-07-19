@@ -7418,6 +7418,8 @@ module.exports = {
   createWorkflowDefinition,
   createWorkflowVersion,
   replaceWorkflowGraph,
+  evaluateConditionNode,
+  resolveConditionBranchIndex,
   executeWorkflow,
   executeWorkflowNode,
   failWorkflowNodeRun,

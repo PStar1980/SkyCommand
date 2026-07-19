@@ -273,18 +273,49 @@ Until a dedicated catalogue UI is built, a new tool is added by:
 No repository hash acceptance ceremony is required.
 
 
+## Phase 14.14 — Condition and schedule proof
+
+Phase 14.14 proves that deliberate structured results are not merely displayed; they can safely control workflow routing and remain observable when the same tool is started by the scheduler.
+
+The promotion-preflight condition reads the canonical domain path:
+
+```text
+nodes.repo_status_node.output.readyForDevelopmentPromotion
+```
+
+Recommended condition configuration:
+
+| Field | Value |
+| --- | --- |
+| Operator | `TRUTHY` |
+| Left fallback | blank |
+| True target | first promotion action, normally `repo_map_node` |
+| False target | final promotion Summary node |
+| When false | `STOP_SUCCESS` as the fallback when no explicit false target is available |
+
+The blank fallback is intentional. If the repository-status contract or path is missing, execution fails with `WORKFLOW_CONDITION_PATH_NOT_FOUND`; a misspelled path must never silently approve or reject a promotion. The persisted condition result records the resolved value, operator, pass/fail state, branch label, target node, and false-action policy. Workflow History renders this evidence directly, and the promotion Summary includes the gate in the preflight section and stage table.
+
+For schedule proof, a direct Repository Intelligence schedule persists only compact contract evidence beneath `worker.schedule_runs.metadata.toolResult`. The worker API exposes that evidence separately as `structuredResultEvidence`, and Scheduler run details render repository, readiness, branches, baseline synchronization, changes, blockers, duration, output type, message, and warnings. Raw metadata remains available underneath for diagnostics; the complete tool result and stdout/stderr remain in their authoritative execution records.
+
+Focused verification:
+
+```powershell
+npm run workflow-condition:self-test
+npm run workflow-result-context:self-test
+npm run validate
+```
+
+Manual proof consists of one ready repository run through the true branch, one deliberately blocked repository run through the false Summary branch, and one scheduled Repository Intelligence run whose structured evidence appears in Scheduler run detail.
+
 ## Development promotion contract
 
 The recommended repository promotion workflow is:
 
 ```text
 Repository Intelligence
-→ Repository Map
-→ Repository ZIP
-→ Dev Commit
-→ Human Merge Approval
-→ Main → Dev Synchronization
-→ Summary
+→ Promotion Ready? condition
+   ├─ TRUE  → Repository Map → Repository ZIP → Dev Commit → Human Merge Approval → Main → Dev Synchronization → Summary
+   └─ FALSE → Summary (terminal branch; STOP_SUCCESS remains the no-target fallback)
 ```
 
 Repository Intelligence is a checkout-free, watcher-safe preflight. It performs a non-interactive `git fetch --prune`, reads local and remote branch refs, calculates ahead/behind counts, detects locks or in-progress Git operations, reports working-tree state, and emits `git_repository_status.v1`. It never runs `git switch`, `git checkout`, `git pull`, `git reset`, or any working-tree rewrite. Dirty files are advisory because they are the intended input to Dev Commit; conflicts, stale/divergent development refs, the wrong active branch, incomplete Git operations, and an unsynchronized remote baseline are blockers.

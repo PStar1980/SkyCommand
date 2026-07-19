@@ -82,6 +82,17 @@ function getResultDurationMs(result = {}, output = getToolResultDomainOutput(res
   return null;
 }
 
+function isPromotionReadinessConditionOutput(value = {}) {
+  const output = getSafeObject(value);
+  const leftPath = String(output.leftPath || '').trim();
+
+  return (
+    output.kind === 'condition_evaluation' &&
+    (leftPath === 'nodes.repo_status_node.output.readyForDevelopmentPromotion' ||
+      leftPath.endsWith('.output.readyForDevelopmentPromotion'))
+  );
+}
+
 function buildCanonicalNodeResultView({ nodeKey = '', rawResult = {}, existingNode = {} } = {}) {
   const result = getSafeObject(rawResult);
   const output = cloneJsonCompatible(getToolResultDomainOutput(result));
@@ -341,6 +352,24 @@ function compactDomainOutput(result = {}) {
     };
   }
 
+  if (isPromotionReadinessConditionOutput(output)) {
+    return {
+      passed: Boolean(output.passed),
+      status: output.status || null,
+      branchLabel: output.branchLabel || output.route || null,
+      branchTargetNodeKey: output.branchTargetNodeKey || null,
+      branchTaken: Boolean(output.branchTaken),
+      leftPath: output.leftPath || null,
+      leftPathResolved: Boolean(output.leftPathResolved),
+      leftPathUsedFallback: Boolean(output.leftPathUsedFallback),
+      leftValue: cloneJsonCompatible(output.leftValue),
+      operator: output.operator || null,
+      rightValue: cloneJsonCompatible(output.rightValue),
+      onFalse: output.onFalse || null,
+      summary: output.summary || output.reason || null,
+    };
+  }
+
   if (!isPlainObject(output)) {
     return cloneJsonCompatible(output);
   }
@@ -411,6 +440,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   let repositoryStatus = null;
   let repositoryMap = null;
   let repositoryPackage = null;
+  let preflightCondition = null;
   let gitCommit = null;
   let approval = null;
   let branchSync = null;
@@ -472,6 +502,32 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
       continue;
     }
 
+    if (isPromotionReadinessConditionOutput(output)) {
+      preflightCondition = { nodeKey, output };
+      const passed = Boolean(output.passed);
+      const onFalse = String(output.onFalse || 'STOP_SUCCESS').trim().toUpperCase();
+      const stageStatus = passed
+        ? 'SUCCESS'
+        : onFalse === 'FAIL_WORKFLOW'
+          ? 'FAILED'
+          : onFalse === 'CONTINUE'
+            ? 'WARNING'
+            : 'STOPPED';
+
+      stages.push({
+        nodeKey,
+        stageCode: 'REPOSITORY_PREFLIGHT_CONDITION',
+        label: 'Promotion readiness condition',
+        status: stageStatus,
+        outcome: passed ? 'PASSED' : 'FAILED',
+        summary: output.summary || output.reason || '',
+        outputType: 'condition_evaluation',
+        durationMs,
+        evidence: `${output.leftPath || 'promotion readiness'} = ${String(output.leftValue)}`,
+      });
+      continue;
+    }
+
     if (isToolResultEnvelope(result) && result.outputType === GIT_COMMIT_OUTPUT_TYPE) {
       gitCommit = { nodeKey, result, output };
       stages.push({
@@ -521,7 +577,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     }
   }
 
-  if (!gitCommit && !branchSync) {
+  if (!preflightCondition && !gitCommit && !branchSync) {
     return null;
   }
 
@@ -531,6 +587,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   const syncOutput = getSafeObject(branchSync?.output);
   const approvalOutput = getSafeObject(approval?.output);
   const repositoryStatusOutput = getSafeObject(repositoryStatus?.output);
+  const preflightConditionOutput = getSafeObject(preflightCondition?.output);
   const repositoryCode =
     syncOutput.repositoryCode ||
     commitOutput.repositoryCode ||
@@ -555,7 +612,11 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
         ? 'PROMOTED'
         : approvalOutput.decision === 'APPROVED'
           ? 'APPROVED'
-          : 'COMMITTED';
+          : gitCommit
+            ? 'COMMITTED'
+            : preflightConditionOutput.passed
+              ? 'READY'
+              : 'STOPPED';
 
   return {
     outcome,
@@ -595,8 +656,50 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
           remoteBranchesSynchronized: Boolean(
             repositoryStatusOutput.relationship?.remoteBranchesSynchronized,
           ),
+          condition: preflightCondition
+            ? {
+                nodeKey: preflightCondition.nodeKey,
+                passed: Boolean(preflightConditionOutput.passed),
+                status: preflightConditionOutput.status || null,
+                branchLabel:
+                  preflightConditionOutput.branchLabel || preflightConditionOutput.route || null,
+                branchTargetNodeKey: preflightConditionOutput.branchTargetNodeKey || null,
+                leftPath: preflightConditionOutput.leftPath || null,
+                leftValue: cloneJsonCompatible(preflightConditionOutput.leftValue),
+                operator: preflightConditionOutput.operator || null,
+                rightValue: cloneJsonCompatible(preflightConditionOutput.rightValue),
+                onFalse: preflightConditionOutput.onFalse || null,
+                summary:
+                  preflightConditionOutput.summary || preflightConditionOutput.reason || null,
+              }
+            : null,
         }
-      : null,
+      : preflightCondition
+        ? {
+            nodeKey: null,
+            outcome: preflightConditionOutput.passed ? 'READY' : 'BLOCKED',
+            readyForDevelopmentPromotion: Boolean(preflightConditionOutput.passed),
+            currentBranch: null,
+            expectedBranch: null,
+            blockerCount: preflightConditionOutput.passed ? 0 : 1,
+            workingTreeChanges: 0,
+            remoteBranchesSynchronized: false,
+            condition: {
+              nodeKey: preflightCondition.nodeKey,
+              passed: Boolean(preflightConditionOutput.passed),
+              status: preflightConditionOutput.status || null,
+              branchLabel:
+                preflightConditionOutput.branchLabel || preflightConditionOutput.route || null,
+              branchTargetNodeKey: preflightConditionOutput.branchTargetNodeKey || null,
+              leftPath: preflightConditionOutput.leftPath || null,
+              leftValue: cloneJsonCompatible(preflightConditionOutput.leftValue),
+              operator: preflightConditionOutput.operator || null,
+              rightValue: cloneJsonCompatible(preflightConditionOutput.rightValue),
+              onFalse: preflightConditionOutput.onFalse || null,
+              summary: preflightConditionOutput.summary || preflightConditionOutput.reason || null,
+            },
+          }
+        : null,
     approval: approval
       ? {
           nodeKey: approval.nodeKey,
@@ -763,6 +866,17 @@ function buildScheduledToolResultSummary(toolResult = {}) {
   return summary;
 }
 
+function getScheduledToolResultEvidence(metadata = {}) {
+  const value = getSafeObject(metadata);
+  const toolResult = getSafeObject(value.toolResult);
+
+  if (toolResult.available !== true || !toolResult.outputType) {
+    return null;
+  }
+
+  return cloneJsonCompatible(toolResult);
+}
+
 module.exports = {
   MACRO_INGESTION_OUTPUT_TYPE,
   GIT_COMMIT_OUTPUT_TYPE,
@@ -782,7 +896,9 @@ module.exports = {
   getResultDurationMs,
   getResultStatus,
   getResultSummary,
+  getScheduledToolResultEvidence,
   getToolResultDomainOutput,
+  isPromotionReadinessConditionOutput,
   isToolResultEnvelope,
   normalizeMacroTotals,
 };

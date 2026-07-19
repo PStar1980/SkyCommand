@@ -1,5 +1,8 @@
 const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
+const {
+  getScheduledToolResultEvidence,
+} = require('../../../../packages/tools/src/workflowResultContext');
 
 const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -298,6 +301,7 @@ function sanitizeScheduleRun(row) {
     finishedAt: run.finishedAt,
     message: run.message,
     metadata: run.metadata || {},
+    structuredResultEvidence: getScheduledToolResultEvidence(run.metadata || {}),
     scriptName: run.scriptName,
     scriptFile: run.scriptFile,
     category: run.category,

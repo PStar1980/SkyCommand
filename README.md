@@ -86,15 +86,12 @@ The recommended repository delivery workflow is:
 
 ```text
 Repository Intelligence
-→ Repository Map
-→ Repository ZIP
-→ Dev Commit
-→ Human Merge Approval
-→ Main → Dev Synchronization
-→ Summary
+→ Promotion Ready? condition
+   ├─ TRUE  → Repository Map → Repository ZIP → Dev Commit → Human Merge Approval → Main → Dev Synchronization → Summary
+   └─ FALSE → Summary (terminal branch; STOP_SUCCESS remains the no-target fallback)
 ```
 
-The optional Repository Intelligence preflight inspects local and remote `dev`/`main` state without switching branches or rewriting watched files. It emits `git_repository_status.v1`, and a condition can continue only when `nodes.repo_status_node.output.readyForDevelopmentPromotion` is `true`. The approval checkpoint confirms that the Dev → Main pull request has been completed. The `main_merge` tool then synchronizes development from main and emits `git_branch_sync_summary.v1`, including branch-head movement, commits applied, synchronized state, optional tag evidence, and Git-step outcomes. Workflow History provides dedicated Main Merge and approval tables, while the Summary node automatically produces a Development Promotion stage rollup. Suggested workflow name: **SkyCommand Development Promotion**.
+Repository Intelligence inspects local and remote `dev`/`main` state without switching branches or rewriting watched files. It emits `git_repository_status.v1`, and the preflight condition continues only when `nodes.repo_status_node.output.readyForDevelopmentPromotion` is truthy. The false branch can route directly to the final Summary node and stop successfully, producing a clean blocked-preflight result without running mutation nodes. The approval checkpoint confirms that the Dev → Main pull request has been completed. The `main_merge` tool then synchronizes development from main and emits `git_branch_sync_summary.v1`, including branch-head movement, commits applied, synchronized state, optional tag evidence, and Git-step outcomes. Workflow History provides dedicated condition, Main Merge, and approval tables, while the Summary node automatically produces a Development Promotion stage rollup. Suggested workflow name: **SkyCommand Development Promotion**.
 
 ### Structured result consumption and summary aggregation
 
@@ -114,7 +111,36 @@ Condition nodes can branch on paths such as `nodes.fred_ingestion.output.totals.
 
 Summary nodes no longer create source-labelled JSON previews. They build a compact node-result index and, when macro ingestion results are present, a normalized rollup containing one row for every source plus combined requested/updated/unchanged/failed/row totals. Repository delivery workflows also receive a Development Promotion rollup covering optional Repository Intelligence preflight evidence, generated map/package artifacts, Dev Commit evidence, human merge approval, and Main → Dev synchronization. Workflow History renders both models as purpose-built tables.
 
-Scheduled direct-tool runs store only a compact contract summary in `worker.schedule_runs.metadata`: schema/output type, success/message/warning count, and macro source totals where applicable. Full output remains in the tool execution result and workflow ledger rather than being duplicated into scheduler metadata.
+Scheduled direct-tool runs store only a compact contract summary in `worker.schedule_runs.metadata`: schema/output type, success/message/warning count, and domain-specific evidence where applicable. Full output remains in the tool execution result and workflow ledger rather than being duplicated into scheduler metadata.
+
+### Phase 14.14 condition and schedule proof
+
+The recommended promotion lane now places a condition immediately after Repository Intelligence:
+
+```text
+Repository Intelligence
+→ Promotion Ready? condition
+   ├─ TRUE  → Repository Map → Repository ZIP → Dev Commit → Approval → Main → Dev Sync → Summary
+   └─ FALSE → Summary (terminal branch; STOP_SUCCESS remains the no-target fallback)
+```
+
+Use the canonical preflight path:
+
+```text
+nodes.repo_status_node.output.readyForDevelopmentPromotion
+```
+
+Configure the operator as `TRUTHY`, leave the fallback blank, route the true branch to the first promotion action, route the false branch to the final Summary node, and keep `STOP_SUCCESS` as the safe fallback if no explicit false target is configured. A missing structured path fails clearly instead of silently choosing a branch. Workflow History records the evaluated path, value, operator, selected branch, and target node, and the Development Promotion Summary includes the preflight gate as a first-class stage.
+
+Direct-tool schedules now expose a purpose-built **Structured result evidence** panel in Scheduler run details. Repository Intelligence schedules show `git_repository_status.v1`, repository, outcome, promotion readiness, current/expected branch, remote-baseline synchronization, working-tree changes, blocker count, and inspection duration while preserving raw metadata below for diagnostics.
+
+Focused verification commands:
+
+```powershell
+npm run workflow-condition:self-test
+npm run workflow-result-context:self-test
+npm run validate
+```
 
 ### Structured-result failure isolation
 
