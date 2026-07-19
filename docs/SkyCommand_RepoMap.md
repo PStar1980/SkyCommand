@@ -171,6 +171,7 @@ SkyServer/
 │   │       │   ├── temporalService.js
 │   │       │   ├── toolManifestService.js
 │   │       │   ├── workerService.js
+│   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowExecutorService.js
 │   │       │   └── workflowHealthService.js
 │   │       └── utils/

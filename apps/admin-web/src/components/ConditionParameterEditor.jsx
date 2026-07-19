@@ -155,13 +155,15 @@ function ConditionParameterEditor({
           className="form-control sky-form-control sky-mono"
           id={`${idPrefix}-leftPath`}
           onChange={(event) => patch({ leftPath: event.target.value })}
-          placeholder="params.commitMessage or nodes.fred_ingestion.output.totals.rowsInserted"
+          placeholder="nodes.repo_status_node.output.readyForDevelopmentPromotion"
           value={values.leftPath || ''}
         />
         <div className="form-text sky-muted">
           Use dot paths from the live workflow scope. For migrated tools,
           nodes.&lt;node_key&gt;.output contains the domain payload and
-          nodes.&lt;node_key&gt;.result contains the complete ToolResult envelope.
+          nodes.&lt;node_key&gt;.result contains the complete ToolResult envelope. Promotion
+          preflight example: nodes.repo_status_node.output.readyForDevelopmentPromotion with the
+          TRUTHY operator. Leave the fallback blank so a missing contract path fails clearly.
         </div>
       </div>
       <div className="col-lg-4">

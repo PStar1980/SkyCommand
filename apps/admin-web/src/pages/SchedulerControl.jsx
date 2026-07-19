@@ -412,6 +412,186 @@ function getJsonPreview(value) {
   }
 }
 
+function getSafeObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function getStructuredResultEvidence(run) {
+  const directEvidence = getSafeObject(run?.structuredResultEvidence);
+
+  if (directEvidence.outputType) {
+    return directEvidence;
+  }
+
+  const metadataEvidence = getSafeObject(run?.metadata?.toolResult);
+  return metadataEvidence.outputType ? metadataEvidence : null;
+}
+
+function formatEvidenceBoolean(value) {
+  return value === true ? 'Yes' : value === false ? 'No' : '—';
+}
+
+function getStructuredEvidenceRows(evidence = {}) {
+  const gitRepositoryStatus = getSafeObject(evidence.gitRepositoryStatus);
+
+  if (Object.keys(gitRepositoryStatus).length > 0) {
+    return [
+      ['Repository', gitRepositoryStatus.repositoryCode || '—'],
+      ['Outcome', gitRepositoryStatus.outcome || '—'],
+      [
+        'Promotion ready',
+        formatEvidenceBoolean(gitRepositoryStatus.readyForDevelopmentPromotion),
+      ],
+      ['Active branch', gitRepositoryStatus.currentBranch || '—'],
+      ['Expected branch', gitRepositoryStatus.expectedBranch || '—'],
+      [
+        'Remote baseline synchronized',
+        formatEvidenceBoolean(gitRepositoryStatus.remoteBranchesSynchronized),
+      ],
+      ['Working-tree changes', formatNumber(gitRepositoryStatus.totalChanges)],
+      ['Blockers', formatNumber(gitRepositoryStatus.blockerCount)],
+      ['Inspection duration', formatDuration(gitRepositoryStatus.durationMs)],
+    ];
+  }
+
+  const macroIngestion = getSafeObject(evidence.macroIngestion);
+
+  if (Object.keys(macroIngestion).length > 0) {
+    const totals = getSafeObject(macroIngestion.totals);
+    return [
+      ['Source', macroIngestion.sourceCode || '—'],
+      ['Outcome', macroIngestion.outcome || '—'],
+      ['Selected indicators', formatNumber(macroIngestion.selectedIndicators)],
+      ['Succeeded', formatNumber(totals.indicatorsSucceeded)],
+      ['Failed', formatNumber(totals.indicatorsFailed)],
+      ['Rows inserted', formatNumber(totals.rowsInserted)],
+      ['Duration', formatDuration(macroIngestion.durationMs)],
+    ];
+  }
+
+  const repositoryPackage = getSafeObject(evidence.repositoryPackage);
+
+  if (Object.keys(repositoryPackage).length > 0) {
+    return [
+      ['Repository', repositoryPackage.repositoryName || '—'],
+      ['Outcome', repositoryPackage.outcome || '—'],
+      ['Archive', repositoryPackage.fileName || '—'],
+      ['Files included', formatNumber(repositoryPackage.filesIncluded)],
+      ['Archive bytes', formatNumber(repositoryPackage.archiveBytes)],
+      ['Duration', formatDuration(repositoryPackage.durationMs)],
+    ];
+  }
+
+  const repositoryMap = getSafeObject(evidence.repositoryMap);
+
+  if (Object.keys(repositoryMap).length > 0) {
+    return [
+      ['Repository', repositoryMap.repositoryName || '—'],
+      ['Outcome', repositoryMap.outcome || '—'],
+      ['Map', repositoryMap.fileName || '—'],
+      ['Directories documented', formatNumber(repositoryMap.directoriesDocumented)],
+      ['Files documented', formatNumber(repositoryMap.filesDocumented)],
+      ['Duration', formatDuration(repositoryMap.durationMs)],
+    ];
+  }
+
+  const gitCommit = getSafeObject(evidence.gitCommit);
+
+  if (Object.keys(gitCommit).length > 0) {
+    return [
+      ['Repository', gitCommit.repositoryCode || '—'],
+      ['Outcome', gitCommit.outcome || '—'],
+      ['Branch', gitCommit.branch || '—'],
+      ['Commit', gitCommit.commitSha || '—'],
+      ['Changed files', formatNumber(gitCommit.changedFiles)],
+      ['Duration', formatDuration(gitCommit.durationMs)],
+    ];
+  }
+
+  const gitBranchSync = getSafeObject(evidence.gitBranchSync);
+
+  if (Object.keys(gitBranchSync).length > 0) {
+    return [
+      ['Repository', gitBranchSync.repositoryCode || '—'],
+      ['Outcome', gitBranchSync.outcome || '—'],
+      [
+        'Direction',
+        gitBranchSync.sourceBranch && gitBranchSync.targetBranch
+          ? `${gitBranchSync.sourceBranch} → ${gitBranchSync.targetBranch}`
+          : '—',
+      ],
+      ['Branches synchronized', formatEvidenceBoolean(gitBranchSync.branchesSynchronized)],
+      ['Commits applied', formatNumber(gitBranchSync.commitsApplied)],
+      ['Synchronized head', gitBranchSync.synchronizedHeadSha || '—'],
+      ['Duration', formatDuration(gitBranchSync.durationMs)],
+    ];
+  }
+
+  return [];
+}
+
+function ScheduledToolResultEvidence({ run }) {
+  const evidence = getStructuredResultEvidence(run);
+
+  if (!evidence) {
+    return null;
+  }
+
+  const rows = getStructuredEvidenceRows(evidence);
+  const warningCount = Number(evidence.warnings || 0);
+  const success = evidence.success !== false;
+
+  return (
+    <div className="mb-3">
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div>
+          <div className="sky-page-kicker">Structured result evidence</div>
+          <div className="small sky-muted">
+            Compact workflow-safe proof captured from the scheduled ToolResult contract.
+          </div>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${success ? 'sky-pill-success' : 'sky-pill-danger'}`}>
+            {success ? 'SUCCESS' : 'FAILED'}
+          </span>
+          <span className="sky-pill sky-pill-info sky-mono">{evidence.outputType}</span>
+          {warningCount > 0 && (
+            <span className="sky-pill sky-pill-warning">
+              {warningCount} warning{warningCount === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {evidence.message && <p className="sky-muted mb-2">{evidence.message}</p>}
+
+      {rows.length > 0 ? (
+        <div className="table-responsive sky-table-card">
+          <table className="table sky-table mb-0">
+            <tbody>
+              {rows.map(([label, value]) => (
+                <tr key={label}>
+                  <th className="sky-detail-label" scope="row">
+                    {label}
+                  </th>
+                  <td className={label.toLowerCase().includes('commit') ? 'sky-mono' : ''}>
+                    {value}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="sky-empty-state py-3">
+          Structured evidence was captured for {evidence.outputType}; use metadata below for the
+          diagnostic payload.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function buildStatCards(health, tools) {
   return [
     {
@@ -1910,6 +2090,8 @@ function SchedulerControl() {
                   <p className="sky-muted mb-3">
                     {selectedRun.message || selectedRun.executionSummary || '—'}
                   </p>
+
+                  <ScheduledToolResultEvidence run={selectedRun} />
 
                   <div className="sky-page-kicker">Metadata</div>
                   <pre className="sky-code-block sky-worker-json-preview">

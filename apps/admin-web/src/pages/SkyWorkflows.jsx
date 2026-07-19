@@ -568,6 +568,22 @@ function getFocusedHumanApprovalResult(outputs = [], nodeKey = '') {
   return null;
 }
 
+function getFocusedConditionResult(outputs = [], nodeKey = '') {
+  for (const record of outputs.filter((output) => output.nodeKey === nodeKey)) {
+    const output = parseFriendlyOutputValue(record.output);
+
+    if (output?.kind === 'condition_evaluation') {
+      return output;
+    }
+
+    if (output?.output?.kind === 'condition_evaluation') {
+      return output.output;
+    }
+  }
+
+  return null;
+}
+
 function macroOutcomeClass(outcome) {
   const normalized = String(outcome || '').toUpperCase();
 
@@ -2361,6 +2377,90 @@ function GitBranchSyncOutput({ toolResult }) {
   );
 }
 
+function ConditionEvaluationOutput({ conditionResult }) {
+  const condition = getSafeObject(conditionResult);
+  const passed = Boolean(condition.passed);
+  const branchLabel = condition.branchLabel || condition.route || (passed ? 'TRUE' : 'FALSE');
+
+  return (
+    <div className="sky-condition-evaluation-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Condition decision</div>
+          <h3 className="h6 mb-1">{condition.leftPath || 'Workflow condition'}</h3>
+          <p className="small sky-muted mb-0">
+            {condition.summary || condition.reason || 'Condition evaluation recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${passed ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+            {passed ? 'PASSED' : 'DID NOT PASS'}
+          </span>
+          <span className="sky-pill sky-pill-info">{branchLabel}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Evaluation evidence</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Left path</th>
+              <td className="sky-mono text-break">{condition.leftPath || '—'}</td>
+              <th>Path resolved</th>
+              <td>{condition.leftPathResolved ? 'Yes' : 'No'}</td>
+            </tr>
+            <tr>
+              <th>Observed value</th>
+              <td>
+                <FriendlyOutputScalar fieldKey="leftValue" value={condition.leftValue} />
+              </td>
+              <th>Fallback used</th>
+              <td>{condition.leftPathUsedFallback ? 'Yes' : 'No'}</td>
+            </tr>
+            <tr>
+              <th>Operator</th>
+              <td>{humanizeOutputKey(condition.operator || 'truthy')}</td>
+              <th>Comparison value</th>
+              <td>
+                {condition.rightValue === undefined || condition.rightValue === null ? (
+                  'Not required'
+                ) : (
+                  <FriendlyOutputScalar fieldKey="rightValue" value={condition.rightValue} />
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Branch routing</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Branch</th>
+              <td>
+                <span className={`sky-pill ${passed ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+                  {branchLabel}
+                </span>
+              </td>
+              <th>Target node</th>
+              <td className="sky-mono">{condition.branchTargetNodeKey || 'Next sequential node'}</td>
+            </tr>
+            <tr>
+              <th>When false</th>
+              <td>{humanizeOutputKey(condition.onFalse || 'stop_success')}</td>
+              <th>Explicit branch taken</th>
+              <td>{condition.branchTaken ? 'Yes' : 'No'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function HumanApprovalOutput({ approvalResult }) {
   const approval = getSafeObject(approvalResult);
   const decision = String(approval.decision || approval.status || 'UNKNOWN').toUpperCase();
@@ -2433,6 +2533,7 @@ function GitPromotionSummary({ promotion }) {
   const value = getSafeObject(promotion);
   const stages = getSafeArray(value.stages);
   const preflight = getSafeObject(value.preflight, null);
+  const preflightCondition = getSafeObject(preflight?.condition, null);
   const approval = getSafeObject(value.approval);
   const artifacts = getSafeObject(value.artifacts);
   const repositoryMap = getSafeObject(artifacts.repositoryMap, null);
@@ -2530,6 +2631,35 @@ function GitPromotionSummary({ promotion }) {
                   <th>Promotion blockers</th>
                   <td colSpan="3">{Number(preflight.blockerCount || 0).toLocaleString()}</td>
                 </tr>
+                {preflightCondition ? (
+                  <>
+                    <tr>
+                      <th>Condition gate</th>
+                      <td>
+                        <span
+                          className={`sky-pill ${
+                            preflightCondition.passed ? 'sky-pill-success' : 'sky-pill-warning'
+                          }`}
+                        >
+                          {preflightCondition.passed ? 'PASSED' : 'DID NOT PASS'}
+                        </span>
+                      </td>
+                      <th>Branch route</th>
+                      <td>
+                        {preflightCondition.branchLabel || '—'}
+                        {preflightCondition.branchTargetNodeKey
+                          ? ` → ${preflightCondition.branchTargetNodeKey}`
+                          : ''}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Condition path</th>
+                      <td colSpan="3" className="sky-mono text-break">
+                        {preflightCondition.leftPath || '—'}
+                      </td>
+                    </tr>
+                  </>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -2856,6 +2986,10 @@ function WorkflowNodeOutputLedger({
     () => getFocusedHumanApprovalResult(outputs, selectedNode?.nodeKey),
     [outputs, selectedNode?.nodeKey],
   );
+  const conditionResult = useMemo(
+    () => getFocusedConditionResult(outputs, selectedNode?.nodeKey),
+    [outputs, selectedNode?.nodeKey],
+  );
   const macroIngestionResult =
     structuredToolResult?.outputType === 'macro_ingestion_summary.v1' ? structuredToolResult : null;
   const repositoryPackageResult =
@@ -2934,6 +3068,12 @@ function WorkflowNodeOutputLedger({
                 {Number(gitBranchSyncResult.output?.commitsApplied || 0).toLocaleString()} commit(s)
                 synchronized
               </span>
+            ) : conditionResult ? (
+              <span
+                className={`sky-pill ${conditionResult.passed ? 'sky-pill-success' : 'sky-pill-warning'}`}
+              >
+                {conditionResult.passed ? 'Condition passed' : 'Condition did not pass'}
+              </span>
             ) : humanApprovalResult ? (
               <span className={`sky-pill ${operationOutcomeClass(humanApprovalResult.decision)}`}>
                 {humanApprovalResult.decision || humanApprovalResult.status || 'UNKNOWN'}
@@ -2967,6 +3107,8 @@ function WorkflowNodeOutputLedger({
           <GitCommitOutput toolResult={gitCommitResult} />
         ) : gitBranchSyncResult ? (
           <GitBranchSyncOutput toolResult={gitBranchSyncResult} />
+        ) : conditionResult ? (
+          <ConditionEvaluationOutput conditionResult={conditionResult} />
         ) : humanApprovalResult ? (
           <HumanApprovalOutput approvalResult={humanApprovalResult} />
         ) : workflowSummaryResult ? (
@@ -3009,6 +3151,7 @@ function WorkflowNodeOutputLedger({
         !gitRepositoryStatusResult &&
         !gitCommitResult &&
         !gitBranchSyncResult &&
+        !conditionResult &&
         !humanApprovalResult &&
         !workflowSummaryResult &&
         selectedContextValues.length > 0 &&

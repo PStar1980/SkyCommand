@@ -1,3 +1,12 @@
+## 2026-07-18 — Phase 14.14 Condition and Schedule Proof
+
+- Added focused true-branch, false-branch, fallback, and missing-path self-tests for condition evaluation through `npm run workflow-condition:self-test`; missing canonical paths continue to fail with `WORKFLOW_CONDITION_PATH_NOT_FOUND` rather than silently routing.
+- Added compact condition-result handling to workflow context and Development Promotion aggregation, including preflight pass/fail, evaluated path/value, operator, selected branch, target node, and false-action evidence.
+- Added a purpose-built Workflow History condition-output renderer and surfaced the promotion preflight gate in the customized Development Promotion Summary and stage rollup.
+- Added scheduler API exposure for compact structured-result evidence and a purpose-built Scheduler run-detail panel for Repository Intelligence, macro ingestion, repository map/package, Git commit, and branch synchronization contracts while retaining raw metadata for diagnostics.
+- Added promotion-condition guidance to the workflow condition editor and documented the recommended true/false routing pattern: continue promotion when ready; route blocked repositories to Summary with `STOP_SUCCESS`.
+- No database migration or seed update is required.
+
 ## 2026-07-18 — Phase 14.13.1 Typed Workflow Parameter Bindings
 
 - Added a first-class `repo` / Repository workflow runtime-parameter type backed by the active SkyCommand repository catalogue rather than duplicated static choices.

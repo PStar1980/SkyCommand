@@ -7,6 +7,8 @@ const {
   buildScheduledToolResultSummary,
   buildStructuredResultRollup,
   buildSummaryKeyOutputs,
+  compactDomainOutput,
+  getScheduledToolResultEvidence,
 } = require('./workflowResultContext');
 
 function macroResult({
@@ -271,6 +273,45 @@ function gitRepositoryStatusResult() {
   };
 }
 
+function promotionConditionResult({
+  passed = true,
+  trueTargetNodeKey = 'repo_map_node',
+  falseTargetNodeKey = 'promotion_summary_node',
+  onFalse = 'STOP_SUCCESS',
+} = {}) {
+  const branchLabel = passed ? 'TRUE' : 'FALSE';
+  const branchTargetNodeKey = passed ? trueTargetNodeKey : falseTargetNodeKey;
+
+  return {
+    kind: 'condition_evaluation',
+    status: passed ? 'PASSED' : 'FAILED',
+    passed,
+    route: branchLabel,
+    reason: passed
+      ? `Condition Promotion Ready resolved TRUE; routing to ${branchTargetNodeKey}.`
+      : `Condition Promotion Ready resolved FALSE; routing to ${branchTargetNodeKey}.`,
+    operator: 'TRUTHY',
+    leftPath: 'nodes.repo_status_node.output.readyForDevelopmentPromotion',
+    leftPathResolved: true,
+    leftPathUsedFallback: false,
+    leftValue: passed,
+    leftExists: true,
+    rightValue: null,
+    rightType: 'AUTO',
+    caseSensitive: false,
+    onFalse,
+    trueTargetNodeKey,
+    falseTargetNodeKey,
+    branchTargetNodeKey,
+    branchLabel,
+    branchTaken: true,
+    summary: passed
+      ? `Condition Promotion Ready resolved TRUE; routing to ${branchTargetNodeKey}.`
+      : `Condition Promotion Ready resolved FALSE; routing to ${branchTargetNodeKey}.`,
+    contextUpdates: {},
+  };
+}
+
 function humanApprovalResult() {
   return {
     kind: 'human_approval',
@@ -445,6 +486,12 @@ function run() {
     scheduledRepositoryStatus.gitRepositoryStatus.readyForDevelopmentPromotion,
     true,
   );
+  const scheduledRepositoryEvidence = getScheduledToolResultEvidence({
+    toolResult: { available: true, ...scheduledRepositoryStatus },
+  });
+  assert.equal(scheduledRepositoryEvidence.outputType, 'git_repository_status.v1');
+  assert.equal(scheduledRepositoryEvidence.gitRepositoryStatus.blockerCount, 0);
+  assert.equal(getScheduledToolResultEvidence({ toolResult: { available: false } }), null);
 
   const commitResult = gitCommitResult();
   const commitLookup = buildConditionNodeLookup({}, { dev_commit_node: commitResult });
@@ -464,8 +511,14 @@ function run() {
   assert.equal(scheduledBranchSync.gitBranchSync.sourceBranch, 'main');
   assert.equal(scheduledBranchSync.gitBranchSync.targetBranch, 'dev');
 
+  const promotionCondition = promotionConditionResult();
+  const compactCondition = compactDomainOutput(promotionCondition);
+  assert.equal(compactCondition.passed, true);
+  assert.equal(compactCondition.branchTargetNodeKey, 'repo_map_node');
+
   const promotion = buildGitPromotionRollup({
     repo_status_node: repositoryStatusResult,
+    promotion_gate_node: promotionCondition,
     repo_map_node: mapResult,
     repo_zip_node: repositoryResult,
     dev_commit_node: commitResult,
@@ -477,12 +530,32 @@ function run() {
   assert.equal(promotion.pullRequestDirection, 'dev → main');
   assert.equal(promotion.synchronizationDirection, 'main → dev');
   assert.equal(promotion.approval.decision, 'APPROVED');
-  assert.equal(promotion.stages.length, 6);
+  assert.equal(promotion.stages.length, 7);
   assert.equal(promotion.preflight.readyForDevelopmentPromotion, true);
+  assert.equal(promotion.preflight.condition.passed, true);
+  assert.equal(promotion.preflight.condition.branchLabel, 'TRUE');
   assert.equal(promotion.branchesSynchronized, true);
+
+  const blockedRepositoryStatus = gitRepositoryStatusResult();
+  blockedRepositoryStatus.message = 'SkyServer is not ready for development promotion.';
+  blockedRepositoryStatus.output.outcome = 'BLOCKED';
+  blockedRepositoryStatus.output.readyForDevelopmentPromotion = false;
+  blockedRepositoryStatus.output.blockers = ['Remote dev and main are not synchronized.'];
+  blockedRepositoryStatus.output.relationship.remoteBranchesSynchronized = false;
+  const blockedPromotion = buildGitPromotionRollup({
+    repo_status_node: blockedRepositoryStatus,
+    promotion_gate_node: promotionConditionResult({ passed: false }),
+  });
+  assert.equal(blockedPromotion.outcome, 'STOPPED');
+  assert.equal(blockedPromotion.stages.length, 2);
+  assert.equal(blockedPromotion.preflight.readyForDevelopmentPromotion, false);
+  assert.equal(blockedPromotion.preflight.condition.passed, false);
+  assert.equal(blockedPromotion.preflight.condition.branchLabel, 'FALSE');
+  assert.equal(blockedPromotion.preflight.condition.branchTargetNodeKey, 'promotion_summary_node');
 
   const promotionStructured = buildStructuredResultRollup({
     repo_status_node: repositoryStatusResult,
+    promotion_gate_node: promotionCondition,
     repo_map_node: mapResult,
     repo_zip_node: repositoryResult,
     dev_commit_node: commitResult,
