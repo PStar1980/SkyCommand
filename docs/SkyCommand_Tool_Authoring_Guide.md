@@ -38,6 +38,41 @@ node <repo-relative-script-path> <parameter-1> <parameter-2> ...
 
 Parameters are positional and supplied in database display order. Avoid relying on the current working directory; resolve paths from `__dirname` or from configured repository parameters.
 
+## Browser onboarding and static analysis
+
+A trusted administrator can open **Tools > Add Tool** and upload:
+
+1. one required `.js` entry script;
+2. optional `skycommand.tool.json`;
+3. optional `<outputType>.schema.json`.
+
+Phase 15.4 copies these UTF-8 text files into a random, non-executable `logs/tool-onboarding/<sessionId>` staging session and analyzes them without importing or executing the script. The session expires after 24 hours.
+
+The analyzer checks:
+
+- Node.js/CommonJS syntax;
+- standard `runToolCli` adapter use;
+- `TOOL_CODE` and `OUTPUT_TYPE` constants when written conventionally;
+- simple positional parameter destructuring;
+- installed package dependencies and extra relative-module references;
+- descriptor version, entrypoint, parameters, visibility, permission, category, runtime, and risk;
+- schema filename, local-only references, supported keywords/formats, depth, and size;
+- existing catalogue tool-code and managed-destination collisions;
+- review signals such as filesystem access, child processes, environment use, shell execution, dynamic code, environment dumping, and secret-like literals.
+
+Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled suggestions. Suggestions never register the tool automatically. Phase 15.5 will present them as editable configuration before any database or managed-package write.
+
+Current upload limits:
+
+```text
+script       256 KB
+descriptor    64 KB
+schema       256 KB
+combined     640 KB
+```
+
+The onboarding page never runs `npm install`, never executes the uploaded script, never registers a catalogue record, and never commits Git changes during static analysis.
+
 ## Shared adapter import
 
 For a tool stored at `packages/tools/custom/<toolCode>/tool.js`:

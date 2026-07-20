@@ -172,6 +172,14 @@ async function replaceAdminToolParameters(toolId, payload) {
   return api.put(`/api/admin/tools/${toolId}/parameters`, payload);
 }
 
+async function getToolOnboardingOptions() {
+  return api.get('/api/admin/tool-onboarding/options');
+}
+
+async function analyzeToolOnboardingPackage(payload) {
+  return api.post('/api/admin/tool-onboarding/analyze', payload);
+}
+
 async function listRepositories(filters = {}) {
   return api.get('/api/admin/repositories', { query: filters });
 }
@@ -268,6 +276,8 @@ const adminService = {
   updateAdminTool,
   updateAdminToolStatus,
   replaceAdminToolParameters,
+  getToolOnboardingOptions,
+  analyzeToolOnboardingPackage,
   listRepositories,
   listConfigProfiles,
   getSkycommandRepositoryReadiness,

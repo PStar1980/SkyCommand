@@ -68,6 +68,17 @@ router.put(
 );
 
 router.get(
+  '/tool-onboarding/options',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.getToolOnboardingOptions,
+);
+router.post(
+  '/tool-onboarding/analyze',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.analyzeToolOnboardingPackage,
+);
+
+router.get(
   '/repositories/profiles',
   requirePermission('ADMIN_REPOSITORY_READ'),
   adminController.listConfigProfiles,

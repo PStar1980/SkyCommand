@@ -88,6 +88,7 @@ SkyServer/
 │   │       ├── hooks/
 │   │       │   └── useSmartPolling.js
 │   │       ├── pages/
+│   │       │   ├── AddTool.jsx
 │   │       │   ├── AdminPrivileges.jsx
 │   │       │   ├── AdminRepositories.jsx
 │   │       │   ├── AdminRoles.jsx
@@ -174,6 +175,8 @@ SkyServer/
 │   │       │   ├── temporalService.js
 │   │       │   ├── toolAdminService.js
 │   │       │   ├── toolManifestService.js
+│   │       │   ├── toolOnboardingSelfTest.js
+│   │       │   ├── toolOnboardingService.js
 │   │       │   ├── workerService.js
 │   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowExecutorService.js
