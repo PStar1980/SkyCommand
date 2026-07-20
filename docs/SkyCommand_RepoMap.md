@@ -163,6 +163,8 @@ SkyServer/
 │   │       │   ├── productionReadinessService.js
 │   │       │   ├── publicMacroService.js
 │   │       │   ├── scriptExecutionService.js
+│   │       │   ├── skycommandRepositorySelfTest.js
+│   │       │   ├── skycommandRepositoryService.js
 │   │       │   ├── skywebAlertPreferencesService.js
 │   │       │   ├── skywebAlertsService.js
 │   │       │   ├── skywebDashboardsService.js
@@ -257,7 +259,8 @@ SkyServer/
 │   │       │   ├── 00062__workflow_output_type_contracts.sql
 │   │       │   ├── 00064__remove_tool_manifest_snapshot_enforcement.sql
 │   │       │   ├── 00065__repository_intelligence_tool.sql
-│   │       │   └── 00066__tool_catalogue_administration.sql
+│   │       │   ├── 00066__tool_catalogue_administration.sql
+│   │       │   └── 00068__skycommand_repository_designation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

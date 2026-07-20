@@ -2,9 +2,9 @@
 
 ## Status
 
-Phase 15 is in progress. Phase 15.1 established the architecture and authoring kit. **Phase 15.2 is now implemented:** administrators can list, inspect, create, edit, enable, and disable PostgreSQL tool catalogue records through **Tools > Manage Tools**, including positional parameters, static choices, visibility, permission, risk, runtime, repository-relative script paths, and structured-output metadata.
+Phase 15 is in progress. Phases 15.1 and 15.2 established the architecture, authoring kit, and **Tools > Manage Tools** catalogue administration surface. **Phase 15.3 is now implemented:** Configuration > Repositories can designate or clear one active SkyCommand repository, the database enforces the one-repository rule, and the Admin API resolves the active configuration profile into a verified repository and managed-tools filesystem root.
 
-The next increment is Phase 15.3: designate one repository as the SkyCommand repository and resolve its active-profile physical root before managed file onboarding begins.
+The next increment is Phase 15.4: trusted upload staging and static analysis for one Node.js script plus an optional onboarding descriptor and optional output schema.
 
 The governing rule remains:
 
@@ -25,7 +25,19 @@ Phase 15.2 adds the first functional product surface without uploading or execut
 - new records default to disabled, tool codes become immutable after creation, and removal remains disable-first rather than hard delete;
 - existing Run Tools, scheduler, worker, CLI, workflow, and Temporal execution behavior is unchanged.
 
-Phase 15.2 manages configuration only. Repository designation, browser upload, static source analysis, file promotion, contract check, and live-test behavior remain deliberately deferred to Phases 15.3-15.6.
+Phase 15.2 manages catalogue configuration only. Phase 15.3 adds repository designation and readiness without uploading or executing code. Browser upload, static source analysis, file promotion, contract check, and live-test behavior remain deliberately deferred to Phases 15.4-15.6.
+
+## Phase 15.3 delivered foundation
+
+Phase 15.3 establishes the trusted repository boundary required by managed onboarding:
+
+- migration `00068__skycommand_repository_designation.sql` adds `core.repositories.is_skycommand_repository`, a one-TRUE unique partial index, and the designation field on `core.vw_repository_paths`;
+- Configuration > Repositories displays the current active profile, designated repository, repository root, managed tools root, readiness state, and exact blocking error code;
+- trusted administrators can set, replace, or clear the designation through audited API operations;
+- only active repositories may be designated, and a designated repository cannot be disabled or soft-deleted until its role is cleared;
+- `skycommandRepositoryService` resolves the active profile from the existing environment contract, verifies repository/read/write access, verifies or prepares `packages/tools/custom`, and exposes reusable `getSkycommandRepositoryReadiness()` and `assertSkycommandRepositoryReady()` functions;
+- readiness returns `SKYCOMMAND_REPOSITORY_NOT_CONFIGURED`, `SKYCOMMAND_REPOSITORY_PATH_NOT_CONFIGURED`, or `SKYCOMMAND_REPOSITORY_PATH_INVALID` without inventing filesystem state;
+- no upload staging, source execution, dependency installation, or managed-file writes are introduced in this increment.
 
 ## Architecture decision
 
@@ -90,7 +102,7 @@ The flow may use a single page with progressive panels rather than a complex mul
 
 A tool uploaded through Admin-Web needs a trusted physical repository root.
 
-The **Configuration > Repositories** page will allow exactly one active repository to be marked as the SkyCommand repository. The initial implementation should use a direct repository flag because Phase 15 has one concrete role and simplicity is preferred.
+The **Configuration > Repositories** page now allows one active repository to be marked as the SkyCommand repository. A direct repository flag keeps the model intentionally simple, while a unique partial index prevents two simultaneous designations.
 
 Recommended database field:
 
@@ -329,6 +341,8 @@ GET    /api/admin/tools/:toolId
 PATCH  /api/admin/tools/:toolId
 PATCH  /api/admin/tools/:toolId/status
 PUT    /api/admin/tools/:toolId/parameters
+GET    /api/admin/repositories/skycommand-readiness
+PATCH  /api/admin/repositories/:repoId/skycommand-designation
 POST   /api/admin/tool-onboarding/analyze
 POST   /api/admin/tool-onboarding/register
 GET    /api/admin/tool-onboarding/options
@@ -345,6 +359,8 @@ create_tool
 update_tool
 enable_tool
 disable_tool
+set_skycommand_repository
+clear_skycommand_repository
 analyze_tool_upload
 validate_tool_schema
 register_tool_files
@@ -372,12 +388,14 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - added core tool fields, positional parameters, static options, dynamic option sources, visibility, permissions, risk, runtime, repository-relative paths, and output metadata;
 - preserved all existing Run Tools, CLI, worker, scheduler, workflow, and Temporal execution behavior.
 
-### Phase 15.3 - SkyCommand repository designation
+### Phase 15.3 - SkyCommand repository designation — complete
 
-- add the single-repository flag and unique constraint;
-- expose the designation on Configuration > Repositories;
-- resolve the active profile root through existing repository paths;
-- add readiness/error reporting.
+- added the single-repository flag and unique partial index;
+- exposed set, replace, and clear designation actions on Configuration > Repositories;
+- resolved the current profile root through existing repository paths and the shared configuration-profile environment contract;
+- added repository/managed-root filesystem readiness and exact blocking error evidence;
+- prevented designated repositories from being disabled until the role is cleared;
+- added audited API operations and a reusable readiness assertion for Phase 15.4/15.5 onboarding services.
 
 ### Phase 15.4 - Assisted upload and static analysis
 
@@ -431,15 +449,14 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 
 Phase 15 is complete when SkyCommand provides a practical, trusted-administrator framework for creating and maintaining tool catalogue configuration, assists with safe file onboarding into the designated SkyCommand repository, validates optional structured output contracts, and proves that a newly registered tool can run through the existing CLI/web/workflow execution architecture without custom integration code.
 
-
 ## Increment status
 
-| Increment | Status | Outcome |
-| --- | --- | --- |
-| 15.1 | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template |
-| 15.2 | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools** |
-| 15.3 | Next | Single SkyCommand repository designation and active-profile path readiness |
-| 15.4 | Planned | Trusted upload staging and static analysis |
-| 15.5 | Planned | Preview, disabled-first registration, and managed file promotion |
-| 15.6 | Planned | Contract check, controlled live test, Run Tools and workflow proof |
-| 15.7 | Planned | Regression matrix, Development Promotion, and closure |
+| Increment | Status   | Outcome                                                                          |
+| --------- | -------- | -------------------------------------------------------------------------------- |
+| 15.1      | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template    |
+| 15.2      | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools**                  |
+| 15.3      | Complete | Single SkyCommand repository designation and active-profile filesystem readiness |
+| 15.4      | Next     | Trusted upload staging and static analysis                                       |
+| 15.5      | Planned  | Preview, disabled-first registration, and managed file promotion                 |
+| 15.6      | Planned  | Contract check, controlled live test, Run Tools and workflow proof               |
+| 15.7      | Planned  | Regression matrix, Development Promotion, and closure                            |

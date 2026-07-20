@@ -3,6 +3,7 @@ const adminActionService = require('../services/adminActionService');
 const authService = require('../services/authService');
 const productionReadinessService = require('../services/productionReadinessService');
 const toolAdminService = require('../services/toolAdminService');
+const skycommandRepositoryService = require('../services/skycommandRepositoryService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function sendPagedResponse(res, payload, liveTelemetryOptions = null) {
@@ -609,6 +610,17 @@ async function listConfigProfiles(req, res) {
   }
 }
 
+async function getSkycommandRepositoryReadiness(req, res) {
+  void req;
+
+  try {
+    const readiness = await skycommandRepositoryService.getSkycommandRepositoryReadiness();
+    sendServiceResponse(res, { readiness });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function getRepository(req, res) {
   try {
     const payload = await adminActionService.getRepository(req.params.repoId);
@@ -637,6 +649,20 @@ async function createRepository(req, res) {
 async function updateRepository(req, res) {
   try {
     const payload = await adminActionService.updateRepository({
+      repoId: req.params.repoId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateSkycommandRepositoryDesignation(req, res) {
+  try {
+    const payload = await adminActionService.setSkycommandRepositoryDesignation({
       repoId: req.params.repoId,
       body: req.body || {},
       ...getActionContext(req),
@@ -771,9 +797,11 @@ module.exports = {
   replaceAdminToolParameters,
   listRepositories,
   listConfigProfiles,
+  getSkycommandRepositoryReadiness,
   getRepository,
   createRepository,
   updateRepository,
+  updateSkycommandRepositoryDesignation,
   updateRepositoryStatus,
   updateRepositoryPaths,
   deleteRepository,

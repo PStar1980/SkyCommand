@@ -39,6 +39,22 @@ function statusLabel(active) {
   return active ? 'ACTIVE' : 'DISABLED';
 }
 
+function readinessClass(readiness) {
+  if (readiness?.ready) {
+    return 'sky-pill-success';
+  }
+
+  return readiness?.errorCode ? 'sky-pill-danger' : 'sky-pill-warning';
+}
+
+function readinessLabel(readiness) {
+  if (readiness?.ready) {
+    return 'READY';
+  }
+
+  return readiness?.errorCode ? 'BLOCKED' : 'CHECKING';
+}
+
 function normalizeNumberInput(value, fallback = 999) {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? fallback : parsed;
@@ -98,6 +114,8 @@ function AdminRepositories() {
   const [form, setForm] = useState(DEFAULT_REPOSITORY_FORM);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [readiness, setReadiness] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
 
   const selectedPathCount = useMemo(
     () => selectedPaths.filter((path) => path.rootPath && path.active !== false).length,
@@ -123,6 +141,26 @@ function AdminRepositories() {
       active: repository?.active ?? true,
       paths: buildPathForm(nextProfiles, paths || []),
     });
+  }
+
+  async function loadReadiness() {
+    setReadinessLoading(true);
+
+    try {
+      const result = await adminService.getSkycommandRepositoryReadiness();
+      setReadiness(result.readiness || null);
+      return result.readiness || null;
+    } catch (loadError) {
+      setReadiness({
+        ready: false,
+        status: 'BLOCKED',
+        errorCode: loadError.details?.code || 'SKYCOMMAND_REPOSITORY_READINESS_FAILED',
+        message: loadError.message || 'Failed to inspect SkyCommand repository readiness.',
+      });
+      return null;
+    } finally {
+      setReadinessLoading(false);
+    }
   }
 
   async function loadRepositories(nextFilters = filters, preferredRepoId = selectedRepoId) {
@@ -189,9 +227,10 @@ function AdminRepositories() {
       setError('');
 
       try {
-        const [profilesResult, repositoriesResult] = await Promise.all([
+        const [profilesResult, repositoriesResult, readinessResult] = await Promise.all([
           adminService.listConfigProfiles(),
           adminService.listRepositories(filters),
+          adminService.getSkycommandRepositoryReadiness(),
         ]);
 
         if (!active) {
@@ -204,6 +243,8 @@ function AdminRepositories() {
         setProfiles(nextProfiles);
         setRepositories(nextRepositories);
         setTotal(repositoriesResult.total || 0);
+        setReadiness(readinessResult.readiness || null);
+        setReadinessLoading(false);
         setSelectedRepoId(nextRepositories[0]?.repoId || '');
         setForm({
           ...DEFAULT_REPOSITORY_FORM,
@@ -216,6 +257,7 @@ function AdminRepositories() {
       } finally {
         if (active) {
           setLoading(false);
+          setReadinessLoading(false);
         }
       }
     }
@@ -288,10 +330,51 @@ function AdminRepositories() {
       }
 
       setCreateOpen(false);
-      await loadRepositories(filters, result.repository?.repoId);
+      await Promise.all([loadRepositories(filters, result.repository?.repoId), loadReadiness()]);
       setSelectedRepoId(result.repository?.repoId || '');
     } catch (saveError) {
       setError(saveError.message || 'Failed to save repository.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSkycommandDesignation(repository, designated) {
+    if (!repository || !canWrite) {
+      return;
+    }
+
+    const currentRepository = readiness?.repository;
+    const prompt = designated
+      ? currentRepository && currentRepository.repoId !== repository.repoId
+        ? `Replace ${currentRepository.repoCode} with ${repository.repoCode} as the SkyCommand repository?`
+        : `Designate ${repository.repoCode} as the SkyCommand repository?`
+      : `Clear ${repository.repoCode} as the SkyCommand repository? Managed tool onboarding will remain blocked until another repository is designated.`;
+
+    if (!window.confirm(prompt)) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await adminService.updateSkycommandRepositoryDesignation(repository.repoId, {
+        designated,
+      });
+
+      setReadiness(result.readiness || null);
+      setSuccess(
+        designated
+          ? `${repository.repoCode} is now the SkyCommand repository.`
+          : `Cleared the SkyCommand repository designation from ${repository.repoCode}.`,
+      );
+
+      await loadRepositories(filters, repository.repoId);
+      await loadSelectedRepository(repository.repoId);
+    } catch (saveError) {
+      setError(saveError.message || 'Failed to update SkyCommand repository designation.');
     } finally {
       setSaving(false);
     }
@@ -314,7 +397,7 @@ function AdminRepositories() {
       setSuccess(
         `${result.repository?.repoCode || repository.repoCode} ${result.repository?.active ? 'enabled' : 'disabled'}.`,
       );
-      await loadRepositories(filters, repository.repoId);
+      await Promise.all([loadRepositories(filters, repository.repoId), loadReadiness()]);
     } catch (saveError) {
       setError(saveError.message || 'Failed to update repository status.');
     } finally {
@@ -344,7 +427,7 @@ function AdminRepositories() {
         reason: 'Deleted from SkyCommand Admin repository configuration page.',
       });
       setSuccess(`Disabled repository ${repository.repoCode}.`);
-      await loadRepositories(filters, '');
+      await Promise.all([loadRepositories(filters, ''), loadReadiness()]);
     } catch (saveError) {
       setError(saveError.message || 'Failed to delete repository.');
     } finally {
@@ -370,15 +453,15 @@ function AdminRepositories() {
           <div className="sky-page-kicker">Configuration</div>
           <h1 className="sky-page-title">Repositories</h1>
           <p className="sky-page-subtitle">
-            Manage repository identity, branch conventions, and profile-specific local paths used by
-            Git tools, repo maps, repo zips, and future configuration surfaces.
+            Manage repository identity, branch conventions, profile-specific local paths, and the
+            single trusted SkyCommand repository used for managed tool onboarding.
           </p>
         </div>
 
         <button
           className="btn sky-btn-ghost"
           disabled={loading}
-          onClick={() => loadRepositories()}
+          onClick={() => Promise.all([loadRepositories(), loadReadiness()])}
           type="button"
         >
           {loading ? 'Refreshing...' : 'Refresh repositories'}
@@ -387,6 +470,58 @@ function AdminRepositories() {
 
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
+
+      <section className="sky-card mb-3">
+        <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <h2 className="h5 mb-0">SkyCommand repository readiness</h2>
+            <div className="small sky-muted">
+              The designated repository and active profile path become the trusted root for Phase 15
+              managed tool files.
+            </div>
+          </div>
+          <span className={`sky-pill ${readinessClass(readiness)}`}>
+            {readinessLoading ? 'CHECKING' : readinessLabel(readiness)}
+          </span>
+        </div>
+        <div className="sky-card-body">
+          <div className="row g-3">
+            <div className="col-md-3">
+              <div className="sky-detail-label">Active profile</div>
+              <div className="sky-detail-value sky-mono">{readiness?.profileCode || '—'}</div>
+            </div>
+            <div className="col-md-3">
+              <div className="sky-detail-label">SkyCommand repository</div>
+              <div className="sky-detail-value">
+                {readiness?.repository?.repoName || 'Not designated'}
+              </div>
+              <div className="small sky-muted sky-mono">
+                {readiness?.repository?.repoCode || '—'}
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="sky-detail-label">Repository root</div>
+              <div className="sky-detail-value sky-mono sky-truncate">
+                {readiness?.path?.rootPath || '—'}
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="sky-detail-label">Managed tools root</div>
+              <div className="sky-detail-value sky-mono sky-truncate">
+                {readiness?.path?.managedToolsRoot || readiness?.managedToolsRelativePath || '—'}
+              </div>
+            </div>
+          </div>
+          <div className={`mt-3 ${readiness?.ready ? 'text-success' : 'text-warning'}`}>
+            {readinessLoading
+              ? 'Inspecting repository designation and active-profile filesystem readiness...'
+              : readiness?.message || 'Repository readiness is unavailable.'}
+          </div>
+          {!readiness?.ready && readiness?.errorCode && (
+            <div className="small sky-muted sky-mono mt-1">{readiness.errorCode}</div>
+          )}
+        </div>
+      </section>
 
       <div className="row g-3">
         <div className="col-xl-4">
@@ -518,7 +653,7 @@ function AdminRepositories() {
                 <input
                   checked={form.active}
                   className="form-check-input"
-                  disabled={!canWrite || saving}
+                  disabled={!canWrite || saving || selectedRepository?.isSkycommandRepository}
                   id="repoActive"
                   onChange={(event) =>
                     setForm((current) => ({ ...current, active: event.target.checked }))
@@ -529,6 +664,11 @@ function AdminRepositories() {
                   Active repository
                 </label>
               </div>
+              {selectedRepository?.isSkycommandRepository && (
+                <div className="small sky-muted mt-1">
+                  Clear the SkyCommand designation before disabling this repository.
+                </div>
+              )}
 
               <hr />
 
@@ -631,6 +771,7 @@ function AdminRepositories() {
                     <th>Repository</th>
                     <th>Branches</th>
                     <th>Remote</th>
+                    <th>Role</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -657,6 +798,13 @@ function AdminRepositories() {
                         <div className="sky-truncate">{repository.remoteUrl || '—'}</div>
                       </td>
                       <td>
+                        {repository.isSkycommandRepository ? (
+                          <span className="sky-pill sky-pill-info">SKYCOMMAND</span>
+                        ) : (
+                          <span className="sky-muted">—</span>
+                        )}
+                      </td>
+                      <td>
                         <span className={`sky-pill ${statusClass(repository.active)}`}>
                           {statusLabel(repository.active)}
                         </span>
@@ -681,8 +829,31 @@ function AdminRepositories() {
                           {canWrite && (
                             <>
                               <button
+                                className={
+                                  repository.isSkycommandRepository
+                                    ? 'btn btn-sm btn-outline-warning'
+                                    : 'btn btn-sm sky-btn-ghost'
+                                }
+                                disabled={
+                                  saving ||
+                                  (!repository.active && !repository.isSkycommandRepository)
+                                }
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleSkycommandDesignation(
+                                    repository,
+                                    !repository.isSkycommandRepository,
+                                  );
+                                }}
+                                type="button"
+                              >
+                                {repository.isSkycommandRepository
+                                  ? 'Clear SkyCommand'
+                                  : 'Set SkyCommand'}
+                              </button>
+                              <button
                                 className="btn btn-sm sky-btn-ghost"
-                                disabled={saving}
+                                disabled={saving || repository.isSkycommandRepository}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   handleToggleStatus(repository);
@@ -693,7 +864,9 @@ function AdminRepositories() {
                               </button>
                               <button
                                 className="btn btn-sm btn-outline-danger"
-                                disabled={saving || !repository.active}
+                                disabled={
+                                  saving || !repository.active || repository.isSkycommandRepository
+                                }
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   handleDelete(repository);
@@ -711,7 +884,7 @@ function AdminRepositories() {
 
                   {!loading && repositories.length === 0 && (
                     <tr>
-                      <td className="text-center sky-muted py-5" colSpan="5">
+                      <td className="text-center sky-muted py-5" colSpan="6">
                         No repositories found.
                       </td>
                     </tr>
@@ -730,9 +903,14 @@ function AdminRepositories() {
                 </div>
               </div>
               {selectedRepository && (
-                <span className={`sky-pill ${statusClass(selectedRepository.active)}`}>
-                  {statusLabel(selectedRepository.active)}
-                </span>
+                <div className="d-flex flex-wrap gap-2">
+                  {selectedRepository.isSkycommandRepository && (
+                    <span className="sky-pill sky-pill-info">SKYCOMMAND</span>
+                  )}
+                  <span className={`sky-pill ${statusClass(selectedRepository.active)}`}>
+                    {statusLabel(selectedRepository.active)}
+                  </span>
+                </div>
               )}
             </div>
 
@@ -757,6 +935,12 @@ function AdminRepositories() {
                   </div>
                   <div className="col-md-6">
                     <dl className="row g-2 mb-0">
+                      <dt className="col-5 sky-detail-label">SkyCommand role</dt>
+                      <dd className="col-7 sky-detail-value">
+                        {selectedRepository.isSkycommandRepository
+                          ? 'Designated'
+                          : 'Standard repository'}
+                      </dd>
                       <dt className="col-5 sky-detail-label">Paths</dt>
                       <dd className="col-7 sky-detail-value">{selectedPathCount}</dd>
                       <dt className="col-5 sky-detail-label">Display order</dt>
