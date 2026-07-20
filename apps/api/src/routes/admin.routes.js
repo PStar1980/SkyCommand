@@ -77,6 +77,11 @@ router.get(
   requirePermission('ADMIN_REPOSITORY_READ'),
   adminController.listRepositories,
 );
+router.get(
+  '/repositories/skycommand-readiness',
+  requirePermission('ADMIN_REPOSITORY_READ'),
+  adminController.getSkycommandRepositoryReadiness,
+);
 router.post(
   '/repositories',
   requirePermission('ADMIN_REPOSITORY_WRITE'),
@@ -91,6 +96,11 @@ router.patch(
   '/repositories/:repoId',
   requirePermission('ADMIN_REPOSITORY_WRITE'),
   adminController.updateRepository,
+);
+router.patch(
+  '/repositories/:repoId/skycommand-designation',
+  requirePermission('ADMIN_REPOSITORY_WRITE'),
+  adminController.updateSkycommandRepositoryDesignation,
 );
 router.patch(
   '/repositories/:repoId/status',

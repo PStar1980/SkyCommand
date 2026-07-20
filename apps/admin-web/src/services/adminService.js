@@ -180,6 +180,10 @@ async function listConfigProfiles() {
   return api.get('/api/admin/repositories/profiles');
 }
 
+async function getSkycommandRepositoryReadiness() {
+  return api.get('/api/admin/repositories/skycommand-readiness');
+}
+
 async function getRepository(repoId) {
   return api.get(`/api/admin/repositories/${repoId}`);
 }
@@ -190,6 +194,10 @@ async function createRepository(payload) {
 
 async function updateRepository(repoId, payload) {
   return api.patch(`/api/admin/repositories/${repoId}`, payload);
+}
+
+async function updateSkycommandRepositoryDesignation(repoId, payload) {
+  return api.patch(`/api/admin/repositories/${repoId}/skycommand-designation`, payload);
 }
 
 async function updateRepositoryStatus(repoId, payload) {
@@ -262,9 +270,11 @@ const adminService = {
   replaceAdminToolParameters,
   listRepositories,
   listConfigProfiles,
+  getSkycommandRepositoryReadiness,
   getRepository,
   createRepository,
   updateRepository,
+  updateSkycommandRepositoryDesignation,
   updateRepositoryStatus,
   updateRepositoryPaths,
   deleteRepository,

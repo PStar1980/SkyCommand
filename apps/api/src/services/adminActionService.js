@@ -1,5 +1,6 @@
 const { pool, query } = require('../../../../packages/db/src/connection');
 const { hashPassword } = require('../../../../packages/auth/src/password');
+const skycommandRepositoryService = require('./skycommandRepositoryService');
 
 const VALID_USER_STATUSES = new Set(['ACTIVE', 'DISABLED', 'LOCKED', 'PENDING']);
 const VALID_APPLICATION_STATUSES = new Set(['ACTIVE', 'DISABLED', 'NONE']);
@@ -357,6 +358,7 @@ function sanitizeRepository(row) {
     devBranch: row.dev_branch,
     displayOrder: row.display_order,
     active: row.active,
+    isSkycommandRepository: Boolean(row.is_skycommand_repository),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -2554,6 +2556,7 @@ async function listRepositories(filters = {}) {
         dev_branch,
         display_order,
         active,
+        is_skycommand_repository,
         created_at,
         updated_at
       FROM core.repositories
@@ -2601,6 +2604,7 @@ async function getRepositoryRowById(client, rawRepoId, options = {}) {
         dev_branch,
         display_order,
         active,
+        is_skycommand_repository,
         created_at,
         updated_at
       FROM core.repositories
@@ -2783,6 +2787,7 @@ async function createRepository({ body = {}, actor, context = {} }) {
           dev_branch,
           display_order,
           active,
+          is_skycommand_repository,
           created_at,
           updated_at
       `,
@@ -2844,9 +2849,23 @@ async function updateRepository({ repoId, body = {}, actor, context = {} }) {
 
   try {
     await client.query('BEGIN');
-    await getRepositoryRowById(client, normalizedRepoId, { forUpdate: true });
+    const currentRepository = await getRepositoryRowById(client, normalizedRepoId, {
+      forUpdate: true,
+    });
 
     const payload = normalizeRepositoryPayload(body, { patch: true });
+
+    if (payload.active === false && currentRepository.is_skycommand_repository) {
+      throw createHttpError(
+        409,
+        'Clear the SkyCommand repository designation before disabling this repository.',
+        {
+          code: 'SKYCOMMAND_REPOSITORY_DESIGNATION_REQUIRED',
+          repoId: normalizedRepoId,
+          repoCode: currentRepository.repo_code,
+        },
+      );
+    }
     const updates = [];
     const values = [];
     const fieldMap = [
@@ -2954,6 +2973,18 @@ async function deleteRepository({ repoId, body = {}, actor, context = {} }) {
 
     const repository = await getRepositoryRowById(client, normalizedRepoId, { forUpdate: true });
 
+    if (repository.is_skycommand_repository) {
+      throw createHttpError(
+        409,
+        'Clear the SkyCommand repository designation before disabling this repository.',
+        {
+          code: 'SKYCOMMAND_REPOSITORY_DESIGNATION_REQUIRED',
+          repoId: normalizedRepoId,
+          repoCode: repository.repo_code,
+        },
+      );
+    }
+
     await client.query(
       `
         UPDATE core.repositories
@@ -3000,6 +3031,107 @@ async function deleteRepository({ repoId, body = {}, actor, context = {} }) {
     };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function setSkycommandRepositoryDesignation({ repoId, body = {}, actor, context = {} }) {
+  const normalizedRepoId = normalizeUuid(repoId, 'repoId');
+  const designated = normalizeBoolean(body.designated, 'designated');
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const repository = await getRepositoryRowById(client, normalizedRepoId, { forUpdate: true });
+
+    if (designated && !repository.active) {
+      throw createHttpError(409, 'Only an active repository can be designated as SkyCommand.', {
+        code: 'SKYCOMMAND_REPOSITORY_INACTIVE',
+        repoId: normalizedRepoId,
+        repoCode: repository.repo_code,
+      });
+    }
+
+    const existingResult = await client.query(
+      `
+        SELECT repo_id, repo_code, repo_name
+        FROM core.repositories
+        WHERE is_skycommand_repository = TRUE
+        FOR UPDATE
+      `,
+    );
+    const existing = existingResult.rows[0] || null;
+
+    if (designated) {
+      await client.query(
+        `
+          UPDATE core.repositories
+          SET is_skycommand_repository = FALSE,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE is_skycommand_repository = TRUE
+            AND repo_id <> $1
+        `,
+        [normalizedRepoId],
+      );
+    }
+
+    await client.query(
+      `
+        UPDATE core.repositories
+        SET is_skycommand_repository = $2,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE repo_id = $1
+      `,
+      [normalizedRepoId, designated],
+    );
+
+    const updatedRepository = await getRepositoryRowById(client, normalizedRepoId);
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: designated
+        ? 'ADMIN_SKYCOMMAND_REPOSITORY_SET'
+        : 'ADMIN_SKYCOMMAND_REPOSITORY_CLEAR',
+      resourceType: 'core.repositories',
+      resourceId: normalizedRepoId,
+      action: designated ? 'set_skycommand_repository' : 'clear_skycommand_repository',
+      success: true,
+      message: designated
+        ? 'SkyCommand repository designation updated through Admin API.'
+        : 'SkyCommand repository designation cleared through Admin API.',
+      metadata: {
+        repoCode: updatedRepository.repo_code,
+        repoName: updatedRepository.repo_name,
+        designated,
+        previousRepoId: existing?.repo_id || null,
+        previousRepoCode: existing?.repo_code || null,
+        activeProfileCode: skycommandRepositoryService.PROFILE_CODE,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    return {
+      repository: sanitizeRepository(updatedRepository),
+      readiness: await skycommandRepositoryService.getSkycommandRepositoryReadiness(),
+      changed:
+        designated !== Boolean(repository.is_skycommand_repository) ||
+        (designated && existing?.repo_id !== normalizedRepoId),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+
+    if (error.code === '23505') {
+      throw createHttpError(409, 'Another repository is already designated as SkyCommand.', {
+        code: 'SKYCOMMAND_REPOSITORY_ALREADY_CONFIGURED',
+        constraint: error.constraint,
+      });
+    }
+
     throw error;
   } finally {
     client.release();
@@ -3132,6 +3264,7 @@ module.exports = {
   updateRepository,
   updateRepositoryStatus,
   updateRepositoryPaths,
+  setSkycommandRepositoryDesignation,
   deleteRepository,
   getAuthSettings,
   getCoreSettings,

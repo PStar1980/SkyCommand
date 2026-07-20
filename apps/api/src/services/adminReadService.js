@@ -663,7 +663,13 @@ const AUDIT_EVENT_SOURCE_SQL = `
             THEN 'ADMIN_ROLE_WRITE'
           WHEN audit_event.action IN ('create_permission', 'update_permission', 'update_role_permissions')
             THEN 'ADMIN_PERMISSION_WRITE'
-          WHEN audit_event.action IN ('create_repository', 'update_repository', 'delete_repository')
+          WHEN audit_event.action IN (
+            'create_repository',
+            'update_repository',
+            'delete_repository',
+            'set_skycommand_repository',
+            'clear_skycommand_repository'
+          )
             THEN 'ADMIN_REPOSITORY_WRITE'
           WHEN audit_event.action IN (
             'create_tool',
