@@ -100,6 +100,7 @@ SkyServer/
 │   │       │   ├── Home.jsx
 │   │       │   ├── IngestionStatus.jsx
 │   │       │   ├── Login.jsx
+│   │       │   ├── ManageTools.jsx
 │   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── ReadinessDashboard.jsx
 │   │       │   ├── SchedulerControl.jsx
@@ -169,6 +170,7 @@ SkyServer/
 │   │       │   ├── skywebProfileService.js
 │   │       │   ├── skywebSavedViewsService.js
 │   │       │   ├── temporalService.js
+│   │       │   ├── toolAdminService.js
 │   │       │   ├── toolManifestService.js
 │   │       │   ├── workerService.js
 │   │       │   ├── workflowConditionSelfTest.js
@@ -254,7 +256,8 @@ SkyServer/
 │   │       │   ├── 00055__workflow_node_output_persistence.sql
 │   │       │   ├── 00062__workflow_output_type_contracts.sql
 │   │       │   ├── 00064__remove_tool_manifest_snapshot_enforcement.sql
-│   │       │   └── 00065__repository_intelligence_tool.sql
+│   │       │   ├── 00065__repository_intelligence_tool.sql
+│   │       │   └── 00066__tool_catalogue_administration.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -284,7 +287,8 @@ SkyServer/
 │   │           ├── 00058__workflow_summary_node_support_seed.sql
 │   │           ├── 00059__workflow_scheduler_audit_privileges_seed.sql
 │   │           ├── 00060__temporal_listener_audit_privileges_seed.sql
-│   │           └── 00061__skycommand_application_brand_seed.sql
+│   │           ├── 00061__skycommand_application_brand_seed.sql
+│   │           └── 00067__tool_catalogue_admin_permissions_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js

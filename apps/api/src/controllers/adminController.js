@@ -2,6 +2,7 @@ const adminReadService = require('../services/adminReadService');
 const adminActionService = require('../services/adminActionService');
 const authService = require('../services/authService');
 const productionReadinessService = require('../services/productionReadinessService');
+const toolAdminService = require('../services/toolAdminService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function sendPagedResponse(res, payload, liveTelemetryOptions = null) {
@@ -508,6 +509,88 @@ async function listRolePermissions(req, res) {
   }
 }
 
+async function listAdminTools(req, res) {
+  try {
+    const payload = await toolAdminService.listTools(req.query || {});
+    sendPagedResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getAdminToolOptions(req, res) {
+  try {
+    const payload = await toolAdminService.getOptions();
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getAdminTool(req, res) {
+  try {
+    const payload = await toolAdminService.getTool(req.params.toolId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function createAdminTool(req, res) {
+  try {
+    const payload = await toolAdminService.createTool({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+
+    res.status(201).json({
+      ok: true,
+      ...payload,
+    });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateAdminTool(req, res) {
+  try {
+    const payload = await toolAdminService.updateTool({
+      toolId: req.params.toolId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function updateAdminToolStatus(req, res) {
+  try {
+    const payload = await toolAdminService.updateToolStatus({
+      toolId: req.params.toolId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function replaceAdminToolParameters(req, res) {
+  try {
+    const payload = await toolAdminService.replaceToolParameters({
+      toolId: req.params.toolId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function listRepositories(req, res) {
   try {
     const payload = await adminActionService.listRepositories(req.query || {});
@@ -679,6 +762,13 @@ module.exports = {
   updatePermissionStatus,
   getPermissionRoles,
   listRolePermissions,
+  listAdminTools,
+  getAdminToolOptions,
+  getAdminTool,
+  createAdminTool,
+  updateAdminTool,
+  updateAdminToolStatus,
+  replaceAdminToolParameters,
   listRepositories,
   listConfigProfiles,
   getRepository,

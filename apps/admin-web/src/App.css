@@ -4879,3 +4879,50 @@
   overflow-wrap: anywhere;
   white-space: normal;
 }
+
+/* Phase 15.2 — Manage Tools catalogue administration */
+.sky-tool-admin-list {
+  display: grid;
+}
+
+.sky-tool-admin-list-item {
+  border-color: rgba(119, 151, 198, 0.14);
+  background: rgba(5, 13, 26, 0.42);
+  color: inherit;
+  padding: 0.95rem 1rem;
+  text-align: left;
+}
+
+.sky-tool-admin-list-item:hover,
+.sky-tool-admin-list-item:focus-visible {
+  border-color: rgba(90, 174, 255, 0.36);
+  background: rgba(10, 24, 45, 0.74);
+  color: inherit;
+}
+
+.sky-tool-admin-list-item.active {
+  border-color: rgba(86, 170, 255, 0.52);
+  background: linear-gradient(135deg, rgba(31, 94, 171, 0.24), rgba(69, 49, 141, 0.18));
+  color: inherit;
+}
+
+.sky-tool-parameter-editor {
+  border: 1px solid rgba(88, 151, 229, 0.24);
+  border-radius: 0.85rem;
+  background: rgba(7, 17, 32, 0.64);
+  padding: 1rem;
+}
+
+.sky-tool-parameter-empty {
+  min-height: 7rem;
+  border: 1px dashed rgba(113, 151, 205, 0.28);
+  border-radius: 0.85rem;
+}
+
+.sky-subsection-title {
+  color: rgba(209, 227, 255, 0.94);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
