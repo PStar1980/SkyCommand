@@ -665,6 +665,14 @@ const AUDIT_EVENT_SOURCE_SQL = `
             THEN 'ADMIN_PERMISSION_WRITE'
           WHEN audit_event.action IN ('create_repository', 'update_repository', 'delete_repository')
             THEN 'ADMIN_REPOSITORY_WRITE'
+          WHEN audit_event.action IN (
+            'create_tool',
+            'update_tool',
+            'enable_tool',
+            'disable_tool',
+            'update_tool_parameters'
+          )
+            THEN 'ADMIN_TOOL_WRITE'
           WHEN audit_event.action IN ('start_workflow_bridge', 'finish_workflow_bridge')
             THEN 'WORKFLOW_RUN'
           ELSE NULL

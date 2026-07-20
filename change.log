@@ -1,3 +1,14 @@
+## 2026-07-19 — Phase 15.2 Manage Tools Catalogue Administration
+
+- Added migration `00066__tool_catalogue_administration.sql` with optional structured-output and managed-registration metadata on `core.tools`, plus compatible additions to the trusted operational tool view; PostgreSQL remains the sole runtime authority.
+- Added `ADMIN_TOOL_READ` and `ADMIN_TOOL_WRITE` permissions, granted to trusted administrative roles, with write access disabled for non-administrative roles.
+- Added transactional Admin API services and routes to list, inspect, create, update, enable, disable, and replace positional tool parameters and static choices.
+- Added validation for immutable tool codes, active catalogue references, repository-relative paths, output contract identifiers, visibility, positional ordering, parameter types, option sources, and duplicate choices.
+- Added audited tool create/update/status/parameter actions without storing source content or runtime parameter values.
+- Added **Tools > Manage Tools** with searchable filters, catalogue indicators, create/detail editing, visibility controls, structured-output metadata, dynamic option sources, static choices, and disable-first lifecycle management.
+- Preserved existing CLI, Run Tools, scheduler, worker, workflow, Temporal, and generic process-adapter behavior; Phase 15.2 manages catalogue configuration only and performs no script upload or execution.
+- Updated Phase 15 documentation, README status/roadmap, and repository map. Phase 15.3 will add the single SkyCommand repository designation and active-profile path readiness.
+
 ## 2026-07-18 - Phase 15.1 Assisted Tool Catalogue Architecture and Authoring Kit
 
 - Began Phase 15 with a deliberately narrow administration design: manage PostgreSQL catalogue configuration first, then add trusted Node.js onboarding assistance without redesigning the generic API/worker/Temporal execution path.

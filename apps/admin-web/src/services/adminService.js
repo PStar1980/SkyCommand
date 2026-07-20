@@ -144,6 +144,34 @@ async function listRolePermissions(filters = {}) {
   return api.get('/api/admin/role-permissions', { query: filters });
 }
 
+async function listAdminTools(filters = {}) {
+  return api.get('/api/admin/tools', { query: filters });
+}
+
+async function getAdminToolOptions() {
+  return api.get('/api/admin/tools/options');
+}
+
+async function getAdminTool(toolId) {
+  return api.get(`/api/admin/tools/${toolId}`);
+}
+
+async function createAdminTool(payload) {
+  return api.post('/api/admin/tools', payload);
+}
+
+async function updateAdminTool(toolId, payload) {
+  return api.patch(`/api/admin/tools/${toolId}`, payload);
+}
+
+async function updateAdminToolStatus(toolId, payload) {
+  return api.patch(`/api/admin/tools/${toolId}/status`, payload);
+}
+
+async function replaceAdminToolParameters(toolId, payload) {
+  return api.put(`/api/admin/tools/${toolId}/parameters`, payload);
+}
+
 async function listRepositories(filters = {}) {
   return api.get('/api/admin/repositories', { query: filters });
 }
@@ -225,6 +253,13 @@ const adminService = {
   updatePermissionStatus,
   getPermissionRoles,
   listRolePermissions,
+  listAdminTools,
+  getAdminToolOptions,
+  getAdminTool,
+  createAdminTool,
+  updateAdminTool,
+  updateAdminToolStatus,
+  replaceAdminToolParameters,
   listRepositories,
   listConfigProfiles,
   getRepository,

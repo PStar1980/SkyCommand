@@ -21,6 +21,7 @@ import Login from './pages/Login.jsx';
 import ReadinessDashboard from './pages/ReadinessDashboard.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
+import ManageTools from './pages/ManageTools.jsx';
 import ToolsDashboard from './pages/ToolsDashboard.jsx';
 import WorkflowsDashboard from './pages/WorkflowsDashboard.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
@@ -101,6 +102,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="tools/manage"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_TOOL_READ">
+                  <ManageTools />
+                </ProtectedRoute>
+              }
+            />
             <Route path="script-executions" element={<Navigate replace to="/tools/executions" />} />
             <Route path="tools/history" element={<Navigate replace to="/tools/executions" />} />
             <Route
@@ -113,8 +122,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
 
             <Route path="data" element={<Navigate replace to="/dashboard/data-pipeline" />} />
-            <Route path="ingestion-status" element={<Navigate replace to="/dashboard/data-pipeline" />} />
-            <Route path="data/ingestion" element={<Navigate replace to="/dashboard/data-pipeline" />} />
+            <Route
+              path="ingestion-status"
+              element={<Navigate replace to="/dashboard/data-pipeline" />}
+            />
+            <Route
+              path="data/ingestion"
+              element={<Navigate replace to="/dashboard/data-pipeline" />}
+            />
 
             <Route path="worker" element={<Navigate replace to="/automation/scheduler" />} />
             <Route
@@ -194,9 +209,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               path="workflows/temporal/history"
               element={<Navigate replace to="/workflows/history?runtime=temporal" />}
             />
-            <Route path="automation/temporal" element={<Navigate replace to="/workflows/history?runtime=temporal" />} />
-            <Route path="temporal" element={<Navigate replace to="/workflows/history?runtime=temporal" />} />
-
+            <Route
+              path="automation/temporal"
+              element={<Navigate replace to="/workflows/history?runtime=temporal" />}
+            />
+            <Route
+              path="temporal"
+              element={<Navigate replace to="/workflows/history?runtime=temporal" />}
+            />
 
             <Route
               path="configuration/production-readiness"
@@ -218,8 +238,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
             <Route path="access-control" element={<Navigate replace to="/admin/users" />} />
             <Route path="audit" element={<Navigate replace to="/access-control/user-history" />} />
-            <Route path="audit-events" element={<Navigate replace to="/access-control/user-history" />} />
-            <Route path="audit/events" element={<Navigate replace to="/access-control/user-history" />} />
+            <Route
+              path="audit-events"
+              element={<Navigate replace to="/access-control/user-history" />}
+            />
+            <Route
+              path="audit/events"
+              element={<Navigate replace to="/access-control/user-history" />}
+            />
             <Route
               path="access-control/user-history"
               element={

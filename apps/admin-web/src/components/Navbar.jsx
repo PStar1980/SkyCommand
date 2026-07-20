@@ -27,6 +27,8 @@ const COMMAND_SEARCH_ALIASES = {
   run: '/tools/run',
   executions: '/tools/executions',
   history: '/tools/executions',
+  'manage tools': '/tools/manage',
+  catalogue: '/tools/manage',
   workflows: '/workflows/start',
   workflow: '/workflows/start',
   worker: '/workflows/worker-health',
@@ -78,6 +80,7 @@ const PAGE_LABELS = {
   '/dashboard/readiness': 'Readiness',
   '/tools/run': 'Run Tools',
   '/tools/executions': 'Tool History',
+  '/tools/manage': 'Manage Tools',
   '/workflows/create': 'Create Workflow',
   '/workflows/manage': 'Manage Workflows',
   '/workflows/start': 'Start Workflow',
@@ -142,7 +145,10 @@ function isEditableElement(element) {
 }
 
 function createNavGroups(hasPermission) {
-  const canViewTools = hasPermission('CORE_VIEW_TOOLS') || hasPermission('SCRIPT_EXECUTION_READ');
+  const canViewTools =
+    hasPermission('CORE_VIEW_TOOLS') ||
+    hasPermission('SCRIPT_EXECUTION_READ') ||
+    hasPermission('ADMIN_TOOL_READ');
   const canViewWorkflows =
     hasPermission('WORKFLOW_READ') ||
     hasPermission('TEMPORAL_WORKFLOW_READ') ||
@@ -224,6 +230,13 @@ function createNavGroups(hasPermission) {
           icon: '▶',
           visible: hasPermission('CORE_VIEW_TOOLS'),
           description: 'Reusable primitives',
+        },
+        {
+          label: 'Manage Tools',
+          to: '/tools/manage',
+          icon: '▧',
+          visible: hasPermission('ADMIN_TOOL_READ'),
+          description: 'Catalogue configuration',
         },
       ],
     },

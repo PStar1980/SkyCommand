@@ -44,6 +44,30 @@ router.get(
 router.get('/applications', requirePermission('ADMIN_USER_READ'), adminController.listApplications);
 
 router.get(
+  '/tools/options',
+  requirePermission('ADMIN_TOOL_READ'),
+  adminController.getAdminToolOptions,
+);
+router.get('/tools', requirePermission('ADMIN_TOOL_READ'), adminController.listAdminTools);
+router.post('/tools', requirePermission('ADMIN_TOOL_WRITE'), adminController.createAdminTool);
+router.get('/tools/:toolId', requirePermission('ADMIN_TOOL_READ'), adminController.getAdminTool);
+router.patch(
+  '/tools/:toolId',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.updateAdminTool,
+);
+router.patch(
+  '/tools/:toolId/status',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.updateAdminToolStatus,
+);
+router.put(
+  '/tools/:toolId/parameters',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.replaceAdminToolParameters,
+);
+
+router.get(
   '/repositories/profiles',
   requirePermission('ADMIN_REPOSITORY_READ'),
   adminController.listConfigProfiles,

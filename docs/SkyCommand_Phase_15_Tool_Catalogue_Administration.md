@@ -2,13 +2,30 @@
 
 ## Status
 
-Phase 15 is in progress. This phase adds a guided administration layer over the existing PostgreSQL tool catalogue without changing the execution architecture completed in Phase 14.
+Phase 15 is in progress. Phase 15.1 established the architecture and authoring kit. **Phase 15.2 is now implemented:** administrators can list, inspect, create, edit, enable, and disable PostgreSQL tool catalogue records through **Tools > Manage Tools**, including positional parameters, static choices, visibility, permission, risk, runtime, repository-relative script paths, and structured-output metadata.
+
+The next increment is Phase 15.3: designate one repository as the SkyCommand repository and resolve its active-profile physical root before managed file onboarding begins.
 
 The governing rule remains:
 
 > PostgreSQL decides what may run. Files provide implementation. Structured results provide workflow evidence.
 
 Phase 15 deliberately starts with catalogue management and a conservative onboarding assistant. It does not attempt to turn SkyCommand into a general-purpose untrusted-code hosting service.
+
+## Phase 15.2 delivered foundation
+
+Phase 15.2 adds the first functional product surface without uploading or executing any new source files:
+
+- migration `00066__tool_catalogue_administration.sql` adds optional output-contract and managed-registration metadata to `core.tools` while preserving the existing runtime view and execution path;
+- seed `00067__tool_catalogue_admin_permissions_seed.sql` adds `ADMIN_TOOL_READ` and `ADMIN_TOOL_WRITE`, with write access limited to trusted administrative roles;
+- the Admin API now exposes catalogue list, detail, reference options, create, update, status, and parameter-replacement endpoints;
+- catalogue writes are transactional across tool, visibility, positional parameter, and static-choice records;
+- create/update/enable/disable/parameter actions are recorded in the audit ledger without source content or runtime parameter values;
+- **Tools > Manage Tools** provides searchable catalogue navigation plus one editable workbench for core fields, visibility, output metadata, parameters, and choices;
+- new records default to disabled, tool codes become immutable after creation, and removal remains disable-first rather than hard delete;
+- existing Run Tools, scheduler, worker, CLI, workflow, and Temporal execution behavior is unchanged.
+
+Phase 15.2 manages configuration only. Repository designation, browser upload, static source analysis, file promotion, contract check, and live-test behavior remain deliberately deferred to Phases 15.3-15.6.
 
 ## Architecture decision
 
@@ -347,13 +364,13 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - add a working custom-tool template and sample schema;
 - update README, roadmap, change log, and repository map.
 
-### Phase 15.2 - Manage Tools catalogue CRUD
+### Phase 15.2 - Manage Tools catalogue CRUD — complete
 
-- add administrative read/write permissions;
-- add tool administration API services;
-- create Tools > Manage Tools;
-- support core tool fields, positional parameters, options, visibility, and enable/disable;
-- preserve all existing Run Tools behavior.
+- added `ADMIN_TOOL_READ` and `ADMIN_TOOL_WRITE` permissions and administrative grants;
+- added transactional tool administration API services and audited write operations;
+- added **Tools > Manage Tools** with searchable catalogue list, detail/create workbench, and status controls;
+- added core tool fields, positional parameters, static options, dynamic option sources, visibility, permissions, risk, runtime, repository-relative paths, and output metadata;
+- preserved all existing Run Tools, CLI, worker, scheduler, workflow, and Temporal execution behavior.
 
 ### Phase 15.3 - SkyCommand repository designation
 
@@ -413,3 +430,16 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 ## Definition of done
 
 Phase 15 is complete when SkyCommand provides a practical, trusted-administrator framework for creating and maintaining tool catalogue configuration, assists with safe file onboarding into the designated SkyCommand repository, validates optional structured output contracts, and proves that a newly registered tool can run through the existing CLI/web/workflow execution architecture without custom integration code.
+
+
+## Increment status
+
+| Increment | Status | Outcome |
+| --- | --- | --- |
+| 15.1 | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template |
+| 15.2 | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools** |
+| 15.3 | Next | Single SkyCommand repository designation and active-profile path readiness |
+| 15.4 | Planned | Trusted upload staging and static analysis |
+| 15.5 | Planned | Preview, disabled-first registration, and managed file promotion |
+| 15.6 | Planned | Contract check, controlled live test, Run Tools and workflow proof |
+| 15.7 | Planned | Regression matrix, Development Promotion, and closure |
