@@ -2,9 +2,9 @@
 
 ## Status
 
-Phase 15 is in progress. Phases 15.1 and 15.2 established the architecture, authoring kit, and **Tools > Manage Tools** catalogue administration surface. **Phase 15.3 is now implemented:** Configuration > Repositories can designate or clear one active SkyCommand repository, the database enforces the one-repository rule, and the Admin API resolves the active configuration profile into a verified repository and managed-tools filesystem root.
+Phase 15 is in progress. Phases 15.1 through 15.3 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, and the single trusted SkyCommand repository boundary. **Phase 15.4 is now implemented:** **Tools > Add Tool** accepts one trusted Node.js/CommonJS entry script plus an optional onboarding descriptor and optional output schema, stages the text files outside executable package paths, and returns syntax, dependency, descriptor, schema, collision, and policy findings without executing uploaded code.
 
-The next increment is Phase 15.4: trusted upload staging and static analysis for one Node.js script plus an optional onboarding descriptor and optional output schema.
+The next increment is Phase 15.5: editable configuration prefill, resolved destination/database preview, disabled-first catalogue registration, and controlled managed-file promotion.
 
 The governing rule remains:
 
@@ -38,6 +38,25 @@ Phase 15.3 establishes the trusted repository boundary required by managed onboa
 - `skycommandRepositoryService` resolves the active profile from the existing environment contract, verifies repository/read/write access, verifies or prepares `packages/tools/custom`, and exposes reusable `getSkycommandRepositoryReadiness()` and `assertSkycommandRepositoryReady()` functions;
 - readiness returns `SKYCOMMAND_REPOSITORY_NOT_CONFIGURED`, `SKYCOMMAND_REPOSITORY_PATH_NOT_CONFIGURED`, or `SKYCOMMAND_REPOSITORY_PATH_INVALID` without inventing filesystem state;
 - no upload staging, source execution, dependency installation, or managed-file writes are introduced in this increment.
+
+## Phase 15.4 delivered foundation
+
+Phase 15.4 adds the first browser-assisted onboarding workbench while preserving the trusted-administrator and no-execution boundary:
+
+- **Tools > Add Tool** is protected by `ADMIN_TOOL_WRITE` and displays the designated repository, active profile, and managed tools root before accepting files;
+- the browser reads one required `.js` file and optional `skycommand.tool.json` and `<outputType>.schema.json` files as UTF-8 text and sends them through bounded JSON upload limits;
+- the API places each package in a random, time-limited session under the non-executable `logs/tool-onboarding` staging root with restrictive file permissions where supported;
+- static syntax validation uses the installed Node.js parser through `vm.Script` and never invokes, imports, or evaluates the uploaded tool;
+- source inspection reports shared `runToolCli` adapter use, constant tool/output identifiers, simple positional parameters, available/missing dependencies, relative-module review needs, filesystem/child-process/environment behavior, dynamic code, environment dumping, shell use, and secret-like literals;
+- descriptor inspection validates version, identity, Node.js runtime, entrypoint agreement, parameter names/types/positions, result contract, visibility, and source/descriptor consistency;
+- catalogue-backed reference checks verify active category, runtime, permission, risk, parameter type, option source, and visibility values;
+- schema inspection enforces JSON object shape, `<outputType>.schema.json` agreement, local-only `$ref`, bounded depth/node count, and the exact keywords/formats understood by the current validator;
+- duplicate registered tool codes and existing `packages/tools/custom/<toolCode>` destinations are blocking findings;
+- findings carry explicit ERROR/WARNING/INFO severity and confidence, while suggested configuration remains advisory and editable in the upcoming Phase 15.5 workbench;
+- analysis creates an audited session record containing only filenames, sizes, SHA-256 evidence, result counts, and suggestions - never source content, secrets, or runtime parameter values;
+- the page cannot register, enable, execute, install dependencies, promote files, or commit Git changes.
+
+Phase 15.4 introduces no database migration and does not change CLI, Run Tools, worker, scheduler, workflow, Temporal, ToolResult, or generic process-adapter behavior.
 
 ## Architecture decision
 
@@ -397,12 +416,14 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - prevented designated repositories from being disabled until the role is cleared;
 - added audited API operations and a reusable readiness assertion for Phase 15.4/15.5 onboarding services.
 
-### Phase 15.4 - Assisted upload and static analysis
+### Phase 15.4 - Assisted upload and static analysis — complete
 
-- add trusted upload staging;
-- support one `.js`, optional descriptor, and optional schema;
-- validate syntax, metadata, paths, dependencies, and schema;
-- present suggestions with confidence and editable configuration.
+- added **Tools > Add Tool** with repository readiness, trusted file selectors, bounded payload evidence, and explicit no-execution/no-registration messaging;
+- added a non-executable, random, 24-hour staging session for one `.js`, optional descriptor, and optional schema;
+- added Node.js syntax, shared-adapter, dependency, parameter, security-policy, descriptor, catalogue-reference, schema, tool-code, and destination-collision findings;
+- added confidence-labelled configuration suggestions and staged-file hash evidence without exposing source content;
+- added `GET /api/admin/tool-onboarding/options` and `POST /api/admin/tool-onboarding/analyze`, audited through `ADMIN_TOOL_WRITE`;
+- added `npm run tool-onboarding:self-test` and included the service and self-test in `npm run validate`.
 
 ### Phase 15.5 - File promotion and registration
 
@@ -451,12 +472,12 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 
 ## Increment status
 
-| Increment | Status   | Outcome                                                                          |
-| --------- | -------- | -------------------------------------------------------------------------------- |
-| 15.1      | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template    |
-| 15.2      | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools**                  |
-| 15.3      | Complete | Single SkyCommand repository designation and active-profile filesystem readiness |
-| 15.4      | Next     | Trusted upload staging and static analysis                                       |
-| 15.5      | Planned  | Preview, disabled-first registration, and managed file promotion                 |
-| 15.6      | Planned  | Contract check, controlled live test, Run Tools and workflow proof               |
-| 15.7      | Planned  | Regression matrix, Development Promotion, and closure                            |
+| Increment | Status   | Outcome                                                                            |
+| --------- | -------- | ---------------------------------------------------------------------------------- |
+| 15.1      | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template      |
+| 15.2      | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools**                    |
+| 15.3      | Complete | Single SkyCommand repository designation and active-profile filesystem readiness   |
+| 15.4      | Complete | Trusted upload staging, static analysis, advisory suggestions, and audit evidence  |
+| 15.5      | Next     | Editable prefill, preview, disabled-first registration, and managed file promotion |
+| 15.6      | Planned  | Contract check, controlled live test, Run Tools and workflow proof                 |
+| 15.7      | Planned  | Regression matrix, Development Promotion, and closure                              |

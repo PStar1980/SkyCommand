@@ -28,6 +28,8 @@ const COMMAND_SEARCH_ALIASES = {
   executions: '/tools/executions',
   history: '/tools/executions',
   'manage tools': '/tools/manage',
+  'add tool': '/tools/add',
+  onboarding: '/tools/add',
   catalogue: '/tools/manage',
   workflows: '/workflows/start',
   workflow: '/workflows/start',
@@ -81,6 +83,7 @@ const PAGE_LABELS = {
   '/tools/run': 'Run Tools',
   '/tools/executions': 'Tool History',
   '/tools/manage': 'Manage Tools',
+  '/tools/add': 'Add Tool',
   '/workflows/create': 'Create Workflow',
   '/workflows/manage': 'Manage Workflows',
   '/workflows/start': 'Start Workflow',
@@ -148,7 +151,8 @@ function createNavGroups(hasPermission) {
   const canViewTools =
     hasPermission('CORE_VIEW_TOOLS') ||
     hasPermission('SCRIPT_EXECUTION_READ') ||
-    hasPermission('ADMIN_TOOL_READ');
+    hasPermission('ADMIN_TOOL_READ') ||
+    hasPermission('ADMIN_TOOL_WRITE');
   const canViewWorkflows =
     hasPermission('WORKFLOW_READ') ||
     hasPermission('TEMPORAL_WORKFLOW_READ') ||
@@ -237,6 +241,13 @@ function createNavGroups(hasPermission) {
           icon: '▧',
           visible: hasPermission('ADMIN_TOOL_READ'),
           description: 'Catalogue configuration',
+        },
+        {
+          label: 'Add Tool',
+          to: '/tools/add',
+          icon: '+',
+          visible: hasPermission('ADMIN_TOOL_WRITE'),
+          description: 'Trusted onboarding',
         },
       ],
     },

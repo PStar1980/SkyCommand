@@ -4,6 +4,7 @@ const authService = require('../services/authService');
 const productionReadinessService = require('../services/productionReadinessService');
 const toolAdminService = require('../services/toolAdminService');
 const skycommandRepositoryService = require('../services/skycommandRepositoryService');
+const toolOnboardingService = require('../services/toolOnboardingService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function sendPagedResponse(res, payload, liveTelemetryOptions = null) {
@@ -592,6 +593,29 @@ async function replaceAdminToolParameters(req, res) {
   }
 }
 
+async function getToolOnboardingOptions(req, res) {
+  void req;
+
+  try {
+    const payload = await toolOnboardingService.getOptions();
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function analyzeToolOnboardingPackage(req, res) {
+  try {
+    const payload = await toolOnboardingService.analyzeToolPackage({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function listRepositories(req, res) {
   try {
     const payload = await adminActionService.listRepositories(req.query || {});
@@ -795,6 +819,8 @@ module.exports = {
   updateAdminTool,
   updateAdminToolStatus,
   replaceAdminToolParameters,
+  getToolOnboardingOptions,
+  analyzeToolOnboardingPackage,
   listRepositories,
   listConfigProfiles,
   getSkycommandRepositoryReadiness,

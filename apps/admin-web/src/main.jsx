@@ -22,6 +22,7 @@ import ReadinessDashboard from './pages/ReadinessDashboard.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
 import ManageTools from './pages/ManageTools.jsx';
+import AddTool from './pages/AddTool.jsx';
 import ToolsDashboard from './pages/ToolsDashboard.jsx';
 import WorkflowsDashboard from './pages/WorkflowsDashboard.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
@@ -107,6 +108,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="ADMIN_TOOL_READ">
                   <ManageTools />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="tools/add"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_TOOL_WRITE">
+                  <AddTool />
                 </ProtectedRoute>
               }
             />

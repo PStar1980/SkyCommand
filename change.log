@@ -1,3 +1,18 @@
+## 2026-07-20 — Phase 15.4 Trusted Upload Staging and Static Analysis
+
+- Added **Tools > Add Tool** as the first browser-assisted onboarding surface, protected by `ADMIN_TOOL_WRITE` and gated by the Phase 15.3 SkyCommand repository readiness service.
+- Added bounded UTF-8 upload handling for one required Node.js/CommonJS `.js` entry script plus optional `skycommand.tool.json` and `<outputType>.schema.json` files; the JSON payload remains below the existing API body limit.
+- Added random 24-hour staging sessions under the non-executable `logs/tool-onboarding` root with restrictive file permissions where supported, automatic expired-session cleanup, file-size evidence, and SHA-256 audit evidence.
+- Added static JavaScript parsing through `vm.Script` without importing, evaluating, or executing uploaded code.
+- Added source findings for shared `runToolCli` use, tool/output constants, simple positional parameters, missing dependencies, unresolved relative modules, filesystem/child-process/environment behavior, shell use, dynamic code, environment dumping, and secret-like literals.
+- Added descriptor validation for version, tool identity, Node.js runtime, entrypoint agreement, parameter names/types/positions, result contract, visibility, and source/descriptor consistency.
+- Added catalogue-backed validation for active category, runtime, permission, risk, parameter type, option source, and visibility values.
+- Added output-schema validation for JSON object shape, output-type filename agreement, local-only `$ref`, supported keywords/formats, bounded depth, and bounded node count.
+- Added blocking detection for existing PostgreSQL tool codes and existing `packages/tools/custom/<toolCode>` destinations; suggestions remain confidence-labelled advisory data for Phase 15.5 rather than automatic decisions.
+- Added `GET /api/admin/tool-onboarding/options`, `POST /api/admin/tool-onboarding/analyze`, audit events without source content/secrets, and `npm run tool-onboarding:self-test` within the full validation suite.
+- Updated the Phase 15 architecture plan, Markdown reference, README status/roadmap, and repository map. Phase 15.5 will add editable prefill, destination/database preview, disabled-first registration, and managed-file promotion.
+- Preserved all CLI, Run Tools, scheduler, worker, workflow, Temporal, ToolResult, and generic process-adapter behavior. Phase 15.4 performs no dependency installation, catalogue registration, managed package promotion, tool execution, or Git commit.
+
 ## 2026-07-20 — Phase 15.3 SkyCommand Repository Designation and Readiness
 
 - Added migration `00068__skycommand_repository_designation.sql` with `core.repositories.is_skycommand_repository`, a one-TRUE unique partial index, and designation exposure through `core.vw_repository_paths`.
