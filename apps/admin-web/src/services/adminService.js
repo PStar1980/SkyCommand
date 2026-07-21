@@ -172,6 +172,18 @@ async function replaceAdminToolParameters(toolId, payload) {
   return api.put(`/api/admin/tools/${toolId}/parameters`, payload);
 }
 
+async function getManagedToolVerification(toolId) {
+  return api.get(`/api/admin/tools/${toolId}/verification`);
+}
+
+async function checkManagedToolContract(toolId, payload = {}) {
+  return api.post(`/api/admin/tools/${toolId}/contract-check`, payload);
+}
+
+async function runManagedToolControlledTest(toolId, payload = {}) {
+  return api.post(`/api/admin/tools/${toolId}/test-run`, payload);
+}
+
 async function getToolOnboardingOptions() {
   return api.get('/api/admin/tool-onboarding/options');
 }
@@ -284,6 +296,9 @@ const adminService = {
   updateAdminTool,
   updateAdminToolStatus,
   replaceAdminToolParameters,
+  getManagedToolVerification,
+  checkManagedToolContract,
+  runManagedToolControlledTest,
   getToolOnboardingOptions,
   analyzeToolOnboardingPackage,
   previewToolOnboardingRegistration,

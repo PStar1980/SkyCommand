@@ -2156,7 +2156,7 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
         paths: plan.paths,
         files: plan.files,
         nextStep:
-          'Review the disabled tool in Manage Tools. Contract check and controlled execution follow in Phase 15.6.',
+          'Open the disabled tool in Manage Tools to run the advisory contract check, perform a controlled test, and explicitly enable it when ready.',
       },
     };
   } catch (error) {

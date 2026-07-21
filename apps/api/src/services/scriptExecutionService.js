@@ -30,6 +30,7 @@ const MAX_PARAMETER_BYTES = Number(process.env.TOOL_EXECUTION_MAX_PARAMETER_BYTE
 const HIGH_RISK_CONFIRMATION_PHRASE =
   process.env.TOOL_HIGH_RISK_CONFIRMATION_PHRASE || 'RUN HIGH RISK';
 const SKYSERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const activeExecutionLocks = new Map();
 
@@ -449,6 +450,9 @@ async function loadToolForExecution(toolCode) {
         m.captures_output,
         m.allow_params,
         m.tool_display_order,
+        m.output_type,
+        m.output_schema_path,
+        m.managed_by_skycommand,
         rp.root_path
       FROM core.vw_tool_manifest m
       JOIN core.repositories r
@@ -483,25 +487,118 @@ async function loadToolForExecution(toolCode) {
   return result.rows[0] || null;
 }
 
-async function loadToolParameters(toolCode) {
+function normalizeToolId(value) {
+  const toolId = String(value || '').trim();
+
+  if (!UUID_PATTERN.test(toolId)) {
+    throw createHttpError(400, 'toolId must be a valid UUID.');
+  }
+
+  return toolId;
+}
+
+async function loadManagedToolForTest(toolId) {
+  const normalizedToolId = normalizeToolId(toolId);
   const result = await query(
     `
       SELECT
-        tool_code,
-        parameter_id,
-        parameter_name,
-        label,
-        param_type_code,
-        prompt,
-        required,
-        default_value,
-        option_source_code,
-        display_order,
-        enabled
-      FROM core.vw_tool_parameters
-      WHERE tool_code = $1
-      ORDER BY display_order, parameter_name
+        application.app_code,
+        category.category_code,
+        category.label AS category_label,
+        tool.tool_id,
+        repository.repo_id AS script_repo_id,
+        tool.tool_code,
+        tool.name,
+        tool.label,
+        tool.description,
+        repository.repo_code AS script_repo_code,
+        tool.script_path,
+        tool.runtime_code,
+        runtime.executable AS runtime_executable,
+        tool.permission_code,
+        tool.risk_code,
+        risk.risk_rank,
+        tool.requires_confirmation,
+        tool.confirmation_text,
+        tool.captures_output,
+        tool.allow_params,
+        tool.display_order AS tool_display_order,
+        tool.enabled AS tool_enabled,
+        tool.output_type,
+        tool.output_schema_path,
+        tool.managed_by_skycommand,
+        repository_path.root_path
+      FROM core.tools tool
+      JOIN core.tool_categories category ON category.category_id = tool.category_id
+      JOIN core.applications application ON application.app_id = category.app_id
+      JOIN core.repositories repository ON repository.repo_id = tool.script_repo_id
+      JOIN core.runtimes runtime ON runtime.runtime_code = tool.runtime_code
+      JOIN core.risk_levels risk ON risk.risk_code = tool.risk_code
+      JOIN core.repository_paths repository_path ON repository_path.repo_id = repository.repo_id
+      JOIN core.config_profiles profile ON profile.profile_id = repository_path.profile_id
+      WHERE application.app_code = $1
+        AND tool.tool_id = $2
+        AND tool.managed_by_skycommand = TRUE
+        AND category.enabled = TRUE
+        AND application.active = TRUE
+        AND repository.active = TRUE
+        AND repository_path.active = TRUE
+        AND profile.active = TRUE
+        AND profile.profile_code = $3
+      LIMIT 1
     `,
+    [APP_CODE, normalizedToolId, PROFILE_CODE],
+  );
+
+  if (result.rowCount === 0) {
+    throw createHttpError(
+      404,
+      'Managed tool was not found or its active repository path is unavailable.',
+    );
+  }
+
+  return result.rows[0];
+}
+
+async function loadToolParameters(toolCode, { includeDisabledTool = false } = {}) {
+  const result = await query(
+    includeDisabledTool
+      ? `
+          SELECT
+            tool.tool_code,
+            parameter.parameter_id,
+            parameter.parameter_name,
+            parameter.label,
+            parameter.param_type_code,
+            parameter.prompt,
+            parameter.required,
+            parameter.default_value,
+            parameter.option_source_code,
+            parameter.display_order,
+            parameter.enabled
+          FROM core.tool_parameters parameter
+          JOIN core.tools tool ON tool.tool_id = parameter.tool_id
+          WHERE tool.tool_code = $1
+            AND parameter.enabled = TRUE
+          ORDER BY parameter.display_order, parameter.parameter_name
+        `
+      : `
+          SELECT
+            tool_code,
+            parameter_id,
+            parameter_name,
+            label,
+            param_type_code,
+            prompt,
+            required,
+            default_value,
+            option_source_code,
+            display_order,
+            enabled
+          FROM core.vw_tool_parameters
+          WHERE tool_code = $1
+          ORDER BY display_order, parameter_name
+        `,
     [toolCode],
   );
 
@@ -538,8 +635,8 @@ async function loadSkyserverWorkflowOptionValues() {
   return new Set(result.rows.map((row) => row.workflow_code));
 }
 
-async function buildToolArgs({ toolCode, rawParameters }) {
-  const parameterRows = await loadToolParameters(toolCode);
+async function buildToolArgs({ toolCode, rawParameters, includeDisabledTool = false }) {
+  const parameterRows = await loadToolParameters(toolCode, { includeDisabledTool });
   const inputParameters = rawParameters || {};
   const allowedParameterNames = new Set(parameterRows.map((row) => row.parameter_name));
   const unknownParameters = Object.keys(inputParameters).filter(
@@ -595,7 +692,14 @@ async function buildToolArgs({ toolCode, rawParameters }) {
   };
 }
 
-async function insertExecutionStarted({ tool, scriptFile, parameters, user, session }) {
+async function insertExecutionStarted({
+  tool,
+  scriptFile,
+  parameters,
+  user,
+  session,
+  metadata = {},
+}) {
   const result = await query(
     `
       INSERT INTO auth.script_execution_log (
@@ -625,6 +729,7 @@ async function insertExecutionStarted({ tool, scriptFile, parameters, user, sess
         toolLabel: tool.label,
         riskCode: tool.risk_code,
         apiLaunched: true,
+        ...metadata,
       }),
     ],
   );
@@ -731,14 +836,47 @@ async function auditExecutionAttempt({
   });
 }
 
-async function executeChildProcess({
-  tool,
-  scriptFile,
-  args,
-  executionId,
-}) {
+async function loadConfiguredOutputSchema(tool) {
+  const expectedOutputType = normalizeOptionalString(tool.output_type);
+  const schemaPath = normalizeOptionalString(tool.output_schema_path);
+
+  if (!schemaPath) {
+    return {
+      expectedOutputType,
+      outputSchema: null,
+      warning: null,
+    };
+  }
+
+  try {
+    const repoRoot = path.resolve(tool.root_path);
+    const schemaFile = path.resolve(repoRoot, schemaPath);
+    assertPathInsideRoot(schemaFile, repoRoot);
+    const content = await fs.promises.readFile(schemaFile, 'utf8');
+    const outputSchema = JSON.parse(content);
+
+    return {
+      expectedOutputType,
+      outputSchema,
+      warning: null,
+    };
+  } catch (error) {
+    return {
+      expectedOutputType,
+      outputSchema: null,
+      warning: {
+        code: 'TOOL_OUTPUT_SCHEMA_UNAVAILABLE',
+        message: error.message || String(error),
+        schemaPath,
+      },
+    };
+  }
+}
+
+async function executeChildProcess({ tool, scriptFile, args, executionId }) {
   const runtime = getRuntimeCommand(tool);
   const commandArgs = [...runtime.prefixArgs, scriptFile, ...args];
+  const outputContract = await loadConfiguredOutputSchema(tool);
 
   const result = await executeToolProcess({
     command: runtime.command,
@@ -750,11 +888,17 @@ async function executeChildProcess({
     outputTruncationLabel: 'SkyServer API',
     executionId,
     toolCode: tool.tool_code,
+    toolResultExpectedOutputType: outputContract.expectedOutputType,
+    toolResultOutputSchema: outputContract.outputSchema,
     rootDirectory: tool.root_path,
   });
 
   return {
     ...result,
+    toolResultContract: {
+      ...(result.toolResultContract || {}),
+      configurationWarning: outputContract.warning,
+    },
     runtimeLabel: runtime.label,
     commandArgs,
   };
@@ -829,7 +973,6 @@ function assertConfirmationIfRequired({ tool, confirmed, confirmationPhrase }) {
     `High-risk confirmation phrase is required: ${HIGH_RISK_CONFIRMATION_PHRASE}`,
   );
 }
-
 
 function parseWorkflowInputJson(value) {
   const trimmed = String(value || '').trim();
@@ -1188,7 +1331,173 @@ async function runTool({
   }
 }
 
+async function runManagedToolTest({
+  toolId,
+  parameters = {},
+  confirmed = false,
+  confirmationPhrase = '',
+  user,
+  session,
+  permissions = [],
+  context = {},
+}) {
+  const safeParameters = assertPlainParameterObject(parameters);
+  assertParameterPayloadSafe(safeParameters);
+  const tool = await loadManagedToolForTest(toolId);
+
+  await assertRunAllowed({ tool, permissions, user, context });
+  assertConfirmationIfRequired({ tool, confirmed, confirmationPhrase });
+  assertExecutionNotAlreadyRunning(tool);
+
+  const executionLock = acquireExecutionLock(tool);
+  let execution = null;
+  const executionStartedAtMs = Date.now();
+
+  try {
+    const scriptFile = resolveScriptFile(tool);
+    const { args } = await buildToolArgs({
+      toolCode: tool.tool_code,
+      rawParameters: safeParameters,
+      includeDisabledTool: true,
+    });
+
+    execution = await insertExecutionStarted({
+      tool,
+      scriptFile,
+      parameters: safeParameters,
+      user,
+      session,
+      metadata: {
+        verificationMode: 'CONTROLLED_TEST',
+        managedToolTest: true,
+        toolEnabledAtTestStart: toBoolean(tool.tool_enabled),
+      },
+    });
+    executionLock.setExecutionId(execution.execution_id);
+
+    try {
+      await auditExecutionAttempt({
+        user,
+        context,
+        toolCode: tool.tool_code,
+        success: true,
+        message: 'Controlled managed-tool test started.',
+        action: 'start_managed_tool_test',
+        metadata: {
+          executionId: execution.execution_id,
+          toolId: tool.tool_id,
+          enabled: toBoolean(tool.tool_enabled),
+          parameterNames: Object.keys(safeParameters),
+        },
+      });
+    } catch (auditError) {
+      console.error('[SkyServer API] Failed to record managed-tool test start:', auditError);
+    }
+
+    const childResult = await executeChildProcess({
+      tool,
+      scriptFile,
+      args,
+      executionId: execution.execution_id,
+    });
+    const outputFiles = writeExecutionOutputFiles({
+      executionId: execution.execution_id,
+      stdout: childResult.stdout,
+      stderr: childResult.stderr,
+    });
+    const summary = buildSummary({
+      status: childResult.status,
+      exitCode: childResult.exitCode,
+      stdout: childResult.stdout,
+      stderr: childResult.stderr,
+      timedOut: childResult.timedOut,
+      toolResult: childResult.toolResult,
+      toolResultContract: childResult.toolResultContract,
+    });
+
+    await updateExecutionFinished({
+      executionId: execution.execution_id,
+      status: childResult.status,
+      exitCode: childResult.exitCode,
+      durationMs: childResult.durationMs,
+      stdoutPath: outputFiles.stdoutPath,
+      stderrPath: outputFiles.stderrPath,
+      summary,
+      metadata: {
+        verificationMode: 'CONTROLLED_TEST',
+        managedToolTest: true,
+        runtime: childResult.runtimeLabel,
+        timedOut: childResult.timedOut,
+        processStatus: childResult.processStatus,
+        toolResultAvailable: Boolean(childResult.toolResult),
+        toolResultContract: childResult.toolResultContract,
+        enabledStateChanged: false,
+      },
+    });
+
+    try {
+      await auditExecutionAttempt({
+        user,
+        context,
+        toolCode: tool.tool_code,
+        success: childResult.status === 'SUCCESS',
+        message: summary,
+        action: 'finish_managed_tool_test',
+        metadata: {
+          executionId: execution.execution_id,
+          toolId: tool.tool_id,
+          status: childResult.status,
+          exitCode: childResult.exitCode,
+          durationMs: childResult.durationMs,
+          contractStatus: childResult.toolResultContract?.status || null,
+          enabledStateChanged: false,
+        },
+      });
+    } catch (auditError) {
+      console.error('[SkyServer API] Failed to record managed-tool test finish:', auditError);
+    }
+
+    return {
+      executionId: execution.execution_id,
+      toolId: tool.tool_id,
+      toolCode: tool.tool_code,
+      label: tool.label,
+      verificationMode: 'CONTROLLED_TEST',
+      status: childResult.status,
+      exitCode: childResult.exitCode,
+      durationMs: childResult.durationMs,
+      startedAt: execution.started_at,
+      summary,
+      stdout: childResult.stdout,
+      stderr: childResult.stderr,
+      toolResult: childResult.toolResult,
+      toolResultContract: childResult.toolResultContract,
+      enabled: toBoolean(tool.tool_enabled),
+      enabledStateChanged: false,
+    };
+  } catch (error) {
+    if (execution?.execution_id) {
+      try {
+        await markExecutionFailedAfterUnexpectedError({
+          execution,
+          executionStartedAtMs,
+          error,
+        });
+      } catch (cleanupError) {
+        console.error('[SkyServer API] Failed to clean up managed-tool test:', cleanupError);
+      }
+    }
+
+    throw error.statusCode
+      ? error
+      : createHttpError(500, error.message || 'Managed-tool test failed unexpectedly.');
+  } finally {
+    executionLock.release();
+  }
+}
+
 module.exports = {
   markStaleStartedExecutions,
+  runManagedToolTest,
   runTool,
 };
