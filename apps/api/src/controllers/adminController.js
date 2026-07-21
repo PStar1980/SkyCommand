@@ -5,6 +5,7 @@ const productionReadinessService = require('../services/productionReadinessServi
 const toolAdminService = require('../services/toolAdminService');
 const skycommandRepositoryService = require('../services/skycommandRepositoryService');
 const toolOnboardingService = require('../services/toolOnboardingService');
+const toolVerificationService = require('../services/toolVerificationService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function sendPagedResponse(res, payload, liveTelemetryOptions = null) {
@@ -640,6 +641,41 @@ async function registerToolOnboardingPackage(req, res) {
   }
 }
 
+async function getManagedToolVerification(req, res) {
+  try {
+    const payload = await toolVerificationService.getVerification(req.params.toolId);
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function checkManagedToolContract(req, res) {
+  try {
+    const payload = await toolVerificationService.contractCheck({
+      toolId: req.params.toolId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function runManagedToolControlledTest(req, res) {
+  try {
+    const payload = await toolVerificationService.runControlledTest({
+      toolId: req.params.toolId,
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function listRepositories(req, res) {
   try {
     const payload = await adminActionService.listRepositories(req.query || {});
@@ -847,6 +883,9 @@ module.exports = {
   analyzeToolOnboardingPackage,
   previewToolOnboardingRegistration,
   registerToolOnboardingPackage,
+  getManagedToolVerification,
+  checkManagedToolContract,
+  runManagedToolControlledTest,
   listRepositories,
   listConfigProfiles,
   getSkycommandRepositoryReadiness,

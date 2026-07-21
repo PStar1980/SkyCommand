@@ -982,10 +982,12 @@ function AddTool() {
                 </button>
                 <button
                   className="btn btn-primary btn-sm"
-                  onClick={() => navigate('/tools/manage')}
+                  onClick={() =>
+                    navigate(`/tools/manage?toolId=${registration.tool?.toolId || ''}`)
+                  }
                   type="button"
                 >
-                  Open Manage Tools
+                  Verify registered tool
                 </button>
               </>
             }

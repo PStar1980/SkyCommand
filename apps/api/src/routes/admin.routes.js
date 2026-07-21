@@ -68,6 +68,22 @@ router.put(
 );
 
 router.get(
+  '/tools/:toolId/verification',
+  requirePermission('ADMIN_TOOL_READ'),
+  adminController.getManagedToolVerification,
+);
+router.post(
+  '/tools/:toolId/contract-check',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.checkManagedToolContract,
+);
+router.post(
+  '/tools/:toolId/test-run',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.runManagedToolControlledTest,
+);
+
+router.get(
   '/tool-onboarding/options',
   requirePermission('ADMIN_TOOL_WRITE'),
   adminController.getToolOnboardingOptions,

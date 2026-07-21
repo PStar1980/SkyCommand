@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -157,8 +158,392 @@ function buildToolPayload(form) {
   };
 }
 
+function ManagedToolVerificationPanel({ canWrite, onToolUpdated, tool }) {
+  const [verification, setVerification] = useState(null);
+  const [parameterValues, setParameterValues] = useState({});
+  const [confirmed, setConfirmed] = useState(false);
+  const [confirmationPhrase, setConfirmationPhrase] = useState('');
+  const [contractResult, setContractResult] = useState(null);
+  const [testResult, setTestResult] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [contractChecking, setContractChecking] = useState(false);
+  const [testRunning, setTestRunning] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [error, setError] = useState('');
+
+  async function loadVerification() {
+    if (!tool?.toolId) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await adminService.getManagedToolVerification(tool.toolId);
+      setVerification(result.verification || null);
+      setParameterValues(result.verification?.parameterTemplate || {});
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load managed-tool verification state.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    setContractResult(null);
+    setTestResult(null);
+    setConfirmed(false);
+    setConfirmationPhrase('');
+    loadVerification();
+  }, [tool?.toolId]);
+
+  function updateParameterValue(parameterName, value) {
+    setParameterValues((current) => ({ ...current, [parameterName]: value }));
+  }
+
+  async function runContractCheck() {
+    setContractChecking(true);
+    setError('');
+    setContractResult(null);
+
+    try {
+      const result = await adminService.checkManagedToolContract(tool.toolId);
+      setContractResult(result.contractCheck || null);
+    } catch (checkError) {
+      setError(checkError.message || 'Managed-tool contract check failed.');
+    } finally {
+      setContractChecking(false);
+    }
+  }
+
+  async function runControlledTest() {
+    setTestRunning(true);
+    setError('');
+    setTestResult(null);
+
+    try {
+      const result = await adminService.runManagedToolControlledTest(tool.toolId, {
+        parameters: parameterValues,
+        confirmed,
+        confirmationPhrase,
+      });
+      setTestResult(result.controlledTest || null);
+      await loadVerification();
+    } catch (testError) {
+      setError(testError.message || 'Controlled managed-tool test failed.');
+    } finally {
+      setTestRunning(false);
+    }
+  }
+
+  async function toggleEnabledState() {
+    setStatusUpdating(true);
+    setError('');
+
+    try {
+      const result = await adminService.updateAdminToolStatus(tool.toolId, {
+        enabled: !tool.enabled,
+      });
+      await onToolUpdated?.(result.tool);
+      await loadVerification();
+    } catch (statusError) {
+      setError(statusError.message || 'Failed to update managed-tool status.');
+    } finally {
+      setStatusUpdating(false);
+    }
+  }
+
+  const parameters = (tool.parameters || [])
+    .filter((parameter) => parameter.enabled !== false)
+    .sort((left, right) => left.displayOrder - right.displayOrder);
+
+  return (
+    <Panel
+      actions={
+        <button
+          className="btn btn-sm sky-btn-ghost"
+          disabled={loading}
+          onClick={loadVerification}
+          type="button"
+        >
+          {loading ? 'Refreshing…' : 'Refresh verification'}
+        </button>
+      }
+      className="mt-3"
+      subtitle="Contract inspection and controlled execution are deliberate administrator tools. They never become hash gates, automatic enablement requirements, or hidden runtime authorities."
+      title="Managed tool verification"
+    >
+      <div className="sky-card-body">
+        {error && <div className="alert alert-danger">{error}</div>}
+        {loading && !verification ? (
+          <div className="sky-muted">Loading managed-tool verification…</div>
+        ) : (
+          <>
+            <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+              <StatusPill status={verification?.status || 'UNKNOWN'} />
+              <span>{verification?.message}</span>
+            </div>
+
+            <div className="alert alert-info">
+              <strong>Accessibility boundary:</strong> checks are advisory. PostgreSQL enabled
+              state, permissions, risk, confirmation, and visibility remain the only normal
+              execution controls. Registration hashes are never checked when this tool runs.
+            </div>
+
+            <div className="table-responsive mb-4">
+              <table className="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Check</th>
+                    <th>Status</th>
+                    <th>Evidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(verification?.checks || []).map((check) => (
+                    <tr key={check.code}>
+                      <td>{check.label}</td>
+                      <td>
+                        <StatusPill status={check.status} />
+                      </td>
+                      <td>{check.message || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="row g-3">
+              <div className="col-xl-5">
+                <section className="sky-tool-parameter-editor h-100">
+                  <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                    <div>
+                      <h3 className="h6 mb-1">Non-destructive contract check</h3>
+                      <div className="small sky-muted">
+                        Builds a representative ToolResult from the configured output contract
+                        without importing or executing the tool script.
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-sm sky-btn-primary"
+                      disabled={!canWrite || contractChecking || !verification?.canContractCheck}
+                      onClick={runContractCheck}
+                      type="button"
+                    >
+                      {contractChecking ? 'Checking…' : 'Run contract check'}
+                    </button>
+                  </div>
+
+                  {!verification?.canContractCheck && (
+                    <div className="small sky-muted">
+                      No structured output type is configured. This does not prevent normal
+                      execution.
+                    </div>
+                  )}
+
+                  {contractResult && (
+                    <div className="mt-3">
+                      <div className="d-flex align-items-center gap-2 mb-2">
+                        <StatusPill status={contractResult.status} />
+                        <span>{contractResult.message}</span>
+                      </div>
+                      {contractResult.sampleOutput !== null && (
+                        <pre className="sky-code-block mb-0">
+                          {JSON.stringify(contractResult.sampleOutput, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              <div className="col-xl-7">
+                <section className="sky-tool-parameter-editor h-100">
+                  <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                    <div>
+                      <h3 className="h6 mb-1">Controlled test execution</h3>
+                      <div className="small sky-muted">
+                        Runs the registered script through the normal process adapter and Tool
+                        History, even while the managed catalogue record is disabled. Enabled state
+                        is unchanged.
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-sm sky-btn-primary"
+                      disabled={!canWrite || testRunning || !verification?.canRunControlledTest}
+                      onClick={runControlledTest}
+                      type="button"
+                    >
+                      {testRunning ? 'Running…' : 'Run controlled test'}
+                    </button>
+                  </div>
+
+                  {parameters.length === 0 ? (
+                    <div className="small sky-muted mb-3">This tool has no enabled parameters.</div>
+                  ) : (
+                    <div className="row g-3 mb-3">
+                      {parameters.map((parameter) => (
+                        <div
+                          className="col-md-6"
+                          key={parameter.parameterId || parameter.parameterName}
+                        >
+                          <label
+                            className="form-label sky-form-label"
+                            htmlFor={`test-${parameter.parameterName}`}
+                          >
+                            {parameter.label || parameter.parameterName}
+                            {parameter.required ? ' *' : ''}
+                          </label>
+                          {parameter.paramTypeCode === 'boolean' ? (
+                            <select
+                              className="form-select sky-form-control"
+                              id={`test-${parameter.parameterName}`}
+                              onChange={(event) =>
+                                updateParameterValue(parameter.parameterName, event.target.value)
+                              }
+                              value={String(parameterValues[parameter.parameterName] ?? '')}
+                            >
+                              <option value="">Use default / omit</option>
+                              <option value="true">True</option>
+                              <option value="false">False</option>
+                            </select>
+                          ) : parameter.options?.length ? (
+                            <select
+                              className="form-select sky-form-control"
+                              id={`test-${parameter.parameterName}`}
+                              onChange={(event) =>
+                                updateParameterValue(parameter.parameterName, event.target.value)
+                              }
+                              value={String(parameterValues[parameter.parameterName] ?? '')}
+                            >
+                              <option value="">Use default / omit</option>
+                              {parameter.options
+                                .filter((option) => option.enabled !== false)
+                                .map((option) => (
+                                  <option
+                                    key={option.optionId || option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                            </select>
+                          ) : (
+                            <input
+                              className="form-control sky-form-control"
+                              id={`test-${parameter.parameterName}`}
+                              onChange={(event) =>
+                                updateParameterValue(parameter.parameterName, event.target.value)
+                              }
+                              placeholder={parameter.prompt || ''}
+                              type={
+                                parameter.paramTypeCode === 'number'
+                                  ? 'number'
+                                  : parameter.paramTypeCode === 'date'
+                                    ? 'date'
+                                    : 'text'
+                              }
+                              value={String(parameterValues[parameter.parameterName] ?? '')}
+                            />
+                          )}
+                          {parameter.prompt && (
+                            <div className="small sky-muted mt-1">{parameter.prompt}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {tool.requiresConfirmation && (
+                    <div className="row g-3 mb-3">
+                      <div className="col-md-6 d-flex align-items-end">
+                        <label className="form-check form-switch mb-2">
+                          <input
+                            checked={confirmed}
+                            className="form-check-input"
+                            onChange={(event) => setConfirmed(event.target.checked)}
+                            type="checkbox"
+                          />
+                          <span className="form-check-label">Confirm controlled execution</span>
+                        </label>
+                      </div>
+                      {tool.riskCode === 'high' && (
+                        <div className="col-md-6">
+                          <label
+                            className="form-label sky-form-label"
+                            htmlFor="managed-test-confirmation-phrase"
+                          >
+                            High-risk confirmation phrase
+                          </label>
+                          <input
+                            className="form-control sky-form-control"
+                            id="managed-test-confirmation-phrase"
+                            onChange={(event) => setConfirmationPhrase(event.target.value)}
+                            value={confirmationPhrase}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {testResult && (
+                    <div className="mt-3">
+                      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <StatusPill status={testResult.status} />
+                        <span>{testResult.summary || testResult.message}</span>
+                        <span className="small sky-muted">{testResult.durationMs} ms</span>
+                      </div>
+                      <div className="small sky-muted mb-2">
+                        ToolResult contract:{' '}
+                        {testResult.toolResultContract?.status || 'NOT_EMITTED'} · enabled state
+                        changed: no
+                      </div>
+                      {testResult.toolResult && (
+                        <pre className="sky-code-block mb-2">
+                          {JSON.stringify(testResult.toolResult, null, 2)}
+                        </pre>
+                      )}
+                      {(testResult.stdout || testResult.stderr) && (
+                        <details>
+                          <summary>Operational output</summary>
+                          <pre className="sky-code-block mt-2 mb-0">
+                            {[testResult.stdout, testResult.stderr].filter(Boolean).join('\n')}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                </section>
+              </div>
+            </div>
+
+            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-4 pt-3 border-top">
+              <div className="small sky-muted">
+                Enablement is an explicit catalogue action. Contract and test results are helpful
+                evidence, not mandatory locks.
+              </div>
+              {canWrite && (
+                <button
+                  className={
+                    tool.enabled ? 'btn btn-sm sky-btn-danger' : 'btn btn-sm sky-btn-primary'
+                  }
+                  disabled={statusUpdating}
+                  onClick={toggleEnabledState}
+                  type="button"
+                >
+                  {statusUpdating ? 'Updating…' : tool.enabled ? 'Disable tool' : 'Enable tool'}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 function ManageTools() {
   const { hasPermission } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedToolId = searchParams.get('toolId') || '';
   const canWrite = hasPermission('ADMIN_TOOL_WRITE');
   const [options, setOptions] = useState({});
   const [tools, setTools] = useState([]);
@@ -250,7 +635,7 @@ function ManageTools() {
         setOptions(optionsResult);
         setTools(nextTools);
         setTotal(toolsResult.total || 0);
-        setSelectedToolId(nextTools[0]?.toolId || '');
+        setSelectedToolId(requestedToolId || nextTools[0]?.toolId || '');
         setForm(createEmptyToolForm(optionsResult));
       } catch (loadError) {
         if (active) {
@@ -394,6 +779,13 @@ function ManageTools() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleManagedToolUpdated(updatedTool) {
+    setSelectedTool(updatedTool);
+    setForm(populateToolForm(updatedTool, options));
+    setSuccess(`${updatedTool.label} is now ${updatedTool.enabled ? 'enabled' : 'disabled'}.`);
+    await loadList(filters, updatedTool.toolId);
   }
 
   function applyFilters(event) {
@@ -1137,6 +1529,14 @@ function ManageTools() {
             )}
           </Panel>
         </div>
+
+        {!creating && selectedTool?.managedBySkyCommand && (
+          <ManagedToolVerificationPanel
+            canWrite={canWrite}
+            onToolUpdated={handleManagedToolUpdated}
+            tool={selectedTool}
+          />
+        )}
       </div>
     </>
   );
