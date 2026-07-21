@@ -1,3 +1,12 @@
+## 2026-07-21 — Phase 15.5.1 Tool Accessibility and Flexible Package Destinations
+
+- Expanded Add Tool registration from the fixed `packages/tools/custom/<toolCode>` location to any administrator-selected create-new directory contained inside the designated SkyCommand repository `packages` folder; the original location remains the default.
+- Added `packagePath` to onboarding descriptors, editable Add Tool configuration, canonical generated descriptors, command/file/database preview, and cross-platform path-containment tests.
+- Reworked repository readiness to validate the repository and writable `packages` root rather than requiring one specific custom-tools directory.
+- Kept staged-file SHA-256 checks only for temporary upload/copy integrity and audit evidence. Added a regression assertion that CLI/API/workflow process execution sources do not consult file hashes or preview evidence.
+- Removed mandatory warning acceptance and stale-preview lockouts. Warnings remain visible and advisory; registration always rebuilds and revalidates current configuration, files, references, destination safety, and collisions before writing.
+- Preserved disabled-first registration, no automatic execution, no dependency installation, no automatic Git operation, and PostgreSQL catalogue authority. Phase 15.6 remains next.
+
 ## 2026-07-20 — Phase 15.5 Editable Preview and Disabled-First Managed Registration
 
 - Extended **Tools > Add Tool** from static analysis into one progressive trusted-administrator workbench with editable catalogue identity, category, permission, risk, confirmation, visibility, structured output, positional parameters, dynamic option sources, and static choices.

@@ -113,8 +113,14 @@ function run() {
       ],
     },
     readiness: {
-      managedToolsRelativePath: 'packages/tools/custom',
-      path: { managedToolsRoot: '/tmp/skycommand/packages/tools/custom' },
+      path: {
+        resolvedRootPath: '/tmp/skycommand',
+        packagesRoot: '/tmp/skycommand/packages',
+      },
+    },
+    destination: {
+      packageRelativePath: 'packages/git/example_greeting',
+      packagePhysicalPath: '/tmp/skycommand/packages/git/example_greeting',
     },
     catalogueOptions: {
       categories: [
@@ -131,12 +137,23 @@ function run() {
   assert.strictEqual(registrationPlan.canRegister, true);
   assert.strictEqual(
     registrationPlan.paths.scriptRelativePath,
-    'packages/tools/custom/example_greeting/tool.js',
+    'packages/git/example_greeting/tool.js',
   );
   assert.strictEqual(registrationPlan.databasePreview.tool.enabled, false);
+  assert.strictEqual(registrationPlan.warningsRequireAcceptance, false);
+  assert.strictEqual(registrationPlan.descriptor.packagePath, 'packages/git/example_greeting');
   assert.strictEqual(registrationPlan.descriptor.toolCode, 'example_greeting');
   assert.strictEqual(registrationPlan.files.length, 3);
   assert.strictEqual(registrationPlan.fingerprint.length, 64);
+
+  const runtimeSources = [
+    'apps/api/src/services/scriptExecutionService.js',
+    'packages/tools/src/toolProcessExecutor.js',
+    'apps/api/src/services/workflowExecutorService.js',
+  ].map((filename) => fs.readFileSync(path.resolve(process.cwd(), filename), 'utf8'));
+  runtimeSources.forEach((source) => {
+    assert.ok(!/previewFingerprint|file_hash|fileHash|sha256/i.test(source));
+  });
 
   console.log('Tool onboarding static-analysis and registration-plan self-test passed.');
 }

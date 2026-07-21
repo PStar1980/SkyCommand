@@ -477,7 +477,7 @@ function AdminRepositories() {
             <h2 className="h5 mb-0">SkyCommand repository readiness</h2>
             <div className="small sky-muted">
               The designated repository and active profile path become the trusted root for Phase 15
-              managed tool files.
+              tool files anywhere inside the repository packages folder.
             </div>
           </div>
           <span className={`sky-pill ${readinessClass(readiness)}`}>
@@ -506,9 +506,9 @@ function AdminRepositories() {
               </div>
             </div>
             <div className="col-md-3">
-              <div className="sky-detail-label">Managed tools root</div>
+              <div className="sky-detail-label">Packages root</div>
               <div className="sky-detail-value sky-mono sky-truncate">
-                {readiness?.path?.managedToolsRoot || readiness?.managedToolsRelativePath || '—'}
+                {readiness?.path?.packagesRoot || readiness?.packagesRelativePath || '—'}
               </div>
             </div>
           </div>

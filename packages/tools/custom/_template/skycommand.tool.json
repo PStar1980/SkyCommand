@@ -5,6 +5,7 @@
   "description": "Creates a greeting and returns a structured example result.",
   "runtimeCode": "node",
   "entrypoint": "tool.js",
+  "packagePath": "packages/tools/custom/example_greeting",
   "categoryCode": "file_tools",
   "permissionCode": "CORE_VIEW_TOOLS",
   "riskCode": "low",
