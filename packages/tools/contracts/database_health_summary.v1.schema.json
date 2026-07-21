@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "database_health_summary.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "checkedAt",
+    "durationMs",
+    "failWhenOffline",
+    "allOnline",
+    "requestedCount",
+    "onlineCount",
+    "offlineCount",
+    "databases"
+  ],
+  "properties": {
+    "checkedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "failWhenOffline": {
+      "type": "boolean"
+    },
+    "allOnline": {
+      "type": "boolean"
+    },
+    "requestedCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "onlineCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "offlineCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "databases": {
+      "type": "array",
+      "maxItems": 25,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "databaseName",
+          "online",
+          "latencyMs",
+          "currentUser",
+          "serverAddress",
+          "serverPort",
+          "serverVersion",
+          "checkedAt",
+          "errorCode",
+          "errorMessage"
+        ],
+        "properties": {
+          "databaseName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "latencyMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currentUser": {
+            "type": ["string", "null"],
+            "maxLength": 128
+          },
+          "serverAddress": {
+            "type": ["string", "null"],
+            "maxLength": 255
+          },
+          "serverPort": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "serverVersion": {
+            "type": ["string", "null"],
+            "maxLength": 128
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "errorCode": {
+            "type": ["string", "null"],
+            "maxLength": 128
+          },
+          "errorMessage": {
+            "type": ["string", "null"],
+            "maxLength": 2000
+          }
+        }
+      }
+    }
+  }
+}

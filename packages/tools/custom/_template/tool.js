@@ -41,7 +41,11 @@ function createGreetingFailureToolResult(error) {
     success: false,
     message: error?.message || 'Greeting creation failed.',
     outputType: OUTPUT_TYPE,
-    output: {},
+    output: {
+      name: 'Unknown',
+      greeting: 'Greeting unavailable.',
+      generatedAt: new Date().toISOString(),
+    },
     warnings: [],
     error: {
       code: error?.code || 'EXAMPLE_GREETING_FAILED',
