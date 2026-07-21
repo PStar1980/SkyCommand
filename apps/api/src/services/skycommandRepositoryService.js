@@ -6,7 +6,8 @@ const PROFILE_CODE =
   process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
-const MANAGED_TOOLS_RELATIVE_PATH = 'packages/tools/custom';
+const PACKAGES_RELATIVE_PATH = 'packages';
+const DEFAULT_TOOL_PACKAGE_RELATIVE_PATH = 'packages/tools/custom';
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
@@ -24,7 +25,17 @@ function getPathApi(rootPath) {
   return usesWindowsPath(rootPath) ? path.win32 : path;
 }
 
-function resolveManagedToolsRoot(rootPath) {
+function isContainedPath(pathApi, parentPath, childPath) {
+  const relativePath = pathApi.relative(parentPath, childPath);
+  return (
+    relativePath === '' ||
+    (!pathApi.isAbsolute(relativePath) &&
+      relativePath !== '..' &&
+      !relativePath.startsWith(`..${pathApi.sep}`))
+  );
+}
+
+function resolvePackagesRoot(rootPath) {
   const normalizedRootPath = String(rootPath || '').trim();
 
   if (!normalizedRootPath) {
@@ -36,29 +47,95 @@ function resolveManagedToolsRoot(rootPath) {
 
   const pathApi = getPathApi(normalizedRootPath);
   const resolvedRootPath = pathApi.resolve(normalizedRootPath);
-  const managedToolsRoot = pathApi.resolve(
-    resolvedRootPath,
-    ...MANAGED_TOOLS_RELATIVE_PATH.split('/'),
-  );
-  const relativePath = pathApi.relative(resolvedRootPath, managedToolsRoot);
+  const packagesRoot = pathApi.resolve(resolvedRootPath, PACKAGES_RELATIVE_PATH);
 
-  if (
-    relativePath === '..' ||
-    relativePath.startsWith(`..${pathApi.sep}`) ||
-    pathApi.isAbsolute(relativePath)
-  ) {
-    throw createHttpError(409, 'Managed tool root escapes the SkyCommand repository.', {
+  if (!isContainedPath(pathApi, resolvedRootPath, packagesRoot)) {
+    throw createHttpError(409, 'The packages root escapes the SkyCommand repository.', {
       code: 'SKYCOMMAND_TOOL_DESTINATION_UNSAFE',
       rootPath: resolvedRootPath,
-      managedToolsRoot,
+      packagesRoot,
     });
   }
 
   return {
     resolvedRootPath,
-    managedToolsRoot,
-    managedToolsRelativePath: MANAGED_TOOLS_RELATIVE_PATH,
+    packagesRoot,
+    packagesRelativePath: PACKAGES_RELATIVE_PATH,
+    defaultToolPackageRelativePath: DEFAULT_TOOL_PACKAGE_RELATIVE_PATH,
     pathStyle: pathApi === path.win32 ? 'windows' : 'posix',
+  };
+}
+
+function normalizeToolPackageRelativePath(value, { toolCode = '' } = {}) {
+  const defaultPath = toolCode
+    ? `${DEFAULT_TOOL_PACKAGE_RELATIVE_PATH}/${toolCode}`
+    : DEFAULT_TOOL_PACKAGE_RELATIVE_PATH;
+  const rawValue = String(value || defaultPath)
+    .trim()
+    .replace(/\\/g, '/');
+
+  if (!rawValue || rawValue.includes('\0') || rawValue.startsWith('/')) {
+    throw createHttpError(400, 'Tool package path must be a repository-relative path.', {
+      code: 'SKYCOMMAND_TOOL_DESTINATION_UNSAFE',
+      destination: rawValue || null,
+    });
+  }
+
+  if (/^[A-Za-z]:/.test(rawValue) || rawValue.startsWith('//')) {
+    throw createHttpError(400, 'Tool package path cannot be absolute.', {
+      code: 'SKYCOMMAND_TOOL_DESTINATION_UNSAFE',
+      destination: rawValue,
+    });
+  }
+
+  const normalized = path.posix.normalize(rawValue).replace(/^\.\//, '').replace(/\/$/, '');
+  const segments = normalized.split('/');
+  const hasUnsafeSegment = segments.some(
+    (segment) =>
+      !segment || segment === '.' || segment === '..' || /[<>:"|?*\u0000-\u001F]/.test(segment),
+  );
+
+  if (
+    hasUnsafeSegment ||
+    normalized === PACKAGES_RELATIVE_PATH ||
+    !normalized.startsWith(`${PACKAGES_RELATIVE_PATH}/`)
+  ) {
+    throw createHttpError(
+      400,
+      'Tool package path must identify a new directory inside the repository packages folder.',
+      {
+        code: 'SKYCOMMAND_TOOL_DESTINATION_UNSAFE',
+        destination: rawValue,
+        allowedRoot: PACKAGES_RELATIVE_PATH,
+      },
+    );
+  }
+
+  return normalized;
+}
+
+function resolveToolPackageDestination(rootPath, packageRelativePath, options = {}) {
+  const resolved = resolvePackagesRoot(rootPath);
+  const normalizedRelativePath = normalizeToolPackageRelativePath(packageRelativePath, options);
+  const pathApi = getPathApi(resolved.resolvedRootPath);
+  const packagePhysicalPath = pathApi.resolve(
+    resolved.resolvedRootPath,
+    ...normalizedRelativePath.split('/'),
+  );
+
+  if (!isContainedPath(pathApi, resolved.packagesRoot, packagePhysicalPath)) {
+    throw createHttpError(400, 'Tool package destination escapes the repository packages folder.', {
+      code: 'SKYCOMMAND_TOOL_DESTINATION_UNSAFE',
+      destination: normalizedRelativePath,
+      packagesRoot: resolved.packagesRoot,
+    });
+  }
+
+  return {
+    ...resolved,
+    packageRelativePath: normalizedRelativePath,
+    packagePhysicalPath,
+    packageParentPhysicalPath: pathApi.dirname(packagePhysicalPath),
   };
 }
 
@@ -117,21 +194,23 @@ async function inspectDirectory(targetPath) {
 }
 
 async function inspectSkycommandRepositoryPath(rootPath) {
-  const resolved = resolveManagedToolsRoot(rootPath);
+  const resolved = resolvePackagesRoot(rootPath);
   const rootState = await inspectDirectory(resolved.resolvedRootPath);
-  const managedRootState = await inspectDirectory(resolved.managedToolsRoot);
+  const packagesState = await inspectDirectory(resolved.packagesRoot);
 
   const rootReady =
     rootState.exists && rootState.directory && rootState.readable && rootState.writable;
-  const managedRootReady =
-    !managedRootState.exists ||
-    (managedRootState.directory && managedRootState.readable && managedRootState.writable);
+  const packagesReady =
+    packagesState.exists &&
+    packagesState.directory &&
+    packagesState.readable &&
+    packagesState.writable;
 
   return {
     ...resolved,
     rootState,
-    managedRootState,
-    ready: rootReady && managedRootReady,
+    packagesState,
+    ready: rootReady && packagesReady,
   };
 }
 
@@ -142,12 +221,13 @@ function buildUnavailableReadiness({ code, message, repository = null, rootPath 
     errorCode: code,
     message,
     profileCode: PROFILE_CODE,
-    managedToolsRelativePath: MANAGED_TOOLS_RELATIVE_PATH,
+    packagesRelativePath: PACKAGES_RELATIVE_PATH,
+    defaultToolPackageRelativePath: DEFAULT_TOOL_PACKAGE_RELATIVE_PATH,
     repository,
     path: rootPath
       ? {
           rootPath,
-          managedToolsRoot: null,
+          packagesRoot: null,
         }
       : null,
   };
@@ -221,9 +301,10 @@ async function getSkycommandRepositoryReadiness() {
       ready: false,
       status: 'BLOCKED',
       errorCode: 'SKYCOMMAND_REPOSITORY_PATH_INVALID',
-      message: `The SkyCommand repository path for profile ${PROFILE_CODE} is missing, inaccessible, or not writable.`,
+      message: `The SkyCommand repository or packages folder for profile ${PROFILE_CODE} is missing, inaccessible, or not writable.`,
       profileCode: PROFILE_CODE,
-      managedToolsRelativePath: MANAGED_TOOLS_RELATIVE_PATH,
+      packagesRelativePath: PACKAGES_RELATIVE_PATH,
+      defaultToolPackageRelativePath: DEFAULT_TOOL_PACKAGE_RELATIVE_PATH,
       repository,
       path: {
         profileId: row.profile_id,
@@ -231,9 +312,9 @@ async function getSkycommandRepositoryReadiness() {
         profileName: row.profile_name,
         rootPath: row.root_path,
         resolvedRootPath: pathInspection.resolvedRootPath,
-        managedToolsRoot: pathInspection.managedToolsRoot,
+        packagesRoot: pathInspection.packagesRoot,
         rootState: pathInspection.rootState,
-        managedRootState: pathInspection.managedRootState,
+        packagesState: pathInspection.packagesState,
       },
     };
   }
@@ -242,11 +323,11 @@ async function getSkycommandRepositoryReadiness() {
     ready: true,
     status: 'READY',
     errorCode: null,
-    message: pathInspection.managedRootState.exists
-      ? 'SkyCommand repository and managed tool root are ready.'
-      : 'SkyCommand repository is ready; the managed tool root can be created during registration.',
+    message:
+      'SkyCommand repository and packages folder are ready for administrator-selected tool destinations.',
     profileCode: PROFILE_CODE,
-    managedToolsRelativePath: MANAGED_TOOLS_RELATIVE_PATH,
+    packagesRelativePath: PACKAGES_RELATIVE_PATH,
+    defaultToolPackageRelativePath: DEFAULT_TOOL_PACKAGE_RELATIVE_PATH,
     repository,
     path: {
       profileId: row.profile_id,
@@ -254,9 +335,9 @@ async function getSkycommandRepositoryReadiness() {
       profileName: row.profile_name,
       rootPath: row.root_path,
       resolvedRootPath: pathInspection.resolvedRootPath,
-      managedToolsRoot: pathInspection.managedToolsRoot,
+      packagesRoot: pathInspection.packagesRoot,
       rootState: pathInspection.rootState,
-      managedRootState: pathInspection.managedRootState,
+      packagesState: pathInspection.packagesState,
     },
   };
 }
@@ -278,8 +359,11 @@ async function assertSkycommandRepositoryReady() {
 
 module.exports = {
   PROFILE_CODE,
-  MANAGED_TOOLS_RELATIVE_PATH,
-  resolveManagedToolsRoot,
+  PACKAGES_RELATIVE_PATH,
+  DEFAULT_TOOL_PACKAGE_RELATIVE_PATH,
+  resolvePackagesRoot,
+  normalizeToolPackageRelativePath,
+  resolveToolPackageDestination,
   inspectSkycommandRepositoryPath,
   getSkycommandRepositoryReadiness,
   assertSkycommandRepositoryReady,

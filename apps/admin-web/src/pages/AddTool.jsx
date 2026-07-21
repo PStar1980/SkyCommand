@@ -64,6 +64,9 @@ function createForm(analysis, catalogueOptions = {}) {
 
   return {
     toolCode: suggestions.toolCode || '',
+    packageRelativePath:
+      suggestions.destinationRelativePath ||
+      `${catalogueOptions.defaultToolPackageRelativePath || 'packages/tools/custom'}/${suggestions.toolCode || 'new_tool'}`,
     name: suggestions.name || suggestions.toolCode || '',
     label: suggestions.label || '',
     description: suggestions.description || '',
@@ -123,6 +126,7 @@ function buildConfiguration(form) {
 
   return {
     toolCode: form.toolCode.trim(),
+    packageRelativePath: form.packageRelativePath.trim(),
     name: form.name.trim(),
     label: form.label.trim(),
     description: form.description.trim() || null,
@@ -150,7 +154,6 @@ function AddTool() {
   const [form, setForm] = useState(null);
   const [preview, setPreview] = useState(null);
   const [registration, setRegistration] = useState(null);
-  const [acceptWarnings, setAcceptWarnings] = useState(false);
   const [confirmRegistration, setConfirmRegistration] = useState(false);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -165,12 +168,7 @@ function AddTool() {
   const canPreview = Boolean(
     analysis?.summary?.canContinue && form && !previewing && !registration,
   );
-  const canRegister = Boolean(
-    preview?.canRegister &&
-      confirmRegistration &&
-      (!preview.warningsRequireAcceptance || acceptWarnings) &&
-      !registering,
-  );
+  const canRegister = Boolean(preview?.canRegister && confirmRegistration && !registering);
 
   const selectedBytes = useMemo(
     () => Object.values(files).reduce((sum, file) => sum + Number(file?.size || 0), 0),
@@ -200,7 +198,6 @@ function AddTool() {
   function invalidatePreview() {
     setPreview(null);
     setRegistration(null);
-    setAcceptWarnings(false);
     setConfirmRegistration(false);
   }
 
@@ -326,7 +323,6 @@ function AddTool() {
         sessionId: analysis.session.sessionId,
         configuration: buildConfiguration(form),
         previewFingerprint: preview.fingerprint,
-        acceptWarnings,
       });
       setRegistration(result.registration);
     } catch (registrationError) {
@@ -346,8 +342,8 @@ function AddTool() {
         >
           <div className="sky-card-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <div className="small sky-muted">
-              Phase 15.5 adds editable prefill, exact destination/database preview, and
-              disabled-first managed registration.
+              Phase 15.5.1 keeps onboarding lightweight: destinations may be any new directory
+              inside packages, and hashes remain registration evidence only.
             </div>
             <StatusPill status={readiness?.ready ? 'READY' : 'BLOCKED'} />
           </div>
@@ -377,8 +373,8 @@ function AddTool() {
                   <div>{readiness?.profileCode || '—'}</div>
                 </div>
                 <div className="col-md-3">
-                  <div className="small sky-muted">Managed root</div>
-                  <div className="text-break">{readiness?.path?.managedToolsRoot || '—'}</div>
+                  <div className="small sky-muted">Packages root</div>
+                  <div className="text-break">{readiness?.path?.packagesRoot || '—'}</div>
                 </div>
                 <div className="col-12">
                   <div className={readiness?.ready ? 'text-success' : 'text-danger'}>
@@ -530,6 +526,22 @@ function AddTool() {
                         onChange={(e) => updateForm('toolCode', e.target.value)}
                         value={form.toolCode}
                       />
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label" htmlFor="onboard-package-path">
+                        Package destination
+                      </label>
+                      <input
+                        className="form-control font-monospace"
+                        id="onboard-package-path"
+                        onChange={(e) => updateForm('packageRelativePath', e.target.value)}
+                        placeholder="packages/tools/custom/example_tool"
+                        value={form.packageRelativePath}
+                      />
+                      <div className="small sky-muted mt-1">
+                        Choose any new directory inside packages. The default remains
+                        packages/tools/custom/&lt;toolCode&gt;.
+                      </div>
                     </div>
                     <div className="col-md-4">
                       <label className="form-label" htmlFor="onboard-name">
@@ -863,14 +875,14 @@ function AddTool() {
                     {registering ? 'Registering…' : 'Register disabled tool'}
                   </button>
                 }
-                subtitle="This is the exact server-resolved plan. Any configuration change invalidates the fingerprint and requires a fresh preview."
+                subtitle="This is the current server-resolved plan. Preview and file hashes are registration evidence only; they never restrict later tool execution."
                 title="Registration preview"
               >
                 <div className="sky-card-body">
                   <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
                     <StatusPill status={preview.status} />
-                    <span className="small sky-muted font-monospace">
-                      Fingerprint {preview.fingerprint}
+                    <span className="small sky-muted">
+                      Preview evidence captured for this registration request only
                     </span>
                   </div>
                   {(preview.blockers || []).map((blocker) => (
@@ -908,7 +920,7 @@ function AddTool() {
                         <tr>
                           <th>Kind</th>
                           <th>Final path</th>
-                          <th>SHA-256</th>
+                          <th>SHA-256 evidence (registration only)</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -938,19 +950,6 @@ function AddTool() {
                       </tbody>
                     </table>
                   </div>
-                  {preview.warningsRequireAcceptance && (
-                    <label className="form-check mt-3">
-                      <input
-                        checked={acceptWarnings}
-                        className="form-check-input"
-                        onChange={(e) => setAcceptWarnings(e.target.checked)}
-                        type="checkbox"
-                      />
-                      <span className="form-check-label">
-                        I reviewed and accept the static-analysis warnings for this trusted tool.
-                      </span>
-                    </label>
-                  )}
                   <label className="form-check mt-3">
                     <input
                       checked={confirmRegistration}
@@ -960,7 +959,8 @@ function AddTool() {
                     />
                     <span className="form-check-label">
                       I understand that SkyCommand will write these files and create a disabled
-                      catalogue record. The uploaded script will not be executed.
+                      catalogue record. Warnings are advisory, uploaded code is not executed, and
+                      file hashes will not become runtime launch gates.
                     </span>
                   </label>
                 </div>

@@ -726,6 +726,7 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
   const entrypoint = String(descriptor.entrypoint || '').trim();
   const outputType = String(descriptor.resultContract?.outputType || '').trim();
   const schemaPath = String(descriptor.resultContract?.schemaPath || '').trim();
+  const packagePath = descriptor.packagePath ? String(descriptor.packagePath).trim() : '';
   const visibility = Array.isArray(descriptor.visibility) ? descriptor.visibility.map(String) : [];
   const parameters = normalizeDescriptorParameters(descriptor.parameters, findings);
 
@@ -794,6 +795,21 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
     );
   }
 
+  let normalizedPackagePath = null;
+  if (packagePath) {
+    try {
+      normalizedPackagePath = skycommandRepositoryService.normalizeToolPackageRelativePath(
+        packagePath,
+        { toolCode },
+      );
+    } catch (error) {
+      addFinding(findings, 'ERROR', 'DESCRIPTOR_PACKAGE_PATH_UNSAFE', error.message, {
+        fileKind: 'descriptor',
+        confidence: 'high',
+      });
+    }
+  }
+
   visibility.forEach((channel) => {
     if (!ACCEPTED_VISIBILITY.has(channel)) {
       addFinding(
@@ -846,6 +862,7 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
     description: String(descriptor.description || '').trim(),
     runtimeCode,
     entrypoint,
+    packagePath: normalizedPackagePath,
     categoryCode: String(descriptor.categoryCode || '')
       .trim()
       .toLowerCase(),
@@ -1174,7 +1191,10 @@ function buildSuggestions({ script, sourceAnalysis, descriptorAnalysis }) {
     outputSchemaFilename:
       descriptor.resultContract?.schemaPath || (outputType ? `${outputType}.schema.json` : null),
     scriptFilename: script.filename,
-    destinationRelativePath: toolCode ? `packages/tools/custom/${toolCode}` : null,
+    destinationRelativePath: toolCode
+      ? descriptor.packagePath ||
+        `${skycommandRepositoryService.DEFAULT_TOOL_PACKAGE_RELATIVE_PATH}/${toolCode}`
+      : null,
     confidence: descriptorAnalysis ? 'high' : 'medium',
   };
 }
@@ -1510,7 +1530,11 @@ async function getOptions() {
 
   return {
     readiness,
-    catalogueOptions,
+    catalogueOptions: {
+      ...catalogueOptions,
+      packagesRelativePath: readiness.packagesRelativePath,
+      defaultToolPackageRelativePath: readiness.defaultToolPackageRelativePath,
+    },
     uploadPolicy: {
       runtimeCode: 'node',
       script: {
@@ -1535,6 +1559,11 @@ async function getOptions() {
       registersTool: true,
       registrationMode: 'disabled-first',
       writesManagedFiles: true,
+      destinationPolicy: {
+        allowedRoot: readiness.packagesRelativePath || 'packages',
+        defaultRoot: readiness.defaultToolPackageRelativePath || 'packages/tools/custom',
+        createNewOnly: true,
+      },
     },
   };
 }
@@ -1677,6 +1706,7 @@ function buildCanonicalDescriptor(payload, catalogueOptions, paths) {
     description: payload.description || null,
     runtimeCode: payload.runtimeCode,
     entrypoint: MANAGED_SCRIPT_FILENAME,
+    packagePath: paths.packageRelativePath,
     categoryCode: category?.categoryCode || null,
     permissionCode: payload.permissionCode || null,
     riskCode: payload.riskCode,
@@ -1716,16 +1746,14 @@ function buildRegistrationPlan({
   session,
   payload,
   readiness,
+  destination,
   catalogueOptions,
   toolCodeExists = false,
   destinationExists = false,
 }) {
-  const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
-  const packageRelativePath = path.posix.join(
-    readiness.managedToolsRelativePath || 'packages/tools/custom',
-    payload.toolCode,
-  );
-  const packagePhysicalPath = pathApi.join(readiness.path.managedToolsRoot, payload.toolCode);
+  const pathApi = getPathApiForRoot(readiness.path.resolvedRootPath);
+  const packageRelativePath = destination.packageRelativePath;
+  const packagePhysicalPath = destination.packagePhysicalPath;
   const scriptRelativePath = path.posix.join(packageRelativePath, MANAGED_SCRIPT_FILENAME);
   const descriptorRelativePath = path.posix.join(packageRelativePath, MANAGED_DESCRIPTOR_FILENAME);
   const schemaFilename = session.files.schema
@@ -1872,7 +1900,8 @@ function buildRegistrationPlan({
     sessionId: session.sessionId,
     status: blockers.length > 0 ? 'BLOCKED' : warnings.length > 0 ? 'REVIEW' : 'READY',
     canRegister: blockers.length === 0,
-    warningsRequireAcceptance: warnings.length > 0,
+    warningsRequireAcceptance: false,
+    warningReviewMode: 'advisory',
     blockers,
     warnings,
     fingerprint,
@@ -1918,14 +1947,18 @@ async function buildServerRegistrationPlan({ sessionId, configuration = {}, acto
     });
   }
 
-  const packageRelativePath = path.posix.join(
-    readiness.managedToolsRelativePath || 'packages/tools/custom',
-    rawToolCode,
+  const destination = skycommandRepositoryService.resolveToolPackageDestination(
+    readiness.path.resolvedRootPath,
+    configuration.packageRelativePath,
+    { toolCode: rawToolCode },
   );
-  const scriptRelativePath = path.posix.join(packageRelativePath, MANAGED_SCRIPT_FILENAME);
+  const scriptRelativePath = path.posix.join(
+    destination.packageRelativePath,
+    MANAGED_SCRIPT_FILENAME,
+  );
   const schemaRelativePath = session.files.schema
     ? path.posix.join(
-        packageRelativePath,
+        destination.packageRelativePath,
         `${String(configuration.outputType || '').trim()}.schema.json`,
       )
     : null;
@@ -1941,20 +1974,19 @@ async function buildServerRegistrationPlan({ sessionId, configuration = {}, acto
       ? configuration.parameters.some((parameter) => parameter.enabled !== false)
       : false,
   });
-  const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
-  const destinationPath = pathApi.join(readiness.path.managedToolsRoot, payload.toolCode);
   const [collisionResult, destinationExists] = await Promise.all([
     require('../../../../packages/db/src/connection').pool.query(
       'SELECT 1 FROM core.tools WHERE tool_code = $1 LIMIT 1',
       [payload.toolCode],
     ),
-    pathExists(destinationPath),
+    pathExists(destination.packagePhysicalPath),
   ]);
 
   return buildRegistrationPlan({
     session,
     payload,
     readiness,
+    destination,
     catalogueOptions,
     toolCodeExists: collisionResult.rowCount > 0,
     destinationExists,
@@ -1971,11 +2003,12 @@ async function previewToolRegistration({ body = {}, actor }) {
   return { preview: safePlan };
 }
 
-async function writeManagedPackageStaging(plan, readiness) {
-  const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
-  await fs.promises.mkdir(readiness.path.managedToolsRoot, { recursive: true, mode: 0o700 });
+async function writeManagedPackageStaging(plan) {
+  const pathApi = getPathApiForRoot(plan.paths.packagePhysicalPath);
+  const packageParentPath = pathApi.dirname(plan.paths.packagePhysicalPath);
+  await fs.promises.mkdir(packageParentPath, { recursive: true, mode: 0o700 });
   const stagingName = `.skycommand-onboarding-${plan.sessionId}-${crypto.randomUUID().slice(0, 8)}`;
-  const stagingPath = pathApi.join(readiness.path.managedToolsRoot, stagingName);
+  const stagingPath = pathApi.join(packageParentPath, stagingName);
   await fs.promises.mkdir(stagingPath, { recursive: false, mode: 0o700 });
 
   try {
@@ -2062,28 +2095,13 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
       });
     }
 
-    if (!body.previewFingerprint || body.previewFingerprint !== plan.fingerprint) {
-      throw createHttpError(
-        409,
-        'The registration preview is missing or stale. Refresh the preview.',
-        {
-          code: 'TOOL_ONBOARDING_PREVIEW_STALE',
-        },
-      );
-    }
+    // Preview/file hashes are registration evidence only. Registration always rebuilds and
+    // revalidates the current plan; neither a preview token nor a stored file hash is a runtime gate.
+    const previewEvidenceMatched =
+      !body.previewFingerprint || body.previewFingerprint === plan.fingerprint;
 
-    if (plan.warningsRequireAcceptance && body.acceptWarnings !== true) {
-      throw createHttpError(
-        409,
-        'Static-analysis warnings must be explicitly accepted before registration.',
-        {
-          code: 'TOOL_ONBOARDING_WARNINGS_NOT_ACCEPTED',
-        },
-      );
-    }
-
-    const readiness = await skycommandRepositoryService.assertSkycommandRepositoryReady();
-    stagingPath = await writeManagedPackageStaging(plan, readiness);
+    await skycommandRepositoryService.assertSkycommandRepositoryReady();
+    stagingPath = await writeManagedPackageStaging(plan);
     const toolAdminService = require('./toolAdminService');
     stagedTool = await toolAdminService.createManagedTool({
       body: plan.internal.payload,
@@ -2098,7 +2116,6 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
       },
     });
 
-    const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
     if (await pathExists(plan.paths.packagePhysicalPath)) {
       throw createHttpError(409, 'Managed tool destination was created after preview.', {
         code: 'SKYCOMMAND_TOOL_DESTINATION_EXISTS',
@@ -2122,6 +2139,7 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
           sha256,
           relativePath,
         })),
+        previewEvidenceMatched,
       },
     });
 
@@ -2188,11 +2206,12 @@ async function analyzeToolPackage({ body = {}, actor, context = {} }) {
         [toolCode],
       );
       existingToolCode = collisionResult.rowCount > 0;
-      const destinationPath = getPathApiForRoot(readiness.path.managedToolsRoot).join(
-        readiness.path.managedToolsRoot,
-        toolCode,
+      const destination = skycommandRepositoryService.resolveToolPackageDestination(
+        readiness.path.resolvedRootPath,
+        analysis.suggestions.destinationRelativePath,
+        { toolCode },
       );
-      destinationExists = await pathExists(destinationPath);
+      destinationExists = await pathExists(destination.packagePhysicalPath);
     }
 
     if (existingToolCode || destinationExists) {

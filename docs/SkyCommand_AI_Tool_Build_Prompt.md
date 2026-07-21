@@ -33,20 +33,26 @@ skycommand.tool.json
 README.md
 ```
 
-The package will eventually be stored at:
+The package will be stored in an administrator-selected new directory inside the repository `packages` folder.
+
+Provide the intended destination here:
 
 ```text
-packages/tools/custom/<toolCode>/
+[packages/<chosen-area>/<toolCode>]
 ```
+
+The default remains `packages/tools/custom/<toolCode>`, but locations such as `packages/git/<toolCode>` or `packages/files/<toolCode>` are also valid.
 
 ## Mandatory implementation rules
 
 1. Use CommonJS and Node.js.
-2. Import the shared adapter with:
+2. Import the shared adapter from `packages/tools/src` using the correct relative path for the chosen package destination. For the default `packages/tools/custom/<toolCode>` location, use:
 
 ```js
 const { runToolCli } = require('../../src');
 ```
+
+For any other destination, calculate and use the matching relative import. Do not assume the default depth.
 
 3. Accept parameters as positional command-line values in the exact order documented in the descriptor.
 4. Validate all parameters inside the tool.
@@ -93,6 +99,7 @@ Use:
   "description": "Concise purpose.",
   "runtimeCode": "node",
   "entrypoint": "tool.js",
+  "packagePath": "packages/<chosen-area>/<toolCode>",
   "categoryCode": "appropriate_existing_category",
   "permissionCode": "appropriate_existing_permission",
   "riskCode": "low",

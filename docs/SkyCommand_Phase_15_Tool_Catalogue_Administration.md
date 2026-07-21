@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 15 is in progress. Phases 15.1 through 15.4 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, and no-execution upload analysis. **Phase 15.5 is now implemented:** a clean onboarding session becomes editable catalogue configuration, an exact server-resolved command/file/database preview, and a disabled managed tool registration with canonical descriptor generation, hidden in-repository staging, atomic package promotion, post-promotion hash verification, and audit/recovery evidence. Uploaded code is still not executed.
+Phase 15 is in progress. Phases 15.1 through 15.5 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, no-execution upload analysis, editable preview, and disabled-first registration. **Phase 15.5.1 now refines accessibility:** administrators may choose any new destination inside the repository `packages` folder, warnings remain advisory, and preview/file hashes are limited to the temporary onboarding transaction and audit evidence. They are never runtime launch gates and never lock out an edited registered tool. Uploaded code is still not executed.
 
 The next increment is Phase 15.6: non-destructive ToolResult contract check, optional controlled execution through normal risk/permission controls, Run Tools proof, and workflow-condition proof.
 
@@ -32,10 +32,10 @@ Phase 15.2 manages catalogue configuration only. Phase 15.3 adds repository desi
 Phase 15.3 establishes the trusted repository boundary required by managed onboarding:
 
 - migration `00068__skycommand_repository_designation.sql` adds `core.repositories.is_skycommand_repository`, a one-TRUE unique partial index, and the designation field on `core.vw_repository_paths`;
-- Configuration > Repositories displays the current active profile, designated repository, repository root, managed tools root, readiness state, and exact blocking error code;
+- Configuration > Repositories displays the current active profile, designated repository, repository root, writable `packages` root, readiness state, and exact blocking error code;
 - trusted administrators can set, replace, or clear the designation through audited API operations;
 - only active repositories may be designated, and a designated repository cannot be disabled or soft-deleted until its role is cleared;
-- `skycommandRepositoryService` resolves the active profile from the existing environment contract, verifies repository/read/write access, verifies or prepares `packages/tools/custom`, and exposes reusable `getSkycommandRepositoryReadiness()` and `assertSkycommandRepositoryReady()` functions;
+- `skycommandRepositoryService` resolves the active profile from the existing environment contract, verifies repository/read/write access plus the writable `packages` root, and exposes reusable readiness and package-destination containment functions;
 - readiness returns `SKYCOMMAND_REPOSITORY_NOT_CONFIGURED`, `SKYCOMMAND_REPOSITORY_PATH_NOT_CONFIGURED`, or `SKYCOMMAND_REPOSITORY_PATH_INVALID` without inventing filesystem state;
 - no upload staging, source execution, dependency installation, or managed-file writes are introduced in this increment.
 
@@ -43,7 +43,7 @@ Phase 15.3 establishes the trusted repository boundary required by managed onboa
 
 Phase 15.4 adds the first browser-assisted onboarding workbench while preserving the trusted-administrator and no-execution boundary:
 
-- **Tools > Add Tool** is protected by `ADMIN_TOOL_WRITE` and displays the designated repository, active profile, and managed tools root before accepting files;
+- **Tools > Add Tool** is protected by `ADMIN_TOOL_WRITE` and displays the designated repository, active profile, and writable `packages` root before accepting files;
 - the browser reads one required `.js` file and optional `skycommand.tool.json` and `<outputType>.schema.json` files as UTF-8 text and sends them through bounded JSON upload limits;
 - the API places each package in a random, time-limited session under the non-executable `logs/tool-onboarding` staging root with restrictive file permissions where supported;
 - static syntax validation uses the installed Node.js parser through `vm.Script` and never invokes, imports, or evaluates the uploaded tool;
@@ -51,7 +51,7 @@ Phase 15.4 adds the first browser-assisted onboarding workbench while preserving
 - descriptor inspection validates version, identity, Node.js runtime, entrypoint agreement, parameter names/types/positions, result contract, visibility, and source/descriptor consistency;
 - catalogue-backed reference checks verify active category, runtime, permission, risk, parameter type, option source, and visibility values;
 - schema inspection enforces JSON object shape, `<outputType>.schema.json` agreement, local-only `$ref`, bounded depth/node count, and the exact keywords/formats understood by the current validator;
-- duplicate registered tool codes and existing `packages/tools/custom/<toolCode>` destinations are blocking findings;
+- duplicate registered tool codes and existing suggested destinations are blocking findings; the default suggestion remains `packages/tools/custom/<toolCode>`;
 - findings carry explicit ERROR/WARNING/INFO severity and confidence, while suggested configuration remains advisory and editable in the upcoming Phase 15.5 workbench;
 - analysis creates an audited session record containing only filenames, sizes, SHA-256 evidence, result counts, and suggestions - never source content, secrets, or runtime parameter values;
 - the page cannot register, enable, execute, install dependencies, promote files, or commit Git changes.
@@ -63,11 +63,11 @@ Phase 15.4 introduces no database migration and does not change CLI, Run Tools, 
 Phase 15.5 completes the managed registration lane while retaining disabled-first and no-execution behavior:
 
 - analysis suggestions now prefill an editable catalogue workbench for identity, category, permission, risk, confirmation, visibility, structured output, and positional parameters/options;
-- `POST /api/admin/tool-onboarding/preview` reloads the owned, unexpired session, verifies staged-file hashes, validates current catalogue references, resolves the designated repository, and returns the exact command, managed paths, files, PostgreSQL records, blockers, warnings, and a deterministic preview fingerprint;
-- any form change invalidates the preview, and registration rejects a missing or stale fingerprint;
-- warning-bearing packages require explicit administrator acceptance; any static-analysis error remains blocking and requires corrected files to be uploaded again;
+- `POST /api/admin/tool-onboarding/preview` reloads the owned, unexpired session, verifies temporary staged-file evidence, validates current catalogue references, resolves the administrator-selected destination, and returns the current command, file paths, PostgreSQL records, blockers, warnings, and preview evidence;
+- preview evidence is advisory and registration always rebuilds/revalidates the current request, so a missing or changed preview hash does not create a lockout;
+- warnings remain visible but advisory; only actual errors, unsafe paths, missing references, duplicate tool codes, or destination collisions block registration;
 - SkyCommand always generates a canonical `skycommand.tool.json` from the administrator-approved configuration, ensuring the managed descriptor documents the actual PostgreSQL registration rather than preserving stale suggestions;
-- `POST /api/admin/tool-onboarding/register` writes the approved package to a hidden folder inside `packages/tools/custom`, creates the catalogue/visibility/parameter/option records disabled, atomically renames the package into place, re-reads and verifies every final file, records registration time and audit evidence, and removes the temporary onboarding session;
+- `POST /api/admin/tool-onboarding/register` writes the approved package to a hidden sibling folder under the selected `packages/...` parent, creates the catalogue/visibility/parameter/option records disabled, atomically renames the package into place, re-reads the just-promoted files, records registration time and audit evidence, and removes the temporary onboarding session;
 - tool codes, final package destinations, session ownership/expiry, repository readiness, schema filename/output type, and catalogue references are rechecked at both preview and registration time;
 - database insertion failure removes the hidden repository staging folder; later promotion/finalization failure leaves no enabled tool and returns explicit disabled-record recovery evidence when applicable;
 - the page finishes with a **Tool registered disabled** result and a direct link to **Manage Tools**. Contract check and any execution remain Phase 15.6 responsibilities.
@@ -88,7 +88,7 @@ The first release is intentionally narrow:
 - positional parameters in database display order;
 - optional onboarding descriptor;
 - optional JSON output schema;
-- managed destination under `packages/tools/custom/<toolCode>/`;
+- administrator-selected create-new destination anywhere under `packages/`, with `packages/tools/custom/<toolCode>/` as the default;
 - no automatic package installation;
 - no automatic Git commit;
 - no claim that uploaded code is sandboxed;
@@ -158,7 +158,7 @@ The active profile path from `core.repository_paths` remains the physical root. 
 - no active SkyCommand repository is designated;
 - the designated repository has no active path for the current profile;
 - the root does not exist or is not writable;
-- the destination escapes an approved managed folder.
+- the destination escapes the repository `packages` folder.
 
 Recommended errors:
 
@@ -176,6 +176,8 @@ Default location:
 ```text
 packages/tools/custom/<toolCode>/
 ```
+
+The administrator may instead choose any new directory inside `packages/`, such as `packages/git/<toolCode>/` or `packages/files/<toolCode>/`. The selected destination is stored in the descriptor and PostgreSQL script path; Add Tool does not rewrite source imports.
 
 Recommended package contents:
 
@@ -200,6 +202,7 @@ Example:
   "description": "Returns a greeting through the shared SkyCommand ToolResult adapter.",
   "runtimeCode": "node",
   "entrypoint": "tool.js",
+  "packagePath": "packages/tools/custom/example_greeting",
   "categoryCode": "file_tools",
   "permissionCode": "CORE_VIEW_TOOLS",
   "riskCode": "low",
@@ -292,7 +295,7 @@ Initial controls:
 - Node.js only;
 - no automatic `npm install`;
 - no shell-generated destination paths;
-- strict managed-root resolution;
+- strict containment inside the repository `packages` root;
 - file-size, timeout, output-size, and upload-count limits;
 - no raw environment display;
 - complete audit events;
@@ -310,7 +313,7 @@ PostgreSQL transactions cannot atomically commit filesystem changes. Registratio
 2. Resolve and verify the SkyCommand repository root.
 3. Write files to a hidden staging folder inside the repository.
 4. Insert catalogue records as disabled in one database transaction.
-5. Atomically rename staged files into the final managed folder.
+5. Atomically rename the staged directory into the administrator-selected final package folder.
 6. Re-read and verify final files and resolved catalogue data.
 7. Enable only after successful verification.
 8. Record registration audit evidence.
@@ -318,7 +321,7 @@ PostgreSQL transactions cannot atomically commit filesystem changes. Registratio
 
 If file promotion fails, the tool remains disabled. If database insertion fails, staged files are removed. Recovery actions must be idempotent.
 
-File hashes may be stored as registration evidence and change detection, but they are not runtime launch gates.
+File hashes may be stored as registration evidence and copy-verification evidence only. Runtime execution does not read or compare `file_hash`, descriptor hashes, preview evidence, or SHA-256 values. Editing a registered script therefore does not disable or block it.
 
 ## Catalogue data managed in Phase 15
 
@@ -445,12 +448,20 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 ### Phase 15.5 - File promotion and registration — complete
 
 - added editable configuration prefill for catalogue fields, visibility, positional parameters, option sources, and static choices;
-- added server-authoritative command, path, file, descriptor, and PostgreSQL preview with deterministic fingerprinting;
-- added session ownership/expiry/hash revalidation plus late tool-code and destination collision checks;
+- added server-authoritative command, path, file, descriptor, and PostgreSQL preview with registration-only evidence;
+- added session ownership/expiry/file-evidence revalidation plus late tool-code and destination collision checks;
 - added canonical descriptor generation, hidden in-repository package staging, disabled-first transactional catalogue creation, atomic directory promotion, and final file verification;
 - added `POST /api/admin/tool-onboarding/preview` and `POST /api/admin/tool-onboarding/register`;
-- added explicit warning acceptance, registration confirmation, success handoff to Manage Tools, and audit/recovery evidence;
+- added registration confirmation, success handoff to Manage Tools, and audit/recovery evidence; warnings remain advisory;
 - preserved the no-execution boundary: the managed tool remains disabled and contract check/controlled execution follow in Phase 15.6.
+
+### Phase 15.5.1 - Accessibility and package-path refinement — complete
+
+- expanded the destination policy from one fixed custom folder to any create-new directory inside `packages/`;
+- kept `packages/tools/custom/<toolCode>` as the convenience default rather than a requirement;
+- made static warnings advisory and removed mandatory warning-acceptance friction;
+- made preview evidence optional at registration because the server rebuilds and revalidates the request;
+- added regression checks proving runtime execution services do not reference onboarding hashes or preview evidence.
 
 ### Phase 15.6 - Contract-check and controlled test proof
 
@@ -476,7 +487,7 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - uploaded files remain outside executable managed paths until approved;
 - static validation produces findings and editable suggestions without executing code;
 - schema validation uses the supported local JSON Schema subset;
-- final paths are repo-relative, previewed, and contained under approved managed roots;
+- final paths are repo-relative, previewed, and contained anywhere under the designated repository `packages` root;
 - filesystem failure cannot leave an enabled catalogue record;
 - database failure cannot leave promoted unmanaged files;
 - existing tools, Run Tools, schedules, and workflows continue to use the same generic execution adapter;
@@ -490,12 +501,13 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 
 ## Increment status
 
-| Increment | Status   | Outcome                                                                                          |
-| --------- | -------- | ------------------------------------------------------------------------------------------------ |
-| 15.1      | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template                    |
-| 15.2      | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools**                                  |
-| 15.3      | Complete | Single SkyCommand repository designation and active-profile filesystem readiness                 |
-| 15.4      | Complete | Trusted upload staging, static analysis, advisory suggestions, and audit evidence                |
-| 15.5      | Complete | Editable prefill, fingerprinted preview, disabled-first registration, and managed file promotion |
-| 15.6      | Next     | Contract check, controlled live test, Run Tools and workflow proof                               |
-| 15.7      | Planned  | Regression matrix, Development Promotion, and closure                                            |
+| Increment | Status   | Outcome                                                                                      |
+| --------- | -------- | -------------------------------------------------------------------------------------------- |
+| 15.1      | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template                |
+| 15.2      | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools**                              |
+| 15.3      | Complete | Single SkyCommand repository designation and active-profile filesystem readiness             |
+| 15.4      | Complete | Trusted upload staging, static analysis, advisory suggestions, and audit evidence            |
+| 15.5      | Complete | Editable prefill, preview evidence, disabled-first registration, and managed file promotion  |
+| 15.5.1    | Complete | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime |
+| 15.6      | Next     | Contract check, controlled live test, Run Tools and workflow proof                           |
+| 15.7      | Planned  | Regression matrix, Development Promotion, and closure                                        |

@@ -20,11 +20,13 @@ The essential rule is:
   README.md                            optional
 ```
 
-Managed packages are installed under:
+Managed packages may be installed in any administrator-selected new directory inside the repository `packages` folder.
 
 ```text
-packages/tools/custom/<toolCode>/
+packages/<chosen-area>/<toolCode>/
 ```
+
+The default remains `packages/tools/custom/<toolCode>/`, but the Add Tool page may instead use locations such as `packages/git/<toolCode>/` or `packages/files/<toolCode>/`. Absolute paths, `..` traversal, the `packages` root itself, and overwriting an existing destination are rejected.
 
 ## Runtime assumptions
 
@@ -60,7 +62,9 @@ The analyzer checks:
 - existing catalogue tool-code and managed-destination collisions;
 - review signals such as filesystem access, child processes, environment use, shell execution, dynamic code, environment dumping, and secret-like literals.
 
-Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled suggestions. Suggestions never register the tool automatically. Phase 15.5 presents them as editable configuration, requires a fresh server-resolved preview, and registers only after explicit confirmation. The resulting tool is written under `packages/tools/custom/<toolCode>`, recorded in PostgreSQL, and left disabled for Phase 15.6 contract checking and controlled execution.
+Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled suggestions. Suggestions never register the tool automatically. Phase 15.5 presents them as editable configuration, including the package destination, and registers only after explicit confirmation. The resulting tool is written to the selected new directory under `packages`, recorded in PostgreSQL, and left disabled for Phase 15.6 contract checking and controlled execution.
+
+Preview fingerprints and SHA-256 values are onboarding evidence only. They protect the temporary upload/copy operation and support audit/collision diagnosis. They are never checked when a registered tool runs, never become accepted snapshots, and never disable a tool after its source is edited.
 
 Current upload limits:
 
@@ -75,11 +79,15 @@ The onboarding page never runs `npm install`, never executes the uploaded script
 
 ## Shared adapter import
 
+The shared adapter lives at `packages/tools/src`. The tool must use the correct relative import for its selected destination.
+
 For a tool stored at `packages/tools/custom/<toolCode>/tool.js`:
 
 ```js
 const { runToolCli } = require('../../src');
 ```
+
+For a tool stored elsewhere under `packages`, calculate the relative path from that package directory to `packages/tools/src`. The Add Tool service does not rewrite imports.
 
 The adapter preserves domain success even when optional structured reporting cannot be emitted.
 
