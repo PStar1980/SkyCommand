@@ -60,7 +60,7 @@ The analyzer checks:
 - existing catalogue tool-code and managed-destination collisions;
 - review signals such as filesystem access, child processes, environment use, shell execution, dynamic code, environment dumping, and secret-like literals.
 
-Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled suggestions. Suggestions never register the tool automatically. Phase 15.5 will present them as editable configuration before any database or managed-package write.
+Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled suggestions. Suggestions never register the tool automatically. Phase 15.5 presents them as editable configuration, requires a fresh server-resolved preview, and registers only after explicit confirmation. The resulting tool is written under `packages/tools/custom/<toolCode>`, recorded in PostgreSQL, and left disabled for Phase 15.6 contract checking and controlled execution.
 
 Current upload limits:
 

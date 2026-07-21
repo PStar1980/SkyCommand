@@ -180,6 +180,14 @@ async function analyzeToolOnboardingPackage(payload) {
   return api.post('/api/admin/tool-onboarding/analyze', payload);
 }
 
+async function previewToolOnboardingRegistration(payload) {
+  return api.post('/api/admin/tool-onboarding/preview', payload);
+}
+
+async function registerToolOnboardingPackage(payload) {
+  return api.post('/api/admin/tool-onboarding/register', payload);
+}
+
 async function listRepositories(filters = {}) {
   return api.get('/api/admin/repositories', { query: filters });
 }
@@ -278,6 +286,8 @@ const adminService = {
   replaceAdminToolParameters,
   getToolOnboardingOptions,
   analyzeToolOnboardingPackage,
+  previewToolOnboardingRegistration,
+  registerToolOnboardingPackage,
   listRepositories,
   listConfigProfiles,
   getSkycommandRepositoryReadiness,

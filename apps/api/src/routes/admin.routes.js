@@ -77,6 +77,16 @@ router.post(
   requirePermission('ADMIN_TOOL_WRITE'),
   adminController.analyzeToolOnboardingPackage,
 );
+router.post(
+  '/tool-onboarding/preview',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.previewToolOnboardingRegistration,
+);
+router.post(
+  '/tool-onboarding/register',
+  requirePermission('ADMIN_TOOL_WRITE'),
+  adminController.registerToolOnboardingPackage,
+);
 
 router.get(
   '/repositories/profiles',
