@@ -150,6 +150,20 @@ function normalizeOutputType(value) {
   return outputType;
 }
 
+function normalizeSha256(value, label = 'fileHash') {
+  const hash = normalizeOptionalString(value);
+
+  if (!hash) {
+    return null;
+  }
+
+  if (!/^[a-f0-9]{64}$/i.test(hash)) {
+    throw createHttpError(400, `${label} must be a SHA-256 hex digest.`);
+  }
+
+  return hash.toLowerCase();
+}
+
 function normalizeStringArray(value, label, { uppercase = false, lowercase = false } = {}) {
   if (value === undefined || value === null) {
     return [];
@@ -1225,6 +1239,205 @@ async function createTool({ body = {}, actor, context = {} }) {
   }
 }
 
+async function validateToolConfiguration(body = {}) {
+  const payload = normalizeToolPayload({ ...body, enabled: false });
+  const client = await pool.connect();
+
+  try {
+    await assertReferences(client, payload);
+    const collision = await client.query(
+      'SELECT tool_id FROM core.tools WHERE tool_code = $1 LIMIT 1',
+      [payload.toolCode],
+    );
+
+    if (collision.rowCount > 0) {
+      throw createHttpError(409, 'A tool with this code already exists.', {
+        code: 'TOOL_CODE_ALREADY_REGISTERED',
+        toolCode: payload.toolCode,
+      });
+    }
+
+    return payload;
+  } finally {
+    client.release();
+  }
+}
+
+async function createManagedTool({ body = {}, actor, context = {}, registration = {} }) {
+  const payload = normalizeToolPayload({ ...body, enabled: false });
+  const originalFilename = normalizeRequiredString(
+    registration.originalFilename,
+    'registration.originalFilename',
+  );
+  const descriptorPath = normalizeOptionalRepoRelativePath(
+    registration.descriptorPath,
+    'registration.descriptorPath',
+  );
+  const fileHash = normalizeSha256(registration.fileHash, 'registration.fileHash');
+  const sessionId = normalizeOptionalString(registration.sessionId);
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await assertReferences(client, payload);
+
+    const result = await client.query(
+      `
+        INSERT INTO core.tools (
+          category_id,
+          tool_code,
+          name,
+          label,
+          description,
+          script_repo_id,
+          script_path,
+          runtime_code,
+          permission_code,
+          risk_code,
+          requires_confirmation,
+          confirmation_text,
+          captures_output,
+          allow_params,
+          display_order,
+          enabled,
+          output_type,
+          output_schema_path,
+          managed_by_skycommand,
+          original_filename,
+          descriptor_path,
+          registered_at,
+          registered_by,
+          file_hash
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, $15, FALSE, $16, $17,
+          TRUE, $18, $19, NULL, $20, $21
+        )
+        RETURNING tool_id, tool_code
+      `,
+      [
+        payload.categoryId,
+        payload.toolCode,
+        payload.name,
+        payload.label,
+        payload.description,
+        payload.scriptRepoId,
+        payload.scriptPath,
+        payload.runtimeCode,
+        payload.permissionCode,
+        payload.riskCode,
+        payload.requiresConfirmation,
+        payload.confirmationText,
+        payload.capturesOutput,
+        payload.allowParams,
+        payload.displayOrder,
+        payload.outputType,
+        payload.outputSchemaPath,
+        originalFilename,
+        descriptorPath,
+        getActorUserId(actor),
+        fileHash,
+      ],
+    );
+    const toolId = result.rows[0].tool_id;
+
+    await replaceVisibility(client, toolId, payload.visibility || []);
+    await replaceParameters(client, toolId, payload.parameters || []);
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: 'TOOL_ONBOARDING_CATALOGUE_STAGED',
+      resourceId: payload.toolCode,
+      action: 'stage_managed_tool_catalogue',
+      message: 'A disabled managed tool catalogue record was staged before file promotion.',
+      metadata: {
+        toolId,
+        sessionId,
+        scriptPath: payload.scriptPath,
+        descriptorPath,
+        outputSchemaPath: payload.outputSchemaPath,
+        parameterCount: payload.parameters?.length || 0,
+        visibility: payload.visibility || [],
+        fileHash,
+        enabled: false,
+      },
+    });
+
+    await client.query('COMMIT');
+    return getTool(toolId);
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+
+    if (error.code === '23505') {
+      throw createHttpError(409, 'A tool with this code already exists.', {
+        code: 'TOOL_CODE_ALREADY_REGISTERED',
+        constraint: error.constraint,
+      });
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function markManagedToolRegistered({ toolId, actor, context = {}, registration = {} }) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const current = await getToolRow(client, toolId, { forUpdate: true });
+
+    if (!toBoolean(current.managed_by_skycommand)) {
+      throw createHttpError(400, 'Only SkyCommand-managed tools may be finalized here.');
+    }
+
+    if (toBoolean(current.enabled)) {
+      throw createHttpError(
+        409,
+        'Managed registration must remain disabled until explicit enablement.',
+      );
+    }
+
+    await client.query(
+      `
+        UPDATE core.tools
+        SET registered_at = CURRENT_TIMESTAMP,
+            registered_by = COALESCE(registered_by, $2),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tool_id = $1
+      `,
+      [current.tool_id, getActorUserId(actor)],
+    );
+
+    await insertAuditEvent(client, {
+      actor,
+      context,
+      eventType: 'TOOL_ONBOARDING_REGISTERED',
+      resourceId: current.tool_code,
+      action: 'register_managed_tool',
+      message: 'Managed tool files were promoted and the disabled catalogue record was verified.',
+      metadata: {
+        toolId: current.tool_id,
+        sessionId: registration.sessionId || null,
+        packagePath: registration.packagePath || null,
+        files: registration.files || [],
+        enabled: false,
+      },
+    });
+
+    await client.query('COMMIT');
+    return getTool(current.tool_id);
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function updateTool({ toolId, body = {}, actor, context = {} }) {
   const payload = normalizeToolPayload(body, { patch: true });
   const client = await pool.connect();
@@ -1416,6 +1629,9 @@ module.exports = {
   getTool,
   getOptions,
   createTool,
+  validateToolConfiguration,
+  createManagedTool,
+  markManagedToolRegistered,
   updateTool,
   updateToolStatus,
   replaceToolParameters,

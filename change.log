@@ -1,3 +1,15 @@
+## 2026-07-20 — Phase 15.5 Editable Preview and Disabled-First Managed Registration
+
+- Extended **Tools > Add Tool** from static analysis into one progressive trusted-administrator workbench with editable catalogue identity, category, permission, risk, confirmation, visibility, structured output, positional parameters, dynamic option sources, and static choices.
+- Added `POST /api/admin/tool-onboarding/preview` to reload the owned/unexpired session, verify staged hashes, validate current catalogue references, recheck repository readiness/tool-code/destination collisions, and return the exact command, managed paths, generated files, PostgreSQL records, blockers, warnings, and deterministic preview fingerprint.
+- Added stale-preview protection: any configuration change clears the preview, and registration rejects a missing or mismatched fingerprint.
+- Added explicit acceptance for warning-bearing packages while preserving the rule that static-analysis errors require corrected files and a new upload.
+- Added canonical `skycommand.tool.json` generation from the administrator-approved configuration so the managed descriptor documents the actual PostgreSQL record rather than stale source-analysis guesses.
+- Added `POST /api/admin/tool-onboarding/register` with session owner/expiry/hash verification, hidden in-repository staging, disabled-first transactional catalogue/visibility/parameter/option creation, atomic package rename, final file hash verification, registration provenance, audit evidence, and temporary-session cleanup.
+- Added `toolAdminService` managed-registration operations for disabled catalogue staging and post-promotion finalization. A failed registration never enables a tool; database failures clean repository staging, while later failures return disabled-record recovery evidence when applicable.
+- Updated the registration-plan self-test, Phase 15 architecture/reference documentation, Tool Authoring Guide, README status/roadmap, and repository map. Phase 15.6 is next: contract check, controlled execution, Run Tools proof, and workflow-condition proof.
+- Preserved the no-execution boundary: Phase 15.5 performs no uploaded-script execution, dependency installation, automatic permission creation, automatic enablement, or Git operation.
+
 ## 2026-07-20 — Phase 15.4 Trusted Upload Staging and Static Analysis
 
 - Added **Tools > Add Tool** as the first browser-assisted onboarding surface, protected by `ADMIN_TOOL_WRITE` and gated by the Phase 15.3 SkyCommand repository readiness service.

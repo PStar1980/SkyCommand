@@ -616,6 +616,30 @@ async function analyzeToolOnboardingPackage(req, res) {
   }
 }
 
+async function previewToolOnboardingRegistration(req, res) {
+  try {
+    const payload = await toolOnboardingService.previewToolRegistration({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function registerToolOnboardingPackage(req, res) {
+  try {
+    const payload = await toolOnboardingService.registerToolPackage({
+      body: req.body || {},
+      ...getActionContext(req),
+    });
+    res.status(201).json({ ok: true, ...payload });
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function listRepositories(req, res) {
   try {
     const payload = await adminActionService.listRepositories(req.query || {});
@@ -821,6 +845,8 @@ module.exports = {
   replaceAdminToolParameters,
   getToolOnboardingOptions,
   analyzeToolOnboardingPackage,
+  previewToolOnboardingRegistration,
+  registerToolOnboardingPackage,
   listRepositories,
   listConfigProfiles,
   getSkycommandRepositoryReadiness,

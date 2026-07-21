@@ -65,6 +65,10 @@ const MAX_FILE_BYTES = Object.freeze({
 const MAX_TOTAL_BYTES = 640 * 1024;
 const REPOSITORY_ROOT = path.resolve(__dirname, '../../../../');
 const DEFAULT_STAGING_ROOT = path.resolve(REPOSITORY_ROOT, 'logs', 'tool-onboarding');
+const SESSION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MANAGED_SCRIPT_FILENAME = 'tool.js';
+const MANAGED_DESCRIPTOR_FILENAME = 'skycommand.tool.json';
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
@@ -1383,7 +1387,7 @@ async function cleanupExpiredSessions(stagingRoot = DEFAULT_STAGING_ROOT) {
   );
 }
 
-async function stageUploads(uploads, analysis, stagingRoot = DEFAULT_STAGING_ROOT) {
+async function stageUploads(uploads, analysis, actor = null, stagingRoot = DEFAULT_STAGING_ROOT) {
   await fs.promises.mkdir(stagingRoot, { recursive: true, mode: 0o700 });
   await cleanupExpiredSessions(stagingRoot);
 
@@ -1407,6 +1411,7 @@ async function stageUploads(uploads, analysis, stagingRoot = DEFAULT_STAGING_ROO
       createdAt: createdAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
       status: analysis.summary.status,
+      actorUserId: getActorUserId(actor),
       files: uploads.files.map(({ kind, filename, sizeBytes, sha256 }) => ({
         kind,
         filename,
@@ -1527,9 +1532,639 @@ async function getOptions() {
       sessionTtlHours: SESSION_TTL_MS / (60 * 60 * 1000),
       executesUploadedCode: false,
       installsDependencies: false,
-      registersTool: false,
+      registersTool: true,
+      registrationMode: 'disabled-first',
+      writesManagedFiles: true,
     },
   };
+}
+
+function getPathApiForRoot(rootPath) {
+  const value = String(rootPath || '');
+  return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\') ? path.win32 : path;
+}
+
+async function pathExists(targetPath) {
+  return fs.promises
+    .access(targetPath, fs.constants.F_OK)
+    .then(() => true)
+    .catch(() => false);
+}
+
+function normalizeSessionId(value) {
+  const sessionId = String(value || '').trim();
+
+  if (!SESSION_ID_PATTERN.test(sessionId)) {
+    throw createHttpError(400, 'A valid onboarding sessionId is required.', {
+      code: 'TOOL_ONBOARDING_SESSION_INVALID',
+    });
+  }
+
+  return sessionId;
+}
+
+function stableValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(stableValue);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.keys(value)
+      .sort()
+      .reduce((result, key) => {
+        result[key] = stableValue(value[key]);
+        return result;
+      }, {});
+  }
+
+  return value;
+}
+
+function hashJson(value) {
+  return hashContent(JSON.stringify(stableValue(value)));
+}
+
+async function readOnboardingSession({ sessionId, actor, stagingRoot = DEFAULT_STAGING_ROOT }) {
+  const normalizedSessionId = normalizeSessionId(sessionId);
+  await cleanupExpiredSessions(stagingRoot);
+  const sessionPath = path.join(stagingRoot, normalizedSessionId);
+  let metadata;
+
+  try {
+    metadata = JSON.parse(
+      await fs.promises.readFile(path.join(sessionPath, 'analysis.json'), 'utf8'),
+    );
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      throw createHttpError(404, 'Tool onboarding session was not found or has expired.', {
+        code: 'TOOL_ONBOARDING_SESSION_NOT_FOUND',
+        sessionId: normalizedSessionId,
+      });
+    }
+
+    throw createHttpError(409, 'Tool onboarding session metadata is unavailable.', {
+      code: 'TOOL_ONBOARDING_SESSION_METADATA_INVALID',
+      sessionId: normalizedSessionId,
+    });
+  }
+
+  if (!metadata.expiresAt || new Date(metadata.expiresAt).getTime() <= Date.now()) {
+    await fs.promises.rm(sessionPath, { recursive: true, force: true }).catch(() => {});
+    throw createHttpError(410, 'Tool onboarding session has expired.', {
+      code: 'TOOL_ONBOARDING_SESSION_EXPIRED',
+      sessionId: normalizedSessionId,
+    });
+  }
+
+  const actorUserId = getActorUserId(actor);
+  if (metadata.actorUserId && actorUserId && metadata.actorUserId !== actorUserId) {
+    throw createHttpError(403, 'This onboarding session belongs to another administrator.', {
+      code: 'TOOL_ONBOARDING_SESSION_OWNER_MISMATCH',
+      sessionId: normalizedSessionId,
+    });
+  }
+
+  const files = {};
+  for (const file of metadata.files || []) {
+    if (!file || !['script', 'descriptor', 'schema'].includes(file.kind)) {
+      throw createHttpError(409, 'Tool onboarding session contains invalid file metadata.', {
+        code: 'TOOL_ONBOARDING_SESSION_METADATA_INVALID',
+        sessionId: normalizedSessionId,
+      });
+    }
+
+    const content = await fs.promises.readFile(path.join(sessionPath, file.filename), 'utf8');
+    const actualHash = hashContent(content);
+    if (actualHash !== file.sha256) {
+      throw createHttpError(
+        409,
+        'A staged onboarding file no longer matches its analysis evidence.',
+        {
+          code: 'TOOL_ONBOARDING_SESSION_FILE_CHANGED',
+          sessionId: normalizedSessionId,
+          filename: file.filename,
+        },
+      );
+    }
+
+    files[file.kind] = { ...file, content };
+  }
+
+  if (!files.script) {
+    throw createHttpError(409, 'The onboarding session no longer contains its entry script.', {
+      code: 'TOOL_ONBOARDING_SESSION_SCRIPT_MISSING',
+      sessionId: normalizedSessionId,
+    });
+  }
+
+  return {
+    sessionId: normalizedSessionId,
+    sessionPath,
+    metadata,
+    files,
+  };
+}
+
+function buildCanonicalDescriptor(payload, catalogueOptions, paths) {
+  const category = (catalogueOptions.categories || []).find(
+    (item) => item.categoryId === payload.categoryId,
+  );
+
+  return {
+    descriptorVersion: '1.0',
+    toolCode: payload.toolCode,
+    label: payload.label,
+    description: payload.description || null,
+    runtimeCode: payload.runtimeCode,
+    entrypoint: MANAGED_SCRIPT_FILENAME,
+    categoryCode: category?.categoryCode || null,
+    permissionCode: payload.permissionCode || null,
+    riskCode: payload.riskCode,
+    requiresConfirmation: payload.requiresConfirmation,
+    confirmationText: payload.confirmationText || null,
+    capturesOutput: payload.capturesOutput,
+    allowParams: payload.parameters.some((parameter) => parameter.enabled),
+    parameters: payload.parameters
+      .filter((parameter) => parameter.enabled)
+      .sort((left, right) => left.displayOrder - right.displayOrder)
+      .map((parameter) => ({
+        name: parameter.parameterName,
+        label: parameter.label,
+        type: parameter.paramTypeCode,
+        prompt: parameter.prompt || null,
+        required: parameter.required,
+        defaultValue: parameter.defaultValue,
+        position: parameter.displayOrder,
+        optionSourceCode: parameter.optionSourceCode || null,
+        options: parameter.options.map((option) => ({
+          label: option.label,
+          value: option.value,
+          position: option.displayOrder,
+        })),
+      })),
+    resultContract: payload.outputType
+      ? {
+          outputType: payload.outputType,
+          schemaPath: paths.schemaFilename || null,
+        }
+      : null,
+    visibility: payload.visibility,
+  };
+}
+
+function buildRegistrationPlan({
+  session,
+  payload,
+  readiness,
+  catalogueOptions,
+  toolCodeExists = false,
+  destinationExists = false,
+}) {
+  const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
+  const packageRelativePath = path.posix.join(
+    readiness.managedToolsRelativePath || 'packages/tools/custom',
+    payload.toolCode,
+  );
+  const packagePhysicalPath = pathApi.join(readiness.path.managedToolsRoot, payload.toolCode);
+  const scriptRelativePath = path.posix.join(packageRelativePath, MANAGED_SCRIPT_FILENAME);
+  const descriptorRelativePath = path.posix.join(packageRelativePath, MANAGED_DESCRIPTOR_FILENAME);
+  const schemaFilename = session.files.schema
+    ? `${payload.outputType || 'output'}.schema.json`
+    : null;
+  const outputSchemaPath = schemaFilename
+    ? path.posix.join(packageRelativePath, schemaFilename)
+    : null;
+  const paths = {
+    packageRelativePath,
+    packagePhysicalPath,
+    scriptRelativePath,
+    scriptPhysicalPath: pathApi.join(packagePhysicalPath, MANAGED_SCRIPT_FILENAME),
+    descriptorRelativePath,
+    descriptorPhysicalPath: pathApi.join(packagePhysicalPath, MANAGED_DESCRIPTOR_FILENAME),
+    outputSchemaPath,
+    schemaFilename,
+    schemaPhysicalPath: schemaFilename ? pathApi.join(packagePhysicalPath, schemaFilename) : null,
+  };
+  const descriptor = buildCanonicalDescriptor(payload, catalogueOptions, paths);
+  const descriptorContent = `${JSON.stringify(descriptor, null, 2)}\n`;
+  const filePlan = [
+    {
+      kind: 'script',
+      sourceFilename: session.files.script.filename,
+      filename: MANAGED_SCRIPT_FILENAME,
+      content: session.files.script.content,
+      sha256: hashContent(session.files.script.content),
+      relativePath: scriptRelativePath,
+      physicalPath: paths.scriptPhysicalPath,
+    },
+    {
+      kind: 'descriptor',
+      sourceFilename: session.files.descriptor?.filename || null,
+      filename: MANAGED_DESCRIPTOR_FILENAME,
+      content: descriptorContent,
+      sha256: hashContent(descriptorContent),
+      relativePath: descriptorRelativePath,
+      physicalPath: paths.descriptorPhysicalPath,
+      generated: true,
+    },
+  ];
+
+  if (session.files.schema) {
+    filePlan.push({
+      kind: 'schema',
+      sourceFilename: session.files.schema.filename,
+      filename: schemaFilename,
+      content: session.files.schema.content,
+      sha256: hashContent(session.files.schema.content),
+      relativePath: outputSchemaPath,
+      physicalPath: paths.schemaPhysicalPath,
+    });
+  }
+
+  const runtime = (catalogueOptions.runtimes || []).find(
+    (item) => item.runtimeCode === payload.runtimeCode,
+  );
+  const argumentPreview = payload.parameters
+    .filter((parameter) => parameter.enabled)
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map((parameter) => `<${parameter.parameterName}${parameter.required ? '' : '?'}>`);
+  const blockers = [];
+
+  if ((session.metadata.findings || []).some((finding) => finding.severity === 'ERROR')) {
+    blockers.push({
+      code: 'TOOL_ONBOARDING_STATIC_ERRORS',
+      message:
+        'The staged package contains blocking static-analysis errors and must be corrected and uploaded again.',
+    });
+  }
+
+  if (toolCodeExists) {
+    blockers.push({
+      code: 'TOOL_CODE_ALREADY_REGISTERED',
+      message: `Tool code is already registered: ${payload.toolCode}`,
+    });
+  }
+
+  if (destinationExists) {
+    blockers.push({
+      code: 'SKYCOMMAND_TOOL_DESTINATION_EXISTS',
+      message: `Managed destination already exists: ${packageRelativePath}`,
+    });
+  }
+
+  if (session.files.schema && !payload.outputType) {
+    blockers.push({
+      code: 'TOOL_ONBOARDING_OUTPUT_TYPE_REQUIRED',
+      message: 'Structured output type is required when an output schema is uploaded.',
+    });
+  }
+
+  if (
+    session.files.schema &&
+    session.files.schema.filename !== `${payload.outputType}.schema.json`
+  ) {
+    blockers.push({
+      code: 'SCHEMA_FILENAME_OUTPUT_TYPE_MISMATCH',
+      message: `Uploaded schema filename must be ${payload.outputType}.schema.json before registration.`,
+    });
+  }
+
+  const warnings = (session.metadata.findings || []).filter(
+    (finding) => finding.severity === 'WARNING',
+  );
+  const databasePreview = {
+    tool: {
+      toolCode: payload.toolCode,
+      name: payload.name,
+      label: payload.label,
+      description: payload.description,
+      categoryId: payload.categoryId,
+      scriptRepoId: payload.scriptRepoId,
+      scriptPath: scriptRelativePath,
+      runtimeCode: payload.runtimeCode,
+      permissionCode: payload.permissionCode,
+      riskCode: payload.riskCode,
+      requiresConfirmation: payload.requiresConfirmation,
+      confirmationText: payload.confirmationText,
+      capturesOutput: payload.capturesOutput,
+      allowParams: payload.parameters.some((parameter) => parameter.enabled),
+      displayOrder: payload.displayOrder,
+      enabled: false,
+      outputType: payload.outputType,
+      outputSchemaPath,
+      managedBySkyCommand: true,
+    },
+    visibility: payload.visibility,
+    parameters: payload.parameters,
+  };
+  const fingerprint = hashJson({
+    sessionId: session.sessionId,
+    databasePreview,
+    files: filePlan.map(({ kind, filename, sha256, relativePath }) => ({
+      kind,
+      filename,
+      sha256,
+      relativePath,
+    })),
+  });
+
+  return {
+    sessionId: session.sessionId,
+    status: blockers.length > 0 ? 'BLOCKED' : warnings.length > 0 ? 'REVIEW' : 'READY',
+    canRegister: blockers.length === 0,
+    warningsRequireAcceptance: warnings.length > 0,
+    blockers,
+    warnings,
+    fingerprint,
+    commandPreview: {
+      executable: runtime?.executable || payload.runtimeCode,
+      scriptPath: scriptRelativePath,
+      arguments: argumentPreview,
+      display: [runtime?.executable || payload.runtimeCode, scriptRelativePath, ...argumentPreview]
+        .map((item) => (String(item).includes(' ') ? `"${item}"` : item))
+        .join(' '),
+    },
+    paths,
+    files: filePlan.map(({ content, ...file }) => file),
+    databasePreview,
+    descriptor,
+    internal: {
+      payload: {
+        ...payload,
+        scriptPath: scriptRelativePath,
+        outputSchemaPath,
+        enabled: false,
+        allowParams: payload.parameters.some((parameter) => parameter.enabled),
+      },
+      filePlan,
+    },
+  };
+}
+
+async function buildServerRegistrationPlan({ sessionId, configuration = {}, actor }) {
+  const [readiness, session] = await Promise.all([
+    skycommandRepositoryService.assertSkycommandRepositoryReady(),
+    readOnboardingSession({ sessionId, actor }),
+  ]);
+  const toolAdminService = require('./toolAdminService');
+  const catalogueOptions = await toolAdminService.getOptions();
+  const rawToolCode = String(configuration.toolCode || '')
+    .trim()
+    .toLowerCase();
+
+  if (!TOOL_CODE_PATTERN.test(rawToolCode)) {
+    throw createHttpError(400, 'toolCode must use lowercase letters, numbers, and underscores.', {
+      code: 'TOOL_ONBOARDING_TOOL_CODE_INVALID',
+    });
+  }
+
+  const packageRelativePath = path.posix.join(
+    readiness.managedToolsRelativePath || 'packages/tools/custom',
+    rawToolCode,
+  );
+  const scriptRelativePath = path.posix.join(packageRelativePath, MANAGED_SCRIPT_FILENAME);
+  const schemaRelativePath = session.files.schema
+    ? path.posix.join(
+        packageRelativePath,
+        `${String(configuration.outputType || '').trim()}.schema.json`,
+      )
+    : null;
+  const payload = await toolAdminService.validateToolConfiguration({
+    ...configuration,
+    toolCode: rawToolCode,
+    scriptRepoId: readiness.repository.repoId,
+    scriptPath: scriptRelativePath,
+    runtimeCode: 'node',
+    enabled: false,
+    outputSchemaPath: schemaRelativePath,
+    allowParams: Array.isArray(configuration.parameters)
+      ? configuration.parameters.some((parameter) => parameter.enabled !== false)
+      : false,
+  });
+  const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
+  const destinationPath = pathApi.join(readiness.path.managedToolsRoot, payload.toolCode);
+  const [collisionResult, destinationExists] = await Promise.all([
+    require('../../../../packages/db/src/connection').pool.query(
+      'SELECT 1 FROM core.tools WHERE tool_code = $1 LIMIT 1',
+      [payload.toolCode],
+    ),
+    pathExists(destinationPath),
+  ]);
+
+  return buildRegistrationPlan({
+    session,
+    payload,
+    readiness,
+    catalogueOptions,
+    toolCodeExists: collisionResult.rowCount > 0,
+    destinationExists,
+  });
+}
+
+async function previewToolRegistration({ body = {}, actor }) {
+  const plan = await buildServerRegistrationPlan({
+    sessionId: body.sessionId,
+    configuration: body.configuration || {},
+    actor,
+  });
+  const { internal, ...safePlan } = plan;
+  return { preview: safePlan };
+}
+
+async function writeManagedPackageStaging(plan, readiness) {
+  const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
+  await fs.promises.mkdir(readiness.path.managedToolsRoot, { recursive: true, mode: 0o700 });
+  const stagingName = `.skycommand-onboarding-${plan.sessionId}-${crypto.randomUUID().slice(0, 8)}`;
+  const stagingPath = pathApi.join(readiness.path.managedToolsRoot, stagingName);
+  await fs.promises.mkdir(stagingPath, { recursive: false, mode: 0o700 });
+
+  try {
+    for (const file of plan.internal.filePlan) {
+      await fs.promises.writeFile(pathApi.join(stagingPath, file.filename), file.content, {
+        encoding: 'utf8',
+        flag: 'wx',
+        mode: 0o600,
+      });
+    }
+    return stagingPath;
+  } catch (error) {
+    await fs.promises.rm(stagingPath, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function verifyPromotedFiles(plan) {
+  for (const file of plan.internal.filePlan) {
+    const content = await fs.promises.readFile(file.physicalPath, 'utf8');
+    if (hashContent(content) !== file.sha256) {
+      throw createHttpError(500, 'Managed tool file verification failed after promotion.', {
+        code: 'TOOL_ONBOARDING_PROMOTION_VERIFICATION_FAILED',
+        filename: file.filename,
+      });
+    }
+  }
+}
+
+async function recordRegistrationFailure({
+  actor,
+  context = {},
+  sessionId,
+  toolCode,
+  error,
+  toolId,
+}) {
+  try {
+    const { query } = require('../../../../packages/db/src/connection');
+    await query(
+      `
+        INSERT INTO auth.audit_events (
+          user_id, event_type, resource_type, resource_id, action, success,
+          message, metadata, ip_address, user_agent
+        )
+        VALUES ($1, 'TOOL_ONBOARDING_REGISTRATION_FAILED', 'tool_onboarding_session', $2,
+                'REGISTER', FALSE, $3, $4::jsonb, $5, $6)
+      `,
+      [
+        getActorUserId(actor),
+        sessionId || null,
+        `Managed tool registration failed: ${error?.message || 'Unknown error'}`,
+        JSON.stringify({
+          privilegeCode: 'ADMIN_TOOL_WRITE',
+          toolCode: toolCode || null,
+          toolId: toolId || null,
+          errorCode: error?.details?.code || error?.code || null,
+        }),
+        context.ipAddress || null,
+        context.userAgent || null,
+      ],
+    );
+  } catch (auditError) {
+    console.warn('[Tool Onboarding] Registration failure audit write failed:', auditError.message);
+  }
+}
+
+async function registerToolPackage({ body = {}, actor, context = {} }) {
+  let stagingPath = null;
+  let stagedTool = null;
+  let plan = null;
+
+  try {
+    plan = await buildServerRegistrationPlan({
+      sessionId: body.sessionId,
+      configuration: body.configuration || {},
+      actor,
+    });
+
+    if (!plan.canRegister) {
+      throw createHttpError(409, 'Tool onboarding preview contains blocking findings.', {
+        code: 'TOOL_ONBOARDING_REGISTRATION_BLOCKED',
+        blockers: plan.blockers,
+      });
+    }
+
+    if (!body.previewFingerprint || body.previewFingerprint !== plan.fingerprint) {
+      throw createHttpError(
+        409,
+        'The registration preview is missing or stale. Refresh the preview.',
+        {
+          code: 'TOOL_ONBOARDING_PREVIEW_STALE',
+        },
+      );
+    }
+
+    if (plan.warningsRequireAcceptance && body.acceptWarnings !== true) {
+      throw createHttpError(
+        409,
+        'Static-analysis warnings must be explicitly accepted before registration.',
+        {
+          code: 'TOOL_ONBOARDING_WARNINGS_NOT_ACCEPTED',
+        },
+      );
+    }
+
+    const readiness = await skycommandRepositoryService.assertSkycommandRepositoryReady();
+    stagingPath = await writeManagedPackageStaging(plan, readiness);
+    const toolAdminService = require('./toolAdminService');
+    stagedTool = await toolAdminService.createManagedTool({
+      body: plan.internal.payload,
+      actor,
+      context,
+      registration: {
+        sessionId: plan.sessionId,
+        originalFilename: plan.internal.filePlan.find((file) => file.kind === 'script')
+          .sourceFilename,
+        descriptorPath: plan.paths.descriptorRelativePath,
+        fileHash: plan.internal.filePlan.find((file) => file.kind === 'script').sha256,
+      },
+    });
+
+    const pathApi = getPathApiForRoot(readiness.path.managedToolsRoot);
+    if (await pathExists(plan.paths.packagePhysicalPath)) {
+      throw createHttpError(409, 'Managed tool destination was created after preview.', {
+        code: 'SKYCOMMAND_TOOL_DESTINATION_EXISTS',
+        destination: plan.paths.packageRelativePath,
+      });
+    }
+
+    await fs.promises.rename(stagingPath, plan.paths.packagePhysicalPath);
+    stagingPath = null;
+    await verifyPromotedFiles(plan);
+    const finalizedTool = await toolAdminService.markManagedToolRegistered({
+      toolId: stagedTool.tool.toolId,
+      actor,
+      context,
+      registration: {
+        sessionId: plan.sessionId,
+        packagePath: plan.paths.packageRelativePath,
+        files: plan.files.map(({ kind, filename, sha256, relativePath }) => ({
+          kind,
+          filename,
+          sha256,
+          relativePath,
+        })),
+      },
+    });
+
+    const session = await readOnboardingSession({ sessionId: plan.sessionId, actor });
+    await fs.promises.rm(session.sessionPath, { recursive: true, force: true });
+
+    return {
+      registration: {
+        status: 'REGISTERED_DISABLED',
+        message:
+          'Managed tool files were promoted and the catalogue record was registered disabled.',
+        enabled: false,
+        tool: finalizedTool.tool,
+        paths: plan.paths,
+        files: plan.files,
+        nextStep:
+          'Review the disabled tool in Manage Tools. Contract check and controlled execution follow in Phase 15.6.',
+      },
+    };
+  } catch (error) {
+    if (stagingPath) {
+      await fs.promises.rm(stagingPath, { recursive: true, force: true }).catch(() => {});
+    }
+    await recordRegistrationFailure({
+      actor,
+      context,
+      sessionId: body.sessionId,
+      toolCode: plan?.internal?.payload?.toolCode || body.configuration?.toolCode,
+      toolId: stagedTool?.tool?.toolId || null,
+      error,
+    });
+
+    if (stagedTool?.tool?.toolId) {
+      error.details = {
+        ...(error.details || {}),
+        disabledToolId: stagedTool.tool.toolId,
+        disabledToolCode: stagedTool.tool.toolCode,
+        recovery:
+          'A disabled managed catalogue record may remain. Inspect it in Manage Tools before retrying.',
+      };
+    }
+    throw error;
+  }
 }
 
 async function analyzeToolPackage({ body = {}, actor, context = {} }) {
@@ -1553,10 +2188,11 @@ async function analyzeToolPackage({ body = {}, actor, context = {} }) {
         [toolCode],
       );
       existingToolCode = collisionResult.rowCount > 0;
-      destinationExists = await fs.promises
-        .access(path.join(readiness.path.managedToolsRoot, toolCode), fs.constants.F_OK)
-        .then(() => true)
-        .catch(() => false);
+      const destinationPath = getPathApiForRoot(readiness.path.managedToolsRoot).join(
+        readiness.path.managedToolsRoot,
+        toolCode,
+      );
+      destinationExists = await pathExists(destinationPath);
     }
 
     if (existingToolCode || destinationExists) {
@@ -1566,7 +2202,7 @@ async function analyzeToolPackage({ body = {}, actor, context = {} }) {
       );
     }
 
-    session = await stageUploads(analysis.uploads, analysis);
+    session = await stageUploads(analysis.uploads, analysis, actor);
     await recordAuditEvent({ actor, context, session, analysis, success: true });
 
     return {
@@ -1600,6 +2236,9 @@ module.exports = {
   MAX_TOTAL_BYTES,
   SESSION_TTL_MS,
   analyzePackageContent,
+  buildRegistrationPlan,
   getOptions,
   analyzeToolPackage,
+  previewToolRegistration,
+  registerToolPackage,
 };
