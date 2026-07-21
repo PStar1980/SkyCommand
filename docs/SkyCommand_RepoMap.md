@@ -225,7 +225,8 @@ SkyServer/
 │   ├── db/
 │   │   └── src/
 │   │       ├── connection.js
-│   │       └── db_health.js
+│   │       ├── db_health.js
+│   │       └── dbHealthResultSelfTest.js
 │   ├── db_build/
 │   │   └── src/
 │   │       ├── db_build.js
@@ -296,7 +297,8 @@ SkyServer/
 │   │           ├── 00059__workflow_scheduler_audit_privileges_seed.sql
 │   │           ├── 00060__temporal_listener_audit_privileges_seed.sql
 │   │           ├── 00061__skycommand_application_brand_seed.sql
-│   │           └── 00067__tool_catalogue_admin_permissions_seed.sql
+│   │           ├── 00067__tool_catalogue_admin_permissions_seed.sql
+│   │           └── 00069__db_health_structured_output_seed.sql
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
@@ -376,6 +378,7 @@ SkyServer/
 │   │           └── skyserverWorkflowExecutorWorkflow.js
 │   └── tools/
 │       ├── contracts/
+│       │   ├── database_health_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── git_repository_status.v1.schema.json

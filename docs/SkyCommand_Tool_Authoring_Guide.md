@@ -87,7 +87,13 @@ For a tool stored at `packages/tools/custom/<toolCode>/tool.js`:
 const { runToolCli } = require('../../src');
 ```
 
-For a tool stored elsewhere under `packages`, calculate the relative path from that package directory to `packages/tools/src`. The Add Tool service does not rewrite imports.
+For a tool stored elsewhere under `packages`, calculate the relative path from that package directory to `packages/tools/src`. For example, a tool installed at `packages/db_compare/tool.js` uses:
+
+```js
+const { runToolCli } = require('../tools/src');
+```
+
+The Add Tool service does not rewrite imports. Static analysis accepts any relative CommonJS import that resolves to `packages/tools/src`; it no longer assumes every tool lives at the default folder depth.
 
 The adapter preserves domain success even when optional structured reporting cannot be emitted.
 
@@ -130,7 +136,11 @@ function createFailureToolResult(error) {
     success: false,
     message: error.message || 'Greeting failed.',
     outputType: OUTPUT_TYPE,
-    output: {},
+    output: {
+      name: 'Unknown',
+      greeting: 'Greeting unavailable.',
+      generatedAt: new Date().toISOString(),
+    },
     warnings: [],
     error: {
       code: error.code || 'EXAMPLE_GREETING_FAILED',
@@ -144,14 +154,26 @@ function renderConsole(result) {
   console.log(result.greeting);
 }
 
-runToolCli({
-  toolCode: TOOL_CODE,
-  outputType: OUTPUT_TYPE,
-  execute: executeGreeting,
+async function main() {
+  return runToolCli({
+    toolCode: TOOL_CODE,
+    outputType: OUTPUT_TYPE,
+    execute: executeGreeting,
+    createToolResult,
+    createFailureToolResult,
+    renderConsole,
+  });
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  executeGreeting,
   createToolResult,
   createFailureToolResult,
-  renderConsole,
-});
+};
 ```
 
 ## ToolResult envelope
@@ -262,6 +284,43 @@ console.log('Inspection completed.');
 
 Do not expect workflows to parse these lines. Do not print secrets.
 
+## Execution success versus a negative domain result
+
+A tool can execute correctly and still discover an undesirable business condition. Keep those two meanings separate.
+
+Examples:
+
+- a database comparison completed, but `databasesMatch` is `false`;
+- a health check completed, but `allOnline` is `false`;
+- a repository inspection completed, but `readyForDevelopmentPromotion` is `false`.
+
+For these cases, return a valid successful ToolResult and expose a deliberate boolean or status field for the next workflow condition. Do not automatically fail the process unless stopping the workflow before a condition node is truly intended.
+
+```js
+shouldFailProcess: () => false;
+```
+
+Use a genuine execution failure only when the tool could not complete its domain operation, such as invalid parameters, authentication failure, an unavailable required database, or a catalogue query error.
+
+## Failure output must satisfy the same schema
+
+When an output schema is configured, SkyCommand validates `ToolResult.output` for both success and failure results. Design the schema and `createFailureToolResult()` together. A safe pattern is to return the same top-level fields with a status such as `FAILED`, zero counts, empty arrays, and no secrets.
+
+Prefer `if (require.main === module)` around the CLI launch and export pure parsing/comparison helpers. That makes focused self-tests possible without executing the command-line entrypoint.
+
+## Database-tool guidance
+
+For PostgreSQL tools:
+
+- accept database names as validated identifiers rather than arbitrary connection strings;
+- use configured `PGHOST`, `PGPORT`, `PGUSER`, and `PGPASSWORD` values without logging the password;
+- create a separate `pg.Pool` or client per target database;
+- apply connection and statement timeouts;
+- close every pool in `finally` blocks;
+- return object names, counts, statuses, and safe fingerprints rather than full definitions when definitions could contain sensitive function bodies;
+- distinguish connection/query failure from a completed comparison that found differences;
+- cap very large detail arrays and expose an explicit truncation flag while preserving the true total count.
+
 ## Domain failure
 
 Throw an `Error` with a stable code:
@@ -348,10 +407,11 @@ Before onboarding:
 ```text
 [ ] node --check tool.js passes
 [ ] direct CLI success case passes
-[ ] direct CLI failure case exits non-zero
+[ ] direct CLI failure case exits non-zero for genuine execution failure
+[ ] negative domain outcomes expose condition-friendly fields instead of accidental process failure
 [ ] console output is useful and contains no secrets
 [ ] success ToolResult is JSON-safe
-[ ] failure ToolResult is JSON-safe
+[ ] failure ToolResult is JSON-safe and satisfies the same output schema
 [ ] output type is stable and versioned
 [ ] optional schema validates a sample output
 [ ] parameters are documented in positional order

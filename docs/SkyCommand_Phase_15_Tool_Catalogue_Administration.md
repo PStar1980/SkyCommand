@@ -4,7 +4,7 @@
 
 Phase 15 is in progress. Phases 15.1 through 15.5 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, no-execution upload analysis, editable preview, and disabled-first registration. **Phase 15.5.1 now refines accessibility:** administrators may choose any new destination inside the repository `packages` folder, warnings remain advisory, and preview/file hashes are limited to the temporary onboarding transaction and audit evidence. They are never runtime launch gates and never lock out an edited registered tool. Uploaded code is still not executed.
 
-The next increment is Phase 15.6: non-destructive ToolResult contract check, optional controlled execution through normal risk/permission controls, Run Tools proof, and workflow-condition proof.
+Phase 15.6 verification infrastructure is now implemented: managed tools can receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The first real proof package is now prepared for frontend onboarding: a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`. The browser registration, controlled run, Run Tools proof, and workflow-condition proof remain the next hands-on verification steps.
 
 The governing rule remains:
 
@@ -463,12 +463,13 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - made preview evidence optional at registration because the server rebuilds and revalidates the request;
 - added regression checks proving runtime execution services do not reference onboarding hashes or preview evidence.
 
-### Phase 15.6 - Contract-check and controlled test proof
+### Phase 15.6 - Contract-check and controlled test proof — framework complete; live proof pending
 
-- support a non-destructive sample ToolResult contract check;
-- optionally execute a real test through normal permission/risk controls;
-- preview logs and structured output;
-- prove the newly registered tool in Run Tools and a workflow condition.
+- added managed-tool verification details, non-executing output-schema contract check, disabled-tool controlled test execution, explicit enablement, and direct handoff from Add Tool to Manage Tools;
+- preserved accessibility: contract-check results, prior test outcomes, registration hashes, and preview evidence never become runtime launch gates;
+- prepared the first real onboarding proof package, `db_object_compare`, which compares migration-relevant PostgreSQL objects across two named databases and exposes `output.databasesMatch` for condition routing;
+- upgraded `db_health` to check one or two named databases and expose `output.allOnline`, while retaining optional strict non-zero exit behavior for direct CLI use;
+- pending local proof: onboard/register the comparison package, run contract check and controlled execution, enable it, verify Run Tools, and route a workflow condition from `nodes.<nodeKey>.output.databasesMatch`.
 
 ### Phase 15.7 - Closure and documentation
 
@@ -501,13 +502,13 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 
 ## Increment status
 
-| Increment | Status   | Outcome                                                                                      |
-| --------- | -------- | -------------------------------------------------------------------------------------------- |
-| 15.1      | Complete | Architecture plan, authoring guide, AI build prompt, and custom-tool template                |
-| 15.2      | Complete | PostgreSQL catalogue CRUD services and **Tools > Manage Tools**                              |
-| 15.3      | Complete | Single SkyCommand repository designation and active-profile filesystem readiness             |
-| 15.4      | Complete | Trusted upload staging, static analysis, advisory suggestions, and audit evidence            |
-| 15.5      | Complete | Editable prefill, preview evidence, disabled-first registration, and managed file promotion  |
-| 15.5.1    | Complete | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime |
-| 15.6      | Next     | Contract check, controlled live test, Run Tools and workflow proof                           |
-| 15.7      | Planned  | Regression matrix, Development Promotion, and closure                                        |
+| Increment | Status      | Outcome                                                                                                                 |
+| --------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 15.1      | Complete    | Architecture plan, authoring guide, AI build prompt, and custom-tool template                                           |
+| 15.2      | Complete    | PostgreSQL catalogue CRUD services and **Tools > Manage Tools**                                                         |
+| 15.3      | Complete    | Single SkyCommand repository designation and active-profile filesystem readiness                                        |
+| 15.4      | Complete    | Trusted upload staging, static analysis, advisory suggestions, and audit evidence                                       |
+| 15.5      | Complete    | Editable prefill, preview evidence, disabled-first registration, and managed file promotion                             |
+| 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
+| 15.6      | In progress | Verification framework and PostgreSQL comparison proof package ready; local onboarding/Run Tools/workflow proof pending |
+| 15.7      | Planned     | Regression matrix, Development Promotion, and closure                                                                   |

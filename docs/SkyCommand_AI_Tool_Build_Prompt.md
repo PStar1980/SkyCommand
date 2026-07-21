@@ -86,6 +86,10 @@ For any other destination, calculate and use the matching relative import. Do no
 18. Add comments only where they explain a safety boundary or non-obvious domain rule.
 19. Make the script pass `node --check tool.js`.
 20. Make the descriptor, script constants, parameter order, output type, and schema filename agree exactly.
+21. Wrap the CLI launch in `if (require.main === module)` and export pure parsing/domain helpers where practical so focused self-tests can import the file without executing it.
+22. Ensure both success and failure `ToolResult.output` values satisfy the same optional output schema.
+23. Distinguish execution failure from a completed negative business result. Expose condition-friendly fields such as `allOnline`, `databasesMatch`, or `ready` and use `shouldFailProcess` deliberately.
+24. For database tools, create isolated clients/pools per target database, apply timeouts, close them in `finally`, never log credentials, and avoid returning full definitions that may contain secrets.
 
 ## Descriptor rules
 
@@ -154,7 +158,9 @@ Document:
 - side effects;
 - risk and confirmation expectations;
 - dependency assumptions;
-- direct CLI test examples.
+- direct CLI test examples;
+- recommended workflow condition paths and whether a negative domain result exits non-zero;
+- success and failure output-shape compatibility with the schema.
 
 After the code blocks, provide a short review checklist identifying any assumptions that a SkyCommand administrator must confirm before registration.
 

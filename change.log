@@ -1099,3 +1099,14 @@ SkyWeb Analytics owns:
 - Removed the remaining obsolete repository-contract planning language from the Word architecture plan and replaced it with the delivered PostgreSQL-catalogue onboarding handoff for Phase 15.
 - Preserved strict condition-path behavior, purpose-built Workflow History rendering, Tool History log authority, wrapper-owned result transport, and recovery access for Repository Map, Repository ZIP, and Dev Commit.
 - No database migration, seed, API, worker, Temporal, or Admin-Web code change is required for Phase 14.15.
+
+## 2026-07-21 - Phase 15.6 PostgreSQL comparison proof package and database-health structured output
+
+- Prepared the first real Phase 15 onboarding proof package, `db_object_compare`, as a separate upload-ready bundle rather than pre-installing it under `packages` and causing a managed-destination collision.
+- The tool accepts two PostgreSQL database names, loads migration-relevant catalogue objects from both databases, compares object presence and stable definition fingerprints in both directions, prints human-readable differences, and emits `postgresql_database_comparison_summary.v1` with `databasesMatch`, counts, per-type totals, and bounded difference details.
+- A completed comparison remains a successful tool execution even when the databases differ; workflows branch on `nodes.<nodeKey>.output.databasesMatch`. Connection, authentication, or catalogue-query errors remain genuine failures.
+- Upgraded `packages/db/src/db_health.js` to check one or two named databases, emit `database_health_summary.v1`, expose `allOnline`, retain direct-CLI strict failure by default, and allow catalogue/workflow calls to pass `failWhenOffline=false` so a condition node can decide whether to continue.
+- Added `00069__db_health_structured_output_seed.sql`, the database-health output schema, recovery-manifest parameters, and a structured-result self-test.
+- Refined Add Tool static analysis so flexible destinations can use any correct relative CommonJS import resolving to `packages/tools/src`; the analyzer no longer assumes only the default `../../src` package depth.
+- Refined the Tool Authoring Guide and AI build prompt with real-package lessons: `require.main` testability, shared success/failure schema shape, negative domain outcomes versus execution failures, isolated PostgreSQL pools, safe fingerprint output, bounded details, and workflow condition guidance.
+- Word architecture-plan updates remain paused only because of the current DOCX viewer/download issue; Markdown documentation continues normally.

@@ -31,6 +31,38 @@ function run() {
   assert.strictEqual(valid.sourceAnalysis.usesRunToolCli, true);
   assert.strictEqual(valid.schemaAnalysis.rootType, 'object');
 
+  const flexibleAdapterImport = analyzePackageContent({
+    script: {
+      filename: 'tool.js',
+      content: `
+        const { runToolCli } = require('../tools/src');
+        const TOOL_CODE = 'db_object_compare';
+        const OUTPUT_TYPE = 'postgresql_database_comparison_summary.v1';
+        runToolCli({
+          toolCode: TOOL_CODE,
+          outputType: OUTPUT_TYPE,
+          execute: async () => ({ databasesMatch: true }),
+          createToolResult: (output) => ({
+            schemaVersion: '1.0',
+            success: true,
+            message: 'Compared.',
+            outputType: OUTPUT_TYPE,
+            output,
+            warnings: [],
+            error: null,
+            metadata: {},
+          }),
+        });
+      `,
+    },
+  });
+  assert.strictEqual(flexibleAdapterImport.sourceAnalysis.importsSharedAdapter, true);
+  assert.ok(
+    !flexibleAdapterImport.findings.some(
+      (finding) => finding.code === 'SHARED_ADAPTER_IMPORT_UNUSUAL',
+    ),
+  );
+
   const invalid = analyzePackageContent({
     script: {
       filename: 'bad.js',

@@ -258,6 +258,16 @@ function extractRequiredModules(source) {
   return [...new Set(modules)];
 }
 
+function isSharedAdapterSpecifier(specifier) {
+  const normalized = String(specifier || '').replace(/\\/g, '/');
+
+  return (
+    /^(?:\.\.\/)+(?:tools\/src|src)(?:\/index\.js)?$/.test(normalized) ||
+    normalized === '../../src' ||
+    normalized === '../../src/index.js'
+  );
+}
+
 function loadAvailablePackages() {
   try {
     const packageJson = JSON.parse(
@@ -363,7 +373,8 @@ function inspectSource(script, findings) {
   }
 
   const usesRunToolCli = /\brunToolCli\s*\(/.test(script.content);
-  const importsSharedAdapter = /require\s*\(\s*['"]\.\.\/\.\.\/src['"]\s*\)/.test(script.content);
+  const modules = extractRequiredModules(script.content);
+  const importsSharedAdapter = modules.some(isSharedAdapterSpecifier);
   const inferredToolCode = inferStringConstant(script.content, 'TOOL_CODE');
   const inferredOutputType = inferStringConstant(script.content, 'OUTPUT_TYPE');
   const inferredParameters = inferParametersFromSource(script.content);
@@ -397,7 +408,7 @@ function inspectSource(script, findings) {
       findings,
       'WARNING',
       'SHARED_ADAPTER_IMPORT_UNUSUAL',
-      'runToolCli was detected, but the standard ../../src CommonJS import was not found.',
+      'runToolCli was detected, but a relative CommonJS import resolving to packages/tools/src was not found.',
       {
         fileKind: 'script',
         confidence: 'medium',
@@ -435,7 +446,6 @@ function inspectSource(script, findings) {
   const builtinSet = new Set(
     builtinModules.map((name) => name.replace(/^node:/, '').split('/')[0]),
   );
-  const modules = extractRequiredModules(script.content);
   const dependencies = modules.map((specifier) => {
     const packageName = getPackageName(specifier);
     let availability = 'relative';
@@ -470,8 +480,7 @@ function inspectSource(script, findings) {
   dependencies
     .filter(
       (dependency) =>
-        dependency.availability === 'relative' &&
-        !['../../src', '../../src/index.js'].includes(dependency.specifier),
+        dependency.availability === 'relative' && !isSharedAdapterSpecifier(dependency.specifier),
     )
     .forEach((dependency) => {
       addFinding(
