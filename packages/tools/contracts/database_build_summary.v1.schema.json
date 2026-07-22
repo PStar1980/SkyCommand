@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "database_build_summary.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "startedAt",
+    "completedAt",
+    "durationMs",
+    "targetDatabase",
+    "status",
+    "phase",
+    "buildCompleted",
+    "databaseDropped",
+    "databaseCreated",
+    "sqlRoots",
+    "sqlFilesDiscovered",
+    "sqlFilesExecuted",
+    "migrationFilesDiscovered",
+    "migrationFilesExecuted",
+    "seedFilesDiscovered",
+    "seedFilesExecuted",
+    "firstSqlFile",
+    "lastSqlFile",
+    "lastCompletedSqlFile",
+    "failedSqlFile",
+    "files"
+  ],
+  "properties": {
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "targetDatabase": {
+      "type": "string",
+      "maxLength": 63
+    },
+    "status": {
+      "type": "string",
+      "enum": ["BUILT", "FAILED"]
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "VALIDATION",
+        "DISCOVERY",
+        "DROP_DATABASE",
+        "CREATE_DATABASE",
+        "APPLY_SQL",
+        "COMPLETE"
+      ]
+    },
+    "buildCompleted": {
+      "type": "boolean"
+    },
+    "databaseDropped": {
+      "type": "boolean"
+    },
+    "databaseCreated": {
+      "type": "boolean"
+    },
+    "sqlRoots": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "sqlFilesDiscovered": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sqlFilesExecuted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "migrationFilesDiscovered": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "migrationFilesExecuted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seedFilesDiscovered": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seedFilesExecuted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "firstSqlFile": {
+      "type": ["string", "null"],
+      "maxLength": 1000
+    },
+    "lastSqlFile": {
+      "type": ["string", "null"],
+      "maxLength": 1000
+    },
+    "lastCompletedSqlFile": {
+      "type": ["string", "null"],
+      "maxLength": 1000
+    },
+    "failedSqlFile": {
+      "type": ["string", "null"],
+      "maxLength": 1000
+    },
+    "files": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relativePath", "kind", "ordinal", "status", "durationMs"],
+        "properties": {
+          "relativePath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["MIGRATION", "SEED", "OTHER"]
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED"]
+          },
+          "durationMs": {
+            "type": ["number", "null"],
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

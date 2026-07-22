@@ -169,7 +169,9 @@ Raw stdout/stderr is never promoted into normal workflow output.
 
 Summary nodes receive compact, normalized prior-node results. Macro ingestion sources are aggregated symmetrically. Repository delivery workflows receive a development-promotion rollup covering optional Repository Intelligence preflight evidence, Repository Map, Repository ZIP, Dev Commit, human merge approval, and Main → Dev synchronization. Other workflows receive a node-result index with status, summary, output contract, and duration.
 
-Large arrays and verbose logs are not duplicated into Summary output.
+Summary association is not hardcoded to a workflow primary key. A workflow version owns a `SUMMARY` node and its templates/options. At runtime the generic Summary adapter receives only that run's definition and prior outputs, resolves `nodes.<nodeKey>...` template paths, and returns `kind: workflow_run_summary`. Workflow History detects that marker. Specialized rollups are selected from known output contracts/results present in the run, so the same summary machinery can be reused by copied or newly created workflows.
+
+Large arrays and verbose logs are not duplicated into Summary output. Database Build now contributes compact `database_build_summary.v1` evidence—target database, build state, SQL counts, failure file, and duration—to generic key outputs without duplicating its full file list.
 
 ## Schedules
 

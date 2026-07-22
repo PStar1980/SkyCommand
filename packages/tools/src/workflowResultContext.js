@@ -4,6 +4,7 @@ const REPOSITORY_MAP_OUTPUT_TYPE = 'repository_map_summary.v1';
 const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
 const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
 const GIT_REPOSITORY_STATUS_OUTPUT_TYPE = 'git_repository_status.v1';
+const DATABASE_BUILD_OUTPUT_TYPE = 'database_build_summary.v1';
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -348,6 +349,22 @@ function compactDomainOutput(result = {}) {
       commitsApplied: normalizeNonNegativeNumber(safeOutput.commitsApplied),
       branchesSynchronized: Boolean(safeOutput.branchesSynchronized),
       tagName: safeOutput.tagName || null,
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
+  if (isToolResultEnvelope(result) && result.outputType === DATABASE_BUILD_OUTPUT_TYPE) {
+    return {
+      targetDatabase: safeOutput.targetDatabase || null,
+      status: safeOutput.status || null,
+      phase: safeOutput.phase || null,
+      buildCompleted: Boolean(safeOutput.buildCompleted),
+      databaseCreated: Boolean(safeOutput.databaseCreated),
+      sqlFilesDiscovered: normalizeNonNegativeNumber(safeOutput.sqlFilesDiscovered),
+      sqlFilesExecuted: normalizeNonNegativeNumber(safeOutput.sqlFilesExecuted),
+      migrationFilesExecuted: normalizeNonNegativeNumber(safeOutput.migrationFilesExecuted),
+      seedFilesExecuted: normalizeNonNegativeNumber(safeOutput.seedFilesExecuted),
+      failedSqlFile: safeOutput.failedSqlFile || null,
       durationMs: getResultDurationMs(result, safeOutput),
     };
   }
@@ -863,6 +880,20 @@ function buildScheduledToolResultSummary(toolResult = {}) {
     };
   }
 
+  if (result.outputType === DATABASE_BUILD_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.databaseBuild = {
+      targetDatabase: output.targetDatabase || null,
+      status: output.status || null,
+      phase: output.phase || null,
+      buildCompleted: Boolean(output.buildCompleted),
+      sqlFilesDiscovered: Number(output.sqlFilesDiscovered || 0),
+      sqlFilesExecuted: Number(output.sqlFilesExecuted || 0),
+      failedSqlFile: output.failedSqlFile || null,
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   return summary;
 }
 
@@ -882,6 +913,7 @@ module.exports = {
   GIT_COMMIT_OUTPUT_TYPE,
   GIT_BRANCH_SYNC_OUTPUT_TYPE,
   GIT_REPOSITORY_STATUS_OUTPUT_TYPE,
+  DATABASE_BUILD_OUTPUT_TYPE,
   REPOSITORY_MAP_OUTPUT_TYPE,
   REPOSITORY_PACKAGE_OUTPUT_TYPE,
   buildCanonicalNodeResultView,

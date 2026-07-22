@@ -1,3 +1,13 @@
+## 2026-07-22 — Phase 15.6.4 Database Build Structured Output and Summary Association
+
+- Converted `packages/db_build/src/db_build.js` to the shared `runToolCli` contract while preserving its existing destructive drop/create/global-SQL-order behavior and familiar console output.
+- Added `database_build_summary.v1` with target database, build phase, database recreation evidence, discovered/executed migration and seed counts, ordered per-file status/timing rows, last completed file, and failed file evidence.
+- Added `databaseBuildResult.js`, a dependency-light contract self-test, and `00070__db_build_structured_output_seed.sql` to register the output type/schema and preserve the required `databaseName` parameter.
+- Added compact Database Build evidence to generic Summary-node key outputs and scheduled-result summaries without hardcoding any workflow definition or workflow primary key.
+- Clarified in the architecture documentation that Summary nodes are associated with workflows through the versioned node definition and node-key templates; the executor recognizes the `SUMMARY` node type and the UI recognizes `kind = workflow_run_summary`, while specialized rollups are selected from output-contract shapes rather than workflow IDs.
+- Corrected the database-build recovery fallback so the required database parameter remains available when catalogue loading is unavailable.
+- Added `db-build:self-test` to the validation suite and preserved PostgreSQL catalogue authority, fail-open reporting, and the absence of hash/descriptor runtime gates.
+
 ## 2026-07-22 — Phase 15.6.3 Managed Verification Handoff and Focus Navigation
 
 - Corrected the Add Tool success handoff so **Open verification & test** deep-links to the registered managed tool with `view=verification` instead of merely opening its long catalogue configuration form.
