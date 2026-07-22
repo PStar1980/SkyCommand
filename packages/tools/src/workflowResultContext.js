@@ -4,7 +4,10 @@ const REPOSITORY_MAP_OUTPUT_TYPE = 'repository_map_summary.v1';
 const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
 const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
 const GIT_REPOSITORY_STATUS_OUTPUT_TYPE = 'git_repository_status.v1';
+const DATABASE_HEALTH_OUTPUT_TYPE = 'database_health_summary.v1';
 const DATABASE_BUILD_OUTPUT_TYPE = 'database_build_summary.v1';
+const DATABASE_COMPARISON_OUTPUT_TYPE =
+  'postgresql_database_comparison_summary.v1';
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -353,6 +356,19 @@ function compactDomainOutput(result = {}) {
     };
   }
 
+  if (isToolResultEnvelope(result) && result.outputType === DATABASE_HEALTH_OUTPUT_TYPE) {
+    return {
+      checkedAt: safeOutput.checkedAt || null,
+      allOnline: Boolean(safeOutput.allOnline),
+      requestedCount: normalizeNonNegativeNumber(safeOutput.requestedCount),
+      onlineCount: normalizeNonNegativeNumber(safeOutput.onlineCount),
+      offlineCount: normalizeNonNegativeNumber(safeOutput.offlineCount),
+      primaryDatabase: safeOutput.databases?.[0]?.databaseName || null,
+      primaryOnline: Boolean(safeOutput.databases?.[0]?.online),
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
   if (isToolResultEnvelope(result) && result.outputType === DATABASE_BUILD_OUTPUT_TYPE) {
     return {
       targetDatabase: safeOutput.targetDatabase || null,
@@ -365,6 +381,34 @@ function compactDomainOutput(result = {}) {
       migrationFilesExecuted: normalizeNonNegativeNumber(safeOutput.migrationFilesExecuted),
       seedFilesExecuted: normalizeNonNegativeNumber(safeOutput.seedFilesExecuted),
       failedSqlFile: safeOutput.failedSqlFile || null,
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
+  if (isToolResultEnvelope(result) && result.outputType === DATABASE_COMPARISON_OUTPUT_TYPE) {
+    return {
+      comparedAt: safeOutput.comparedAt || null,
+      status: safeOutput.status || null,
+      comparisonCompleted: Boolean(safeOutput.comparisonCompleted),
+      databasesOnline: Boolean(safeOutput.databasesOnline),
+      databasesMatch: Boolean(safeOutput.databasesMatch),
+      databaseA: safeOutput.databaseA || null,
+      databaseB: safeOutput.databaseB || null,
+      databaseAObjectCount: normalizeNonNegativeNumber(safeOutput.databaseAObjectCount),
+      databaseBObjectCount: normalizeNonNegativeNumber(safeOutput.databaseBObjectCount),
+      matchedObjectCount: normalizeNonNegativeNumber(safeOutput.matchedObjectCount),
+      onlyInDatabaseACount: normalizeNonNegativeNumber(safeOutput.onlyInDatabaseACount),
+      onlyInDatabaseBCount: normalizeNonNegativeNumber(safeOutput.onlyInDatabaseBCount),
+      definitionMismatchCount: normalizeNonNegativeNumber(safeOutput.definitionMismatchCount),
+      totalDifferenceCount: normalizeNonNegativeNumber(safeOutput.totalDifferenceCount),
+      differenceDetailsReturned: normalizeNonNegativeNumber(safeOutput.differenceDetailsReturned),
+      differenceDetailsTruncated: Boolean(safeOutput.differenceDetailsTruncated),
+      differingObjectTypeCount: getSafeArray(safeOutput.byType).filter(
+        (item) =>
+          normalizeNonNegativeNumber(item?.onlyInDatabaseA) > 0 ||
+          normalizeNonNegativeNumber(item?.onlyInDatabaseB) > 0 ||
+          normalizeNonNegativeNumber(item?.definitionMismatches) > 0,
+      ).length,
       durationMs: getResultDurationMs(result, safeOutput),
     };
   }
@@ -756,9 +800,243 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   };
 }
 
+
+function isDatabaseHealthConditionOutput(value = {}) {
+  const output = getSafeObject(value);
+  const leftPath = String(output.leftPath || '').trim();
+
+  return (
+    output.kind === 'condition_evaluation' &&
+    leftPath.includes('.output.databases') &&
+    leftPath.endsWith('.online')
+  );
+}
+
+function buildDatabaseSynchronizationRollup(nodeOutputsByKey = {}) {
+  const stages = [];
+  let health = null;
+  let healthCondition = null;
+  let build = null;
+  let comparison = null;
+
+  for (const [nodeKey, rawResult] of Object.entries(getSafeObject(nodeOutputsByKey))) {
+    const result = getSafeObject(rawResult);
+    const output = getSafeObject(getToolResultDomainOutput(result));
+    const durationMs = getResultDurationMs(result, output);
+
+    if (isToolResultEnvelope(result) && result.outputType === DATABASE_HEALTH_OUTPUT_TYPE) {
+      health = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'DATABASE_HEALTH',
+        label: 'Database health',
+        status: result.success === false ? 'FAILED' : 'SUCCESS',
+        outcome: output.allOnline ? 'ONLINE' : 'PARTIAL',
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: `${normalizeNonNegativeNumber(output.onlineCount)} of ${normalizeNonNegativeNumber(output.requestedCount)} database(s) online`,
+      });
+      continue;
+    }
+
+    if (isDatabaseHealthConditionOutput(output)) {
+      healthCondition = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'PRIMARY_DATABASE_GATE',
+        label: 'Primary database gate',
+        status: output.passed ? 'SUCCESS' : 'STOPPED',
+        outcome: output.passed ? 'PASSED' : 'BLOCKED',
+        summary: output.summary || output.reason || getResultSummary(result, output),
+        outputType: null,
+        durationMs,
+        evidence: `${output.leftPath || 'database health path'} = ${String(output.leftValue)}`,
+      });
+      continue;
+    }
+
+    if (isToolResultEnvelope(result) && result.outputType === DATABASE_BUILD_OUTPUT_TYPE) {
+      build = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'DATABASE_BUILD',
+        label: 'Database build',
+        status: result.success === false || !output.buildCompleted ? 'FAILED' : 'SUCCESS',
+        outcome: output.status || (output.buildCompleted ? 'BUILT' : 'FAILED'),
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: output.buildCompleted
+          ? `${normalizeNonNegativeNumber(output.sqlFilesExecuted)} ordered SQL file(s) applied`
+          : output.failedSqlFile || output.phase || 'Build incomplete',
+      });
+      continue;
+    }
+
+    if (isToolResultEnvelope(result) && result.outputType === DATABASE_COMPARISON_OUTPUT_TYPE) {
+      comparison = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'DATABASE_COMPARISON',
+        label: 'Database object comparison',
+        status: result.success === false || !output.comparisonCompleted ? 'FAILED' : 'SUCCESS',
+        outcome: output.status || (output.databasesMatch ? 'MATCH' : 'DIFFERENT'),
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: output.comparisonCompleted
+          ? `${normalizeNonNegativeNumber(output.matchedObjectCount)} matched; ${normalizeNonNegativeNumber(output.totalDifferenceCount)} difference(s)`
+          : 'Comparison incomplete',
+      });
+    }
+  }
+
+  if (!health && !build && !comparison) {
+    return null;
+  }
+
+  const healthOutput = getSafeObject(health?.output);
+  const conditionOutput = getSafeObject(healthCondition?.output);
+  const buildOutput = getSafeObject(build?.output);
+  const comparisonOutput = getSafeObject(comparison?.output);
+  const stageFailed = stages.some((stage) => stage.status === 'FAILED');
+  const conditionBlocked = healthCondition && !conditionOutput.passed;
+  const comparisonComplete = Boolean(comparisonOutput.comparisonCompleted);
+  const databasesMatch = Boolean(comparisonOutput.databasesMatch);
+  const outcome = stageFailed
+    ? 'FAILED'
+    : conditionBlocked
+      ? 'BLOCKED'
+      : comparisonComplete
+        ? databasesMatch
+          ? 'MATCH'
+          : 'DIFFERENT'
+        : buildOutput.buildCompleted
+          ? 'BUILT'
+          : 'INCOMPLETE';
+  const comparisonDifferences = getSafeArray(comparisonOutput.differences);
+  const summaryDifferences = comparisonDifferences.slice(0, 100);
+
+  return {
+    outcome,
+    validationPassed: outcome === 'MATCH',
+    health: health
+      ? {
+          nodeKey: health.nodeKey,
+          checkedAt: healthOutput.checkedAt || null,
+          allOnline: Boolean(healthOutput.allOnline),
+          requestedCount: normalizeNonNegativeNumber(healthOutput.requestedCount),
+          onlineCount: normalizeNonNegativeNumber(healthOutput.onlineCount),
+          offlineCount: normalizeNonNegativeNumber(healthOutput.offlineCount),
+          databases: getSafeArray(healthOutput.databases).map((database) => ({
+            databaseName: database?.databaseName || null,
+            online: Boolean(database?.online),
+            latencyMs: normalizeNonNegativeNumber(database?.latencyMs),
+            serverVersion: database?.serverVersion || null,
+            errorCode: database?.errorCode || null,
+            errorMessage: database?.errorMessage || null,
+          })),
+          durationMs: getResultDurationMs(health.result, healthOutput),
+        }
+      : null,
+    condition: healthCondition
+      ? {
+          nodeKey: healthCondition.nodeKey,
+          passed: Boolean(conditionOutput.passed),
+          branchLabel: conditionOutput.branchLabel || conditionOutput.route || null,
+          branchTargetNodeKey: conditionOutput.branchTargetNodeKey || null,
+          leftPath: conditionOutput.leftPath || null,
+          leftValue: cloneJsonCompatible(conditionOutput.leftValue),
+          operator: conditionOutput.operator || null,
+          onFalse: conditionOutput.onFalse || null,
+          summary: conditionOutput.summary || conditionOutput.reason || null,
+        }
+      : null,
+    build: build
+      ? {
+          nodeKey: build.nodeKey,
+          targetDatabase: buildOutput.targetDatabase || null,
+          status: buildOutput.status || null,
+          phase: buildOutput.phase || null,
+          buildCompleted: Boolean(buildOutput.buildCompleted),
+          databaseDropped: Boolean(buildOutput.databaseDropped),
+          databaseCreated: Boolean(buildOutput.databaseCreated),
+          sqlFilesDiscovered: normalizeNonNegativeNumber(buildOutput.sqlFilesDiscovered),
+          sqlFilesExecuted: normalizeNonNegativeNumber(buildOutput.sqlFilesExecuted),
+          migrationFilesExecuted: normalizeNonNegativeNumber(buildOutput.migrationFilesExecuted),
+          seedFilesExecuted: normalizeNonNegativeNumber(buildOutput.seedFilesExecuted),
+          failedSqlFile: buildOutput.failedSqlFile || null,
+          durationMs: getResultDurationMs(build.result, buildOutput),
+        }
+      : null,
+    comparison: comparison
+      ? {
+          nodeKey: comparison.nodeKey,
+          comparedAt: comparisonOutput.comparedAt || null,
+          status: comparisonOutput.status || null,
+          comparisonCompleted: comparisonComplete,
+          databasesOnline: Boolean(comparisonOutput.databasesOnline),
+          databasesMatch,
+          databaseA: comparisonOutput.databaseA || null,
+          databaseB: comparisonOutput.databaseB || null,
+          databaseAFingerprint: comparisonOutput.databaseAFingerprint || null,
+          databaseBFingerprint: comparisonOutput.databaseBFingerprint || null,
+          databaseAObjectCount: normalizeNonNegativeNumber(
+            comparisonOutput.databaseAObjectCount,
+          ),
+          databaseBObjectCount: normalizeNonNegativeNumber(
+            comparisonOutput.databaseBObjectCount,
+          ),
+          matchedObjectCount: normalizeNonNegativeNumber(comparisonOutput.matchedObjectCount),
+          onlyInDatabaseACount: normalizeNonNegativeNumber(
+            comparisonOutput.onlyInDatabaseACount,
+          ),
+          onlyInDatabaseBCount: normalizeNonNegativeNumber(
+            comparisonOutput.onlyInDatabaseBCount,
+          ),
+          definitionMismatchCount: normalizeNonNegativeNumber(
+            comparisonOutput.definitionMismatchCount,
+          ),
+          totalDifferenceCount: normalizeNonNegativeNumber(
+            comparisonOutput.totalDifferenceCount,
+          ),
+          differenceDetailsReturned: normalizeNonNegativeNumber(
+            comparisonOutput.differenceDetailsReturned,
+          ),
+          differenceDetailsTruncated:
+            Boolean(comparisonOutput.differenceDetailsTruncated) ||
+            comparisonDifferences.length > summaryDifferences.length,
+          byType: getSafeArray(comparisonOutput.byType).map((item) => ({
+            objectType: item?.objectType || null,
+            databaseACount: normalizeNonNegativeNumber(item?.databaseACount),
+            databaseBCount: normalizeNonNegativeNumber(item?.databaseBCount),
+            onlyInDatabaseA: normalizeNonNegativeNumber(item?.onlyInDatabaseA),
+            onlyInDatabaseB: normalizeNonNegativeNumber(item?.onlyInDatabaseB),
+            definitionMismatches: normalizeNonNegativeNumber(item?.definitionMismatches),
+          })),
+          differences: summaryDifferences.map((difference) => ({
+            kind: difference?.kind || null,
+            objectType: difference?.objectType || null,
+            schemaName: difference?.schemaName || null,
+            objectName: difference?.objectName || null,
+            identity: difference?.identity || null,
+          })),
+          durationMs: getResultDurationMs(comparison.result, comparisonOutput),
+        }
+      : null,
+    durationMs: stages.reduce(
+      (sum, stage) => sum + normalizeNonNegativeNumber(stage.durationMs),
+      0,
+    ),
+    stages,
+  };
+}
+
 function buildStructuredResultRollup(nodeOutputsByKey = {}) {
   const macroIngestion = buildMacroIngestionRollup(nodeOutputsByKey);
   const gitPromotion = buildGitPromotionRollup(nodeOutputsByKey);
+  const databaseSynchronization = buildDatabaseSynchronizationRollup(nodeOutputsByKey);
   const outputTypes = {};
 
   for (const rawResult of Object.values(getSafeObject(nodeOutputsByKey))) {
@@ -776,6 +1054,7 @@ function buildStructuredResultRollup(nodeOutputsByKey = {}) {
     outputTypes,
     macroIngestion,
     gitPromotion,
+    databaseSynchronization,
   };
 }
 
@@ -880,6 +1159,31 @@ function buildScheduledToolResultSummary(toolResult = {}) {
     };
   }
 
+  if (result.outputType === DATABASE_HEALTH_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.databaseHealth = {
+      allOnline: Boolean(output.allOnline),
+      requestedCount: Number(output.requestedCount || 0),
+      onlineCount: Number(output.onlineCount || 0),
+      offlineCount: Number(output.offlineCount || 0),
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
+  if (result.outputType === DATABASE_COMPARISON_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.databaseComparison = {
+      status: output.status || null,
+      comparisonCompleted: Boolean(output.comparisonCompleted),
+      databasesMatch: Boolean(output.databasesMatch),
+      databaseA: output.databaseA || null,
+      databaseB: output.databaseB || null,
+      matchedObjectCount: Number(output.matchedObjectCount || 0),
+      totalDifferenceCount: Number(output.totalDifferenceCount || 0),
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   if (result.outputType === DATABASE_BUILD_OUTPUT_TYPE) {
     const output = getSafeObject(result.output);
     summary.databaseBuild = {
@@ -913,12 +1217,15 @@ module.exports = {
   GIT_COMMIT_OUTPUT_TYPE,
   GIT_BRANCH_SYNC_OUTPUT_TYPE,
   GIT_REPOSITORY_STATUS_OUTPUT_TYPE,
+  DATABASE_HEALTH_OUTPUT_TYPE,
   DATABASE_BUILD_OUTPUT_TYPE,
+  DATABASE_COMPARISON_OUTPUT_TYPE,
   REPOSITORY_MAP_OUTPUT_TYPE,
   REPOSITORY_PACKAGE_OUTPUT_TYPE,
   buildCanonicalNodeResultView,
   buildConditionNodeLookup,
   buildGitPromotionRollup,
+  buildDatabaseSynchronizationRollup,
   buildMacroIngestionRollup,
   buildScheduledToolResultSummary,
   buildStructuredResultRollup,

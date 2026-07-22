@@ -3561,6 +3561,7 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
   const [
     nodeTypeResult,
     toolManifest,
+    workflowToolVisibilityResult,
     workflowTargetResult,
     temporalWorkflowTargetResult,
     approvalRoleResult,
@@ -3584,6 +3585,18 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
       `,
     ),
     toolManifestService.listToolsForUser({ permissions }),
+    query(
+      `
+        SELECT
+          tool.tool_code,
+          ARRAY_AGG(visibility.channel_code ORDER BY visibility.channel_code) AS visibility_channels
+        FROM core.tools tool
+        JOIN core.tool_visibility visibility
+          ON visibility.tool_id = tool.tool_id
+        WHERE tool.enabled = TRUE
+        GROUP BY tool.tool_code
+      `,
+    ),
     query(
       `
         SELECT
@@ -3655,10 +3668,22 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     };
   });
 
+  const workflowVisibilityByToolCode = new Map(
+    workflowToolVisibilityResult.rows.map((row) => [
+      row.tool_code,
+      new Set(getSafeArray(row.visibility_channels).map((channel) => String(channel))),
+    ]),
+  );
   const toolTargets = [];
 
   for (const category of toolManifest.categories || []) {
     for (const tool of category.tools || []) {
+      const visibilityChannels = workflowVisibilityByToolCode.get(tool.toolCode) || new Set();
+
+      if (!visibilityChannels.has('api')) {
+        continue;
+      }
+
       toolTargets.push({
         nodeTypeCode: 'TOOL',
         targetKind: 'core.tools',
@@ -3671,6 +3696,8 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
         permissionCode: tool.permissionCode,
         riskCode: tool.riskCode,
         requiresConfirmation: tool.requiresConfirmation,
+        visibilityChannels: [...visibilityChannels],
+        workflowEligible: true,
         parameters: tool.parameters || [],
       });
     }
@@ -4771,10 +4798,19 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
   if (toolTargetCodes.length > 0) {
     const toolResult = await client.query(
       `
-        SELECT tool_id, tool_code, label, description
-        FROM core.tools
-        WHERE tool_code = ANY($1::text[])
-          AND enabled = TRUE
+        SELECT
+          tool.tool_id,
+          tool.tool_code,
+          tool.label,
+          tool.description,
+          COALESCE(BOOL_OR(visibility.channel_code = 'admin-web'), FALSE) AS visible_in_admin_web,
+          COALESCE(BOOL_OR(visibility.channel_code = 'api'), FALSE) AS visible_in_api
+        FROM core.tools tool
+        LEFT JOIN core.tool_visibility visibility
+          ON visibility.tool_id = tool.tool_id
+        WHERE tool.tool_code = ANY($1::text[])
+          AND tool.enabled = TRUE
+        GROUP BY tool.tool_id, tool.tool_code, tool.label, tool.description
       `,
       [toolTargetCodes],
     );
@@ -4787,6 +4823,22 @@ async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = nul
         400,
         {
           missingTools,
+        },
+      );
+    }
+
+    const workflowIneligibleTools = toolTargetCodes.filter((targetCode) => {
+      const tool = toolsByCode.get(targetCode);
+      return !toBoolean(tool?.visible_in_admin_web) || !toBoolean(tool?.visible_in_api);
+    });
+
+    if (workflowIneligibleTools.length > 0) {
+      throw new WorkflowServiceError(
+        'One or more tool targets are not visible in both Admin-Web and API, so they cannot be used in workflows.',
+        400,
+        {
+          workflowIneligibleTools,
+          requiredVisibilityChannels: ['admin-web', 'api'],
         },
       );
     }
@@ -6006,6 +6058,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
   const structuredResults = buildStructuredResultRollup(nodeOutputsByKey);
   const macroIngestion = structuredResults.macroIngestion;
   const gitPromotion = structuredResults.gitPromotion;
+  const databaseSynchronization = structuredResults.databaseSynchronization;
   const scope = buildTemplateResolutionScope({
     input: workflowInfo.input || {},
     context: {
@@ -6018,6 +6071,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
       structuredResults,
       macroIngestion,
       gitPromotion,
+      databaseSynchronization,
       keyOutputs,
     },
   });
@@ -6051,7 +6105,10 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
   const promotionSummary = gitPromotion
     ? ` Development promotion: ${gitPromotion.repositoryCode || gitPromotion.repositoryName || 'repository'} ${gitPromotion.pullRequestDirection || ''}${gitPromotion.synchronizationDirection ? `; synchronized ${gitPromotion.synchronizationDirection}` : ''}${gitPromotion.synchronizedHeadSha ? ` at ${gitPromotion.synchronizedHeadSha.slice(0, 12)}` : ''}. ${promotionApproval}`
     : '';
-  const defaultSummary = `Workflow ${workflowName} summarized: ${completedNodeCount}/${totalNodeCount || observedNodeCount} node(s) completed${counts.FAILED ? `, ${counts.FAILED} failed` : ''}${skippedNodeCount ? `, ${skippedNodeCount} not run` : ''}.${macroSummary}${promotionSummary}`;
+  const databaseSynchronizationSummary = databaseSynchronization
+    ? ` Database validation: ${databaseSynchronization.build?.targetDatabase || databaseSynchronization.comparison?.databaseB || 'target database'} ${String(databaseSynchronization.outcome || 'UNKNOWN').toLowerCase()}${databaseSynchronization.comparison ? `; ${Number(databaseSynchronization.comparison.matchedObjectCount || 0)} matched object(s), ${Number(databaseSynchronization.comparison.totalDifferenceCount || 0)} difference(s)` : ''}.`
+    : '';
+  const defaultSummary = `Workflow ${workflowName} summarized: ${completedNodeCount}/${totalNodeCount || observedNodeCount} node(s) completed${counts.FAILED ? `, ${counts.FAILED} failed` : ''}${skippedNodeCount ? `, ${skippedNodeCount} not run` : ''}.${macroSummary}${promotionSummary}${databaseSynchronizationSummary}`;
   const summary =
     renderSummaryTemplate(summaryParameters.summaryTemplate, scope, defaultSummary) ||
     defaultSummary;
@@ -6075,6 +6132,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
     structuredResults,
     macroIngestion,
     gitPromotion,
+    databaseSynchronization,
     warnings: summaryParameters.includeWarnings ? warnings : [],
     errors: summaryParameters.includeWarnings ? errors : [],
     counts: {
@@ -6100,6 +6158,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
       structuredResults,
       macroIngestion,
       gitPromotion,
+      databaseSynchronization,
       recommendedNextActions,
     },
     contextUpdates: {
@@ -6112,6 +6171,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
       'summary.structuredResults': structuredResults,
       'summary.macroIngestion': macroIngestion,
       'summary.gitPromotion': gitPromotion,
+      'summary.databaseSynchronization': databaseSynchronization,
     },
   };
 }

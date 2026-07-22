@@ -1157,3 +1157,15 @@ SkyWeb Analytics owns:
 - Reaffirmed that PostgreSQL remains runtime authority; descriptors, hashes, and preview evidence are never execution gates.
 - Added regression coverage for custom upload filenames with canonical managed entrypoints and updated the Tool Authoring Guide, AI build prompt, and Phase 15 Markdown plan.
 - No database migration or seed is required.
+
+## 2026-07-22 - Phase 15.6.6 workflow eligibility and database proof presentation
+
+- Completed the published Database Synchronization workflow proof through Database Health, the primary-database condition gate, Database Build, PostgreSQL Database Object Compare, and the Summary node.
+- Added workflow-target eligibility filtering so the builder lists only tools visible in both `admin-web` and `api`.
+- Added save/publish validation that rejects enabled tool targets lacking either required workflow execution channel and returns the exact ineligible tool codes plus required channels.
+- Added a purpose-built `postgresql_database_comparison_summary.v1` Workflow History renderer with compact comparison totals, per-object-type reconciliation, and tabular difference details; the generic repeated Source/Field/Value presentation is no longer used for this contract.
+- Added a contract-driven Database Synchronization Summary rollup that combines `database_health_summary.v1`, the health condition decision, `database_build_summary.v1`, and `postgresql_database_comparison_summary.v1` without hardcoding a workflow ID.
+- Reduced duplicate Summary-node key output for database health/comparison contracts while retaining the complete purpose-built rollup and focused raw tool result.
+- Added workflow visibility and database-output regression self-tests and extended `workflow-result-context:self-test` with MATCH and DIFFERENT database synchronization cases.
+- Updated README, the Phase 15 Markdown plan, the Tool Authoring Guide, the AI build prompt, and the repository map; the authoring guidance now explains that workflow tools require both `admin-web` and `api`, while `cli` and `worker` remain optional lanes.
+- No migration, seed, dependency, tool re-registration, or workflow-definition change is required.

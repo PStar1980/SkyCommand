@@ -609,7 +609,7 @@ function operationOutcomeClass(outcome) {
     return 'sky-pill-danger';
   }
 
-  if (['PARTIAL', 'WARNING', 'STOPPED', 'BLOCKED'].includes(normalized)) {
+  if (['PARTIAL', 'WARNING', 'STOPPED', 'BLOCKED', 'DIFFERENT'].includes(normalized)) {
     return 'sky-pill-warning';
   }
 
@@ -624,6 +624,10 @@ function operationOutcomeClass(outcome) {
       'SYNCHRONIZED',
       'TAGGED',
       'READY',
+      'MATCH',
+      'BUILT',
+      'ONLINE',
+      'PASSED',
     ].includes(normalized)
   ) {
     return 'sky-pill-success';
@@ -2780,6 +2784,498 @@ function GitPromotionSummary({ promotion }) {
   );
 }
 
+
+function DatabaseComparisonOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const byType = getSafeArray(output.byType);
+  const allDifferences = getSafeArray(output.differences);
+  const differences = allDifferences.slice(0, 250);
+  const uiDifferenceDetailsTruncated = allDifferences.length > differences.length;
+  const differenceTypes = byType.filter(
+    (item) =>
+      Number(item.onlyInDatabaseA || 0) > 0 ||
+      Number(item.onlyInDatabaseB || 0) > 0 ||
+      Number(item.definitionMismatches || 0) > 0,
+  );
+  const typeRows = differenceTypes.length > 0 ? differenceTypes : byType;
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+
+  return (
+    <div className="sky-database-comparison-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">PostgreSQL database comparison</div>
+          <h3 className="h6 mb-1">
+            {output.databaseA || 'Database A'} ↔ {output.databaseB || 'Database B'}
+          </h3>
+          <p className="small sky-muted mb-0">
+            {toolResult?.message || 'Structured PostgreSQL catalogue comparison recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${operationOutcomeClass(output.status)}`}>
+            {output.status || 'UNKNOWN'}
+          </span>
+          <span
+            className={`sky-pill ${output.databasesMatch ? 'sky-pill-success' : 'sky-pill-warning'}`}
+          >
+            {output.databasesMatch ? 'Definitions match' : `${Number(output.totalDifferenceCount || 0).toLocaleString()} difference(s)`}
+          </span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Comparison overview</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Database</th>
+              <th>Objects</th>
+              <th>Fingerprint</th>
+              <th>Compared at</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="fw-semibold sky-mono">{output.databaseA || '—'}</td>
+              <td>{Number(output.databaseAObjectCount || 0).toLocaleString()}</td>
+              <td className="sky-mono text-break">{output.databaseAFingerprint || '—'}</td>
+              <td rowSpan="2">
+                <FriendlyOutputScalar fieldKey="comparedAt" value={output.comparedAt} />
+              </td>
+            </tr>
+            <tr>
+              <td className="fw-semibold sky-mono">{output.databaseB || '—'}</td>
+              <td>{Number(output.databaseBObjectCount || 0).toLocaleString()}</td>
+              <td className="sky-mono text-break">{output.databaseBFingerprint || '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Object reconciliation</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Matched</th>
+              <th>Only in {output.databaseA || 'Database A'}</th>
+              <th>Only in {output.databaseB || 'Database B'}</th>
+              <th>Definition mismatches</th>
+              <th>Total differences</th>
+              <th>Details returned</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="fw-semibold">
+                {Number(output.matchedObjectCount || 0).toLocaleString()}
+              </td>
+              <td>{Number(output.onlyInDatabaseACount || 0).toLocaleString()}</td>
+              <td>{Number(output.onlyInDatabaseBCount || 0).toLocaleString()}</td>
+              <td>{Number(output.definitionMismatchCount || 0).toLocaleString()}</td>
+              <td className={output.totalDifferenceCount ? 'fw-semibold' : ''}>
+                {Number(output.totalDifferenceCount || 0).toLocaleString()}
+              </td>
+              <td>
+                {Number(output.differenceDetailsReturned || differences.length || 0).toLocaleString()}
+                {output.differenceDetailsTruncated || uiDifferenceDetailsTruncated ? ' (truncated)' : ''}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {typeRows.length > 0 ? (
+        <>
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div className="sky-page-kicker">
+              {differenceTypes.length > 0 ? 'Differences by object type' : 'Object counts by type'}
+            </div>
+            <span className="sky-pill sky-pill-info">{typeRows.length} type(s)</span>
+          </div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Object type</th>
+                  <th>{output.databaseA || 'Database A'}</th>
+                  <th>{output.databaseB || 'Database B'}</th>
+                  <th>Only in A</th>
+                  <th>Only in B</th>
+                  <th>Definition mismatches</th>
+                  <th>Total differences</th>
+                </tr>
+              </thead>
+              <tbody>
+                {typeRows.map((item) => {
+                  const differenceCount =
+                    Number(item.onlyInDatabaseA || 0) +
+                    Number(item.onlyInDatabaseB || 0) +
+                    Number(item.definitionMismatches || 0);
+
+                  return (
+                    <tr key={item.objectType || JSON.stringify(item)}>
+                      <td className="fw-semibold">{humanizeOutputKey(item.objectType)}</td>
+                      <td>{Number(item.databaseACount || 0).toLocaleString()}</td>
+                      <td>{Number(item.databaseBCount || 0).toLocaleString()}</td>
+                      <td>{Number(item.onlyInDatabaseA || 0).toLocaleString()}</td>
+                      <td>{Number(item.onlyInDatabaseB || 0).toLocaleString()}</td>
+                      <td>{Number(item.definitionMismatches || 0).toLocaleString()}</td>
+                      <td className={differenceCount ? 'fw-semibold' : ''}>
+                        {differenceCount.toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {differences.length > 0 ? (
+        <>
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div className="sky-page-kicker">Difference details</div>
+            <span className="sky-pill sky-pill-warning">
+              {differences.length}
+              {output.differenceDetailsTruncated || uiDifferenceDetailsTruncated ? '+' : ''} row(s)
+            </span>
+          </div>
+          <div className="table-responsive sky-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Difference</th>
+                  <th>Object type</th>
+                  <th>Object</th>
+                  <th>Identity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {differences.map((difference, index) => (
+                  <tr key={`${difference.objectKey || difference.objectName || 'difference'}-${index}`}>
+                    <td>
+                      <span className={`sky-pill ${operationOutcomeClass('DIFFERENT')}`}>
+                        {humanizeOutputKey(difference.kind)}
+                      </span>
+                    </td>
+                    <td>{humanizeOutputKey(difference.objectType)}</td>
+                    <td className="sky-mono text-break">
+                      {difference.schemaName ? `${difference.schemaName}.` : ''}
+                      {difference.objectName || '—'}
+                    </td>
+                    <td className="sky-mono text-break">{difference.identity || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="alert alert-success py-2 mb-0">
+          No PostgreSQL catalogue differences were detected.
+        </div>
+      )}
+
+      {warnings.length > 0 || failedMessage ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning, index) => (
+            <div key={`database-comparison-warning-${index}`}>
+              {typeof warning === 'string' ? warning : warning.message || JSON.stringify(warning)}
+            </div>
+          ))}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DatabaseSynchronizationSummary({ synchronization }) {
+  const health = getSafeObject(synchronization?.health, null);
+  const condition = getSafeObject(synchronization?.condition, null);
+  const build = getSafeObject(synchronization?.build, null);
+  const comparison = getSafeObject(synchronization?.comparison, null);
+  const stages = getSafeArray(synchronization?.stages);
+  const databases = getSafeArray(health?.databases);
+  const differenceTypes = getSafeArray(comparison?.byType).filter(
+    (item) =>
+      Number(item.onlyInDatabaseA || 0) > 0 ||
+      Number(item.onlyInDatabaseB || 0) > 0 ||
+      Number(item.definitionMismatches || 0) > 0,
+  );
+  const differences = getSafeArray(comparison?.differences);
+
+  return (
+    <div className="sky-database-synchronization-summary">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Database synchronization proof</div>
+          <h3 className="h6 mb-1">
+            {comparison?.databaseA || 'Source database'} ↔{' '}
+            {comparison?.databaseB || build?.targetDatabase || 'Built database'}
+          </h3>
+          <p className="small sky-muted mb-0">
+            Health, build, and PostgreSQL catalogue comparison evidence from this workflow run.
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${operationOutcomeClass(synchronization?.outcome)}`}>
+            {synchronization?.outcome || 'UNKNOWN'}
+          </span>
+          <span
+            className={`sky-pill ${synchronization?.validationPassed ? 'sky-pill-success' : 'sky-pill-warning'}`}
+          >
+            {synchronization?.validationPassed ? 'Validation passed' : 'Review differences'}
+          </span>
+          <span className="sky-pill sky-pill-info">
+            {formatDuration(synchronization?.durationMs)}
+          </span>
+        </div>
+      </div>
+
+      {databases.length > 0 ? (
+        <>
+          <div className="sky-page-kicker mb-2">Pre-build health</div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Database</th>
+                  <th>Online</th>
+                  <th>Latency</th>
+                  <th>Server version</th>
+                  <th>Evidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {databases.map((database, index) => (
+                  <tr key={`${database.databaseName || 'database'}-${index}`}>
+                    <td className="fw-semibold sky-mono">{database.databaseName || '—'}</td>
+                    <td>
+                      <span
+                        className={`sky-pill ${database.online ? 'sky-pill-success' : 'sky-pill-warning'}`}
+                      >
+                        {database.online ? 'ONLINE' : 'OFFLINE'}
+                      </span>
+                    </td>
+                    <td>{database.online ? formatDuration(database.latencyMs) : '—'}</td>
+                    <td>{database.serverVersion || '—'}</td>
+                    <td>{database.online ? 'Connection succeeded' : database.errorMessage || database.errorCode || 'Unavailable'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {condition || build ? (
+        <>
+          <div className="sky-page-kicker mb-2">Build gate and result</div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Primary health gate</th>
+                  <th>Target database</th>
+                  <th>Build status</th>
+                  <th>SQL files</th>
+                  <th>Migrations</th>
+                  <th>Seeds</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    {condition ? (
+                      <span className={`sky-pill ${condition.passed ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+                        {condition.passed ? 'PASSED' : 'BLOCKED'}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="fw-semibold sky-mono">{build?.targetDatabase || '—'}</td>
+                  <td>
+                    <span className={`sky-pill ${operationOutcomeClass(build?.status)}`}>
+                      {build?.status || '—'}
+                    </span>
+                  </td>
+                  <td>{Number(build?.sqlFilesExecuted || 0).toLocaleString()}</td>
+                  <td>{Number(build?.migrationFilesExecuted || 0).toLocaleString()}</td>
+                  <td>{Number(build?.seedFilesExecuted || 0).toLocaleString()}</td>
+                  <td>{formatDuration(build?.durationMs)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {comparison ? (
+        <>
+          <div className="sky-page-kicker mb-2">Database comparison</div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Source objects</th>
+                  <th>Built objects</th>
+                  <th>Matched</th>
+                  <th>Only in source</th>
+                  <th>Only in built</th>
+                  <th>Definition mismatches</th>
+                  <th>Total differences</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <span className={`sky-pill ${operationOutcomeClass(comparison.status)}`}>
+                      {comparison.status || 'UNKNOWN'}
+                    </span>
+                  </td>
+                  <td>{Number(comparison.databaseAObjectCount || 0).toLocaleString()}</td>
+                  <td>{Number(comparison.databaseBObjectCount || 0).toLocaleString()}</td>
+                  <td className="fw-semibold">
+                    {Number(comparison.matchedObjectCount || 0).toLocaleString()}
+                  </td>
+                  <td>{Number(comparison.onlyInDatabaseACount || 0).toLocaleString()}</td>
+                  <td>{Number(comparison.onlyInDatabaseBCount || 0).toLocaleString()}</td>
+                  <td>{Number(comparison.definitionMismatchCount || 0).toLocaleString()}</td>
+                  <td className={comparison.totalDifferenceCount ? 'fw-semibold' : ''}>
+                    {Number(comparison.totalDifferenceCount || 0).toLocaleString()}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {differenceTypes.length > 0 ? (
+        <>
+          <div className="sky-page-kicker mb-2">Difference distribution</div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Object type</th>
+                  <th>Only in source</th>
+                  <th>Only in built</th>
+                  <th>Definition mismatches</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {differenceTypes.map((item) => {
+                  const total =
+                    Number(item.onlyInDatabaseA || 0) +
+                    Number(item.onlyInDatabaseB || 0) +
+                    Number(item.definitionMismatches || 0);
+                  return (
+                    <tr key={item.objectType || JSON.stringify(item)}>
+                      <td className="fw-semibold">{humanizeOutputKey(item.objectType)}</td>
+                      <td>{Number(item.onlyInDatabaseA || 0).toLocaleString()}</td>
+                      <td>{Number(item.onlyInDatabaseB || 0).toLocaleString()}</td>
+                      <td>{Number(item.definitionMismatches || 0).toLocaleString()}</td>
+                      <td className="fw-semibold">{total.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {differences.length > 0 ? (
+        <>
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div className="sky-page-kicker">Comparison differences</div>
+            <span className="sky-pill sky-pill-warning">
+              {differences.length}
+              {comparison?.differenceDetailsTruncated ? '+' : ''} row(s)
+            </span>
+          </div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Difference</th>
+                  <th>Type</th>
+                  <th>Object</th>
+                  <th>Identity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {differences.map((difference, index) => (
+                  <tr key={`${difference.objectType}-${difference.objectName}-${index}`}>
+                    <td>{humanizeOutputKey(difference.kind)}</td>
+                    <td>{humanizeOutputKey(difference.objectType)}</td>
+                    <td className="sky-mono text-break">
+                      {difference.schemaName ? `${difference.schemaName}.` : ''}
+                      {difference.objectName || '—'}
+                    </td>
+                    <td className="sky-mono text-break">{difference.identity || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : comparison?.comparisonCompleted ? (
+        <div className="alert alert-success py-2 mb-3">
+          The source and rebuilt databases contain matching PostgreSQL object definitions.
+        </div>
+      ) : null}
+
+      {stages.length > 0 ? (
+        <>
+          <div className="sky-page-kicker mb-2">Workflow validation stages</div>
+          <div className="table-responsive sky-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Node</th>
+                  <th>Status</th>
+                  <th>Outcome</th>
+                  <th>Evidence</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stages.map((stage) => (
+                  <tr key={`${stage.nodeKey}-${stage.stageCode}`}>
+                    <td className="fw-semibold">{stage.label || humanizeOutputKey(stage.stageCode)}</td>
+                    <td className="sky-mono">{stage.nodeKey || '—'}</td>
+                    <td>
+                      <span className={`sky-pill ${statusClass(stage.status)}`}>
+                        {stage.status || 'UNKNOWN'}
+                      </span>
+                    </td>
+                    <td>{stage.outcome || '—'}</td>
+                    <td>{stage.evidence || '—'}</td>
+                    <td>{formatDuration(stage.durationMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function WorkflowSummaryNodeOutput({ summaryResult }) {
   const structuredResults = getSafeObject(
     summaryResult?.structuredResults || summaryResult?.output?.structuredResults,
@@ -2793,6 +3289,12 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
     summaryResult?.gitPromotion ||
       summaryResult?.output?.gitPromotion ||
       structuredResults.gitPromotion,
+    null,
+  );
+  const databaseSynchronization = getSafeObject(
+    summaryResult?.databaseSynchronization ||
+      summaryResult?.output?.databaseSynchronization ||
+      structuredResults.databaseSynchronization,
     null,
   );
   const keyOutputs = getSafeObject(summaryResult?.keyOutputs || summaryResult?.output?.keyOutputs);
@@ -2829,10 +3331,20 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
               {gitPromotion.outcome || 'UNKNOWN'}
             </span>
           ) : null}
+          {databaseSynchronization ? (
+            <span
+              className={`sky-pill ${operationOutcomeClass(databaseSynchronization.outcome)}`}
+            >
+              {databaseSynchronization.outcome || 'UNKNOWN'}
+            </span>
+          ) : null}
         </div>
       </div>
 
       {gitPromotion ? <GitPromotionSummary promotion={gitPromotion} /> : null}
+      {databaseSynchronization ? (
+        <DatabaseSynchronizationSummary synchronization={databaseSynchronization} />
+      ) : null}
 
       {macroSources.length > 0 ? (
         <>
@@ -2896,7 +3408,7 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
         </>
       ) : null}
 
-      {nodeSummaries.length > 0 ? (
+      {nodeSummaries.length > 0 && !databaseSynchronization ? (
         <>
           <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
             <div className="sky-page-kicker">Node result index</div>
@@ -3008,6 +3520,10 @@ function WorkflowNodeOutputLedger({
     structuredToolResult?.outputType === 'git_branch_sync_summary.v1'
       ? structuredToolResult
       : null;
+  const databaseComparisonResult =
+    structuredToolResult?.outputType === 'postgresql_database_comparison_summary.v1'
+      ? structuredToolResult
+      : null;
   const summaryMacroSources = getSafeArray(
     workflowSummaryResult?.macroIngestion?.sources ||
       workflowSummaryResult?.output?.macroIngestion?.sources,
@@ -3068,6 +3584,13 @@ function WorkflowNodeOutputLedger({
                 {Number(gitBranchSyncResult.output?.commitsApplied || 0).toLocaleString()} commit(s)
                 synchronized
               </span>
+            ) : databaseComparisonResult ? (
+              <span
+                className={`sky-pill ${operationOutcomeClass(databaseComparisonResult.output?.status)}`}
+              >
+                {Number(databaseComparisonResult.output?.totalDifferenceCount || 0).toLocaleString()}{' '}
+                difference(s)
+              </span>
             ) : conditionResult ? (
               <span
                 className={`sky-pill ${conditionResult.passed ? 'sky-pill-success' : 'sky-pill-warning'}`}
@@ -3107,6 +3630,8 @@ function WorkflowNodeOutputLedger({
           <GitCommitOutput toolResult={gitCommitResult} />
         ) : gitBranchSyncResult ? (
           <GitBranchSyncOutput toolResult={gitBranchSyncResult} />
+        ) : databaseComparisonResult ? (
+          <DatabaseComparisonOutput toolResult={databaseComparisonResult} />
         ) : conditionResult ? (
           <ConditionEvaluationOutput conditionResult={conditionResult} />
         ) : humanApprovalResult ? (
@@ -3151,6 +3676,7 @@ function WorkflowNodeOutputLedger({
         !gitRepositoryStatusResult &&
         !gitCommitResult &&
         !gitBranchSyncResult &&
+        !databaseComparisonResult &&
         !conditionResult &&
         !humanApprovalResult &&
         !workflowSummaryResult &&
