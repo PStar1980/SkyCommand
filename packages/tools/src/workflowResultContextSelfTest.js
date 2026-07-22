@@ -372,6 +372,47 @@ function gitCommitResult() {
   };
 }
 
+function databaseBuildResult() {
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'skyserver_test was rebuilt successfully from 70 ordered SQL file(s).',
+    outputType: 'database_build_summary.v1',
+    output: {
+      startedAt: '2026-07-22T05:00:00.000Z',
+      completedAt: '2026-07-22T05:00:03.000Z',
+      durationMs: 3000,
+      targetDatabase: 'skyserver_test',
+      status: 'BUILT',
+      phase: 'COMPLETE',
+      buildCompleted: true,
+      databaseDropped: true,
+      databaseCreated: true,
+      sqlRoots: ['packages/db_build/src/migrations', 'packages/db_build/src/seeds'],
+      sqlFilesDiscovered: 70,
+      sqlFilesExecuted: 70,
+      migrationFilesDiscovered: 40,
+      migrationFilesExecuted: 40,
+      seedFilesDiscovered: 30,
+      seedFilesExecuted: 30,
+      firstSqlFile: 'packages/db_build/src/migrations/00001__core.sql',
+      lastSqlFile: 'packages/db_build/src/seeds/00070__db_build_structured_output_seed.sql',
+      lastCompletedSqlFile:
+        'packages/db_build/src/seeds/00070__db_build_structured_output_seed.sql',
+      failedSqlFile: null,
+      files: [],
+    },
+    warnings: [],
+    error: null,
+    metadata: {},
+    kind: 'tool_execution',
+    toolCode: 'db_build',
+    status: 'SUCCESS',
+    durationMs: 3000,
+    executionId: 'db-build-execution',
+  };
+}
+
 function run() {
   const results = {
     fred_ingestion: macroResult({
@@ -502,6 +543,21 @@ function run() {
   const scheduledCommit = buildScheduledToolResultSummary(commitResult);
   assert.equal(scheduledCommit.gitCommit.branch, 'dev');
   assert.equal(scheduledCommit.gitCommit.changedFiles, 6);
+
+  const buildResult = databaseBuildResult();
+  const buildLookup = buildConditionNodeLookup({}, { db_build_node: buildResult });
+  assert.equal(buildLookup.db_build_node.output.buildCompleted, true);
+  assert.equal(buildLookup.db_build_node.output.sqlFilesExecuted, 70);
+  const buildKeyOutputs = buildSummaryKeyOutputs({ db_build_node: buildResult });
+  assert.equal(buildKeyOutputs.db_build_node.output.targetDatabase, 'skyserver_test');
+  assert.equal(buildKeyOutputs.db_build_node.output.sqlFilesExecuted, 70);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(buildKeyOutputs.db_build_node.output, 'files'),
+    false,
+  );
+  const scheduledBuild = buildScheduledToolResultSummary(buildResult);
+  assert.equal(scheduledBuild.databaseBuild.buildCompleted, true);
+  assert.equal(scheduledBuild.databaseBuild.sqlFilesExecuted, 70);
 
   const branchSyncResult = gitBranchSyncResult();
   const branchSyncLookup = buildConditionNodeLookup({}, { main_merge_node: branchSyncResult });

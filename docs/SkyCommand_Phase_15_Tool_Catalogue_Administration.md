@@ -4,7 +4,7 @@
 
 Phase 15 is in progress. Phases 15.1 through 15.5 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, no-execution upload analysis, editable preview, and disabled-first registration. **Phase 15.5.1 now refines accessibility:** administrators may choose any new destination inside the repository `packages` folder, warnings remain advisory, and preview/file hashes are limited to the temporary onboarding transaction and audit evidence. They are never runtime launch gates and never lock out an edited registered tool. Uploaded code is still not executed.
 
-Phase 15.6 verification infrastructure is now implemented: managed tools can receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The Add Tool success handoff now opens the selected record in verification focus mode, automatically scrolling to the full-width verification panel where **Run contract check** and **Run controlled test** are available; the detail header also provides a persistent **Verification & test** jump action. The first real proof package, a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`, has been registered disabled. Contract-check, controlled-run, Run Tools, and workflow-condition proof remain the next hands-on steps.
+Phase 15.6 verification is now proven: managed tools receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The Add Tool success handoff opens the selected record in verification focus mode, automatically scrolling to the full-width verification panel where **Run contract check** and **Run controlled test** are available; the detail header also provides a persistent **Verification & test** jump action. The first real proof package, a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`, passed its contract check, completed a disabled controlled run against matching databases, and was explicitly enabled. Database Build now emits `database_build_summary.v1`; Run Tools, workflow-condition, custom-summary, and closure proof remain.
 
 The governing rule remains:
 
@@ -83,6 +83,32 @@ The first real PostgreSQL comparison preview exposed three repository-consistenc
 - optional output schemas are promoted to the shared `packages/tools/contracts/<outputType>.schema.json` catalogue, where identical existing contracts are reused and different content at the same versioned path blocks registration;
 - registration preview now distinguishes `PROMOTE` from `REUSE`, shows the final entrypoint and central contract, and keeps hashes registration-only;
 - package staging creates nested entrypoint folders, while central contract promotion remains disabled-first and compensating-cleanup aware.
+
+## Phase 15.6.4 Database Build structured result
+
+The database-build comparison workflow requires structured evidence from every database operation, not only the final comparison. `packages/db_build/src/db_build.js` now uses the shared `runToolCli` adapter and emits `database_build_summary.v1` while retaining the existing direct CLI syntax, destructive confirmation policy, `psql` execution, and globally ordered migration/seed behavior.
+
+The output exposes:
+
+- `output.buildCompleted` and `output.status` for workflow evidence;
+- target database, current/final phase, drop/create completion, and duration;
+- discovered and executed SQL, migration, and seed counts;
+- first, last, last-completed, and failed SQL file paths;
+- bounded ordered file rows containing kind, ordinal, status, and duration without embedding raw SQL.
+
+Seed `00070__db_build_structured_output_seed.sql` associates the registered `db_build` catalogue record with `database_build_summary.v1` and `packages/tools/contracts/database_build_summary.v1.schema.json`. PostgreSQL remains the runtime authority; the schema validates reporting but does not become an execution gate.
+
+### How Summary nodes belong to workflows
+
+Summary behavior is definition-driven, not primary-key hardcoded:
+
+1. A workflow version contains a node whose `nodeTypeCode` is `SUMMARY` and whose `inputParameters` store that workflow's title/templates/options.
+2. During that workflow run, the executor invokes the generic Summary adapter with the current definition, prior node runs, and `previousOutputs` from that same run.
+3. Templates resolve canonical node-key paths such as `{{ nodes.build_test.output.sqlFilesExecuted }}` or `{{ nodes.compare_databases.output.databasesMatch }}`.
+4. The generated node output carries `kind: workflow_run_summary`; Workflow History locates that marker rather than checking a workflow primary key.
+5. Optional purpose-built rollups such as macro ingestion or Development Promotion are selected from the presence of known output contracts and node-result shapes. They are reusable across any workflow containing those results and are not bound to one workflow ID.
+
+The practical association is therefore **workflow version → Summary node configuration → node keys/output contracts observed in that run**. Renaming a node key requires updating templates that reference it, but copying/versioning a workflow preserves its Summary configuration without code changes.
 
 ## Architecture decision
 
@@ -473,7 +499,7 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - made preview evidence optional at registration because the server rebuilds and revalidates the request;
 - added regression checks proving runtime execution services do not reference onboarding hashes or preview evidence.
 
-### Phase 15.6 - Contract-check and controlled test proof — framework complete; live proof pending
+### Phase 15.6 - Contract-check and controlled test proof — live managed-tool proof complete
 
 - added managed-tool verification details, non-executing output-schema contract check, disabled-tool controlled test execution, explicit enablement, and direct handoff from Add Tool to Manage Tools;
 - preserved accessibility: contract-check results, prior test outcomes, registration hashes, and preview evidence never become runtime launch gates;
@@ -483,7 +509,8 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - clarified the descriptor lifecycle: the reusable `_template` descriptor is never replaced, each upload may provide a temporary descriptor, registration discards it after recording evidence, and runtime execution continues to use PostgreSQL rather than descriptor files;
 - centralized uploaded output schemas under `packages/tools/contracts`, reusing identical contracts and blocking conflicting content at an existing versioned path;
 - refined the registration handoff so **Open verification & test** deep-links to `view=verification`, automatically focuses the verification panel after detail loading, and exposes a persistent **Verification & test** jump action in the tool header;
-- registered the PostgreSQL comparison package disabled; pending local proof is to run the contract check and controlled execution, enable it, verify Run Tools, and route a workflow condition from `nodes.<nodeKey>.output.databasesMatch`.
+- registered the PostgreSQL comparison package, passed the contract check, completed a controlled disabled-tool comparison, and explicitly enabled it; pending proof is Run Tools plus workflow routing from `nodes.<nodeKey>.output.databasesMatch`;
+- added `database_build_summary.v1` so the upcoming workflow can prove each rebuild through `nodes.<nodeKey>.output.buildCompleted` and ordered SQL execution counts before database comparison.
 
 ### Phase 15.7 - Closure and documentation
 

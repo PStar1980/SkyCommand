@@ -230,7 +230,9 @@ SkyServer/
 │   │       └── dbHealthResultSelfTest.js
 │   ├── db_build/
 │   │   └── src/
+│   │       ├── databaseBuildResult.js
 │   │       ├── db_build.js
+│   │       ├── dbBuildResultSelfTest.js
 │   │       ├── migrations/
 │   │       │   ├── 00002__schema_macro.sql
 │   │       │   ├── 00003__table_indicators.sql
@@ -299,7 +301,8 @@ SkyServer/
 │   │           ├── 00060__temporal_listener_audit_privileges_seed.sql
 │   │           ├── 00061__skycommand_application_brand_seed.sql
 │   │           ├── 00067__tool_catalogue_admin_permissions_seed.sql
-│   │           └── 00069__db_health_structured_output_seed.sql
+│   │           ├── 00069__db_health_structured_output_seed.sql
+│   │           └── 00070__db_build_structured_output_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -382,6 +385,7 @@ SkyServer/
 │   │           └── skyserverWorkflowExecutorWorkflow.js
 │   └── tools/
 │       ├── contracts/
+│       │   ├── database_build_summary.v1.schema.json
 │       │   ├── database_health_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
