@@ -1,3 +1,12 @@
+## 2026-07-22 — Phase 15.6.2 Preserved Entrypoints, Disposable Descriptors, and Central Contracts
+
+- Replaced managed `tool.js` normalization with an editable package-relative entrypoint under `src/`; uploaded scripts now retain their filenames, so `packages/db_compare` plus `src/db_object_compare.js` resolves to `packages/db_compare/src/db_object_compare.js`.
+- Changed `skycommand.tool.json` from a promoted package artifact to temporary onboarding input. Preview now lists descriptor evidence separately as **not retained**, and new managed records store no descriptor path.
+- Centralized uploaded output schemas under `packages/tools/contracts/<outputType>.schema.json`; identical existing contracts are reused, while different content at the same versioned path blocks registration.
+- Extended registration staging to create nested implementation folders, distinguish `PROMOTE` and `REUSE`, verify central contracts, and compensate safely when a newly created contract must be removed after a pre-package failure.
+- Updated Add Tool configuration/preview UI, onboarding self-tests, template layout, authoring guide, AI build prompt, Phase 15 Markdown plan, README, repository map, and the PostgreSQL comparison onboarding files.
+- Preserved PostgreSQL runtime authority, advisory warnings, disabled-first registration, no descriptor/hash execution gates, no dependency installation, and no automatic Git operations.
+
 ## 2026-07-21 — Phase 15.5.1 Tool Accessibility and Flexible Package Destinations
 
 - Expanded Add Tool registration from the fixed `packages/tools/custom/<toolCode>` location to any administrator-selected create-new directory contained inside the designated SkyCommand repository `packages` folder; the original location remains the default.

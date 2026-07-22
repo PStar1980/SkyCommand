@@ -299,6 +299,9 @@ SkyServer/
 │   │           ├── 00061__skycommand_application_brand_seed.sql
 │   │           ├── 00067__tool_catalogue_admin_permissions_seed.sql
 │   │           └── 00069__db_health_structured_output_seed.sql
+│   ├── db_compare/
+│   │   └── src/
+│   │       └── db_object_compare.js
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
@@ -383,6 +386,7 @@ SkyServer/
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── git_repository_status.v1.schema.json
 │       │   ├── macro_ingestion_summary.v1.schema.json
+│       │   ├── postgresql_database_comparison_summary.v1.schema.json
 │       │   ├── repository_map_summary.v1.schema.json
 │       │   └── repository_package_summary.v1.schema.json
 │       ├── custom/
@@ -390,7 +394,8 @@ SkyServer/
 │       │       ├── example_greeting_summary.v1.schema.json
 │       │       ├── README.md
 │       │       ├── skycommand.tool.json
-│       │       └── tool.js
+│       │       └── src/
+│       │           └── tool.js
 │       └── src/
 │           ├── index.js
 │           ├── jsonSchemaValidator.js

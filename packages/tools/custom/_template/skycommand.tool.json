@@ -4,7 +4,7 @@
   "label": "Example Greeting",
   "description": "Creates a greeting and returns a structured example result.",
   "runtimeCode": "node",
-  "entrypoint": "tool.js",
+  "entrypoint": "src/tool.js",
   "packagePath": "packages/tools/custom/example_greeting",
   "categoryCode": "file_tools",
   "permissionCode": "CORE_VIEW_TOOLS",
@@ -26,7 +26,7 @@
   ],
   "resultContract": {
     "outputType": "example_greeting_summary.v1",
-    "schemaPath": "example_greeting_summary.v1.schema.json"
+    "schemaPath": "packages/tools/contracts/example_greeting_summary.v1.schema.json"
   },
   "visibility": ["cli", "admin-web", "api", "worker"]
 }

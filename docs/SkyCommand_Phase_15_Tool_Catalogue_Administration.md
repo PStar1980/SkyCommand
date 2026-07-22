@@ -48,7 +48,7 @@ Phase 15.4 adds the first browser-assisted onboarding workbench while preserving
 - the API places each package in a random, time-limited session under the non-executable `logs/tool-onboarding` staging root with restrictive file permissions where supported;
 - static syntax validation uses the installed Node.js parser through `vm.Script` and never invokes, imports, or evaluates the uploaded tool;
 - source inspection reports shared `runToolCli` adapter use, constant tool/output identifiers, simple positional parameters, available/missing dependencies, relative-module review needs, filesystem/child-process/environment behavior, dynamic code, environment dumping, shell use, and secret-like literals;
-- descriptor inspection validates version, identity, Node.js runtime, entrypoint intent, parameter names/types/positions, result contract, visibility, and source/descriptor consistency; a descriptive uploaded `.js` filename may differ from the canonical managed `tool.js` filename without blocking onboarding;
+- descriptor inspection validates version, identity, Node.js runtime, package-relative `src/...` entrypoint, parameter names/types/positions, result contract, visibility, and source/descriptor consistency; the promoted script retains the uploaded filename;
 - catalogue-backed reference checks verify active category, runtime, permission, risk, parameter type, option source, and visibility values;
 - schema inspection enforces JSON object shape, `<outputType>.schema.json` agreement, local-only `$ref`, bounded depth/node count, and the exact keywords/formats understood by the current validator;
 - duplicate registered tool codes and existing suggested destinations are blocking findings; the default suggestion remains `packages/tools/custom/<toolCode>`;
@@ -66,13 +66,23 @@ Phase 15.5 completes the managed registration lane while retaining disabled-firs
 - `POST /api/admin/tool-onboarding/preview` reloads the owned, unexpired session, verifies temporary staged-file evidence, validates current catalogue references, resolves the administrator-selected destination, and returns the current command, file paths, PostgreSQL records, blockers, warnings, and preview evidence;
 - preview evidence is advisory and registration always rebuilds/revalidates the current request, so a missing or changed preview hash does not create a lockout;
 - warnings remain visible but advisory; only actual errors, unsafe paths, missing references, duplicate tool codes, or destination collisions block registration;
-- SkyCommand always generates a per-tool canonical `skycommand.tool.json` from the administrator-approved configuration, ensuring the managed descriptor documents the actual PostgreSQL registration rather than preserving stale suggestions; the `_template` descriptor and previously registered tool descriptors are never replaced;
-- `POST /api/admin/tool-onboarding/register` writes the approved package to a hidden sibling folder under the selected `packages/...` parent, creates the catalogue/visibility/parameter/option records disabled, atomically renames the package into place, re-reads the just-promoted files, records registration time and audit evidence, and removes the temporary onboarding session;
+- `skycommand.tool.json` is temporary onboarding input only: SkyCommand uses it to prefill and cross-check configuration, records registration evidence, and discards it after successful registration because PostgreSQL is authoritative;
+- `POST /api/admin/tool-onboarding/register` writes the approved implementation to a hidden sibling folder under the selected `packages/...` parent, promotes the script beneath `src/` with its original filename, promotes or reuses the versioned schema in `packages/tools/contracts`, creates the catalogue/visibility/parameter/option records disabled, verifies final files, records registration time and audit evidence, discards the descriptor, and removes the temporary onboarding session;
 - tool codes, final package destinations, session ownership/expiry, repository readiness, schema filename/output type, and catalogue references are rechecked at both preview and registration time;
 - database insertion failure removes the hidden repository staging folder; later promotion/finalization failure leaves no enabled tool and returns explicit disabled-record recovery evidence when applicable;
 - the page finishes with a **Tool registered disabled** result and a direct link to **Manage Tools**. Contract check and any execution remain Phase 15.6 responsibilities.
 
 Phase 15.5 requires no new migration because the managed-registration provenance columns were added in migration `00066__tool_catalogue_administration.sql`. CLI, scheduler, worker, workflow, Temporal, ToolResult, dependency installation, and Git behavior remain unchanged.
+
+## Phase 15.6.2 package-layout and contract-catalogue refinement
+
+The first real PostgreSQL comparison preview exposed three repository-consistency improvements, now implemented before registration proof:
+
+- the Add Tool form carries an editable package-relative entrypoint, requires it beneath `src/`, and preserves the uploaded script filename;
+- the optional descriptor remains staging input only and is listed in preview as **not retained**;
+- optional output schemas are promoted to the shared `packages/tools/contracts/<outputType>.schema.json` catalogue, where identical existing contracts are reused and different content at the same versioned path blocks registration;
+- registration preview now distinguishes `PROMOTE` from `REUSE`, shows the final entrypoint and central contract, and keeps hashes registration-only;
+- package staging creates nested entrypoint folders, while central contract promotion remains disabled-first and compensating-cleanup aware.
 
 ## Architecture decision
 
@@ -177,18 +187,18 @@ Default location:
 packages/tools/custom/<toolCode>/
 ```
 
-The administrator may instead choose any new directory inside `packages/`, such as `packages/git/<toolCode>/` or `packages/files/<toolCode>/`. The selected destination is stored in the descriptor and PostgreSQL script path; Add Tool does not rewrite source imports.
+The administrator may instead choose any new directory inside `packages/`, such as `packages/git/<toolCode>/` or `packages/files/<toolCode>/`. The selected package root and editable `src/...` entrypoint determine the PostgreSQL script path; Add Tool does not rewrite source imports.
 
 Recommended package contents:
 
 ```text
-tool.js                              required
-skycommand.tool.json                 optional onboarding descriptor
-<outputType>.schema.json             optional output schema
+src/<descriptive-tool-name>.js      required implementation
 README.md                            optional tool-specific notes
+skycommand.tool.json                 optional onboarding input; not retained
+<outputType>.schema.json             optional onboarding input; centralized on promotion
 ```
 
-The descriptor is an onboarding convenience. It may prefill the browser form and be retained beside the tool, but it is not consulted at runtime and cannot override PostgreSQL catalogue configuration.
+The descriptor is an onboarding convenience. It may prefill the browser form, but it is discarded after successful registration. It is never consulted at runtime and cannot override PostgreSQL catalogue configuration.
 
 ## Onboarding descriptor
 
@@ -201,7 +211,7 @@ Example:
   "label": "Example Greeting",
   "description": "Returns a greeting through the shared SkyCommand ToolResult adapter.",
   "runtimeCode": "node",
-  "entrypoint": "tool.js",
+  "entrypoint": "src/example_greeting.js",
   "packagePath": "packages/tools/custom/example_greeting",
   "categoryCode": "file_tools",
   "permissionCode": "CORE_VIEW_TOOLS",
@@ -221,7 +231,7 @@ Example:
   ],
   "resultContract": {
     "outputType": "example_greeting_summary.v1",
-    "schemaPath": "example_greeting_summary.v1.schema.json"
+    "schemaPath": "packages/tools/contracts/example_greeting_summary.v1.schema.json"
   },
   "visibility": ["cli", "admin-web", "api", "worker"]
 }
@@ -277,7 +287,7 @@ Rules:
 Phase 15 distinguishes three activities:
 
 1. **Static validation** - no execution.
-2. **Contract check** - a standardized non-destructive sample-result path supplied by the tool or descriptor.
+2. **Contract check** - a standardized non-destructive sample-result path derived from the registered output contract and optional central schema.
 3. **Live test** - actual domain execution with administrator-supplied parameters.
 
 The first vertical slice may ship static validation before contract-check execution. Live testing is added only after the registration and security boundaries are stable.
@@ -345,7 +355,7 @@ Recommended additive metadata:
 - original upload filename;
 - registration timestamp and registering actor;
 - optional registered file hash;
-- optional descriptor path.
+- optional descriptor provenance evidence; no permanent descriptor path is required for new registrations.
 
 ## Parameter scope
 
@@ -448,9 +458,9 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 ### Phase 15.5 - File promotion and registration — complete
 
 - added editable configuration prefill for catalogue fields, visibility, positional parameters, option sources, and static choices;
-- added server-authoritative command, path, file, descriptor, and PostgreSQL preview with registration-only evidence;
+- added server-authoritative command, package/entrypoint, central-contract, onboarding-input, and PostgreSQL preview with registration-only evidence;
 - added session ownership/expiry/file-evidence revalidation plus late tool-code and destination collision checks;
-- added canonical descriptor generation, hidden in-repository package staging, disabled-first transactional catalogue creation, atomic directory promotion, and final file verification;
+- added hidden in-repository package staging, preserved `src/<uploaded-filename>` promotion, centralized schema promotion/reuse, disabled-first transactional catalogue creation, and final file verification;
 - added `POST /api/admin/tool-onboarding/preview` and `POST /api/admin/tool-onboarding/register`;
 - added registration confirmation, success handoff to Manage Tools, and audit/recovery evidence; warnings remain advisory;
 - preserved the no-execution boundary: the managed tool remains disabled and contract check/controlled execution follow in Phase 15.6.
@@ -469,8 +479,9 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - preserved accessibility: contract-check results, prior test outcomes, registration hashes, and preview evidence never become runtime launch gates;
 - prepared the first real onboarding proof package, `db_object_compare`, which compares migration-relevant PostgreSQL objects across two named databases and exposes `output.databasesMatch` for condition routing;
 - upgraded `db_health` to check one or two named databases and expose `output.allOnline`, while retaining optional strict non-zero exit behavior for direct CLI use;
-- corrected descriptor entrypoint analysis so a descriptive uploaded filename such as `db_object_compare.js` may be normalized to the managed package filename `tool.js` without becoming a blocking mismatch;
-- clarified the descriptor lifecycle: every tool owns an independent `skycommand.tool.json`, the reusable `_template` descriptor is never replaced, registration generates the final canonical descriptor from approved configuration, and runtime execution continues to use PostgreSQL rather than descriptor files;
+- replaced canonical `tool.js` normalization with a package-relative `src/...` entrypoint that preserves the uploaded filename;
+- clarified the descriptor lifecycle: the reusable `_template` descriptor is never replaced, each upload may provide a temporary descriptor, registration discards it after recording evidence, and runtime execution continues to use PostgreSQL rather than descriptor files;
+- centralized uploaded output schemas under `packages/tools/contracts`, reusing identical contracts and blocking conflicting content at an existing versioned path;
 - pending local proof: onboard/register the comparison package, run contract check and controlled execution, enable it, verify Run Tools, and route a workflow condition from `nodes.<nodeKey>.output.databasesMatch`.
 
 ### Phase 15.7 - Closure and documentation
@@ -490,7 +501,9 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - uploaded files remain outside executable managed paths until approved;
 - static validation produces findings and editable suggestions without executing code;
 - schema validation uses the supported local JSON Schema subset;
-- final paths are repo-relative, previewed, and contained anywhere under the designated repository `packages` root;
+- final paths are repo-relative and previewed: scripts remain under the selected package `src` folder, while schemas remain under `packages/tools/contracts`;
+- onboarding descriptors are discarded after registration and cannot become runtime configuration;
+- identical central schemas are reused, while conflicting content at an existing versioned contract path blocks registration;
 - filesystem failure cannot leave an enabled catalogue record;
 - database failure cannot leave promoted unmanaged files;
 - existing tools, Run Tools, schedules, and workflows continue to use the same generic execution adapter;
@@ -512,5 +525,5 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 | 15.4      | Complete    | Trusted upload staging, static analysis, advisory suggestions, and audit evidence                                       |
 | 15.5      | Complete    | Editable prefill, preview evidence, disabled-first registration, and managed file promotion                             |
 | 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
-| 15.6      | In progress | Verification framework and PostgreSQL comparison proof package ready; local onboarding/Run Tools/workflow proof pending |
+| 15.6      | In progress | Verification framework ready; `src/...` entrypoint preservation, disposable descriptors, and central contract promotion/reuse implemented; local onboarding/Run Tools/workflow proof pending |
 | 15.7      | Planned     | Regression matrix, Development Promotion, and closure                                                                   |

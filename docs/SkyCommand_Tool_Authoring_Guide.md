@@ -14,10 +14,13 @@ The essential rule is:
 
 ```text
 <tool-package>/
-  tool.js                              required
-  skycommand.tool.json                 recommended
-  <outputType>.schema.json             optional
+  src/
+    <descriptive-tool-name>.js         required
   README.md                            optional
+
+Onboarding inputs supplied separately:
+  skycommand.tool.json                 recommended; not retained after registration
+  <outputType>.schema.json             optional; promoted to packages/tools/contracts
 ```
 
 Managed packages may be installed in any administrator-selected new directory inside the repository `packages` folder.
@@ -28,7 +31,7 @@ packages/<chosen-area>/<toolCode>/
 
 The default remains `packages/tools/custom/<toolCode>/`, but the Add Tool page may instead use locations such as `packages/git/<toolCode>/` or `packages/files/<toolCode>/`. Absolute paths, `..` traversal, the `packages` root itself, and overwriting an existing destination are rejected.
 
-Each tool package owns its own `skycommand.tool.json`. The file under `packages/tools/custom/_template/` is a reusable example only; onboarding a new tool never replaces or edits that template and never overwrites another tool's descriptor because every tool uses a distinct package directory.
+The reusable `skycommand.tool.json` under `packages/tools/custom/_template/` is an authoring example only. Each new tool upload receives its own temporary descriptor, but SkyCommand discards that descriptor after successful registration because PostgreSQL becomes authoritative. No registered package needs to retain a descriptor file.
 
 ## Runtime assumptions
 
@@ -50,7 +53,7 @@ A trusted administrator can open **Tools > Add Tool** and upload:
 2. optional `skycommand.tool.json`;
 3. optional `<outputType>.schema.json`.
 
-The uploaded script may have a descriptive local filename such as `db_object_compare.js`. Managed registration installs the approved entry script as the package's canonical `tool.js` and generates a canonical descriptor that records `entrypoint: "tool.js"`.
+The uploaded script keeps its descriptive filename. The descriptor and editable registration form define an entrypoint relative to the package root, normally `src/<uploaded-filename>.js`. For example, `db_object_compare.js` with package path `packages/db_compare` is promoted to `packages/db_compare/src/db_object_compare.js`.
 
 Phase 15.4 copies these UTF-8 text files into a random, non-executable `logs/tool-onboarding/<sessionId>` staging session and analyzes them without importing or executing the script. The session expires after 24 hours.
 
@@ -66,7 +69,7 @@ The analyzer checks:
 - existing catalogue tool-code and managed-destination collisions;
 - review signals such as filesystem access, child processes, environment use, shell execution, dynamic code, environment dumping, and secret-like literals.
 
-Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled suggestions. Suggestions never register the tool automatically. Phase 15.5 presents them as editable configuration, including the package destination, and registers only after explicit confirmation. The resulting tool is written to the selected new directory under `packages`, recorded in PostgreSQL, and left disabled for Phase 15.6 contract checking and controlled execution.
+Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled suggestions. Suggestions never register the tool automatically. Phase 15.5 presents them as editable configuration, including package destination and package-relative entrypoint, and registers only after explicit confirmation. The script is written under the selected package `src` folder, an uploaded schema is promoted or safely reused under `packages/tools/contracts`, the descriptor is discarded after registration, and the PostgreSQL record is left disabled for Phase 15.6 contract checking and controlled execution.
 
 Preview fingerprints and SHA-256 values are onboarding evidence only. They protect the temporary upload/copy operation and support audit/collision diagnosis. They are never checked when a registered tool runs, never become accepted snapshots, and never disable a tool after its source is edited.
 
@@ -85,16 +88,16 @@ The onboarding page never runs `npm install`, never executes the uploaded script
 
 The shared adapter lives at `packages/tools/src`. The tool must use the correct relative import for its selected destination.
 
-For a tool stored at `packages/tools/custom/<toolCode>/tool.js`:
+For a tool stored at `packages/tools/custom/<toolCode>/src/<tool>.js`:
 
 ```js
-const { runToolCli } = require('../../src');
+const { runToolCli } = require('../../../src');
 ```
 
-For a tool stored elsewhere under `packages`, calculate the relative path from that package directory to `packages/tools/src`. For example, a tool installed at `packages/db_compare/tool.js` uses:
+For a tool stored elsewhere under `packages`, calculate the relative path from the final script file to `packages/tools/src`. For example, a tool installed at `packages/db_compare/src/db_object_compare.js` uses:
 
 ```js
-const { runToolCli } = require('../tools/src');
+const { runToolCli } = require('../../tools/src');
 ```
 
 The Add Tool service does not rewrite imports. Static analysis accepts any relative CommonJS import that resolves to `packages/tools/src`; it no longer assumes every tool lives at the default folder depth.
@@ -106,7 +109,7 @@ The adapter preserves domain success even when optional structured reporting can
 ```js
 #!/usr/bin/env node
 
-const { runToolCli } = require('../../src');
+const { runToolCli } = require('../../../src');
 
 const TOOL_CODE = 'example_greeting';
 const OUTPUT_TYPE = 'example_greeting_summary.v1';
@@ -236,7 +239,7 @@ date
 Positional example:
 
 ```text
-node tool.js <repositoryCode> <dryRun> <maximumItems>
+node src/<tool-name>.js <repositoryCode> <dryRun> <maximumItems>
 ```
 
 Implementation:
@@ -372,23 +375,23 @@ The optional `skycommand.tool.json` helps SkyCommand prefill the registration fo
 
 ### Descriptor lifecycle
 
-1. The developer or AI creates one descriptor for the new tool package.
+1. The developer or AI creates one descriptor for the new tool upload.
 2. Add Tool reads it as advisory onboarding input and cross-checks it against the source and schema.
 3. The administrator reviews and may change every suggested catalogue value.
-4. Registration generates a fresh canonical `skycommand.tool.json` from the approved configuration and writes it beside that tool.
-5. Later execution reads PostgreSQL catalogue configuration, not the descriptor or its file hash.
+4. Registration writes the approved PostgreSQL catalogue rows, promotes the script and optional central schema, records descriptor evidence in audit metadata, and discards the staged descriptor.
+5. Later execution reads PostgreSQL catalogue configuration, never the descriptor or its file hash.
 
-A future tool addition therefore creates another descriptor in another package directory. It does not modify the template descriptor or any previously registered tool descriptor. The authoring guide and `_template` package are sufficient prompt inputs; a previous tool's descriptor is optional as a domain-specific example, not required to prevent overwrites.
+A future tool addition creates a fresh temporary descriptor for that upload. It does not modify the reusable template or any previously registered tool. The authoring guide and `_template` package are sufficient prompt inputs; a previous tool descriptor is optional as a domain-specific example, not required to prevent overwrites.
 
 Required conventions:
 
 - `descriptorVersion`: `1.0`;
 - `toolCode`: lowercase letters, numbers, and underscores;
 - `runtimeCode`: `node` for the first release;
-- `entrypoint`: preferably the canonical package filename `tool.js`; Add Tool also accepts the actual uploaded `.js` filename and normalizes it to `tool.js` during managed registration;
+- `entrypoint`: a safe path relative to the package root under `src/`, with a filename matching the uploaded script, such as `src/db_object_compare.js`;
 - parameter positions begin at `1` and are unique;
 - `resultContract.outputType` matches the tool code constant;
-- `resultContract.schemaPath` is package-relative when supplied.
+- `resultContract.schemaPath` should use the central repository path `packages/tools/contracts/<outputType>.schema.json` when supplied.
 
 ## Dependencies
 
@@ -419,7 +422,7 @@ Mutating tools should use confirmation text and offer a dry-run mode where pract
 Before onboarding:
 
 ```text
-[ ] node --check tool.js passes
+[ ] node --check src/<uploaded-script-name>.js passes
 [ ] direct CLI success case passes
 [ ] direct CLI failure case exits non-zero for genuine execution failure
 [ ] negative domain outcomes expose condition-friendly fields instead of accidental process failure

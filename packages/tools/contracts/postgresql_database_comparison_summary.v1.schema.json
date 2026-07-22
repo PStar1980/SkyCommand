@@ -1,0 +1,205 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "postgresql_database_comparison_summary.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparedAt",
+    "durationMs",
+    "comparisonCompleted",
+    "databasesOnline",
+    "databasesMatch",
+    "status",
+    "databaseA",
+    "databaseB",
+    "databaseAFingerprint",
+    "databaseBFingerprint",
+    "databaseAObjectCount",
+    "databaseBObjectCount",
+    "matchedObjectCount",
+    "onlyInDatabaseACount",
+    "onlyInDatabaseBCount",
+    "definitionMismatchCount",
+    "totalDifferenceCount",
+    "differenceDetailsReturned",
+    "differenceDetailsTruncated",
+    "byType",
+    "differences"
+  ],
+  "properties": {
+    "comparedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "comparisonCompleted": {
+      "type": "boolean"
+    },
+    "databasesOnline": {
+      "type": "boolean"
+    },
+    "databasesMatch": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["MATCH", "DIFFERENT", "FAILED"]
+    },
+    "databaseA": {
+      "type": "string",
+      "maxLength": 63
+    },
+    "databaseB": {
+      "type": "string",
+      "maxLength": 63
+    },
+    "databaseAFingerprint": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "databaseBFingerprint": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "databaseAObjectCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "databaseBObjectCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "matchedObjectCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "onlyInDatabaseACount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "onlyInDatabaseBCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "definitionMismatchCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "totalDifferenceCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "differenceDetailsReturned": {
+      "type": "number",
+      "minimum": 0
+    },
+    "differenceDetailsTruncated": {
+      "type": "boolean"
+    },
+    "byType": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "objectType",
+          "databaseACount",
+          "databaseBCount",
+          "onlyInDatabaseA",
+          "onlyInDatabaseB",
+          "definitionMismatches"
+        ],
+        "properties": {
+          "objectType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "databaseACount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "databaseBCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "onlyInDatabaseA": {
+            "type": "number",
+            "minimum": 0
+          },
+          "onlyInDatabaseB": {
+            "type": "number",
+            "minimum": 0
+          },
+          "definitionMismatches": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "differences": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "objectType",
+          "schemaName",
+          "objectName",
+          "identity",
+          "objectKey",
+          "databaseAFingerprint",
+          "databaseBFingerprint"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ONLY_IN_DATABASE_A",
+              "ONLY_IN_DATABASE_B",
+              "DEFINITION_MISMATCH"
+            ]
+          },
+          "objectType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "schemaName": {
+            "type": "string",
+            "maxLength": 63
+          },
+          "objectName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "identity": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "objectKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2400
+          },
+          "databaseAFingerprint": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "databaseBFingerprint": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      }
+    }
+  }
+}

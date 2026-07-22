@@ -27,13 +27,13 @@ Create a Node.js/CommonJS command-line tool package for SkyCommand.
 Produce these files in separate code blocks:
 
 ```text
-tool.js
+<descriptive-tool-name>.js
 skycommand.tool.json
 <outputType>.schema.json
 README.md
 ```
 
-The package will be stored in an administrator-selected new directory inside the repository `packages` folder.
+The implementation package will be stored in an administrator-selected new directory inside the repository `packages` folder. The script will be promoted under that package's `src` folder, the descriptor will be used only for onboarding and then discarded, and the optional schema will be promoted to `packages/tools/contracts`.
 
 Provide the intended destination here:
 
@@ -46,13 +46,13 @@ The default remains `packages/tools/custom/<toolCode>`, but locations such as `p
 ## Mandatory implementation rules
 
 1. Use CommonJS and Node.js.
-2. Import the shared adapter from `packages/tools/src` using the correct relative path for the chosen package destination. For the default `packages/tools/custom/<toolCode>` location, use:
+2. Import the shared adapter from `packages/tools/src` using the correct relative path for the chosen package destination. For the default `packages/tools/custom/<toolCode>/src/<tool>.js` location, use:
 
 ```js
-const { runToolCli } = require('../../src');
+const { runToolCli } = require('../../../src');
 ```
 
-For any other destination, calculate and use the matching relative import. Do not assume the default depth.
+For any other destination, calculate the import from the final script file to `packages/tools/src`. For example, `packages/db_compare/src/db_object_compare.js` uses `require('../../tools/src')`. Do not assume the default depth.
 
 3. Accept parameters as positional command-line values in the exact order documented in the descriptor.
 4. Validate all parameters inside the tool.
@@ -84,7 +84,7 @@ For any other destination, calculate and use the matching relative import. Do no
 16. Prefer Node.js built-ins and dependencies already supplied by SkyCommand.
 17. Include a clear console renderer.
 18. Add comments only where they explain a safety boundary or non-obvious domain rule.
-19. Make the script pass `node --check tool.js`.
+19. Make the script pass `node --check <descriptive-tool-name>.js` before upload and `node --check src/<descriptive-tool-name>.js` after promotion.
 20. Make the descriptor, script constants, parameter order, output type, and schema filename agree exactly.
 21. Wrap the CLI launch in `if (require.main === module)` and export pure parsing/domain helpers where practical so focused self-tests can import the file without executing it.
 22. Ensure both success and failure `ToolResult.output` values satisfy the same optional output schema.
@@ -93,7 +93,7 @@ For any other destination, calculate and use the matching relative import. Do no
 
 ## Descriptor rules
 
-Create a new `skycommand.tool.json` for this tool only. Do not edit the reusable descriptor under `packages/tools/custom/_template/` and do not reuse a previous tool's package path. Each tool owns an independent descriptor in its own package directory. The upload filename may be descriptive, but managed registration normalizes the installed entrypoint to `tool.js` and writes a fresh canonical descriptor from the administrator-approved configuration.
+Create a new temporary `skycommand.tool.json` for this tool upload only. Do not edit the reusable descriptor under `packages/tools/custom/_template/` and do not reuse a previous tool's package path. SkyCommand uses the descriptor to prefill registration, records its evidence, and discards it after successful registration. PostgreSQL becomes authoritative; no descriptor is installed beside the tool.
 
 Use:
 
@@ -104,7 +104,7 @@ Use:
   "label": "Human Label",
   "description": "Concise purpose.",
   "runtimeCode": "node",
-  "entrypoint": "tool.js",
+  "entrypoint": "src/<descriptive-tool-name>.js",
   "packagePath": "packages/<chosen-area>/<toolCode>",
   "categoryCode": "appropriate_existing_category",
   "permissionCode": "appropriate_existing_permission",
@@ -116,7 +116,7 @@ Use:
   "parameters": [],
   "resultContract": {
     "outputType": "stable_summary.v1",
-    "schemaPath": "stable_summary.v1.schema.json"
+    "schemaPath": "packages/tools/contracts/stable_summary.v1.schema.json"
   },
   "visibility": ["cli", "admin-web", "api", "worker"]
 }
@@ -145,6 +145,7 @@ The schema validates only `ToolResult.output`.
 - Prefer `additionalProperties: false`.
 - Keep the shape bounded and readable.
 - Match the schema filename to the output type.
+- Use the central destination `packages/tools/contracts/<outputType>.schema.json` in the descriptor.
 - Do not fetch remote schemas.
 
 ## README requirements

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { runToolCli } = require('../../src');
+const { runToolCli } = require('../../../src');
 
 const TOOL_CODE = 'example_greeting';
 const OUTPUT_TYPE = 'example_greeting_summary.v1';
@@ -60,11 +60,25 @@ function printGreeting(result) {
   console.log(`Generated at: ${result.generatedAt}`);
 }
 
-runToolCli({
-  toolCode: TOOL_CODE,
-  outputType: OUTPUT_TYPE,
-  execute: executeGreeting,
-  createToolResult: createGreetingToolResult,
-  createFailureToolResult: createGreetingFailureToolResult,
-  renderConsole: printGreeting,
-});
+async function main() {
+  return runToolCli({
+    toolCode: TOOL_CODE,
+    outputType: OUTPUT_TYPE,
+    execute: executeGreeting,
+    createToolResult: createGreetingToolResult,
+    createFailureToolResult: createGreetingFailureToolResult,
+    renderConsole: printGreeting,
+  });
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  createGreetingFailureToolResult,
+  createGreetingToolResult,
+  executeGreeting,
+  main,
+  printGreeting,
+};
