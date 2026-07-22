@@ -778,14 +778,44 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
     );
   }
 
-  if (entrypoint && entrypoint !== sourceAnalysis.filename) {
+  if (
+    entrypoint &&
+    entrypoint !== sourceAnalysis.filename &&
+    entrypoint !== MANAGED_SCRIPT_FILENAME
+  ) {
     addFinding(
       findings,
       'ERROR',
       'DESCRIPTOR_ENTRYPOINT_MISMATCH',
-      `Descriptor entrypoint ${entrypoint} does not match uploaded script ${sourceAnalysis.filename}.`,
+      `Descriptor entrypoint ${entrypoint} matches neither uploaded script ${sourceAnalysis.filename} nor the managed entrypoint ${MANAGED_SCRIPT_FILENAME}.`,
       {
         fileKind: 'descriptor',
+        confidence: 'high',
+      },
+    );
+  } else if (entrypoint === MANAGED_SCRIPT_FILENAME && sourceAnalysis.filename !== entrypoint) {
+    addFinding(
+      findings,
+      'INFO',
+      'DESCRIPTOR_ENTRYPOINT_MANAGED_NAME',
+      `The uploaded script ${sourceAnalysis.filename} will be installed as the canonical managed entrypoint ${MANAGED_SCRIPT_FILENAME}.`,
+      {
+        fileKind: 'descriptor',
+        filename: sourceAnalysis.filename,
+        managedFilename: MANAGED_SCRIPT_FILENAME,
+        confidence: 'high',
+      },
+    );
+  } else if (entrypoint === sourceAnalysis.filename && entrypoint !== MANAGED_SCRIPT_FILENAME) {
+    addFinding(
+      findings,
+      'INFO',
+      'DESCRIPTOR_ENTRYPOINT_WILL_BE_NORMALIZED',
+      `The uploaded entrypoint ${entrypoint} is valid for analysis and will be normalized to ${MANAGED_SCRIPT_FILENAME} during managed registration.`,
+      {
+        fileKind: 'descriptor',
+        filename: sourceAnalysis.filename,
+        managedFilename: MANAGED_SCRIPT_FILENAME,
         confidence: 'high',
       },
     );

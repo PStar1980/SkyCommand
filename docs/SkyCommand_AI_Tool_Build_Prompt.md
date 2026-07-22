@@ -93,6 +93,8 @@ For any other destination, calculate and use the matching relative import. Do no
 
 ## Descriptor rules
 
+Create a new `skycommand.tool.json` for this tool only. Do not edit the reusable descriptor under `packages/tools/custom/_template/` and do not reuse a previous tool's package path. Each tool owns an independent descriptor in its own package directory. The upload filename may be descriptive, but managed registration normalizes the installed entrypoint to `tool.js` and writes a fresh canonical descriptor from the administrator-approved configuration.
+
 Use:
 
 ```json

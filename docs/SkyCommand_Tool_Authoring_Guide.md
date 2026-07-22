@@ -28,6 +28,8 @@ packages/<chosen-area>/<toolCode>/
 
 The default remains `packages/tools/custom/<toolCode>/`, but the Add Tool page may instead use locations such as `packages/git/<toolCode>/` or `packages/files/<toolCode>/`. Absolute paths, `..` traversal, the `packages` root itself, and overwriting an existing destination are rejected.
 
+Each tool package owns its own `skycommand.tool.json`. The file under `packages/tools/custom/_template/` is a reusable example only; onboarding a new tool never replaces or edits that template and never overwrites another tool's descriptor because every tool uses a distinct package directory.
+
 ## Runtime assumptions
 
 Phase 15 v1 supports Node.js/CommonJS tools.
@@ -47,6 +49,8 @@ A trusted administrator can open **Tools > Add Tool** and upload:
 1. one required `.js` entry script;
 2. optional `skycommand.tool.json`;
 3. optional `<outputType>.schema.json`.
+
+The uploaded script may have a descriptive local filename such as `db_object_compare.js`. Managed registration installs the approved entry script as the package's canonical `tool.js` and generates a canonical descriptor that records `entrypoint: "tool.js"`.
 
 Phase 15.4 copies these UTF-8 text files into a random, non-executable `logs/tool-onboarding/<sessionId>` staging session and analyzes them without importing or executing the script. The session expires after 24 hours.
 
@@ -364,14 +368,24 @@ Use local references only. Do not use remote `$ref` URLs. Keep schemas bounded a
 
 ## Onboarding descriptor
 
-The optional `skycommand.tool.json` helps SkyCommand prefill the registration form. It is not runtime authority.
+The optional `skycommand.tool.json` helps SkyCommand prefill the registration form. It is not runtime authority and it is not a repository-wide registry file.
+
+### Descriptor lifecycle
+
+1. The developer or AI creates one descriptor for the new tool package.
+2. Add Tool reads it as advisory onboarding input and cross-checks it against the source and schema.
+3. The administrator reviews and may change every suggested catalogue value.
+4. Registration generates a fresh canonical `skycommand.tool.json` from the approved configuration and writes it beside that tool.
+5. Later execution reads PostgreSQL catalogue configuration, not the descriptor or its file hash.
+
+A future tool addition therefore creates another descriptor in another package directory. It does not modify the template descriptor or any previously registered tool descriptor. The authoring guide and `_template` package are sufficient prompt inputs; a previous tool's descriptor is optional as a domain-specific example, not required to prevent overwrites.
 
 Required conventions:
 
 - `descriptorVersion`: `1.0`;
 - `toolCode`: lowercase letters, numbers, and underscores;
 - `runtimeCode`: `node` for the first release;
-- `entrypoint`: package-relative filename;
+- `entrypoint`: preferably the canonical package filename `tool.js`; Add Tool also accepts the actual uploaded `.js` filename and normalizes it to `tool.js` during managed registration;
 - parameter positions begin at `1` and are unique;
 - `resultContract.outputType` matches the tool code constant;
 - `resultContract.schemaPath` is package-relative when supplied.
