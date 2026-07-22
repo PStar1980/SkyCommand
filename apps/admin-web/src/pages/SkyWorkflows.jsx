@@ -2785,6 +2785,340 @@ function GitPromotionSummary({ promotion }) {
 }
 
 
+
+function DatabaseHealthOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const databases = getSafeArray(output.databases);
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+  const outcome = toolResult?.success === false ? 'FAILED' : output.allOnline ? 'ONLINE' : 'PARTIAL';
+
+  return (
+    <div className="sky-database-health-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">PostgreSQL database health</div>
+          <h3 className="h6 mb-1">
+            {Number(output.onlineCount || 0).toLocaleString()} of{' '}
+            {Number(output.requestedCount || databases.length || 0).toLocaleString()} database(s) online
+          </h3>
+          <p className="small sky-muted mb-0">
+            {toolResult?.message || 'Structured PostgreSQL connection evidence recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${operationOutcomeClass(outcome)}`}>{outcome}</span>
+          <span className="sky-pill sky-pill-success">
+            {Number(output.onlineCount || 0).toLocaleString()} online
+          </span>
+          {Number(output.offlineCount || 0) > 0 ? (
+            <span className="sky-pill sky-pill-warning">
+              {Number(output.offlineCount || 0).toLocaleString()} offline
+            </span>
+          ) : null}
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Health-check overview</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Checked at</th>
+              <th>Requested</th>
+              <th>Online</th>
+              <th>Offline</th>
+              <th>All online</th>
+              <th>Offline policy</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><FriendlyOutputScalar fieldKey="checkedAt" value={output.checkedAt} /></td>
+              <td>{Number(output.requestedCount || databases.length || 0).toLocaleString()}</td>
+              <td>{Number(output.onlineCount || 0).toLocaleString()}</td>
+              <td>{Number(output.offlineCount || 0).toLocaleString()}</td>
+              <td>
+                <span className={`sky-pill ${output.allOnline ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+                  {output.allOnline ? 'YES' : 'NO'}
+                </span>
+              </td>
+              <td>{output.failWhenOffline ? 'Fail execution' : 'Report evidence'}</td>
+              <td>{formatDuration(output.durationMs)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div className="sky-page-kicker">Database results</div>
+        <span className="sky-pill sky-pill-info">{databases.length} database(s)</span>
+      </div>
+      {databases.length > 0 ? (
+        <div className="table-responsive sky-table-card">
+          <table className="table table-sm sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Database</th>
+                <th>Status</th>
+                <th>Latency</th>
+                <th>Server version</th>
+                <th>User</th>
+                <th>Endpoint</th>
+                <th>Checked at</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {databases.map((database, index) => {
+                const endpoint = database?.serverAddress
+                  ? `${database.serverAddress}${database.serverPort ? `:${database.serverPort}` : ''}`
+                  : '—';
+                const evidence = database?.online
+                  ? 'Connection succeeded'
+                  : [database?.errorCode, database?.errorMessage].filter(Boolean).join(' · ') || 'Connection failed';
+
+                return (
+                  <tr key={`${database?.databaseName || 'database'}-${index}`}>
+                    <td className="fw-semibold sky-mono">{database?.databaseName || '—'}</td>
+                    <td>
+                      <span className={`sky-pill ${database?.online ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+                        {database?.online ? 'ONLINE' : 'OFFLINE'}
+                      </span>
+                    </td>
+                    <td>{database?.online ? formatDuration(database?.latencyMs) : '—'}</td>
+                    <td>{database?.serverVersion || '—'}</td>
+                    <td className="sky-mono">{database?.currentUser || '—'}</td>
+                    <td className="sky-mono text-break">{endpoint}</td>
+                    <td><FriendlyOutputScalar fieldKey="checkedAt" value={database?.checkedAt} /></td>
+                    <td className="text-break">{evidence}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="sky-empty-state">No database health rows were returned.</div>
+      )}
+
+      {warnings.length > 0 || failedMessage ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning, index) => (
+            <div key={`database-health-warning-${index}`}>
+              {typeof warning === 'string' ? warning : warning.message || JSON.stringify(warning)}
+            </div>
+          ))}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DatabaseBuildOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const allFiles = getSafeArray(output.files);
+  const files = allFiles.slice(0, 250);
+  const uiFilesTruncated = allFiles.length > files.length;
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+  const buildStatus = output.status || (output.buildCompleted ? 'BUILT' : 'FAILED');
+  const sqlRemaining = Math.max(
+    0,
+    Number(output.sqlFilesDiscovered || 0) - Number(output.sqlFilesExecuted || 0),
+  );
+  const migrationRemaining = Math.max(
+    0,
+    Number(output.migrationFilesDiscovered || 0) - Number(output.migrationFilesExecuted || 0),
+  );
+  const seedRemaining = Math.max(
+    0,
+    Number(output.seedFilesDiscovered || 0) - Number(output.seedFilesExecuted || 0),
+  );
+
+  return (
+    <div className="sky-database-build-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">PostgreSQL database build</div>
+          <h3 className="h6 mb-1 sky-mono">{output.targetDatabase || 'Target database'}</h3>
+          <p className="small sky-muted mb-0">
+            {toolResult?.message || 'Structured database rebuild evidence recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${operationOutcomeClass(buildStatus)}`}>
+            {buildStatus}
+          </span>
+          <span className={`sky-pill ${output.buildCompleted ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+            {output.buildCompleted ? 'Build completed' : humanizeOutputKey(output.phase || 'Incomplete')}
+          </span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Build overview</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Target database</th>
+              <th>Phase</th>
+              <th>Dropped</th>
+              <th>Created</th>
+              <th>Completed</th>
+              <th>Started</th>
+              <th>Completed at</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="fw-semibold sky-mono">{output.targetDatabase || '—'}</td>
+              <td>{humanizeOutputKey(output.phase || '—')}</td>
+              <td>{output.databaseDropped ? 'Yes' : 'No'}</td>
+              <td>{output.databaseCreated ? 'Yes' : 'No'}</td>
+              <td>
+                <span className={`sky-pill ${output.buildCompleted ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+                  {output.buildCompleted ? 'YES' : 'NO'}
+                </span>
+              </td>
+              <td><FriendlyOutputScalar fieldKey="startedAt" value={output.startedAt} /></td>
+              <td><FriendlyOutputScalar fieldKey="completedAt" value={output.completedAt} /></td>
+              <td>{formatDuration(output.durationMs)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">SQL execution totals</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>File group</th>
+              <th>Discovered</th>
+              <th>Executed</th>
+              <th>Remaining</th>
+              <th>Completion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['All SQL files', output.sqlFilesDiscovered, output.sqlFilesExecuted, sqlRemaining],
+              ['Migrations', output.migrationFilesDiscovered, output.migrationFilesExecuted, migrationRemaining],
+              ['Seeds', output.seedFilesDiscovered, output.seedFilesExecuted, seedRemaining],
+            ].map(([label, discovered, executed, remaining]) => {
+              const complete =
+                (Number(discovered || 0) > 0 || output.buildCompleted) &&
+                Number(discovered || 0) === Number(executed || 0) &&
+                Number(remaining || 0) === 0;
+              return (
+                <tr key={label}>
+                  <td className="fw-semibold">{label}</td>
+                  <td>{Number(discovered || 0).toLocaleString()}</td>
+                  <td>{Number(executed || 0).toLocaleString()}</td>
+                  <td>{Number(remaining || 0).toLocaleString()}</td>
+                  <td>
+                    <span className={`sky-pill ${complete ? 'sky-pill-success' : 'sky-pill-warning'}`}>
+                      {complete ? 'COMPLETE' : 'INCOMPLETE'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Build checkpoints</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>SQL roots</th>
+              <td colSpan="3" className="sky-mono text-break">
+                {getSafeArray(output.sqlRoots).join(', ') || '—'}
+              </td>
+            </tr>
+            <tr>
+              <th>First SQL file</th>
+              <td className="sky-mono text-break">{output.firstSqlFile || '—'}</td>
+              <th>Last SQL file</th>
+              <td className="sky-mono text-break">{output.lastSqlFile || '—'}</td>
+            </tr>
+            <tr>
+              <th>Last completed SQL file</th>
+              <td className="sky-mono text-break">{output.lastCompletedSqlFile || '—'}</td>
+              <th>Failed SQL file</th>
+              <td className="sky-mono text-break">{output.failedSqlFile || '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div className="sky-page-kicker">Ordered SQL execution</div>
+        <span className="sky-pill sky-pill-info">
+          {files.length}{uiFilesTruncated ? '+' : ''} file row(s)
+        </span>
+      </div>
+      {files.length > 0 ? (
+        <div className="table-responsive sky-table-card">
+          <table className="table table-sm sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Ordinal</th>
+                <th>Kind</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Repository-relative SQL file</th>
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((file, index) => (
+                <tr key={`${file?.relativePath || 'sql-file'}-${index}`}>
+                  <td>{Number(file?.ordinal || 0).toLocaleString()}</td>
+                  <td>{humanizeOutputKey(file?.kind || 'OTHER')}</td>
+                  <td>
+                    <span className={`sky-pill ${operationOutcomeClass(file?.status)}`}>
+                      {file?.status || 'UNKNOWN'}
+                    </span>
+                  </td>
+                  <td>{file?.durationMs == null ? '—' : formatDuration(file.durationMs)}</td>
+                  <td className="sky-mono text-break">{file?.relativePath || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="sky-empty-state">No SQL execution rows were returned.</div>
+      )}
+
+      {uiFilesTruncated ? (
+        <div className="small sky-muted mt-2">
+          Workflow History displays the first 250 SQL rows; the complete structured result remains persisted.
+        </div>
+      ) : null}
+
+      {warnings.length > 0 || failedMessage ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning, index) => (
+            <div key={`database-build-warning-${index}`}>
+              {typeof warning === 'string' ? warning : warning.message || JSON.stringify(warning)}
+            </div>
+          ))}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DatabaseComparisonOutput({ toolResult }) {
   const output = getSafeObject(toolResult?.output);
   const byType = getSafeArray(output.byType);
@@ -3107,14 +3441,51 @@ function DatabaseSynchronizationSummary({ synchronization }) {
                       {build?.status || '—'}
                     </span>
                   </td>
-                  <td>{Number(build?.sqlFilesExecuted || 0).toLocaleString()}</td>
-                  <td>{Number(build?.migrationFilesExecuted || 0).toLocaleString()}</td>
-                  <td>{Number(build?.seedFilesExecuted || 0).toLocaleString()}</td>
+                  <td>
+                    {Number(build?.sqlFilesExecuted || 0).toLocaleString()} /{' '}
+                    {Number(build?.sqlFilesDiscovered || 0).toLocaleString()}
+                  </td>
+                  <td>
+                    {Number(build?.migrationFilesExecuted || 0).toLocaleString()} /{' '}
+                    {Number(build?.migrationFilesDiscovered || 0).toLocaleString()}
+                  </td>
+                  <td>
+                    {Number(build?.seedFilesExecuted || 0).toLocaleString()} /{' '}
+                    {Number(build?.seedFilesDiscovered || 0).toLocaleString()}
+                  </td>
                   <td>{formatDuration(build?.durationMs)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          {build ? (
+            <div className="table-responsive sky-table-card mb-3">
+              <table className="table table-sm sky-table align-middle mb-0">
+                <tbody>
+                  <tr>
+                    <th>SQL roots</th>
+                    <td colSpan="3" className="sky-mono text-break">
+                      {getSafeArray(build.sqlRoots).join(', ') || '—'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>First SQL file</th>
+                    <td className="sky-mono text-break">{build.firstSqlFile || '—'}</td>
+                    <th>Last SQL file</th>
+                    <td className="sky-mono text-break">{build.lastSqlFile || '—'}</td>
+                  </tr>
+                  <tr>
+                    <th>Last completed SQL file</th>
+                    <td className="sky-mono text-break">
+                      {build.lastCompletedSqlFile || '—'}
+                    </td>
+                    <th>Failed SQL file</th>
+                    <td className="sky-mono text-break">{build.failedSqlFile || '—'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </>
       ) : null}
 
@@ -3520,6 +3891,14 @@ function WorkflowNodeOutputLedger({
     structuredToolResult?.outputType === 'git_branch_sync_summary.v1'
       ? structuredToolResult
       : null;
+  const databaseHealthResult =
+    structuredToolResult?.outputType === 'database_health_summary.v1'
+      ? structuredToolResult
+      : null;
+  const databaseBuildResult =
+    structuredToolResult?.outputType === 'database_build_summary.v1'
+      ? structuredToolResult
+      : null;
   const databaseComparisonResult =
     structuredToolResult?.outputType === 'postgresql_database_comparison_summary.v1'
       ? structuredToolResult
@@ -3584,6 +3963,22 @@ function WorkflowNodeOutputLedger({
                 {Number(gitBranchSyncResult.output?.commitsApplied || 0).toLocaleString()} commit(s)
                 synchronized
               </span>
+            ) : databaseHealthResult ? (
+              <span
+                className={`sky-pill ${
+                  databaseHealthResult.output?.allOnline ? 'sky-pill-success' : 'sky-pill-warning'
+                }`}
+              >
+                {Number(databaseHealthResult.output?.onlineCount || 0).toLocaleString()} of{' '}
+                {Number(databaseHealthResult.output?.requestedCount || 0).toLocaleString()} online
+              </span>
+            ) : databaseBuildResult ? (
+              <span
+                className={`sky-pill ${operationOutcomeClass(databaseBuildResult.output?.status)}`}
+              >
+                {Number(databaseBuildResult.output?.sqlFilesExecuted || 0).toLocaleString()} of{' '}
+                {Number(databaseBuildResult.output?.sqlFilesDiscovered || 0).toLocaleString()} SQL file(s)
+              </span>
             ) : databaseComparisonResult ? (
               <span
                 className={`sky-pill ${operationOutcomeClass(databaseComparisonResult.output?.status)}`}
@@ -3630,6 +4025,10 @@ function WorkflowNodeOutputLedger({
           <GitCommitOutput toolResult={gitCommitResult} />
         ) : gitBranchSyncResult ? (
           <GitBranchSyncOutput toolResult={gitBranchSyncResult} />
+        ) : databaseHealthResult ? (
+          <DatabaseHealthOutput toolResult={databaseHealthResult} />
+        ) : databaseBuildResult ? (
+          <DatabaseBuildOutput toolResult={databaseBuildResult} />
         ) : databaseComparisonResult ? (
           <DatabaseComparisonOutput toolResult={databaseComparisonResult} />
         ) : conditionResult ? (
@@ -3676,6 +4075,8 @@ function WorkflowNodeOutputLedger({
         !gitRepositoryStatusResult &&
         !gitCommitResult &&
         !gitBranchSyncResult &&
+        !databaseHealthResult &&
+        !databaseBuildResult &&
         !databaseComparisonResult &&
         !conditionResult &&
         !humanApprovalResult &&

@@ -1,3 +1,12 @@
+## 2026-07-22 — Phase 15.6.7 Database Health and Build Workflow Presentation
+
+- Added purpose-built Workflow History rendering for `database_health_summary.v1`, replacing repeated source/field/value rows with a compact health overview and one tabular row per checked database, including status, latency, server/user/endpoint evidence, timestamp, and safe error detail.
+- Added purpose-built Workflow History rendering for `database_build_summary.v1`, grouping rebuild status, database recreation evidence, discovered/executed migration and seed totals, SQL roots/checkpoints, and ordered per-file timing/status rows.
+- Kept large build evidence bounded in the browser: the focused view renders at most 250 SQL rows while the complete structured result remains persisted and operational stdout/stderr remain in Tool History.
+- Extended the contract-driven Database Synchronization Summary with compact SQL roots plus first, last, last-completed, and failed-file checkpoints; the Summary does not copy the full SQL-file array.
+- Added focused renderer and Summary assertions to `workflow-database-output:self-test`, extended `workflow-result-context:self-test`, and preserved output-contract selection without workflow primary-key hardcoding.
+- Updated the Phase 15 Markdown plan, README, change log, and repository map. No migration, seed, tool re-registration, or workflow-definition change is required.
+
 ## 2026-07-22 — Phase 15.6.5 Workflow Automation Confirmation Policy
 
 - Separated interactive/manual confirmation from published workflow execution. Run Tools and controlled administrator tests continue to enforce `requires_confirmation` and the high-risk phrase.

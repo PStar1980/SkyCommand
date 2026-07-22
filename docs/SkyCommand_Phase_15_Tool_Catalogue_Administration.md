@@ -527,6 +527,7 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - added workflow eligibility validation so the builder lists only tools visible through both `admin-web` and `api`, while save/publish validation rejects manually injected or stale targets that lack either channel;
 - added purpose-built Workflow History rendering for `postgresql_database_comparison_summary.v1`, replacing repeated flattened source/field/value rows with comparison, object-type, and difference-detail tables;
 - added a contract-driven Database Synchronization Summary rollup from `database_health_summary.v1`, `database_build_summary.v1`, `postgresql_database_comparison_summary.v1`, and the health condition result. The rollup is selected by output contracts and node results, never by workflow primary key.
+- added purpose-built Workflow History renderers for `database_health_summary.v1` and `database_build_summary.v1`: health evidence is grouped into one overview plus one database row per target, while build evidence is grouped into build state, discovered/executed totals, compact checkpoints, and an ordered SQL-file table instead of repeated source/field/value rows; the Summary rollup receives only compact health/build evidence and never the full SQL-file array.
 
 ### Phase 15.7 - Closure and documentation
 
