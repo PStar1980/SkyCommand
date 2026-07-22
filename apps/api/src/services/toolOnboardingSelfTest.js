@@ -12,7 +12,7 @@ function readTemplate(filename) {
 
 function run() {
   const valid = analyzePackageContent({
-    script: { filename: 'tool.js', content: readTemplate('tool.js') },
+    script: { filename: 'tool.js', content: readTemplate('src/tool.js') },
     descriptor: {
       filename: 'skycommand.tool.json',
       content: readTemplate('skycommand.tool.json'),
@@ -35,7 +35,7 @@ function run() {
     script: {
       filename: 'tool.js',
       content: `
-        const { runToolCli } = require('../tools/src');
+        const { runToolCli } = require('../../tools/src');
         const TOOL_CODE = 'db_object_compare';
         const OUTPUT_TYPE = 'postgresql_database_comparison_summary.v1';
         runToolCli({
@@ -63,11 +63,11 @@ function run() {
     ),
   );
 
-  const canonicalEntrypointWithCustomUploadName = analyzePackageContent({
+  const preservedEntrypointWithCustomUploadName = analyzePackageContent({
     script: {
       filename: 'db_object_compare.js',
       content: `
-        const { runToolCli } = require('../tools/src');
+        const { runToolCli } = require('../../tools/src');
         const TOOL_CODE = 'db_object_compare';
         const OUTPUT_TYPE = 'postgresql_database_comparison_summary.v1';
         if (require.main === module) {
@@ -96,7 +96,7 @@ function run() {
         toolCode: 'db_object_compare',
         label: 'PostgreSQL Database Object Compare',
         runtimeCode: 'node',
-        entrypoint: 'tool.js',
+        entrypoint: 'src/db_object_compare.js',
         packagePath: 'packages/db_compare',
         categoryCode: 'database_tools',
         permissionCode: 'DB_HEALTH_RUN',
@@ -107,20 +107,20 @@ function run() {
         parameters: [],
         resultContract: {
           outputType: 'postgresql_database_comparison_summary.v1',
-          schemaPath: null,
+          schemaPath: 'packages/tools/contracts/postgresql_database_comparison_summary.v1.schema.json',
         },
         visibility: ['cli', 'admin-web', 'api', 'worker'],
       }),
     },
   });
   assert.ok(
-    !canonicalEntrypointWithCustomUploadName.findings.some(
+    !preservedEntrypointWithCustomUploadName.findings.some(
       (finding) => finding.code === 'DESCRIPTOR_ENTRYPOINT_MISMATCH',
     ),
   );
   assert.ok(
-    canonicalEntrypointWithCustomUploadName.findings.some(
-      (finding) => finding.code === 'DESCRIPTOR_ENTRYPOINT_MANAGED_NAME',
+    preservedEntrypointWithCustomUploadName.findings.some(
+      (finding) => finding.code === 'DESCRIPTOR_ENTRYPOINT_PRESERVED',
     ),
   );
 
@@ -144,7 +144,7 @@ function run() {
     invalid.findings.some((finding) => finding.code === 'SCHEMA_REMOTE_REFERENCE_FORBIDDEN'),
   );
 
-  const registrationPlan = buildRegistrationPlan({
+  const registrationArguments = {
     session: {
       sessionId: '11111111-1111-4111-8111-111111111111',
       metadata: {
@@ -157,7 +157,7 @@ function run() {
       files: {
         script: {
           filename: 'tool.js',
-          content: readTemplate('tool.js'),
+          content: readTemplate('src/tool.js'),
         },
         descriptor: {
           filename: 'skycommand.tool.json',
@@ -176,7 +176,8 @@ function run() {
       description: 'Creates a greeting.',
       categoryId: '22222222-2222-4222-8222-222222222222',
       scriptRepoId: '33333333-3333-4333-8333-333333333333',
-      scriptPath: 'packages/tools/custom/example_greeting/tool.js',
+      scriptPath: 'packages/tools/custom/example_greeting/src/tool.js',
+      entrypointRelativePath: 'src/tool.js',
       runtimeCode: 'node',
       permissionCode: 'CORE_VIEW_TOOLS',
       riskCode: 'low',
@@ -188,7 +189,7 @@ function run() {
       enabled: false,
       outputType: 'example_greeting_summary.v1',
       outputSchemaPath:
-        'packages/tools/custom/example_greeting/example_greeting_summary.v1.schema.json',
+        'packages/tools/contracts/example_greeting_summary.v1.schema.json',
       visibility: ['admin-web', 'api', 'cli', 'worker'],
       parameters: [
         {
@@ -224,20 +225,49 @@ function run() {
       ],
       runtimes: [{ runtimeCode: 'node', executable: 'node' }],
     },
-  });
+    schemaDestination: { exists: false, matches: false },
+  };
+  const registrationPlan = buildRegistrationPlan(registrationArguments);
 
   assert.strictEqual(registrationPlan.status, 'READY');
   assert.strictEqual(registrationPlan.canRegister, true);
   assert.strictEqual(
     registrationPlan.paths.scriptRelativePath,
-    'packages/git/example_greeting/tool.js',
+    'packages/git/example_greeting/src/tool.js',
   );
   assert.strictEqual(registrationPlan.databasePreview.tool.enabled, false);
   assert.strictEqual(registrationPlan.warningsRequireAcceptance, false);
-  assert.strictEqual(registrationPlan.descriptor.packagePath, 'packages/git/example_greeting');
-  assert.strictEqual(registrationPlan.descriptor.toolCode, 'example_greeting');
-  assert.strictEqual(registrationPlan.files.length, 3);
+  assert.strictEqual(registrationPlan.paths.entrypointRelativePath, 'src/tool.js');
+  assert.strictEqual(registrationPlan.descriptor, null);
+  assert.strictEqual(registrationPlan.onboardingInputs.length, 1);
+  assert.strictEqual(registrationPlan.onboardingInputs[0].retained, false);
+  assert.strictEqual(registrationPlan.files.length, 2);
+  assert.strictEqual(
+    registrationPlan.files[1].relativePath,
+    'packages/tools/contracts/example_greeting_summary.v1.schema.json',
+  );
+  assert.strictEqual(registrationPlan.files[1].action, 'PROMOTE');
+  assert.strictEqual(registrationPlan.internal.contractFilePlan.length, 1);
   assert.strictEqual(registrationPlan.fingerprint.length, 64);
+
+  const reusedSchemaPlan = buildRegistrationPlan({
+    ...registrationArguments,
+    schemaDestination: { exists: true, matches: true },
+  });
+  assert.strictEqual(reusedSchemaPlan.canRegister, true);
+  assert.strictEqual(reusedSchemaPlan.files[1].action, 'REUSE');
+  assert.strictEqual(reusedSchemaPlan.internal.contractFilePlan.length, 0);
+
+  const conflictingSchemaPlan = buildRegistrationPlan({
+    ...registrationArguments,
+    schemaDestination: { exists: true, matches: false },
+  });
+  assert.strictEqual(conflictingSchemaPlan.canRegister, false);
+  assert.ok(
+    conflictingSchemaPlan.blockers.some(
+      (blocker) => blocker.code === 'OUTPUT_SCHEMA_CONTRACT_CONFLICT',
+    ),
+  );
 
   const runtimeSources = [
     'apps/api/src/services/scriptExecutionService.js',

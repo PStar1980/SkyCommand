@@ -67,6 +67,8 @@ function createForm(analysis, catalogueOptions = {}) {
     packageRelativePath:
       suggestions.destinationRelativePath ||
       `${catalogueOptions.defaultToolPackageRelativePath || 'packages/tools/custom'}/${suggestions.toolCode || 'new_tool'}`,
+    entrypointRelativePath:
+      suggestions.entrypointRelativePath || `src/${suggestions.scriptFilename || 'tool.js'}`,
     name: suggestions.name || suggestions.toolCode || '',
     label: suggestions.label || '',
     description: suggestions.description || '',
@@ -127,6 +129,7 @@ function buildConfiguration(form) {
   return {
     toolCode: form.toolCode.trim(),
     packageRelativePath: form.packageRelativePath.trim(),
+    entrypointRelativePath: form.entrypointRelativePath.trim(),
     name: form.name.trim(),
     label: form.label.trim(),
     description: form.description.trim() || null,
@@ -337,7 +340,7 @@ function AddTool() {
       <div className="sky-page-stack">
         <Panel
           kicker="TOOLS"
-          subtitle="Stage, analyze, configure, preview, and register one trusted Node.js tool package. Registration writes managed files and a disabled PostgreSQL catalogue record, but never executes the uploaded code."
+          subtitle="Stage, analyze, configure, preview, and register one trusted Node.js tool package. Registration writes the implementation and optional central contract plus a disabled PostgreSQL catalogue record, but never executes the uploaded code."
           title="Add Tool"
         >
           <div className="sky-card-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
@@ -434,9 +437,9 @@ function AddTool() {
                   <FilePicker
                     accept=".json,application/json"
                     file={files.descriptor}
-                    help={`Optional · skycommand.tool.json · max ${formatBytes(uploadPolicy?.descriptor?.maximumBytes)}`}
+                    help={`Optional · analyzed for prefill, then discarded · max ${formatBytes(uploadPolicy?.descriptor?.maximumBytes)}`}
                     id="tool-descriptor-upload"
-                    label="Onboarding descriptor"
+                    label="Onboarding descriptor (not retained)"
                     onChange={(file) => setFile('descriptor', file)}
                   />
                 </div>
@@ -444,7 +447,7 @@ function AddTool() {
                   <FilePicker
                     accept=".json,application/json"
                     file={files.schema}
-                    help={`Optional · <outputType>.schema.json · max ${formatBytes(uploadPolicy?.schema?.maximumBytes)}`}
+                    help={`Optional · promoted to packages/tools/contracts · max ${formatBytes(uploadPolicy?.schema?.maximumBytes)}`}
                     id="tool-schema-upload"
                     label="Output schema"
                     onChange={(file) => setFile('schema', file)}
@@ -462,7 +465,7 @@ function AddTool() {
         {analysis && !registration && (
           <>
             <Panel
-              subtitle="Errors block registration. Warnings require explicit acceptance. Informational findings document what SkyCommand observed."
+              subtitle="Errors block registration. Warnings are advisory. Informational findings document what SkyCommand observed."
               title="Static analysis findings"
             >
               <div className="sky-card-body">
@@ -541,6 +544,22 @@ function AddTool() {
                       <div className="small sky-muted mt-1">
                         Choose any new directory inside packages. The default remains
                         packages/tools/custom/&lt;toolCode&gt;.
+                      </div>
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label" htmlFor="onboard-entrypoint-path">
+                        Entrypoint inside package
+                      </label>
+                      <input
+                        className="form-control font-monospace"
+                        id="onboard-entrypoint-path"
+                        onChange={(e) => updateForm('entrypointRelativePath', e.target.value)}
+                        placeholder="src/example_tool.js"
+                        value={form.entrypointRelativePath}
+                      />
+                      <div className="small sky-muted mt-1">
+                        Keep the script inside the package src folder. Its filename must match the
+                        uploaded script filename.
                       </div>
                     </div>
                     <div className="col-md-4">
@@ -910,6 +929,14 @@ function AddTool() {
                         <div>
                           <strong>Physical:</strong> {preview.paths?.packagePhysicalPath}
                         </div>
+                        <div>
+                          <strong>Entrypoint:</strong> {preview.paths?.entrypointRelativePath}
+                        </div>
+                        {preview.paths?.outputSchemaPath && (
+                          <div>
+                            <strong>Central contract:</strong> {preview.paths.outputSchemaPath}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -919,6 +946,7 @@ function AddTool() {
                       <thead>
                         <tr>
                           <th>Kind</th>
+                          <th>Action</th>
                           <th>Final path</th>
                           <th>SHA-256 evidence (registration only)</th>
                         </tr>
@@ -930,6 +958,7 @@ function AddTool() {
                               {file.kind}
                               {file.generated ? ' (generated)' : ''}
                             </td>
+                            <td>{file.action || 'PROMOTE'}</td>
                             <td className="text-break">{file.relativePath}</td>
                             <td className="font-monospace text-break">{file.sha256}</td>
                           </tr>
@@ -937,6 +966,33 @@ function AddTool() {
                       </tbody>
                     </table>
                   </div>
+                  {(preview.onboardingInputs || []).length > 0 && (
+                    <>
+                      <h3 className="h6 mt-4">Onboarding inputs not retained</h3>
+                      <div className="table-responsive">
+                        <table className="table table-sm">
+                          <thead>
+                            <tr>
+                              <th>Kind</th>
+                              <th>Filename</th>
+                              <th>Purpose</th>
+                              <th>SHA-256 evidence (registration only)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {preview.onboardingInputs.map((file) => (
+                              <tr key={`${file.kind}-${file.filename}`}>
+                                <td>{file.kind}</td>
+                                <td>{file.filename}</td>
+                                <td>{file.purpose}</td>
+                                <td className="font-monospace text-break">{file.sha256}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                   <h3 className="h6 mt-4">PostgreSQL record</h3>
                   <div className="table-responsive">
                     <table className="table table-sm">
@@ -958,9 +1014,10 @@ function AddTool() {
                       type="checkbox"
                     />
                     <span className="form-check-label">
-                      I understand that SkyCommand will write these files and create a disabled
-                      catalogue record. Warnings are advisory, uploaded code is not executed, and
-                      file hashes will not become runtime launch gates.
+                      I understand that SkyCommand will write the implementation and optional central
+                      contract shown above, discard the onboarding descriptor after registration, and
+                      create a disabled catalogue record. Warnings are advisory, uploaded code is
+                      not executed, and file hashes will not become runtime launch gates.
                     </span>
                   </label>
                 </div>

@@ -67,8 +67,8 @@ const REPOSITORY_ROOT = path.resolve(__dirname, '../../../../');
 const DEFAULT_STAGING_ROOT = path.resolve(REPOSITORY_ROOT, 'logs', 'tool-onboarding');
 const SESSION_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MANAGED_SCRIPT_FILENAME = 'tool.js';
-const MANAGED_DESCRIPTOR_FILENAME = 'skycommand.tool.json';
+const DEFAULT_ENTRYPOINT_DIRECTORY = 'src';
+const CONTRACTS_RELATIVE_PATH = 'packages/tools/contracts';
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
@@ -87,6 +87,71 @@ function hashContent(content) {
 
 function byteLength(content) {
   return Buffer.byteLength(content, 'utf8');
+}
+
+function normalizeEntrypointRelativePath(value, { scriptFilename = '' } = {}) {
+  const fallbackFilename = String(scriptFilename || 'tool.js').trim();
+  const rawValue = String(value || `${DEFAULT_ENTRYPOINT_DIRECTORY}/${fallbackFilename}`)
+    .trim()
+    .replace(/\\/g, '/');
+
+  if (!rawValue || rawValue.includes('\0') || rawValue.startsWith('/')) {
+    throw createHttpError(400, 'Tool entrypoint must be a package-relative JavaScript path.', {
+      code: 'TOOL_ONBOARDING_ENTRYPOINT_UNSAFE',
+      entrypoint: rawValue || null,
+    });
+  }
+
+  if (/^[A-Za-z]:/.test(rawValue) || rawValue.startsWith('//')) {
+    throw createHttpError(400, 'Tool entrypoint cannot be absolute.', {
+      code: 'TOOL_ONBOARDING_ENTRYPOINT_UNSAFE',
+      entrypoint: rawValue,
+    });
+  }
+
+  const normalized = path.posix.normalize(rawValue).replace(/^\.\//, '').replace(/\/$/, '');
+  const segments = normalized.split('/');
+  const hasUnsafeSegment = segments.some(
+    (segment) =>
+      !segment || segment === '.' || segment === '..' || /[<>:"|?*\u0000-\u001F]/.test(segment),
+  );
+
+  if (
+    hasUnsafeSegment ||
+    !normalized.startsWith(`${DEFAULT_ENTRYPOINT_DIRECTORY}/`) ||
+    !normalized.toLowerCase().endsWith('.js')
+  ) {
+    throw createHttpError(
+      400,
+      `Tool entrypoint must identify a .js file inside the package ${DEFAULT_ENTRYPOINT_DIRECTORY} folder.`,
+      {
+        code: 'TOOL_ONBOARDING_ENTRYPOINT_UNSAFE',
+        entrypoint: rawValue,
+        allowedRoot: DEFAULT_ENTRYPOINT_DIRECTORY,
+      },
+    );
+  }
+
+  if (fallbackFilename && path.posix.basename(normalized) !== fallbackFilename) {
+    throw createHttpError(
+      400,
+      `Tool entrypoint filename must match the uploaded script filename ${fallbackFilename}.`,
+      {
+        code: 'TOOL_ONBOARDING_ENTRYPOINT_FILENAME_MISMATCH',
+        entrypoint: normalized,
+        uploadedFilename: fallbackFilename,
+      },
+    );
+  }
+
+  return normalized;
+}
+
+function getCentralSchemaRelativePath(outputType) {
+  const normalizedOutputType = String(outputType || '').trim();
+  return normalizedOutputType
+    ? path.posix.join(CONTRACTS_RELATIVE_PATH, `${normalizedOutputType}.schema.json`)
+    : null;
 }
 
 function normalizeUpload(rawFile, kind, { required = false } = {}) {
@@ -778,44 +843,48 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
     );
   }
 
-  if (
-    entrypoint &&
-    entrypoint !== sourceAnalysis.filename &&
-    entrypoint !== MANAGED_SCRIPT_FILENAME
-  ) {
+  let normalizedEntrypoint = null;
+  try {
+    normalizedEntrypoint = normalizeEntrypointRelativePath(entrypoint, {
+      scriptFilename: sourceAnalysis.filename,
+    });
+
+    if (!entrypoint) {
+      addFinding(
+        findings,
+        'INFO',
+        'DESCRIPTOR_ENTRYPOINT_DEFAULTED',
+        `No descriptor entrypoint was provided. SkyCommand will use ${normalizedEntrypoint}.`,
+        {
+          fileKind: 'descriptor',
+          filename: sourceAnalysis.filename,
+          entrypoint: normalizedEntrypoint,
+          confidence: 'high',
+        },
+      );
+    } else {
+      addFinding(
+        findings,
+        'INFO',
+        'DESCRIPTOR_ENTRYPOINT_PRESERVED',
+        `The uploaded script will be installed at ${normalizedEntrypoint} and will retain its filename.`,
+        {
+          fileKind: 'descriptor',
+          filename: sourceAnalysis.filename,
+          entrypoint: normalizedEntrypoint,
+          confidence: 'high',
+        },
+      );
+    }
+  } catch (error) {
     addFinding(
       findings,
       'ERROR',
-      'DESCRIPTOR_ENTRYPOINT_MISMATCH',
-      `Descriptor entrypoint ${entrypoint} matches neither uploaded script ${sourceAnalysis.filename} nor the managed entrypoint ${MANAGED_SCRIPT_FILENAME}.`,
-      {
-        fileKind: 'descriptor',
-        confidence: 'high',
-      },
-    );
-  } else if (entrypoint === MANAGED_SCRIPT_FILENAME && sourceAnalysis.filename !== entrypoint) {
-    addFinding(
-      findings,
-      'INFO',
-      'DESCRIPTOR_ENTRYPOINT_MANAGED_NAME',
-      `The uploaded script ${sourceAnalysis.filename} will be installed as the canonical managed entrypoint ${MANAGED_SCRIPT_FILENAME}.`,
+      error.details?.code || 'DESCRIPTOR_ENTRYPOINT_INVALID',
+      error.message,
       {
         fileKind: 'descriptor',
         filename: sourceAnalysis.filename,
-        managedFilename: MANAGED_SCRIPT_FILENAME,
-        confidence: 'high',
-      },
-    );
-  } else if (entrypoint === sourceAnalysis.filename && entrypoint !== MANAGED_SCRIPT_FILENAME) {
-    addFinding(
-      findings,
-      'INFO',
-      'DESCRIPTOR_ENTRYPOINT_WILL_BE_NORMALIZED',
-      `The uploaded entrypoint ${entrypoint} is valid for analysis and will be normalized to ${MANAGED_SCRIPT_FILENAME} during managed registration.`,
-      {
-        fileKind: 'descriptor',
-        filename: sourceAnalysis.filename,
-        managedFilename: MANAGED_SCRIPT_FILENAME,
         confidence: 'high',
       },
     );
@@ -829,6 +898,28 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
       'Descriptor resultContract.outputType is invalid.',
       {
         fileKind: 'descriptor',
+        confidence: 'high',
+      },
+    );
+  }
+
+  const expectedCentralSchemaPath = outputType
+    ? getCentralSchemaRelativePath(outputType)
+    : null;
+  if (
+    schemaPath &&
+    expectedCentralSchemaPath &&
+    schemaPath.replace(/\\/g, '/') !== expectedCentralSchemaPath
+  ) {
+    addFinding(
+      findings,
+      'INFO',
+      'DESCRIPTOR_SCHEMA_PATH_CENTRALIZED',
+      `The uploaded schema will be registered under the central contract path ${expectedCentralSchemaPath}; the descriptor is onboarding input only.`,
+      {
+        fileKind: 'descriptor',
+        configuredSchemaPath: schemaPath,
+        managedSchemaPath: expectedCentralSchemaPath,
         confidence: 'high',
       },
     );
@@ -900,7 +991,7 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
     label: String(descriptor.label || '').trim(),
     description: String(descriptor.description || '').trim(),
     runtimeCode,
-    entrypoint,
+    entrypoint: normalizedEntrypoint,
     packagePath: normalizedPackagePath,
     categoryCode: String(descriptor.categoryCode || '')
       .trim()
@@ -918,7 +1009,7 @@ function inspectDescriptor(descriptorFile, descriptor, sourceAnalysis, findings)
     parameters,
     resultContract: {
       outputType: outputType || null,
-      schemaPath: schemaPath || null,
+      schemaPath: expectedCentralSchemaPath || null,
     },
     visibility,
   };
@@ -1227,8 +1318,9 @@ function buildSuggestions({ script, sourceAnalysis, descriptorAnalysis }) {
       : ['admin-web', 'api', 'cli', 'worker'],
     parameters,
     outputType: outputType || null,
-    outputSchemaFilename:
-      descriptor.resultContract?.schemaPath || (outputType ? `${outputType}.schema.json` : null),
+    outputSchemaFilename: outputType ? `${outputType}.schema.json` : null,
+    entrypointRelativePath:
+      descriptor.entrypoint || `${DEFAULT_ENTRYPOINT_DIRECTORY}/${script.filename}`,
     scriptFilename: script.filename,
     destinationRelativePath: toolCode
       ? descriptor.packagePath ||
@@ -1585,10 +1677,12 @@ async function getOptions() {
         required: false,
         recommendedFilename: 'skycommand.tool.json',
         maximumBytes: MAX_FILE_BYTES.descriptor,
+        retainedAfterRegistration: false,
       },
       schema: {
         required: false,
         filenamePattern: '<outputType>.schema.json',
+        managedRoot: CONTRACTS_RELATIVE_PATH,
         maximumBytes: MAX_FILE_BYTES.schema,
       },
       maximumTotalBytes: MAX_TOTAL_BYTES,
@@ -1602,6 +1696,8 @@ async function getOptions() {
         allowedRoot: readiness.packagesRelativePath || 'packages',
         defaultRoot: readiness.defaultToolPackageRelativePath || 'packages/tools/custom',
         createNewOnly: true,
+        entrypointRoot: DEFAULT_ENTRYPOINT_DIRECTORY,
+        preserveUploadedFilename: true,
       },
     },
   };
@@ -1733,120 +1829,100 @@ async function readOnboardingSession({ sessionId, actor, stagingRoot = DEFAULT_S
   };
 }
 
-function buildCanonicalDescriptor(payload, catalogueOptions, paths) {
-  const category = (catalogueOptions.categories || []).find(
-    (item) => item.categoryId === payload.categoryId,
-  );
-
-  return {
-    descriptorVersion: '1.0',
-    toolCode: payload.toolCode,
-    label: payload.label,
-    description: payload.description || null,
-    runtimeCode: payload.runtimeCode,
-    entrypoint: MANAGED_SCRIPT_FILENAME,
-    packagePath: paths.packageRelativePath,
-    categoryCode: category?.categoryCode || null,
-    permissionCode: payload.permissionCode || null,
-    riskCode: payload.riskCode,
-    requiresConfirmation: payload.requiresConfirmation,
-    confirmationText: payload.confirmationText || null,
-    capturesOutput: payload.capturesOutput,
-    allowParams: payload.parameters.some((parameter) => parameter.enabled),
-    parameters: payload.parameters
-      .filter((parameter) => parameter.enabled)
-      .sort((left, right) => left.displayOrder - right.displayOrder)
-      .map((parameter) => ({
-        name: parameter.parameterName,
-        label: parameter.label,
-        type: parameter.paramTypeCode,
-        prompt: parameter.prompt || null,
-        required: parameter.required,
-        defaultValue: parameter.defaultValue,
-        position: parameter.displayOrder,
-        optionSourceCode: parameter.optionSourceCode || null,
-        options: parameter.options.map((option) => ({
-          label: option.label,
-          value: option.value,
-          position: option.displayOrder,
-        })),
-      })),
-    resultContract: payload.outputType
-      ? {
-          outputType: payload.outputType,
-          schemaPath: paths.schemaFilename || null,
-        }
-      : null,
-    visibility: payload.visibility,
-  };
-}
-
 function buildRegistrationPlan({
   session,
   payload,
   readiness,
   destination,
   catalogueOptions,
+  schemaDestination = null,
   toolCodeExists = false,
   destinationExists = false,
 }) {
   const pathApi = getPathApiForRoot(readiness.path.resolvedRootPath);
   const packageRelativePath = destination.packageRelativePath;
   const packagePhysicalPath = destination.packagePhysicalPath;
-  const scriptRelativePath = path.posix.join(packageRelativePath, MANAGED_SCRIPT_FILENAME);
-  const descriptorRelativePath = path.posix.join(packageRelativePath, MANAGED_DESCRIPTOR_FILENAME);
-  const schemaFilename = session.files.schema
-    ? `${payload.outputType || 'output'}.schema.json`
+  const entrypointRelativePath = normalizeEntrypointRelativePath(
+    payload.entrypointRelativePath,
+    { scriptFilename: session.files.script.filename },
+  );
+  const scriptRelativePath = path.posix.join(packageRelativePath, entrypointRelativePath);
+  const scriptPhysicalPath = pathApi.join(
+    packagePhysicalPath,
+    ...entrypointRelativePath.split('/'),
+  );
+  const outputSchemaPath = session.files.schema
+    ? getCentralSchemaRelativePath(payload.outputType)
     : null;
-  const outputSchemaPath = schemaFilename
-    ? path.posix.join(packageRelativePath, schemaFilename)
+  const contractsPhysicalPath = pathApi.join(
+    readiness.path.resolvedRootPath,
+    ...CONTRACTS_RELATIVE_PATH.split('/'),
+  );
+  const schemaPhysicalPath = outputSchemaPath
+    ? pathApi.join(readiness.path.resolvedRootPath, ...outputSchemaPath.split('/'))
     : null;
   const paths = {
     packageRelativePath,
     packagePhysicalPath,
+    entrypointRelativePath,
     scriptRelativePath,
-    scriptPhysicalPath: pathApi.join(packagePhysicalPath, MANAGED_SCRIPT_FILENAME),
-    descriptorRelativePath,
-    descriptorPhysicalPath: pathApi.join(packagePhysicalPath, MANAGED_DESCRIPTOR_FILENAME),
+    scriptPhysicalPath,
+    descriptorRelativePath: null,
+    descriptorPhysicalPath: null,
+    contractsRelativePath: CONTRACTS_RELATIVE_PATH,
+    contractsPhysicalPath,
     outputSchemaPath,
-    schemaFilename,
-    schemaPhysicalPath: schemaFilename ? pathApi.join(packagePhysicalPath, schemaFilename) : null,
+    schemaFilename: outputSchemaPath ? path.posix.basename(outputSchemaPath) : null,
+    schemaPhysicalPath,
   };
-  const descriptor = buildCanonicalDescriptor(payload, catalogueOptions, paths);
-  const descriptorContent = `${JSON.stringify(descriptor, null, 2)}\n`;
-  const filePlan = [
+  const packageFilePlan = [
     {
       kind: 'script',
       sourceFilename: session.files.script.filename,
-      filename: MANAGED_SCRIPT_FILENAME,
+      filename: path.posix.basename(entrypointRelativePath),
+      packageRelativePath: entrypointRelativePath,
       content: session.files.script.content,
       sha256: hashContent(session.files.script.content),
       relativePath: scriptRelativePath,
-      physicalPath: paths.scriptPhysicalPath,
-    },
-    {
-      kind: 'descriptor',
-      sourceFilename: session.files.descriptor?.filename || null,
-      filename: MANAGED_DESCRIPTOR_FILENAME,
-      content: descriptorContent,
-      sha256: hashContent(descriptorContent),
-      relativePath: descriptorRelativePath,
-      physicalPath: paths.descriptorPhysicalPath,
-      generated: true,
+      physicalPath: scriptPhysicalPath,
+      action: 'PROMOTE',
     },
   ];
+  const contractFilePlan = [];
+  const files = packageFilePlan.map(
+    ({ content, packageRelativePath: _packageRelativePath, ...file }) => file,
+  );
 
   if (session.files.schema) {
-    filePlan.push({
+    const schemaHash = hashContent(session.files.schema.content);
+    const schemaAction =
+      schemaDestination?.exists && schemaDestination?.matches ? 'REUSE' : 'PROMOTE';
+    const schemaFile = {
       kind: 'schema',
       sourceFilename: session.files.schema.filename,
-      filename: schemaFilename,
+      filename: paths.schemaFilename,
       content: session.files.schema.content,
-      sha256: hashContent(session.files.schema.content),
+      sha256: schemaHash,
       relativePath: outputSchemaPath,
-      physicalPath: paths.schemaPhysicalPath,
-    });
+      physicalPath: schemaPhysicalPath,
+      action: schemaAction,
+    };
+    const { content: _schemaContent, ...safeSchemaFile } = schemaFile;
+    files.push(safeSchemaFile);
+    if (schemaAction === 'PROMOTE') contractFilePlan.push(schemaFile);
   }
+
+  const onboardingInputs = session.files.descriptor
+    ? [
+        {
+          kind: 'descriptor',
+          filename: session.files.descriptor.filename,
+          sha256: hashContent(session.files.descriptor.content),
+          retained: false,
+          purpose: 'Configuration prefill and registration evidence only',
+        },
+      ]
+    : [];
 
   const runtime = (catalogueOptions.runtimes || []).find(
     (item) => item.runtimeCode === payload.runtimeCode,
@@ -1876,6 +1952,13 @@ function buildRegistrationPlan({
     blockers.push({
       code: 'SKYCOMMAND_TOOL_DESTINATION_EXISTS',
       message: `Managed destination already exists: ${packageRelativePath}`,
+    });
+  }
+
+  if (session.files.schema && schemaDestination?.exists && !schemaDestination?.matches) {
+    blockers.push({
+      code: 'OUTPUT_SCHEMA_CONTRACT_CONFLICT',
+      message: `A different contract already exists at ${outputSchemaPath}. Use a new output contract version or resolve the existing contract explicitly.`,
     });
   }
 
@@ -1927,12 +2010,14 @@ function buildRegistrationPlan({
   const fingerprint = hashJson({
     sessionId: session.sessionId,
     databasePreview,
-    files: filePlan.map(({ kind, filename, sha256, relativePath }) => ({
+    files: files.map(({ kind, filename, sha256, relativePath, action }) => ({
       kind,
       filename,
       sha256,
       relativePath,
+      action,
     })),
+    onboardingInputs,
   });
 
   return {
@@ -1953,9 +2038,10 @@ function buildRegistrationPlan({
         .join(' '),
     },
     paths,
-    files: filePlan.map(({ content, ...file }) => file),
+    files,
+    onboardingInputs,
     databasePreview,
-    descriptor,
+    descriptor: null,
     internal: {
       payload: {
         ...payload,
@@ -1964,7 +2050,27 @@ function buildRegistrationPlan({
         enabled: false,
         allowParams: payload.parameters.some((parameter) => parameter.enabled),
       },
-      filePlan,
+      packageFilePlan,
+      contractFilePlan,
+      verificationPlan: [
+        ...packageFilePlan,
+        ...(session.files.schema
+          ? [
+              {
+                kind: 'schema',
+                filename: paths.schemaFilename,
+                content: session.files.schema.content,
+                sha256: hashContent(session.files.schema.content),
+                relativePath: outputSchemaPath,
+                physicalPath: schemaPhysicalPath,
+                action:
+                  schemaDestination?.exists && schemaDestination?.matches
+                    ? 'REUSE'
+                    : 'PROMOTE',
+              },
+            ]
+          : []),
+      ],
     },
   };
 }
@@ -1991,17 +2097,18 @@ async function buildServerRegistrationPlan({ sessionId, configuration = {}, acto
     configuration.packageRelativePath,
     { toolCode: rawToolCode },
   );
+  const entrypointRelativePath = normalizeEntrypointRelativePath(
+    configuration.entrypointRelativePath,
+    { scriptFilename: session.files.script.filename },
+  );
   const scriptRelativePath = path.posix.join(
     destination.packageRelativePath,
-    MANAGED_SCRIPT_FILENAME,
+    entrypointRelativePath,
   );
   const schemaRelativePath = session.files.schema
-    ? path.posix.join(
-        destination.packageRelativePath,
-        `${String(configuration.outputType || '').trim()}.schema.json`,
-      )
+    ? getCentralSchemaRelativePath(String(configuration.outputType || '').trim())
     : null;
-  const payload = await toolAdminService.validateToolConfiguration({
+  const validatedPayload = await toolAdminService.validateToolConfiguration({
     ...configuration,
     toolCode: rawToolCode,
     scriptRepoId: readiness.repository.repoId,
@@ -2013,12 +2120,31 @@ async function buildServerRegistrationPlan({ sessionId, configuration = {}, acto
       ? configuration.parameters.some((parameter) => parameter.enabled !== false)
       : false,
   });
-  const [collisionResult, destinationExists] = await Promise.all([
+  const payload = { ...validatedPayload, entrypointRelativePath };
+  const pathApi = getPathApiForRoot(readiness.path.resolvedRootPath);
+  const schemaPhysicalPath = schemaRelativePath
+    ? pathApi.join(readiness.path.resolvedRootPath, ...schemaRelativePath.split('/'))
+    : null;
+  const [collisionResult, destinationExists, schemaState] = await Promise.all([
     require('../../../../packages/db/src/connection').pool.query(
       'SELECT 1 FROM core.tools WHERE tool_code = $1 LIMIT 1',
       [payload.toolCode],
     ),
     pathExists(destination.packagePhysicalPath),
+    schemaPhysicalPath
+      ? (async () => {
+          if (!(await pathExists(schemaPhysicalPath))) {
+            return { exists: false, matches: false, physicalPath: schemaPhysicalPath };
+          }
+          const existingContent = await fs.promises.readFile(schemaPhysicalPath, 'utf8');
+          return {
+            exists: true,
+            matches: hashContent(existingContent) === hashContent(session.files.schema.content),
+            physicalPath: schemaPhysicalPath,
+            sha256: hashContent(existingContent),
+          };
+        })()
+      : Promise.resolve({ exists: false, matches: false, physicalPath: null }),
   ]);
 
   return buildRegistrationPlan({
@@ -2027,6 +2153,7 @@ async function buildServerRegistrationPlan({ sessionId, configuration = {}, acto
     readiness,
     destination,
     catalogueOptions,
+    schemaDestination: schemaState,
     toolCodeExists: collisionResult.rowCount > 0,
     destinationExists,
   });
@@ -2051,8 +2178,10 @@ async function writeManagedPackageStaging(plan) {
   await fs.promises.mkdir(stagingPath, { recursive: false, mode: 0o700 });
 
   try {
-    for (const file of plan.internal.filePlan) {
-      await fs.promises.writeFile(pathApi.join(stagingPath, file.filename), file.content, {
+    for (const file of plan.internal.packageFilePlan) {
+      const targetPath = pathApi.join(stagingPath, ...file.packageRelativePath.split('/'));
+      await fs.promises.mkdir(pathApi.dirname(targetPath), { recursive: true, mode: 0o700 });
+      await fs.promises.writeFile(targetPath, file.content, {
         encoding: 'utf8',
         flag: 'wx',
         mode: 0o600,
@@ -2065,8 +2194,57 @@ async function writeManagedPackageStaging(plan) {
   }
 }
 
+async function writeContractStaging(plan) {
+  const contractFile = plan.internal.contractFilePlan[0];
+  if (!contractFile) return null;
+
+  const pathApi = getPathApiForRoot(plan.paths.contractsPhysicalPath);
+  await fs.promises.mkdir(plan.paths.contractsPhysicalPath, {
+    recursive: true,
+    mode: 0o700,
+  });
+  const stagingPath = pathApi.join(
+    plan.paths.contractsPhysicalPath,
+    `.skycommand-onboarding-${plan.sessionId}-${crypto.randomUUID().slice(0, 8)}.schema.tmp`,
+  );
+  await fs.promises.writeFile(stagingPath, contractFile.content, {
+    encoding: 'utf8',
+    flag: 'wx',
+    mode: 0o600,
+  });
+  return stagingPath;
+}
+
+async function promoteContractStaging(plan, stagingPath) {
+  if (!stagingPath) return { created: false, reused: Boolean(plan.paths.outputSchemaPath) };
+
+  try {
+    await fs.promises.copyFile(
+      stagingPath,
+      plan.paths.schemaPhysicalPath,
+      fs.constants.COPYFILE_EXCL,
+    );
+    await fs.promises.rm(stagingPath, { force: true });
+    return { created: true, reused: false };
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      const existingContent = await fs.promises.readFile(plan.paths.schemaPhysicalPath, 'utf8');
+      const expectedHash = plan.internal.contractFilePlan[0].sha256;
+      if (hashContent(existingContent) === expectedHash) {
+        await fs.promises.rm(stagingPath, { force: true });
+        return { created: false, reused: true };
+      }
+      throw createHttpError(409, 'A different output contract appeared after preview.', {
+        code: 'OUTPUT_SCHEMA_CONTRACT_CONFLICT',
+        outputSchemaPath: plan.paths.outputSchemaPath,
+      });
+    }
+    throw error;
+  }
+}
+
 async function verifyPromotedFiles(plan) {
-  for (const file of plan.internal.filePlan) {
+  for (const file of plan.internal.verificationPlan) {
     const content = await fs.promises.readFile(file.physicalPath, 'utf8');
     if (hashContent(content) !== file.sha256) {
       throw createHttpError(500, 'Managed tool file verification failed after promotion.', {
@@ -2076,6 +2254,20 @@ async function verifyPromotedFiles(plan) {
     }
   }
 }
+
+async function removeCreatedContractIfSafe(plan) {
+  const contractFile = plan?.internal?.contractFilePlan?.[0];
+  if (!contractFile || !plan.paths.schemaPhysicalPath) return;
+  try {
+    const content = await fs.promises.readFile(plan.paths.schemaPhysicalPath, 'utf8');
+    if (hashContent(content) === contractFile.sha256) {
+      await fs.promises.rm(plan.paths.schemaPhysicalPath, { force: true });
+    }
+  } catch {
+    // Best-effort compensation only. The tool remains disabled if cleanup is incomplete.
+  }
+}
+
 
 async function recordRegistrationFailure({
   actor,
@@ -2116,7 +2308,10 @@ async function recordRegistrationFailure({
 }
 
 async function registerToolPackage({ body = {}, actor, context = {} }) {
-  let stagingPath = null;
+  let packageStagingPath = null;
+  let contractStagingPath = null;
+  let contractCreated = false;
+  let packagePromoted = false;
   let stagedTool = null;
   let plan = null;
 
@@ -2140,7 +2335,8 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
       !body.previewFingerprint || body.previewFingerprint === plan.fingerprint;
 
     await skycommandRepositoryService.assertSkycommandRepositoryReady();
-    stagingPath = await writeManagedPackageStaging(plan);
+    packageStagingPath = await writeManagedPackageStaging(plan);
+    contractStagingPath = await writeContractStaging(plan);
     const toolAdminService = require('./toolAdminService');
     stagedTool = await toolAdminService.createManagedTool({
       body: plan.internal.payload,
@@ -2148,10 +2344,10 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
       context,
       registration: {
         sessionId: plan.sessionId,
-        originalFilename: plan.internal.filePlan.find((file) => file.kind === 'script')
+        originalFilename: plan.internal.packageFilePlan.find((file) => file.kind === 'script')
           .sourceFilename,
-        descriptorPath: plan.paths.descriptorRelativePath,
-        fileHash: plan.internal.filePlan.find((file) => file.kind === 'script').sha256,
+        descriptorPath: null,
+        fileHash: plan.internal.packageFilePlan.find((file) => file.kind === 'script').sha256,
       },
     });
 
@@ -2162,8 +2358,12 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
       });
     }
 
-    await fs.promises.rename(stagingPath, plan.paths.packagePhysicalPath);
-    stagingPath = null;
+    const contractPromotion = await promoteContractStaging(plan, contractStagingPath);
+    contractStagingPath = null;
+    contractCreated = contractPromotion.created;
+    await fs.promises.rename(packageStagingPath, plan.paths.packagePhysicalPath);
+    packageStagingPath = null;
+    packagePromoted = true;
     await verifyPromotedFiles(plan);
     const finalizedTool = await toolAdminService.markManagedToolRegistered({
       toolId: stagedTool.tool.toolId,
@@ -2189,7 +2389,7 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
       registration: {
         status: 'REGISTERED_DISABLED',
         message:
-          'Managed tool files were promoted and the catalogue record was registered disabled.',
+          'Managed tool implementation and optional central contract were promoted; the catalogue record was registered disabled.',
         enabled: false,
         tool: finalizedTool.tool,
         paths: plan.paths,
@@ -2199,8 +2399,14 @@ async function registerToolPackage({ body = {}, actor, context = {} }) {
       },
     };
   } catch (error) {
-    if (stagingPath) {
-      await fs.promises.rm(stagingPath, { recursive: true, force: true }).catch(() => {});
+    if (packageStagingPath) {
+      await fs.promises.rm(packageStagingPath, { recursive: true, force: true }).catch(() => {});
+    }
+    if (contractStagingPath) {
+      await fs.promises.rm(contractStagingPath, { force: true }).catch(() => {});
+    }
+    if (contractCreated && !packagePromoted) {
+      await removeCreatedContractIfSafe(plan);
     }
     await recordRegistrationFailure({
       actor,
