@@ -1110,3 +1110,12 @@ SkyWeb Analytics owns:
 - Refined Add Tool static analysis so flexible destinations can use any correct relative CommonJS import resolving to `packages/tools/src`; the analyzer no longer assumes only the default `../../src` package depth.
 - Refined the Tool Authoring Guide and AI build prompt with real-package lessons: `require.main` testability, shared success/failure schema shape, negative domain outcomes versus execution failures, isolated PostgreSQL pools, safe fingerprint output, bounded details, and workflow condition guidance.
 - Word architecture-plan updates remain paused only because of the current DOCX viewer/download issue; Markdown documentation continues normally.
+
+## 2026-07-21 - Phase 15.6 descriptor lifecycle and entrypoint normalization
+
+- Fixed Add Tool static analysis so a descriptor may declare the canonical managed entrypoint `tool.js` even when the administrator uploads a descriptively named source file such as `db_object_compare.js`.
+- The analyzer now accepts either the uploaded filename or `tool.js`, reports the managed-name normalization as informational evidence, and blocks only unrelated descriptor entrypoints.
+- Clarified that `skycommand.tool.json` is a per-tool onboarding descriptor, not a repository-wide registry: the `_template` descriptor remains untouched, every tool receives its own descriptor in its own package directory, and registration regenerates the canonical descriptor from administrator-approved configuration.
+- Reaffirmed that PostgreSQL remains runtime authority; descriptors, hashes, and preview evidence are never execution gates.
+- Added regression coverage for custom upload filenames with canonical managed entrypoints and updated the Tool Authoring Guide, AI build prompt, and Phase 15 Markdown plan.
+- No database migration or seed is required.

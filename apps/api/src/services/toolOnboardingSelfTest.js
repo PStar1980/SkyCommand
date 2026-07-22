@@ -63,6 +63,67 @@ function run() {
     ),
   );
 
+  const canonicalEntrypointWithCustomUploadName = analyzePackageContent({
+    script: {
+      filename: 'db_object_compare.js',
+      content: `
+        const { runToolCli } = require('../tools/src');
+        const TOOL_CODE = 'db_object_compare';
+        const OUTPUT_TYPE = 'postgresql_database_comparison_summary.v1';
+        if (require.main === module) {
+          runToolCli({
+            toolCode: TOOL_CODE,
+            outputType: OUTPUT_TYPE,
+            execute: async () => ({ databasesMatch: true }),
+            createToolResult: (output) => ({
+              schemaVersion: '1.0',
+              success: true,
+              message: 'Compared.',
+              outputType: OUTPUT_TYPE,
+              output,
+              warnings: [],
+              error: null,
+              metadata: {},
+            }),
+          });
+        }
+      `,
+    },
+    descriptor: {
+      filename: 'skycommand.tool.json',
+      content: JSON.stringify({
+        descriptorVersion: '1.0',
+        toolCode: 'db_object_compare',
+        label: 'PostgreSQL Database Object Compare',
+        runtimeCode: 'node',
+        entrypoint: 'tool.js',
+        packagePath: 'packages/db_compare',
+        categoryCode: 'database_tools',
+        permissionCode: 'DB_HEALTH_RUN',
+        riskCode: 'low',
+        requiresConfirmation: false,
+        capturesOutput: true,
+        allowParams: false,
+        parameters: [],
+        resultContract: {
+          outputType: 'postgresql_database_comparison_summary.v1',
+          schemaPath: null,
+        },
+        visibility: ['cli', 'admin-web', 'api', 'worker'],
+      }),
+    },
+  });
+  assert.ok(
+    !canonicalEntrypointWithCustomUploadName.findings.some(
+      (finding) => finding.code === 'DESCRIPTOR_ENTRYPOINT_MISMATCH',
+    ),
+  );
+  assert.ok(
+    canonicalEntrypointWithCustomUploadName.findings.some(
+      (finding) => finding.code === 'DESCRIPTOR_ENTRYPOINT_MANAGED_NAME',
+    ),
+  );
+
   const invalid = analyzePackageContent({
     script: {
       filename: 'bad.js',

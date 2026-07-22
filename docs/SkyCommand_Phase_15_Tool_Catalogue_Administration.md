@@ -48,7 +48,7 @@ Phase 15.4 adds the first browser-assisted onboarding workbench while preserving
 - the API places each package in a random, time-limited session under the non-executable `logs/tool-onboarding` staging root with restrictive file permissions where supported;
 - static syntax validation uses the installed Node.js parser through `vm.Script` and never invokes, imports, or evaluates the uploaded tool;
 - source inspection reports shared `runToolCli` adapter use, constant tool/output identifiers, simple positional parameters, available/missing dependencies, relative-module review needs, filesystem/child-process/environment behavior, dynamic code, environment dumping, shell use, and secret-like literals;
-- descriptor inspection validates version, identity, Node.js runtime, entrypoint agreement, parameter names/types/positions, result contract, visibility, and source/descriptor consistency;
+- descriptor inspection validates version, identity, Node.js runtime, entrypoint intent, parameter names/types/positions, result contract, visibility, and source/descriptor consistency; a descriptive uploaded `.js` filename may differ from the canonical managed `tool.js` filename without blocking onboarding;
 - catalogue-backed reference checks verify active category, runtime, permission, risk, parameter type, option source, and visibility values;
 - schema inspection enforces JSON object shape, `<outputType>.schema.json` agreement, local-only `$ref`, bounded depth/node count, and the exact keywords/formats understood by the current validator;
 - duplicate registered tool codes and existing suggested destinations are blocking findings; the default suggestion remains `packages/tools/custom/<toolCode>`;
@@ -66,7 +66,7 @@ Phase 15.5 completes the managed registration lane while retaining disabled-firs
 - `POST /api/admin/tool-onboarding/preview` reloads the owned, unexpired session, verifies temporary staged-file evidence, validates current catalogue references, resolves the administrator-selected destination, and returns the current command, file paths, PostgreSQL records, blockers, warnings, and preview evidence;
 - preview evidence is advisory and registration always rebuilds/revalidates the current request, so a missing or changed preview hash does not create a lockout;
 - warnings remain visible but advisory; only actual errors, unsafe paths, missing references, duplicate tool codes, or destination collisions block registration;
-- SkyCommand always generates a canonical `skycommand.tool.json` from the administrator-approved configuration, ensuring the managed descriptor documents the actual PostgreSQL registration rather than preserving stale suggestions;
+- SkyCommand always generates a per-tool canonical `skycommand.tool.json` from the administrator-approved configuration, ensuring the managed descriptor documents the actual PostgreSQL registration rather than preserving stale suggestions; the `_template` descriptor and previously registered tool descriptors are never replaced;
 - `POST /api/admin/tool-onboarding/register` writes the approved package to a hidden sibling folder under the selected `packages/...` parent, creates the catalogue/visibility/parameter/option records disabled, atomically renames the package into place, re-reads the just-promoted files, records registration time and audit evidence, and removes the temporary onboarding session;
 - tool codes, final package destinations, session ownership/expiry, repository readiness, schema filename/output type, and catalogue references are rechecked at both preview and registration time;
 - database insertion failure removes the hidden repository staging folder; later promotion/finalization failure leaves no enabled tool and returns explicit disabled-record recovery evidence when applicable;
@@ -469,6 +469,8 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - preserved accessibility: contract-check results, prior test outcomes, registration hashes, and preview evidence never become runtime launch gates;
 - prepared the first real onboarding proof package, `db_object_compare`, which compares migration-relevant PostgreSQL objects across two named databases and exposes `output.databasesMatch` for condition routing;
 - upgraded `db_health` to check one or two named databases and expose `output.allOnline`, while retaining optional strict non-zero exit behavior for direct CLI use;
+- corrected descriptor entrypoint analysis so a descriptive uploaded filename such as `db_object_compare.js` may be normalized to the managed package filename `tool.js` without becoming a blocking mismatch;
+- clarified the descriptor lifecycle: every tool owns an independent `skycommand.tool.json`, the reusable `_template` descriptor is never replaced, registration generates the final canonical descriptor from approved configuration, and runtime execution continues to use PostgreSQL rather than descriptor files;
 - pending local proof: onboard/register the comparison package, run contract check and controlled execution, enable it, verify Run Tools, and route a workflow condition from `nodes.<nodeKey>.output.databasesMatch`.
 
 ### Phase 15.7 - Closure and documentation
