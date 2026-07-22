@@ -1,3 +1,12 @@
+## 2026-07-22 — Phase 15.6.3 Managed Verification Handoff and Focus Navigation
+
+- Corrected the Add Tool success handoff so **Open verification & test** deep-links to the registered managed tool with `view=verification` instead of merely opening its long catalogue configuration form.
+- Added automatic focus/scroll to the full-width **Managed tool verification** panel after the selected tool detail loads, placing **Run contract check** and **Run controlled test** directly in view.
+- Added a persistent **Verification & test** action in the Manage Tools detail header so administrators can return to the verification panel without manually scrolling through tool parameters.
+- Wrapped the verification panel in a proper Bootstrap full-width column and added accessible focus plus sticky-header scroll spacing.
+- Added `tool-verification-navigation:self-test` to verify the Add Tool deep-link, panel anchor, auto-scroll wiring, and visible contract/controlled-test actions.
+- Preserved the advisory verification boundary: checks and controlled runs do not enable the tool, and hashes/preview evidence remain absent from runtime launch decisions.
+
 ## 2026-07-22 — Phase 15.6.2 Preserved Entrypoints, Disposable Descriptors, and Central Contracts
 
 - Replaced managed `tool.js` normalization with an editable package-relative entrypoint under `src/`; uploaded scripts now retain their filenames, so `packages/db_compare` plus `src/db_object_compare.js` resolves to `packages/db_compare/src/db_object_compare.js`.

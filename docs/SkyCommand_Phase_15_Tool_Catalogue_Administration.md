@@ -4,7 +4,7 @@
 
 Phase 15 is in progress. Phases 15.1 through 15.5 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, no-execution upload analysis, editable preview, and disabled-first registration. **Phase 15.5.1 now refines accessibility:** administrators may choose any new destination inside the repository `packages` folder, warnings remain advisory, and preview/file hashes are limited to the temporary onboarding transaction and audit evidence. They are never runtime launch gates and never lock out an edited registered tool. Uploaded code is still not executed.
 
-Phase 15.6 verification infrastructure is now implemented: managed tools can receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The first real proof package is now prepared for frontend onboarding: a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`. The browser registration, controlled run, Run Tools proof, and workflow-condition proof remain the next hands-on verification steps.
+Phase 15.6 verification infrastructure is now implemented: managed tools can receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The Add Tool success handoff now opens the selected record in verification focus mode, automatically scrolling to the full-width verification panel where **Run contract check** and **Run controlled test** are available; the detail header also provides a persistent **Verification & test** jump action. The first real proof package, a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`, has been registered disabled. Contract-check, controlled-run, Run Tools, and workflow-condition proof remain the next hands-on steps.
 
 The governing rule remains:
 
@@ -482,7 +482,8 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - replaced canonical `tool.js` normalization with a package-relative `src/...` entrypoint that preserves the uploaded filename;
 - clarified the descriptor lifecycle: the reusable `_template` descriptor is never replaced, each upload may provide a temporary descriptor, registration discards it after recording evidence, and runtime execution continues to use PostgreSQL rather than descriptor files;
 - centralized uploaded output schemas under `packages/tools/contracts`, reusing identical contracts and blocking conflicting content at an existing versioned path;
-- pending local proof: onboard/register the comparison package, run contract check and controlled execution, enable it, verify Run Tools, and route a workflow condition from `nodes.<nodeKey>.output.databasesMatch`.
+- refined the registration handoff so **Open verification & test** deep-links to `view=verification`, automatically focuses the verification panel after detail loading, and exposes a persistent **Verification & test** jump action in the tool header;
+- registered the PostgreSQL comparison package disabled; pending local proof is to run the contract check and controlled execution, enable it, verify Run Tools, and route a workflow condition from `nodes.<nodeKey>.output.databasesMatch`.
 
 ### Phase 15.7 - Closure and documentation
 
@@ -525,5 +526,6 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 | 15.4      | Complete    | Trusted upload staging, static analysis, advisory suggestions, and audit evidence                                       |
 | 15.5      | Complete    | Editable prefill, preview evidence, disabled-first registration, and managed file promotion                             |
 | 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
-| 15.6      | In progress | Verification framework ready; `src/...` entrypoint preservation, disposable descriptors, and central contract promotion/reuse implemented; local onboarding/Run Tools/workflow proof pending |
+| 15.6      | In progress | Verification framework ready; `src/...` entrypoint preservation, disposable descriptors, and central contract promotion/reuse implemented; local contract/controlled-run/Run Tools/workflow proof pending |
+| 15.6.3    | Complete    | Add Tool verification deep-link, automatic panel focus, persistent jump action, and navigation self-test                |
 | 15.7      | Planned     | Regression matrix, Development Promotion, and closure                                                                   |
