@@ -1178,3 +1178,14 @@ SkyWeb Analytics owns:
 - Added workflow visibility and database-output regression self-tests and extended `workflow-result-context:self-test` with MATCH and DIFFERENT database synchronization cases.
 - Updated README, the Phase 15 Markdown plan, the Tool Authoring Guide, the AI build prompt, and the repository map; the authoring guidance now explains that workflow tools require both `admin-web` and `api`, while `cli` and `worker` remain optional lanes.
 - No migration, seed, dependency, tool re-registration, or workflow-definition change is required.
+
+## 2026-07-22 - Phase 15.7 closure readiness and regression matrix
+
+- Marked Assisted Tool Catalogue administration closure-ready after the Database Synchronization Test completed through Database Health, the primary-database condition, Database Build, the newly onboarded PostgreSQL Database Object Compare tool, and the contract-driven Summary node.
+- Added `docs/SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md` with the minimum regression suite, expected failure recovery behavior, deferred enhancements, final validation commands, and the Development Promotion closure checklist.
+- Added the dependency-free `phase15:closure-readiness:self-test`, covering central database contracts, managed comparison placement, disposable descriptor behavior, absence of runtime fingerprint/hash gates, workflow confirmation and visibility policy coverage, table-first database renderers, and required Phase 15 regression commands.
+- Extended `workflow-condition:self-test` to prove TRUE and FALSE routing from `nodes.db_compare_node.output.databasesMatch`, ensuring the newly onboarded tool contract can directly drive workflow branching without parsing console output.
+- Retained regression protection for the purpose-built Database Health, Database Build, PostgreSQL comparison, and Database Synchronization Summary renderers.
+- Reconciled README and the Phase 15 Markdown plan with the completed Phase 15.6 proof, the table-first health/build/comparison presentation, workflow visibility requirements, unattended automation confirmation policy, and final Phase 15.7 status.
+- Formal Phase 15 completion remains pending one post-package `npm run validate`, `npm run web:build`, and Development Promotion big-rig run with recorded eight-node structured evidence.
+- No migration, seed, dependency, tool re-registration, or workflow-definition change is required.
