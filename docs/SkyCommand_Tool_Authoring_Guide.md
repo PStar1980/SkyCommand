@@ -407,7 +407,7 @@ Choose the lowest truthful risk:
 - `medium`: controlled writes, ingestion, commits, or state changes;
 - `high`: destructive rebuilds, branch synchronization, privileged provisioning, or broad mutation.
 
-Mutating tools should use confirmation text and offer a dry-run mode where practical.
+Mutating tools should use confirmation text for manual Run Tools and controlled-test launches, and offer a dry-run mode where practical. Published workflow nodes bypass interactive confirmation prompts and typed high-risk phrases so automation can remain unattended; tool-specific permissions, risk-level permissions, enabled state, parameter validation, path safety, timeout, concurrency, history, and audit controls still apply. Add a Human Approval node only when the business process intentionally requires a person.
 
 ## File safety
 
