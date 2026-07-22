@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
@@ -544,6 +544,7 @@ function ManageTools() {
   const { hasPermission } = useAuth();
   const [searchParams] = useSearchParams();
   const requestedToolId = searchParams.get('toolId') || '';
+  const requestedView = searchParams.get('view') || '';
   const canWrite = hasPermission('ADMIN_TOOL_WRITE');
   const [options, setOptions] = useState({});
   const [tools, setTools] = useState([]);
@@ -558,11 +559,24 @@ function ManageTools() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const verificationPanelRef = useRef(null);
+  const verificationScrollHandledRef = useRef(false);
 
   const selectedListTool = useMemo(
     () => tools.find((tool) => tool.toolId === selectedToolId) || null,
     [selectedToolId, tools],
   );
+
+  function scrollToVerification(behavior = 'smooth') {
+    const target = verificationPanelRef.current;
+
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ behavior, block: 'start' });
+    target.focus({ preventScroll: true });
+  }
 
   async function loadList(nextFilters = filters, preferredToolId = selectedToolId) {
     setLoading(true);
@@ -658,6 +672,22 @@ function ManageTools() {
   useEffect(() => {
     loadDetail(selectedToolId);
   }, [selectedToolId, creating]);
+
+  useEffect(() => {
+    if (
+      requestedView !== 'verification' ||
+      verificationScrollHandledRef.current ||
+      detailLoading ||
+      !selectedTool?.managedBySkyCommand
+    ) {
+      return undefined;
+    }
+
+    verificationScrollHandledRef.current = true;
+    const timeoutId = window.setTimeout(() => scrollToVerification('smooth'), 100);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [detailLoading, requestedView, selectedTool?.managedBySkyCommand, selectedTool?.toolId]);
 
   function startCreate() {
     setCreating(true);
@@ -998,15 +1028,28 @@ function ManageTools() {
         <div className="col-xxl-8">
           <Panel
             actions={
-              !creating && selectedTool && canWrite ? (
-                <button
-                  className={`btn btn-sm ${selectedTool.enabled ? 'sky-btn-danger' : 'sky-btn-primary'}`}
-                  disabled={saving}
-                  onClick={handleToggleStatus}
-                  type="button"
-                >
-                  {selectedTool.enabled ? 'Disable tool' : 'Enable tool'}
-                </button>
+              !creating && selectedTool ? (
+                <>
+                  {selectedTool.managedBySkyCommand && (
+                    <button
+                      className="btn btn-sm sky-btn-ghost"
+                      onClick={() => scrollToVerification()}
+                      type="button"
+                    >
+                      Verification &amp; test
+                    </button>
+                  )}
+                  {canWrite && (
+                    <button
+                      className={`btn btn-sm ${selectedTool.enabled ? 'sky-btn-danger' : 'sky-btn-primary'}`}
+                      disabled={saving}
+                      onClick={handleToggleStatus}
+                      type="button"
+                    >
+                      {selectedTool.enabled ? 'Disable tool' : 'Enable tool'}
+                    </button>
+                  )}
+                </>
               ) : null
             }
             subtitle={
@@ -1531,11 +1574,18 @@ function ManageTools() {
         </div>
 
         {!creating && selectedTool?.managedBySkyCommand && (
-          <ManagedToolVerificationPanel
-            canWrite={canWrite}
-            onToolUpdated={handleManagedToolUpdated}
-            tool={selectedTool}
-          />
+          <div
+            className="col-12 sky-managed-tool-verification-anchor"
+            id="managed-tool-verification"
+            ref={verificationPanelRef}
+            tabIndex="-1"
+          >
+            <ManagedToolVerificationPanel
+              canWrite={canWrite}
+              onToolUpdated={handleManagedToolUpdated}
+              tool={selectedTool}
+            />
+          </div>
         )}
       </div>
     </>

@@ -102,6 +102,7 @@ SkyServer/
 │   │       │   ├── IngestionStatus.jsx
 │   │       │   ├── Login.jsx
 │   │       │   ├── ManageTools.jsx
+│   │       │   ├── manageToolsVerificationNavigationSelfTest.js
 │   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── ReadinessDashboard.jsx
 │   │       │   ├── SchedulerControl.jsx

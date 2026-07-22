@@ -4919,6 +4919,16 @@
   border-radius: 0.85rem;
 }
 
+.sky-managed-tool-verification-anchor {
+  scroll-margin-top: 5.5rem;
+  outline: none;
+}
+
+.sky-managed-tool-verification-anchor:focus-visible {
+  border-radius: 1rem;
+  box-shadow: 0 0 0 2px rgba(91, 172, 255, 0.42);
+}
+
 .sky-subsection-title {
   color: rgba(209, 227, 255, 0.94);
   font-size: 0.76rem;

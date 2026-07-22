@@ -1040,11 +1040,13 @@ function AddTool() {
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={() =>
-                    navigate(`/tools/manage?toolId=${registration.tool?.toolId || ''}`)
+                    navigate(
+                      `/tools/manage?toolId=${registration.tool?.toolId || ''}&view=verification`,
+                    )
                   }
                   type="button"
                 >
-                  Verify registered tool
+                  Open verification & test
                 </button>
               </>
             }
