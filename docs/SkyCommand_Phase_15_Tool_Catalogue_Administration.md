@@ -2,9 +2,9 @@
 
 ## Status
 
-Phase 15 is in progress. Phases 15.1 through 15.5 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, no-execution upload analysis, editable preview, and disabled-first registration. **Phase 15.5.1 now refines accessibility:** administrators may choose any new destination inside the repository `packages` folder, warnings remain advisory, and preview/file hashes are limited to the temporary onboarding transaction and audit evidence. They are never runtime launch gates and never lock out an edited registered tool. Uploaded code is still not executed.
+Phase 15 is in final closure readiness. Phases 15.1 through 15.6 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, no-execution upload analysis, editable preview, disabled-first registration, managed verification, explicit enablement, and live workflow proof. **Phase 15.5.1 preserved accessibility:** administrators may choose any new destination inside the repository `packages` folder, warnings remain advisory, and preview/file hashes are limited to the temporary onboarding transaction and audit evidence. They are never runtime launch gates and never lock out an edited registered tool.
 
-Phase 15.6 is now complete: managed tools receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The Add Tool success handoff opens the selected record in verification focus mode, automatically scrolling to the full-width verification panel where **Run contract check** and **Run controlled test** are available; the detail header also provides a persistent **Verification & test** jump action. The first real proof package, a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`, passed its contract check, completed a disabled controlled run, was explicitly enabled, and ran inside a published Database Synchronization workflow. `db_health` supplied the primary-database prerequisite, Database Build emitted `database_build_summary.v1` after rebuilding the test database, and the comparison returned deliberate MATCH/DIFFERENT evidence through the generic workflow adapter. Workflow tool nodes use an explicit automation confirmation mode: published workflow execution bypasses interactive confirmation checkboxes and high-risk phrases while retaining enabled-state, tool permission, risk permission, parameter, path, timeout, concurrency, history, and audit controls. Workflow targets must be visible through both `admin-web` and `api`, and Workflow History now selects purpose-built comparison and Database Synchronization Summary tables by output contract rather than workflow identity. Human Approval remains an optional node chosen by the workflow author rather than an implicit prerequisite for destructive tools. Only Phase 15.7 regression, Development Promotion, documentation reconciliation, and formal closure remain.
+Phase 15.6 is complete: managed tools receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The Add Tool success handoff opens the selected record in verification focus mode, automatically scrolling to the full-width verification panel where **Run contract check** and **Run controlled test** are available; the detail header also provides a persistent **Verification & test** jump action. The first real proof package, a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`, passed its contract check, completed a disabled controlled run, was explicitly enabled, and ran inside a published Database Synchronization workflow. `db_health` supplied the primary-database prerequisite, Database Build emitted `database_build_summary.v1` after rebuilding the test database, and the comparison returned deliberate MATCH/DIFFERENT evidence through the generic workflow adapter. Workflow tool nodes use an explicit automation confirmation mode: published workflow execution bypasses interactive confirmation checkboxes and high-risk phrases while retaining enabled-state, tool permission, risk permission, parameter, path, timeout, concurrency, history, and audit controls. Workflow targets must be visible through both `admin-web` and `api`, and Workflow History now selects purpose-built comparison and Database Synchronization Summary tables by output contract rather than workflow identity. Human Approval remains an optional node chosen by the workflow author rather than an implicit prerequisite for destructive tools. Phase 15.7 now supplies the regression/recovery matrix, closure-readiness self-test, database-comparison condition regression, and reconciled Markdown status. The only remaining proof is one final Development Promotion big-rig run after the closure-readiness package is applied, followed by recording that live evidence and marking the phase complete.
 
 The governing rule remains:
 
@@ -529,12 +529,14 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - added a contract-driven Database Synchronization Summary rollup from `database_health_summary.v1`, `database_build_summary.v1`, `postgresql_database_comparison_summary.v1`, and the health condition result. The rollup is selected by output contracts and node results, never by workflow primary key.
 - added purpose-built Workflow History renderers for `database_health_summary.v1` and `database_build_summary.v1`: health evidence is grouped into one overview plus one database row per target, while build evidence is grouped into build state, discovered/executed totals, compact checkpoints, and an ordered SQL-file table instead of repeated source/field/value rows; the Summary rollup receives only compact health/build evidence and never the full SQL-file array.
 
-### Phase 15.7 - Closure and documentation
+### Phase 15.7 - Closure and documentation — closure readiness complete
 
-- complete regression tests;
-- document failure and recovery cases;
-- run the Development Promotion workflow;
-- mark Phase 15 complete.
+- added `docs/SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md` with the minimum regression suite, failure/recovery behavior, deferred enhancements, and exact final live closure procedure;
+- added `phase15:closure-readiness:self-test`, a dependency-free architectural regression proving central contracts, disposable descriptors, managed comparison placement, absence of runtime hash/fingerprint gates, workflow visibility/confirmation coverage, purpose-built database renderers, and required Phase 15 test commands;
+- extended `workflow-condition:self-test` to prove both TRUE and FALSE routing from `nodes.db_compare_node.output.databasesMatch`;
+- retained and closed regression coverage for the table-first Database Health, Database Build, PostgreSQL comparison, and Database Synchronization Summary renderers;
+- reconciled README, Phase 15 status, authoring/visibility guidance references, change log, and repository map;
+- final live action: run `npm run validate`, `npm run web:build`, and the Development Promotion workflow, record the eight-node result evidence, then mark Phase 15 complete.
 
 ## Acceptance criteria
 
@@ -553,14 +555,15 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - database failure cannot leave promoted unmanaged files;
 - existing tools, Run Tools, schedules, and workflows continue to use the same generic execution adapter; workflow automation bypasses only interactive confirmation prompts, not permissions or runtime safety controls;
 - workflow tool targets must be enabled and visible in both `admin-web` and `api`; ineligible targets are omitted from the builder and rejected during save/publish validation;
-- Workflow History selects the PostgreSQL comparison renderer and database synchronization summary by output contract rather than workflow identity;
+- Workflow History selects table-first Database Health, Database Build, PostgreSQL comparison, and Database Synchronization Summary renderers by output contract rather than workflow identity;
+- the canonical comparison path `nodes.<nodeKey>.output.databasesMatch` is covered for both TRUE and FALSE condition branches;
 - PostgreSQL remains the runtime authority;
 - no automatic dependency installation or Git commit occurs;
 - all create, update, validate, register, enable, and disable actions are audited.
 
 ## Definition of done
 
-Phase 15 is complete when SkyCommand provides a practical, trusted-administrator framework for creating and maintaining tool catalogue configuration, assists with safe file onboarding into the designated SkyCommand repository, validates optional structured output contracts, and proves that a newly registered tool can run through the existing CLI/web/workflow execution architecture without custom integration code.
+Phase 15 is complete when SkyCommand provides a practical, trusted-administrator framework for creating and maintaining tool catalogue configuration, assists with controlled file onboarding into the designated SkyCommand repository, validates optional structured output contracts, and proves that a newly registered tool can run through the existing CLI/web/workflow execution architecture without custom integration code. The implementation and database workflow proof satisfy this definition; formal closure awaits the final post-package Development Promotion run and recorded evidence.
 
 ## Increment status
 
@@ -574,4 +577,4 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 | 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
 | 15.6      | Complete    | Managed verification, explicit enablement, unattended workflow execution, database build/comparison proof, workflow visibility validation, and purpose-built database comparison/summary rendering |
 | 15.6.3    | Complete    | Add Tool verification deep-link, automatic panel focus, persistent jump action, and navigation self-test                |
-| 15.7      | Planned     | Regression matrix, Development Promotion, and closure                                                                   |
+| 15.7      | Closure-ready | Regression/recovery matrix, closure-readiness test, comparison condition regression, and documentation reconciliation complete; final Development Promotion proof pending |

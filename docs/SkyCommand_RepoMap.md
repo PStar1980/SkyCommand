@@ -163,6 +163,7 @@ SkyServer/
 │   │       │   ├── authService.js
 │   │       │   ├── ingestionStatusService.js
 │   │       │   ├── macroReadService.js
+│   │       │   ├── phase15ClosureReadinessSelfTest.js
 │   │       │   ├── productionReadinessService.js
 │   │       │   ├── publicMacroService.js
 │   │       │   ├── scriptExecutionService.js
@@ -206,6 +207,7 @@ SkyServer/
 ├── docs/
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
+│   ├── SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
 │   ├── SkyCommand_RepoMap.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md

@@ -19,6 +19,20 @@ function buildContext(readyForDevelopmentPromotion) {
   };
 }
 
+function buildDatabaseComparisonContext(databasesMatch) {
+  return {
+    conditionEvaluation: {
+      nodes: {
+        db_compare_node: {
+          output: {
+            databasesMatch,
+          },
+        },
+      },
+    },
+  };
+}
+
 function run() {
   const node = {
     nodeKey: 'promotion_gate_node',
@@ -121,7 +135,67 @@ function run() {
     },
   );
 
-  console.log('[SkyCommand] Workflow condition true/false branch self-test passed.');
+  const comparisonNode = {
+    nodeKey: 'database_match_gate_node',
+    displayName: 'Databases Match',
+  };
+  const comparisonParameters = {
+    leftPath: 'nodes.db_compare_node.output.databasesMatch',
+    operator: 'TRUTHY',
+    leftType: 'BOOLEAN',
+    onFalse: 'CONTINUE',
+    trueTargetNodeKey: 'matching_summary_node',
+    falseTargetNodeKey: 'difference_summary_node',
+  };
+  const comparisonPlan = {
+    nodeIndexByKey: new Map([
+      ['db_compare_node', 3],
+      ['database_match_gate_node', 4],
+      ['matching_summary_node', 5],
+      ['difference_summary_node', 6],
+    ]),
+  };
+
+  const matchingComparison = evaluateConditionNode({
+    node: comparisonNode,
+    parameters: comparisonParameters,
+    context: buildDatabaseComparisonContext(true),
+  });
+
+  assert.equal(matchingComparison.passed, true);
+  assert.equal(matchingComparison.leftPathResolved, true);
+  assert.equal(matchingComparison.branchTargetNodeKey, 'matching_summary_node');
+  assert.equal(
+    resolveConditionBranchIndex({
+      output: matchingComparison,
+      currentIndex: 4,
+      executionPlan: comparisonPlan,
+    }),
+    5,
+  );
+
+  const differentComparison = evaluateConditionNode({
+    node: comparisonNode,
+    parameters: comparisonParameters,
+    context: buildDatabaseComparisonContext(false),
+  });
+
+  assert.equal(differentComparison.passed, false);
+  assert.equal(differentComparison.leftPathResolved, true);
+  assert.equal(differentComparison.branchLabel, 'FALSE');
+  assert.equal(differentComparison.branchTargetNodeKey, 'difference_summary_node');
+  assert.equal(
+    resolveConditionBranchIndex({
+      output: differentComparison,
+      currentIndex: 4,
+      executionPlan: comparisonPlan,
+    }),
+    6,
+  );
+
+  console.log(
+    '[SkyCommand] Workflow condition promotion and database-comparison routing self-test passed.',
+  );
 }
 
 run();
