@@ -114,6 +114,7 @@ SkyServer/
 │   │       │   ├── WorkerControl.jsx
 │   │       │   ├── WorkflowApprovals.jsx
 │   │       │   ├── WorkflowBuilder.jsx
+│   │       │   ├── workflowDatabaseOutputSelfTest.js
 │   │       │   ├── WorkflowManager.jsx
 │   │       │   ├── WorkflowsDashboard.jsx
 │   │       │   └── WorkflowWorkerHealth.jsx
@@ -184,7 +185,8 @@ SkyServer/
 │   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowExecutorService.js
 │   │       │   ├── workflowHealthService.js
-│   │       │   └── workflowToolConfirmationPolicySelfTest.js
+│   │       │   ├── workflowToolConfirmationPolicySelfTest.js
+│   │       │   └── workflowToolVisibilitySelfTest.js
 │   │       └── utils/
 │   │           └── liveTelemetryEnvelope.js
 │   └── worker/

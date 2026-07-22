@@ -73,6 +73,19 @@ Analysis returns ERROR, WARNING, and INFO findings plus confidence-labelled sugg
 
 Preview fingerprints and SHA-256 values are onboarding evidence only. They protect the temporary upload/copy operation and support audit/collision diagnosis. They are never checked when a registered tool runs, never become accepted snapshots, and never disable a tool after its source is edited.
 
+## Visibility channels and workflow eligibility
+
+Visibility channels describe which SkyCommand surfaces may discover and launch the registered tool. They are not interchangeable labels:
+
+- `admin-web` exposes the tool to browser administration, Run Tools, and workflow-builder discovery;
+- `api` permits the generic API-backed execution path used by workflow tool nodes;
+- `cli` exposes the tool through SkyCommand command-line discovery and launch;
+- `worker` exposes the tool to worker-oriented automation surfaces.
+
+A tool intended for workflow use must be enabled and visible through **both** `admin-web` and `api`. The workflow builder omits tools that lack either channel, and save/publish validation rejects stale or manually injected targets that are not workflow-eligible. `cli` and `worker` remain optional unless those execution lanes are required. Selecting all four channels is a sensible broad-access default for reusable automation tools.
+
+These visibility checks remain ordinary PostgreSQL catalogue policy. They do not inspect onboarding hashes, descriptors, or source snapshots.
+
 Current upload limits:
 
 ```text

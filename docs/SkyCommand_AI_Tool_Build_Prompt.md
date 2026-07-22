@@ -122,6 +122,16 @@ Use:
 }
 ```
 
+
+Visibility guidance:
+
+- include both `admin-web` and `api` for every tool intended to appear in workflow definitions;
+- include `cli` when command-line launch should be available;
+- include `worker` when worker-facing automation should discover the tool;
+- using all four channels is the recommended broad-access default unless the tool is intentionally restricted.
+
+SkyCommand validates workflow eligibility from the PostgreSQL catalogue. Descriptors and file hashes never become runtime visibility gates.
+
 Parameter types supported in the first release are:
 
 ```text
