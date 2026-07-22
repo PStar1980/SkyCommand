@@ -3388,26 +3388,11 @@ async function retryWorkflowRun({
   };
 }
 
-function isApprovedHumanCheckpoint(result = {}) {
-  const safeResult = getSafeObject(result);
-  const status = String(safeResult.status || safeResult.decision || '').toUpperCase();
-
-  return (
-    safeResult.kind === 'human_approval' &&
-    safeResult.approved === true &&
-    status === 'APPROVED'
-  );
-}
-
 async function runToolNode({ node, parameters, user, session, permissions, context }) {
-  const approvedHighRiskExecution = isApprovedHumanCheckpoint(context?.previousResult);
   const result = await scriptExecutionService.runTool({
     toolCode: node.targetCode,
     parameters,
-    confirmed: true,
-    confirmationPhrase: approvedHighRiskExecution
-      ? process.env.TOOL_HIGH_RISK_CONFIRMATION_PHRASE || 'RUN HIGH RISK'
-      : '',
+    confirmationMode: 'WORKFLOW_AUTOMATION',
     user,
     session,
     permissions,
@@ -3415,14 +3400,10 @@ async function runToolNode({ node, parameters, user, session, permissions, conte
       ...context,
       workflowNodeKey: node.nodeKey,
       workflowNodeType: node.nodeTypeCode,
-      highRiskAuthorization: approvedHighRiskExecution
-        ? {
-            source: 'PREVIOUS_HUMAN_APPROVAL',
-            approvalRequestId: context?.previousResult?.approvalRequestId || null,
-            approvalKey: context?.previousResult?.approvalKey || null,
-            decidedByDisplayName: context?.previousResult?.decidedByDisplayName || null,
-          }
-        : null,
+      workflowAuthorization: {
+        source: 'PUBLISHED_WORKFLOW_EXECUTION',
+        interactiveConfirmationBypassed: true,
+      },
     },
   });
 

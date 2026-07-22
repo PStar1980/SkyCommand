@@ -4,7 +4,7 @@
 
 Phase 15 is in progress. Phases 15.1 through 15.5 established the architecture, authoring kit, **Tools > Manage Tools** catalogue administration, the single trusted SkyCommand repository boundary, no-execution upload analysis, editable preview, and disabled-first registration. **Phase 15.5.1 now refines accessibility:** administrators may choose any new destination inside the repository `packages` folder, warnings remain advisory, and preview/file hashes are limited to the temporary onboarding transaction and audit evidence. They are never runtime launch gates and never lock out an edited registered tool. Uploaded code is still not executed.
 
-Phase 15.6 verification is now proven: managed tools receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The Add Tool success handoff opens the selected record in verification focus mode, automatically scrolling to the full-width verification panel where **Run contract check** and **Run controlled test** are available; the detail header also provides a persistent **Verification & test** jump action. The first real proof package, a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`, passed its contract check, completed a disabled controlled run against matching databases, and was explicitly enabled. Database Build now emits `database_build_summary.v1`; Run Tools, workflow-condition, custom-summary, and closure proof remain.
+Phase 15.6 verification is now proven: managed tools receive a non-executing contract check, a controlled disabled-tool test run, and explicit enable/disable handling through **Tools > Manage Tools**. The Add Tool success handoff opens the selected record in verification focus mode, automatically scrolling to the full-width verification panel where **Run contract check** and **Run controlled test** are available; the detail header also provides a persistent **Verification & test** jump action. The first real proof package, a read-only PostgreSQL database-object comparison tool with two database-name parameters and `postgresql_database_comparison_summary.v1`, passed its contract check, completed a disabled controlled run against matching databases, and was explicitly enabled. Database Build now emits `database_build_summary.v1`; Run Tools, workflow-condition, custom-summary, and closure proof remain. Workflow tool nodes now use an explicit automation confirmation mode: published workflow execution bypasses interactive confirmation checkboxes and high-risk phrases while retaining enabled-state, tool permission, risk permission, parameter, path, timeout, concurrency, history, and audit controls. Human Approval remains an optional node chosen by the workflow author rather than an implicit prerequisite for destructive tools.
 
 The governing rule remains:
 
@@ -97,6 +97,17 @@ The output exposes:
 - bounded ordered file rows containing kind, ordinal, status, and duration without embedding raw SQL.
 
 Seed `00070__db_build_structured_output_seed.sql` associates the registered `db_build` catalogue record with `database_build_summary.v1` and `packages/tools/contracts/database_build_summary.v1.schema.json`. PostgreSQL remains the runtime authority; the schema validates reporting but does not become an execution gate.
+
+### Phase 15.6.5 workflow automation confirmation policy
+
+Interactive confirmation belongs to manual execution surfaces, not to each node in a published automation graph. SkyCommand now distinguishes two launch modes:
+
+- `INTERACTIVE`: Run Tools and controlled administrator tests continue to enforce `requires_confirmation`; high-risk tools still require the configured phrase.
+- `WORKFLOW_AUTOMATION`: inline and Temporal-backed tool nodes bypass interactive confirmation UI and typed phrases.
+
+The workflow mode does **not** bypass the actual authorization and safety model. Tool enabled state, tool-specific permission, risk-level permission, visibility, positional parameter validation, repository/path containment, execution locks, timeout/cancellation, Tool History, and audit evidence remain enforced by the same generic process adapter. The execution ledger records `launchChannel = WORKFLOW`, `confirmationMode = WORKFLOW_AUTOMATION`, and whether an interactive confirmation would otherwise have been required.
+
+Human Approval nodes remain fully supported when a workflow genuinely needs a business decision, legal sign-off, production release gate, or other deliberate human checkpoint. They are no longer implicitly required merely because the next tool is high risk.
 
 ### How Summary nodes belong to workflows
 
@@ -318,7 +329,7 @@ Phase 15 distinguishes three activities:
 
 The first vertical slice may ship static validation before contract-check execution. Live testing is added only after the registration and security boundaries are stable.
 
-A live test must never be called safe merely because it is launched from an onboarding screen. Mutating tools retain normal risk, confirmation, permission, timeout, and audit controls.
+A live test must never be called safe merely because it is launched from an onboarding screen. Manual and controlled-test launches retain normal risk, confirmation, permission, timeout, and audit controls. Published workflow nodes retain permissions, risk authorization, timeout, concurrency, and audit controls but bypass interactive confirmation prompts; explicit Human Approval nodes are added only when the workflow author wants human intervention.
 
 ## Security boundary
 
@@ -510,7 +521,8 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - centralized uploaded output schemas under `packages/tools/contracts`, reusing identical contracts and blocking conflicting content at an existing versioned path;
 - refined the registration handoff so **Open verification & test** deep-links to `view=verification`, automatically focuses the verification panel after detail loading, and exposes a persistent **Verification & test** jump action in the tool header;
 - registered the PostgreSQL comparison package, passed the contract check, completed a controlled disabled-tool comparison, and explicitly enabled it; pending proof is Run Tools plus workflow routing from `nodes.<nodeKey>.output.databasesMatch`;
-- added `database_build_summary.v1` so the upcoming workflow can prove each rebuild through `nodes.<nodeKey>.output.buildCompleted` and ordered SQL execution counts before database comparison.
+- added `database_build_summary.v1` so the upcoming workflow can prove each rebuild through `nodes.<nodeKey>.output.buildCompleted` and ordered SQL execution counts before database comparison;
+- separated manual confirmation from workflow automation: workflow tool nodes no longer require interactive checkboxes, typed high-risk phrases, or an immediately preceding Human Approval node, while all catalogue permissions and risk permissions remain enforced.
 
 ### Phase 15.7 - Closure and documentation
 
@@ -534,7 +546,7 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - identical central schemas are reused, while conflicting content at an existing versioned contract path blocks registration;
 - filesystem failure cannot leave an enabled catalogue record;
 - database failure cannot leave promoted unmanaged files;
-- existing tools, Run Tools, schedules, and workflows continue to use the same generic execution adapter;
+- existing tools, Run Tools, schedules, and workflows continue to use the same generic execution adapter; workflow automation bypasses only interactive confirmation prompts, not permissions or runtime safety controls;
 - PostgreSQL remains the runtime authority;
 - no automatic dependency installation or Git commit occurs;
 - all create, update, validate, register, enable, and disable actions are audited.
@@ -553,6 +565,6 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 | 15.4      | Complete    | Trusted upload staging, static analysis, advisory suggestions, and audit evidence                                       |
 | 15.5      | Complete    | Editable prefill, preview evidence, disabled-first registration, and managed file promotion                             |
 | 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
-| 15.6      | In progress | Verification framework ready; `src/...` entrypoint preservation, disposable descriptors, and central contract promotion/reuse implemented; local contract/controlled-run/Run Tools/workflow proof pending |
+| 15.6      | In progress | Verification framework ready; managed comparison tool enabled; Database Build structured output added; workflow automation confirmation separated from manual confirmation; Run Tools/workflow/custom-summary proof pending |
 | 15.6.3    | Complete    | Add Tool verification deep-link, automatic panel focus, persistent jump action, and navigation self-test                |
 | 15.7      | Planned     | Regression matrix, Development Promotion, and closure                                                                   |

@@ -1,3 +1,13 @@
+## 2026-07-22 — Phase 15.6.5 Workflow Automation Confirmation Policy
+
+- Separated interactive/manual confirmation from published workflow execution. Run Tools and controlled administrator tests continue to enforce `requires_confirmation` and the high-risk phrase.
+- Added the explicit `WORKFLOW_AUTOMATION` confirmation mode for inline and Temporal-backed tool nodes, removing the implicit requirement for an immediately preceding Human Approval node.
+- Preserved the real execution controls: enabled state, tool-specific permission, risk-level permission, visibility, parameter validation, path containment, execution locks, timeout/cancellation, Tool History, and audit evidence remain enforced by the generic process adapter.
+- Recorded workflow launch evidence in tool execution metadata, including launch channel, confirmation mode, workflow run/node identifiers, and whether an interactive confirmation was bypassed.
+- Kept Human Approval nodes available as explicit business-process gates rather than mandatory technical checkpoints for high-risk tools.
+- Added `workflow-tool-confirmation:self-test` and included it in `npm run validate`; updated the Phase 15 Markdown plan, authoring guide, README roadmap, and repository map.
+- No database migration, seed, tool re-registration, or workflow-definition change is required.
+
 ## 2026-07-22 — Phase 15.6.4 Database Build Structured Output and Summary Association
 
 - Converted `packages/db_build/src/db_build.js` to the shared `runToolCli` contract while preserving its existing destructive drop/create/global-SQL-order behavior and familiar console output.

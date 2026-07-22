@@ -183,7 +183,8 @@ SkyServer/
 │   │       │   ├── workerService.js
 │   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowExecutorService.js
-│   │       │   └── workflowHealthService.js
+│   │       │   ├── workflowHealthService.js
+│   │       │   └── workflowToolConfirmationPolicySelfTest.js
 │   │       └── utils/
 │   │           └── liveTelemetryEnvelope.js
 │   └── worker/

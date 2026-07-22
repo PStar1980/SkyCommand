@@ -29,6 +29,8 @@ const MAX_PARAMETER_COUNT = Number(process.env.TOOL_EXECUTION_MAX_PARAMETERS || 
 const MAX_PARAMETER_BYTES = Number(process.env.TOOL_EXECUTION_MAX_PARAMETER_BYTES || 12000);
 const HIGH_RISK_CONFIRMATION_PHRASE =
   process.env.TOOL_HIGH_RISK_CONFIRMATION_PHRASE || 'RUN HIGH RISK';
+const CONFIRMATION_MODE_INTERACTIVE = 'INTERACTIVE';
+const CONFIRMATION_MODE_WORKFLOW = 'WORKFLOW_AUTOMATION';
 const SKYSERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -948,9 +950,40 @@ async function assertRunAllowed({ tool, permissions, user, context }) {
   }
 }
 
-function assertConfirmationIfRequired({ tool, confirmed, confirmationPhrase }) {
+function normalizeConfirmationMode(value) {
+  const normalized = String(value || CONFIRMATION_MODE_INTERACTIVE)
+    .trim()
+    .toUpperCase();
+
+  if (normalized === CONFIRMATION_MODE_WORKFLOW) {
+    return CONFIRMATION_MODE_WORKFLOW;
+  }
+
+  return CONFIRMATION_MODE_INTERACTIVE;
+}
+
+function assertConfirmationIfRequired({
+  tool,
+  confirmed,
+  confirmationPhrase,
+  confirmationMode = CONFIRMATION_MODE_INTERACTIVE,
+}) {
+  const normalizedMode = normalizeConfirmationMode(confirmationMode);
+
+  // Workflow definitions are already deliberate automation contracts. They still
+  // enforce tool enabled state, tool/risk permissions, parameter validation, path
+  // safety, timeouts, and concurrency, but they do not require interactive clicks
+  // or typed phrases for each node execution. Human approval nodes remain available
+  // when the workflow author explicitly wants a business checkpoint.
+  if (normalizedMode === CONFIRMATION_MODE_WORKFLOW) {
+    return {
+      bypassed: toBoolean(tool.requires_confirmation),
+      mode: normalizedMode,
+    };
+  }
+
   if (!toBoolean(tool.requires_confirmation)) {
-    return;
+    return { bypassed: false, mode: normalizedMode };
   }
 
   const confirmedBoolean =
@@ -961,11 +994,11 @@ function assertConfirmationIfRequired({ tool, confirmed, confirmationPhrase }) {
   }
 
   if (String(tool.risk_code || '').toLowerCase() !== 'high') {
-    return;
+    return { bypassed: false, mode: normalizedMode };
   }
 
   if (normalizeConfirmationPhrase(confirmationPhrase) === HIGH_RISK_CONFIRMATION_PHRASE) {
-    return;
+    return { bypassed: false, mode: normalizedMode };
   }
 
   throw createHttpError(
@@ -1146,6 +1179,7 @@ async function runTool({
   parameters = {},
   confirmed = false,
   confirmationPhrase = '',
+  confirmationMode = CONFIRMATION_MODE_INTERACTIVE,
   user,
   session,
   permissions = [],
@@ -1169,10 +1203,11 @@ async function runTool({
     context,
   });
 
-  assertConfirmationIfRequired({
+  const confirmationDecision = assertConfirmationIfRequired({
     tool,
     confirmed,
     confirmationPhrase,
+    confirmationMode,
   });
 
   assertExecutionNotAlreadyRunning(tool);
@@ -1211,6 +1246,15 @@ async function runTool({
       parameters: safeParameters,
       user,
       session,
+      metadata: {
+        launchChannel:
+          confirmationDecision.mode === CONFIRMATION_MODE_WORKFLOW ? 'WORKFLOW' : 'INTERACTIVE',
+        confirmationMode: confirmationDecision.mode,
+        interactiveConfirmationBypassed: confirmationDecision.bypassed,
+        workflowRunRecordId: context?.workflowRunRecordId || null,
+        workflowNodeRunRecordId: context?.workflowNodeRunRecordId || null,
+        workflowNodeKey: context?.workflowNodeKey || null,
+      },
     });
     executionLock.setExecutionId(execution.execution_id);
 
@@ -1225,6 +1269,14 @@ async function runTool({
         metadata: {
           executionId: execution.execution_id,
           parameters: safeParameters,
+          launchChannel:
+            confirmationDecision.mode === CONFIRMATION_MODE_WORKFLOW
+              ? 'WORKFLOW'
+              : 'INTERACTIVE',
+          confirmationMode: confirmationDecision.mode,
+          interactiveConfirmationBypassed: confirmationDecision.bypassed,
+          workflowRunRecordId: context?.workflowRunRecordId || null,
+          workflowNodeKey: context?.workflowNodeKey || null,
         },
       });
     } catch (auditError) {
