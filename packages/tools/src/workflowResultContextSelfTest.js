@@ -772,6 +772,13 @@ function run() {
   assert.equal(databaseSynchronization.validationPassed, false);
   assert.equal(databaseSynchronization.health.databases[0].online, true);
   assert.equal(databaseSynchronization.build.sqlFilesExecuted, 70);
+  assert.equal(databaseSynchronization.build.migrationFilesDiscovered, 40);
+  assert.equal(databaseSynchronization.build.seedFilesDiscovered, 30);
+  assert.equal(
+    databaseSynchronization.build.lastCompletedSqlFile,
+    'packages/db_build/src/seeds/00070__db_build_structured_output_seed.sql',
+  );
+  assert.equal(databaseSynchronization.build.sqlRoots.length, 2);
   assert.equal(databaseSynchronization.comparison.totalDifferenceCount, 1);
   assert.equal(databaseSynchronization.comparison.byType[0].objectType, 'constraint');
   assert.equal(databaseSynchronization.stages.length, 4);
