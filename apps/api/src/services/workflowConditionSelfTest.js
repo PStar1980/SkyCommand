@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {
   evaluateConditionNode,
   resolveConditionBranchIndex,
-  WorkflowServiceError,
-} = require('./workflowExecutorService');
+} = require('./workflowConditionService');
+const { WorkflowServiceError } = require('./workflowServiceError');
 
 function buildContext(readyForDevelopmentPromotion) {
   return {

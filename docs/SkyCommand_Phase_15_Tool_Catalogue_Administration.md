@@ -538,6 +538,15 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 - reconciled README, Phase 15 status, authoring/visibility guidance references, change log, and repository map;
 - final live action: run `npm run validate`, `npm run web:build`, and the Development Promotion workflow, record the eight-node result evidence, then mark Phase 15 complete.
 
+### Phase 15.7.1 - Validation isolation hardening — complete
+
+- extracted condition normalization, typed-value parsing, path resolution, evaluation, and forward-branch selection into dependency-free `workflowConditionService.js`;
+- extracted the shared `WorkflowServiceError` class into `workflowServiceError.js` so the executor and pure condition service use the same error identity without importing database infrastructure;
+- changed `workflow-condition:self-test` to import the pure condition service directly instead of bootstrapping `workflowExecutorService.js`, PostgreSQL connection configuration, Axios, authentication, or Temporal services;
+- added closure-readiness assertions that prevent the condition regression test from drifting back to the database-backed executor and prevent runtime dependencies from leaking into the pure condition module;
+- added syntax validation for both new service modules to `npm run validate`;
+- no production workflow behavior, database migration, seed, dependency, or workflow definition changed.
+
 ## Acceptance criteria
 
 - administrators can view and manage existing PostgreSQL tool catalogue records;
@@ -563,7 +572,7 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 
 ## Definition of done
 
-Phase 15 is complete when SkyCommand provides a practical, trusted-administrator framework for creating and maintaining tool catalogue configuration, assists with controlled file onboarding into the designated SkyCommand repository, validates optional structured output contracts, and proves that a newly registered tool can run through the existing CLI/web/workflow execution architecture without custom integration code. The implementation and database workflow proof satisfy this definition; formal closure awaits the final post-package Development Promotion run and recorded evidence.
+Phase 15 is complete when SkyCommand provides a practical, trusted-administrator framework for creating and maintaining tool catalogue configuration, assists with controlled file onboarding into the designated SkyCommand repository, validates optional structured output contracts, and proves that a newly registered tool can run through the existing CLI/web/workflow execution architecture without custom integration code. The implementation and database workflow proof satisfy this definition. The validation-isolation defect found during closure proof is corrected; formal closure now awaits a clean full validation/build run plus the final post-package Development Promotion run and recorded evidence.
 
 ## Increment status
 
@@ -577,4 +586,4 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 | 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
 | 15.6      | Complete    | Managed verification, explicit enablement, unattended workflow execution, database build/comparison proof, workflow visibility validation, and purpose-built database comparison/summary rendering |
 | 15.6.3    | Complete    | Add Tool verification deep-link, automatic panel focus, persistent jump action, and navigation self-test                |
-| 15.7      | Closure-ready | Regression/recovery matrix, closure-readiness test, comparison condition regression, and documentation reconciliation complete; final Development Promotion proof pending |
+| 15.7      | Closure-ready | Regression/recovery matrix, closure-readiness test, comparison condition regression, validation isolation, and documentation reconciliation complete; clean validation/build plus final Development Promotion proof pending |

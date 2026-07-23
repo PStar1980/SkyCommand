@@ -1189,3 +1189,14 @@ SkyWeb Analytics owns:
 - Reconciled README and the Phase 15 Markdown plan with the completed Phase 15.6 proof, the table-first health/build/comparison presentation, workflow visibility requirements, unattended automation confirmation policy, and final Phase 15.7 status.
 - Formal Phase 15 completion remains pending one post-package `npm run validate`, `npm run web:build`, and Development Promotion big-rig run with recorded eight-node structured evidence.
 - No migration, seed, dependency, tool re-registration, or workflow-definition change is required.
+
+## 2026-07-22 - Phase 15.7.1 validation isolation hardening
+
+- Diagnosed the closure validation failure as a test-isolation defect: `workflowConditionSelfTest.js` imported the full database-backed `workflowExecutorService.js`, causing `packages/db/src/connection.js` to require `PGHOST` before the pure condition assertions began.
+- Extracted condition normalization, typed-value parsing, path resolution, evaluation, and branch selection into dependency-free `apps/api/src/services/workflowConditionService.js`.
+- Extracted the shared `WorkflowServiceError` class into `apps/api/src/services/workflowServiceError.js`, preserving one error identity across the pure condition service and production executor.
+- Updated `workflowConditionSelfTest.js` to import the pure service directly, so it runs without `.env`, PostgreSQL, Axios, authentication, or Temporal bootstrap.
+- Extended `phase15:closure-readiness:self-test` to prevent regression back to the full executor and to reject runtime dependency imports in the pure condition service.
+- Added syntax checks for both new service modules to `npm run validate`.
+- Production workflow behavior is unchanged; no migration, seed, dependency, tool registration, or workflow-definition update is required.
+

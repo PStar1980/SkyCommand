@@ -60,6 +60,28 @@ const workflowConditionTest = read(
   'apps/api/src/services/workflowConditionSelfTest.js',
 );
 assert(
+  workflowConditionTest.includes("require('./workflowConditionService')"),
+  'Workflow condition regression must import the dependency-free condition service directly.',
+);
+assert(
+  !workflowConditionTest.includes("require('./workflowExecutorService')"),
+  'Workflow condition regression must not bootstrap the database-backed workflow executor.',
+);
+const workflowConditionService = read(
+  'apps/api/src/services/workflowConditionService.js',
+);
+for (const forbiddenDependency of [
+  'packages/db/src/connection',
+  "require('axios')",
+  "require('./authService')",
+  "require('./temporalService')",
+]) {
+  assert(
+    !workflowConditionService.includes(forbiddenDependency),
+    `Pure workflow condition logic must not load runtime dependency: ${forbiddenDependency}`,
+  );
+}
+assert(
   workflowConditionTest.includes(
     'nodes.db_compare_node.output.databasesMatch',
   ),

@@ -46,7 +46,7 @@ One live closure proof remains after applying the Phase 15.7 readiness package:
 | Database Build | Rebuild succeeds | `database_build_summary.v1`, ordered SQL counts/checkpoints, table-first renderer | `db-build:self-test`, `workflow-database-output:self-test` |
 | Database comparison | Databases match | Successful execution with `databasesMatch = true` | comparison contract/self-test and workflow condition regression |
 | Database comparison | Databases differ | Successful execution with `databasesMatch = false`, bounded differences, no false process failure | comparison contract/self-test, `workflow-result-context:self-test` |
-| Condition routing | Compare result drives a condition | Canonical path `nodes.db_compare_node.output.databasesMatch` resolves TRUE and FALSE branches | `workflow-condition:self-test` |
+| Condition routing | Compare result drives a condition | Canonical path `nodes.db_compare_node.output.databasesMatch` resolves TRUE and FALSE branches without loading PostgreSQL or the full workflow executor | dependency-free `workflow-condition:self-test` |
 | Database Summary | Health, build, compare, and condition evidence are present | Contract-driven Database Synchronization Summary; no workflow PK hardcoding | `workflow-result-context:self-test`, `workflow-database-output:self-test` |
 | Development Promotion | Repository is promotion-ready | Eight-node big rig completes and renders structured promotion evidence | final live closure proof |
 | Development Promotion | Repository is blocked | Condition routes directly to Summary and completes successfully without mutation nodes | `workflow-condition:self-test`; live proof as needed |
@@ -75,6 +75,12 @@ One live closure proof remains after applying the Phase 15.7 readiness package:
 | Structured-result transport fails after domain success | Real operation remains successful with warning/fallback | Inspect Tool History and reporting configuration; do not rerun side effects automatically |
 | Tool process fails | Execution fails from real process result; diagnostics stay in Tool History | Correct the domain/runtime problem and rerun deliberately |
 | Timeout or cancellation | Terminal state preserved; no fabricated success | Review timeout/cancellation evidence and adjust policy only when justified |
+
+## Validation isolation rule
+
+Pure workflow condition regression must not depend on database configuration. `workflowConditionService.js` owns condition normalization, typed parsing, path resolution, evaluation, and branch-index selection without importing PostgreSQL, Axios, authentication, or Temporal modules. `workflowConditionSelfTest.js` imports that module directly. The database-backed executor imports the same pure functions for production use.
+
+This prevents one self-test process from relying on `.env` state loaded by a different npm child process and keeps `npm run validate` deterministic when PostgreSQL environment variables are not exported into the shell.
 
 ## Final live closure procedure
 
