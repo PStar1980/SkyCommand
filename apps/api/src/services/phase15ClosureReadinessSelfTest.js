@@ -56,6 +56,30 @@ for (const runtimeFile of runtimeFiles) {
   );
 }
 
+const workflowParameterUtils = read(
+  'apps/api/src/services/workflowParameterUtils.js',
+);
+const workflowParameterUtilsTest = read(
+  'apps/api/src/services/workflowParameterUtilsSelfTest.js',
+);
+const workflowExecutorService = read(
+  'apps/api/src/services/workflowExecutorService.js',
+);
+assert(
+  workflowParameterUtils.includes('function isBlankValue(value)'),
+  'Shared workflow parameter utilities must define blank-value normalization.',
+);
+assert(
+  workflowExecutorService.includes(
+    "const { isBlankValue } = require('./workflowParameterUtils');",
+  ),
+  'Workflow executor must import the shared blank-value helper for WAIT and HUMAN_APPROVAL parameters.',
+);
+assert(
+  workflowParameterUtilsTest.includes('parseHumanApprovalTimeoutMs'),
+  'Workflow node parameter regression must cover HUMAN_APPROVAL timeout wiring.',
+);
+
 const workflowConditionTest = read(
   'apps/api/src/services/workflowConditionSelfTest.js',
 );
@@ -147,6 +171,7 @@ for (const scriptName of [
   'tool-verification:self-test',
   'workflow-tool-confirmation:self-test',
   'workflow-tool-visibility:self-test',
+  'workflow-node-parameters:self-test',
   'workflow-condition:self-test',
   'workflow-database-output:self-test',
   'workflow-result-context:self-test',

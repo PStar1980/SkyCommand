@@ -1,4 +1,5 @@
 const { WorkflowServiceError } = require('./workflowServiceError');
+const { isBlankValue } = require('./workflowParameterUtils');
 
 const DEFAULT_CONDITION_ON_FALSE = 'STOP_SUCCESS';
 const UNARY_CONDITION_OPERATORS = new Set(['TRUTHY', 'FALSY', 'EXISTS', 'NOT_EXISTS']);
@@ -132,10 +133,6 @@ function normalizeConditionValueType(value) {
 
 function hasOwnValue(source, propertyName) {
   return Object.prototype.hasOwnProperty.call(source || {}, propertyName);
-}
-
-function isBlankValue(value) {
-  return value === undefined || value === null || String(value).trim() === '';
 }
 
 function parseConditionTypedValue(value, valueType = 'AUTO') {

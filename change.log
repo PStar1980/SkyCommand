@@ -1199,4 +1199,11 @@ SkyWeb Analytics owns:
 - Extended `phase15:closure-readiness:self-test` to prevent regression back to the full executor and to reject runtime dependency imports in the pure condition service.
 - Added syntax checks for both new service modules to `npm run validate`.
 - Production workflow behavior is unchanged; no migration, seed, dependency, tool registration, or workflow-definition update is required.
+## 2026-07-23 - Phase 15.7.2 Human Approval parameter regression hotfix
+
+- Fixed the Development Promotion Human Approval creation failure `ReferenceError: isBlankValue is not defined` introduced when condition logic was extracted from the database-backed workflow executor.
+- Added dependency-free `workflowParameterUtils.js` as the single blank/optional-value normalizer used by CONDITION, WAIT, and HUMAN_APPROVAL parameter processing.
+- Added `workflow-node-parameters:self-test` to verify blank-value semantics and assert that WAIT and Human Approval timeout parsing remain wired to the shared helper.
+- Extended `phase15:closure-readiness:self-test` and `npm run validate` with the new regression coverage.
+- No migration, seed, dependency, workflow-definition, or approval-ledger change is required. Restart the API and Temporal worker, then rerun Development Promotion from the beginning.
 
