@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { BarChart, GaugeChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
+import { applyChartTypography } from './chartTheme.js';
 
 echarts.use([
   BarChart,
@@ -15,11 +16,15 @@ echarts.use([
   CanvasRenderer,
 ]);
 
-function EChartCanvas({ className = '', height = 260, onChartClick, option }) {
+function EChartCanvas({ className = '', height = 260, onChartClick, option, variant = 'card' }) {
   const chartStyle =
     typeof height === 'number' ? { minHeight: height } : { height, minHeight: height };
   const chartRef = useRef(null);
   const instanceRef = useRef(null);
+  const normalizedOption = useMemo(
+    () => applyChartTypography(option, variant),
+    [option, variant],
+  );
 
   useEffect(() => {
     if (!chartRef.current) {
@@ -31,7 +36,7 @@ function EChartCanvas({ className = '', height = 260, onChartClick, option }) {
     });
 
     instanceRef.current = instance;
-    instance.setOption(option, true);
+    instance.setOption(normalizedOption, true);
 
     if (typeof onChartClick === 'function') {
       instance.on('click', onChartClick);
@@ -54,7 +59,7 @@ function EChartCanvas({ className = '', height = 260, onChartClick, option }) {
       instance.dispose();
       instanceRef.current = null;
     };
-  }, [onChartClick, option]);
+  }, [normalizedOption, onChartClick]);
 
   return <div className={`sky-chart-body ${className}`.trim()} ref={chartRef} style={chartStyle} />;
 }

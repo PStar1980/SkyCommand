@@ -60,6 +60,7 @@ SkyServer/
 │   │       │   │   ├── ChartFullscreenOverlay.jsx
 │   │       │   │   ├── chartOptions.js
 │   │       │   │   ├── chartTheme.js
+│   │       │   │   ├── chartTypographySelfTest.js
 │   │       │   │   ├── DashboardVisuals.jsx
 │   │       │   │   ├── DurationTrendChart.jsx
 │   │       │   │   ├── EChartCanvas.jsx

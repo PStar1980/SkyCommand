@@ -1,6 +1,6 @@
 export const CHART_COLORS = {
   text: '#c8d7ef',
-  muted: '#8094ba',
+  muted: '#9aadd0',
   grid: 'rgba(124, 144, 177, 0.14)',
   blue: '#48a7ff',
   cyan: '#50e3f2',
@@ -8,6 +8,35 @@ export const CHART_COLORS = {
   green: '#43e6a2',
   gold: '#f2cc60',
   red: '#f06f8b',
+};
+
+export const CHART_TYPOGRAPHY = {
+  card: {
+    tooltipFontSize: 14,
+    tooltipLineHeight: 20,
+    legendFontSize: 14,
+    legendLineHeight: 20,
+    axisFontSize: 14,
+    axisLineHeight: 20,
+    labelFontSize: 14,
+    labelLineHeight: 20,
+    legendItemWidth: 18,
+    legendItemHeight: 10,
+    legendItemGap: 16,
+  },
+  overlay: {
+    tooltipFontSize: 20,
+    tooltipLineHeight: 26,
+    legendFontSize: 20,
+    legendLineHeight: 26,
+    axisFontSize: 20,
+    axisLineHeight: 26,
+    labelFontSize: 20,
+    labelLineHeight: 26,
+    legendItemWidth: 30,
+    legendItemHeight: 16,
+    legendItemGap: 22,
+  },
 };
 
 export const STATUS_COLORS = {
@@ -43,6 +72,189 @@ export function getStatusColor(status, fallback = CHART_COLORS.blue) {
   return STATUS_COLORS[normalizeChartStatus(status)] || fallback;
 }
 
+function cloneChartValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(cloneChartValue);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nestedValue]) => [key, cloneChartValue(nestedValue)]),
+  );
+}
+
+function normalizeArrayOrObject(value, normalizer) {
+  if (Array.isArray(value)) {
+    return value.map((item) => (item && typeof item === 'object' ? normalizer(item) : item));
+  }
+
+  if (value && typeof value === 'object') {
+    return normalizer(value);
+  }
+
+  return value;
+}
+
+function withMinimumFontSize(textStyle = {}, minimumFontSize = 14, minimumLineHeight = 20) {
+  const nextStyle = {
+    ...textStyle,
+    fontFamily: textStyle.fontFamily || 'inherit',
+    fontSize: Math.max(Number(textStyle.fontSize || 0), minimumFontSize),
+    lineHeight: Math.max(Number(textStyle.lineHeight || 0), minimumLineHeight),
+  };
+
+  if (textStyle.rich && typeof textStyle.rich === 'object') {
+    nextStyle.rich = Object.fromEntries(
+      Object.entries(textStyle.rich).map(([name, richStyle]) => [
+        name,
+        withMinimumFontSize(richStyle || {}, minimumFontSize, minimumLineHeight),
+      ]),
+    );
+  }
+
+  return nextStyle;
+}
+
+export function applyChartTypography(option, variant = 'card') {
+  const typography = CHART_TYPOGRAPHY[variant] || CHART_TYPOGRAPHY.card;
+  const normalized = cloneChartValue(option);
+
+  if (!normalized || typeof normalized !== 'object') {
+    return normalized;
+  }
+
+  normalized.textStyle = withMinimumFontSize(
+    normalized.textStyle || {},
+    typography.axisFontSize,
+    typography.axisLineHeight,
+  );
+
+  if (normalized.tooltip && typeof normalized.tooltip === 'object') {
+    normalized.tooltip = {
+      ...normalized.tooltip,
+      textStyle: withMinimumFontSize(
+        normalized.tooltip.textStyle || {},
+        typography.tooltipFontSize,
+        typography.tooltipLineHeight,
+      ),
+    };
+  }
+
+  const normalizeLegend = (legend) => ({
+    ...legend,
+    itemWidth: Math.max(Number(legend.itemWidth || 0), typography.legendItemWidth),
+    itemHeight: Math.max(Number(legend.itemHeight || 0), typography.legendItemHeight),
+    itemGap: Math.max(Number(legend.itemGap || 0), typography.legendItemGap),
+    textStyle: {
+      fontWeight: 600,
+      ...withMinimumFontSize(
+        legend.textStyle || {},
+        typography.legendFontSize,
+        typography.legendLineHeight,
+      ),
+    },
+    pageTextStyle: withMinimumFontSize(
+      legend.pageTextStyle || {},
+      typography.legendFontSize,
+      typography.legendLineHeight,
+    ),
+    selectorLabel: legend.selectorLabel
+      ? withMinimumFontSize(
+          legend.selectorLabel,
+          typography.legendFontSize,
+          typography.legendLineHeight,
+        )
+      : legend.selectorLabel,
+  });
+
+  const normalizeAxis = (axis) => ({
+    ...axis,
+    axisLabel: {
+      hideOverlap: true,
+      margin: 12,
+      fontWeight: 600,
+      ...withMinimumFontSize(
+        axis.axisLabel || {},
+        typography.axisFontSize,
+        typography.axisLineHeight,
+      ),
+    },
+    nameTextStyle: axis.nameTextStyle
+      ? withMinimumFontSize(
+          axis.nameTextStyle,
+          typography.axisFontSize,
+          typography.axisLineHeight,
+        )
+      : axis.nameTextStyle,
+  });
+
+  const normalizeSeries = (series) => ({
+    ...series,
+    axisLabel: series.axisLabel
+      ? withMinimumFontSize(
+          series.axisLabel,
+          typography.axisFontSize,
+          typography.axisLineHeight,
+        )
+      : series.axisLabel,
+    label: series.label
+      ? withMinimumFontSize(
+          series.label,
+          typography.labelFontSize,
+          typography.labelLineHeight,
+        )
+      : series.label,
+    title: series.title
+      ? withMinimumFontSize(
+          series.title,
+          typography.labelFontSize,
+          typography.labelLineHeight,
+        )
+      : series.title,
+    detail: series.detail
+      ? withMinimumFontSize(
+          series.detail,
+          typography.labelFontSize,
+          typography.labelLineHeight,
+        )
+      : series.detail,
+    emphasis:
+      series.emphasis && typeof series.emphasis === 'object'
+        ? {
+            ...series.emphasis,
+            label: series.emphasis.label
+              ? withMinimumFontSize(
+                  series.emphasis.label,
+                  typography.labelFontSize,
+                  typography.labelLineHeight,
+                )
+              : series.emphasis.label,
+          }
+        : series.emphasis,
+  });
+
+  if (normalized.legend) {
+    normalized.legend = normalizeArrayOrObject(normalized.legend, normalizeLegend);
+  }
+
+  if (normalized.xAxis) {
+    normalized.xAxis = normalizeArrayOrObject(normalized.xAxis, normalizeAxis);
+  }
+
+  if (normalized.yAxis) {
+    normalized.yAxis = normalizeArrayOrObject(normalized.yAxis, normalizeAxis);
+  }
+
+  if (normalized.series) {
+    normalized.series = normalizeArrayOrObject(normalized.series, normalizeSeries);
+  }
+
+  return normalized;
+}
+
 export function baseTooltip() {
   return {
     trigger: 'item',
@@ -51,6 +263,8 @@ export function baseTooltip() {
     textStyle: {
       color: CHART_COLORS.text,
       fontFamily: 'inherit',
+      fontSize: CHART_TYPOGRAPHY.card.tooltipFontSize,
+      lineHeight: CHART_TYPOGRAPHY.card.tooltipLineHeight,
     },
   };
 }
@@ -71,9 +285,9 @@ export function baseAxisTooltip() {
 export function baseChartGrid(overrides = {}) {
   return {
     left: 10,
-    right: 12,
-    top: 44,
-    bottom: 8,
+    right: 14,
+    top: 52,
+    bottom: 14,
     containLabel: true,
     ...overrides,
   };
@@ -82,9 +296,9 @@ export function baseChartGrid(overrides = {}) {
 export function baseHorizontalBarGrid(overrides = {}) {
   return baseChartGrid({
     left: 8,
-    right: 12,
-    top: 16,
-    bottom: 8,
+    right: 18,
+    top: 18,
+    bottom: 12,
     ...overrides,
   });
 }
@@ -93,9 +307,15 @@ export function baseLegend(overrides = {}) {
   return {
     top: 0,
     right: 8,
+    itemWidth: CHART_TYPOGRAPHY.card.legendItemWidth,
+    itemHeight: CHART_TYPOGRAPHY.card.legendItemHeight,
+    itemGap: CHART_TYPOGRAPHY.card.legendItemGap,
     textStyle: {
       color: CHART_COLORS.muted,
       fontFamily: 'inherit',
+      fontSize: CHART_TYPOGRAPHY.card.legendFontSize,
+      lineHeight: CHART_TYPOGRAPHY.card.legendLineHeight,
+      fontWeight: 600,
     },
     ...overrides,
   };
@@ -117,7 +337,15 @@ export function baseCategoryAxis(labels, { boundaryGap = false, labelColor = CHA
     data: labels,
     axisLine: { lineStyle: { color: CHART_COLORS.grid } },
     axisTick: { show: false },
-    axisLabel: { color: labelColor, fontFamily: 'inherit' },
+    axisLabel: {
+      color: labelColor,
+      fontFamily: 'inherit',
+      fontSize: CHART_TYPOGRAPHY.card.axisFontSize,
+      lineHeight: CHART_TYPOGRAPHY.card.axisLineHeight,
+      fontWeight: 600,
+      hideOverlap: true,
+      margin: 12,
+    },
   };
 }
 
@@ -126,7 +354,16 @@ export function baseValueAxis(formatter) {
     type: 'value',
     minInterval: 1,
     splitLine: { lineStyle: { color: CHART_COLORS.grid } },
-    axisLabel: { color: CHART_COLORS.muted, fontFamily: 'inherit', formatter },
+    axisLabel: {
+      color: CHART_COLORS.muted,
+      fontFamily: 'inherit',
+      fontSize: CHART_TYPOGRAPHY.card.axisFontSize,
+      lineHeight: CHART_TYPOGRAPHY.card.axisLineHeight,
+      fontWeight: 600,
+      hideOverlap: true,
+      margin: 12,
+      formatter,
+    },
   };
 }
 
@@ -135,6 +372,8 @@ export function basePieLabel(overrides = {}) {
     color: CHART_COLORS.text,
     formatter: '{b}\n{d}%',
     fontFamily: 'inherit',
+    fontSize: CHART_TYPOGRAPHY.card.labelFontSize,
+    lineHeight: CHART_TYPOGRAPHY.card.labelLineHeight,
     fontWeight: 700,
     ...overrides,
   };
