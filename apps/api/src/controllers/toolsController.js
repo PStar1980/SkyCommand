@@ -1,6 +1,7 @@
 const toolManifestService = require('../services/toolManifestService');
 const scriptExecutionService = require('../services/scriptExecutionService');
 const authService = require('../services/authService');
+const { buildToolExecutionHttpResponse } = require('../services/toolExecutionHttpResponse');
 
 async function listTools(req, res, next) {
   try {
@@ -69,10 +70,9 @@ async function runTool(req, res, next) {
       context,
     });
 
-    return res.status(result.status === 'SUCCESS' ? 200 : 500).json({
-      ok: result.status === 'SUCCESS',
-      execution: result,
-    });
+    const response = buildToolExecutionHttpResponse(result);
+
+    return res.status(response.statusCode).json(response.body);
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({

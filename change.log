@@ -1207,3 +1207,11 @@ SkyWeb Analytics owns:
 - Extended `phase15:closure-readiness:self-test` and `npm run validate` with the new regression coverage.
 - No migration, seed, dependency, workflow-definition, or approval-ledger change is required. Restart the API and Temporal worker, then rerun Development Promotion from the beginning.
 
+
+## 2026-07-23 - Ad hoc demo cleanup: graceful failed-tool reporting
+
+- Reclassified completed tool-process failures from generic HTTP 500 responses to HTTP 422 execution results while retaining the full persisted execution payload.
+- Added a top-level API `error` message derived from the safe execution summary so Admin-Web no longer falls back to `Internal Server Error` for expected business failures such as Main Merge refusing a dirty working tree.
+- Updated Run Tools to recover and display failed execution metadata, summary, stdout, stderr, duration, exit code, and execution ID from the API error payload while also showing the concise failure banner.
+- Added `tool-execution-response:self-test` and included response-contract plus Admin-Web presentation assertions in `npm run validate`.
+- No migration, seed, dependency, tool registration, or workflow-definition change is required.
