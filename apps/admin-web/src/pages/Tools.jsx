@@ -370,7 +370,13 @@ function Tools() {
 
       setRunResult(result.execution || result);
     } catch (runError) {
-      setError(runError.message || 'Tool execution failed.');
+      const failedExecution = runError?.payload?.execution || null;
+
+      if (failedExecution) {
+        setRunResult(failedExecution);
+      }
+
+      setError(runError.message || failedExecution?.summary || 'Tool execution failed.');
     } finally {
       setRunning(false);
       setRunningStartedAt(null);
