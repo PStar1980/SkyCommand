@@ -576,6 +576,19 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 
 ## Increment status
 
+### Phase 15.7.2 - Human Approval parameter regression hotfix — complete
+
+The final Development Promotion proof exposed a runtime-only refactor regression: `workflowExecutorService.js` still used `isBlankValue` for WAIT and Human Approval duration parsing after the helper moved into the pure condition service. Validation compiled the executor but did not execute the approval-creation path, so the undefined symbol survived until Temporal created the Human Approval request.
+
+The correction:
+
+- moves blank-value normalization into dependency-free `workflowParameterUtils.js`;
+- imports the shared helper from both condition logic and the workflow executor;
+- adds `workflow-node-parameters:self-test` for blank semantics plus WAIT/HUMAN_APPROVAL wiring;
+- extends closure readiness so this cross-node parameter dependency cannot regress silently.
+
+No workflow definition, migration, seed, approval record, or dependency change is required. The failed Development Promotion run should be rerun from the beginning after restarting the API and Temporal worker.
+
 | Increment | Status      | Outcome                                                                                                                 |
 | --------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 15.1      | Complete    | Architecture plan, authoring guide, AI build prompt, and custom-tool template                                           |
@@ -586,4 +599,4 @@ Phase 15 is complete when SkyCommand provides a practical, trusted-administrator
 | 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
 | 15.6      | Complete    | Managed verification, explicit enablement, unattended workflow execution, database build/comparison proof, workflow visibility validation, and purpose-built database comparison/summary rendering |
 | 15.6.3    | Complete    | Add Tool verification deep-link, automatic panel focus, persistent jump action, and navigation self-test                |
-| 15.7      | Closure-ready | Regression/recovery matrix, closure-readiness test, comparison condition regression, validation isolation, and documentation reconciliation complete; clean validation/build plus final Development Promotion proof pending |
+| 15.7      | Closure-ready | Regression/recovery matrix, closure-readiness test, comparison condition regression, validation isolation, Human Approval parameter wiring regression coverage, and documentation reconciliation complete; clean validation/build plus final Development Promotion proof pending |

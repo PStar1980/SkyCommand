@@ -47,6 +47,7 @@ One live closure proof remains after applying the Phase 15.7 readiness package:
 | Database comparison | Databases match | Successful execution with `databasesMatch = true` | comparison contract/self-test and workflow condition regression |
 | Database comparison | Databases differ | Successful execution with `databasesMatch = false`, bounded differences, no false process failure | comparison contract/self-test, `workflow-result-context:self-test` |
 | Condition routing | Compare result drives a condition | Canonical path `nodes.db_compare_node.output.databasesMatch` resolves TRUE and FALSE branches without loading PostgreSQL or the full workflow executor | dependency-free `workflow-condition:self-test` |
+| Workflow node parameters | WAIT or Human Approval uses a blank/optional duration field | Shared blank-value normalization is imported by the executor; approval creation and wait normalization cannot fail with an undefined helper | `workflow-node-parameters:self-test`, `phase15:closure-readiness:self-test` |
 | Database Summary | Health, build, compare, and condition evidence are present | Contract-driven Database Synchronization Summary; no workflow PK hardcoding | `workflow-result-context:self-test`, `workflow-database-output:self-test` |
 | Development Promotion | Repository is promotion-ready | Eight-node big rig completes and renders structured promotion evidence | final live closure proof |
 | Development Promotion | Repository is blocked | Condition routes directly to Summary and completes successfully without mutation nodes | `workflow-condition:self-test`; live proof as needed |
@@ -81,6 +82,8 @@ One live closure proof remains after applying the Phase 15.7 readiness package:
 Pure workflow condition regression must not depend on database configuration. `workflowConditionService.js` owns condition normalization, typed parsing, path resolution, evaluation, and branch-index selection without importing PostgreSQL, Axios, authentication, or Temporal modules. `workflowConditionSelfTest.js` imports that module directly. The database-backed executor imports the same pure functions for production use.
 
 This prevents one self-test process from relying on `.env` state loaded by a different npm child process and keeps `npm run validate` deterministic when PostgreSQL environment variables are not exported into the shell.
+
+WAIT and Human Approval parameter parsing share `workflowParameterUtils.isBlankValue`. The focused `workflow-node-parameters:self-test` verifies both the value semantics and the executor wiring so future condition-service refactors cannot strand approval or wait nodes with an undefined helper.
 
 ## Final live closure procedure
 

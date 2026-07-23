@@ -20,6 +20,7 @@ const {
   resolveConditionBranchIndex,
 } = require('./workflowConditionService');
 const { WorkflowServiceError } = require('./workflowServiceError');
+const { isBlankValue } = require('./workflowParameterUtils');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
