@@ -506,7 +506,7 @@ The Admin-Web visualization layer is built around reusable chart primitives unde
 | `DurationTrendChart`                      | Duration-specific trend chart for runtime pressure and execution timing                    |
 | `StatusDonut`                             | Donut chart helper for health/outcome/status mix visualizations                            |
 | `OutcomeBarChart`                         | Horizontal/vertical bar chart helper for outcome counts and ranked categories              |
-| `chartTheme`, `chartOptions`, `chartData` | Centralized status colors, tooltip/legend/axis styling, and grouping helpers               |
+| `chartTheme`, `chartOptions`, `chartData` | Centralized status colors, card/overlay typography profiles, tooltip/legend/axis styling, overlap protection, and grouping helpers |
 
 Current visual pages include:
 

@@ -1,3 +1,11 @@
+## 2026-07-23 — Ad Hoc Demo Polish: Dashboard Chart Typography
+
+- Increased dashboard chart legend, axis, and visible data-label typography to the same readable baseline as chart tooltips: 14 px in dashboard cards and 20 px in expanded overlays.
+- Added a shared `applyChartTypography` normalization layer in `EChartCanvas` so every current and future ECharts option receives consistent typography, including charts with page-specific option builders.
+- Improved chart legibility with higher-contrast muted text, semibold legend/axis labels, larger legend markers, safer chart-grid spacing, and axis overlap protection.
+- Replaced recursive overlay font multiplication with an explicit overlay typography profile while retaining modest symbol/bar geometry scaling and expanded-chart margins.
+- Added `chart-typography:self-test` and included it in `npm run validate`. No API, database, workflow, or tool-runtime behavior changed.
+
 ## 2026-07-22 — Phase 15.6.7 Database Health and Build Workflow Presentation
 
 - Added purpose-built Workflow History rendering for `database_health_summary.v1`, replacing repeated source/field/value rows with a compact health overview and one tabular row per checked database, including status, latency, server/user/endpoint evidence, timestamp, and safe error detail.
