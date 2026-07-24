@@ -73,54 +73,6 @@ function NavIcon({ name }) {
   );
 }
 
-const PAGE_LABELS = {
-  '/dashboard': 'Command Center',
-  '/dashboard/data-pipeline': 'Data Pipeline',
-  '/dashboard/tools': 'Tools',
-  '/dashboard/workflows': 'Workflows',
-  '/dashboard/automation': 'Automation',
-  '/dashboard/readiness': 'Readiness',
-  '/tools/run': 'Run Tools',
-  '/tools/executions': 'Tool History',
-  '/tools/manage': 'Manage Tools',
-  '/tools/add': 'Add Tool',
-  '/workflows/create': 'Create Workflow',
-  '/workflows/manage': 'Manage Workflows',
-  '/workflows/start': 'Start Workflow',
-  '/workflows/history': 'Workflow History',
-  '/workflows/approvals': 'Approvals',
-  '/workflows/worker-health': 'Worker Health',
-  '/workflows/temporal/start': 'Temporal Start',
-  '/workflows/temporal/history': 'Workflow History',
-  '/automation/scheduler': 'Scheduler',
-  '/automation/listeners': 'Listeners',
-  '/data/ingestion': 'Data Pipeline',
-  '/configuration/production-readiness': 'Production Readiness',
-  '/configuration/repositories': 'Repositories',
-  '/admin/users': 'Users',
-  '/admin/sessions': 'Sessions',
-  '/admin/roles': 'Roles',
-  '/admin/privileges': 'Privileges',
-  '/access-control/user-history': 'User History',
-};
-
-function getCurrentNavCrumb(navGroups, pathname) {
-  for (const group of navGroups) {
-    const matchedItem = group.items.find((item) => item.to === pathname);
-    if (matchedItem) {
-      return {
-        group: group.label,
-        label: matchedItem.label,
-      };
-    }
-  }
-
-  return {
-    group: 'SkyCommand',
-    label: PAGE_LABELS[pathname] || 'Dashboard',
-  };
-}
-
 function formatTopbarCount(count) {
   if (count > 99) {
     return '99+';
@@ -422,10 +374,6 @@ function Navbar() {
       ),
     [navGroups],
   );
-  const currentNavCrumb = useMemo(
-    () => getCurrentNavCrumb(navGroups, location.pathname),
-    [navGroups, location.pathname],
-  );
   const permittedRoutes = useMemo(
     () => new Set(commandSearchTargets.map((target) => target.to)),
     [commandSearchTargets],
@@ -682,11 +630,6 @@ function Navbar() {
           >
             ☰
           </button>
-          <div className="sky-topbar-breadcrumb" aria-label="Current page location">
-            <span className="sky-topbar-breadcrumb-group">{currentNavCrumb.group}</span>
-            <span className="sky-topbar-breadcrumb-separator">›</span>
-            <span className="sky-topbar-breadcrumb-page">{currentNavCrumb.label}</span>
-          </div>
         </div>
 
         <div className="sky-topbar-right" ref={topbarControlsRef}>

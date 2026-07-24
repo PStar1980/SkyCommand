@@ -1,3 +1,12 @@
+## 2026-07-23 — Ad Hoc Demo Polish: Shell and Command Center Simplification
+
+- Increased dashboard-card chart legends, axes, and visible data labels from 14 px to 16 px, and expanded-overlay chart text from 20 px to 22 px, while preserving the previously approved tooltip sizes.
+- Added central `grid.containLabel` normalization, larger legend markers, stronger axis weight, and wider label margins so the larger typography remains readable without clipping.
+- Reduced the authenticated shell sidebar width by approximately 15% and shortened the top navigation/header by approximately 15%, including matching brand/control geometry refinements.
+- Removed the authenticated topbar breadcrumb trail and its unused route-label plumbing; the persistent sidebar remains the primary location indicator, with the mobile menu retained below the desktop breakpoint.
+- Simplified Command Center into a single-level executive dashboard by removing Dashboard Controls, Operational Telemetry, Pipeline Health, Workflow Runtime, Scheduler Health, and System Foundation drill-down content.
+- Wrapped the complete Identity Early Warning area in one card and removed dashboard-only API requests that no longer support visible Command Center content.
+
 ## 2026-07-23 — Ad Hoc Demo Polish: Dashboard Chart Typography
 
 - Increased dashboard chart legend, axis, and visible data-label typography to the same readable baseline as chart tooltips: 14 px in dashboard cards and 20 px in expanded overlays.
