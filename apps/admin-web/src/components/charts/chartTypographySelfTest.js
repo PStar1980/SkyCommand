@@ -14,13 +14,13 @@ function requireSource(source, pattern, message) {
 
 requireSource(
   themeSource,
-  /card:\s*\{[\s\S]*tooltipFontSize:\s*14,[\s\S]*legendFontSize:\s*14,[\s\S]*axisFontSize:\s*14,/,
-  'Card chart tooltip, legend, and axis typography must share the 14px readability baseline.',
+  /card:\s*\{[\s\S]*tooltipFontSize:\s*14,[\s\S]*legendFontSize:\s*16,[\s\S]*axisFontSize:\s*16,/,
+  'Card chart legends and axes must use the 16px demo-readability baseline while preserving the 14px tooltip.',
 );
 requireSource(
   themeSource,
-  /overlay:\s*\{[\s\S]*tooltipFontSize:\s*20,[\s\S]*legendFontSize:\s*20,[\s\S]*axisFontSize:\s*20,/,
-  'Overlay tooltip, legend, and axis typography must share the 20px readability baseline.',
+  /overlay:\s*\{[\s\S]*tooltipFontSize:\s*20,[\s\S]*legendFontSize:\s*22,[\s\S]*axisFontSize:\s*22,/,
+  'Overlay legends and axes must use the 22px demo-readability baseline while preserving the 20px tooltip.',
 );
 requireSource(
   themeSource,
@@ -31,6 +31,11 @@ requireSource(
   themeSource,
   /hideOverlap:\s*true/,
   'Axis-label overlap protection must remain enabled after increasing chart text size.',
+);
+requireSource(
+  themeSource,
+  /containLabel:\s*true/,
+  'Chart grids must contain the larger axis labels instead of clipping them.',
 );
 requireSource(
   canvasSource,

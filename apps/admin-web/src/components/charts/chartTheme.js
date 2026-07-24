@@ -14,28 +14,30 @@ export const CHART_TYPOGRAPHY = {
   card: {
     tooltipFontSize: 14,
     tooltipLineHeight: 20,
-    legendFontSize: 14,
-    legendLineHeight: 20,
-    axisFontSize: 14,
-    axisLineHeight: 20,
-    labelFontSize: 14,
-    labelLineHeight: 20,
-    legendItemWidth: 18,
-    legendItemHeight: 10,
-    legendItemGap: 16,
+    legendFontSize: 16,
+    legendLineHeight: 22,
+    axisFontSize: 16,
+    axisLineHeight: 22,
+    labelFontSize: 16,
+    labelLineHeight: 22,
+    axisLabelMargin: 14,
+    legendItemWidth: 20,
+    legendItemHeight: 12,
+    legendItemGap: 18,
   },
   overlay: {
     tooltipFontSize: 20,
     tooltipLineHeight: 26,
-    legendFontSize: 20,
-    legendLineHeight: 26,
-    axisFontSize: 20,
-    axisLineHeight: 26,
-    labelFontSize: 20,
-    labelLineHeight: 26,
-    legendItemWidth: 30,
-    legendItemHeight: 16,
-    legendItemGap: 22,
+    legendFontSize: 22,
+    legendLineHeight: 28,
+    axisFontSize: 22,
+    axisLineHeight: 28,
+    labelFontSize: 22,
+    labelLineHeight: 28,
+    axisLabelMargin: 16,
+    legendItemWidth: 32,
+    legendItemHeight: 18,
+    legendItemGap: 24,
   },
 };
 
@@ -174,8 +176,8 @@ export function applyChartTypography(option, variant = 'card') {
     ...axis,
     axisLabel: {
       hideOverlap: true,
-      margin: 12,
-      fontWeight: 600,
+      margin: typography.axisLabelMargin,
+      fontWeight: 650,
       ...withMinimumFontSize(
         axis.axisLabel || {},
         typography.axisFontSize,
@@ -238,6 +240,13 @@ export function applyChartTypography(option, variant = 'card') {
 
   if (normalized.legend) {
     normalized.legend = normalizeArrayOrObject(normalized.legend, normalizeLegend);
+  }
+
+  if (normalized.grid) {
+    normalized.grid = normalizeArrayOrObject(normalized.grid, (grid) => ({
+      ...grid,
+      containLabel: true,
+    }));
   }
 
   if (normalized.xAxis) {
