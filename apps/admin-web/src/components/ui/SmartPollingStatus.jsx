@@ -23,6 +23,7 @@ function SmartPollingStatus({
   className = '',
   errorLabel = 'checking',
   liveLabel = 'live',
+  showUpdatedAt = true,
   state = {},
 }) {
   const nextActiveValue = activeValue ?? state.activeCount ?? 0;
@@ -44,7 +45,7 @@ function SmartPollingStatus({
       <span className="sky-pill sky-pill-info">
         {activeLabel} {nextActiveValue}
       </span>
-      {(state.lastSuccessfulAt || state.lastUpdatedAt) && (
+      {showUpdatedAt && (state.lastSuccessfulAt || state.lastUpdatedAt) && (
         <span className="sky-muted">
           Updated {formatDate(state.lastSuccessfulAt || state.lastUpdatedAt)}
         </span>

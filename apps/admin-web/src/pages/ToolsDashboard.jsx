@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import ToolsHistoryVisuals from '../components/charts/ToolsHistoryVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import useSmartPolling, {
   SMART_POLLING_INTERVALS,
   getSmartPollingDelay,
@@ -23,23 +23,6 @@ function isActiveExecution(execution) {
 
 function getCategoryName(execution) {
   return execution?.category || execution?.metadata?.categoryCode || 'Uncategorized';
-}
-
-function formatDate(value) {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
 }
 
 function ToolsDashboard() {
@@ -128,25 +111,15 @@ function ToolsDashboard() {
   return (
     <>
       <PageHeader
+        actionClassName="sky-dashboard-page-actions"
         actions={
-          <>
-            <button
-              className="btn sky-btn-ghost"
-              disabled={loading}
-              onClick={() => loadExecutions()}
-              type="button"
-            >
-              {loading ? 'Refreshing...' : 'Refresh analytics'}
-            </button>
-            <div className="small sky-muted mt-2">
-              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
-            </div>
-            <SmartPollingStatus
-              activeLabel="Running tools"
-              className="justify-content-end mt-2"
-              state={pollingState}
-            />
-          </>
+          <DashboardRefreshActions
+            activeLabel="Running tools"
+            lastRefreshAt={refreshingAt}
+            loading={loading}
+            onRefresh={() => loadExecutions()}
+            pollingState={pollingState}
+          />
         }
         kicker="Dashboards · Tools"
         subtitle="Visualize tool execution quality, category load, usage concentration, and runtime pressure without changing the operational ledger."

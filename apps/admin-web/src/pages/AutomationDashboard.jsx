@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import WorkerHealthVisuals from '../components/charts/WorkerHealthVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import useSmartPolling, {
   SMART_POLLING_INTERVALS,
   getSmartPollingDelay,
@@ -26,23 +26,6 @@ function isActiveRun(run) {
 
 function isPendingApproval(approval) {
   return String(approval?.status || '').toUpperCase() === 'PENDING';
-}
-
-function formatDate(value) {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
 }
 
 function AutomationDashboard() {
@@ -144,25 +127,15 @@ function AutomationDashboard() {
   return (
     <>
       <PageHeader
+        actionClassName="sky-dashboard-page-actions"
         actions={
-          <>
-            <button
-              className="btn sky-btn-ghost"
-              disabled={loading}
-              onClick={() => loadAutomation()}
-              type="button"
-            >
-              {loading ? 'Refreshing...' : 'Refresh analytics'}
-            </button>
-            <div className="small sky-muted mt-2">
-              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
-            </div>
-            <SmartPollingStatus
-              activeLabel="Live items"
-              className="justify-content-end mt-2"
-              state={pollingState}
-            />
-          </>
+          <DashboardRefreshActions
+            activeLabel="Live items"
+            lastRefreshAt={refreshingAt}
+            loading={loading}
+            onRefresh={() => loadAutomation()}
+            pollingState={pollingState}
+          />
         }
         kicker="Dashboards · Automation"
         subtitle="Monitor worker heartbeats, poller coverage, workflow throughput, and approval gate pressure away from functional controls."

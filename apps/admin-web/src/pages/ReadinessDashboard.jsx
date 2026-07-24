@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import ProductionReadinessVisuals from '../components/charts/ProductionReadinessVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import useSmartPolling, { SMART_POLLING_INTERVALS } from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService';
 
@@ -13,23 +13,6 @@ const STATUS_OPTIONS = [
   { value: 'FAIL', label: 'Failure' },
   { value: 'INFO', label: 'Info' },
 ];
-
-function formatDate(value) {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-}
 
 function filterReadiness(readiness, filters) {
   if (!readiness) {
@@ -128,25 +111,15 @@ function ReadinessDashboard() {
   return (
     <>
       <PageHeader
+        actionClassName="sky-dashboard-page-actions"
         actions={
-          <>
-            <button
-              className="btn sky-btn-ghost"
-              disabled={loading}
-              onClick={() => loadReadiness()}
-              type="button"
-            >
-              {loading ? 'Refreshing...' : 'Refresh analytics'}
-            </button>
-            <div className="small sky-muted mt-2">
-              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
-            </div>
-            <SmartPollingStatus
-              activeLabel="Warnings"
-              className="justify-content-end mt-2"
-              state={pollingState}
-            />
-          </>
+          <DashboardRefreshActions
+            activeLabel="Warnings"
+            lastRefreshAt={refreshingAt}
+            loading={loading}
+            onRefresh={() => loadReadiness()}
+            pollingState={pollingState}
+          />
         }
         kicker="Dashboards · Readiness"
         subtitle="Review readiness score, status mix, category coverage, hardening progress, and risk concentration as a visual control surface."

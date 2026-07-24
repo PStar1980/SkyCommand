@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import ApplicationUserSummaryRow from '../components/charts/ApplicationUserSummaryRow.jsx';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useSmartPolling, {
   SMART_POLLING_INTERVALS,
@@ -14,23 +14,6 @@ import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
 
 const DASHBOARD_RECENT_LIMIT = 60;
-
-function formatDate(value) {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-}
 
 function Dashboard() {
   const { hasPermission, user } = useAuth();
@@ -273,25 +256,15 @@ function Dashboard() {
   return (
     <>
       <PageHeader
+        actionClassName="sky-dashboard-page-actions"
         actions={
-          <>
-            <button
-              className="btn sky-btn-ghost"
-              disabled={loading}
-              onClick={() => loadDashboard()}
-              type="button"
-            >
-              {loading ? 'Refreshing...' : 'Refresh dashboard'}
-            </button>
-            <div className="small sky-muted mt-2">
-              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
-            </div>
-            <SmartPollingStatus
-              activeLabel="Live runs"
-              className="justify-content-end mt-2"
-              state={pollingState}
-            />
-          </>
+          <DashboardRefreshActions
+            activeLabel="Live runs"
+            lastRefreshAt={refreshingAt}
+            loading={loading}
+            onRefresh={() => loadDashboard()}
+            pollingState={pollingState}
+          />
         }
         kicker="Workflow automation engine"
         subtitle={`Welcome back, ${user?.displayName || user?.username || 'Operator'}. Monitor automation health, workflow runtime, data pipelines, and application access signals from one command surface.`}
