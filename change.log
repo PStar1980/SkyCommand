@@ -1,3 +1,11 @@
+## 2026-07-24 — Ad Hoc Demo Polish: Dedicated API Dashboard
+
+- Moved Command Center API Observability into its own complete card between Automation Intelligence and Identity Early Warning instead of visually nesting it inside the automation card.
+- Added a permission-protected **Dashboards > API** page with the same shared page header, refresh stack, smart polling, Dashboard Controls card, Apply Filters, and Reset conventions as the other analytical dashboards.
+- Added server-side API telemetry filters for observation window, application, HTTP method, response family, normalized-route search, and route-table size.
+- Expanded API analysis with response-quality, method, application, hourly traffic, hourly latency, slow-route, authentication-mode, and transfer-volume evidence while retaining privacy-safe normalized routes.
+- Added API dashboard navigation/search aliases, responsive dashboard layouts, and `api-dashboard:self-test` validation coverage. No migration or seed change is required beyond the existing API telemetry installation.
+
 ## 2026-07-24 — Ad Hoc Demo Polish: PostgreSQL API Observability
 
 - Added privacy-conscious API request telemetry middleware that records normalized route templates, status codes, duration, application/auth scope, byte counts, and request IDs after responses finish without blocking request execution.

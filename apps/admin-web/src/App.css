@@ -4939,8 +4939,11 @@
 
 /* API observability */
 .sky-api-observability-panel {
-  border-top: 1px solid rgba(124, 144, 177, 0.14);
-  padding-top: 1rem;
+  overflow: hidden;
+}
+
+.sky-api-observability-panel > .sky-card-header {
+  min-height: 4.6rem;
 }
 
 .sky-api-metric-grid {
@@ -4975,9 +4978,62 @@
 
 .sky-api-route-card {
   overflow: hidden;
+  border: 1px solid rgba(124, 144, 177, 0.16);
+  border-radius: 0.9rem;
   background:
     radial-gradient(circle at 0% 0%, rgba(72, 167, 255, 0.075), transparent 14rem),
     rgba(4, 10, 20, 0.62);
+}
+
+.sky-api-route-card-header {
+  min-height: 4.35rem;
+  border-bottom: 1px solid rgba(124, 144, 177, 0.15);
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.052), rgba(137, 109, 255, 0.032)),
+    rgba(5, 10, 21, 0.42);
+  padding: 1rem 1.1rem;
+}
+
+.sky-api-analysis-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sky-api-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(22rem, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sky-api-evidence-volume {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  border-top: 1px solid rgba(124, 144, 177, 0.15);
+  padding: 1rem;
+}
+
+.sky-api-evidence-volume > div {
+  display: grid;
+  gap: 0.24rem;
+  border: 1px solid rgba(124, 144, 177, 0.14);
+  border-radius: 0.75rem;
+  background: rgba(4, 10, 20, 0.56);
+  padding: 0.78rem;
+}
+
+.sky-api-evidence-volume span {
+  color: #8fa1bf;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sky-api-evidence-volume strong {
+  color: #f5f8ff;
+  font-size: 0.98rem;
+  font-weight: 850;
 }
 
 .sky-api-route-template {
@@ -4995,9 +5051,19 @@
   }
 }
 
+@media (max-width: 1180px) {
+  .sky-api-analysis-grid,
+  .sky-api-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .sky-api-metric-grid,
-  .sky-api-chart-grid {
+  .sky-api-chart-grid,
+  .sky-api-analysis-grid,
+  .sky-api-detail-grid,
+  .sky-api-evidence-volume {
     grid-template-columns: 1fr;
   }
 }

@@ -15,6 +15,10 @@ const DEFAULT_PASSWORD_FORM = {
 const COMMAND_SEARCH_ALIASES = {
   dashboard: '/dashboard',
   overview: '/dashboard',
+  api: '/dashboard/api',
+  'api dashboard': '/dashboard/api',
+  'api observability': '/dashboard/api',
+  'api telemetry': '/dashboard/api',
   'data pipeline': '/dashboard/data-pipeline',
   pipeline: '/dashboard/data-pipeline',
   'tools dashboard': '/dashboard/tools',
@@ -130,6 +134,13 @@ function createNavGroups(hasPermission) {
           icon: '◈',
           visible: true,
           description: 'Operational command surface',
+        },
+        {
+          label: 'API',
+          to: '/dashboard/api',
+          icon: '↯',
+          visible: hasPermission('API_TELEMETRY_READ'),
+          description: 'Request observability',
         },
         {
           label: 'Data Pipeline',

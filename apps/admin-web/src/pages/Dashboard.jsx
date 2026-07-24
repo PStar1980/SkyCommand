@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import ApiObservabilityPanel from '../components/charts/ApiObservabilityPanel.jsx';
 import ApplicationUserSummaryRow from '../components/charts/ApplicationUserSummaryRow.jsx';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
@@ -280,7 +281,6 @@ function Dashboard() {
       {error && <div className="alert alert-danger">{error}</div>}
 
       <DashboardVisuals
-        apiTelemetry={summary.apiTelemetry}
         ingestionCounts={ingestionCounts}
         recentAudits={recentAudits}
         recentExecutions={recentExecutions}
@@ -318,6 +318,8 @@ function Dashboard() {
         ]}
         workflowRuns={workflowRunRecords}
       />
+
+      <ApiObservabilityPanel className="mt-4" data={summary.apiTelemetry} />
 
       <section className="sky-card sky-dashboard-identity-panel mt-4">
         <div className="sky-card-header sky-dashboard-section-heading">

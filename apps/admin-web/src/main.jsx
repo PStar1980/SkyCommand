@@ -13,6 +13,7 @@ import ProductionReadiness from './pages/ProductionReadiness.jsx';
 import AdminRoles from './pages/AdminRoles.jsx';
 import AdminSessions from './pages/AdminSessions.jsx';
 import AdminUsers from './pages/AdminUsers.jsx';
+import ApiDashboard from './pages/ApiDashboard.jsx';
 import AutomationDashboard from './pages/AutomationDashboard.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Home from './pages/Home.jsx';
@@ -50,6 +51,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboard/api"
+              element={
+                <ProtectedRoute permissionCode="API_TELEMETRY_READ">
+                  <ApiDashboard />
                 </ProtectedRoute>
               }
             />

@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import ApiObservabilityPanel from './ApiObservabilityPanel.jsx';
 import DurationTrendChart from './DurationTrendChart.jsx';
 import OutcomeBarChart from './OutcomeBarChart.jsx';
 import StatusDonut from './StatusDonut.jsx';
@@ -96,7 +95,6 @@ function SystemHealthStrip({ items = [] }) {
 }
 
 function DashboardVisuals({
-  apiTelemetry,
   ingestionCounts,
   recentAudits,
   recentExecutions,
@@ -140,7 +138,6 @@ function DashboardVisuals({
 
       <SystemHealthStrip items={systemStatusItems} />
 
-      <ApiObservabilityPanel data={apiTelemetry} />
 
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">
         <TrendAreaChart

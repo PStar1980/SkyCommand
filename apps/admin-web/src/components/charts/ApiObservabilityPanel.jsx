@@ -66,10 +66,10 @@ function ApiMetricCard({ helper, label, status = 'CURRENT', value }) {
   );
 }
 
-function ApiObservabilityPanel({ data }) {
+function ApiObservabilityPanel({ className = '', data, showRouteTable = true }) {
   const summary = data?.summary || {};
   const daily = Array.isArray(data?.daily) ? data.daily : [];
-  const topRoutes = Array.isArray(data?.topRoutes) ? data.topRoutes : [];
+  const topRoutes = Array.isArray(data?.topRoutes) ? data.topRoutes.slice(0, 10) : [];
   const applications = Array.isArray(data?.applications) ? data.applications : [];
   const days = Number(data?.window?.days || 7);
   const chartData = useMemo(
@@ -116,8 +116,8 @@ function ApiObservabilityPanel({ data }) {
   const serverErrors = Number(summary.serverErrors || 0);
 
   return (
-    <section className="sky-api-observability-panel mb-4">
-      <div className="sky-dashboard-section-heading mb-3">
+    <section className={`sky-card sky-api-observability-panel ${className}`.trim()}>
+      <div className="sky-card-header sky-dashboard-section-heading">
         <div>
           <div className="sky-page-kicker">API observability</div>
           <h2 className="h5 mb-0">Request traffic and service performance</h2>
@@ -128,120 +128,124 @@ function ApiObservabilityPanel({ data }) {
         <span className="sky-muted small">Normalized routes · privacy-safe measurements</span>
       </div>
 
-      <div className="sky-api-metric-grid mb-3">
-        <ApiMetricCard
-          helper={`${formatCount(summary.successfulRequests)} successful request(s)`}
-          label="Requests"
-          status="CURRENT"
-          value={formatCount(summary.totalRequests)}
-        />
-        <ApiMetricCard
-          helper={`${formatCount(summary.clientErrors)} client error(s)`}
-          label="Success rate"
-          status={getSuccessStatus(successRate)}
-          value={`${successRate.toFixed(1)}%`}
-        />
-        <ApiMetricCard
-          helper={`Average ${formatDuration(summary.averageDurationMs)}`}
-          label="p95 latency"
-          status={Number(summary.p95DurationMs || 0) >= 2000 ? 'WARNING' : 'CURRENT'}
-          value={formatDuration(summary.p95DurationMs)}
-        />
-        <ApiMetricCard
-          helper={`p99 ${formatDuration(summary.p99DurationMs)}`}
-          label="Server errors"
-          status={serverErrors > 0 ? 'FAILED' : 'SUCCESS'}
-          value={formatCount(serverErrors)}
-        />
-      </div>
-
-      {applications.length > 0 && (
-        <div className="sky-api-app-mix mb-3">
-          <span className="sky-page-kicker">Application mix</span>
-          {applications.slice(0, 5).map((application) => (
-            <span className="sky-pill sky-pill-info" key={application.appCode}>
-              {application.appCode} · {formatCount(application.requestCount)}
-            </span>
-          ))}
+      <div className="sky-card-body">
+        <div className="sky-api-metric-grid mb-3">
+          <ApiMetricCard
+            helper={`${formatCount(summary.successfulRequests)} successful request(s)`}
+            label="Requests"
+            status="CURRENT"
+            value={formatCount(summary.totalRequests)}
+          />
+          <ApiMetricCard
+            helper={`${formatCount(summary.clientErrors)} client error(s)`}
+            label="Success rate"
+            status={getSuccessStatus(successRate)}
+            value={`${successRate.toFixed(1)}%`}
+          />
+          <ApiMetricCard
+            helper={`Average ${formatDuration(summary.averageDurationMs)}`}
+            label="p95 latency"
+            status={Number(summary.p95DurationMs || 0) >= 2000 ? 'WARNING' : 'CURRENT'}
+            value={formatDuration(summary.p95DurationMs)}
+          />
+          <ApiMetricCard
+            helper={`p99 ${formatDuration(summary.p99DurationMs)}`}
+            label="Server errors"
+            status={serverErrors > 0 ? 'FAILED' : 'SUCCESS'}
+            value={formatCount(serverErrors)}
+          />
         </div>
-      )}
 
-      <div className="sky-dashboard-chart-grid sky-api-chart-grid mb-3">
-        <TrendAreaChart
-          colors={[CHART_COLORS.green, CHART_COLORS.gold, CHART_COLORS.red]}
-          height={300}
-          kicker="API usage"
-          labels={chartData.labels}
-          series={chartData.trafficSeries}
-          subtitle="Daily successful requests, client errors, and server errors."
-          title="API traffic trend"
-        />
-        <TrendAreaChart
-          colors={[CHART_COLORS.cyan, CHART_COLORS.violet]}
-          height={300}
-          kicker="Service performance"
-          labels={chartData.labels}
-          series={chartData.latencySeries}
-          subtitle="Average and p95 response duration by day."
-          title="API latency trend"
-          valueFormatter={formatDuration}
-          yAxisFormatter={formatDurationAxis}
-        />
-      </div>
-
-      <section className="sky-card sky-table-card sky-api-route-card">
-        <div className="sky-card-header d-flex align-items-start justify-content-between gap-3">
-          <div>
-            <div className="sky-page-kicker">Route pressure</div>
-            <h2 className="h5 mb-0">Busiest API routes</h2>
-            <div className="small sky-muted mt-1">
-              Normalized endpoint traffic ordered by request volume.
-            </div>
+        {applications.length > 0 && (
+          <div className="sky-api-app-mix mb-3">
+            <span className="sky-page-kicker">Application mix</span>
+            {applications.slice(0, 5).map((application) => (
+              <span className="sky-pill sky-pill-info" key={application.appCode}>
+                {application.appCode} · {formatCount(application.requestCount)}
+              </span>
+            ))}
           </div>
-          <span className="sky-pill sky-pill-info">Top {Math.min(topRoutes.length, 10)}</span>
+        )}
+
+        <div className="sky-dashboard-chart-grid sky-api-chart-grid mb-3">
+          <TrendAreaChart
+            colors={[CHART_COLORS.green, CHART_COLORS.gold, CHART_COLORS.red]}
+            height={300}
+            kicker="API usage"
+            labels={chartData.labels}
+            series={chartData.trafficSeries}
+            subtitle="Daily successful requests, client errors, and server errors."
+            title="API traffic trend"
+          />
+          <TrendAreaChart
+            colors={[CHART_COLORS.cyan, CHART_COLORS.violet]}
+            height={300}
+            kicker="Service performance"
+            labels={chartData.labels}
+            series={chartData.latencySeries}
+            subtitle="Average and p95 response duration by day."
+            title="API latency trend"
+            valueFormatter={formatDuration}
+            yAxisFormatter={formatDurationAxis}
+          />
         </div>
-        <div className="table-responsive">
-          <table className="table table-sm sky-table mb-0 align-middle">
-            <thead>
-              <tr>
-                <th>Method</th>
-                <th>Route</th>
-                <th className="text-end">Requests</th>
-                <th className="text-end">Errors</th>
-                <th className="text-end">Average</th>
-                <th className="text-end">p95</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topRoutes.length === 0 ? (
-                <tr>
-                  <td className="text-center sky-muted py-4" colSpan={6}>
-                    API telemetry will appear after requests are recorded.
-                  </td>
-                </tr>
-              ) : (
-                topRoutes.map((route) => (
-                  <tr key={`${route.method}:${route.routeTemplate}`}>
-                    <td>
-                      <span className="sky-pill sky-pill-info">{route.method}</span>
-                    </td>
-                    <td className="sky-api-route-template">{route.routeTemplate}</td>
-                    <td className="text-end">{formatCount(route.requestCount)}</td>
-                    <td className="text-end">
-                      <StatusPill
-                        label={formatCount(route.errorCount)}
-                        status={Number(route.errorCount || 0) > 0 ? 'WARNING' : 'SUCCESS'}
-                      />
-                    </td>
-                    <td className="text-end">{formatDuration(route.averageDurationMs)}</td>
-                    <td className="text-end">{formatDuration(route.p95DurationMs)}</td>
+
+        {showRouteTable && (
+          <section className="sky-api-route-card">
+            <div className="sky-api-route-card-header d-flex align-items-start justify-content-between gap-3">
+              <div>
+                <div className="sky-page-kicker">Route pressure</div>
+                <h2 className="h5 mb-0">Busiest API routes</h2>
+                <div className="small sky-muted mt-1">
+                  Normalized endpoint traffic ordered by request volume.
+                </div>
+              </div>
+              <span className="sky-pill sky-pill-info">Top {topRoutes.length}</span>
+            </div>
+            <div className="table-responsive">
+              <table className="table table-sm sky-table mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>Route</th>
+                    <th className="text-end">Requests</th>
+                    <th className="text-end">Errors</th>
+                    <th className="text-end">Average</th>
+                    <th className="text-end">p95</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {topRoutes.length === 0 ? (
+                    <tr>
+                      <td className="text-center sky-muted py-4" colSpan={6}>
+                        API telemetry will appear after requests are recorded.
+                      </td>
+                    </tr>
+                  ) : (
+                    topRoutes.map((route) => (
+                      <tr key={`${route.method}:${route.routeTemplate}`}>
+                        <td>
+                          <span className="sky-pill sky-pill-info">{route.method}</span>
+                        </td>
+                        <td className="sky-api-route-template">{route.routeTemplate}</td>
+                        <td className="text-end">{formatCount(route.requestCount)}</td>
+                        <td className="text-end">
+                          <StatusPill
+                            label={formatCount(route.errorCount)}
+                            status={Number(route.errorCount || 0) > 0 ? 'WARNING' : 'SUCCESS'}
+                          />
+                        </td>
+                        <td className="text-end">{formatDuration(route.averageDurationMs)}</td>
+                        <td className="text-end">{formatDuration(route.p95DurationMs)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+      </div>
     </section>
   );
 }

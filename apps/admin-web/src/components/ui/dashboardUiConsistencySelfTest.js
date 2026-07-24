@@ -5,6 +5,7 @@ const path = require('path');
 const sourceRoot = path.resolve(__dirname, '../..');
 const dashboardPages = [
   'pages/Dashboard.jsx',
+  'pages/ApiDashboard.jsx',
   'pages/IngestionStatus.jsx',
   'pages/ToolsDashboard.jsx',
   'pages/WorkflowsDashboard.jsx',
