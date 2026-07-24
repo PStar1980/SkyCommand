@@ -22,6 +22,7 @@ function Dashboard() {
   const [identityDays, setIdentityDays] = useState(7);
   const [summary, setSummary] = useState({
     apiHealth: null,
+    apiTelemetry: null,
     dbHealth: null,
     executions: {
       total: 0,
@@ -124,6 +125,7 @@ function Dashboard() {
         auditResult,
         skyCommandUserResult,
         skyWebUserResult,
+        apiTelemetryResult,
         ingestionResult,
         workerResult,
         workflowHealthResult,
@@ -155,6 +157,9 @@ function Dashboard() {
               adminService.getApplicationUserSummary({ appCode: 'SKYWEB', days: userSummaryDays }),
             )
           : Promise.resolve(null),
+        hasPermission('API_TELEMETRY_READ')
+          ? loadOptional('api-telemetry', () => adminService.getApiTelemetrySummary({ days: 7 }))
+          : Promise.resolve(null),
         hasPermission('INGESTION_VIEW_STATUS')
           ? loadOptional('ingestion', () =>
               api.get('/api/ingestion/status', { query: { recentLimit: 6 } }),
@@ -178,6 +183,7 @@ function Dashboard() {
 
       const nextSummary = {
         apiHealth,
+        apiTelemetry: apiTelemetryResult,
         dbHealth,
         executions: {
           total: executionsResult?.total || 0,
@@ -274,6 +280,7 @@ function Dashboard() {
       {error && <div className="alert alert-danger">{error}</div>}
 
       <DashboardVisuals
+        apiTelemetry={summary.apiTelemetry}
         ingestionCounts={ingestionCounts}
         recentAudits={recentAudits}
         recentExecutions={recentExecutions}

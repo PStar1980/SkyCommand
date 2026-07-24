@@ -55,6 +55,7 @@ SkyServer/
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx
 │   │       │   ├── WorkflowVisualGraph.jsx
 │   │       │   ├── charts/
+│   │       │   │   ├── ApiObservabilityPanel.jsx
 │   │       │   │   ├── ApplicationUserSummaryRow.jsx
 │   │       │   │   ├── chartData.js
 │   │       │   │   ├── ChartFullscreenOverlay.jsx
@@ -146,6 +147,7 @@ SkyServer/
 │   │       │   ├── workerController.js
 │   │       │   └── workflowController.js
 │   │       ├── middleware/
+│   │       │   ├── apiTelemetryMiddleware.js
 │   │       │   ├── authMiddleware.js
 │   │       │   └── permissionMiddleware.js
 │   │       ├── routes/
@@ -163,6 +165,9 @@ SkyServer/
 │   │       ├── services/
 │   │       │   ├── adminActionService.js
 │   │       │   ├── adminReadService.js
+│   │       │   ├── apiTelemetryPolicy.js
+│   │       │   ├── apiTelemetryPolicySelfTest.js
+│   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
 │   │       │   ├── ingestionStatusService.js
 │   │       │   ├── macroReadService.js
@@ -215,6 +220,7 @@ SkyServer/
 │               └── schedulePoller.js
 ├── docs/
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
+│   ├── SkyCommand_API_Observability.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
@@ -283,7 +289,8 @@ SkyServer/
 │   │       │   ├── 00064__remove_tool_manifest_snapshot_enforcement.sql
 │   │       │   ├── 00065__repository_intelligence_tool.sql
 │   │       │   ├── 00066__tool_catalogue_administration.sql
-│   │       │   └── 00068__skycommand_repository_designation.sql
+│   │       │   ├── 00068__skycommand_repository_designation.sql
+│   │       │   └── 00071__api_request_telemetry.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -316,7 +323,8 @@ SkyServer/
 │   │           ├── 00061__skycommand_application_brand_seed.sql
 │   │           ├── 00067__tool_catalogue_admin_permissions_seed.sql
 │   │           ├── 00069__db_health_structured_output_seed.sql
-│   │           └── 00070__db_build_structured_output_seed.sql
+│   │           ├── 00070__db_build_structured_output_seed.sql
+│   │           └── 00072__api_telemetry_permissions_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -375,11 +383,6 @@ SkyServer/
 │   │       │   └── statcan.js
 │   │       └── transform/
 │   │           └── csvNormalizer.js
-│   ├── shared/
-│   │   └── src/
-│   │       ├── constants/
-│   │       ├── contracts/
-│   │       └── validators/
 │   ├── skyweb/
 │   │   └── src/
 │   │       └── evaluateSkyWebAlerts.js

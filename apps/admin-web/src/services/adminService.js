@@ -20,6 +20,10 @@ async function getApplicationUserSummary(filters = {}) {
   return api.get('/api/admin/user-summary', { query: filters });
 }
 
+async function getApiTelemetrySummary(filters = {}) {
+  return api.get('/api/admin/api-telemetry/summary', { query: filters });
+}
+
 async function listApplications(filters = {}) {
   return api.get('/api/admin/applications', { query: filters });
 }
@@ -258,6 +262,7 @@ const adminService = {
   listLoginEvents,
   listActiveSessions,
   getApplicationUserSummary,
+  getApiTelemetrySummary,
   listApplications,
   listSessions,
   revokeSession,
