@@ -1,3 +1,11 @@
+## 2026-07-24 — Ad Hoc Demo Polish: Dashboard Hierarchy and Refresh Consistency
+
+- Reduced the authenticated page display cap and Bootstrap-style content headings so page titles, hero headings, stat values, and health-card values remain subordinate to the persistent sidebar navigation.
+- Added a shared `DashboardRefreshActions` component and applied it to Command Center, Data Pipeline, Tools, Workflows, Automation, and Readiness dashboards.
+- Standardized all dashboard refresh buttons to `Refresh`, preserved the dedicated `Last refresh` line, and removed the duplicated `Updated ...` timestamp from dashboard smart-polling status rows.
+- Added Data Pipeline last-refresh tracking and converted its header to the shared `PageHeader` surface for the same three-line top-right layout as the other dashboards.
+- Added `dashboard-ui-consistency:self-test` and included it in `npm run validate`; no API, database, worker, workflow, or tool-runtime behavior changed.
+
 ## 2026-07-23 — Ad Hoc Demo Polish: Shell and Command Center Simplification
 
 - Increased dashboard-card chart legends, axes, and visible data labels from 14 px to 16 px, and expanded-overlay chart text from 20 px to 22 px, while preserving the previously approved tooltip sizes.

@@ -77,6 +77,8 @@ SkyServer/
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
 │   │       │   └── ui/
 │   │       │       ├── DashboardFilterCard.jsx
+│   │       │       ├── DashboardRefreshActions.jsx
+│   │       │       ├── dashboardUiConsistencySelfTest.js
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
 │   │       │       ├── SidebarNav.jsx

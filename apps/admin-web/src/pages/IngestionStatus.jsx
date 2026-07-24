@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import IngestionStatusVisuals from '../components/charts/IngestionStatusVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
-import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import useSmartPolling, {
   SMART_POLLING_INTERVALS,
   getSmartPollingDelay,
@@ -268,6 +269,7 @@ function IngestionStatus() {
   const [indicatorLoading, setIndicatorLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
+  const [refreshingAt, setRefreshingAt] = useState(null);
 
   const statCards = useMemo(() => buildStatCards(summary), [summary]);
 
@@ -391,6 +393,8 @@ function IngestionStatus() {
       loadIndicators(filters, selectedIndicator?.indicatorCode, { quiet }),
     ]);
 
+    setRefreshingAt(new Date());
+
     return {
       activeCount:
         Number(recentResult?.activeCount || 0) + Number(indicatorResult?.activeCount || 0),
@@ -424,7 +428,7 @@ function IngestionStatus() {
 
     async function loadInitialData() {
       try {
-        await Promise.all([loadOverview(), loadRecentExecutions(), loadIndicators()]);
+        await refreshAll();
       } finally {
         if (!active) {
           return;
@@ -524,31 +528,21 @@ function IngestionStatus() {
 
   return (
     <>
-      <header className="sky-page-header">
-        <div>
-          <div className="sky-page-kicker">Dashboards · Data pipeline</div>
-          <h1 className="sky-page-title">Data Pipeline</h1>
-          <p className="sky-page-subtitle">
-            Visualize source freshness, recent ingestion runs, and indicator-level data health
-            across the macro pipeline.
-          </p>
-        </div>
-        <div className="sky-page-actions">
-          <button
-            className="btn sky-btn-ghost"
-            disabled={overviewLoading || recentLoading || indicatorLoading}
-            onClick={() => refreshAll()}
-            type="button"
-          >
-            {overviewLoading || recentLoading || indicatorLoading ? 'Refreshing...' : 'Refresh all'}
-          </button>
-          <SmartPollingStatus
+      <PageHeader
+        actionClassName="sky-dashboard-page-actions"
+        actions={
+          <DashboardRefreshActions
             activeLabel="Pipeline watch items"
-            className="justify-content-end mt-2"
-            state={pollingState}
+            lastRefreshAt={refreshingAt}
+            loading={overviewLoading || recentLoading || indicatorLoading}
+            onRefresh={() => refreshAll()}
+            pollingState={pollingState}
           />
-        </div>
-      </header>
+        }
+        kicker="Dashboards · Data pipeline"
+        subtitle="Visualize source freshness, recent ingestion runs, and indicator-level data health across the macro pipeline."
+        title="Data Pipeline"
+      />
 
       {error && <div className="alert alert-danger">{error}</div>}
 

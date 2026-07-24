@@ -1,7 +1,7 @@
 .sky-app-shell {
   --sky-sidebar-width: 20.8rem;
   --sky-topbar-height: 5.45rem;
-  --sky-max-display-font-size: 1.48rem;
+  --sky-max-display-font-size: 1.14rem;
   min-height: 100vh;
   color: #dce8ff;
   font-family: var(
@@ -3433,7 +3433,7 @@
 
 .sky-page-title {
   color: #f6f9ff;
-  font-size: clamp(1.22rem, 1.25vw, var(--sky-max-display-font-size));
+  font-size: clamp(1.06rem, 1.08vw, var(--sky-max-display-font-size));
   font-weight: 900;
   letter-spacing: -0.04em;
   line-height: 1.02;
@@ -3443,8 +3443,40 @@
 .sky-page-subtitle {
   max-width: 72rem;
   color: #b9c9e8;
-  font-size: clamp(0.96rem, 0.98vw, 1.08rem);
+  font-size: clamp(0.9rem, 0.92vw, 0.98rem);
   line-height: 1.55;
+}
+
+.sky-main .h3 {
+  font-size: 1.14rem;
+}
+
+.sky-main .h4 {
+  font-size: 1.1rem;
+}
+
+.sky-main .h5 {
+  font-size: 1.02rem;
+}
+
+.sky-dashboard-page-actions {
+  align-items: flex-start;
+}
+
+.sky-dashboard-refresh-stack {
+  display: grid;
+  justify-items: end;
+  gap: 0.5rem;
+  min-width: min(100%, 24rem);
+}
+
+.sky-dashboard-last-refresh {
+  width: 100%;
+  text-align: right;
+}
+
+.sky-dashboard-refresh-stack > .d-flex {
+  justify-content: flex-end;
 }
 
 .sky-card {
@@ -3495,7 +3527,7 @@
 
 .sky-dashboard-command-title,
 .sky-page-title {
-  font-size: clamp(1.22rem, 1.25vw, var(--sky-max-display-font-size));
+  font-size: clamp(1.06rem, 1.08vw, var(--sky-max-display-font-size));
 }
 
 .sky-table-card {
@@ -3570,6 +3602,17 @@
 
   .sky-page-actions .small,
   .sky-page-header > div:not(:first-child) .small {
+    text-align: left;
+  }
+
+  .sky-dashboard-refresh-stack {
+    justify-items: stretch;
+    min-width: 100%;
+  }
+
+  .sky-dashboard-last-refresh,
+  .sky-dashboard-refresh-stack > .d-flex {
+    justify-content: flex-start;
     text-align: left;
   }
 }
@@ -3726,7 +3769,7 @@
 
 .sky-system-health-value {
   color: #f5f8ff;
-  font-size: clamp(1rem, 1vw, 1.25rem);
+  font-size: clamp(1rem, 1vw, 1.12rem);
   font-weight: 900;
   letter-spacing: -0.02em;
   line-height: 1.08;

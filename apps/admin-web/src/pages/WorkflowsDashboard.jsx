@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import WorkflowHistoryVisuals from '../components/charts/WorkflowHistoryVisuals.jsx';
 import DashboardFilterCard from '../components/ui/DashboardFilterCard.jsx';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
 import useSmartPolling, {
   SMART_POLLING_INTERVALS,
   getSmartPollingDelay,
@@ -31,23 +31,6 @@ function getWorkflowCode(run) {
     run?.metadata?.workflowCode ||
     'unknown-workflow'
   );
-}
-
-function formatDate(value) {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
 }
 
 function WorkflowsDashboard() {
@@ -136,25 +119,15 @@ function WorkflowsDashboard() {
   return (
     <>
       <PageHeader
+        actionClassName="sky-dashboard-page-actions"
         actions={
-          <>
-            <button
-              className="btn sky-btn-ghost"
-              disabled={loading}
-              onClick={() => loadRuns()}
-              type="button"
-            >
-              {loading ? 'Refreshing...' : 'Refresh analytics'}
-            </button>
-            <div className="small sky-muted mt-2">
-              Last refresh: {refreshingAt ? formatDate(refreshingAt) : '—'}
-            </div>
-            <SmartPollingStatus
-              activeLabel="Active runs"
-              className="justify-content-end mt-2"
-              state={pollingState}
-            />
-          </>
+          <DashboardRefreshActions
+            activeLabel="Active runs"
+            lastRefreshAt={refreshingAt}
+            loading={loading}
+            onRefresh={() => loadRuns()}
+            pollingState={pollingState}
+          />
         }
         kicker="Dashboards · Workflows"
         subtitle="Inspect workflow run trends, outcomes, duration pressure, definition load, failure pressure, and runtime backend split."
