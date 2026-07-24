@@ -1,3 +1,20 @@
+## 2026-07-24 — Ad Hoc Demo Polish: Dedicated API Dashboard
+
+- Moved Command Center API Observability into its own complete card between Automation Intelligence and Identity Early Warning instead of visually nesting it inside the automation card.
+- Added a permission-protected **Dashboards > API** page with the same shared page header, refresh stack, smart polling, Dashboard Controls card, Apply Filters, and Reset conventions as the other analytical dashboards.
+- Added server-side API telemetry filters for observation window, application, HTTP method, response family, normalized-route search, and route-table size.
+- Expanded API analysis with response-quality, method, application, hourly traffic, hourly latency, slow-route, authentication-mode, and transfer-volume evidence while retaining privacy-safe normalized routes.
+- Added API dashboard navigation/search aliases, responsive dashboard layouts, and `api-dashboard:self-test` validation coverage. No migration or seed change is required beyond the existing API telemetry installation.
+
+## 2026-07-24 — Ad Hoc Demo Polish: PostgreSQL API Observability
+
+- Added privacy-conscious API request telemetry middleware that records normalized route templates, status codes, duration, application/auth scope, byte counts, and request IDs after responses finish without blocking request execution.
+- Added migration `00071__api_request_telemetry.sql`, indexed PostgreSQL telemetry storage, configurable startup retention through `API_TELEMETRY_RETENTION_DAYS`, and fail-open/throttled persistence warnings.
+- Added `API_TELEMETRY_READ` and granted dashboard visibility to the standard SkyCommand administrative and operational roles.
+- Added an Admin API summary contract with total traffic, success/error counts, average/p95/p99 latency, daily traffic and latency series, busiest routes, and application distribution.
+- Added Command Center API observability KPI cards, expandable traffic and latency charts, and a normalized busiest-routes table.
+- Added `api-telemetry:self-test`, privacy/cardinality regression coverage, documentation, and validation wiring. Authorization headers, tokens, bodies, query values, passwords, secrets, and raw URL identifiers are not persisted.
+
 ## 2026-07-24 — Ad Hoc Demo Polish: Dashboard Hierarchy and Refresh Consistency
 
 - Reduced the authenticated page display cap and Bootstrap-style content headings so page titles, hero headings, stat values, and health-card values remain subordinate to the persistent sidebar navigation.

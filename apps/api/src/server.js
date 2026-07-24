@@ -15,6 +15,8 @@ const publicRoutes = require('./routes/public.routes');
 const skywebRoutes = require('./routes/skyweb.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
+const apiTelemetryService = require('./services/apiTelemetryService');
+const { apiTelemetryMiddleware } = require('./middleware/apiTelemetryMiddleware');
 
 function createApp() {
   const app = express();
@@ -22,6 +24,7 @@ function createApp() {
   app.disable('x-powered-by');
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
+  app.use(apiTelemetryMiddleware);
 
   app.get('/_health', (req, res) => {
     res.json({ ok: true, service: 'SkyServer API' });
@@ -133,6 +136,23 @@ async function runStartupMaintenance() {
     }
   } catch (error) {
     console.warn('[SkyServer API] Startup stale execution cleanup failed:', error.message);
+  }
+
+  try {
+    const retentionResult = await apiTelemetryService.pruneApiRequestTelemetry();
+
+    console.log(
+      `[SkyServer API] API telemetry retention: ${retentionResult.retentionDays} day(s)` +
+        (retentionResult.deletedCount > 0
+          ? ` | pruned ${retentionResult.deletedCount} expired row(s)`
+          : ''),
+    );
+  } catch (error) {
+    if (error?.code === '42P01') {
+      console.warn('[SkyServer API] API telemetry retention skipped until migration 00071 is applied.');
+    } else {
+      console.warn('[SkyServer API] API telemetry retention cleanup failed:', error.message);
+    }
   }
 }
 

@@ -6,6 +6,7 @@ const toolAdminService = require('../services/toolAdminService');
 const skycommandRepositoryService = require('../services/skycommandRepositoryService');
 const toolOnboardingService = require('../services/toolOnboardingService');
 const toolVerificationService = require('../services/toolVerificationService');
+const apiTelemetryService = require('../services/apiTelemetryService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function sendPagedResponse(res, payload, liveTelemetryOptions = null) {
@@ -169,6 +170,15 @@ async function revokeSession(req, res) {
 async function getApplicationUserSummary(req, res) {
   try {
     const payload = await adminReadService.getApplicationUserSummary(req.query || {});
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
+async function getApiTelemetrySummary(req, res) {
+  try {
+    const payload = await apiTelemetryService.getApiTelemetrySummary(req.query || {});
     sendServiceResponse(res, payload);
   } catch (error) {
     sendServiceError(res, error);
@@ -841,6 +851,7 @@ module.exports = {
   listScriptExecutions,
   listActiveSessions,
   getApplicationUserSummary,
+  getApiTelemetrySummary,
   listSessions,
   revokeSession,
   listApplications,

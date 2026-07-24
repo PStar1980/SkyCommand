@@ -138,6 +138,7 @@ function DashboardVisuals({
 
       <SystemHealthStrip items={systemStatusItems} />
 
+
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">
         <TrendAreaChart
           colors={[CHART_COLORS.blue, CHART_COLORS.violet]}

@@ -26,6 +26,12 @@ router.get(
   adminController.getApplicationUserSummary,
 );
 
+router.get(
+  '/api-telemetry/summary',
+  requirePermission('API_TELEMETRY_READ'),
+  adminController.getApiTelemetrySummary,
+);
+
 router.get('/sessions', requirePermission('ADMIN_USER_READ'), adminController.listSessions);
 router.post(
   '/sessions/:sessionId/revoke',
