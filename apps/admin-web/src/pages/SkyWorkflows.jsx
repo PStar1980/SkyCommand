@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
@@ -233,21 +235,6 @@ function formatDuration(ms) {
   }
 
   return `${(value / 1000).toFixed(1)} s`;
-}
-
-function formatPollingInterval(ms) {
-  const value = Number(ms);
-
-  if (!Number.isFinite(value) || value <= 0) {
-    return '—';
-  }
-
-  if (value < 1000) {
-    return `${value} ms`;
-  }
-
-  const seconds = value / 1000;
-  return `${seconds % 1 === 0 ? seconds.toFixed(0) : seconds.toFixed(1)} s`;
 }
 
 const DUPLICATE_NODE_OUTPUT_FIELDS = new Set([
@@ -4609,6 +4596,8 @@ function SkyWorkflows({ mode = 'start' }) {
     if (!keepSelection) {
       setSelectedRunDetail(null);
     }
+
+    return items;
   }
 
   async function loadPage({ keepSelection = true } = {}) {
@@ -4617,7 +4606,19 @@ function SkyWorkflows({ mode = 'start' }) {
 
     try {
       await loadDefinitions({ keepSelection });
-      await loadRuns(filters, { keepSelection });
+      const loadedRuns = await loadRuns(filters, { keepSelection });
+
+      if (isHistoryMode) {
+        const refreshedAt = new Date().toISOString();
+        setTelemetryState((current) => ({
+          ...current,
+          activeRunCount: loadedRuns.filter(isActiveRun).length,
+          error: '',
+          lastSuccessfulAt: refreshedAt,
+          lastUpdatedAt: refreshedAt,
+          warning: '',
+        }));
+      }
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflows.'));
     } finally {
@@ -5400,30 +5401,6 @@ function SkyWorkflows({ mode = 'start' }) {
                 Select the execution surface and status, then inspect a run in the detail workspace
                 below.
               </p>
-              <div className="d-flex flex-wrap align-items-center gap-2 mt-2 small">
-                <span
-                  className={`sky-pill ${telemetryState.error ? 'sky-pill-warning' : telemetryState.warning ? 'sky-pill-info' : 'sky-pill-success'}`}
-                >
-                  Smart polling{' '}
-                  {telemetryState.error
-                    ? 'checking'
-                    : telemetryState.warning
-                      ? 'reconnecting'
-                      : 'live'}
-                </span>
-                <span className="sky-pill sky-pill-info">
-                  Every {formatPollingInterval(telemetryState.intervalMs)}
-                </span>
-                <span className="sky-pill sky-pill-info">
-                  Active runs {telemetryState.activeRunCount}
-                </span>
-                {(telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt) && (
-                  <span className="sky-muted">
-                    Updated{' '}
-                    {formatDate(telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt)}
-                  </span>
-                )}
-              </div>
               {telemetryState.warning && !telemetryState.error && (
                 <div className="small sky-muted mt-2">
                   Last poll warning: {telemetryState.warning}
@@ -5615,21 +5592,33 @@ function SkyWorkflows({ mode = 'start' }) {
 
   return (
     <div>
-      <header className="sky-page-header">
-        <div>
-          <div className="sky-page-kicker">{pageKicker}</div>
-          <h1 className="sky-page-title">{pageTitle}</h1>
-          <p className="sky-page-subtitle">{pageSubtitle}</p>
-        </div>
-        <button
-          className="btn sky-btn-ghost"
-          disabled={loading || starting || Boolean(runActionLoading)}
-          onClick={() => loadPage()}
-          type="button"
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </header>
+      <PageHeader
+        actionClassName={isHistoryMode ? 'sky-dashboard-page-actions' : ''}
+        actions={
+          isHistoryMode ? (
+            <DashboardRefreshActions
+              activeLabel="Active runs"
+              activeValue={telemetryState.activeRunCount}
+              lastRefreshAt={telemetryState.lastSuccessfulAt || telemetryState.lastUpdatedAt}
+              loading={loading || Boolean(runActionLoading)}
+              onRefresh={() => loadPage()}
+              pollingState={telemetryState}
+            />
+          ) : (
+            <button
+              className="btn sky-btn-ghost"
+              disabled={loading || starting || Boolean(runActionLoading)}
+              onClick={() => loadPage()}
+              type="button"
+            >
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          )
+        }
+        kicker={pageKicker}
+        subtitle={pageSubtitle}
+        title={pageTitle}
+      />
 
       {error && <div className="alert alert-danger">{error}</div>}
       {message && <div className="alert alert-success">{message}</div>}

@@ -508,24 +508,6 @@ function IngestionStatus() {
     ]);
   }
 
-  async function handleSourceSelect(sourceCode) {
-    const nextIndicatorFilters = {
-      ...filters,
-      source: sourceCode,
-    };
-    const nextRecentFilters = {
-      ...recentFilters,
-      source: sourceCode,
-    };
-
-    setFilters(nextIndicatorFilters);
-    setRecentFilters(nextRecentFilters);
-    await Promise.all([
-      loadIndicators(nextIndicatorFilters),
-      loadRecentExecutions(nextRecentFilters),
-    ]);
-  }
-
   return (
     <>
       <PageHeader
@@ -539,9 +521,9 @@ function IngestionStatus() {
             pollingState={pollingState}
           />
         }
-        kicker="Dashboards · Data pipeline"
+        kicker="Dashboards · Data"
         subtitle="Visualize source freshness, recent ingestion runs, and indicator-level data health across the macro pipeline."
-        title="Data Pipeline"
+        title="Data"
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -564,99 +546,6 @@ function IngestionStatus() {
           </div>
         ))}
       </div>
-
-      <section className="sky-card mt-4">
-        <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-          <div>
-            <h2 className="h5 mb-1">Source health</h2>
-            <div className="small sky-muted">
-              Click a source to filter indicators and recent executions.
-            </div>
-          </div>
-          <button
-            className="btn btn-sm sky-btn-ghost"
-            onClick={() => handleSourceSelect('')}
-            type="button"
-          >
-            Clear source filter
-          </button>
-        </div>
-
-        <div className="sky-card-body">
-          {overviewLoading ? (
-            <div className="sky-empty-state">Loading source health...</div>
-          ) : (
-            <div className="row g-3">
-              {sources.map((source) => (
-                <div className="col-lg-4" key={source.source}>
-                  <button
-                    className={`sky-source-card ${filters.source === source.source ? 'active' : ''}`}
-                    onClick={() => handleSourceSelect(source.source)}
-                    type="button"
-                  >
-                    <div className="d-flex align-items-start justify-content-between gap-3">
-                      <div>
-                        <div className="sky-page-kicker mb-1">{source.source}</div>
-                        <h3 className="h5 mb-1">{source.label}</h3>
-                        <div className="small sky-muted">{source.provider}</div>
-                      </div>
-                      <span className={`sky-pill ${statusClass(source.status)}`}>
-                        {source.status || 'UNKNOWN'}
-                      </span>
-                    </div>
-
-                    <p className="small sky-muted mt-3 mb-3">{source.description}</p>
-
-                    <div className="sky-mini-stat-grid">
-                      <div>
-                        <div className="sky-detail-label small">Current</div>
-                        <div className="sky-detail-value fw-bold">
-                          {source.counts?.current ?? 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="sky-detail-label small">Stale</div>
-                        <div className="sky-detail-value fw-bold">{source.counts?.stale ?? 0}</div>
-                      </div>
-                      <div>
-                        <div className="sky-detail-label small">Active</div>
-                        <div className="sky-detail-value fw-bold">{source.counts?.active ?? 0}</div>
-                      </div>
-                    </div>
-
-                    <hr />
-
-                    <dl className="row g-2 mb-0 small">
-                      <dt className="col-5 sky-detail-label">Latest data</dt>
-                      <dd className="col-7 sky-detail-value text-end">
-                        {formatDateOnly(source.latestDataDate)}
-                      </dd>
-
-                      <dt className="col-5 sky-detail-label">Days old</dt>
-                      <dd className="col-7 sky-detail-value text-end">
-                        {source.daysSinceLatestData ?? '—'}
-                      </dd>
-
-                      <dt className="col-5 sky-detail-label">Last run</dt>
-                      <dd className="col-7 sky-detail-value text-end">
-                        {source.latestExecution?.status ? (
-                          <span
-                            className={`sky-pill ${statusClass(source.latestExecution.status)}`}
-                          >
-                            {getExecutionLabel(source.latestExecution.status)}
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </dd>
-                    </dl>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
 
       <form onSubmit={applyDashboardFilters}>
         <DashboardFilterCard

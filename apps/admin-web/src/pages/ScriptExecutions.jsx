@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import SmartPollingStatus from '../components/ui/SmartPollingStatus.jsx';
+import { useEffect, useMemo, useState } from 'react';
+import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import useSmartPolling, {
   SMART_POLLING_INTERVALS,
   getSmartPollingDelay,
@@ -114,16 +115,37 @@ function getDurationLabel(item) {
 function ScriptExecutions() {
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [filters, setFilters] = useState({ status: '' });
+  const [filters, setFilters] = useState({ category: '', scriptName: '', status: '' });
+  const [filterOptions, setFilterOptions] = useState({ categories: [], tools: [] });
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refreshingAt, setRefreshingAt] = useState(null);
 
   const pageCount = Math.max(1, Math.ceil(total / TOOL_HISTORY_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
   const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * TOOL_HISTORY_PAGE_SIZE + 1;
   const rangeEnd = Math.min(safeCurrentPage * TOOL_HISTORY_PAGE_SIZE, total);
+  const visibleToolOptions = useMemo(
+    () =>
+      (filterOptions.tools || []).filter(
+        (tool) => !filters.category || tool.category === filters.category,
+      ),
+    [filterOptions.tools, filters.category],
+  );
+
+  async function loadFilterOptions() {
+    try {
+      const result = await adminService.getScriptExecutionOptions();
+      setFilterOptions({
+        categories: result.categories || [],
+        tools: result.tools || [],
+      });
+    } catch (loadError) {
+      console.warn('[SkyCommand Tool History] Filter options failed to load:', loadError);
+    }
+  }
 
   async function loadExecutions(
     nextFilters = filters,
@@ -157,6 +179,7 @@ function ScriptExecutions() {
       setItems(resultItems);
       setTotal(resultTotal);
       setCurrentPage(safePage);
+      setRefreshingAt(new Date());
       setSelectedItem((currentSelected) => {
         if (!keepSelection || !currentSelected) {
           return resultItems[0] || null;
@@ -188,12 +211,19 @@ function ScriptExecutions() {
   }
 
   useEffect(() => {
+    loadFilterOptions();
     loadExecutions(filters, 1, { keepSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pollingState = useSmartPolling({
-    dependencies: [filters.status, safeCurrentPage, selectedItem?.executionId],
+    dependencies: [
+      filters.category,
+      filters.scriptName,
+      filters.status,
+      safeCurrentPage,
+      selectedItem?.executionId,
+    ],
     getDelay: ({ activeCount = 0, hidden = false, selectedActive = false } = {}) =>
       getSmartPollingDelay({
         activeCount,
@@ -211,6 +241,17 @@ function ScriptExecutions() {
     const nextFilters = {
       ...filters,
       [name]: value,
+    };
+
+    setFilters(nextFilters);
+    loadExecutions(nextFilters, 1, { keepSelection: false });
+  }
+
+  function updateCategoryFilter(value) {
+    const nextFilters = {
+      ...filters,
+      category: value,
+      scriptName: '',
     };
 
     setFilters(nextFilters);
@@ -285,24 +326,21 @@ function ScriptExecutions() {
 
   return (
     <>
-      <header className="sky-page-header">
-        <div>
-          <div className="sky-page-kicker">Tools · History</div>
-          <h1 className="sky-page-title">Tool History</h1>
-          <p className="sky-page-subtitle">
-            Read-only trace of tools launched through the API, Admin-Web, CLI-adjacent workflows,
-            and workers.
-          </p>
-        </div>
-        <button
-          className="btn sky-btn-ghost"
-          disabled={loading}
-          onClick={() => loadExecutions(filters, safeCurrentPage)}
-          type="button"
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </header>
+      <PageHeader
+        actionClassName="sky-dashboard-page-actions"
+        actions={
+          <DashboardRefreshActions
+            activeLabel="Running tools"
+            lastRefreshAt={refreshingAt}
+            loading={loading}
+            onRefresh={() => loadExecutions(filters, safeCurrentPage)}
+            pollingState={pollingState}
+          />
+        }
+        kicker="Tools · History"
+        subtitle="Read-only trace of tools launched through the API, Admin-Web, CLI-adjacent workflows, and workers."
+        title="Tool History"
+      />
 
       {error && <div className="alert alert-danger">{error}</div>}
 
@@ -316,20 +354,51 @@ function ScriptExecutions() {
                 Filter the operational tool ledger, then inspect the selected execution in the
                 detail workspace below.
               </p>
-              <SmartPollingStatus
-                activeLabel="Running tools"
-                className="mt-2"
-                state={pollingState}
-              />
             </div>
             <div className="sky-history-filter-grid sky-history-filter-grid-single">
               <div>
-                <label className="form-label" htmlFor="statusFilter">
+                <label className="form-label" htmlFor="toolHistoryCategoryFilter">
+                  Category
+                </label>
+                <select
+                  className="form-select sky-form-control"
+                  id="toolHistoryCategoryFilter"
+                  onChange={(event) => updateCategoryFilter(event.target.value)}
+                  value={filters.category}
+                >
+                  <option value="">All categories</option>
+                  {(filterOptions.categories || []).map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="toolHistoryToolFilter">
+                  Tool
+                </label>
+                <select
+                  className="form-select sky-form-control"
+                  id="toolHistoryToolFilter"
+                  onChange={(event) => updateFilter('scriptName', event.target.value)}
+                  value={filters.scriptName}
+                >
+                  <option value="">All tools</option>
+                  {visibleToolOptions.map((tool) => (
+                    <option key={`${tool.category}:${tool.scriptName}`} value={tool.scriptName}>
+                      {tool.scriptName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="toolHistoryStatusFilter">
                   Status
                 </label>
                 <select
                   className="form-select sky-form-control"
-                  id="statusFilter"
+                  id="toolHistoryStatusFilter"
                   onChange={(event) => updateFilter('status', event.target.value)}
                   value={filters.status}
                 >
