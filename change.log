@@ -1,3 +1,12 @@
+## 2026-07-25 — Ad Hoc Demo Polish: Server Status and Tool Output Workspaces
+
+- Separated Command Center platform availability from Automation Intelligence with a dedicated **Server Status** card for the Admin-Web server, PostgreSQL database, API server, Node worker, Temporal server, and Temporal worker; removed the former Readiness tile from that operational group.
+- Added permission-protected Tool History execution-detail retrieval that reads captured stdout/stderr from the managed script-execution log directory, enforces path containment, applies a configurable output-size cap, and returns persisted structured ToolResult evidence without exposing that potentially large payload in the paginated history list.
+- Persisted successful structured ToolResult envelopes and their validation contracts in tool-execution metadata for normal and controlled-test launches, while preserving the existing process result as runtime authority.
+- Rebuilt Tool History's selected-execution area as a contained output workspace with separate Process Output and Structured ToolResult cards, row-level **Tool Details** overlays, input parameters, execution identity, and metadata evidence.
+- Modernized Run Tools with a clearer catalogue/execution-console hierarchy, tool-risk and output-contract cues, execution timing/status evidence, and the same captured process/structured output presentation after a run completes.
+- Added workflow-bridge output logs, structured-contract status tones, responsive output/server layouts, stale-detail request protection, and `tool-execution-output-workspace:self-test` validation coverage.
+
 ## 2026-07-24 — Ad Hoc Demo Polish: Navigation, Readiness Isolation, and Runtime Graph Containment
 
 - Standardized authenticated route navigation so every menu destination and pathname change opens at the top of the viewport instead of inheriting a prior page's scroll position, without disturbing same-page query/filter updates.

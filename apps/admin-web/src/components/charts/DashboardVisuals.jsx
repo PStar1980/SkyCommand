@@ -5,7 +5,6 @@ import StatusDonut from './StatusDonut.jsx';
 import TrendAreaChart from './TrendAreaChart.jsx';
 import { buildRecentDayDurationSeries, buildRecentDaySeriesFromField, countByField, dateFromField, getDateDiffMs } from './chartData.js';
 import { CHART_COLORS } from './chartTheme.js';
-import { StatusDot } from '../ui/StatusPill.jsx';
 
 const STOPPED_WORKFLOW_STATUSES = ['FAILED', 'TERMINATED', 'CANCELED'];
 
@@ -71,34 +70,10 @@ function buildFreshnessData(ingestionCounts) {
   ].filter((item) => item.value > 0);
 }
 
-function SystemHealthStrip({ items = [] }) {
-  if (items.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="sky-system-health-strip mb-3">
-      {items.map((item) => (
-        <div className="sky-system-health-card" key={item.label}>
-          <div className="d-flex align-items-start justify-content-between gap-2">
-            <div>
-              <div className="sky-page-kicker">{item.label}</div>
-              <div className="sky-system-health-value">{item.value}</div>
-            </div>
-            <StatusDot status={item.status} />
-          </div>
-          {item.helper && <div className="small sky-muted mt-2">{item.helper}</div>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function DashboardVisuals({
   ingestionCounts,
   recentAudits,
   recentExecutions,
-  systemStatusItems = [],
   workflowRuns = [],
 }) {
   const operations = useMemo(
@@ -135,8 +110,6 @@ function DashboardVisuals({
         </div>
         <span className="sky-muted small">Apache ECharts rendering · D3-powered grouping</span>
       </div>
-
-      <SystemHealthStrip items={systemStatusItems} />
 
 
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">

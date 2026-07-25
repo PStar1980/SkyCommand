@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import ToolExecutionOutputPanels from '../components/tools/ToolExecutionOutputPanels.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import useSmartPolling, {
@@ -115,6 +116,11 @@ function getDurationLabel(item) {
 function ScriptExecutions() {
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedDetail, setSelectedDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailRequestId = useRef(0);
   const [filters, setFilters] = useState({ category: '', scriptName: '', status: '' });
   const [filterOptions, setFilterOptions] = useState({ categories: [], tools: [] });
   const [currentPage, setCurrentPage] = useState(1);
@@ -145,6 +151,54 @@ function ScriptExecutions() {
     } catch (loadError) {
       console.warn('[SkyCommand Tool History] Filter options failed to load:', loadError);
     }
+  }
+
+  async function loadExecutionDetail(executionId, { quiet = false } = {}) {
+    const requestId = detailRequestId.current + 1;
+    detailRequestId.current = requestId;
+
+    if (!executionId) {
+      setSelectedDetail(null);
+      return null;
+    }
+
+    if (!quiet) {
+      setDetailLoading(true);
+      setDetailError('');
+    }
+
+    try {
+      const result = await adminService.getScriptExecutionDetail(executionId);
+
+      if (detailRequestId.current !== requestId) {
+        return null;
+      }
+
+      setSelectedDetail(result);
+      return result;
+    } catch (loadError) {
+      if (detailRequestId.current !== requestId) {
+        return null;
+      }
+
+      setSelectedDetail(null);
+      if (!quiet) {
+        setDetailError(loadError.message || 'Failed to load execution output.');
+      }
+      return null;
+    } finally {
+      if (!quiet && detailRequestId.current === requestId) {
+        setDetailLoading(false);
+      }
+    }
+  }
+
+  function selectExecution(item, { openDetails = false } = {}) {
+    setSelectedItem(item);
+    setSelectedDetail(null);
+    setDetailError('');
+    loadExecutionDetail(item?.executionId);
+    setDetailsOpen(openDetails);
   }
 
   async function loadExecutions(
@@ -180,17 +234,19 @@ function ScriptExecutions() {
       setTotal(resultTotal);
       setCurrentPage(safePage);
       setRefreshingAt(new Date());
-      setSelectedItem((currentSelected) => {
-        if (!keepSelection || !currentSelected) {
-          return resultItems[0] || null;
-        }
+      const nextSelected =
+        !keepSelection || !selectedItem
+          ? resultItems[0] || null
+          : resultItems.find((item) => item.executionId === selectedItem.executionId) ||
+            resultItems[0] ||
+            null;
+      setSelectedItem(nextSelected);
 
-        return (
-          resultItems.find((item) => item.executionId === currentSelected.executionId) ||
-          resultItems[0] ||
-          null
-        );
-      });
+      if (nextSelected) {
+        await loadExecutionDetail(nextSelected.executionId, { quiet });
+      } else {
+        setSelectedDetail(null);
+      }
 
       return {
         activeCount: resultItems.filter(isActiveExecution).length,
@@ -215,6 +271,27 @@ function ScriptExecutions() {
     loadExecutions(filters, 1, { keepSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!detailsOpen) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setDetailsOpen(false);
+      }
+    }
+
+    const priorOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = priorOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [detailsOpen]);
 
   const pollingState = useSmartPolling({
     dependencies: [
@@ -421,19 +498,20 @@ function ScriptExecutions() {
                   <th>Started</th>
                   <th>Duration</th>
                   <th>Completed</th>
+                  <th className="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="5">
+                    <td colSpan="6">
                       <div className="sky-empty-state">Loading executions...</div>
                     </td>
                   </tr>
                 )}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td colSpan="5">
+                    <td colSpan="6">
                       <div className="sky-empty-state">
                         No tool executions found for this filter.
                       </div>
@@ -447,7 +525,7 @@ function ScriptExecutions() {
                         selectedItem?.executionId === item.executionId ? 'sky-selected-row' : ''
                       }`}
                       key={item.executionId}
-                      onClick={() => setSelectedItem(item)}
+                      onClick={() => selectExecution(item)}
                     >
                       <td>
                         <div className="fw-bold sky-detail-value">{item.scriptName}</div>
@@ -461,6 +539,18 @@ function ScriptExecutions() {
                       <td>{formatDate(item.startedAt)}</td>
                       <td>{formatDuration(item)}</td>
                       <td>{formatDate(item.finishedAt)}</td>
+                      <td className="text-end">
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            selectExecution(item, { openDetails: true });
+                          }}
+                          type="button"
+                        >
+                          Tool Details
+                        </button>
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -469,95 +559,179 @@ function ScriptExecutions() {
           {renderPagination()}
         </section>
 
-        <section className="sky-functional-history-detail-zone">
-          <div className="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
+        <section className="sky-card sky-tool-history-workspace-card">
+          <div className="sky-card-header sky-tool-history-workspace-header">
             <div>
               <div className="sky-page-kicker">Selected execution workspace</div>
-              <h2 className="h5 mb-0">Execution detail</h2>
+              <h2 className="h5 mb-0">Tool output</h2>
+              <div className="small sky-muted mt-1">
+                {selectedItem
+                  ? `${selectedItem.scriptName} · ${selectedItem.category || 'Uncategorized'}`
+                  : 'Select a tool execution from the browser above.'}
+              </div>
             </div>
-            <div className="small sky-muted">Execution metadata scrolls independently.</div>
+            {selectedItem && (
+              <span className={`sky-pill ${statusClass(selectedItem.status)}`}>
+                {getStatusLabel(selectedItem.status)}
+              </span>
+            )}
           </div>
-
-          <section className="sky-card sky-tool-history-detail-card">
-            <div className="sky-card-body">
-              {selectedItem ? (
-                <div className="sky-execution-detail-layout">
-                  <div className="sky-execution-detail-summary">
-                    <div className="sky-execution-detail-title-row">
-                      <div>
-                        <div className="sky-page-kicker">Selected tool</div>
-                        <h3 className="h5 mb-1">{selectedItem.scriptName}</h3>
-                        <div className="small sky-muted">
-                          {selectedItem.category || 'Uncategorized'}
-                        </div>
-                      </div>
-                      <span className={`sky-pill ${statusClass(selectedItem.status)}`}>
-                        {getStatusLabel(selectedItem.status)}
-                      </span>
+          <div className="sky-card-body">
+            {selectedItem ? (
+              <>
+                <div className="sky-tool-history-output-summary mb-3">
+                  <div>
+                    <div className="sky-detail-label">Summary</div>
+                    <div className="sky-detail-value">
+                      {getDisplaySummary(selectedItem.summary, selectedItem.status)}
                     </div>
-
-                    <div className="sky-execution-metric-grid">
-                      <div className="sky-mini-metric">
-                        <div className="sky-page-kicker">Duration</div>
-                        <div className="sky-mini-metric-value">
-                          {getDurationLabel(selectedItem)}
-                        </div>
-                      </div>
-                      <div className="sky-mini-metric">
-                        <div className="sky-page-kicker">Started</div>
-                        <div className="sky-detail-value">{formatDate(selectedItem.startedAt)}</div>
-                      </div>
-                      <div className="sky-mini-metric">
-                        <div className="sky-page-kicker">Completed</div>
-                        <div className="sky-detail-value">
-                          {formatDate(selectedItem.finishedAt)}
-                        </div>
-                      </div>
-                      <div className="sky-mini-metric">
-                        <div className="sky-page-kicker">Logs</div>
-                        <div className="d-flex flex-wrap gap-1">
-                          <span className="sky-pill">
-                            stdout: {selectedItem.hasStdoutLog ? 'yes' : 'no'}
-                          </span>
-                          <span className="sky-pill">
-                            stderr: {selectedItem.hasStderrLog ? 'yes' : 'no'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <dl className="row g-2 mb-0">
-                      <dt className="col-md-3 sky-detail-label">Execution</dt>
-                      <dd className="col-md-9 sky-mono small sky-detail-value">
-                        {selectedItem.executionId}
-                      </dd>
-
-                      <dt className="col-md-3 sky-detail-label">User</dt>
-                      <dd className="col-md-9 sky-detail-value">
-                        {selectedItem.displayName || selectedItem.email || '—'}
-                      </dd>
-
-                      <dt className="col-md-3 sky-detail-label">Summary</dt>
-                      <dd className="col-md-9 sky-detail-value">
-                        {getDisplaySummary(selectedItem.summary, selectedItem.status)}
-                      </dd>
-                    </dl>
                   </div>
-
-                  <div className="sky-execution-detail-metadata">
-                    <div className="mb-2 sky-detail-label">Execution metadata</div>
-                    <pre className="sky-code-block sky-tool-history-metadata-block">
-                      {JSON.stringify(selectedItem.metadata || {}, null, 2)}
-                    </pre>
+                  <div>
+                    <div className="sky-detail-label">Execution</div>
+                    <div className="sky-mono small sky-detail-value">
+                      {selectedItem.executionId}
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className="sky-empty-state">Select an execution to inspect.</div>
-              )}
-            </div>
-          </section>
+
+                {detailError && <div className="alert alert-danger">{detailError}</div>}
+
+                <ToolExecutionOutputPanels
+                  loading={detailLoading}
+                  stderr={selectedDetail?.stderr || ''}
+                  stdout={selectedDetail?.stdout || ''}
+                  structuredOutputExpected={Boolean(
+                    selectedDetail?.structuredOutputExpected ||
+                      selectedItem.metadata?.toolResultAvailable,
+                  )}
+                  toolResult={selectedDetail?.structuredResult || null}
+                  toolResultContract={
+                    selectedDetail?.toolResultContract ||
+                    selectedItem.metadata?.toolResultContract ||
+                    null
+                  }
+                />
+
+                {selectedDetail?.outputAvailability?.warnings?.length > 0 && (
+                  <div className="alert alert-warning mt-3 mb-0">
+                    {selectedDetail.outputAvailability.warnings.join(' · ')}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="sky-empty-state">Select an execution to inspect its output.</div>
+            )}
+          </div>
         </section>
       </div>
+
+      {detailsOpen && selectedItem && (
+        <div
+          aria-label="Tool execution details"
+          aria-modal="true"
+          className="sky-chart-modal-backdrop sky-tool-details-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setDetailsOpen(false);
+            }
+          }}
+          role="dialog"
+        >
+          <section className="sky-chart-modal sky-tool-details-modal">
+            <div className="sky-chart-modal-header">
+              <div>
+                <div className="sky-page-kicker sky-chart-modal-kicker">Tool details</div>
+                <h2>{selectedItem.scriptName}</h2>
+                <p>{selectedItem.category || 'Uncategorized'} · {selectedItem.executionId}</p>
+              </div>
+              <button
+                aria-label="Close tool details"
+                className="sky-chart-modal-close"
+                onClick={() => setDetailsOpen(false)}
+                type="button"
+              >
+                <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="sky-tool-details-modal-body">
+              <div className="sky-execution-metric-grid">
+                <div className="sky-mini-metric">
+                  <div className="sky-page-kicker">Status</div>
+                  <span className={`sky-pill ${statusClass(selectedItem.status)}`}>
+                    {getStatusLabel(selectedItem.status)}
+                  </span>
+                </div>
+                <div className="sky-mini-metric">
+                  <div className="sky-page-kicker">Duration</div>
+                  <div className="sky-mini-metric-value">{getDurationLabel(selectedItem)}</div>
+                </div>
+                <div className="sky-mini-metric">
+                  <div className="sky-page-kicker">Started</div>
+                  <div className="sky-detail-value">{formatDate(selectedItem.startedAt)}</div>
+                </div>
+                <div className="sky-mini-metric">
+                  <div className="sky-page-kicker">Completed</div>
+                  <div className="sky-detail-value">{formatDate(selectedItem.finishedAt)}</div>
+                </div>
+              </div>
+
+              <section className="sky-card mb-3">
+                <div className="sky-card-header">
+                  <h3 className="h5 mb-0">Execution identity</h3>
+                </div>
+                <div className="sky-card-body">
+                  <dl className="row g-2 mb-0">
+                    <dt className="col-md-3 sky-detail-label">Execution</dt>
+                    <dd className="col-md-9 sky-mono small sky-detail-value">
+                      {selectedItem.executionId}
+                    </dd>
+                    <dt className="col-md-3 sky-detail-label">User</dt>
+                    <dd className="col-md-9 sky-detail-value">
+                      {selectedItem.displayName || selectedItem.email || '—'}
+                    </dd>
+                    <dt className="col-md-3 sky-detail-label">Exit code</dt>
+                    <dd className="col-md-9 sky-detail-value">{selectedItem.exitCode ?? '—'}</dd>
+                    <dt className="col-md-3 sky-detail-label">Summary</dt>
+                    <dd className="col-md-9 sky-detail-value">
+                      {getDisplaySummary(selectedItem.summary, selectedItem.status)}
+                    </dd>
+                  </dl>
+                </div>
+              </section>
+
+              <section className="sky-card mb-3">
+                <div className="sky-card-header">
+                  <div>
+                    <div className="sky-page-kicker">Execution input</div>
+                    <h3 className="h5 mb-0">Parameters</h3>
+                  </div>
+                </div>
+                <div className="sky-card-body">
+                  <pre className="sky-code-block sky-tool-history-metadata-block">
+                    {JSON.stringify(selectedItem.parameters || {}, null, 2)}
+                  </pre>
+                </div>
+              </section>
+
+              <section className="sky-card">
+                <div className="sky-card-header">
+                  <div>
+                    <div className="sky-page-kicker">Execution evidence</div>
+                    <h3 className="h5 mb-0">Metadata</h3>
+                  </div>
+                </div>
+                <div className="sky-card-body">
+                  <pre className="sky-code-block sky-tool-history-metadata-block">
+                    {JSON.stringify(selectedItem.metadata || {}, null, 2)}
+                  </pre>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }

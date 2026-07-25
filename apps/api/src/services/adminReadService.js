@@ -1,8 +1,26 @@
+const fs = require('fs');
+const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const scriptExecutionService = require('./scriptExecutionService');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const DEFAULT_EXECUTION_OUTPUT_BYTES = 500000;
+const HARD_MAX_EXECUTION_OUTPUT_BYTES = 5000000;
+const configuredExecutionOutputBytes = Number.parseInt(
+  process.env.TOOL_HISTORY_MAX_OUTPUT_BYTES,
+  10,
+);
+const MAX_EXECUTION_OUTPUT_BYTES =
+  Number.isFinite(configuredExecutionOutputBytes) && configuredExecutionOutputBytes > 0
+    ? Math.min(configuredExecutionOutputBytes, HARD_MAX_EXECUTION_OUTPUT_BYTES)
+    : DEFAULT_EXECUTION_OUTPUT_BYTES;
+const SCRIPT_EXECUTION_LOG_ROOT = path.resolve(
+  __dirname,
+  '../../../..',
+  'logs',
+  'script-executions',
+);
 const DEFAULT_ADMIN_APP_CODE = String(process.env.AUTH_APP_CODE || 'SKYSERVER_ADMIN')
   .trim()
   .toUpperCase();
@@ -311,6 +329,11 @@ function sanitizeLoginEvent(row) {
   };
 }
 
+function sanitizeScriptExecutionMetadata(metadata = {}) {
+  const { toolResult, ...safeMetadata } = metadata || {};
+  return safeMetadata;
+}
+
 function sanitizeScriptExecution(row) {
   return {
     executionId: row.execution_id,
@@ -329,10 +352,67 @@ function sanitizeScriptExecution(row) {
     durationMs: row.duration_ms,
     durationSeconds: row.duration_seconds,
     summary: row.summary,
-    metadata: row.metadata || {},
+    metadata: sanitizeScriptExecutionMetadata(row.metadata || {}),
     hasStdoutLog: Boolean(row.stdout_path),
     hasStderrLog: Boolean(row.stderr_path),
   };
+}
+
+function readScriptExecutionOutput(filePath) {
+  if (!filePath) {
+    return { available: false, content: '', truncated: false };
+  }
+
+  const resolvedPath = path.resolve(String(filePath));
+  const relativePath = path.relative(SCRIPT_EXECUTION_LOG_ROOT, resolvedPath);
+  const withinLogRoot =
+    relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+
+  if (!withinLogRoot) {
+    return {
+      available: false,
+      content: '',
+      truncated: false,
+      warning: 'The stored output path is outside the script execution log directory.',
+    };
+  }
+
+  let fileDescriptor = null;
+
+  try {
+    const statistics = fs.statSync(resolvedPath);
+
+    if (!statistics.isFile()) {
+      return {
+        available: false,
+        content: '',
+        truncated: false,
+        warning: 'The stored output path does not reference a file.',
+      };
+    }
+
+    const bytesToRead = Math.min(statistics.size, MAX_EXECUTION_OUTPUT_BYTES);
+    const visibleBuffer = Buffer.alloc(bytesToRead);
+    fileDescriptor = fs.openSync(resolvedPath, 'r');
+    const bytesRead = bytesToRead > 0 ? fs.readSync(fileDescriptor, visibleBuffer, 0, bytesToRead, 0) : 0;
+
+    return {
+      available: true,
+      content: visibleBuffer.subarray(0, bytesRead).toString('utf8'),
+      truncated: statistics.size > MAX_EXECUTION_OUTPUT_BYTES,
+    };
+  } catch (error) {
+    return {
+      available: false,
+      content: '',
+      truncated: false,
+      warning: error.code === 'ENOENT' ? 'The output log file is not available.' : error.message,
+    };
+  } finally {
+    if (fileDescriptor !== null) {
+      fs.closeSync(fileDescriptor);
+    }
+  }
 }
 
 function sanitizeActiveSession(row, currentSessionId = null) {
@@ -851,6 +931,60 @@ async function listScriptExecutions(filters = {}) {
     ...result,
     items: result.rows.map(sanitizeScriptExecution),
     rows: undefined,
+  };
+}
+
+
+async function getScriptExecutionDetail(executionId) {
+  const normalizedExecutionId = normalizeOptionalString(executionId);
+
+  if (!normalizedExecutionId) {
+    const error = new Error('Execution ID is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const result = await query(
+    `
+      SELECT *
+      FROM auth.vw_script_execution_recent
+      WHERE execution_id = $1
+      LIMIT 1
+    `,
+    [normalizedExecutionId],
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    const error = new Error(`Tool execution ${normalizedExecutionId} was not found.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const metadata = row.metadata || {};
+  const stdout = readScriptExecutionOutput(row.stdout_path);
+  const stderr = readScriptExecutionOutput(row.stderr_path);
+
+  return {
+    execution: sanitizeScriptExecution(row),
+    stdout: stdout.content,
+    stderr: stderr.content,
+    outputAvailability: {
+      stdout: stdout.available,
+      stderr: stderr.available,
+      stdoutTruncated: stdout.truncated,
+      stderrTruncated: stderr.truncated,
+      warnings: [stdout.warning, stderr.warning].filter(Boolean),
+    },
+    structuredResult: metadata.toolResult || null,
+    structuredOutputExpected: Boolean(
+      metadata.toolResultAvailable ||
+        metadata.toolResultContract?.required ||
+        metadata.toolResultContract?.expectedOutputType ||
+        metadata.toolResultContract?.outputType
+    ),
+    structuredOutputPersisted: Boolean(metadata.toolResult),
+    toolResultContract: metadata.toolResultContract || null,
   };
 }
 
@@ -1669,6 +1803,7 @@ module.exports = {
   listAuditEvents,
   listLoginEvents,
   listScriptExecutions,
+  getScriptExecutionDetail,
   getScriptExecutionOptions,
   listActiveSessions,
   getApplicationUserSummary,

@@ -1098,14 +1098,30 @@ async function runSkyserverWorkflowBridgeTool({
     const temporalWorkflow = result.temporalWorkflow || {};
     const durationMs = Math.max(0, Date.now() - executionStartedAtMs);
     const summary = result.message || `Workflow ${workflowCode} started through Temporal.`;
+    const stdout = JSON.stringify(
+      {
+        ok: true,
+        workflowCode,
+        workflowRunRecordId: run.workflowRunRecordId || null,
+        temporalWorkflowId: temporalWorkflow.workflowId || run.temporalWorkflowId || null,
+        temporalRunId: temporalWorkflow.runId || run.temporalRunId || null,
+      },
+      null,
+      2,
+    );
+    const outputFiles = writeExecutionOutputFiles({
+      executionId: execution.execution_id,
+      stdout,
+      stderr: '',
+    });
 
     await updateExecutionFinished({
       executionId: execution.execution_id,
       status: 'SUCCESS',
       exitCode: 0,
       durationMs,
-      stdoutPath: null,
-      stderrPath: null,
+      stdoutPath: outputFiles.stdoutPath,
+      stderrPath: outputFiles.stderrPath,
       summary,
       metadata: {
         bridgeTool: true,
@@ -1147,17 +1163,7 @@ async function runSkyserverWorkflowBridgeTool({
       durationMs,
       startedAt: execution.started_at,
       summary,
-      stdout: JSON.stringify(
-        {
-          ok: true,
-          workflowCode,
-          workflowRunRecordId: run.workflowRunRecordId || null,
-          temporalWorkflowId: temporalWorkflow.workflowId || run.temporalWorkflowId || null,
-          temporalRunId: temporalWorkflow.runId || run.temporalRunId || null,
-        },
-        null,
-        2,
-      ),
+      stdout,
       stderr: '',
       workflow: result,
     };
@@ -1322,6 +1328,8 @@ async function runTool({
           childResult.stderr.includes('Output truncated'),
         processStatus: childResult.processStatus,
         toolResultAvailable: Boolean(childResult.toolResult),
+        toolResultPersisted: Boolean(childResult.toolResult),
+        toolResult: childResult.toolResult,
         toolResultContract: childResult.toolResultContract,
       },
     });
@@ -1482,6 +1490,8 @@ async function runManagedToolTest({
         timedOut: childResult.timedOut,
         processStatus: childResult.processStatus,
         toolResultAvailable: Boolean(childResult.toolResult),
+        toolResultPersisted: Boolean(childResult.toolResult),
+        toolResult: childResult.toolResult,
         toolResultContract: childResult.toolResultContract,
         enabledStateChanged: false,
       },

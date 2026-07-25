@@ -20,6 +20,11 @@ router.get(
   adminController.getScriptExecutionOptions,
 );
 router.get(
+  '/script-executions/:executionId',
+  requirePermission('SCRIPT_EXECUTION_READ'),
+  adminController.getScriptExecutionDetail,
+);
+router.get(
   '/active-sessions',
   requirePermission('ADMIN_USER_READ'),
   adminController.listActiveSessions,

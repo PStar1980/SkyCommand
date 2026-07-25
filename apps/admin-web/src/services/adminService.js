@@ -4,6 +4,10 @@ async function listScriptExecutions(filters = {}) {
   return api.get('/api/admin/script-executions', { query: filters });
 }
 
+async function getScriptExecutionDetail(executionId) {
+  return api.get(`/api/admin/script-executions/${encodeURIComponent(executionId)}`);
+}
+
 async function getScriptExecutionOptions() {
   return api.get('/api/admin/script-executions/options');
 }
@@ -262,6 +266,7 @@ async function getCoreSettings() {
 
 const adminService = {
   listScriptExecutions,
+  getScriptExecutionDetail,
   getScriptExecutionOptions,
   listAuditEvents,
   listLoginEvents,

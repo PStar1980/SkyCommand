@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import ToolExecutionOutputPanels from '../components/tools/ToolExecutionOutputPanels.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import toolService from '../services/toolService';
 
 const HIGH_RISK_CONFIRMATION_PHRASE = 'RUN HIGH RISK';
@@ -120,21 +122,6 @@ function formatElapsedMilliseconds(milliseconds) {
   }
 
   return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
-
-function getOutputText(result) {
-  if (!result) {
-    return 'No output.';
-  }
-
-  const stdout = result.stdout || '';
-  const stderr = result.stderr || '';
-
-  if (stdout && stderr) {
-    return `${stdout}\n\n--- stderr ---\n${stderr}`;
-  }
-
-  return stdout || stderr || 'No output.';
 }
 
 function getDisplaySummary(summary) {
@@ -582,15 +569,11 @@ function Tools() {
 
   return (
     <>
-      <header className="sky-page-header">
-        <div>
-          <div className="sky-page-kicker">Registered tools</div>
-          <h1 className="sky-page-title">Tools</h1>
-          <p className="sky-page-subtitle">
-            Run permission-filtered, Admin-Web-visible tools through the API execution layer.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        kicker="Tools · Execution"
+        subtitle="Select a permission-filtered tool, configure its parameters, and inspect both process output and structured workflow evidence."
+        title="Run Tools"
+      />
 
       {error && <div className="alert alert-danger">{error}</div>}
 
@@ -600,11 +583,17 @@ function Tools() {
           <div className="mt-3">Loading tool manifest...</div>
         </div>
       ) : (
-        <div className="row g-3">
+        <div className="row g-3 sky-run-tools-layout">
           <div className="col-lg-5 col-xl-4">
             <section className="sky-card">
               <div className="sky-card-header">
-                <h2 className="h5 mb-0">Available tools</h2>
+                <div>
+                  <div className="sky-page-kicker">Tool catalogue</div>
+                  <h2 className="h5 mb-0">Available tools</h2>
+                  <div className="small sky-muted mt-1">
+                    {tools.length} permission-visible tool{tools.length === 1 ? '' : 's'} grouped by category.
+                  </div>
+                </div>
               </div>
 
               <div className="sky-tool-category-list">
@@ -676,13 +665,36 @@ function Tools() {
 
           <div className="col-lg-7 col-xl-8">
             <section className="sky-card">
-              <div className="sky-card-header">
-                <h2 className="h5 mb-1">{selectedTool?.label || 'No tool selected'}</h2>
+              <div className="sky-card-header sky-run-tool-console-header">
+                <div>
+                  <div className="sky-page-kicker">Execution console</div>
+                  <h2 className="h5 mb-1">{selectedTool?.label || 'Select a tool'}</h2>
+                  {selectedTool && (
+                    <div className="sky-muted small">
+                      <span className="sky-mono">{selectedTool.toolCode}</span>
+                      {' · '}
+                      Permission: <span className="sky-mono">{selectedTool.permissionCode}</span>
+                    </div>
+                  )}
+                </div>
                 {selectedTool && (
-                  <div className="sky-muted small">
-                    <span className="sky-mono">{selectedTool.toolCode}</span>
-                    {' · '}
-                    Permission: <span className="sky-mono">{selectedTool.permissionCode}</span>
+                  <div className="d-flex flex-wrap gap-1">
+                    <span className={`sky-pill ${riskClass(selectedTool.riskCode)}`}>
+                      {selectedTool.riskCode} risk
+                    </span>
+                    <span className="sky-pill sky-pill-info">
+                      {(selectedTool.parameters || []).length} parameter(s)
+                    </span>
+                    <span
+                      className={`sky-pill ${
+                        selectedTool.capturesOutput ? 'sky-pill-success' : 'sky-pill-info'
+                      }`}
+                    >
+                      output {selectedTool.capturesOutput ? 'captured' : 'not captured'}
+                    </span>
+                    {selectedTool.outputType && (
+                      <span className="sky-pill sky-pill-info">{selectedTool.outputType}</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -690,6 +702,11 @@ function Tools() {
               <div className="sky-card-body">
                 {selectedTool ? (
                   <form onSubmit={handleRunTool}>
+                    <div className="sky-run-tool-description mb-4">
+                      <div className="sky-detail-label">Purpose</div>
+                      <div className="sky-detail-value">{selectedTool.description || '—'}</div>
+                    </div>
+
                     {(selectedTool.parameters || []).length > 0 ? (
                       <div className="row g-3">
                         {selectedTool.parameters.map((parameter) => (
@@ -750,40 +767,50 @@ function Tools() {
             {renderRunningPanel()}
 
             {runResult && (
-              <section className="sky-card mt-3">
-                <div className="sky-card-header">
-                  <h2 className="h5 mb-0">Execution result</h2>
+              <section className="sky-card mt-3 sky-run-tool-result-workspace">
+                <div className="sky-card-header sky-run-tool-result-header">
+                  <div>
+                    <div className="sky-page-kicker">Execution workspace</div>
+                    <h2 className="h5 mb-0">Tool output</h2>
+                    <div className="small sky-muted mt-1">
+                      {getDisplaySummary(runResult.summary || runResult.toolResult?.message)}
+                    </div>
+                  </div>
+                  <span className={`sky-pill ${statusClass(runResult.status)}`}>
+                    {runResult.status || 'UNKNOWN'}
+                  </span>
                 </div>
                 <div className="sky-card-body">
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-3">
-                      <div className="sky-muted small">Status</div>
-                      <span className={`sky-pill ${statusClass(runResult.status)}`}>
-                        {runResult.status || 'UNKNOWN'}
-                      </span>
+                  <div className="sky-run-tool-result-metrics mb-3">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Exit code</div>
+                      <div className="sky-mini-metric-value">{runResult.exitCode ?? '—'}</div>
                     </div>
-                    <div className="col-md-3">
-                      <div className="sky-muted small">Exit code</div>
-                      <div>{runResult.exitCode ?? '—'}</div>
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Duration</div>
+                      <div className="sky-mini-metric-value">{runResult.durationMs ?? '—'} ms</div>
                     </div>
-                    <div className="col-md-3">
-                      <div className="sky-muted small">Duration</div>
-                      <div>{runResult.durationMs ?? '—'} ms</div>
+                    <div className="sky-mini-metric sky-run-tool-result-execution-id">
+                      <div className="sky-page-kicker">Execution ID</div>
+                      <div className="sky-mono small sky-detail-value">
+                        {runResult.executionId || '—'}
+                      </div>
                     </div>
-                    <div className="col-md-3">
-                      <div className="sky-muted small">Execution ID</div>
-                      <div className="sky-mono small">{runResult.executionId || '—'}</div>
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Structured contract</div>
+                      <div className="sky-detail-value">
+                        {runResult.toolResultContract?.status || 'Not emitted'}
+                      </div>
                     </div>
                   </div>
 
-                  {runResult.summary && (
-                    <div className="mb-3">
-                      <div className="sky-muted small">Summary</div>
-                      <div>{getDisplaySummary(runResult.summary)}</div>
-                    </div>
-                  )}
-
-                  <pre className="sky-code-block sky-result-output">{getOutputText(runResult)}</pre>
+                  <ToolExecutionOutputPanels
+                    stderr={runResult.stderr || ''}
+                    stdout={runResult.stdout || ''}
+                    structuredOutputExpected={Boolean(runResult.toolResultContract?.required)}
+                    toolResult={runResult.toolResult || null}
+                    toolResultContract={runResult.toolResultContract || null}
+                  />
                 </div>
               </section>
             )}

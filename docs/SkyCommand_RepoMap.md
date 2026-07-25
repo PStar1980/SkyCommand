@@ -76,12 +76,15 @@ SkyServer/
 │   │       │   │   ├── TrendAreaChart.jsx
 │   │       │   │   ├── WorkerHealthVisuals.jsx
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
+│   │       │   ├── tools/
+│   │       │   │   └── ToolExecutionOutputPanels.jsx
 │   │       │   └── ui/
 │   │       │       ├── DashboardFilterCard.jsx
 │   │       │       ├── DashboardRefreshActions.jsx
 │   │       │       ├── dashboardUiConsistencySelfTest.js
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
+│   │       │       ├── ServerStatusPanel.jsx
 │   │       │       ├── SidebarNav.jsx
 │   │       │       ├── SkyCommandMark.jsx
 │   │       │       ├── SmartPollingStatus.jsx
@@ -190,6 +193,7 @@ SkyServer/
 │   │       │   ├── toolAdminService.js
 │   │       │   ├── toolExecutionHttpResponse.js
 │   │       │   ├── toolExecutionHttpResponseSelfTest.js
+│   │       │   ├── toolExecutionOutputWorkspaceSelfTest.js
 │   │       │   ├── toolManifestService.js
 │   │       │   ├── toolOnboardingSelfTest.js
 │   │       │   ├── toolOnboardingService.js

@@ -3,6 +3,7 @@ import ApiObservabilityPanel from '../components/charts/ApiObservabilityPanel.js
 import ApplicationUserSummaryRow from '../components/charts/ApplicationUserSummaryRow.jsx';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
+import ServerStatusPanel from '../components/ui/ServerStatusPanel.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useSmartPolling, {
@@ -17,7 +18,7 @@ import workflowService from '../services/workflowService';
 const DASHBOARD_RECENT_LIMIT = 60;
 
 function Dashboard() {
-  const { hasPermission, hasRole, user } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshingAt, setRefreshingAt] = useState(null);
   const [identityDays, setIdentityDays] = useState(7);
@@ -44,7 +45,6 @@ function Dashboard() {
       total: 0,
       items: [],
     },
-    productionReadiness: null,
   });
   const [error, setError] = useState('');
   const recentExecutions = summary.executions.items || [];
@@ -94,7 +94,6 @@ function Dashboard() {
   const workerNodes = workerHealth?.nodes || {};
   const workflowHealth = summary.workflowHealth || null;
   const workflowRunRecords = summary.workflowRunsDetailed?.items || [];
-  const productionReadiness = summary.productionReadiness || null;
   const workflowTaskQueue = workflowHealth?.taskQueue || {};
 
   function changeIdentityWindow(event) {
@@ -131,7 +130,6 @@ function Dashboard() {
         workerResult,
         workflowHealthResult,
         workflowRunsResult,
-        productionReadinessResult,
       ] = await Promise.all([
         loadOptional('api-health', () => api.get('/_health')),
         loadOptional('db-health', () => api.get('/_db/health')),
@@ -177,9 +175,6 @@ function Dashboard() {
               workflowService.listRuns({ limit: DASHBOARD_RECENT_LIMIT }),
             )
           : Promise.resolve(null),
-        hasRole('SUPER_ADMIN') && hasPermission('ADMIN_REPOSITORY_READ')
-          ? loadOptional('production-readiness', () => adminService.getProductionReadiness())
-          : Promise.resolve(null),
       ]);
 
       const nextSummary = {
@@ -205,7 +200,6 @@ function Dashboard() {
           total: workflowRunsResult?.total || 0,
           items: workflowRunsResult?.items || [],
         },
-        productionReadiness: productionReadinessResult,
       };
       const nextRunningExecutions = nextSummary.executions.items.filter(
         (execution) => String(execution.status || '').toUpperCase() === 'STARTED',
@@ -280,46 +274,115 @@ function Dashboard() {
 
       {error && <div className="alert alert-danger">{error}</div>}
 
+      <ServerStatusPanel
+        items={[
+          {
+            label: 'Web server',
+            value: 'Online',
+            status: 'ONLINE',
+            helper: `${window.location.host || 'Admin Web'} shell loaded`,
+          },
+          {
+            label: 'Database',
+            value: !summary.dbHealth
+              ? loading
+                ? 'Checking'
+                : 'Unknown'
+              : summary.dbHealth.ok
+                ? 'Online'
+                : 'Offline',
+            status: !summary.dbHealth
+              ? loading
+                ? 'PENDING'
+                : 'UNKNOWN'
+              : summary.dbHealth.ok
+                ? 'ONLINE'
+                : 'OFFLINE',
+            helper: summary.dbHealth?.database || 'Database connection health endpoint',
+          },
+          {
+            label: 'API server',
+            value: !summary.apiHealth
+              ? loading
+                ? 'Checking'
+                : 'Unknown'
+              : summary.apiHealth.ok
+                ? 'Online'
+                : 'Offline',
+            status: !summary.apiHealth
+              ? loading
+                ? 'PENDING'
+                : 'UNKNOWN'
+              : summary.apiHealth.ok
+                ? 'ONLINE'
+                : 'OFFLINE',
+            helper: summary.apiHealth?.service || 'Core API health endpoint',
+          },
+          {
+            label: 'Node worker',
+            value: !workerHealth
+              ? loading
+                ? 'Checking'
+                : 'Unknown'
+              : workerNodes.online > 0
+                ? 'Online'
+                : 'Offline',
+            status: !workerHealth
+              ? loading
+                ? 'PENDING'
+                : 'UNKNOWN'
+              : workerNodes.online > 0
+                ? workerHealth.overallStatus || 'ONLINE'
+                : 'OFFLINE',
+            helper: workerHealth
+              ? `${workerNodes.online || 0} of ${workerNodes.total || 0} node worker(s) online`
+              : 'Worker health is unavailable to this session',
+          },
+          {
+            label: 'Temporal server',
+            value: !workflowHealth
+              ? loading
+                ? 'Checking'
+                : 'Unknown'
+              : workflowHealth.temporal?.reachable
+                ? 'Online'
+                : 'Offline',
+            status: !workflowHealth
+              ? loading
+                ? 'PENDING'
+                : 'UNKNOWN'
+              : workflowHealth.temporal?.reachable
+                ? 'ONLINE'
+                : 'OFFLINE',
+            helper: workflowHealth?.temporal?.address || 'Temporal service endpoint',
+          },
+          {
+            label: 'Temporal worker',
+            value: !workflowHealth
+              ? loading
+                ? 'Checking'
+                : 'Unknown'
+              : workflowHealth.worker?.status === 'ONLINE' && workflowTaskQueue.healthy
+                ? 'Polling'
+                : workflowHealth.worker?.status || 'Unknown',
+            status: !workflowHealth
+              ? loading
+                ? 'PENDING'
+                : 'UNKNOWN'
+              : workflowHealth.worker?.status === 'ONLINE' && workflowTaskQueue.healthy
+                ? 'POLLING'
+                : workflowHealth.worker?.status || 'UNKNOWN',
+            helper: workflowHealth
+              ? `${workflowTaskQueue.pollerCount || 0} poller(s) · ${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'task queue'}`
+              : 'Temporal worker health is unavailable to this session',
+          },
+        ]}
+      />
+
       <DashboardVisuals
         ingestionCounts={ingestionCounts}
         recentAudits={recentAudits}
         recentExecutions={recentExecutions}
-        systemStatusItems={[
-          {
-            label: 'API',
-            value: summary.apiHealth?.ok ? 'Online' : 'Check',
-            status: summary.apiHealth?.ok ? 'CURRENT' : 'WARNING',
-            helper: 'Core API health',
-          },
-          {
-            label: 'Database',
-            value: summary.dbHealth?.ok ? 'Online' : 'Check',
-            status: summary.dbHealth?.ok ? 'CURRENT' : 'WARNING',
-            helper: summary.dbHealth?.database || 'Connection status',
-          },
-          {
-            label: 'Worker',
-            value: workerHealth?.overallStatus || 'Unknown',
-            status: workerHealth?.overallStatus || 'UNKNOWN',
-            helper: `${workerNodes.online || 0} node(s) online`,
-          },
-          {
-            label: 'Temporal',
-            value: workflowHealth?.temporal?.reachable ? 'Reachable' : 'Check',
-            status: workflowHealth?.temporal?.reachable ? 'CURRENT' : 'WARNING',
-            helper: workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'Task queue',
-          },
-          ...(hasRole('SUPER_ADMIN')
-            ? [
-                {
-                  label: 'Readiness',
-                  value: productionReadiness?.overallStatus || 'Unknown',
-                  status: productionReadiness?.overallStatus || 'UNKNOWN',
-                  helper: `${productionReadiness?.counts?.pass || 0} pass / ${productionReadiness?.counts?.warning || 0} warning`,
-                },
-              ]
-            : []),
-        ]}
         workflowRuns={workflowRunRecords}
       />
 
