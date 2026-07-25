@@ -162,8 +162,11 @@ assert.match(appShellSource, /\[location\.pathname\]/);
 
 const dashboardSource = fs.readFileSync(path.join(sourceRoot, 'pages/Dashboard.jsx'), 'utf8');
 assert.match(dashboardSource, /showRouteTable=\{false\}/);
-assert.match(dashboardSource, /hasRole\('SUPER_ADMIN'\) && hasPermission\('ADMIN_REPOSITORY_READ'\)/);
-assert.match(dashboardSource, /\.\.\.\(hasRole\('SUPER_ADMIN'\)/);
+assert.match(dashboardSource, /<ServerStatusPanel/);
+assert.match(dashboardSource, /label: 'Web server'/);
+assert.match(dashboardSource, /label: 'Temporal worker'/);
+assert.doesNotMatch(dashboardSource, /label: 'Readiness'/);
+assert.doesNotMatch(dashboardSource, /productionReadiness/);
 
 const ingestionVisualsSource = fs.readFileSync(
   path.join(sourceRoot, 'components/charts/IngestionStatusVisuals.jsx'),
