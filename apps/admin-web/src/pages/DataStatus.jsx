@@ -7,7 +7,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import ingestionService from '../services/ingestionService';
 
-const DATA_STATUS_PAGE_SIZE = 10;
+const DATA_INTELLIGENCE_PAGE_SIZE = 10;
 
 const SOURCE_OPTIONS = [
   { value: '', label: 'All sources' },
@@ -103,10 +103,10 @@ function DataStatus() {
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
 
-  const pageCount = Math.max(1, Math.ceil(total / DATA_STATUS_PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / DATA_INTELLIGENCE_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * DATA_STATUS_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * DATA_STATUS_PAGE_SIZE, total);
+  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * DATA_INTELLIGENCE_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * DATA_INTELLIGENCE_PAGE_SIZE, total);
 
   async function loadIndicators(
     nextFilters = filters,
@@ -123,12 +123,12 @@ function DataStatus() {
     try {
       const result = await ingestionService.listIndicatorStatuses({
         ...nextFilters,
-        limit: DATA_STATUS_PAGE_SIZE,
-        offset: (safePage - 1) * DATA_STATUS_PAGE_SIZE,
+        limit: DATA_INTELLIGENCE_PAGE_SIZE,
+        offset: (safePage - 1) * DATA_INTELLIGENCE_PAGE_SIZE,
       });
       const nextItems = result.items || [];
       const nextTotal = Number(result.total || 0);
-      const nextPageCount = Math.max(1, Math.ceil(nextTotal / DATA_STATUS_PAGE_SIZE));
+      const nextPageCount = Math.max(1, Math.ceil(nextTotal / DATA_INTELLIGENCE_PAGE_SIZE));
 
       if (nextTotal > 0 && safePage > nextPageCount) {
         setCurrentPage(nextPageCount);
@@ -159,7 +159,7 @@ function DataStatus() {
       };
     } catch (loadError) {
       if (!quiet) {
-        setError(loadError.message || 'Failed to load indicator freshness records.');
+        setError(loadError.message || 'Failed to load data intelligence records.');
       }
       throw loadError;
     } finally {
@@ -247,7 +247,7 @@ function DataStatus() {
         <div className="small sky-muted">
           Showing {rangeStart}-{rangeEnd} of {total} indicator status record(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Data status pagination">
+        <div className="sky-pagination-controls" aria-label="Data intelligence pagination">
           <button
             className="btn btn-sm sky-btn-ghost"
             disabled={safeCurrentPage <= 1 || loading}
@@ -315,9 +315,9 @@ function DataStatus() {
             pollingState={pollingState}
           />
         }
-        kicker="Data · Status"
+        kicker="Data · Intelligence"
         subtitle="Inspect indicator freshness, source coverage, and the evidence behind each macro data-health state."
-        title="Data Status"
+        title="Data Intelligence"
       />
 
       {error && <div className="alert alert-danger">{error}</div>}

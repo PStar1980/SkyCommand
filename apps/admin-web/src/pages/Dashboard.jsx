@@ -17,7 +17,7 @@ import workflowService from '../services/workflowService';
 const DASHBOARD_RECENT_LIMIT = 60;
 
 function Dashboard() {
-  const { hasPermission, user } = useAuth();
+  const { hasPermission, hasRole, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshingAt, setRefreshingAt] = useState(null);
   const [identityDays, setIdentityDays] = useState(7);
@@ -177,7 +177,7 @@ function Dashboard() {
               workflowService.listRuns({ limit: DASHBOARD_RECENT_LIMIT }),
             )
           : Promise.resolve(null),
-        hasPermission('ADMIN_REPOSITORY_READ')
+        hasRole('SUPER_ADMIN') && hasPermission('ADMIN_REPOSITORY_READ')
           ? loadOptional('production-readiness', () => adminService.getProductionReadiness())
           : Promise.resolve(null),
       ]);
@@ -309,17 +309,21 @@ function Dashboard() {
             status: workflowHealth?.temporal?.reachable ? 'CURRENT' : 'WARNING',
             helper: workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'Task queue',
           },
-          {
-            label: 'Readiness',
-            value: productionReadiness?.overallStatus || 'Unknown',
-            status: productionReadiness?.overallStatus || 'UNKNOWN',
-            helper: `${productionReadiness?.counts?.pass || 0} pass / ${productionReadiness?.counts?.warning || 0} warning`,
-          },
+          ...(hasRole('SUPER_ADMIN')
+            ? [
+                {
+                  label: 'Readiness',
+                  value: productionReadiness?.overallStatus || 'Unknown',
+                  status: productionReadiness?.overallStatus || 'UNKNOWN',
+                  helper: `${productionReadiness?.counts?.pass || 0} pass / ${productionReadiness?.counts?.warning || 0} warning`,
+                },
+              ]
+            : []),
         ]}
         workflowRuns={workflowRunRecords}
       />
 
-      <ApiObservabilityPanel className="mt-4" data={summary.apiTelemetry} />
+      <ApiObservabilityPanel className="mt-4" data={summary.apiTelemetry} showRouteTable={false} />
 
       <section className="sky-card sky-dashboard-identity-panel mt-4">
         <div className="sky-card-header sky-dashboard-section-heading">

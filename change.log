@@ -1,3 +1,13 @@
+## 2026-07-24 — Ad Hoc Demo Polish: Navigation, Readiness Isolation, and Runtime Graph Containment
+
+- Standardized authenticated route navigation so every menu destination and pathname change opens at the top of the viewport instead of inheriting a prior page's scroll position, without disturbing same-page query/filter updates.
+- Added app-scoped role codes to login/session responses and exact-role checks in Admin-Web; moved Production Readiness into a final **Readiness** sidebar category and restricted both its navigation and route to `SUPER_ADMIN` users.
+- Removed Production Readiness loading/status exposure from Command Center for non-`SUPER_ADMIN` sessions while preserving the existing repository-read permission check for authorized users.
+- Constrained Workflow History runtime maps to the surrounding card width and added a graph-local horizontal scrollbar styled like the sidebar, preventing large workflow definitions from widening summary and detail cards.
+- Rebuilt Data dashboard source-composition series from complete per-source aggregates so low-volume sources such as Statistics Canada remain visible even when the indicator table is paginated or limited.
+- Removed the duplicate Route Pressure table from Command Center while retaining it on the dedicated API dashboard.
+- Renamed **Data Status** to **Data Intelligence**, preserved `/data/status` as a compatibility redirect, and updated command-search aliases and regression coverage.
+
 ## 2026-07-24 — Ad Hoc Demo Polish: Data Status and Shell Alignment
 
 - Removed the six compact Data dashboard status cards so the page begins directly with Dashboard Controls and analytical charts.

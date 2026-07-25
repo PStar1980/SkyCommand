@@ -176,38 +176,48 @@ function buildSourceFreshnessOption(summary = {}) {
 }
 
 function buildIndicatorsBySourceOption(indicators, sources) {
-  const sourceLabels = Array.from(
-    new Set([
-      ...SOURCE_ORDER.filter((source) =>
-        sources.some((item) => normalizeSource(item.source) === source),
-      ),
-      ...indicators.map((indicator) => normalizeSource(indicator.source)),
-    ]),
-  );
-
-  const activeSources = sourceLabels.length
-    ? sourceLabels
-    : SOURCE_ORDER.filter((source) => sources.some((item) => normalizeSource(item.source) === source));
-
   const sourceCounts = new Map();
-  for (const source of activeSources) {
-    sourceCounts.set(source, new Map());
+
+  for (const source of sources) {
+    const sourceCode = normalizeSource(source.source || source.sourceCode);
+    const counts = source.counts || {};
+
+    sourceCounts.set(
+      sourceCode,
+      new Map([
+        ['CURRENT', Number(counts.current || 0)],
+        ['STALE', Number(counts.stale || 0)],
+        ['NO_DATA', Number(counts.noData || 0)],
+        ['PROBLEMS', Number(counts.missingTable || 0) + Number(counts.error || 0)],
+        ['INACTIVE', Number(counts.inactive || 0)],
+      ]),
+    );
   }
 
-  for (const indicator of indicators) {
-    const source = normalizeSource(indicator.source);
-    const status = normalizeStatus(indicator.status);
-    const bucket = status === 'MISSING_TABLE' || status === 'ERROR' ? 'PROBLEMS' : status;
-
-    if (!sourceCounts.has(source)) {
+  if (sourceCounts.size === 0) {
+    for (const source of SOURCE_ORDER) {
       sourceCounts.set(source, new Map());
     }
 
-    const counts = sourceCounts.get(source);
-    counts.set(bucket, (counts.get(bucket) || 0) + 1);
+    for (const indicator of indicators) {
+      const source = normalizeSource(indicator.source);
+      const status = normalizeStatus(indicator.status);
+      const bucket = status === 'MISSING_TABLE' || status === 'ERROR' ? 'PROBLEMS' : status;
+
+      if (!sourceCounts.has(source)) {
+        sourceCounts.set(source, new Map());
+      }
+
+      const counts = sourceCounts.get(source);
+      counts.set(bucket, (counts.get(bucket) || 0) + 1);
+    }
   }
 
-  const labels = Array.from(sourceCounts.keys()).map((source) => getSourceName(source, sources));
+  const orderedSourceCodes = [
+    ...SOURCE_ORDER.filter((sourceCode) => sourceCounts.has(sourceCode)),
+    ...Array.from(sourceCounts.keys()).filter((sourceCode) => !SOURCE_ORDER.includes(sourceCode)),
+  ];
+  const labels = orderedSourceCodes.map((sourceCode) => getSourceName(sourceCode, sources));
   const buckets = [
     { key: 'CURRENT', label: 'Current', color: SKY_GREEN },
     { key: 'STALE', label: 'Stale', color: SKY_GOLD },
@@ -242,7 +252,7 @@ function buildIndicatorsBySourceOption(indicators, sources) {
       type: 'bar',
       stack: 'indicators',
       barWidth: 18,
-      data: Array.from(sourceCounts.values()).map((counts) => counts.get(bucket.key) || 0),
+      data: orderedSourceCodes.map((sourceCode) => sourceCounts.get(sourceCode)?.get(bucket.key) || 0),
       itemStyle: {
         borderRadius: bucket.key === 'INACTIVE' ? [0, 10, 10, 0] : 0,
       },
@@ -510,7 +520,7 @@ function IngestionStatusVisuals({ indicators = [], recentExecutions = [], source
           height={285}
           kicker="Source composition"
           option={sourceStackOption}
-          subtitle="Visible indicators grouped by source and freshness state."
+          subtitle="Configured indicators grouped by source and freshness state."
           title="Indicators by source"
         />
         <EChartCard

@@ -103,7 +103,7 @@ function shouldRevokeSessionsOnStart() {
   return REVOKE_SESSIONS_ON_START;
 }
 
-function sanitizeUser(user) {
+function sanitizeUser(user, roleCodes = []) {
   if (!user) {
     return null;
   }
@@ -116,6 +116,13 @@ function sanitizeUser(user) {
     status: user.status,
     isSystemUser: user.is_system_user,
     lastLoginAt: user.last_login_at,
+    roleCodes: [
+      ...new Set(
+        (roleCodes || [])
+          .map((roleCode) => String(roleCode || '').trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    ],
   };
 }
 
@@ -437,6 +444,29 @@ async function revokeActiveSessionsOnStartup({ reason = 'API_STARTUP' } = {}) {
   };
 }
 
+async function getRoleCodesForUser(userId, appCode = DEFAULT_AUTH_APP_CODE) {
+  const normalizedAppCode = normalizeAppCode(appCode);
+  const result = await query(
+    `
+      SELECT DISTINCT role.role_code
+      FROM auth.user_roles user_role
+      JOIN auth.roles role
+        ON role.role_id = user_role.role_id
+       AND role.active = TRUE
+      JOIN core.applications app
+        ON app.app_id = role.app_id
+       AND app.active = TRUE
+      WHERE user_role.user_id = $1
+        AND user_role.active = TRUE
+        AND app.app_code = $2
+      ORDER BY role.role_code
+    `,
+    [userId, normalizedAppCode],
+  );
+
+  return result.rows.map((row) => row.role_code).filter(Boolean);
+}
+
 async function getPermissionsForUser(userId, appCode = DEFAULT_AUTH_APP_CODE) {
   const normalizedAppCode = normalizeAppCode(appCode);
 
@@ -621,7 +651,10 @@ async function login({ email, password, context, appCode = DEFAULT_AUTH_APP_CODE
   await resetSuccessfulLoginState(user.user_id);
 
   const session = await createSession(user.user_id, requestContext, normalizedAppCode);
-  const permissions = await getPermissionsForUser(user.user_id, normalizedAppCode);
+  const [permissions, roleCodes] = await Promise.all([
+    getPermissionsForUser(user.user_id, normalizedAppCode),
+    getRoleCodesForUser(user.user_id, normalizedAppCode),
+  ]);
 
   await recordLoginEvent({
     appCode: normalizedAppCode,
@@ -648,7 +681,7 @@ async function login({ email, password, context, appCode = DEFAULT_AUTH_APP_CODE
   });
 
   return {
-    user: sanitizeUser(user),
+    user: sanitizeUser(user, roleCodes),
     sessionToken: session.sessionToken,
     expiresAt: session.expiresAt,
     permissions,
@@ -701,7 +734,10 @@ async function getSessionFromToken(sessionToken) {
   }
 
   const row = result.rows[0];
-  const permissions = await getPermissionsForUser(row.user_id, row.app_code);
+  const [permissions, roleCodes] = await Promise.all([
+    getPermissionsForUser(row.user_id, row.app_code),
+    getRoleCodesForUser(row.user_id, row.app_code),
+  ]);
 
   return {
     session: {
@@ -713,7 +749,7 @@ async function getSessionFromToken(sessionToken) {
       lastSeenAt: row.last_seen_at,
       sessionMinutes: DEFAULT_SESSION_MINUTES,
     },
-    user: sanitizeUser(row),
+    user: sanitizeUser(row, roleCodes),
     permissions,
   };
 }
@@ -931,6 +967,7 @@ module.exports = {
   changePassword,
   getSessionFromToken,
   getPermissionsForUser,
+  getRoleCodesForUser,
   hasPermission,
   recordAuditEvent,
 };

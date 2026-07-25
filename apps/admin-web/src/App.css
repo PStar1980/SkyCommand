@@ -5082,7 +5082,7 @@
 }
 
 
-/* Ad hoc demo polish — Data Status ledger and centered command search */
+/* Ad hoc demo polish — Data Intelligence ledger and centered command search */
 .sky-data-status-filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(10rem, 0.72fr)) minmax(22rem, 1.45fr);
@@ -5148,4 +5148,58 @@
   .sky-data-status-search .d-flex {
     flex-wrap: wrap;
   }
+}
+
+
+/* Ad hoc demo polish — route-contained workflow graph and consistent navigation */
+.sky-workflow-history-shell,
+.sky-workflow-history-browser,
+.sky-workflow-history-detail-zone,
+.sky-workflow-history-detail-stack,
+.sky-workflow-history-detail-stack > *,
+.sky-workflow-history-detail-stack .sky-workflow-visual-shell,
+.sky-workflow-history-detail-stack .sky-workflow-visual-viewport {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sky-workflow-history-detail-zone,
+.sky-workflow-history-detail-stack {
+  overflow: hidden;
+}
+
+.sky-workflow-history-detail-stack .sky-workflow-visual-shell {
+  overflow: hidden;
+}
+
+.sky-workflow-history-detail-stack .sky-workflow-visual-map {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: rgba(124, 144, 177, 0.18) transparent;
+  scrollbar-width: thin;
+}
+
+.sky-workflow-history-detail-stack .sky-workflow-visual-map::-webkit-scrollbar {
+  height: 0.46rem;
+}
+
+.sky-workflow-history-detail-stack .sky-workflow-visual-map::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sky-workflow-history-detail-stack .sky-workflow-visual-map::-webkit-scrollbar-thumb {
+  border: 0.14rem solid transparent;
+  border-radius: 999px;
+  background: rgba(124, 144, 177, 0.16);
+  background-clip: padding-box;
+}
+
+.sky-workflow-history-detail-stack .sky-workflow-visual-map:hover::-webkit-scrollbar-thumb {
+  background: rgba(124, 144, 177, 0.28);
+  background-clip: padding-box;
 }

@@ -70,8 +70,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
+            <Route path="data/status" element={<Navigate replace to="/data/intelligence" />} />
             <Route
-              path="data/status"
+              path="data/intelligence"
               element={
                 <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
                   <DataStatus />
@@ -238,7 +239,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route
               path="configuration/production-readiness"
               element={
-                <ProtectedRoute permissionCode="ADMIN_REPOSITORY_READ">
+                <ProtectedRoute
+                  permissionCode="ADMIN_REPOSITORY_READ"
+                  roleCode="SUPER_ADMIN"
+                >
                   <ProductionReadiness />
                 </ProtectedRoute>
               }
