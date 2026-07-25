@@ -16,6 +16,7 @@ import AdminUsers from './pages/AdminUsers.jsx';
 import ApiDashboard from './pages/ApiDashboard.jsx';
 import AutomationDashboard from './pages/AutomationDashboard.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import DataStatus from './pages/DataStatus.jsx';
 import Home from './pages/Home.jsx';
 import IngestionStatus from './pages/IngestionStatus.jsx';
 import Login from './pages/Login.jsx';
@@ -66,6 +67,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
                   <IngestionStatus />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="data/status"
+              element={
+                <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
+                  <DataStatus />
                 </ProtectedRoute>
               }
             />

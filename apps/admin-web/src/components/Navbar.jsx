@@ -20,6 +20,9 @@ const COMMAND_SEARCH_ALIASES = {
   'api observability': '/dashboard/api',
   'api telemetry': '/dashboard/api',
   'data pipeline': '/dashboard/data-pipeline',
+  'data status': '/data/status',
+  freshness: '/data/status',
+  indicators: '/data/status',
   pipeline: '/dashboard/data-pipeline',
   'tools dashboard': '/dashboard/tools',
   'workflows dashboard': '/dashboard/workflows',
@@ -115,7 +118,8 @@ function createNavGroups(hasPermission) {
     hasPermission('WORKFLOW_APPROVAL_READ');
   const canViewAutomation =
     hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
-  const canViewConfiguration = hasPermission('ADMIN_REPOSITORY_READ');
+  const canViewData =
+    hasPermission('INGESTION_VIEW_STATUS') || hasPermission('ADMIN_REPOSITORY_READ');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
     hasPermission('ADMIN_ROLE_READ') ||
@@ -278,10 +282,17 @@ function createNavGroups(hasPermission) {
       ],
     },
     {
-      label: 'Configuration',
-      icon: '⚙',
-      visible: canViewConfiguration,
+      label: 'Data',
+      icon: '◫',
+      visible: canViewData,
       items: [
+        {
+          label: 'Data Status',
+          to: '/data/status',
+          icon: '◫',
+          visible: hasPermission('INGESTION_VIEW_STATUS'),
+          description: 'Indicator freshness',
+        },
         {
           label: 'Production Readiness',
           to: '/configuration/production-readiness',
@@ -624,7 +635,7 @@ function Navbar() {
         />
       )}
 
-      <header className="sky-topbar">
+      <header className="sky-topbar" ref={topbarControlsRef}>
         <div className="sky-topbar-left">
           <button
             aria-label="Open navigation"
@@ -636,7 +647,7 @@ function Navbar() {
           </button>
         </div>
 
-        <div className="sky-topbar-right" ref={topbarControlsRef}>
+        <div className="sky-topbar-center">
           <form
             className="sky-topbar-command-search"
             onKeyDown={handleCommandSearchKeyDown}
@@ -706,7 +717,9 @@ function Navbar() {
               </div>
             )}
           </form>
+        </div>
 
+        <div className="sky-topbar-right">
           <div className="sky-topbar-action-wrap">
             <button
               aria-expanded={topbarPanel === 'notifications'}
