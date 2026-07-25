@@ -11,6 +11,29 @@ function normalizePermissions(permissions = []) {
   }));
 }
 
+function normalizeRoleCodes(user, permissions = []) {
+  const directRoleCodes = Array.isArray(user?.roleCodes)
+    ? user.roleCodes
+    : Array.isArray(user?.role_codes)
+      ? user.role_codes
+      : [];
+  const grantedRoleCodes = permissions.flatMap((permission) => {
+    const grantedThroughRoles = permission.grantedThroughRoles || permission.granted_through_roles;
+
+    if (Array.isArray(grantedThroughRoles)) {
+      return grantedThroughRoles;
+    }
+
+    return String(grantedThroughRoles || '')
+      .replace(/[{}"]/g, '')
+      .split(',');
+  });
+
+  return [...new Set([...directRoleCodes, ...grantedRoleCodes]
+    .map((roleCode) => String(roleCode || '').trim().toUpperCase())
+    .filter(Boolean))];
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
@@ -105,6 +128,10 @@ export function AuthProvider({ children }) {
     () => new Set(permissions.map((permission) => permission.permissionCode).filter(Boolean)),
     [permissions],
   );
+  const roleCodes = useMemo(
+    () => new Set(normalizeRoleCodes(user, permissions)),
+    [permissions, user],
+  );
 
   const hasPermission = useCallback(
     (permissionCode) => {
@@ -115,6 +142,17 @@ export function AuthProvider({ children }) {
       return permissionCodes.has(permissionCode);
     },
     [permissionCodes],
+  );
+
+  const hasRole = useCallback(
+    (roleCode) => {
+      if (!roleCode) {
+        return true;
+      }
+
+      return roleCodes.has(String(roleCode).trim().toUpperCase());
+    },
+    [roleCodes],
   );
 
   const value = useMemo(
@@ -129,6 +167,7 @@ export function AuthProvider({ children }) {
       logout,
       refreshSession,
       hasPermission,
+      hasRole,
       clearAuthNotice,
     }),
     [
@@ -141,6 +180,7 @@ export function AuthProvider({ children }) {
       logout,
       refreshSession,
       hasPermission,
+      hasRole,
       clearAuthNotice,
     ],
   );

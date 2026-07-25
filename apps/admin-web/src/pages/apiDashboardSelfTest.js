@@ -24,7 +24,10 @@ const serviceSource = fs.readFileSync(
 );
 
 assert.doesNotMatch(visualsSource, /ApiObservabilityPanel/);
-assert.match(dashboardSource, /<ApiObservabilityPanel className="mt-4" data=\{summary\.apiTelemetry\} \/>/);
+assert.match(
+  dashboardSource,
+  /<ApiObservabilityPanel className="mt-4" data=\{summary\.apiTelemetry\} showRouteTable=\{false\} \/>/,
+);
 assert.ok(
   dashboardSource.indexOf('<ApiObservabilityPanel') <
     dashboardSource.indexOf('sky-dashboard-identity-panel'),

@@ -20,9 +20,10 @@ const COMMAND_SEARCH_ALIASES = {
   'api observability': '/dashboard/api',
   'api telemetry': '/dashboard/api',
   'data pipeline': '/dashboard/data-pipeline',
-  'data status': '/data/status',
-  freshness: '/data/status',
-  indicators: '/data/status',
+  'data intelligence': '/data/intelligence',
+  'data status': '/data/intelligence',
+  freshness: '/data/intelligence',
+  indicators: '/data/intelligence',
   pipeline: '/dashboard/data-pipeline',
   'tools dashboard': '/dashboard/tools',
   'workflows dashboard': '/dashboard/workflows',
@@ -106,7 +107,7 @@ function isEditableElement(element) {
   );
 }
 
-function createNavGroups(hasPermission) {
+function createNavGroups(hasPermission, hasRole) {
   const canViewTools =
     hasPermission('CORE_VIEW_TOOLS') ||
     hasPermission('SCRIPT_EXECUTION_READ') ||
@@ -120,6 +121,7 @@ function createNavGroups(hasPermission) {
     hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
   const canViewData =
     hasPermission('INGESTION_VIEW_STATUS') || hasPermission('ADMIN_REPOSITORY_READ');
+  const canViewReadiness = hasRole('SUPER_ADMIN');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
     hasPermission('ADMIN_ROLE_READ') ||
@@ -287,18 +289,11 @@ function createNavGroups(hasPermission) {
       visible: canViewData,
       items: [
         {
-          label: 'Data Status',
-          to: '/data/status',
+          label: 'Data Intelligence',
+          to: '/data/intelligence',
           icon: '◫',
           visible: hasPermission('INGESTION_VIEW_STATUS'),
           description: 'Indicator freshness',
-        },
-        {
-          label: 'Production Readiness',
-          to: '/configuration/production-readiness',
-          icon: '✓',
-          visible: hasPermission('ADMIN_REPOSITORY_READ'),
-          description: 'Pre-flight audit',
         },
         {
           label: 'Repositories',
@@ -351,6 +346,20 @@ function createNavGroups(hasPermission) {
         },
       ],
     },
+    {
+      label: 'Readiness',
+      icon: '✓',
+      visible: canViewReadiness,
+      items: [
+        {
+          label: 'Production Readiness',
+          to: '/configuration/production-readiness',
+          icon: '✓',
+          visible: hasRole('SUPER_ADMIN'),
+          description: 'Pre-flight audit',
+        },
+      ],
+    },
   ]
     .filter((group) => group.visible)
     .map((group) => ({
@@ -363,7 +372,7 @@ function createNavGroups(hasPermission) {
 function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasPermission, isAuthenticated, logout, refreshSession, user } = useAuth();
+  const { hasPermission, hasRole, isAuthenticated, logout, refreshSession, user } = useAuth();
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState(DEFAULT_PASSWORD_FORM);
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -376,7 +385,10 @@ function Navbar() {
   const topbarControlsRef = useRef(null);
   const commandSearchInputRef = useRef(null);
 
-  const navGroups = useMemo(() => createNavGroups(hasPermission), [hasPermission]);
+  const navGroups = useMemo(
+    () => createNavGroups(hasPermission, hasRole),
+    [hasPermission, hasRole],
+  );
   const commandSearchTargets = useMemo(
     () =>
       navGroups.flatMap((group) =>
@@ -576,6 +588,13 @@ function Navbar() {
     }
   }
 
+  function handleSidebarNavigate() {
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
   async function handleLogout() {
     await logout();
     navigate('/login', { replace: true });
@@ -622,7 +641,7 @@ function Navbar() {
       <SidebarNav
         navGroups={navGroups}
         onClose={() => setSidebarOpen(false)}
-        onNavigate={() => setSidebarOpen(false)}
+        onNavigate={handleSidebarNavigate}
         open={sidebarOpen}
       />
 

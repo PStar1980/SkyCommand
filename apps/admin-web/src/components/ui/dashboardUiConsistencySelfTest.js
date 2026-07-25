@@ -79,10 +79,10 @@ assert.doesNotMatch(dataDashboardSource, />Recent ingestion executions</);
 
 
 const dataStatusSource = fs.readFileSync(path.join(sourceRoot, 'pages/DataStatus.jsx'), 'utf8');
-assert.match(dataStatusSource, /title="Data Status"/);
+assert.match(dataStatusSource, /title="Data Intelligence"/);
 assert.match(dataStatusSource, />Indicator freshness</);
-assert.match(dataStatusSource, /DATA_STATUS_PAGE_SIZE = 10/);
-assert.match(dataStatusSource, /offset: \(safePage - 1\) \* DATA_STATUS_PAGE_SIZE/);
+assert.match(dataStatusSource, /DATA_INTELLIGENCE_PAGE_SIZE = 10/);
+assert.match(dataStatusSource, /offset: \(safePage - 1\) \* DATA_INTELLIGENCE_PAGE_SIZE/);
 assert.match(dataStatusSource, /dataStatusPageSelect/);
 assert.match(dataStatusSource, /Showing \{rangeStart\}-\{rangeEnd\} of \{total\}/);
 
@@ -90,12 +90,13 @@ const dataGroupSource = navbarSource.slice(
   navbarSource.indexOf("label: 'Data',\n      icon: '◫'"),
   navbarSource.indexOf("label: 'Access Control'"),
 );
-assert.match(dataGroupSource, /label: 'Data Status'/);
-assert.match(dataGroupSource, /to: '\/data\/status'/);
+assert.match(dataGroupSource, /label: 'Data Intelligence'/);
+assert.match(dataGroupSource, /to: '\/data\/intelligence'/);
 assert.doesNotMatch(navbarSource, /label: 'Configuration'/);
 
 const routerSource = fs.readFileSync(path.join(sourceRoot, 'main.jsx'), 'utf8');
-assert.match(routerSource, /path="data\/status"/);
+assert.match(routerSource, /path="data\/intelligence"/);
+assert.match(routerSource, /path="data\/status" element=\{<Navigate replace to="\/data\/intelligence" \/>\}/);
 assert.match(routerSource, /<DataStatus \/>/);
 
 assert.match(navbarSource, /className="sky-topbar-center"/);
@@ -132,5 +133,46 @@ assert.match(adminRoutesSource, /\/script-executions\/options/);
 assert.match(adminControllerSource, /getScriptExecutionOptions/);
 assert.match(adminReadServiceSource, /columnName: 'category', value: filters\.category/);
 assert.match(adminReadServiceSource, /async function getScriptExecutionOptions\(\)/);
+
+
+assert.match(navbarSource, /function createNavGroups\(hasPermission, hasRole\)/);
+assert.match(navbarSource, /label: 'Readiness'[\s\S]*?label: 'Production Readiness'[\s\S]*?visible: hasRole\('SUPER_ADMIN'\)/);
+assert.doesNotMatch(dataGroupSource, /label: 'Production Readiness'/);
+assert.match(routerSource, /roleCode="SUPER_ADMIN"/);
+
+const authContextSource = fs.readFileSync(path.join(sourceRoot, 'context/AuthContext.jsx'), 'utf8');
+const protectedRouteSource = fs.readFileSync(
+  path.join(sourceRoot, 'components/ProtectedRoute.jsx'),
+  'utf8',
+);
+const authServiceSource = fs.readFileSync(
+  path.join(apiSourceRoot, 'services/authService.js'),
+  'utf8',
+);
+assert.match(authContextSource, /const hasRole = useCallback/);
+assert.match(authContextSource, /roleCodes\.has\(String\(roleCode\)/);
+assert.match(protectedRouteSource, /roleCode/);
+assert.match(protectedRouteSource, /!hasRole\(roleCode\)/);
+assert.match(authServiceSource, /async function getRoleCodesForUser/);
+assert.match(authServiceSource, /roleCodes:/);
+
+const appShellSource = fs.readFileSync(path.join(sourceRoot, 'App.jsx'), 'utf8');
+assert.match(appShellSource, /window\.scrollTo\(\{ top: 0, left: 0, behavior: 'auto' \}\)/);
+assert.match(appShellSource, /\[location\.pathname\]/);
+
+const dashboardSource = fs.readFileSync(path.join(sourceRoot, 'pages/Dashboard.jsx'), 'utf8');
+assert.match(dashboardSource, /showRouteTable=\{false\}/);
+assert.match(dashboardSource, /hasRole\('SUPER_ADMIN'\) && hasPermission\('ADMIN_REPOSITORY_READ'\)/);
+assert.match(dashboardSource, /\.\.\.\(hasRole\('SUPER_ADMIN'\)/);
+
+const ingestionVisualsSource = fs.readFileSync(
+  path.join(sourceRoot, 'components/charts/IngestionStatusVisuals.jsx'),
+  'utf8',
+);
+assert.match(ingestionVisualsSource, /source\.counts \|\| \{\}/);
+assert.match(ingestionVisualsSource, /Configured indicators grouped by source and freshness state\./);
+
+assert.match(cssSource, /route-contained workflow graph/);
+assert.match(cssSource, /\.sky-workflow-history-detail-stack \.sky-workflow-visual-map \{[\s\S]*?overflow-x: auto;/);
 
 console.log('[SkyCommand] Dashboard header and page typography self-test passed.');

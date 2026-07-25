@@ -3,9 +3,9 @@ import { useAuth } from '../context/AuthContext.jsx';
 import Panel from './ui/Panel.jsx';
 import StatusPill from './ui/StatusPill.jsx';
 
-function ProtectedRoute({ children, permissionCode }) {
+function ProtectedRoute({ children, permissionCode, roleCode }) {
   const location = useLocation();
-  const { hasPermission, isAuthenticated, loading } = useAuth();
+  const { hasPermission, hasRole, isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
@@ -20,14 +20,17 @@ function ProtectedRoute({ children, permissionCode }) {
     return <Navigate replace to="/login" state={{ from: location }} />;
   }
 
-  if (!hasPermission(permissionCode)) {
+  if (!hasPermission(permissionCode) || !hasRole(roleCode)) {
+    const requiredAccess = !hasRole(roleCode) ? roleCode : permissionCode;
+    const requirementLabel = !hasRole(roleCode) ? 'Role required' : 'Permission required';
+
     return (
       <Panel className="sky-table-card">
         <div className="sky-card-body">
           <StatusPill status="BLOCKED">Access blocked</StatusPill>
-          <h1 className="h4 mt-3">Permission required</h1>
+          <h1 className="h4 mt-3">{requirementLabel}</h1>
           <p className="sky-muted mb-0">
-            This screen requires <span className="sky-mono">{permissionCode}</span>.
+            This screen requires <span className="sky-mono">{requiredAccess}</span>.
           </p>
         </div>
       </Panel>
