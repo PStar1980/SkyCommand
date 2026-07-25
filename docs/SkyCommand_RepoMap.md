@@ -104,6 +104,7 @@ SkyServer/
 │   │       │   ├── AutomationDashboard.jsx
 │   │       │   ├── AutomationListeners.jsx
 │   │       │   ├── Dashboard.jsx
+│   │       │   ├── DataStatus.jsx
 │   │       │   ├── Home.jsx
 │   │       │   ├── IngestionStatus.jsx
 │   │       │   ├── Login.jsx

@@ -1,3 +1,13 @@
+## 2026-07-24 — Ad Hoc Demo Polish: Data Status and Shell Alignment
+
+- Removed the six compact Data dashboard status cards so the page begins directly with Dashboard Controls and analytical charts.
+- Removed the Data dashboard Indicator freshness and Recent ingestion executions cards, preserving their underlying data for chart analysis while moving the freshness ledger into a dedicated page.
+- Added **Data > Data Status**, a permission-protected, smart-polling indicator-health ledger with Source, Status, Active state, and Search filters; server-side offset pagination; selectable table rows; and a structured indicator detail workspace.
+- Renamed the sidebar **Configuration** category to **Data** and placed Data Status above Production Readiness and Repositories without changing their existing protected routes or permissions.
+- Centered command search in the authenticated top navigation using a balanced three-column shell while retaining responsive mobile behavior and right-aligned notification/account controls.
+- Matched the public/login navbar height, left padding, brand mark, vector size, title, and subtitle geometry to the authenticated SkyCommand brand block.
+- Extended `dashboard-ui-consistency:self-test` across Data dashboard composition, Data Status routing/pagination, the renamed navigation group, centered search structure, and public/authenticated brand alignment. No API, database, worker, workflow, or tool-runtime change is required.
+
 ## 2026-07-24 — Ad Hoc Demo Polish: Dashboard Navigation and History Headers
 
 - Reordered the Dashboards sidebar to Command Center, API, Data, Tools, Workflows, and Automation; renamed Data Pipeline to Data and removed the separate Readiness dashboard route while retaining Production Readiness under Configuration.

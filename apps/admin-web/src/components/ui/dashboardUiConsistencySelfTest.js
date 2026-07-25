@@ -72,9 +72,37 @@ const dataDashboardSource = fs.readFileSync(
   path.join(sourceRoot, 'pages/IngestionStatus.jsx'),
   'utf8',
 );
-assert.match(dataDashboardSource, /const statCards = useMemo\(\(\) => buildStatCards\(summary\)/);
-assert.match(dataDashboardSource, /sky-ingestion-stat-card/);
-assert.doesNotMatch(dataDashboardSource, />Source health</);
+assert.doesNotMatch(dataDashboardSource, /buildStatCards/);
+assert.doesNotMatch(dataDashboardSource, /sky-ingestion-stat-card/);
+assert.doesNotMatch(dataDashboardSource, />Indicator freshness</);
+assert.doesNotMatch(dataDashboardSource, />Recent ingestion executions</);
+
+
+const dataStatusSource = fs.readFileSync(path.join(sourceRoot, 'pages/DataStatus.jsx'), 'utf8');
+assert.match(dataStatusSource, /title="Data Status"/);
+assert.match(dataStatusSource, />Indicator freshness</);
+assert.match(dataStatusSource, /DATA_STATUS_PAGE_SIZE = 10/);
+assert.match(dataStatusSource, /offset: \(safePage - 1\) \* DATA_STATUS_PAGE_SIZE/);
+assert.match(dataStatusSource, /dataStatusPageSelect/);
+assert.match(dataStatusSource, /Showing \{rangeStart\}-\{rangeEnd\} of \{total\}/);
+
+const dataGroupSource = navbarSource.slice(
+  navbarSource.indexOf("label: 'Data',\n      icon: '◫'"),
+  navbarSource.indexOf("label: 'Access Control'"),
+);
+assert.match(dataGroupSource, /label: 'Data Status'/);
+assert.match(dataGroupSource, /to: '\/data\/status'/);
+assert.doesNotMatch(navbarSource, /label: 'Configuration'/);
+
+const routerSource = fs.readFileSync(path.join(sourceRoot, 'main.jsx'), 'utf8');
+assert.match(routerSource, /path="data\/status"/);
+assert.match(routerSource, /<DataStatus \/>/);
+
+assert.match(navbarSource, /className="sky-topbar-center"/);
+assert.match(navbarSource, /<header className="sky-topbar" ref=\{topbarControlsRef\}>/);
+assert.match(cssSource, /\.sky-topbar \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns:/);
+assert.match(cssSource, /\.sky-public-brand \.sky-brand-mark \{[\s\S]*?width: 3\.55rem;[\s\S]*?height: 3\.55rem;/);
+assert.match(cssSource, /\.sky-sidebar-brand \.sky-brand-mark \{[\s\S]*?width: 3\.55rem;[\s\S]*?height: 3\.55rem;/);
 
 const toolHistorySource = fs.readFileSync(path.join(sourceRoot, 'pages/ScriptExecutions.jsx'), 'utf8');
 assert.match(toolHistorySource, /DashboardRefreshActions/);
