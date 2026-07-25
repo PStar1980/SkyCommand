@@ -854,6 +854,27 @@ async function listScriptExecutions(filters = {}) {
   };
 }
 
+async function getScriptExecutionOptions() {
+  const result = await query(`
+    SELECT DISTINCT
+      BTRIM(category) AS category,
+      BTRIM(script_name) AS script_name
+    FROM auth.vw_script_execution_recent
+    WHERE NULLIF(BTRIM(category), '') IS NOT NULL
+      AND NULLIF(BTRIM(script_name), '') IS NOT NULL
+    ORDER BY category, script_name
+  `);
+  const rows = result.rows || [];
+
+  return {
+    categories: [...new Set(rows.map((row) => row.category))],
+    tools: rows.map((row) => ({
+      category: row.category,
+      scriptName: row.script_name,
+    })),
+  };
+}
+
 async function listActiveSessions(filters = {}) {
   const { limit, offset } = getPagination(filters);
   const clauses = [];
@@ -1648,6 +1669,7 @@ module.exports = {
   listAuditEvents,
   listLoginEvents,
   listScriptExecutions,
+  getScriptExecutionOptions,
   listActiveSessions,
   getApplicationUserSummary,
   listApplications,

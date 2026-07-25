@@ -3527,7 +3527,10 @@
 
 .sky-dashboard-command-title,
 .sky-page-title {
-  font-size: clamp(1.06rem, 1.08vw, var(--sky-max-display-font-size));
+  font-size: 1.16rem;
+  font-weight: 780;
+  letter-spacing: normal;
+  line-height: 1.15;
 }
 
 .sky-table-card {
@@ -4160,8 +4163,8 @@
 }
 
 .sky-history-filter-grid-single {
-  grid-template-columns: minmax(220px, 1fr);
-  min-width: min(100%, 340px);
+  grid-template-columns: repeat(3, minmax(170px, 1fr));
+  min-width: min(100%, 720px);
 }
 
 .sky-functional-history-table-card,

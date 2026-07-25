@@ -19,7 +19,6 @@ import Dashboard from './pages/Dashboard.jsx';
 import Home from './pages/Home.jsx';
 import IngestionStatus from './pages/IngestionStatus.jsx';
 import Login from './pages/Login.jsx';
-import ReadinessDashboard from './pages/ReadinessDashboard.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
 import ManageTools from './pages/ManageTools.jsx';
@@ -94,15 +93,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="dashboard/readiness"
-              element={
-                <ProtectedRoute permissionCode="ADMIN_REPOSITORY_READ">
-                  <ReadinessDashboard />
-                </ProtectedRoute>
-              }
-            />
-
             <Route path="tools" element={<Navigate replace to="/tools/run" />} />
             <Route
               path="tools/run"

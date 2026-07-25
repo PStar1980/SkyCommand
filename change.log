@@ -1,3 +1,12 @@
+## 2026-07-24 — Ad Hoc Demo Polish: Dashboard Navigation and History Headers
+
+- Reordered the Dashboards sidebar to Command Center, API, Data, Tools, Workflows, and Automation; renamed Data Pipeline to Data and removed the separate Readiness dashboard route while retaining Production Readiness under Configuration.
+- Matched authenticated page-title typography to the persistent sidebar item title so page names and their selected navigation labels share the same size, weight, spacing, and line height.
+- Removed the Data dashboard Source health drill-down card while retaining the compact ingestion status metrics above Dashboard Controls.
+- Added Category and Tool filters ahead of Status on Tool History, backed by distinct execution-ledger options and server-side category/script filtering.
+- Moved Tool History and Workflow History refresh telemetry into the standard page-header stack: Refresh, Last refresh, then smart-polling pills; removed duplicate in-card update telemetry.
+- Extended `dashboard-ui-consistency:self-test` across dashboard ordering, removed-route aliases, Data composition, history headers, tool filters, and API filter support. No migration, seed, worker, Temporal, tool-registration, or workflow-definition change is required.
+
 ## 2026-07-24 — Ad Hoc Demo Polish: Dedicated API Dashboard
 
 - Moved Command Center API Observability into its own complete card between Automation Intelligence and Identity Early Warning instead of visually nesting it inside the automation card.

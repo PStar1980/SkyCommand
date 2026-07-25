@@ -132,6 +132,15 @@ async function listScriptExecutions(req, res) {
   }
 }
 
+async function getScriptExecutionOptions(req, res) {
+  try {
+    const payload = await adminReadService.getScriptExecutionOptions();
+    sendServiceResponse(res, payload);
+  } catch (error) {
+    sendServiceError(res, error);
+  }
+}
+
 async function listActiveSessions(req, res) {
   try {
     const payload = await adminReadService.listActiveSessions(req.query || {});
@@ -849,6 +858,7 @@ module.exports = {
   listAuditEvents,
   listLoginEvents,
   listScriptExecutions,
+  getScriptExecutionOptions,
   listActiveSessions,
   getApplicationUserSummary,
   getApiTelemetrySummary,
