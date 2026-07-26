@@ -348,6 +348,11 @@ function isRuntimeCompletedStatus(status) {
   return ['COMPLETED', 'SUCCESS', 'APPROVED'].includes(normalized);
 }
 
+function isRuntimeInFlightStatus(status) {
+  const normalized = normalizeRuntimeStatus(status);
+  return ['RUNNING', 'QUEUED', 'PENDING', 'PENDING_APPROVAL'].includes(normalized);
+}
+
 function getRuntimeConditionRoutes(nodes = [], nodeRuns = [], approvals = []) {
   return nodes.reduce((routes, node, index) => {
     if (normalizeNodeType(node.nodeTypeCode) !== 'CONDITION') {
@@ -984,13 +989,15 @@ function WorkflowVisualGraph({
       : completedRun && lastCompletedNodeIndex >= 0
         ? lastCompletedNodeIndex
         : nextIncompleteNodeIndex;
-  const activeEdgeIndex = followTargetIndex > 0 ? followTargetIndex - 1 : -1;
-  const activeConditionRoute = runtimeConditionRoutes.find(
-    (route) => route.targetIndex === followTargetIndex,
-  );
-  const activeBranchEdgeIndices = new Set(activeConditionRoute?.edgeIndices || []);
-  const activeNode = followTargetIndex >= 0 ? nodes[followTargetIndex] : null;
   const runtimeStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
+  const hasInFlightRun = runtimeMode && (runtimeCounts.active > 0 || isRuntimeInFlightStatus(runtimeStatus));
+  const visualExecutionNodeIndex = hasInFlightRun ? followTargetIndex : -1;
+  const activeEdgeIndex = hasInFlightRun && followTargetIndex > 0 ? followTargetIndex - 1 : -1;
+  const activeConditionRoute = hasInFlightRun
+    ? runtimeConditionRoutes.find((route) => route.targetIndex === followTargetIndex)
+    : null;
+  const activeBranchEdgeIndices = new Set(activeConditionRoute?.edgeIndices || []);
+  const activeNode = visualExecutionNodeIndex >= 0 ? nodes[visualExecutionNodeIndex] : null;
   const runStatusMeta = runtimeMode ? getRuntimeStatusMeta(runtimeStatus) : null;
   const hasRuntimeExecution = runtimeMode && runtimeStatus !== 'NOT_RUN';
   const resolvedHeadingKicker = headingKicker || (runtimeMode ? 'Runtime status overlay' : 'Visual designer foundation');
@@ -1210,7 +1217,7 @@ function WorkflowVisualGraph({
               {nodes.map((node, index) => (
               <div className="sky-workflow-visual-step" key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`} role="listitem">
                 <WorkflowVisualNode
-                  active={runtimeMode && followTargetIndex === index}
+                  active={runtimeMode && visualExecutionNodeIndex === index}
                   approval={runtimeMode ? getApprovalForNode({ node, nodeRun: getNodeRunForNode(node, nodeRuns), approvals }) : null}
                   catalogs={catalogs}
                   dragging={draggedNodeIndex === index}
