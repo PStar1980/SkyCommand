@@ -876,7 +876,12 @@ function statusClass(status) {
     return 'sky-pill-danger';
   }
 
-  if (normalized === 'RUNNING' || normalized === 'QUEUED' || normalized === 'PENDING') {
+  if (
+    normalized === 'RUNNING' ||
+    normalized === 'QUEUED' ||
+    normalized === 'PENDING' ||
+    normalized === 'PENDING_APPROVAL'
+  ) {
     return 'sky-pill-warning';
   }
 
@@ -3882,6 +3887,182 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
   );
 }
 
+function getVisualNodeRun(node = {}, nodeRuns = []) {
+  if (!node || !Array.isArray(nodeRuns)) {
+    return null;
+  }
+
+  return (
+    nodeRuns.find((nodeRun) => nodeRun?.nodeKey && nodeRun.nodeKey === node.nodeKey) ||
+    nodeRuns.find(
+      (nodeRun) =>
+        node.workflowNodeId && nodeRun?.workflowNodeId === node.workflowNodeId,
+    ) ||
+    null
+  );
+}
+
+function getVisualNodeApproval(node = {}, nodeRun = null, approvals = []) {
+  if (!node || !Array.isArray(approvals)) {
+    return null;
+  }
+
+  return (
+    approvals.find(
+      (approval) =>
+        nodeRun?.workflowNodeRunRecordId &&
+        approval?.workflowNodeRunRecordId === nodeRun.workflowNodeRunRecordId,
+    ) ||
+    approvals.find((approval) => approval?.nodeKey && approval.nodeKey === node.nodeKey) ||
+    null
+  );
+}
+
+function getVisualNodeRuntimeStatus(node = {}, nodeRuns = [], approvals = []) {
+  const nodeRun = getVisualNodeRun(node, nodeRuns);
+  const approval = getVisualNodeApproval(node, nodeRun, approvals);
+
+  if (approval?.status === 'PENDING') {
+    return 'PENDING_APPROVAL';
+  }
+
+  if (approval?.status === 'APPROVED' && nodeRun?.status === 'COMPLETED') {
+    return 'APPROVED';
+  }
+
+  if (approval?.status === 'REJECTED') {
+    return nodeRun?.status || 'REJECTED';
+  }
+
+  return nodeRun?.status || 'NOT_RUN';
+}
+
+function isVisualNodeCompleted(node = {}, nodeRuns = [], approvals = []) {
+  return ['COMPLETED', 'SUCCESS', 'APPROVED'].includes(
+    String(getVisualNodeRuntimeStatus(node, nodeRuns, approvals)).toUpperCase(),
+  );
+}
+
+function WorkflowNodeParameterCard({
+  approvals = [],
+  nodeRuns = [],
+  nodes = [],
+  selectedNodeIndex = null,
+}) {
+  const hasSelection =
+    Number.isInteger(selectedNodeIndex) &&
+    selectedNodeIndex >= 0 &&
+    selectedNodeIndex < nodes.length;
+  const selectedNode = hasSelection ? nodes[selectedNodeIndex] : null;
+
+  if (!selectedNode) {
+    return null;
+  }
+
+  const inputParameters = getSafeObject(selectedNode.inputParameters);
+  const parameterEntries = Object.entries(inputParameters);
+  const runtimeStatus = getVisualNodeRuntimeStatus(selectedNode, nodeRuns, approvals);
+  const displayName = selectedNode.displayName || selectedNode.nodeKey || 'Selected node';
+  const configurationRows = [
+    { field: 'Node key', fieldKey: 'nodeKey', value: selectedNode.nodeKey || '—' },
+    {
+      field: 'Node type',
+      fieldKey: 'nodeTypeCode',
+      value: humanizeOutputKey(selectedNode.nodeTypeCode || 'TOOL'),
+    },
+    {
+      field: 'Target',
+      fieldKey: 'targetCode',
+      value: selectedNode.targetCode || 'Saved target defaults',
+    },
+    {
+      field: 'Node timeout',
+      fieldKey: 'timeoutMs',
+      value: selectedNode.timeoutMs ? formatDuration(selectedNode.timeoutMs) : 'Default policy',
+    },
+    {
+      field: 'Retry policy',
+      fieldKey: 'retryPolicy',
+      value:
+        selectedNode.retryPolicy && Object.keys(getSafeObject(selectedNode.retryPolicy)).length > 0
+          ? selectedNode.retryPolicy
+          : 'Default policy',
+    },
+  ];
+
+  return (
+    <section className="sky-card mb-4">
+      <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Node parameters</div>
+          <h2 className="h5 mb-0">Node {selectedNodeIndex + 1} · {displayName}</h2>
+          <p className="small sky-muted mb-0 mt-1">
+            This node has not completed. Its saved configuration remains visible until runtime
+            output becomes available.
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2 small">
+          <span className={`sky-pill ${statusClass(runtimeStatus)}`}>{runtimeStatus}</span>
+          <span className="sky-pill sky-pill-info">
+            {parameterEntries.length} input parameter(s)
+          </span>
+        </div>
+      </div>
+      <div className="sky-card-body">
+        <div className="sky-page-kicker mb-2">Execution configuration</div>
+        <div className="table-responsive sky-table-card mb-3">
+          <table className="table table-sm sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {configurationRows.map((row) => (
+                <tr key={row.fieldKey}>
+                  <td className="fw-semibold">{row.field}</td>
+                  <td className="sky-focused-node-output-value">
+                    <FriendlyOutputScalar fieldKey={row.fieldKey} value={row.value} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="sky-page-kicker mb-2">Saved node input parameters</div>
+        {parameterEntries.length > 0 ? (
+          <div className="table-responsive sky-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Saved value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {parameterEntries.map(([key, value]) => (
+                  <tr key={key}>
+                    <td className="fw-semibold">{humanizeOutputKey(key)}</td>
+                    <td className="sky-focused-node-output-value">
+                      <FriendlyOutputScalar fieldKey={key} value={value} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="sky-empty-state text-start">
+            No node-level input parameters are saved. This node will use its target defaults.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function WorkflowNodeOutputLedger({
   outputs = [],
   contextValues = [],
@@ -6072,13 +6253,6 @@ function SkyWorkflows({ mode = 'start' }) {
                     </div>
                   </div>
 
-                  <div className="sky-empty-state text-start mb-3">
-                    Runtime values are saved into workflow context as <code>params</code>. Configure
-                    workflow-level parameter definitions in Create Workflow / Manage Workflows,
-                    then reference them inside node defaults with{' '}
-                    <code>{'{{ params.example }}'}</code>.
-                  </div>
-
                   {runtimeParameters.length > 0 ? (
                     <div className="row g-3 mb-3">
                       {runtimeParameters.map((parameter) => {
@@ -6243,6 +6417,30 @@ function SkyWorkflows({ mode = 'start' }) {
                   temporalRuntime={selectedTemporalRuntime}
                   title="Runtime workflow map"
                 />
+
+                {Number.isInteger(selectedRuntimeNodeIndex) &&
+                selectedRuntimeNodeIndex >= 0 &&
+                selectedRuntimeNodeIndex < runtimeVisualNodes.length ? (
+                  isVisualNodeCompleted(
+                    runtimeVisualNodes[selectedRuntimeNodeIndex],
+                    selectedNodeRuns,
+                    selectedApprovals,
+                  ) ? (
+                    <WorkflowNodeOutputLedger
+                      contextValues={selectedContextValues}
+                      nodes={runtimeVisualNodes}
+                      outputs={selectedNodeOutputs}
+                      selectedNodeIndex={selectedRuntimeNodeIndex}
+                    />
+                  ) : (
+                    <WorkflowNodeParameterCard
+                      approvals={selectedApprovals}
+                      nodeRuns={selectedNodeRuns}
+                      nodes={runtimeVisualNodes}
+                      selectedNodeIndex={selectedRuntimeNodeIndex}
+                    />
+                  )
+                ) : null}
               </div>
             </>
           )}
