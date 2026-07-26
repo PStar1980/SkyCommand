@@ -667,6 +667,7 @@ function WorkflowVisualNode({
   catalogs,
   runtimeMode,
   selected,
+  selectionLocked = false,
   setNodeRef,
   onDragEnd,
   onDragEnter,
@@ -684,17 +685,27 @@ function WorkflowVisualNode({
 
   return (
     <button
-      aria-label={`Select workflow node ${index + 1}: ${title}`}
-      className={`sky-workflow-visual-node ${meta.className} ${runtimeOverlay?.nodeClassName || ''} ${active ? 'is-runtime-active' : ''} ${selected ? 'is-selected' : ''} ${dragging ? 'is-dragging' : ''} ${dropTarget ? 'is-drop-target' : ''}`}
-      draggable={dragReorderEnabled}
+      aria-disabled={selectionLocked}
+      aria-label={`${selectionLocked ? 'Workflow node selection locked during execution' : 'Select workflow node'} ${index + 1}: ${title}`}
+      className={`sky-workflow-visual-node ${meta.className} ${runtimeOverlay?.nodeClassName || ''} ${active ? 'is-runtime-active' : ''} ${selected ? 'is-selected' : ''} ${selectionLocked ? 'is-selection-locked' : ''} ${dragging ? 'is-dragging' : ''} ${dropTarget ? 'is-drop-target' : ''}`}
+      disabled={selectionLocked}
+      draggable={dragReorderEnabled && !selectionLocked}
       ref={setNodeRef}
-      onClick={() => onSelect?.(index, { scrollToEditor: true })}
+      onClick={() => {
+        if (!selectionLocked) {
+          onSelect?.(index, { scrollToEditor: true });
+        }
+      }}
       onDragEnd={onDragEnd}
       onDragEnter={(event) => onDragEnter?.(event, index)}
       onDragOver={(event) => onDragOver?.(event, index)}
       onDragStart={(event) => onDragStart?.(event, index)}
       onDrop={(event) => onDrop?.(event, index)}
-      title={dragReorderEnabled ? 'Drag this node to reorder the sequential lane.' : undefined}
+      title={selectionLocked
+        ? 'Node selection unlocks when the workflow run completes.'
+        : dragReorderEnabled
+          ? 'Drag this node to reorder the sequential lane.'
+          : undefined}
       type="button"
     >
       <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
@@ -743,7 +754,7 @@ function WorkflowVisualEdge({ active = false, branchPath = false, completed = fa
   );
 }
 
-function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspectorRows = false, nodeRuns = [], nodes = [], runtimeMode = false, selectedNodeIndex = null, onNodeMove, onNodeSelect }) {
+function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspectorRows = false, nodeRuns = [], nodes = [], runtimeMode = false, selectedNodeIndex = null, selectionLocked = false, onNodeMove, onNodeSelect }) {
   const hasSelection = Number.isInteger(selectedNodeIndex)
     && selectedNodeIndex >= 0
     && selectedNodeIndex < nodes.length;
@@ -830,7 +841,7 @@ function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspe
         <span className="d-flex flex-wrap gap-2">
           <button
             className="btn btn-sm sky-btn-ghost"
-            disabled={previousIndex < 0}
+            disabled={selectionLocked || previousIndex < 0}
             onClick={() => onNodeSelect?.(previousIndex, { scrollToEditor: false })}
             type="button"
           >
@@ -838,7 +849,7 @@ function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspe
           </button>
           <button
             className="btn btn-sm sky-btn-ghost"
-            disabled={nextIndex >= nodes.length}
+            disabled={selectionLocked || nextIndex >= nodes.length}
             onClick={() => onNodeSelect?.(nextIndex, { scrollToEditor: false })}
             type="button"
           >
@@ -848,7 +859,7 @@ function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspe
             <>
               <button
                 className="btn btn-sm sky-btn-ghost"
-                disabled={previousIndex < 0}
+                disabled={selectionLocked || previousIndex < 0}
                 onClick={() => onNodeMove?.(selectedNodeIndex, -1)}
                 type="button"
               >
@@ -856,7 +867,7 @@ function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspe
               </button>
               <button
                 className="btn btn-sm sky-btn-ghost"
-                disabled={nextIndex >= nodes.length}
+                disabled={selectionLocked || nextIndex >= nodes.length}
                 onClick={() => onNodeMove?.(selectedNodeIndex, 1)}
                 type="button"
               >
@@ -877,7 +888,7 @@ function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspe
   );
 }
 
-function WorkflowVisualNavigation({ nodes = [], selectedNodeIndex = null, onNodeSelect }) {
+function WorkflowVisualNavigation({ nodes = [], selectedNodeIndex = null, selectionLocked = false, onNodeSelect }) {
   const hasSelection = Number.isInteger(selectedNodeIndex)
     && selectedNodeIndex >= 0
     && selectedNodeIndex < nodes.length;
@@ -888,7 +899,7 @@ function WorkflowVisualNavigation({ nodes = [], selectedNodeIndex = null, onNode
     <div className="d-flex flex-wrap justify-content-end align-items-center gap-2 mt-3">
       <button
         className="btn btn-sm sky-btn-ghost"
-        disabled={previousIndex < 0}
+        disabled={selectionLocked || previousIndex < 0}
         onClick={() => onNodeSelect?.(previousIndex, { scrollToEditor: false })}
         type="button"
       >
@@ -896,7 +907,7 @@ function WorkflowVisualNavigation({ nodes = [], selectedNodeIndex = null, onNode
       </button>
       <button
         className="btn btn-sm sky-btn-ghost"
-        disabled={nextIndex >= nodes.length}
+        disabled={selectionLocked || nextIndex >= nodes.length}
         onClick={() => onNodeSelect?.(nextIndex, { scrollToEditor: false })}
         type="button"
       >
@@ -990,7 +1001,11 @@ function WorkflowVisualGraph({
         ? lastCompletedNodeIndex
         : nextIncompleteNodeIndex;
   const runtimeStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
-  const hasInFlightRun = runtimeMode && (runtimeCounts.active > 0 || isRuntimeInFlightStatus(runtimeStatus));
+  const hasInFlightRun = runtimeMode
+    && !completedRun
+    && !terminalIssueRun
+    && (runtimeCounts.active > 0 || isRuntimeInFlightStatus(runtimeStatus));
+  const selectionLocked = hasInFlightRun;
   const visualExecutionNodeIndex = hasInFlightRun ? followTargetIndex : -1;
   const activeEdgeIndex = hasInFlightRun && followTargetIndex > 0 ? followTargetIndex - 1 : -1;
   const activeConditionRoute = hasInFlightRun
@@ -1201,7 +1216,9 @@ function WorkflowVisualGraph({
           ) : null}
           {runtimeMode ? (
             <div className="sky-workflow-visual-runtime-note mb-3">
-              Runtime overlay is read-only. Completed nodes and executed condition routes illuminate gold; skipped or unexecuted nodes remain dim.
+              {selectionLocked
+                ? 'Runtime overlay is read-only. Node selection is locked while execution is active so the golden flow remains the focal point.'
+                : 'Runtime overlay is read-only. Completed nodes and executed condition routes illuminate gold; skipped or unexecuted nodes remain dim.'}
             </div>
           ) : null}
           <div className="sky-workflow-visual-viewport">
@@ -1228,6 +1245,7 @@ function WorkflowVisualGraph({
                   nodeRun={runtimeMode ? getNodeRunForNode(node, nodeRuns) : null}
                   nodes={nodes}
                   runtimeMode={runtimeMode}
+                  selectionLocked={selectionLocked}
                   setNodeRef={(element) => { nodeRefs.current[index] = element; }}
                   onDragEnd={clearDragState}
                   onDragEnter={handleDragEnter}
@@ -1235,7 +1253,7 @@ function WorkflowVisualGraph({
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
                   onSelect={onNodeSelect}
-                  selected={selectedNodeIndex === index}
+                  selected={!selectionLocked && selectedNodeIndex === index}
                 />
                 {index < nodes.length - 1 ? (
                   <WorkflowVisualEdge
@@ -1262,6 +1280,7 @@ function WorkflowVisualGraph({
               nodeRuns={nodeRuns}
               nodes={nodes}
               runtimeMode={runtimeMode}
+              selectionLocked={selectionLocked}
               onNodeMove={onNodeMove}
               onNodeSelect={onNodeSelect}
               selectedNodeIndex={selectedNodeIndex}
@@ -1269,6 +1288,7 @@ function WorkflowVisualGraph({
           ) : inspectorMode === 'navigation' ? (
             <WorkflowVisualNavigation
               nodes={nodes}
+              selectionLocked={selectionLocked}
               onNodeSelect={onNodeSelect}
               selectedNodeIndex={selectedNodeIndex}
             />

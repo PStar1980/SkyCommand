@@ -2633,8 +2633,8 @@
   cursor: grabbing;
 }
 
-.sky-workflow-visual-node:hover,
-.sky-workflow-visual-node:focus,
+.sky-workflow-visual-node:not(.is-selection-locked):hover,
+.sky-workflow-visual-node:not(.is-selection-locked):focus,
 .sky-workflow-visual-node.is-selected {
   border-color: rgba(72, 167, 255, 0.72);
   background: linear-gradient(135deg, rgba(72, 167, 255, 0.16), rgba(155, 89, 255, 0.1));
@@ -2642,6 +2642,17 @@
   outline: none;
   transform: translateY(-1px);
   box-shadow: 0 18px 48px rgba(72, 167, 255, 0.1);
+}
+
+
+.sky-workflow-visual-node.is-selection-locked {
+  cursor: default;
+}
+
+.sky-workflow-visual-node.is-selection-locked:hover,
+.sky-workflow-visual-node.is-selection-locked:focus {
+  transform: none;
+  outline: none;
 }
 
 .sky-workflow-visual-node.is-dragging {

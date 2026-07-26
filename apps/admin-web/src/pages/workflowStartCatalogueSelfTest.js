@@ -145,10 +145,20 @@ assert(
 );
 assert(
   cssSource.includes('.sky-workflow-visual-node.is-selected {') &&
-    cssSource.includes('outline: 2px solid rgba(72, 184, 255, 0.82);') &&
+    cssSource.includes('outline: 3px solid rgba(84, 202, 255, 0.98);') &&
     cssSource.includes('.sky-workflow-visual-edge.is-runtime-branch-path-edge') &&
     cssSource.includes('@media (prefers-reduced-motion: reduce)'),
   'Runtime graphs must distinguish selected nodes, illuminate chosen branch paths, and support reduced motion.',
+);
+assert(
+  graphSource.includes('const selectionLocked = hasInFlightRun;') &&
+    graphSource.includes('&& !completedRun') &&
+    graphSource.includes('&& !terminalIssueRun') &&
+    graphSource.includes('disabled={selectionLocked}') &&
+    graphSource.includes('selected={!selectionLocked && selectedNodeIndex === index}') &&
+    workflowSource.includes('if (isActiveRun(selectedRun) && !options.followActiveNode)') &&
+    cssSource.includes('.sky-workflow-visual-node.is-selection-locked {'),
+  'Runtime node selection must remain locked during active execution and unlock before or after the run.',
 );
 
 console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');

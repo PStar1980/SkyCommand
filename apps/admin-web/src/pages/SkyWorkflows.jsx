@@ -4731,6 +4731,10 @@ function SkyWorkflows({ mode = 'start' }) {
   const isHistoryMode = mode === 'history';
 
   function handleRuntimeNodeSelect(index, options = {}) {
+    if (isActiveRun(selectedRun) && !options.followActiveNode) {
+      return;
+    }
+
     setSelectedRuntimeNodeIndex(index);
 
     // Manual inspection must remain under user control, including for failed,
@@ -5098,6 +5102,8 @@ function SkyWorkflows({ mode = 'start' }) {
     setError('');
     setMessage('');
     setRuntimeParameterError('');
+    setSelectedRuntimeNodeIndex(null);
+    setFollowActiveRuntimeNode(true);
 
     try {
       const params = parseRuntimeParameterValues(runtimeParameters, runtimeParameterValues);
@@ -5254,6 +5260,11 @@ function SkyWorkflows({ mode = 'start' }) {
 
   useEffect(() => {
     setSelectedRuntimeNodeIndex(null);
+
+    if (isActiveRun(selectedRun)) {
+      setFollowActiveRuntimeNode(true);
+    }
+
     completionFocusRef.current = {
       applied: false,
       runId: selectedRun?.workflowRunRecordId || null,
