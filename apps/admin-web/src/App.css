@@ -5595,3 +5595,9 @@
   background-clip: padding-box;
 }
 
+.sky-workflow-history-detail-stack .sky-workflow-visual-map,
+.sky-workflow-start-detail-stack .sky-workflow-visual-map {
+  padding-inline-start: 1.75rem;
+  scroll-padding-inline-start: 1.75rem;
+}
+

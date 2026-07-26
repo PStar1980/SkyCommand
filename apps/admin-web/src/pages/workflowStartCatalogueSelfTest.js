@@ -14,6 +14,10 @@ const cssSource = fs.readFileSync(
   path.join(repoRoot, 'apps/admin-web/src/App.css'),
   'utf8',
 );
+const graphSource = fs.readFileSync(
+  path.join(repoRoot, 'apps/admin-web/src/components/WorkflowVisualGraph.jsx'),
+  'utf8',
+);
 
 function assert(condition, message) {
   if (!condition) {
@@ -73,6 +77,30 @@ assert(
     workflowSource.includes('<WorkflowNodeOutputLedger') &&
     workflowSource.includes('<WorkflowNodeParameterCard'),
   'Start Workflow must switch between focused output and saved node parameters based on node completion.',
+);
+
+assert(
+  !workflowSource.includes('Start workflow with parameters') &&
+    workflowSource.includes("{starting ? 'Running workflow...' : 'Start Workflow'}"),
+  'Start Workflow must use one consistent launch button label for every workflow.',
+);
+assert(
+  !workflowSource.includes('headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}') &&
+    graphSource.includes("justify-content-end gap-2 ms-auto") &&
+    graphSource.includes("hasRuntimeExecution && runtimeCounts.completed > 0") &&
+    graphSource.includes("runtimeCounts.active > 0 && activeNode"),
+  'Runtime Status Overlay pills must align right and avoid duplicate or zero-value pre-run status pills.',
+);
+assert(
+  graphSource.includes('const viewportRef = useRef(null);') &&
+    graphSource.includes("viewport.scrollTo({ behavior: 'auto', left: 0 });") &&
+    graphSource.includes('ref={viewportRef}') &&
+    cssSource.includes('padding-inline-start: 1.75rem;'),
+  'Workflow runtime lanes must reset to the left edge and preserve first-node breathing room.',
+);
+assert(
+  !graphSource.includes('<div className="sky-workflow-visual-branch-list">'),
+  'Condition gate cards must not render branch target pills that stretch the visual node.',
 );
 
 console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');
