@@ -342,6 +342,7 @@ function AddTool() {
           kicker="TOOLS"
           subtitle="Stage, analyze, configure, preview, and register one trusted Node.js tool package. Registration writes the implementation and optional central contract plus a disabled PostgreSQL catalogue record, but never executes the uploaded code."
           title="Add Tool"
+          titleClassName="sky-page-title mb-0"
         >
           <div className="sky-card-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <div className="small sky-muted">
