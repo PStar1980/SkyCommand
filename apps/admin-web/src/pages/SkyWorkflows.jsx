@@ -5291,7 +5291,7 @@ function SkyWorkflows({ mode = 'start' }) {
       ? focusState.wasActive
       : completedStartRun;
 
-    if (!followActiveRuntimeNode || !shouldApplyTerminalFocus || focusState.applied) {
+    if (!shouldApplyTerminalFocus || focusState.applied) {
       return;
     }
 
