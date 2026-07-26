@@ -6384,11 +6384,7 @@ function SkyWorkflows({ mode = 'start' }) {
                     disabled={starting || !selectedDefinitionDetail || !canStart}
                     type="submit"
                   >
-                    {starting
-                      ? 'Running workflow...'
-                      : runtimeParameters.length > 0
-                        ? 'Start workflow with parameters'
-                        : 'Start workflow'}
+                    {starting ? 'Running workflow...' : 'Start Workflow'}
                   </button>
                   {!canStart && (
                     <div className="small sky-muted mt-2">
@@ -6403,7 +6399,6 @@ function SkyWorkflows({ mode = 'start' }) {
                   approvals={selectedApprovals}
                   followActiveNode={followActiveRuntimeNode}
                   headingKicker="Runtime status overlay"
-                  headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}
                   headerActionsStandalone
                   inspectorMode="navigation"
                   nodeRuns={selectedNodeRuns}

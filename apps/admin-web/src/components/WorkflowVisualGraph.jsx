@@ -635,15 +635,6 @@ function WorkflowVisualNode({
       <div className="sky-workflow-visual-key sky-mono">{node.nodeKey || `node_${index + 1}`}</div>
       <div className="sky-workflow-visual-summary sky-truncate">{summary}</div>
       <div className="sky-workflow-visual-detail sky-truncate">{detail}</div>
-      {getConditionBranchBadges(node, nodes).length > 0 ? (
-        <div className="sky-workflow-visual-branch-list">
-          {getConditionBranchBadges(node, nodes).map((branch) => (
-            <span className={`sky-pill ${branch.className}`} key={branch.label}>
-              {branch.label} → {branch.value}
-            </span>
-          ))}
-        </div>
-      ) : null}
       {runtimeOverlay ? (
         <div className="sky-workflow-runtime-overlay">
           <div className="sky-page-kicker">Runtime</div>
@@ -910,7 +901,9 @@ function WorkflowVisualGraph({
       : nextIncompleteNodeIndex;
   const activeEdgeIndex = followTargetIndex > 0 ? followTargetIndex - 1 : -1;
   const activeNode = followTargetIndex >= 0 ? nodes[followTargetIndex] : null;
-  const runStatusMeta = runtimeMode ? getRuntimeStatusMeta(runStatus || temporalRuntime?.status || 'UNKNOWN') : null;
+  const runtimeStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
+  const runStatusMeta = runtimeMode ? getRuntimeStatusMeta(runtimeStatus) : null;
+  const hasRuntimeExecution = runtimeMode && runtimeStatus !== 'NOT_RUN';
   const resolvedHeadingKicker = headingKicker || (runtimeMode ? 'Runtime status overlay' : 'Visual designer foundation');
   const resolvedTitle = title || (runtimeMode ? 'Runtime workflow map' : 'Sequential workflow map');
   const resolvedSubtitle = subtitle || (runtimeMode
@@ -919,6 +912,16 @@ function WorkflowVisualGraph({
   const [draggedNodeIndex, setDraggedNodeIndex] = useState(null);
   const [dropTargetIndex, setDropTargetIndex] = useState(null);
   const nodeRefs = useRef([]);
+  const viewportRef = useRef(null);
+  const nodeSignature = nodes.map((node, index) => node.nodeKey || node.workflowNodeId || `${index}`).join('|');
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (viewport) {
+      viewport.scrollTo({ behavior: 'auto', left: 0 });
+    }
+  }, [nodeSignature]);
 
   useEffect(() => {
     if (!runtimeMode || !followActiveNode || followTargetIndex < 0) {
@@ -930,7 +933,7 @@ function WorkflowVisualGraph({
     }
 
     const nodeElement = nodeRefs.current[followTargetIndex];
-    const viewport = nodeElement?.closest?.('.sky-workflow-visual-viewport');
+    const viewport = viewportRef.current;
 
     if (nodeElement && viewport) {
       const targetLeft = Math.max(
@@ -1003,10 +1006,12 @@ function WorkflowVisualGraph({
           <h3 className="h5 mb-1">{resolvedTitle}</h3>
           <p className="sky-muted mb-0">{resolvedSubtitle}</p>
         </div>
-        <div className={`d-flex flex-wrap align-items-center gap-2 ${headerActionsStandalone ? 'justify-content-end' : ''}`}>
-          {headerActionsStandalone ? (
-            <div className="d-flex w-100 justify-content-end">{headerActions}</div>
-          ) : headerActions}
+        <div className={`d-flex flex-wrap align-items-center justify-content-end gap-2 ms-auto ${headerActionsStandalone ? 'flex-grow-1' : ''}`}>
+          {headerActions ? (
+            headerActionsStandalone ? (
+              <div className="d-flex w-100 justify-content-end">{headerActions}</div>
+            ) : headerActions
+          ) : null}
           {runtimeMode && onFollowActiveNodeChange ? (
             <label className={`sky-follow-active-toggle ${followActiveNode ? 'is-enabled' : ''}`}>
               <input
@@ -1017,7 +1022,7 @@ function WorkflowVisualGraph({
               Follow active node
             </label>
           ) : null}
-          {runtimeMode && activeNode ? (
+          {runtimeMode && runtimeCounts.active > 0 && activeNode ? (
             <span className="sky-pill sky-pill-warning">Active: {activeNode.displayName || activeNode.nodeKey || `Node ${followTargetIndex + 1}`}</span>
           ) : null}
           <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
@@ -1025,10 +1030,10 @@ function WorkflowVisualGraph({
           <span className="sky-pill sky-pill-success">Sequential lane</span>
           {branchEdgeCount > 0 ? <span className="sky-pill sky-pill-warning">{branchEdgeCount} branch edge(s)</span> : null}
           {runtimeMode && runStatusMeta ? <span className={`sky-pill ${runStatusMeta.pillClassName}`}>Run {runStatusMeta.label}</span> : null}
-          {runtimeMode ? <span className="sky-pill sky-pill-success">{runtimeCounts.completed} completed</span> : null}
-          {runtimeMode && runtimeCounts.active > 0 ? <span className="sky-pill sky-pill-warning">{runtimeCounts.active} active</span> : null}
-          {runtimeMode && runtimeCounts.failed > 0 ? <span className="sky-pill sky-pill-danger">{runtimeCounts.failed} issue(s)</span> : null}
-          {runtimeMode && runtimeCounts.notRun > 0 ? <span className="sky-pill sky-pill-info">{runtimeCounts.notRun} not run</span> : null}
+          {hasRuntimeExecution && runtimeCounts.completed > 0 ? <span className="sky-pill sky-pill-success">{runtimeCounts.completed} completed</span> : null}
+          {hasRuntimeExecution && runtimeCounts.active > 0 ? <span className="sky-pill sky-pill-warning">{runtimeCounts.active} active</span> : null}
+          {hasRuntimeExecution && runtimeCounts.failed > 0 ? <span className="sky-pill sky-pill-danger">{runtimeCounts.failed} issue(s)</span> : null}
+          {hasRuntimeExecution && runtimeCounts.notRun > 0 ? <span className="sky-pill sky-pill-info">{runtimeCounts.notRun} not run</span> : null}
           {dragReorderEnabled ? <span className="sky-pill sky-pill-warning">Drag reorder</span> : null}
         </div>
       </div>
@@ -1047,7 +1052,7 @@ function WorkflowVisualGraph({
               Runtime overlay is read-only. Completed, running, failed, pending approval, skipped, and branch-taken states come from the selected workflow run ledger.
             </div>
           ) : null}
-          <div className="sky-workflow-visual-viewport">
+          <div className="sky-workflow-visual-viewport" ref={viewportRef}>
             <div className="sky-workflow-visual-map" role="list" aria-label="Sequential workflow visual map">
               {nodes.map((node, index) => (
               <div className="sky-workflow-visual-step" key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`} role="listitem">
