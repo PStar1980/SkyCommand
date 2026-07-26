@@ -1,7 +1,36 @@
 import StatusPill from '../ui/StatusPill.jsx';
+import StructuredToolResultDisplay, {
+  isStructuredToolResultDisplaySupported,
+} from './StructuredToolResultDisplay.jsx';
 
 function hasText(value) {
   return Boolean(String(value || '').trim());
+}
+
+function getToolResultOutputType(toolResult, toolResultContract) {
+  return (
+    toolResult?.outputType ||
+    toolResultContract?.outputType ||
+    toolResultContract?.expectedOutputType ||
+    null
+  );
+}
+
+function prepareDisplayToolResult(toolResult, toolResultContract) {
+  if (!toolResult) {
+    return null;
+  }
+
+  const outputType = getToolResultOutputType(toolResult, toolResultContract);
+
+  if (!outputType || toolResult.outputType) {
+    return toolResult;
+  }
+
+  return {
+    ...toolResult,
+    outputType,
+  };
 }
 
 function formatJson(value) {
@@ -83,8 +112,10 @@ function StructuredOutputCard({
   toolResult = null,
   toolResultContract = null,
 }) {
-  const outputType = toolResult?.outputType || toolResultContract?.outputType || null;
+  const displayToolResult = prepareDisplayToolResult(toolResult, toolResultContract);
+  const outputType = getToolResultOutputType(toolResult, toolResultContract);
   const contractStatus = toolResultContract?.status || null;
+  const hasCustomDisplay = isStructuredToolResultDisplaySupported(displayToolResult);
 
   return (
     <section className="sky-card sky-tool-output-card">
@@ -105,27 +136,31 @@ function StructuredOutputCard({
         {loading ? (
           <div className="sky-empty-state">Loading structured output...</div>
         ) : toolResult ? (
-          <>
-            <div className="sky-tool-result-summary mb-3">
-              <div>
-                <div className="sky-detail-label">Result</div>
-                <StatusPill status={toolResult.success ? 'SUCCESS' : 'FAILED'}>
-                  {toolResult.success ? 'SUCCESS' : 'FAILED'}
-                </StatusPill>
+          hasCustomDisplay ? (
+            <StructuredToolResultDisplay toolResult={displayToolResult} />
+          ) : (
+            <>
+              <div className="sky-tool-result-summary mb-3">
+                <div>
+                  <div className="sky-detail-label">Result</div>
+                  <StatusPill status={toolResult.success ? 'SUCCESS' : 'FAILED'}>
+                    {toolResult.success ? 'SUCCESS' : 'FAILED'}
+                  </StatusPill>
+                </div>
+                <div className="sky-tool-result-message">
+                  <div className="sky-detail-label">Message</div>
+                  <div className="sky-detail-value">{toolResult.message || '—'}</div>
+                </div>
               </div>
-              <div className="sky-tool-result-message">
-                <div className="sky-detail-label">Message</div>
-                <div className="sky-detail-value">{toolResult.message || '—'}</div>
-              </div>
-            </div>
-            <div className="sky-detail-label mb-2">Structured payload</div>
-            <OutputBlock>{formatJson(toolResult.output ?? toolResult)}</OutputBlock>
-            {Array.isArray(toolResult.warnings) && toolResult.warnings.length > 0 && (
-              <div className="alert alert-warning mt-3 mb-0">
-                <strong>Warnings:</strong> {toolResult.warnings.join(' · ')}
-              </div>
-            )}
-          </>
+              <div className="sky-detail-label mb-2">Structured payload</div>
+              <OutputBlock>{formatJson(toolResult.output ?? toolResult)}</OutputBlock>
+              {Array.isArray(toolResult.warnings) && toolResult.warnings.length > 0 && (
+                <div className="alert alert-warning mt-3 mb-0">
+                  <strong>Warnings:</strong> {toolResult.warnings.join(' · ')}
+                </div>
+              )}
+            </>
+          )
         ) : structuredOutputExpected ? (
           <div className="sky-empty-state">
             Structured output was expected, but no persisted payload is available for this execution.
@@ -148,8 +183,15 @@ function ToolExecutionOutputPanels({
   toolResult = null,
   toolResultContract = null,
 }) {
+  const displayToolResult = prepareDisplayToolResult(toolResult, toolResultContract);
+  const hasCustomDisplay = isStructuredToolResultDisplaySupported(displayToolResult);
+
   return (
-    <div className={`sky-tool-output-grid ${className}`.trim()}>
+    <div
+      className={`sky-tool-output-grid ${
+        hasCustomDisplay ? 'sky-tool-output-grid-stacked' : ''
+      } ${className}`.trim()}
+    >
       <ProcessOutputCard loading={loading} stderr={stderr} stdout={stdout} />
       <StructuredOutputCard
         loading={loading}

@@ -4,6 +4,14 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import toolService from '../services/toolService';
 
 const HIGH_RISK_CONFIRMATION_PHRASE = 'RUN HIGH RISK';
+const RUN_TOOLS_PAGE_SIZE = 10;
+
+const DEFAULT_TOOL_FILTERS = {
+  q: '',
+  categoryCode: '',
+  runtimeCode: '',
+  riskCode: '',
+};
 
 function riskClass(riskCode) {
   if (riskCode === 'low') {
@@ -163,61 +171,12 @@ function getCategoryLabel(tool) {
   );
 }
 
-function getRiskRank(riskCode) {
-  if (riskCode === 'high') {
-    return 3;
-  }
-
-  if (riskCode === 'medium') {
-    return 2;
-  }
-
-  if (riskCode === 'low') {
-    return 1;
-  }
-
-  return 0;
-}
-
-function getHighestRiskCode(tools = []) {
-  return tools.reduce((highestRisk, tool) => {
-    const nextRisk = String(tool.riskCode || '').toLowerCase();
-
-    if (getRiskRank(nextRisk) > getRiskRank(highestRisk)) {
-      return nextRisk;
-    }
-
-    return highestRisk;
-  }, 'low');
-}
-
-function groupToolsByCategory(tools = []) {
-  const categoriesByKey = new Map();
-
-  tools.forEach((tool) => {
-    const categoryKey = getCategoryKey(tool);
-
-    if (!categoriesByKey.has(categoryKey)) {
-      categoriesByKey.set(categoryKey, {
-        key: categoryKey,
-        label: getCategoryLabel(tool),
-        tools: [],
-      });
-    }
-
-    categoriesByKey.get(categoryKey).tools.push(tool);
-  });
-
-  return Array.from(categoriesByKey.values()).map((category) => ({
-    ...category,
-    riskCode: getHighestRiskCode(category.tools),
-  }));
-}
 
 function Tools() {
   const [manifest, setManifest] = useState(null);
   const [selectedToolCode, setSelectedToolCode] = useState('');
-  const [expandedCategoryKey, setExpandedCategoryKey] = useState('');
+  const [filters, setFilters] = useState(DEFAULT_TOOL_FILTERS);
+  const [currentPage, setCurrentPage] = useState(1);
   const [parameterValues, setParameterValues] = useState({});
   const [runResult, setRunResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -229,7 +188,70 @@ function Tools() {
   const [error, setError] = useState('');
 
   const tools = useMemo(() => manifest?.tools || [], [manifest]);
-  const groupedToolCategories = useMemo(() => groupToolsByCategory(tools), [tools]);
+  const categoryOptions = useMemo(() => {
+    const categories = new Map();
+
+    tools.forEach((tool) => {
+      categories.set(getCategoryKey(tool), getCategoryLabel(tool));
+    });
+
+    return Array.from(categories.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [tools]);
+  const runtimeOptions = useMemo(
+    () =>
+      Array.from(new Set(tools.map((tool) => String(tool.runtimeCode || '')).filter(Boolean))).sort(),
+    [tools],
+  );
+  const riskOptions = useMemo(
+    () =>
+      Array.from(new Set(tools.map((tool) => String(tool.riskCode || '').toLowerCase()).filter(Boolean))).sort(),
+    [tools],
+  );
+  const filteredTools = useMemo(() => {
+    const searchText = filters.q.trim().toLowerCase();
+
+    return tools.filter((tool) => {
+      if (filters.categoryCode && getCategoryKey(tool) !== filters.categoryCode) {
+        return false;
+      }
+
+      if (filters.runtimeCode && String(tool.runtimeCode || '') !== filters.runtimeCode) {
+        return false;
+      }
+
+      if (filters.riskCode && String(tool.riskCode || '').toLowerCase() !== filters.riskCode) {
+        return false;
+      }
+
+      if (!searchText) {
+        return true;
+      }
+
+      return [
+        tool.label,
+        tool.toolCode,
+        tool.description,
+        getCategoryLabel(tool),
+        tool.runtimeCode,
+        tool.outputType,
+      ].some((value) => String(value || '').toLowerCase().includes(searchText));
+    });
+  }, [filters, tools]);
+  const pageCount = Math.max(1, Math.ceil(filteredTools.length / RUN_TOOLS_PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const rangeStart =
+    filteredTools.length === 0 ? 0 : (safeCurrentPage - 1) * RUN_TOOLS_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * RUN_TOOLS_PAGE_SIZE, filteredTools.length);
+  const visibleTools = useMemo(
+    () =>
+      filteredTools.slice(
+        (safeCurrentPage - 1) * RUN_TOOLS_PAGE_SIZE,
+        safeCurrentPage * RUN_TOOLS_PAGE_SIZE,
+      ),
+    [filteredTools, safeCurrentPage],
+  );
 
   const selectedTool = useMemo(
     () => tools.find((tool) => tool.toolCode === selectedToolCode) || null,
@@ -239,14 +261,18 @@ function Tools() {
   const confirmationLocked = pendingConfirmation && !running;
   const interactionLocked = running || confirmationLocked;
 
-  function clearSelectedTool() {
+  useEffect(() => {
+    if (!selectedToolCode || filteredTools.some((tool) => tool.toolCode === selectedToolCode)) {
+      return;
+    }
+
     setSelectedToolCode('');
     setParameterValues({});
     setRunResult(null);
     setPendingConfirmation(false);
     setConfirmationPhrase('');
     setError('');
-  }
+  }, [filteredTools, selectedToolCode]);
 
   useEffect(() => {
     let active = true;
@@ -264,7 +290,8 @@ function Tools() {
 
         setManifest(result);
         setSelectedToolCode('');
-        setExpandedCategoryKey('');
+        setFilters(DEFAULT_TOOL_FILTERS);
+        setCurrentPage(1);
         setParameterValues({});
         setRunResult(null);
         setPendingConfirmation(false);
@@ -300,13 +327,92 @@ function Tools() {
     return () => window.clearInterval(interval);
   }, [running, runningStartedAt]);
 
-  function handleCategoryToggle(category) {
+
+  function updateFilter(name, value) {
     if (interactionLocked) {
       return;
     }
 
-    clearSelectedTool();
-    setExpandedCategoryKey((currentKey) => (currentKey === category.key ? '' : category.key));
+    setFilters((current) => ({ ...current, [name]: value }));
+    setCurrentPage(1);
+  }
+
+  function clearFilters() {
+    if (interactionLocked) {
+      return;
+    }
+
+    setFilters(DEFAULT_TOOL_FILTERS);
+    setCurrentPage(1);
+  }
+
+  function goToPage(page) {
+    if (interactionLocked) {
+      return;
+    }
+
+    setCurrentPage(Math.min(Math.max(1, Number(page) || 1), pageCount));
+  }
+
+  function renderPagination() {
+    return (
+      <div className="sky-pagination-row">
+        <div className="small sky-muted">
+          Showing {rangeStart}-{rangeEnd} of {filteredTools.length} available tool(s)
+        </div>
+        <div className="sky-pagination-controls" aria-label="Run tools pagination">
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage <= 1 || interactionLocked}
+            onClick={() => goToPage(1)}
+            type="button"
+          >
+            First
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage <= 1 || interactionLocked}
+            onClick={() => goToPage(safeCurrentPage - 1)}
+            type="button"
+          >
+            Back
+          </button>
+          <label className="sky-pagination-select-label" htmlFor="runToolsPageSelect">
+            Page
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select"
+            disabled={interactionLocked}
+            id="runToolsPageSelect"
+            onChange={(event) => goToPage(event.target.value)}
+            value={safeCurrentPage}
+          >
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
+              <option key={page} value={page}>
+                {page}
+              </option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {pageCount}</span>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage >= pageCount || interactionLocked}
+            onClick={() => goToPage(safeCurrentPage + 1)}
+            type="button"
+          >
+            Next
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage >= pageCount || interactionLocked}
+            onClick={() => goToPage(pageCount)}
+            type="button"
+          >
+            Last
+          </button>
+        </div>
+      </div>
+    );
   }
 
   function handleSelectTool(tool) {
@@ -583,238 +689,324 @@ function Tools() {
           <div className="mt-3">Loading tool manifest...</div>
         </div>
       ) : (
-        <div className="row g-3 sky-run-tools-layout">
-          <div className="col-lg-5 col-xl-4">
-            <section className="sky-card">
-              <div className="sky-card-header">
-                <div>
-                  <div className="sky-page-kicker">Tool catalogue</div>
-                  <h2 className="h5 mb-0">Available tools</h2>
-                  <div className="small sky-muted mt-1">
-                    {tools.length} permission-visible tool{tools.length === 1 ? '' : 's'} grouped by category.
-                  </div>
-                </div>
+        <div className="sky-run-tools-workspace">
+          <section className="sky-card mb-3 sky-functional-history-browser sky-run-tools-browser">
+            <div className="sky-card-header">
+              <div>
+                <div className="sky-page-kicker">Tool browser</div>
+                <h2 className="h5 mb-0">Available tools</h2>
+                <p className="sky-muted small mb-0">
+                  Filter the permission-visible catalogue, then select a row to configure and run
+                  the tool below.
+                </p>
               </div>
-
-              <div className="sky-tool-category-list">
-                {groupedToolCategories.map((category) => {
-                  const expanded = expandedCategoryKey === category.key;
-                  const selectedInCategory = category.tools.some(
-                    (tool) => tool.toolCode === selectedTool?.toolCode,
-                  );
-
-                  return (
-                    <div
-                      className={`sky-tool-category ${expanded ? 'expanded' : ''} ${
-                        selectedInCategory ? 'has-selected' : ''
-                      }`}
-                      key={category.key}
-                    >
-                      <button
-                        aria-expanded={expanded}
-                        className={`sky-tool-category-header ${expanded ? 'active' : ''}`}
-                        disabled={interactionLocked}
-                        onClick={() => handleCategoryToggle(category)}
-                        type="button"
-                      >
-                        <span className="sky-tool-category-title">
-                          <span className="fw-bold">{category.label}</span>
-                          <span className="small sky-muted">
-                            {category.tools.length} tool{category.tools.length === 1 ? '' : 's'}
-                          </span>
-                        </span>
-
-                        <span className="d-flex align-items-center gap-2">
-                          <span className={`sky-pill ${riskClass(category.riskCode)}`}>
-                            {category.riskCode}
-                          </span>
-                          <span className="sky-tool-category-chevron">›</span>
-                        </span>
-                      </button>
-
-                      {expanded && (
-                        <div className="sky-tool-category-items">
-                          {category.tools.map((tool) => (
-                            <button
-                              className={`sky-tool-category-item ${
-                                selectedTool?.toolCode === tool.toolCode ? 'active' : ''
-                              } ${interactionLocked ? 'sky-disabled-item' : ''}`}
-                              disabled={interactionLocked}
-                              key={tool.toolId || tool.toolCode}
-                              onClick={() => handleSelectTool(tool)}
-                              type="button"
-                            >
-                              <div className="d-flex justify-content-between gap-2">
-                                <span className="fw-bold">{tool.label}</span>
-                                <span className={`sky-pill ${riskClass(tool.riskCode)}`}>
-                                  {tool.riskCode}
-                                </span>
-                              </div>
-
-                              <div className="small mt-2">{tool.description}</div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
-
-          <div className="col-lg-7 col-xl-8">
-            <section className="sky-card">
-              <div className="sky-card-header sky-run-tool-console-header">
-                <div>
-                  <div className="sky-page-kicker">Execution console</div>
-                  <h2 className="h5 mb-1">{selectedTool?.label || 'Select a tool'}</h2>
-                  {selectedTool && (
-                    <div className="sky-muted small">
-                      <span className="sky-mono">{selectedTool.toolCode}</span>
-                      {' · '}
-                      Permission: <span className="sky-mono">{selectedTool.permissionCode}</span>
-                    </div>
-                  )}
-                </div>
-                {selectedTool && (
-                  <div className="d-flex flex-wrap gap-1">
-                    <span className={`sky-pill ${riskClass(selectedTool.riskCode)}`}>
-                      {selectedTool.riskCode} risk
-                    </span>
-                    <span className="sky-pill sky-pill-info">
-                      {(selectedTool.parameters || []).length} parameter(s)
-                    </span>
-                    <span
-                      className={`sky-pill ${
-                        selectedTool.capturesOutput ? 'sky-pill-success' : 'sky-pill-info'
-                      }`}
-                    >
-                      output {selectedTool.capturesOutput ? 'captured' : 'not captured'}
-                    </span>
-                    {selectedTool.outputType && (
-                      <span className="sky-pill sky-pill-info">{selectedTool.outputType}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="sky-card-body">
-                {selectedTool ? (
-                  <form onSubmit={handleRunTool}>
-                    <div className="sky-run-tool-description mb-4">
-                      <div className="sky-detail-label">Purpose</div>
-                      <div className="sky-detail-value">{selectedTool.description || '—'}</div>
-                    </div>
-
-                    {(selectedTool.parameters || []).length > 0 ? (
-                      <div className="row g-3">
-                        {selectedTool.parameters.map((parameter) => (
-                          <div
-                            className="col-md-12"
-                            key={parameter.parameterId || parameter.parameterName}
-                          >
-                            <label className="form-label" htmlFor={parameter.parameterName}>
-                              {parameter.label}
-                              {parameter.required && <span className="text-danger ms-1">*</span>}
-                            </label>
-
-                            {renderParameterInput(parameter)}
-
-                            <div className="form-text sky-muted">
-                              {getParameterHelpText(parameter)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : selectedTool.allowParams ? (
-                      <div className="sky-empty-state text-warning">
-                        This tool allows parameters, but no parameter metadata was returned.
-                      </div>
-                    ) : (
-                      <div className="sky-empty-state">This tool does not require parameters.</div>
-                    )}
-
-                    {renderConfirmationPanel()}
-
-                    <div className="d-flex align-items-center gap-2 mt-4">
-                      <button
-                        className="btn sky-btn-primary"
-                        disabled={interactionLocked}
-                        type="submit"
-                      >
-                        {running
-                          ? 'Running...'
-                          : pendingConfirmation
-                            ? 'Awaiting confirmation'
-                            : 'Run tool'}
-                      </button>
-                      {selectedTool.requiresConfirmation && (
-                        <span className="sky-pill sky-pill-warning">Confirmation required</span>
-                      )}
-                    </div>
-                  </form>
-                ) : (
-                  <div className="sky-empty-state">
-                    {tools.length === 0
-                      ? 'No tools are available for this user.'
-                      : 'Expand a category and select a tool to view execution options.'}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {renderRunningPanel()}
-
-            {runResult && (
-              <section className="sky-card mt-3 sky-run-tool-result-workspace">
-                <div className="sky-card-header sky-run-tool-result-header">
-                  <div>
-                    <div className="sky-page-kicker">Execution workspace</div>
-                    <h2 className="h5 mb-0">Tool output</h2>
-                    <div className="small sky-muted mt-1">
-                      {getDisplaySummary(runResult.summary || runResult.toolResult?.message)}
-                    </div>
-                  </div>
-                  <span className={`sky-pill ${statusClass(runResult.status)}`}>
-                    {runResult.status || 'UNKNOWN'}
-                  </span>
-                </div>
-                <div className="sky-card-body">
-                  <div className="sky-run-tool-result-metrics mb-3">
-                    <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Exit code</div>
-                      <div className="sky-mini-metric-value">{runResult.exitCode ?? '—'}</div>
-                    </div>
-                    <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Duration</div>
-                      <div className="sky-mini-metric-value">{runResult.durationMs ?? '—'} ms</div>
-                    </div>
-                    <div className="sky-mini-metric sky-run-tool-result-execution-id">
-                      <div className="sky-page-kicker">Execution ID</div>
-                      <div className="sky-mono small sky-detail-value">
-                        {runResult.executionId || '—'}
-                      </div>
-                    </div>
-                    <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Structured contract</div>
-                      <div className="sky-detail-value">
-                        {runResult.toolResultContract?.status || 'Not emitted'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <ToolExecutionOutputPanels
-                    stderr={runResult.stderr || ''}
-                    stdout={runResult.stdout || ''}
-                    structuredOutputExpected={Boolean(runResult.toolResultContract?.required)}
-                    toolResult={runResult.toolResult || null}
-                    toolResultContract={runResult.toolResultContract || null}
+              <div className="sky-run-tools-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="runToolsSearchFilter">
+                    Search
+                  </label>
+                  <input
+                    className="form-control sky-form-control"
+                    disabled={interactionLocked}
+                    id="runToolsSearchFilter"
+                    onChange={(event) => updateFilter('q', event.target.value)}
+                    placeholder="Name, code, description..."
+                    type="search"
+                    value={filters.q}
                   />
                 </div>
-              </section>
-            )}
-          </div>
+                <div>
+                  <label className="form-label" htmlFor="runToolsCategoryFilter">
+                    Category
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    disabled={interactionLocked}
+                    id="runToolsCategoryFilter"
+                    onChange={(event) => updateFilter('categoryCode', event.target.value)}
+                    value={filters.categoryCode}
+                  >
+                    <option value="">All categories</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="runToolsRuntimeFilter">
+                    Runtime
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    disabled={interactionLocked}
+                    id="runToolsRuntimeFilter"
+                    onChange={(event) => updateFilter('runtimeCode', event.target.value)}
+                    value={filters.runtimeCode}
+                  >
+                    <option value="">All runtimes</option>
+                    {runtimeOptions.map((runtime) => (
+                      <option key={runtime} value={runtime}>
+                        {runtime}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="runToolsRiskFilter">
+                    Risk
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    disabled={interactionLocked}
+                    id="runToolsRiskFilter"
+                    onChange={(event) => updateFilter('riskCode', event.target.value)}
+                    value={filters.riskCode}
+                  >
+                    <option value="">All risks</option>
+                    {riskOptions.map((risk) => (
+                      <option key={risk} value={risk}>
+                        {risk}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    disabled={interactionLocked}
+                    onClick={clearFilters}
+                    type="button"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="table-responsive sky-table-card sky-functional-history-table-card">
+              <table className="table table-sm table-hover sky-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Tool</th>
+                    <th>Code</th>
+                    <th>Runtime</th>
+                    <th>Risk</th>
+                    <th>Parameters</th>
+                    <th>Output contract</th>
+                    <th className="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTools.length === 0 ? (
+                    <tr>
+                      <td colSpan="7">
+                        <div className="sky-empty-state">
+                          No tools match the current filters.
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleTools.map((tool) => (
+                      <tr
+                        className={`sky-clickable-row ${
+                          selectedTool?.toolCode === tool.toolCode ? 'sky-selected-row' : ''
+                        }`}
+                        key={tool.toolId || tool.toolCode}
+                        onClick={() => handleSelectTool(tool)}
+                      >
+                        <td>
+                          <div className="fw-bold sky-detail-value">{tool.label}</div>
+                          <div className="small sky-muted">{getCategoryLabel(tool)}</div>
+                        </td>
+                        <td className="sky-mono">{tool.toolCode}</td>
+                        <td>{tool.runtimeCode || '—'}</td>
+                        <td>
+                          <span className={`sky-pill ${riskClass(tool.riskCode)}`}>
+                            {tool.riskCode || 'unknown'}
+                          </span>
+                        </td>
+                        <td>{(tool.parameters || []).length}</td>
+                        <td>
+                          {tool.outputType ? (
+                            <span className="sky-pill sky-pill-info">{tool.outputType}</span>
+                          ) : (
+                            <span className="sky-muted">Standard process output</span>
+                          )}
+                        </td>
+                        <td className="text-end">
+                          <button
+                            className="btn btn-sm sky-btn-ghost"
+                            disabled={interactionLocked}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleSelectTool(tool);
+                            }}
+                            type="button"
+                          >
+                            {selectedTool?.toolCode === tool.toolCode ? 'Selected' : 'Select tool'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {renderPagination()}
+          </section>
+
+          <section className="sky-card">
+            <div className="sky-card-header sky-run-tool-console-header">
+              <div>
+                <div className="sky-page-kicker">Execution console</div>
+                <h2 className="h5 mb-1">{selectedTool?.label || 'Select a tool'}</h2>
+                {selectedTool && (
+                  <div className="sky-muted small">
+                    <span className="sky-mono">{selectedTool.toolCode}</span>
+                    {' · '}
+                    Permission: <span className="sky-mono">{selectedTool.permissionCode}</span>
+                  </div>
+                )}
+              </div>
+              {selectedTool && (
+                <div className="d-flex flex-wrap gap-1">
+                  <span className={`sky-pill ${riskClass(selectedTool.riskCode)}`}>
+                    {selectedTool.riskCode} risk
+                  </span>
+                  <span className="sky-pill sky-pill-info">
+                    {(selectedTool.parameters || []).length} parameter(s)
+                  </span>
+                  <span
+                    className={`sky-pill ${
+                      selectedTool.capturesOutput ? 'sky-pill-success' : 'sky-pill-info'
+                    }`}
+                  >
+                    output {selectedTool.capturesOutput ? 'captured' : 'not captured'}
+                  </span>
+                  {selectedTool.outputType && (
+                    <span className="sky-pill sky-pill-info">{selectedTool.outputType}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="sky-card-body">
+              {selectedTool ? (
+                <form onSubmit={handleRunTool}>
+                  <div className="sky-run-tool-description mb-4">
+                    <div className="sky-detail-label">Purpose</div>
+                    <div className="sky-detail-value">{selectedTool.description || '—'}</div>
+                  </div>
+
+                  {(selectedTool.parameters || []).length > 0 ? (
+                    <div className="row g-3 sky-run-tool-parameter-grid">
+                      {selectedTool.parameters.map((parameter) => (
+                        <div
+                          className="col-xl-6 col-md-12"
+                          key={parameter.parameterId || parameter.parameterName}
+                        >
+                          <label className="form-label" htmlFor={parameter.parameterName}>
+                            {parameter.label}
+                            {parameter.required && <span className="text-danger ms-1">*</span>}
+                          </label>
+
+                          {renderParameterInput(parameter)}
+
+                          <div className="form-text sky-muted">
+                            {getParameterHelpText(parameter)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : selectedTool.allowParams ? (
+                    <div className="sky-empty-state text-warning">
+                      This tool allows parameters, but no parameter metadata was returned.
+                    </div>
+                  ) : (
+                    <div className="sky-empty-state">This tool does not require parameters.</div>
+                  )}
+
+                  {renderConfirmationPanel()}
+
+                  <div className="d-flex align-items-center gap-2 mt-4">
+                    <button
+                      className="btn sky-btn-primary"
+                      disabled={interactionLocked}
+                      type="submit"
+                    >
+                      {running
+                        ? 'Running...'
+                        : pendingConfirmation
+                          ? 'Awaiting confirmation'
+                          : 'Run tool'}
+                    </button>
+                    {selectedTool.requiresConfirmation && (
+                      <span className="sky-pill sky-pill-warning">Confirmation required</span>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <div className="sky-empty-state">
+                  {tools.length === 0
+                    ? 'No tools are available for this user.'
+                    : 'Select a tool from the table above to view execution options.'}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {renderRunningPanel()}
+
+          {runResult && (
+            <section className="sky-card mt-3 sky-run-tool-result-workspace">
+              <div className="sky-card-header sky-run-tool-result-header">
+                <div>
+                  <div className="sky-page-kicker">Execution workspace</div>
+                  <h2 className="h5 mb-0">Tool output</h2>
+                  <div className="small sky-muted mt-1">
+                    {getDisplaySummary(runResult.summary || runResult.toolResult?.message)}
+                  </div>
+                </div>
+                <span className={`sky-pill ${statusClass(runResult.status)}`}>
+                  {runResult.status || 'UNKNOWN'}
+                </span>
+              </div>
+              <div className="sky-card-body">
+                <div className="sky-run-tool-result-metrics mb-3">
+                  <div className="sky-mini-metric">
+                    <div className="sky-page-kicker">Exit code</div>
+                    <div className="sky-mini-metric-value">{runResult.exitCode ?? '—'}</div>
+                  </div>
+                  <div className="sky-mini-metric">
+                    <div className="sky-page-kicker">Duration</div>
+                    <div className="sky-mini-metric-value">{runResult.durationMs ?? '—'} ms</div>
+                  </div>
+                  <div className="sky-mini-metric sky-run-tool-result-execution-id">
+                    <div className="sky-page-kicker">Execution ID</div>
+                    <div className="sky-mono small sky-detail-value">
+                      {runResult.executionId || '—'}
+                    </div>
+                  </div>
+                  <div className="sky-mini-metric">
+                    <div className="sky-page-kicker">Structured contract</div>
+                    <div className="sky-detail-value">
+                      {runResult.toolResultContract?.status || 'Not emitted'}
+                    </div>
+                  </div>
+                </div>
+
+                <ToolExecutionOutputPanels
+                  stderr={runResult.stderr || ''}
+                  stdout={runResult.stdout || ''}
+                  structuredOutputExpected={Boolean(runResult.toolResultContract?.required)}
+                  toolResult={runResult.toolResult || null}
+                  toolResultContract={runResult.toolResultContract || null}
+                />
+              </div>
+            </section>
+          )}
         </div>
       )}
     </>

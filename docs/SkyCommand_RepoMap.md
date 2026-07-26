@@ -77,6 +77,7 @@ SkyServer/
 │   │       │   │   ├── WorkerHealthVisuals.jsx
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
 │   │       │   ├── tools/
+│   │       │   │   ├── StructuredToolResultDisplay.jsx
 │   │       │   │   └── ToolExecutionOutputPanels.jsx
 │   │       │   └── ui/
 │   │       │       ├── DashboardFilterCard.jsx
