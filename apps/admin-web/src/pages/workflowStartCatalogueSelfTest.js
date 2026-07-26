@@ -102,5 +102,30 @@ assert(
   !graphSource.includes('<div className="sky-workflow-visual-branch-list">'),
   'Condition gate cards must not render branch target pills that stretch the visual node.',
 );
+assert(
+  graphSource.includes('<div className="sky-workflow-visual-edge-label">next</div>') &&
+    !graphSource.includes("taken ' : ''") &&
+    !graphSource.includes('is-runtime-branch-taken'),
+  'Condition gates must use the same compact next connector as every other workflow node.',
+);
+assert(
+  graphSource.includes('function getLastCompletedRuntimeNodeIndex(') &&
+    graphSource.includes('completedRun && lastCompletedNodeIndex >= 0') &&
+    workflowSource.includes('const completedStartRun = !isHistoryMode'),
+  'Completed workflow runs must transfer graph focus to the final completed node on both history and start pages.',
+);
+assert(
+  graphSource.includes('nodeElement.getBoundingClientRect()') &&
+    graphSource.includes('viewport.scrollLeft') &&
+    graphSource.includes("viewport.scrollTo({ behavior: 'smooth', left: targetLeft });"),
+  'Follow-active mode must center the current node inside the horizontally scrolling workflow lane.',
+);
+assert(
+  cssSource.includes('.sky-workflow-visual-node.is-runtime-completed {') &&
+    cssSource.includes('border-color: rgba(255, 210, 97, 0.78);') &&
+    cssSource.includes('.sky-workflow-visual-edge.is-runtime-active-edge .sky-workflow-visual-edge-line::after') &&
+    cssSource.includes('transform: translateX(430%);'),
+  'Completed nodes must glow gold and the active connector charge must travel left to right.',
+);
 
 console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');
