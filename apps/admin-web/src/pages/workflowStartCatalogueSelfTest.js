@@ -63,5 +63,16 @@ assert(
     cssSource.includes('overflow-x: auto;'),
   'Start Workflow graph must stay page-width and scroll horizontally like Workflow History.',
 );
+assert(
+  !workflowSource.includes('Runtime values are saved into workflow context as <code>params</code>'),
+  'Start Workflow must not repeat workflow parameter authoring instructions in the launch card.',
+);
+assert(
+  workflowSource.includes('function WorkflowNodeParameterCard({') &&
+    workflowSource.includes('isVisualNodeCompleted(') &&
+    workflowSource.includes('<WorkflowNodeOutputLedger') &&
+    workflowSource.includes('<WorkflowNodeParameterCard'),
+  'Start Workflow must switch between focused output and saved node parameters based on node completion.',
+);
 
-console.log('[SkyCommand] Start Workflow catalogue and Add Tool upload UI self-test passed.');
+console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');
