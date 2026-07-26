@@ -1295,3 +1295,12 @@ SkyWeb Analytics owns:
 - Updated Run Tools to recover and display failed execution metadata, summary, stdout, stderr, duration, exit code, and execution ID from the API error payload while also showing the concise failure banner.
 - Added `tool-execution-response:self-test` and included response-contract plus Admin-Web presentation assertions in `npm run validate`.
 - No migration, seed, dependency, tool registration, or workflow-definition change is required.
+
+## 2026-07-26 - Tools and dashboard navigation polish
+
+- Matched the Add Tool page heading to the shared page-title/sidebar-menu typography instead of the smaller generic panel heading.
+- Renamed the Data dashboard page heading to `Data Dashboard` while retaining the concise `Data` dashboard menu label.
+- Removed the dedicated Worker Health item from the Workflows navigation and consolidated worker-health access under the Automation Dashboard.
+- Redirected legacy `/workflows/worker-health` bookmarks to `/dashboard/automation`, updated command-search aliases and the Production Readiness shortcut, and retained worker-health telemetry in the consolidated dashboard.
+- Extended the dependency-free dashboard UI consistency self-test to guard the title, navigation, and redirect behavior.
+- No migration, seed, API, worker, Temporal, dependency, tool-registration, or workflow-definition change is required.

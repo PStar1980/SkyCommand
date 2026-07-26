@@ -285,8 +285,8 @@ function ProductionReadiness() {
                 <h2 className="h5 mb-0">Operator commands</h2>
                 <div className="small sky-muted">Local commands to verify the automation engine while hardening.</div>
               </div>
-              <Link className="btn btn-sm sky-btn-ghost" to="/workflows/worker-health">
-                Open worker health
+              <Link className="btn btn-sm sky-btn-ghost" to="/dashboard/automation">
+                Open automation dashboard
               </Link>
             </div>
             <div className="sky-card-body sky-worker-param-grid">

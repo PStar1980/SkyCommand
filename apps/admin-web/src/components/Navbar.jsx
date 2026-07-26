@@ -41,8 +41,8 @@ const COMMAND_SEARCH_ALIASES = {
   catalogue: '/tools/manage',
   workflows: '/workflows/start',
   workflow: '/workflows/start',
-  worker: '/workflows/worker-health',
-  health: '/workflows/worker-health',
+  worker: '/dashboard/automation',
+  health: '/dashboard/automation',
   approvals: '/workflows/approvals',
   temporal: '/workflows/history?runtime=temporal',
   scheduler: '/automation/scheduler',
@@ -253,13 +253,6 @@ function createNavGroups(hasPermission, hasRole) {
           visible: hasPermission('WORKFLOW_APPROVAL_READ'),
           description: 'Human gates',
         },
-        {
-          label: 'Worker Health',
-          to: '/workflows/worker-health',
-          icon: '●',
-          visible: hasPermission('WORKFLOW_READ') || hasPermission('TEMPORAL_WORKFLOW_READ'),
-          description: 'Task queue and pollers',
-        },
       ],
     },
     {
@@ -422,11 +415,11 @@ function Navbar() {
   }, [commandQuery, commandSearchTargets]);
 
   const notificationItems = [
-    permittedRoutes.has('/workflows/worker-health') && {
+    permittedRoutes.has('/dashboard/automation') && {
       label: 'Worker health pulse',
       meta: 'Temporal pollers, worker heartbeat, and task queue status.',
       status: 'Live',
-      to: '/workflows/worker-health',
+      to: '/dashboard/automation',
     },
     permittedRoutes.has('/workflows/approvals') && {
       label: 'Approval gates',

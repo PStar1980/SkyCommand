@@ -227,7 +227,7 @@ function IngestionStatus() {
         }
         kicker="Dashboards · Data"
         subtitle="Visualize source freshness, ingestion activity, and macro-pipeline health from one analytical surface."
-        title="Data"
+        title="Data Dashboard"
       />
 
       {error && <div className="alert alert-danger">{error}</div>}

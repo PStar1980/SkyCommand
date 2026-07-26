@@ -43,6 +43,14 @@ assert.match(
   /\.sky-dashboard-command-title,\s*\.sky-page-title \{[\s\S]*?font-size: 1\.16rem;[\s\S]*?font-weight: 780;/,
 );
 
+const panelSource = fs.readFileSync(path.join(sourceRoot, 'components/ui/Panel.jsx'), 'utf8');
+assert.match(panelSource, /titleClassName = 'h5 mb-0'/);
+assert.match(panelSource, /<h2 className=\{titleClassName\}>\{title\}<\/h2>/);
+
+const addToolSource = fs.readFileSync(path.join(sourceRoot, 'pages/AddTool.jsx'), 'utf8');
+assert.match(addToolSource, /title="Add Tool"/);
+assert.match(addToolSource, /titleClassName="sky-page-title mb-0"/);
+
 const navbarSource = fs.readFileSync(path.join(sourceRoot, 'components/Navbar.jsx'), 'utf8');
 const dashboardGroupSource = navbarSource.slice(
   navbarSource.indexOf("label: 'Dashboards'"),
@@ -67,6 +75,8 @@ for (const label of expectedDashboardLabels) {
 assert.doesNotMatch(dashboardGroupSource, /label: 'Readiness'/);
 assert.doesNotMatch(navbarSource, /'readiness dashboard': '\/dashboard\/readiness'/);
 assert.match(navbarSource, /readiness: '\/configuration\/production-readiness'/);
+assert.doesNotMatch(navbarSource, /label: 'Worker Health'/);
+assert.doesNotMatch(navbarSource, /to: '\/workflows\/worker-health'/);
 
 const dataDashboardSource = fs.readFileSync(
   path.join(sourceRoot, 'pages/IngestionStatus.jsx'),
@@ -76,6 +86,7 @@ assert.doesNotMatch(dataDashboardSource, /buildStatCards/);
 assert.doesNotMatch(dataDashboardSource, /sky-ingestion-stat-card/);
 assert.doesNotMatch(dataDashboardSource, />Indicator freshness</);
 assert.doesNotMatch(dataDashboardSource, />Recent ingestion executions</);
+assert.match(dataDashboardSource, /title="Data Dashboard"/);
 
 
 const dataStatusSource = fs.readFileSync(path.join(sourceRoot, 'pages/DataStatus.jsx'), 'utf8');
@@ -98,6 +109,11 @@ const routerSource = fs.readFileSync(path.join(sourceRoot, 'main.jsx'), 'utf8');
 assert.match(routerSource, /path="data\/intelligence"/);
 assert.match(routerSource, /path="data\/status" element=\{<Navigate replace to="\/data\/intelligence" \/>\}/);
 assert.match(routerSource, /<DataStatus \/>/);
+assert.doesNotMatch(routerSource, /<WorkflowWorkerHealth \/>/);
+assert.match(
+  routerSource,
+  /path="workflows\/worker-health"[\s\S]*?<Navigate replace to="\/dashboard\/automation" \/>/,
+);
 
 assert.match(navbarSource, /className="sky-topbar-center"/);
 assert.match(navbarSource, /<header className="sky-topbar" ref=\{topbarControlsRef\}>/);
