@@ -5493,3 +5493,105 @@
     grid-column: auto;
   }
 }
+
+/* Phase 15.7 — Add Tool upload controls and Start Workflow catalogue parity */
+.sky-tool-upload-input {
+  min-height: 2.45rem;
+  padding: 0.28rem 0.38rem;
+  border-color: rgba(124, 144, 177, 0.3);
+  background-color: rgba(6, 11, 22, 0.78);
+  color: #c8d7ef;
+  cursor: pointer;
+}
+
+.sky-tool-upload-input:hover {
+  border-color: rgba(124, 144, 177, 0.48);
+}
+
+.sky-tool-upload-input:focus {
+  border-color: rgba(72, 167, 255, 0.58);
+  background-color: rgba(6, 11, 22, 0.9);
+  box-shadow: 0 0 0 0.18rem rgba(72, 167, 255, 0.12);
+}
+
+.sky-tool-upload-input::file-selector-button,
+.sky-tool-upload-input::-webkit-file-upload-button {
+  min-height: 1.9rem;
+  margin: -0.28rem 0.7rem -0.28rem -0.38rem;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  border-right: 1px solid rgba(124, 144, 177, 0.24);
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.17), rgba(137, 109, 255, 0.13)),
+    rgba(9, 17, 32, 0.92);
+  color: #e8f1ff;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.sky-tool-upload-input:hover::file-selector-button,
+.sky-tool-upload-input:hover::-webkit-file-upload-button {
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.27), rgba(137, 109, 255, 0.2)),
+    rgba(10, 20, 38, 0.96);
+  color: #ffffff;
+}
+
+.sky-workflow-start-workspace,
+.sky-workflow-start-browser,
+.sky-workflow-start-config-card,
+.sky-workflow-start-detail-stack,
+.sky-workflow-start-detail-stack > *,
+.sky-workflow-start-detail-stack .sky-workflow-visual-shell,
+.sky-workflow-start-detail-stack .sky-workflow-visual-viewport {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sky-workflow-start-browser .sky-table {
+  min-width: 88rem;
+}
+
+.sky-workflow-start-detail-stack {
+  overflow: hidden;
+}
+
+.sky-workflow-start-detail-stack .sky-workflow-visual-shell {
+  overflow: hidden;
+}
+
+.sky-workflow-start-detail-stack .sky-workflow-visual-map {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: rgba(124, 144, 177, 0.18) transparent;
+  scrollbar-width: thin;
+}
+
+.sky-workflow-start-detail-stack .sky-workflow-visual-map::-webkit-scrollbar {
+  height: 0.46rem;
+}
+
+.sky-workflow-start-detail-stack .sky-workflow-visual-map::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sky-workflow-start-detail-stack .sky-workflow-visual-map::-webkit-scrollbar-thumb {
+  border: 0.14rem solid transparent;
+  border-radius: 999px;
+  background: rgba(124, 144, 177, 0.16);
+  background-clip: padding-box;
+}
+
+.sky-workflow-start-detail-stack .sky-workflow-visual-map:hover::-webkit-scrollbar-thumb {
+  background: rgba(124, 144, 177, 0.28);
+  background-clip: padding-box;
+}
+
