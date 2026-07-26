@@ -17,6 +17,7 @@ const STATUS_OPTIONS = [
 ];
 
 const HISTORY_PAGE_SIZE = 10;
+const START_WORKFLOW_PAGE_SIZE = 10;
 const HISTORY_LOAD_LIMIT = 200;
 const HISTORY_POLL_IDLE_MS = 8000;
 const HISTORY_POLL_ACTIVE_MS = 2000;
@@ -28,6 +29,13 @@ const RUNTIME_FILTER_OPTIONS = [
   { value: 'temporal', label: 'Temporal-backed only' },
   { value: 'inline', label: 'Inline/local only' },
 ];
+
+const DEFAULT_START_WORKFLOW_FILTERS = {
+  q: '',
+  structure: '',
+  parameterMode: '',
+  nodeScale: '',
+};
 
 function getSafeArray(value) {
   return Array.isArray(value) ? value : [];
@@ -101,6 +109,57 @@ function normalizeRuntimeParameterDefinitions(definition = {}) {
     })
     .filter((parameter) => parameter.key)
     .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.key.localeCompare(b.key));
+}
+
+function getDefinitionNodeCount(definition = {}) {
+  const count = Number(
+    Array.isArray(definition.nodes)
+      ? definition.nodes.length
+      : definition.publishedNodeCount ?? definition.latestNodeCount ?? 0,
+  );
+  return Number.isFinite(count) ? count : 0;
+}
+
+function getDefinitionEdgeCount(definition = {}) {
+  const count = Number(
+    Array.isArray(definition.edges)
+      ? definition.edges.length
+      : definition.publishedEdgeCount ?? definition.latestEdgeCount ?? 0,
+  );
+  return Number.isFinite(count) ? count : 0;
+}
+
+function getDefinitionRuntimeParameterCount(definition = {}) {
+  return normalizeRuntimeParameterDefinitions(definition).length;
+}
+
+function getDefinitionStructure(definition = {}) {
+  const nodeCount = getDefinitionNodeCount(definition);
+  const edgeCount = getDefinitionEdgeCount(definition);
+
+  if (nodeCount <= 1) {
+    return 'single';
+  }
+
+  if (edgeCount > Math.max(nodeCount - 1, 0)) {
+    return 'branching';
+  }
+
+  return 'sequential';
+}
+
+function getDefinitionStructureLabel(definition = {}) {
+  const structure = getDefinitionStructure(definition);
+
+  if (structure === 'branching') {
+    return 'Branching';
+  }
+
+  if (structure === 'single') {
+    return 'Single node';
+  }
+
+  return 'Sequential';
 }
 
 function getInitialRuntimeParameterValues(parameters = []) {
@@ -4438,6 +4497,10 @@ function SkyWorkflows({ mode = 'start' }) {
     runtime: normalizeRuntimeFilter(searchParams.get('runtime')),
   }));
   const [historyPage, setHistoryPage] = useState(1);
+  const [startWorkflowFilters, setStartWorkflowFilters] = useState(
+    DEFAULT_START_WORKFLOW_FILTERS,
+  );
+  const [startWorkflowPage, setStartWorkflowPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [runActionLoading, setRunActionLoading] = useState('');
@@ -4543,6 +4606,70 @@ function SkyWorkflows({ mode = 'start' }) {
   );
   const historyRangeStart = historyRuns.length === 0 ? 0 : historyPageStart + 1;
   const historyRangeEnd = Math.min(historyPageStart + HISTORY_PAGE_SIZE, historyRuns.length);
+  const filteredStartDefinitions = useMemo(() => {
+    const searchText = startWorkflowFilters.q.trim().toLowerCase();
+
+    return definitions.filter((definition) => {
+      const nodeCount = getDefinitionNodeCount(definition);
+      const parameterCount = getDefinitionRuntimeParameterCount(definition);
+
+      if (
+        startWorkflowFilters.structure &&
+        getDefinitionStructure(definition) !== startWorkflowFilters.structure
+      ) {
+        return false;
+      }
+
+      if (startWorkflowFilters.parameterMode === 'with' && parameterCount === 0) {
+        return false;
+      }
+
+      if (startWorkflowFilters.parameterMode === 'without' && parameterCount > 0) {
+        return false;
+      }
+
+      if (startWorkflowFilters.nodeScale === 'small' && (nodeCount < 1 || nodeCount > 5)) {
+        return false;
+      }
+
+      if (startWorkflowFilters.nodeScale === 'medium' && (nodeCount < 6 || nodeCount > 10)) {
+        return false;
+      }
+
+      if (startWorkflowFilters.nodeScale === 'large' && nodeCount < 11) {
+        return false;
+      }
+
+      if (!searchText) {
+        return true;
+      }
+
+      return [
+        definition.displayName,
+        definition.workflowCode,
+        definition.description,
+        definition.status,
+        getDefinitionStructureLabel(definition),
+      ].some((value) => String(value || '').toLowerCase().includes(searchText));
+    });
+  }, [definitions, startWorkflowFilters]);
+  const startWorkflowPageCount = Math.max(
+    1,
+    Math.ceil(filteredStartDefinitions.length / START_WORKFLOW_PAGE_SIZE),
+  );
+  const safeStartWorkflowPage = Math.min(startWorkflowPage, startWorkflowPageCount);
+  const startWorkflowPageStart =
+    (safeStartWorkflowPage - 1) * START_WORKFLOW_PAGE_SIZE;
+  const visibleStartDefinitions = filteredStartDefinitions.slice(
+    startWorkflowPageStart,
+    startWorkflowPageStart + START_WORKFLOW_PAGE_SIZE,
+  );
+  const startWorkflowRangeStart =
+    filteredStartDefinitions.length === 0 ? 0 : startWorkflowPageStart + 1;
+  const startWorkflowRangeEnd = Math.min(
+    startWorkflowPageStart + START_WORKFLOW_PAGE_SIZE,
+    filteredStartDefinitions.length,
+  );
 
   async function loadDefinitions({ keepSelection = true } = {}) {
     const [result, catalogResult] = await Promise.all([
@@ -4556,12 +4683,11 @@ function SkyWorkflows({ mode = 'start' }) {
       setRepositoryOptions(catalogResult.repositoryOptions || []);
     }
 
-    const nextSelection =
-      (keepSelection && selectedDefinition
+    const preservedSelection =
+      keepSelection && selectedDefinition
         ? items.find((item) => item.workflowCode === selectedDefinition.workflowCode)
-        : null) ||
-      items[0] ||
-      null;
+        : null;
+    const nextSelection = preservedSelection || (isHistoryMode ? items[0] || null : null);
 
     setSelectedDefinition(nextSelection);
 
@@ -4641,12 +4767,19 @@ function SkyWorkflows({ mode = 'start' }) {
   async function handleDefinitionSelect(workflowCode) {
     const definition = definitions.find((item) => item.workflowCode === workflowCode) || null;
 
+    setSelectedRunDetail(null);
+    setSelectedRuntimeNodeIndex(null);
+    setFollowActiveRuntimeNode(true);
+    setMessage('');
+    setRuntimeParameterError('');
+
     if (!definition) {
       setSelectedDefinition(null);
       setSelectedDefinitionDetail(null);
       return;
     }
 
+    setSelectedDefinitionDetail(null);
     await loadDefinitionDetail(definition);
   }
 
@@ -5008,6 +5141,30 @@ function SkyWorkflows({ mode = 'start' }) {
   }, [selectedDefinitionDetail?.workflowCode]);
 
   useEffect(() => {
+    if (startWorkflowPage > startWorkflowPageCount) {
+      setStartWorkflowPage(startWorkflowPageCount);
+    }
+  }, [startWorkflowPage, startWorkflowPageCount]);
+
+  useEffect(() => {
+    if (isHistoryMode || !selectedDefinition) {
+      return;
+    }
+
+    const selectionVisible = filteredStartDefinitions.some(
+      (definition) => definition.workflowCode === selectedDefinition.workflowCode,
+    );
+
+    if (!selectionVisible) {
+      setSelectedDefinition(null);
+      setSelectedDefinitionDetail(null);
+      setSelectedRunDetail(null);
+      setSelectedRuntimeNodeIndex(null);
+      setRuntimeParameterError('');
+    }
+  }, [filteredStartDefinitions, isHistoryMode, selectedDefinition]);
+
+  useEffect(() => {
     if (historyPage > historyPageCount) {
       setHistoryPage(historyPageCount);
     }
@@ -5329,6 +5486,85 @@ function SkyWorkflows({ mode = 'start' }) {
     );
   }
 
+  function updateStartWorkflowFilter(name, value) {
+    setStartWorkflowFilters((current) => ({ ...current, [name]: value }));
+    setStartWorkflowPage(1);
+  }
+
+  function clearStartWorkflowFilters() {
+    setStartWorkflowFilters(DEFAULT_START_WORKFLOW_FILTERS);
+    setStartWorkflowPage(1);
+  }
+
+  function goToStartWorkflowPage(page) {
+    setStartWorkflowPage(
+      Math.min(Math.max(1, Number(page) || 1), startWorkflowPageCount),
+    );
+  }
+
+  function renderStartWorkflowPagination() {
+    return (
+      <div className="sky-pagination-row">
+        <div className="small sky-muted">
+          Showing {startWorkflowRangeStart}-{startWorkflowRangeEnd} of{' '}
+          {filteredStartDefinitions.length} available workflow(s)
+        </div>
+        <div className="sky-pagination-controls" aria-label="Start workflow pagination">
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeStartWorkflowPage <= 1}
+            onClick={() => goToStartWorkflowPage(1)}
+            type="button"
+          >
+            First
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeStartWorkflowPage <= 1}
+            onClick={() => goToStartWorkflowPage(safeStartWorkflowPage - 1)}
+            type="button"
+          >
+            Back
+          </button>
+          <label className="sky-pagination-select-label" htmlFor="startWorkflowPageSelect">
+            Page
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select"
+            id="startWorkflowPageSelect"
+            onChange={(event) => goToStartWorkflowPage(event.target.value)}
+            value={safeStartWorkflowPage}
+          >
+            {Array.from({ length: startWorkflowPageCount }, (_, index) => index + 1).map(
+              (page) => (
+                <option key={page} value={page}>
+                  {page}
+                </option>
+              ),
+            )}
+          </select>
+          <span className="small sky-muted">of {startWorkflowPageCount}</span>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeStartWorkflowPage >= startWorkflowPageCount}
+            onClick={() => goToStartWorkflowPage(safeStartWorkflowPage + 1)}
+            type="button"
+          >
+            Next
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeStartWorkflowPage >= startWorkflowPageCount}
+            onClick={() => goToStartWorkflowPage(startWorkflowPageCount)}
+            type="button"
+          >
+            Last
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function renderHistoryPagination() {
     return (
       <div className="sky-pagination-row">
@@ -5626,220 +5862,390 @@ function SkyWorkflows({ mode = 'start' }) {
       {isHistoryMode ? (
         renderHistoryView()
       ) : (
-        <div className="d-flex flex-column gap-4">
-          <section className="sky-card">
+        <div className="sky-workflow-start-workspace d-flex flex-column gap-4">
+          <section className="sky-card sky-functional-history-browser sky-run-tools-browser sky-workflow-start-browser">
             <div className="sky-card-header">
-              <div className="sky-page-kicker">Manual start</div>
-              <h2 className="h5 mb-0">Run selected workflow</h2>
-            </div>
-            <form className="sky-card-body" onSubmit={handleStartWorkflow}>
-              {definitions.length > 0 ? (
-                <div className="row g-3 align-items-end mb-4">
-                  <div className="col-xl-7">
-                    <label className="form-label" htmlFor="workflowStartDefinition">
-                      Active workflow
-                    </label>
-                    <select
-                      className="form-select sky-form-control"
-                      id="workflowStartDefinition"
-                      onChange={(event) => handleDefinitionSelect(event.target.value)}
-                      value={selectedDefinition?.workflowCode || ''}
-                    >
-                      {definitions.map((definition) => (
-                        <option key={definition.workflowCode} value={definition.workflowCode}>
-                          {definition.displayName} ({definition.workflowCode})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-xl-5">
-                    <div className="d-flex flex-wrap align-items-center gap-2">
-                      <span className="fw-bold">
-                        {selectedDefinitionDetail?.displayName || selectedDefinition?.displayName}
-                      </span>
-                      <span className="sky-pill sky-pill-success">
-                        {selectedDefinitionDetail?.status || 'ACTIVE'}
-                      </span>
-                      <span className="sky-pill sky-pill-info">
-                        {selectedDefinitionDetail?.nodes?.length || 0} node(s)
-                      </span>
-                      <span className="sky-pill sky-pill-info">
-                        {runtimeParameters.length} runtime param(s)
-                      </span>
-                    </div>
-                    <div className="small sky-muted mt-2">
-                      {selectedDefinitionDetail?.description || 'No workflow description.'}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="sky-empty-state mb-4">
-                  No active workflow definitions are available.
-                </div>
-              )}
-
-              <div className="sky-empty-state text-start mb-3">
-                Runtime values are saved into workflow context as <code>params</code>. Configure
-                workflow-level parameter definitions in Create Workflow / Manage Workflows, then
-                reference them inside node defaults with <code>{'{{ params.example }}'}</code>.
+              <div>
+                <div className="sky-page-kicker">Workflow browser</div>
+                <h2 className="h5 mb-0">Available workflows</h2>
+                <p className="sky-muted small mb-0">
+                  Search and filter the published workflow catalogue, then select a row to review
+                  its runtime parameters and launch controls below.
+                </p>
               </div>
-
-              {runtimeParameters.length > 0 ? (
-                <div className="row g-3 mb-3">
-                  {runtimeParameters.map((parameter) => {
-                    const inputId = `runtime-param-${parameter.key}`;
-                    const value = runtimeParameterValues[parameter.key] ?? '';
-                    const parameterOptions = getRuntimeParameterOptions(parameter, repositoryOptions);
-
-                    if (parameter.type === 'boolean') {
-                      return (
-                        <div className="col-12" key={parameter.key}>
-                          <div className="form-check form-switch">
-                            <input
-                              checked={Boolean(value)}
-                              className="form-check-input"
-                              id={inputId}
-                              onChange={(event) =>
-                                setRuntimeParameterValues((current) => ({
-                                  ...current,
-                                  [parameter.key]: event.target.checked,
-                                }))
-                              }
-                              type="checkbox"
-                            />
-                            <label className="form-check-label" htmlFor={inputId}>
-                              {parameter.label}
-                            </label>
-                          </div>
-                          {parameter.description && (
-                            <div className="form-text sky-muted">{parameter.description}</div>
-                          )}
-                        </div>
-                      );
+              <div className="sky-run-tools-filter-grid sky-workflow-start-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="startWorkflowSearchFilter">
+                    Search
+                  </label>
+                  <input
+                    className="form-control sky-form-control"
+                    id="startWorkflowSearchFilter"
+                    onChange={(event) => updateStartWorkflowFilter('q', event.target.value)}
+                    placeholder="Name, code, description..."
+                    type="search"
+                    value={startWorkflowFilters.q}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="startWorkflowStructureFilter">
+                    Structure
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="startWorkflowStructureFilter"
+                    onChange={(event) =>
+                      updateStartWorkflowFilter('structure', event.target.value)
                     }
-
-                    return (
-                      <div className="col-lg-6" key={parameter.key}>
-                        <label className="form-label" htmlFor={inputId}>
-                          {parameter.label}
-                          {parameter.required && <span className="text-danger ms-1">*</span>}
-                        </label>
-                        {parameter.type === 'select' || parameter.type === 'repo' ? (
-                          <select
-                            className="form-select sky-form-control"
-                            id={inputId}
-                            onChange={(event) =>
-                              setRuntimeParameterValues((current) => ({
-                                ...current,
-                                [parameter.key]: event.target.value,
-                              }))
-                            }
-                            required={parameter.required}
-                            value={String(value)}
-                          >
-                            <option value="">
-                              {parameter.prompt || `Select ${parameter.label}`}
-                            </option>
-                            {parameterOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : parameter.type === 'json' ? (
-                          <textarea
-                            className="form-control sky-form-control sky-mono"
-                            id={inputId}
-                            onChange={(event) =>
-                              setRuntimeParameterValues((current) => ({
-                                ...current,
-                                [parameter.key]: event.target.value,
-                              }))
-                            }
-                            placeholder={parameter.prompt || '{ }'}
-                            required={parameter.required}
-                            rows={4}
-                            value={String(value)}
-                          />
-                        ) : (
-                          <input
-                            className="form-control sky-form-control sky-mono"
-                            id={inputId}
-                            maxLength={parameter.maxLength || undefined}
-                            onChange={(event) =>
-                              setRuntimeParameterValues((current) => ({
-                                ...current,
-                                [parameter.key]: event.target.value,
-                              }))
-                            }
-                            placeholder={parameter.prompt || parameter.key}
-                            required={parameter.required}
-                            type={
-                              parameter.type === 'number'
-                                ? 'number'
-                                : parameter.type === 'date'
-                                  ? 'date'
-                                  : 'text'
-                            }
-                            value={String(value)}
-                          />
-                        )}
-                        <div className="form-text sky-muted">
-                          {parameter.description ||
-                            `${parameter.type} parameter saved as params.${parameter.key}`}
-                        </div>
-                      </div>
-                    );
-                  })}
+                    value={startWorkflowFilters.structure}
+                  >
+                    <option value="">All structures</option>
+                    <option value="single">Single node</option>
+                    <option value="sequential">Sequential</option>
+                    <option value="branching">Branching</option>
+                  </select>
                 </div>
-              ) : (
-                <div className="sky-empty-state text-start mb-3">
-                  This workflow has no runtime parameter schema yet. It will run with saved node
-                  defaults only.
+                <div>
+                  <label className="form-label" htmlFor="startWorkflowParameterFilter">
+                    Runtime parameters
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="startWorkflowParameterFilter"
+                    onChange={(event) =>
+                      updateStartWorkflowFilter('parameterMode', event.target.value)
+                    }
+                    value={startWorkflowFilters.parameterMode}
+                  >
+                    <option value="">All workflows</option>
+                    <option value="with">With parameters</option>
+                    <option value="without">Without parameters</option>
+                  </select>
                 </div>
-              )}
-
-              {runtimeParameterError && (
-                <div className="alert alert-danger py-2">{runtimeParameterError}</div>
-              )}
-
-              <button
-                className="btn sky-btn-primary"
-                disabled={starting || !selectedDefinitionDetail || !canStart}
-                type="submit"
-              >
-                {starting
-                  ? 'Running workflow...'
-                  : runtimeParameters.length > 0
-                    ? 'Start workflow with parameters'
-                    : 'Start workflow'}
-              </button>
-              {!canStart && (
-                <div className="small sky-muted mt-2">WORKFLOW_RUN permission is required.</div>
-              )}
-            </form>
-          </section>
-
-          <section className="sky-card">
-            <div className="sky-card-body">
-              <WorkflowVisualGraph
-                approvals={selectedApprovals}
-                followActiveNode={followActiveRuntimeNode}
-                headingKicker="Runtime status overlay"
-                headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}
-                nodeRuns={selectedNodeRuns}
-                nodes={runtimeVisualNodes}
-                onFollowActiveNodeChange={setFollowActiveRuntimeNode}
-                onNodeSelect={handleRuntimeNodeSelect}
-                runStatus={selectedTemporalRuntime?.status || selectedRun?.status || 'NOT_RUN'}
-                runtimeMode
-                selectedNodeIndex={selectedRuntimeNodeIndex}
-                subtitle="Live run overlay for the workflow you start here. When a run is active, this panel polls telemetry and animates node state without leaving the page."
-                temporalRuntime={selectedTemporalRuntime}
-                title="Runtime workflow map"
-              />
+                <div>
+                  <label className="form-label" htmlFor="startWorkflowNodeScaleFilter">
+                    Node count
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="startWorkflowNodeScaleFilter"
+                    onChange={(event) =>
+                      updateStartWorkflowFilter('nodeScale', event.target.value)
+                    }
+                    value={startWorkflowFilters.nodeScale}
+                  >
+                    <option value="">Any size</option>
+                    <option value="small">1-5 nodes</option>
+                    <option value="medium">6-10 nodes</option>
+                    <option value="large">11+ nodes</option>
+                  </select>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    onClick={clearStartWorkflowFilters}
+                    type="button"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              </div>
             </div>
+
+            <div className="table-responsive sky-table-card sky-functional-history-table-card">
+              <table className="table table-sm table-hover sky-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Workflow</th>
+                    <th>Code</th>
+                    <th>Status</th>
+                    <th>Structure</th>
+                    <th>Nodes</th>
+                    <th>Edges</th>
+                    <th>Runtime parameters</th>
+                    <th>Published version</th>
+                    <th className="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleStartDefinitions.length === 0 ? (
+                    <tr>
+                      <td colSpan="9">
+                        <div className="sky-empty-state">
+                          No workflows match the current filters.
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleStartDefinitions.map((definition) => {
+                      const selected =
+                        selectedDefinition?.workflowCode === definition.workflowCode;
+
+                      return (
+                        <tr
+                          className={`sky-clickable-row ${selected ? 'sky-selected-row' : ''}`}
+                          key={definition.workflowDefinitionId || definition.workflowCode}
+                          onClick={() => handleDefinitionSelect(definition.workflowCode)}
+                        >
+                          <td>
+                            <div className="fw-bold sky-detail-value">
+                              {definition.displayName}
+                            </div>
+                            <div className="small sky-muted">
+                              {definition.description || 'No workflow description.'}
+                            </div>
+                          </td>
+                          <td className="sky-mono">{definition.workflowCode}</td>
+                          <td>
+                            <span className={`sky-pill ${statusClass(definition.status)}`}>
+                              {definition.status || 'ACTIVE'}
+                            </span>
+                          </td>
+                          <td>{getDefinitionStructureLabel(definition)}</td>
+                          <td>{getDefinitionNodeCount(definition)}</td>
+                          <td>{getDefinitionEdgeCount(definition)}</td>
+                          <td>{getDefinitionRuntimeParameterCount(definition)}</td>
+                          <td>{definition.publishedVersionNumber || '—'}</td>
+                          <td className="text-end">
+                            <button
+                              className="btn btn-sm sky-btn-ghost"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleDefinitionSelect(definition.workflowCode);
+                              }}
+                              type="button"
+                            >
+                              {selected ? 'Selected' : 'Select workflow'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {renderStartWorkflowPagination()}
           </section>
+
+          {selectedDefinition && (
+            <>
+              <section className="sky-card sky-workflow-start-config-card">
+                <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+                  <div>
+                    <div className="sky-page-kicker">Workflow configuration</div>
+                    <h2 className="h5 mb-1">
+                      {selectedDefinitionDetail?.displayName || selectedDefinition.displayName}
+                    </h2>
+                    <div className="small sky-muted sky-mono">
+                      {selectedDefinition.workflowCode}
+                    </div>
+                  </div>
+                  <div className="d-flex flex-wrap align-items-center gap-2">
+                    <span
+                      className={`sky-pill ${statusClass(
+                        selectedDefinitionDetail?.status || selectedDefinition.status,
+                      )}`}
+                    >
+                      {selectedDefinitionDetail?.status || selectedDefinition.status || 'ACTIVE'}
+                    </span>
+                    <span className="sky-pill sky-pill-info">
+                      {selectedDefinitionDetail?.nodes?.length ||
+                        getDefinitionNodeCount(selectedDefinition)}{' '}
+                      node(s)
+                    </span>
+                    <span className="sky-pill sky-pill-info">
+                      {getDefinitionEdgeCount(selectedDefinitionDetail || selectedDefinition)} edge(s)
+                    </span>
+                    <span className="sky-pill sky-pill-info">
+                      {runtimeParameters.length} runtime param(s)
+                    </span>
+                  </div>
+                </div>
+                <form className="sky-card-body" onSubmit={handleStartWorkflow}>
+                  <div className="sky-run-tool-description mb-4">
+                    <div className="sky-detail-label">Purpose</div>
+                    <div className="sky-detail-value">
+                      {selectedDefinitionDetail?.description ||
+                        selectedDefinition.description ||
+                        'No workflow description.'}
+                    </div>
+                  </div>
+
+                  <div className="sky-empty-state text-start mb-3">
+                    Runtime values are saved into workflow context as <code>params</code>. Configure
+                    workflow-level parameter definitions in Create Workflow / Manage Workflows,
+                    then reference them inside node defaults with{' '}
+                    <code>{'{{ params.example }}'}</code>.
+                  </div>
+
+                  {runtimeParameters.length > 0 ? (
+                    <div className="row g-3 mb-3">
+                      {runtimeParameters.map((parameter) => {
+                        const inputId = `runtime-param-${parameter.key}`;
+                        const value = runtimeParameterValues[parameter.key] ?? '';
+                        const parameterOptions = getRuntimeParameterOptions(
+                          parameter,
+                          repositoryOptions,
+                        );
+
+                        if (parameter.type === 'boolean') {
+                          return (
+                            <div className="col-12" key={parameter.key}>
+                              <div className="form-check form-switch">
+                                <input
+                                  checked={Boolean(value)}
+                                  className="form-check-input"
+                                  id={inputId}
+                                  onChange={(event) =>
+                                    setRuntimeParameterValues((current) => ({
+                                      ...current,
+                                      [parameter.key]: event.target.checked,
+                                    }))
+                                  }
+                                  type="checkbox"
+                                />
+                                <label className="form-check-label" htmlFor={inputId}>
+                                  {parameter.label}
+                                </label>
+                              </div>
+                              {parameter.description && (
+                                <div className="form-text sky-muted">
+                                  {parameter.description}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="col-lg-6" key={parameter.key}>
+                            <label className="form-label" htmlFor={inputId}>
+                              {parameter.label}
+                              {parameter.required && (
+                                <span className="text-danger ms-1">*</span>
+                              )}
+                            </label>
+                            {parameter.type === 'select' || parameter.type === 'repo' ? (
+                              <select
+                                className="form-select sky-form-control"
+                                id={inputId}
+                                onChange={(event) =>
+                                  setRuntimeParameterValues((current) => ({
+                                    ...current,
+                                    [parameter.key]: event.target.value,
+                                  }))
+                                }
+                                required={parameter.required}
+                                value={String(value)}
+                              >
+                                <option value="">
+                                  {parameter.prompt || `Select ${parameter.label}`}
+                                </option>
+                                {parameterOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : parameter.type === 'json' ? (
+                              <textarea
+                                className="form-control sky-form-control sky-mono"
+                                id={inputId}
+                                onChange={(event) =>
+                                  setRuntimeParameterValues((current) => ({
+                                    ...current,
+                                    [parameter.key]: event.target.value,
+                                  }))
+                                }
+                                placeholder={parameter.prompt || '{ }'}
+                                required={parameter.required}
+                                rows={4}
+                                value={String(value)}
+                              />
+                            ) : (
+                              <input
+                                className="form-control sky-form-control sky-mono"
+                                id={inputId}
+                                maxLength={parameter.maxLength || undefined}
+                                onChange={(event) =>
+                                  setRuntimeParameterValues((current) => ({
+                                    ...current,
+                                    [parameter.key]: event.target.value,
+                                  }))
+                                }
+                                placeholder={parameter.prompt || parameter.key}
+                                required={parameter.required}
+                                type={
+                                  parameter.type === 'number'
+                                    ? 'number'
+                                    : parameter.type === 'date'
+                                      ? 'date'
+                                      : 'text'
+                                }
+                                value={String(value)}
+                              />
+                            )}
+                            <div className="form-text sky-muted">
+                              {parameter.description ||
+                                `${parameter.type} parameter saved as params.${parameter.key}`}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="sky-empty-state text-start mb-3">
+                      This workflow has no runtime parameter schema. It will run with saved node
+                      defaults only.
+                    </div>
+                  )}
+
+                  {runtimeParameterError && (
+                    <div className="alert alert-danger py-2">{runtimeParameterError}</div>
+                  )}
+
+                  <button
+                    className="btn sky-btn-primary"
+                    disabled={starting || !selectedDefinitionDetail || !canStart}
+                    type="submit"
+                  >
+                    {starting
+                      ? 'Running workflow...'
+                      : runtimeParameters.length > 0
+                        ? 'Start workflow with parameters'
+                        : 'Start workflow'}
+                  </button>
+                  {!canStart && (
+                    <div className="small sky-muted mt-2">
+                      WORKFLOW_RUN permission is required.
+                    </div>
+                  )}
+                </form>
+              </section>
+
+              <div className="sky-workflow-start-detail-stack">
+                <WorkflowVisualGraph
+                  approvals={selectedApprovals}
+                  followActiveNode={followActiveRuntimeNode}
+                  headingKicker="Runtime status overlay"
+                  headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}
+                  headerActionsStandalone
+                  inspectorMode="navigation"
+                  nodeRuns={selectedNodeRuns}
+                  nodes={runtimeVisualNodes}
+                  onFollowActiveNodeChange={setFollowActiveRuntimeNode}
+                  onNodeSelect={handleRuntimeNodeSelect}
+                  runStatus={selectedTemporalRuntime?.status || selectedRun?.status || 'NOT_RUN'}
+                  runtimeMode
+                  selectedNodeIndex={selectedRuntimeNodeIndex}
+                  subtitle="Live run overlay for the workflow you start here. The graph uses the same page-width, horizontally scrollable runtime lane as Workflow History."
+                  temporalRuntime={selectedTemporalRuntime}
+                  title="Runtime workflow map"
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
       {renderSelectedRunDetailOverlay()}

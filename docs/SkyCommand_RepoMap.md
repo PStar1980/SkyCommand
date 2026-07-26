@@ -128,6 +128,7 @@ SkyServer/
 │   │       │   ├── workflowDatabaseOutputSelfTest.js
 │   │       │   ├── WorkflowManager.jsx
 │   │       │   ├── WorkflowsDashboard.jsx
+│   │       │   ├── workflowStartCatalogueSelfTest.js
 │   │       │   └── WorkflowWorkerHealth.jsx
 │   │       └── services/
 │   │           ├── adminService.js

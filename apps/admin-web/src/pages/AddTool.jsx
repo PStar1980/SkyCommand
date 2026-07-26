@@ -41,7 +41,7 @@ function FilePicker({ accept, file, help, id, label, onChange, required = false 
       </label>
       <input
         accept={accept}
-        className="form-control sky-tool-upload-input"
+        className="form-control sky-form-control sky-tool-upload-input"
         id={id}
         onChange={(event) => onChange(event.target.files?.[0] || null)}
         type="file"
