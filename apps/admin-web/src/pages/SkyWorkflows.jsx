@@ -4872,7 +4872,7 @@ function SkyWorkflows({ mode = 'start' }) {
       keepSelection && selectedDefinition
         ? items.find((item) => item.workflowCode === selectedDefinition.workflowCode)
         : null;
-    const nextSelection = preservedSelection || (isHistoryMode ? items[0] || null : null);
+    const nextSelection = preservedSelection || (items[0] || null);
 
     setSelectedDefinition(nextSelection);
 
@@ -5346,20 +5346,29 @@ function SkyWorkflows({ mode = 'start' }) {
   }, [startWorkflowPage, startWorkflowPageCount]);
 
   useEffect(() => {
-    if (isHistoryMode || !selectedDefinition) {
+    if (isHistoryMode) {
       return;
     }
 
-    const selectionVisible = filteredStartDefinitions.some(
-      (definition) => definition.workflowCode === selectedDefinition.workflowCode,
-    );
+    if (filteredStartDefinitions.length === 0) {
+      if (selectedDefinition) {
+        setSelectedDefinition(null);
+        setSelectedDefinitionDetail(null);
+        setSelectedRunDetail(null);
+        setSelectedRuntimeNodeIndex(null);
+        setRuntimeParameterError('');
+      }
+      return;
+    }
+
+    const selectionVisible = selectedDefinition
+      ? filteredStartDefinitions.some(
+          (definition) => definition.workflowCode === selectedDefinition.workflowCode,
+        )
+      : false;
 
     if (!selectionVisible) {
-      setSelectedDefinition(null);
-      setSelectedDefinitionDetail(null);
-      setSelectedRunDetail(null);
-      setSelectedRuntimeNodeIndex(null);
-      setRuntimeParameterError('');
+      handleDefinitionSelect(filteredStartDefinitions[0].workflowCode);
     }
   }, [filteredStartDefinitions, isHistoryMode, selectedDefinition]);
 
@@ -5955,8 +5964,8 @@ function SkyWorkflows({ mode = 'start' }) {
           {renderHistoryPagination()}
         </section>
 
-        <section className="sky-workflow-history-detail-zone">
-          <div className="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
+        <section className="sky-card sky-workflow-history-detail-zone">
+          <div className="sky-card-header d-flex flex-wrap align-items-end justify-content-between gap-2">
             <div>
               <div className="sky-page-kicker">Selected run workspace</div>
               <h2 className="h5 mb-0">Execution detail</h2>
@@ -5966,17 +5975,11 @@ function SkyWorkflows({ mode = 'start' }) {
             </div>
           </div>
 
-          <div className="sky-workflow-history-detail-stack">
-            <WorkflowRunSummaryPanel run={selectedRun} outputs={selectedNodeOutputs} />
-
+          <div className="sky-card-body sky-workflow-history-detail-stack">
             {!selectedRun ? (
-              <section className="sky-card">
-                <div className="sky-card-body">
-                  <div className="sky-empty-state">
-                    Select a workflow run to view the runtime graph overlay.
-                  </div>
-                </div>
-              </section>
+              <div className="sky-empty-state">
+                Select a workflow run to view the runtime graph overlay.
+              </div>
             ) : (
               <WorkflowVisualGraph
                 approvals={selectedApprovals}
