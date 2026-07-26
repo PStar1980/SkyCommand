@@ -307,6 +307,11 @@ function isRuntimeTerminalStatus(status) {
   return ['COMPLETED', 'SUCCESS', 'APPROVED', 'FAILED', 'REJECTED', 'TIMED_OUT', 'TERMINATED', 'CANCELED', 'CANCELLED', 'SKIPPED'].includes(normalized);
 }
 
+function isRuntimeCompletedStatus(status) {
+  const normalized = normalizeRuntimeStatus(status);
+  return ['COMPLETED', 'SUCCESS', 'APPROVED'].includes(normalized);
+}
+
 function getActiveRuntimeNodeIndex(nodes = [], nodeRuns = [], approvals = []) {
   const activeByNode = nodes
     .map((node, index) => {
@@ -335,25 +340,19 @@ function getNextIncompleteRuntimeNodeIndex(nodes = [], nodeRuns = [], approvals 
     .find((index) => index >= 0) ?? -1;
 }
 
-function getRuntimeBranchOverlay({ fromNode = {}, nodeRun = null, nodes = [] } = {}) {
-  if (normalizeNodeType(fromNode.nodeTypeCode) !== 'CONDITION' || !nodeRun?.output) {
-    return null;
+function getLastCompletedRuntimeNodeIndex(nodes = [], nodeRuns = [], approvals = []) {
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    const node = nodes[index];
+    const nodeRun = getNodeRunForNode(node, nodeRuns);
+    const approval = getApprovalForNode({ node, nodeRun, approvals });
+    const status = getRuntimeStatusForNode({ nodeRun, approval });
+
+    if (isRuntimeCompletedStatus(status)) {
+      return index;
+    }
   }
 
-  const output = nodeRun.output;
-  const branchLabel = String(output.branchLabel || (output.passed ? 'TRUE' : 'FALSE')).toUpperCase();
-  const branchTargetNodeKey = output.branchTargetNodeKey || null;
-
-  if (!branchLabel || branchLabel === 'NULL') {
-    return null;
-  }
-
-  return {
-    label: branchLabel,
-    target: branchTargetNodeKey ? getBranchTargetLabel(nodes, branchTargetNodeKey) : (output.passed ? 'next' : formatAction(output.onFalse, 'false action')),
-    branchTaken: Boolean(output.branchTaken),
-    className: branchLabel === 'TRUE' ? 'sky-pill-success' : 'sky-pill-warning',
-  };
+  return -1;
 }
 
 function getApiSummary(node) {
@@ -647,20 +646,15 @@ function WorkflowVisualNode({
   );
 }
 
-function WorkflowVisualEdge({ active = false, fromNode, index, nodeRun, nodes, runtimeMode }) {
-  const runtimeBranch = runtimeMode ? getRuntimeBranchOverlay({ fromNode, nodeRun, nodes }) : null;
-  const label = runtimeBranch
-    ? `${runtimeBranch.branchTaken ? 'taken ' : ''}${runtimeBranch.label} → ${runtimeBranch.target}`
-    : 'next';
-
+function WorkflowVisualEdge({ active = false, completed = false, index }) {
   return (
     <div
-      className={`sky-workflow-visual-edge ${active ? 'is-runtime-active-edge' : ''} ${runtimeBranch ? 'is-runtime-branch' : ''} ${runtimeBranch?.branchTaken ? 'is-runtime-branch-taken' : ''}`}
+      className={`sky-workflow-visual-edge ${completed ? 'is-runtime-completed-edge' : ''} ${active ? 'is-runtime-active-edge' : ''}`}
       aria-label={`Sequential edge after node ${index + 1}`}
     >
       <div className="sky-workflow-visual-edge-line" />
       <div className="sky-workflow-visual-edge-arrow">→</div>
-      <div className="sky-workflow-visual-edge-label">{label}</div>
+      <div className="sky-workflow-visual-edge-label">next</div>
     </div>
   );
 }
@@ -885,6 +879,10 @@ function WorkflowVisualGraph({
   const activeNodeIndex = runtimeMode ? getActiveRuntimeNodeIndex(nodes, nodeRuns, approvals) : -1;
   const nextIncompleteNodeIndex = runtimeMode ? getNextIncompleteRuntimeNodeIndex(nodes, nodeRuns, approvals) : -1;
   const normalizedRunStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
+  const completedRun = ['COMPLETED', 'SUCCESS'].includes(normalizedRunStatus);
+  const lastCompletedNodeIndex = runtimeMode
+    ? getLastCompletedRuntimeNodeIndex(nodes, nodeRuns, approvals)
+    : -1;
   const terminalIssueRun = ['FAILED', 'REJECTED', 'TIMED_OUT', 'TERMINATED', 'CANCELED', 'CANCELLED'].includes(normalizedRunStatus);
   const lastIssueNodeIndex = runtimeMode
     ? runtimeOverlays.reduce((lastIndex, overlay, index) => {
@@ -898,7 +896,9 @@ function WorkflowVisualGraph({
     ? lastIssueNodeIndex
     : activeNodeIndex >= 0
       ? activeNodeIndex
-      : nextIncompleteNodeIndex;
+      : completedRun && lastCompletedNodeIndex >= 0
+        ? lastCompletedNodeIndex
+        : nextIncompleteNodeIndex;
   const activeEdgeIndex = followTargetIndex > 0 ? followTargetIndex - 1 : -1;
   const activeNode = followTargetIndex >= 0 ? nodes[followTargetIndex] : null;
   const runtimeStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
@@ -936,9 +936,13 @@ function WorkflowVisualGraph({
     const viewport = viewportRef.current;
 
     if (nodeElement && viewport) {
+      const nodeRect = nodeElement.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
       const targetLeft = Math.max(
         0,
-        nodeElement.offsetLeft - (viewport.clientWidth - nodeElement.offsetWidth) / 2,
+        viewport.scrollLeft
+          + (nodeRect.left - viewportRect.left)
+          - (viewport.clientWidth - nodeRect.width) / 2,
       );
       viewport.scrollTo({ behavior: 'smooth', left: targetLeft });
     }
@@ -1052,8 +1056,8 @@ function WorkflowVisualGraph({
               Runtime overlay is read-only. Completed, running, failed, pending approval, skipped, and branch-taken states come from the selected workflow run ledger.
             </div>
           ) : null}
-          <div className="sky-workflow-visual-viewport" ref={viewportRef}>
-            <div className="sky-workflow-visual-map" role="list" aria-label="Sequential workflow visual map">
+          <div className="sky-workflow-visual-viewport">
+            <div className="sky-workflow-visual-map" ref={viewportRef} role="list" aria-label="Sequential workflow visual map">
               {nodes.map((node, index) => (
               <div className="sky-workflow-visual-step" key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`} role="listitem">
                 <WorkflowVisualNode
@@ -1080,11 +1084,10 @@ function WorkflowVisualGraph({
                 {index < nodes.length - 1 ? (
                   <WorkflowVisualEdge
                     active={runtimeMode && activeEdgeIndex === index}
-                    fromNode={node}
+                    completed={runtimeMode
+                      && isRuntimeCompletedStatus(runtimeOverlays[index]?.status)
+                      && isRuntimeCompletedStatus(runtimeOverlays[index + 1]?.status)}
                     index={index}
-                    nodeRun={runtimeMode ? getNodeRunForNode(node, nodeRuns) : null}
-                    nodes={nodes}
-                    runtimeMode={runtimeMode}
                   />
                 ) : null}
               </div>

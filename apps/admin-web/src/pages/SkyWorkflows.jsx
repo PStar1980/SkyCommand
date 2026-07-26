@@ -5262,20 +5262,20 @@ function SkyWorkflows({ mode = 'start' }) {
   }, [selectedRun?.workflowRunRecordId]);
 
   useEffect(() => {
-    if (!isHistoryMode || !selectedRun?.workflowRunRecordId) {
+    if (!selectedRun?.workflowRunRecordId) {
       return;
     }
 
     const runId = selectedRun.workflowRunRecordId;
-    const focusState = completionFocusRef.current;
+    let focusState = completionFocusRef.current;
 
     if (focusState.runId !== runId) {
-      completionFocusRef.current = {
+      focusState = {
         applied: false,
         runId,
         wasActive: isActiveRun(selectedRun),
       };
-      return;
+      completionFocusRef.current = focusState;
     }
 
     if (isActiveRun(selectedRun)) {
@@ -5284,7 +5284,14 @@ function SkyWorkflows({ mode = 'start' }) {
       return;
     }
 
-    if (!followActiveRuntimeNode || !focusState.wasActive || focusState.applied) {
+    const normalizedRunStatus = String(selectedRun.status || '').toUpperCase();
+    const completedStartRun = !isHistoryMode
+      && ['COMPLETED', 'SUCCESS'].includes(normalizedRunStatus);
+    const shouldApplyTerminalFocus = isHistoryMode
+      ? focusState.wasActive
+      : completedStartRun;
+
+    if (!followActiveRuntimeNode || !shouldApplyTerminalFocus || focusState.applied) {
       return;
     }
 
