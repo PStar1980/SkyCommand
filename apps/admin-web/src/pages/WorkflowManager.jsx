@@ -50,6 +50,14 @@ const DEFAULT_API_PARAMETERS = {
 };
 
 const VERSION_HISTORY_PAGE_SIZE = 5;
+const MANAGE_WORKFLOW_PAGE_SIZE = 10;
+const DEFAULT_MANAGE_WORKFLOW_FILTERS = {
+  q: '',
+  status: '',
+  structure: '',
+  parameterMode: '',
+  nodeScale: '',
+};
 
 const EMPTY_NODE = {
   nodeKey: '',
@@ -213,6 +221,61 @@ function cleanApiParameters(values = {}) {
   return Object.fromEntries(
     Object.entries(parameters).filter(([, value]) => value !== undefined && value !== null && value !== ''),
   );
+}
+
+function getDefinitionNodeCount(definition = {}) {
+  const count = Number(
+    Array.isArray(definition.nodes)
+      ? definition.nodes.length
+      : definition.publishedNodeCount ?? definition.latestNodeCount ?? 0,
+  );
+
+  return Number.isFinite(count) ? count : 0;
+}
+
+function getDefinitionEdgeCount(definition = {}) {
+  const count = Number(
+    Array.isArray(definition.edges)
+      ? definition.edges.length
+      : definition.publishedEdgeCount ?? definition.latestEdgeCount ?? 0,
+  );
+
+  return Number.isFinite(count) ? count : 0;
+}
+
+function getDefinitionRuntimeParameterCount(definition = {}) {
+  return normalizeRuntimeParameterDefinitions(
+    definition.runtimeParameters || definition.config?.runtimeParameters || [],
+  ).length;
+}
+
+function getDefinitionStructure(definition = {}) {
+  const nodeCount = getDefinitionNodeCount(definition);
+  const edgeCount = getDefinitionEdgeCount(definition);
+
+  if (nodeCount <= 1) {
+    return 'single';
+  }
+
+  if (edgeCount > Math.max(nodeCount - 1, 0)) {
+    return 'branching';
+  }
+
+  return 'sequential';
+}
+
+function getDefinitionStructureLabel(definition = {}) {
+  const structure = getDefinitionStructure(definition);
+
+  if (structure === 'branching') {
+    return 'Branching';
+  }
+
+  if (structure === 'single') {
+    return 'Single node';
+  }
+
+  return 'Sequential';
 }
 
 function StatusPill({ status }) {
@@ -912,6 +975,8 @@ function WorkflowManager() {
   const [error, setError] = useState('');
   const [selectedVisualNodeIndex, setSelectedVisualNodeIndex] = useState(null);
   const [versionHistoryPage, setVersionHistoryPage] = useState(1);
+  const [manageWorkflowFilters, setManageWorkflowFilters] = useState(DEFAULT_MANAGE_WORKFLOW_FILTERS);
+  const [manageWorkflowPage, setManageWorkflowPage] = useState(1);
 
   const toolTargets = useMemo(
     () => [...(catalog.toolTargets || [])].sort((a, b) => {
@@ -1555,6 +1620,66 @@ function WorkflowManager() {
   }
 
   const selectedDefinition = definitions.find((definition) => definition.workflowCode === selectedCode);
+  const filteredDefinitions = useMemo(() => {
+    const searchText = manageWorkflowFilters.q.trim().toLowerCase();
+
+    return definitions.filter((definition) => {
+      const nodeCount = getDefinitionNodeCount(definition);
+      const parameterCount = getDefinitionRuntimeParameterCount(definition);
+
+      if (manageWorkflowFilters.status && String(definition.status || 'ACTIVE').toUpperCase() !== manageWorkflowFilters.status) {
+        return false;
+      }
+
+      if (manageWorkflowFilters.structure && getDefinitionStructure(definition) !== manageWorkflowFilters.structure) {
+        return false;
+      }
+
+      if (manageWorkflowFilters.parameterMode === 'with' && parameterCount === 0) {
+        return false;
+      }
+
+      if (manageWorkflowFilters.parameterMode === 'without' && parameterCount > 0) {
+        return false;
+      }
+
+      if (manageWorkflowFilters.nodeScale === 'small' && (nodeCount < 1 || nodeCount > 5)) {
+        return false;
+      }
+
+      if (manageWorkflowFilters.nodeScale === 'medium' && (nodeCount < 6 || nodeCount > 10)) {
+        return false;
+      }
+
+      if (manageWorkflowFilters.nodeScale === 'large' && nodeCount < 11) {
+        return false;
+      }
+
+      if (!searchText) {
+        return true;
+      }
+
+      return [
+        definition.displayName,
+        definition.workflowCode,
+        definition.description,
+        definition.status,
+        getDefinitionStructureLabel(definition),
+      ].some((value) => String(value || '').toLowerCase().includes(searchText));
+    });
+  }, [definitions, manageWorkflowFilters]);
+  const manageWorkflowPageCount = Math.max(1, Math.ceil(filteredDefinitions.length / MANAGE_WORKFLOW_PAGE_SIZE));
+  const safeManageWorkflowPage = Math.min(manageWorkflowPage, manageWorkflowPageCount);
+  const manageWorkflowPageStart = (safeManageWorkflowPage - 1) * MANAGE_WORKFLOW_PAGE_SIZE;
+  const visibleDefinitions = filteredDefinitions.slice(
+    manageWorkflowPageStart,
+    manageWorkflowPageStart + MANAGE_WORKFLOW_PAGE_SIZE,
+  );
+  const manageWorkflowRangeStart = filteredDefinitions.length === 0 ? 0 : manageWorkflowPageStart + 1;
+  const manageWorkflowRangeEnd = Math.min(
+    manageWorkflowPageStart + MANAGE_WORKFLOW_PAGE_SIZE,
+    filteredDefinitions.length,
+  );
   const editing = detail?.editing || {};
   const draftGraph = detail?.draftGraph || null;
   const graphLocked = Boolean(detail && !draftGraph);
@@ -1576,8 +1701,106 @@ function WorkflowManager() {
   const versionHistoryRangeStart = versionHistoryItems.length === 0 ? 0 : versionHistoryStartIndex + 1;
   const versionHistoryRangeEnd = Math.min(versionHistoryStartIndex + VERSION_HISTORY_PAGE_SIZE, versionHistoryItems.length);
 
+  useEffect(() => {
+    if (manageWorkflowPage > manageWorkflowPageCount) {
+      setManageWorkflowPage(manageWorkflowPageCount);
+    }
+  }, [manageWorkflowPage, manageWorkflowPageCount]);
+
+  useEffect(() => {
+    if (filteredDefinitions.length === 0) {
+      if (selectedCode) {
+        setSelectedCode('');
+        setDetail(null);
+      }
+      return;
+    }
+
+    const selectionVisible = selectedCode
+      ? filteredDefinitions.some((definition) => definition.workflowCode === selectedCode)
+      : false;
+
+    if (!selectionVisible) {
+      selectDefinition(filteredDefinitions[0].workflowCode);
+    }
+  }, [filteredDefinitions, selectedCode]);
+
   function goToVersionHistoryPage(page) {
     setVersionHistoryPage(Math.min(Math.max(1, Number(page) || 1), versionHistoryPageCount));
+  }
+
+  function updateManageWorkflowFilter(name, value) {
+    setManageWorkflowFilters((current) => ({ ...current, [name]: value }));
+    setManageWorkflowPage(1);
+  }
+
+  function clearManageWorkflowFilters() {
+    setManageWorkflowFilters(DEFAULT_MANAGE_WORKFLOW_FILTERS);
+    setManageWorkflowPage(1);
+  }
+
+  function goToManageWorkflowPage(page) {
+    setManageWorkflowPage(Math.min(Math.max(1, Number(page) || 1), manageWorkflowPageCount));
+  }
+
+  function renderManageWorkflowPagination() {
+    return (
+      <div className="sky-pagination-row">
+        <div className="small sky-muted">
+          Showing {manageWorkflowRangeStart}-{manageWorkflowRangeEnd} of {filteredDefinitions.length} workflow definition(s)
+        </div>
+        <div className="sky-pagination-controls" aria-label="Manage workflows pagination">
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeManageWorkflowPage <= 1}
+            onClick={() => goToManageWorkflowPage(1)}
+            type="button"
+          >
+            First
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeManageWorkflowPage <= 1}
+            onClick={() => goToManageWorkflowPage(safeManageWorkflowPage - 1)}
+            type="button"
+          >
+            Back
+          </button>
+          <label className="sky-pagination-select-label" htmlFor="manageWorkflowPageSelect">
+            Page
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select"
+            id="manageWorkflowPageSelect"
+            onChange={(event) => goToManageWorkflowPage(event.target.value)}
+            value={safeManageWorkflowPage}
+          >
+            {Array.from({ length: manageWorkflowPageCount }, (_, index) => index + 1).map((page) => (
+              <option key={page} value={page}>
+                {page}
+              </option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {manageWorkflowPageCount}</span>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeManageWorkflowPage >= manageWorkflowPageCount}
+            onClick={() => goToManageWorkflowPage(safeManageWorkflowPage + 1)}
+            type="button"
+          >
+            Next
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeManageWorkflowPage >= manageWorkflowPageCount}
+            onClick={() => goToManageWorkflowPage(manageWorkflowPageCount)}
+            type="button"
+          >
+            Last
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1607,58 +1830,169 @@ function WorkflowManager() {
         </div>
       )}
 
-      <section className="sky-card mb-4">
-        <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <section className="sky-card mb-4 sky-functional-history-browser sky-workflow-start-browser">
+        <div className="sky-card-header">
           <div>
-            <div className="sky-page-kicker">Workflow selector</div>
-            <h2 className="h5 mb-0">Choose workflow</h2>
+            <div className="sky-page-kicker">Workflow browser</div>
+            <h2 className="h5 mb-0">Workflow catalogue</h2>
+            <p className="sky-muted small mb-0">
+              Search and filter workflow definitions, then select a row to manage its metadata,
+              graph, version history, and publishing controls below.
+            </p>
           </div>
-          <div className="d-flex flex-wrap gap-2">
-            <span className="sky-pill sky-pill-info">{definitions.length} definition(s)</span>
-            <span className="sky-pill sky-pill-success">{definitions.filter((definition) => definition.status === 'ACTIVE').length} active</span>
-            <span className="sky-pill sky-pill-info">{toolTargets.length} tool target(s)</span>
-          </div>
-        </div>
-        <div className="sky-card-body">
-          {definitions.length > 0 ? (
-            <div className="row g-3 align-items-end">
-              <div className="col-xl-7">
-                <label className="form-label" htmlFor="workflowManagerDefinition">Workflow definition</label>
-                <select
-                  className="form-select sky-form-control"
-                  id="workflowManagerDefinition"
-                  onChange={(event) => selectDefinition(event.target.value)}
-                  value={selectedCode}
-                >
-                  {definitions.map((definition) => (
-                    <option key={definition.workflowCode} value={definition.workflowCode}>
-                      {definition.displayName} ({definition.workflowCode})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-xl-5">
-                <div className="sky-worker-command-card h-100">
-                  <div className="d-flex flex-wrap justify-content-between gap-2">
-                    <div>
-                      <div className="sky-page-kicker">Selected workflow</div>
-                      <div className="fw-bold">{selectedDefinition?.displayName || 'No workflow selected'}</div>
-                      <div className="small sky-muted sky-mono">{selectedDefinition?.workflowCode || '—'}</div>
-                    </div>
-                    {selectedDefinition && <StatusPill status={selectedDefinition.status} />}
-                  </div>
-                  <div className="d-flex flex-wrap gap-2 mt-3">
-                    <span className="sky-pill sky-pill-info">{selectedDefinition?.publishedNodeCount || selectedDefinition?.latestNodeCount || 0} node(s)</span>
-                    <span className="sky-pill sky-pill-info">{selectedDefinition?.publishedEdgeCount || selectedDefinition?.latestEdgeCount || 0} edge(s)</span>
-                    <span className="sky-pill sky-pill-info">{normalizeRuntimeParameterDefinitions(metadataForm.runtimeParameters).length} runtime param(s)</span>
-                  </div>
-                </div>
-              </div>
+          <div className="sky-run-tools-filter-grid sky-workflow-start-filter-grid">
+            <div className="sky-run-tools-search-filter">
+              <label className="form-label" htmlFor="manageWorkflowSearchFilter">
+                Search
+              </label>
+              <input
+                className="form-control sky-form-control"
+                id="manageWorkflowSearchFilter"
+                onChange={(event) => updateManageWorkflowFilter('q', event.target.value)}
+                placeholder="Name, code, description..."
+                type="search"
+                value={manageWorkflowFilters.q}
+              />
             </div>
-          ) : (
-            <div className="sky-empty-state">No workflow definitions found.</div>
-          )}
+            <div>
+              <label className="form-label" htmlFor="manageWorkflowStatusFilter">
+                Status
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="manageWorkflowStatusFilter"
+                onChange={(event) => updateManageWorkflowFilter('status', event.target.value)}
+                value={manageWorkflowFilters.status}
+              >
+                <option value="">All statuses</option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="INACTIVE">INACTIVE</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label" htmlFor="manageWorkflowStructureFilter">
+                Structure
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="manageWorkflowStructureFilter"
+                onChange={(event) => updateManageWorkflowFilter('structure', event.target.value)}
+                value={manageWorkflowFilters.structure}
+              >
+                <option value="">All structures</option>
+                <option value="single">Single node</option>
+                <option value="sequential">Sequential</option>
+                <option value="branching">Branching</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label" htmlFor="manageWorkflowParameterFilter">
+                Runtime parameters
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="manageWorkflowParameterFilter"
+                onChange={(event) => updateManageWorkflowFilter('parameterMode', event.target.value)}
+                value={manageWorkflowFilters.parameterMode}
+              >
+                <option value="">All workflows</option>
+                <option value="with">With parameters</option>
+                <option value="without">Without parameters</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label" htmlFor="manageWorkflowNodeScaleFilter">
+                Node count
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="manageWorkflowNodeScaleFilter"
+                onChange={(event) => updateManageWorkflowFilter('nodeScale', event.target.value)}
+                value={manageWorkflowFilters.nodeScale}
+              >
+                <option value="">Any size</option>
+                <option value="small">1-5 nodes</option>
+                <option value="medium">6-10 nodes</option>
+                <option value="large">11+ nodes</option>
+              </select>
+            </div>
+            <div className="sky-run-tools-filter-actions">
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearManageWorkflowFilters} type="button">
+                Clear filters
+              </button>
+            </div>
+          </div>
         </div>
+
+        <div className="table-responsive sky-table-card sky-functional-history-table-card">
+          <table className="table table-sm table-hover sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Workflow</th>
+                <th>Code</th>
+                <th>Status</th>
+                <th>Structure</th>
+                <th>Nodes</th>
+                <th>Edges</th>
+                <th>Runtime parameters</th>
+                <th>Published version</th>
+                <th className="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleDefinitions.length === 0 ? (
+                <tr>
+                  <td colSpan="9">
+                    <div className="sky-empty-state">
+                      No workflow definitions match the current filters.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                visibleDefinitions.map((definition) => {
+                  const selected = selectedCode === definition.workflowCode;
+
+                  return (
+                    <tr
+                      className={`sky-clickable-row ${selected ? 'sky-selected-row' : ''}`}
+                      key={definition.workflowDefinitionId || definition.workflowCode}
+                      onClick={() => selectDefinition(definition.workflowCode)}
+                    >
+                      <td>
+                        <div className="fw-bold sky-detail-value">{definition.displayName}</div>
+                        <div className="small sky-muted">
+                          {definition.description || 'No workflow description.'}
+                        </div>
+                      </td>
+                      <td className="sky-mono">{definition.workflowCode}</td>
+                      <td>
+                        <StatusPill status={definition.status || 'ACTIVE'} />
+                      </td>
+                      <td>{getDefinitionStructureLabel(definition)}</td>
+                      <td>{getDefinitionNodeCount(definition)}</td>
+                      <td>{getDefinitionEdgeCount(definition)}</td>
+                      <td>{getDefinitionRuntimeParameterCount(definition)}</td>
+                      <td>{definition.publishedVersionNumber || '—'}</td>
+                      <td className="text-end">
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            selectDefinition(definition.workflowCode);
+                          }}
+                          type="button"
+                        >
+                          {selected ? 'Selected' : 'Select workflow'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        {renderManageWorkflowPagination()}
       </section>
 
       <div className="sky-workbench-main">
