@@ -5,6 +5,8 @@ import StatusPill from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService.js';
 
+const MANAGE_TOOLS_PAGE_SIZE = 10;
+
 const DEFAULT_FILTERS = {
   q: '',
   categoryCode: '',
@@ -550,6 +552,7 @@ function ManageTools() {
   const [tools, setTools] = useState([]);
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedToolId, setSelectedToolId] = useState('');
   const [selectedTool, setSelectedTool] = useState(null);
   const [form, setForm] = useState(createEmptyToolForm());
@@ -567,6 +570,11 @@ function ManageTools() {
     [selectedToolId, tools],
   );
 
+  const pageCount = Math.max(1, Math.ceil(total / MANAGE_TOOLS_PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * MANAGE_TOOLS_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * MANAGE_TOOLS_PAGE_SIZE, total);
+
   function scrollToVerification(behavior = 'smooth') {
     const target = verificationPanelRef.current;
 
@@ -578,15 +586,34 @@ function ManageTools() {
     target.focus({ preventScroll: true });
   }
 
-  async function loadList(nextFilters = filters, preferredToolId = selectedToolId) {
+  async function loadList(
+    nextFilters = filters,
+    preferredToolId = selectedToolId,
+    nextPage = currentPage,
+  ) {
     setLoading(true);
     setError('');
 
+    const safePage = Math.max(1, Number(nextPage) || 1);
+
     try {
-      const result = await adminService.listAdminTools(nextFilters);
+      const result = await adminService.listAdminTools({
+        ...nextFilters,
+        limit: MANAGE_TOOLS_PAGE_SIZE,
+        offset: (safePage - 1) * MANAGE_TOOLS_PAGE_SIZE,
+      });
       const nextTools = result.items || [];
+      const nextTotal = result.total || 0;
+      const nextPageCount = Math.max(1, Math.ceil(nextTotal / MANAGE_TOOLS_PAGE_SIZE));
+
+      if (nextTotal > 0 && safePage > nextPageCount) {
+        await loadList(nextFilters, preferredToolId, nextPageCount);
+        return;
+      }
+
       setTools(nextTools);
-      setTotal(result.total || 0);
+      setTotal(nextTotal);
+      setCurrentPage(safePage);
 
       if (creating) {
         return;
@@ -599,8 +626,8 @@ function ManageTools() {
         return;
       }
 
-      const exists = nextTools.some((tool) => tool.toolId === preferredToolId);
-      setSelectedToolId(exists ? preferredToolId : nextTools[0].toolId);
+      const preferredToolExists = nextTools.some((tool) => tool.toolId === preferredToolId);
+      setSelectedToolId(preferredToolExists ? preferredToolId : nextTools[0]?.toolId || '');
     } catch (loadError) {
       setError(loadError.message || 'Failed to load tool catalogue.');
     } finally {
@@ -638,7 +665,11 @@ function ManageTools() {
       try {
         const [optionsResult, toolsResult] = await Promise.all([
           adminService.getAdminToolOptions(),
-          adminService.listAdminTools(DEFAULT_FILTERS),
+          adminService.listAdminTools({
+            ...DEFAULT_FILTERS,
+            limit: MANAGE_TOOLS_PAGE_SIZE,
+            offset: 0,
+          }),
         ]);
 
         if (!active) {
@@ -649,6 +680,7 @@ function ManageTools() {
         setOptions(optionsResult);
         setTools(nextTools);
         setTotal(toolsResult.total || 0);
+        setCurrentPage(1);
         setSelectedToolId(requestedToolId || nextTools[0]?.toolId || '');
         setForm(createEmptyToolForm(optionsResult));
       } catch (loadError) {
@@ -821,13 +853,80 @@ function ManageTools() {
   function applyFilters(event) {
     event.preventDefault();
     setCreating(false);
-    loadList(filters, selectedToolId);
+    loadList(filters, '', 1);
   }
 
   function clearFilters() {
     setFilters(DEFAULT_FILTERS);
     setCreating(false);
-    loadList(DEFAULT_FILTERS, selectedToolId);
+    loadList(DEFAULT_FILTERS, '', 1);
+  }
+
+  function goToPage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
+    setCreating(false);
+    loadList(filters, '', nextPage);
+  }
+
+  function renderPagination() {
+    return (
+      <div className="sky-pagination-row">
+        <div className="small sky-muted">
+          Showing {rangeStart}-{rangeEnd} of {total} managed tool(s)
+        </div>
+        <div className="sky-pagination-controls" aria-label="Manage tools pagination">
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage <= 1 || loading}
+            onClick={() => goToPage(1)}
+            type="button"
+          >
+            First
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage <= 1 || loading}
+            onClick={() => goToPage(safeCurrentPage - 1)}
+            type="button"
+          >
+            Back
+          </button>
+          <label className="sky-pagination-select-label" htmlFor="manageToolsPageSelect">
+            Page
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select"
+            disabled={loading}
+            id="manageToolsPageSelect"
+            onChange={(event) => goToPage(event.target.value)}
+            value={safeCurrentPage}
+          >
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
+              <option key={page} value={page}>
+                {page}
+              </option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {pageCount}</span>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage >= pageCount || loading}
+            onClick={() => goToPage(safeCurrentPage + 1)}
+            type="button"
+          >
+            Next
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage >= pageCount || loading}
+            onClick={() => goToPage(pageCount)}
+            type="button"
+          >
+            Last
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -862,10 +961,18 @@ function ManageTools() {
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      <Panel className="mb-3" title="Catalogue filters" subtitle={`${total} matching tool(s)`}>
-        <form className="sky-card-body" onSubmit={applyFilters}>
-          <div className="row g-3 align-items-end">
-            <div className="col-xl-4 col-md-6">
+      <section className="sky-card mb-3 sky-functional-history-browser sky-manage-tools-browser">
+        <div className="sky-card-header">
+          <div>
+            <div className="sky-page-kicker">Catalogue browser</div>
+            <h2 className="h5 mb-0">Managed tools</h2>
+            <p className="sky-muted small mb-0">
+              Filter the catalogue, then select a row to inspect or edit the complete configuration
+              below.
+            </p>
+          </div>
+          <form className="sky-manage-tools-filter-grid" onSubmit={applyFilters}>
+            <div className="sky-manage-tools-search-filter">
               <label className="form-label sky-form-label" htmlFor="toolSearch">
                 Search
               </label>
@@ -879,7 +986,7 @@ function ManageTools() {
                 value={filters.q}
               />
             </div>
-            <div className="col-xl-2 col-md-3">
+            <div>
               <label className="form-label sky-form-label" htmlFor="categoryFilter">
                 Category
               </label>
@@ -899,7 +1006,7 @@ function ManageTools() {
                 ))}
               </select>
             </div>
-            <div className="col-xl-2 col-md-3">
+            <div>
               <label className="form-label sky-form-label" htmlFor="runtimeFilter">
                 Runtime
               </label>
@@ -919,7 +1026,7 @@ function ManageTools() {
                 ))}
               </select>
             </div>
-            <div className="col-xl-2 col-md-3">
+            <div>
               <label className="form-label sky-form-label" htmlFor="riskFilter">
                 Risk
               </label>
@@ -939,7 +1046,7 @@ function ManageTools() {
                 ))}
               </select>
             </div>
-            <div className="col-xl-2 col-md-3">
+            <div>
               <label className="form-label sky-form-label" htmlFor="statusFilter">
                 Status
               </label>
@@ -956,77 +1063,130 @@ function ManageTools() {
                 <option value="false">Disabled</option>
               </select>
             </div>
-            <div className="col-12 d-flex flex-wrap gap-2">
-              <button className="btn sky-btn-primary" type="submit">
+            <div className="sky-manage-tools-filter-actions">
+              <button className="btn btn-sm sky-btn-primary" type="submit">
                 Apply filters
               </button>
-              <button className="btn sky-btn-ghost" onClick={clearFilters} type="button">
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
                 Clear
               </button>
             </div>
-          </div>
-        </form>
-      </Panel>
-
-      <div className="row g-3 align-items-start">
-        <div className="col-xxl-4">
-          <Panel title="Tool catalogue" subtitle="Select a record to inspect or edit.">
-            <div className="sky-card-body p-0">
-              {loading ? (
-                <div className="sky-empty-state py-5">
-                  <div className="spinner-border text-info" role="status" aria-label="Loading" />
-                </div>
-              ) : tools.length === 0 ? (
-                <div className="sky-empty-state py-5">No tools match the current filters.</div>
-              ) : (
-                <div className="list-group list-group-flush sky-tool-admin-list">
-                  {tools.map((tool) => (
-                    <button
-                      className={`list-group-item list-group-item-action sky-tool-admin-list-item ${
-                        tool.toolId === selectedToolId && !creating ? 'active' : ''
-                      }`}
-                      key={tool.toolId}
-                      onClick={() => {
-                        setCreating(false);
-                        setSelectedToolId(tool.toolId);
-                        setSuccess('');
-                        setError('');
-                      }}
-                      type="button"
-                    >
-                      <div className="d-flex align-items-start justify-content-between gap-2">
-                        <div>
-                          <div className="fw-semibold">{tool.label}</div>
-                          <div className="small sky-mono">{tool.toolCode}</div>
-                        </div>
-                        <StatusPill status={tool.enabled ? 'ACTIVE' : 'OFFLINE'}>
-                          {tool.enabled ? 'Enabled' : 'Disabled'}
-                        </StatusPill>
-                      </div>
-                      <div className="small sky-muted mt-2">
-                        {tool.categoryLabel} · {tool.runtimeCode} · {tool.riskCode} ·{' '}
-                        {tool.parameterCount} param(s)
-                      </div>
-                      <div className="d-flex flex-wrap gap-1 mt-2">
-                        {(tool.visibility || []).map((channel) => (
-                          <span className="sky-pill sky-pill-info" key={channel}>
-                            {channel}
-                          </span>
-                        ))}
-                        {tool.outputType && (
-                          <span className="sky-pill sky-pill-success">{tool.outputType}</span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Panel>
+          </form>
         </div>
 
-        <div className="col-xxl-8">
-          <Panel
+        <div className="table-responsive sky-table-card sky-functional-history-table-card">
+          <table className="table table-sm table-hover sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Runtime</th>
+                <th>Risk</th>
+                <th>Parameters</th>
+                <th>Visibility</th>
+                <th>Output contract</th>
+                <th>Status</th>
+                <th className="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="8">
+                    <div className="sky-empty-state py-4">
+                      <div className="spinner-border text-info" role="status" aria-label="Loading" />
+                    </div>
+                  </td>
+                </tr>
+              ) : tools.length === 0 ? (
+                <tr>
+                  <td colSpan="8">
+                    <div className="sky-empty-state py-4">
+                      No tools match the current filters.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                tools.map((tool) => (
+                  <tr
+                    className={`sky-clickable-row ${
+                      tool.toolId === selectedToolId && !creating ? 'sky-selected-row' : ''
+                    }`}
+                    key={tool.toolId}
+                    onClick={() => {
+                      setCreating(false);
+                      setSelectedToolId(tool.toolId);
+                      setSuccess('');
+                      setError('');
+                    }}
+                  >
+                    <td>
+                      <div className="fw-semibold sky-detail-value">{tool.label}</div>
+                      <div className="small sky-mono">{tool.toolCode}</div>
+                      <div className="small sky-muted">{tool.categoryLabel}</div>
+                    </td>
+                    <td>{tool.runtimeCode || '—'}</td>
+                    <td>
+                      <span className={`sky-pill ${
+                        tool.riskCode === 'high'
+                          ? 'sky-pill-danger'
+                          : tool.riskCode === 'medium'
+                            ? 'sky-pill-warning'
+                            : 'sky-pill-success'
+                      }`}>
+                        {tool.riskCode || 'unknown'}
+                      </span>
+                    </td>
+                    <td>{tool.parameterCount || 0}</td>
+                    <td>
+                      <div className="d-flex flex-wrap gap-1">
+                        {(tool.visibility || []).length > 0 ? (
+                          tool.visibility.map((channel) => (
+                            <span className="sky-pill sky-pill-info" key={channel}>
+                              {channel}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="sky-muted">—</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {tool.outputType ? (
+                        <span className="sky-pill sky-pill-success">{tool.outputType}</span>
+                      ) : (
+                        <span className="sky-muted">Standard process output</span>
+                      )}
+                    </td>
+                    <td>
+                      <StatusPill status={tool.enabled ? 'ACTIVE' : 'OFFLINE'}>
+                        {tool.enabled ? 'Enabled' : 'Disabled'}
+                      </StatusPill>
+                    </td>
+                    <td className="text-end">
+                      <button
+                        className="btn btn-sm sky-btn-ghost"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setCreating(false);
+                          setSelectedToolId(tool.toolId);
+                          setSuccess('');
+                          setError('');
+                        }}
+                        type="button"
+                      >
+                        {tool.toolId === selectedToolId && !creating ? 'Selected' : 'Manage tool'}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {renderPagination()}
+      </section>
+
+      <Panel
             actions={
               !creating && selectedTool ? (
                 <>
@@ -1570,12 +1730,11 @@ function ManageTools() {
                 </div>
               </form>
             )}
-          </Panel>
-        </div>
+      </Panel>
 
-        {!creating && selectedTool?.managedBySkyCommand && (
-          <div
-            className="col-12 sky-managed-tool-verification-anchor"
+      {!creating && selectedTool?.managedBySkyCommand && (
+        <div
+            className="sky-managed-tool-verification-anchor"
             id="managed-tool-verification"
             ref={verificationPanelRef}
             tabIndex="-1"
@@ -1585,9 +1744,8 @@ function ManageTools() {
               onToolUpdated={handleManagedToolUpdated}
               tool={selectedTool}
             />
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }
