@@ -117,8 +117,8 @@ assert(
 assert(
   graphSource.includes('nodeElement.getBoundingClientRect()') &&
     graphSource.includes('viewport.scrollLeft') &&
-    graphSource.includes("viewport.scrollTo({ behavior: 'smooth', left: targetLeft });"),
-  'Follow-active mode must center the current node inside the horizontally scrolling workflow lane.',
+    graphSource.includes("behavior: prefersReducedWorkflowMotion() ? 'auto' : 'smooth'"),
+  'Follow-active mode must center the current node while respecting reduced-motion preferences.',
 );
 assert(
   cssSource.includes('.sky-workflow-visual-node.is-runtime-completed {') &&
@@ -126,6 +126,29 @@ assert(
     cssSource.includes('.sky-workflow-visual-edge.is-runtime-active-edge .sky-workflow-visual-edge-line::after') &&
     cssSource.includes('transform: translateX(430%);'),
   'Completed nodes must glow gold and the active connector charge must travel left to right.',
+);
+
+
+assert(
+  graphSource.includes('function getRuntimeConditionRoutes(') &&
+    graphSource.includes('runtimeBranchEdgeIndices.has(index)') &&
+    graphSource.includes('activeBranchEdgeIndices.has(index)') &&
+    graphSource.includes('sky-workflow-runtime-route'),
+  'Condition gates must expose the executed route and illuminate connector paths across skipped nodes.',
+);
+assert(
+  graphSource.includes('↪ Return to active node') &&
+    graphSource.includes('suspendFollowForManualNavigation') &&
+    graphSource.includes('onPointerDown={handleViewportPointerDown}') &&
+    graphSource.includes('onWheel={handleViewportWheel}'),
+  'Manual graph navigation must suspend auto-follow and offer a return-to-active action.',
+);
+assert(
+  cssSource.includes('.sky-workflow-visual-node.is-selected {') &&
+    cssSource.includes('outline: 2px solid rgba(72, 184, 255, 0.82);') &&
+    cssSource.includes('.sky-workflow-visual-edge.is-runtime-branch-path-edge') &&
+    cssSource.includes('@media (prefers-reduced-motion: reduce)'),
+  'Runtime graphs must distinguish selected nodes, illuminate chosen branch paths, and support reduced motion.',
 );
 
 console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');

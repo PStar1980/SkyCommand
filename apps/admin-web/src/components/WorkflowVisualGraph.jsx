@@ -260,10 +260,49 @@ function getRuntimeStatusForNode({ nodeRun = null, approval = null } = {}) {
   return nodeRun?.status || 'NOT_RUN';
 }
 
-function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null } = {}) {
+function getConditionRuntimeRoute({ node = {}, nodeRun = null, nodes = [] } = {}) {
+  if (normalizeNodeType(node.nodeTypeCode) !== 'CONDITION' || !nodeRun?.output) {
+    return null;
+  }
+
+  const output = nodeRun.output || {};
+  const inferredBranchLabel = typeof output.passed === 'boolean'
+    ? (output.passed ? 'TRUE' : 'FALSE')
+    : '';
+  const branchLabel = String(output.branchLabel || output.route || inferredBranchLabel)
+    .trim()
+    .toUpperCase();
+  const targetNodeKey = String(
+    output.branchTargetNodeKey || output.nextNodeKey || output.targetNodeKey || '',
+  ).trim();
+  const targetIndex = targetNodeKey
+    ? nodes.findIndex((candidate) => candidate.nodeKey === targetNodeKey)
+    : -1;
+  const targetLabel = targetNodeKey ? getBranchTargetLabel(nodes, targetNodeKey) : '';
+  const falseAction = formatAction(node.inputParameters?.onFalse, 'STOP_SUCCESS');
+
+  if (!branchLabel && !targetNodeKey) {
+    return null;
+  }
+
+  return {
+    branchLabel: branchLabel || 'ROUTE',
+    detail: targetNodeKey
+      ? `${branchLabel || 'ROUTE'} → ${targetLabel}`
+      : branchLabel === 'FALSE'
+        ? `${branchLabel} · ${falseAction}`
+        : branchLabel || 'Route captured',
+    targetIndex,
+    targetLabel,
+    targetNodeKey,
+  };
+}
+
+function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null, nodes = [] } = {}) {
   const status = getRuntimeStatusForNode({ nodeRun, approval });
   const meta = getRuntimeStatusMeta(status);
   const durationMs = getNodeRunDurationMs(nodeRun);
+  const conditionRoute = getConditionRuntimeRoute({ node, nodeRun, nodes });
   const pieces = [];
 
   if (nodeRun?.attemptCount !== undefined && nodeRun?.attemptCount !== null) {
@@ -278,10 +317,6 @@ function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null } = {}) 
     pieces.push(`Approval ${String(approval.status).toLowerCase()}`);
   }
 
-  if (nodeRun?.output?.branchTaken) {
-    pieces.push(`Branch ${nodeRun.output.branchLabel || ''}`.trim());
-  }
-
   if (nodeRun?.errorMessage) {
     pieces.push('Has error');
   }
@@ -290,6 +325,7 @@ function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null } = {}) 
     ...meta,
     status,
     detail: pieces.join(' · ') || (nodeRun ? 'Runtime captured' : 'No node run recorded'),
+    conditionRoute,
     nodeRun,
     approval,
     node,
@@ -310,6 +346,40 @@ function isRuntimeTerminalStatus(status) {
 function isRuntimeCompletedStatus(status) {
   const normalized = normalizeRuntimeStatus(status);
   return ['COMPLETED', 'SUCCESS', 'APPROVED'].includes(normalized);
+}
+
+function getRuntimeConditionRoutes(nodes = [], nodeRuns = [], approvals = []) {
+  return nodes.reduce((routes, node, index) => {
+    if (normalizeNodeType(node.nodeTypeCode) !== 'CONDITION') {
+      return routes;
+    }
+
+    const nodeRun = getNodeRunForNode(node, nodeRuns);
+    const approval = getApprovalForNode({ node, nodeRun, approvals });
+    const status = getRuntimeStatusForNode({ nodeRun, approval });
+    const route = getConditionRuntimeRoute({ node, nodeRun, nodes });
+
+    if (!isRuntimeCompletedStatus(status) || !route || route.targetIndex <= index) {
+      return routes;
+    }
+
+    routes.push({
+      ...route,
+      conditionIndex: index,
+      edgeIndices: Array.from(
+        { length: route.targetIndex - index },
+        (_, offset) => index + offset,
+      ),
+    });
+
+    return routes;
+  }, []);
+}
+
+function prefersReducedWorkflowMotion() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 function getActiveRuntimeNodeIndex(nodes = [], nodeRuns = [], approvals = []) {
@@ -605,7 +675,7 @@ function WorkflowVisualNode({
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${index + 1}`;
   const summary = getNodeSummary(node, catalogs);
   const detail = getNodeDetail(node, nodes);
-  const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval }) : null;
+  const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval, nodes }) : null;
 
   return (
     <button
@@ -638,6 +708,15 @@ function WorkflowVisualNode({
         <div className="sky-workflow-runtime-overlay">
           <div className="sky-page-kicker">Runtime</div>
           <div>{runtimeOverlay.detail}</div>
+          {runtimeOverlay.conditionRoute ? (
+            <div
+              className={`sky-workflow-runtime-route is-${runtimeOverlay.conditionRoute.branchLabel.toLowerCase()}`}
+              title={runtimeOverlay.conditionRoute.detail}
+            >
+              <span className="sky-workflow-runtime-route-label">Condition route</span>
+              <strong>{runtimeOverlay.conditionRoute.detail}</strong>
+            </div>
+          ) : null}
           {nodeRun?.errorMessage ? <div className="sky-workflow-runtime-error">{nodeRun.errorMessage}</div> : null}
         </div>
       ) : null}
@@ -646,11 +725,11 @@ function WorkflowVisualNode({
   );
 }
 
-function WorkflowVisualEdge({ active = false, completed = false, index }) {
+function WorkflowVisualEdge({ active = false, branchPath = false, completed = false, index }) {
   return (
     <div
-      className={`sky-workflow-visual-edge ${completed ? 'is-runtime-completed-edge' : ''} ${active ? 'is-runtime-active-edge' : ''}`}
-      aria-label={`Sequential edge after node ${index + 1}`}
+      className={`sky-workflow-visual-edge ${completed ? 'is-runtime-completed-edge' : ''} ${active ? 'is-runtime-active-edge' : ''} ${branchPath ? 'is-runtime-branch-path-edge' : ''}`}
+      aria-label={`${branchPath ? 'Condition route' : 'Sequential'} edge after node ${index + 1}`}
     >
       <div className="sky-workflow-visual-edge-line" />
       <div className="sky-workflow-visual-edge-arrow">→</div>
@@ -858,7 +937,7 @@ function WorkflowVisualGraph({
     ? nodes.map((node) => {
         const nodeRun = getNodeRunForNode(node, nodeRuns);
         const approval = getApprovalForNode({ node, nodeRun, approvals });
-        return getRuntimeOverlay({ node, nodeRun, approval });
+        return getRuntimeOverlay({ node, nodeRun, approval, nodes });
       })
     : [];
   const runtimeCounts = runtimeOverlays.reduce((counts, overlay) => {
@@ -876,6 +955,12 @@ function WorkflowVisualGraph({
 
     return counts;
   }, { completed: 0, active: 0, failed: 0, notRun: 0 });
+  const runtimeConditionRoutes = runtimeMode
+    ? getRuntimeConditionRoutes(nodes, nodeRuns, approvals)
+    : [];
+  const runtimeBranchEdgeIndices = new Set(
+    runtimeConditionRoutes.flatMap((route) => route.edgeIndices),
+  );
   const activeNodeIndex = runtimeMode ? getActiveRuntimeNodeIndex(nodes, nodeRuns, approvals) : -1;
   const nextIncompleteNodeIndex = runtimeMode ? getNextIncompleteRuntimeNodeIndex(nodes, nodeRuns, approvals) : -1;
   const normalizedRunStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
@@ -900,6 +985,10 @@ function WorkflowVisualGraph({
         ? lastCompletedNodeIndex
         : nextIncompleteNodeIndex;
   const activeEdgeIndex = followTargetIndex > 0 ? followTargetIndex - 1 : -1;
+  const activeConditionRoute = runtimeConditionRoutes.find(
+    (route) => route.targetIndex === followTargetIndex,
+  );
+  const activeBranchEdgeIndices = new Set(activeConditionRoute?.edgeIndices || []);
   const activeNode = followTargetIndex >= 0 ? nodes[followTargetIndex] : null;
   const runtimeStatus = normalizeRuntimeStatus(runStatus || temporalRuntime?.status || 'UNKNOWN');
   const runStatusMeta = runtimeMode ? getRuntimeStatusMeta(runtimeStatus) : null;
@@ -944,9 +1033,42 @@ function WorkflowVisualGraph({
           + (nodeRect.left - viewportRect.left)
           - (viewport.clientWidth - nodeRect.width) / 2,
       );
-      viewport.scrollTo({ behavior: 'smooth', left: targetLeft });
+      viewport.scrollTo({
+        behavior: prefersReducedWorkflowMotion() ? 'auto' : 'smooth',
+        left: targetLeft,
+      });
     }
   }, [followActiveNode, followTargetIndex, onNodeSelect, runtimeMode, selectedNodeIndex]);
+
+  function suspendFollowForManualNavigation() {
+    if (runtimeMode && followActiveNode && onFollowActiveNodeChange) {
+      onFollowActiveNodeChange(false);
+    }
+  }
+
+  function handleViewportPointerDown(event) {
+    const interactiveTarget = event.target.closest?.(
+      '.sky-workflow-visual-node, .sky-workflow-visual-edge, button, input, label',
+    );
+
+    if (!interactiveTarget) {
+      suspendFollowForManualNavigation();
+    }
+  }
+
+  function handleViewportTouchStart(event) {
+    const interactiveTarget = event.target.closest?.('.sky-workflow-visual-node, button, input, label');
+
+    if (!interactiveTarget) {
+      suspendFollowForManualNavigation();
+    }
+  }
+
+  function handleViewportWheel(event) {
+    if (Math.abs(event.deltaX) > 0 || event.shiftKey) {
+      suspendFollowForManualNavigation();
+    }
+  }
 
   function clearDragState() {
     setDraggedNodeIndex(null);
@@ -1017,14 +1139,33 @@ function WorkflowVisualGraph({
             ) : headerActions
           ) : null}
           {runtimeMode && onFollowActiveNodeChange ? (
-            <label className={`sky-follow-active-toggle ${followActiveNode ? 'is-enabled' : ''}`}>
-              <input
-                checked={Boolean(followActiveNode)}
-                onChange={(event) => onFollowActiveNodeChange?.(event.target.checked)}
-                type="checkbox"
-              />
-              Follow active node
-            </label>
+            followActiveNode ? (
+              <label className="sky-follow-active-toggle is-enabled">
+                <input
+                  checked
+                  onChange={(event) => onFollowActiveNodeChange?.(event.target.checked)}
+                  type="checkbox"
+                />
+                Follow active node
+              </label>
+            ) : followTargetIndex >= 0 ? (
+              <button
+                className="sky-follow-active-return"
+                onClick={() => onFollowActiveNodeChange?.(true)}
+                type="button"
+              >
+                ↪ Return to active node
+              </button>
+            ) : (
+              <label className="sky-follow-active-toggle">
+                <input
+                  checked={false}
+                  onChange={(event) => onFollowActiveNodeChange?.(event.target.checked)}
+                  type="checkbox"
+                />
+                Follow active node
+              </label>
+            )
           ) : null}
           {runtimeMode && runtimeCounts.active > 0 && activeNode ? (
             <span className="sky-pill sky-pill-warning">Active: {activeNode.displayName || activeNode.nodeKey || `Node ${followTargetIndex + 1}`}</span>
@@ -1053,11 +1194,19 @@ function WorkflowVisualGraph({
           ) : null}
           {runtimeMode ? (
             <div className="sky-workflow-visual-runtime-note mb-3">
-              Runtime overlay is read-only. Completed, running, failed, pending approval, skipped, and branch-taken states come from the selected workflow run ledger.
+              Runtime overlay is read-only. Completed nodes and executed condition routes illuminate gold; skipped or unexecuted nodes remain dim.
             </div>
           ) : null}
           <div className="sky-workflow-visual-viewport">
-            <div className="sky-workflow-visual-map" ref={viewportRef} role="list" aria-label="Sequential workflow visual map">
+            <div
+              className="sky-workflow-visual-map"
+              ref={viewportRef}
+              role="list"
+              aria-label="Sequential workflow visual map"
+              onPointerDown={handleViewportPointerDown}
+              onTouchStart={handleViewportTouchStart}
+              onWheel={handleViewportWheel}
+            >
               {nodes.map((node, index) => (
               <div className="sky-workflow-visual-step" key={`${index}-${node.nodeKey || node.targetCode || node.nodeTypeCode}`} role="listitem">
                 <WorkflowVisualNode
@@ -1083,10 +1232,13 @@ function WorkflowVisualGraph({
                 />
                 {index < nodes.length - 1 ? (
                   <WorkflowVisualEdge
-                    active={runtimeMode && activeEdgeIndex === index}
+                    active={runtimeMode
+                      && (activeEdgeIndex === index || activeBranchEdgeIndices.has(index))}
+                    branchPath={runtimeMode && runtimeBranchEdgeIndices.has(index)}
                     completed={runtimeMode
-                      && isRuntimeCompletedStatus(runtimeOverlays[index]?.status)
-                      && isRuntimeCompletedStatus(runtimeOverlays[index + 1]?.status)}
+                      && (runtimeBranchEdgeIndices.has(index)
+                        || (isRuntimeCompletedStatus(runtimeOverlays[index]?.status)
+                          && isRuntimeCompletedStatus(runtimeOverlays[index + 1]?.status)))}
                     index={index}
                   />
                 ) : null}
