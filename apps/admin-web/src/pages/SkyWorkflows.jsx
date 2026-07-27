@@ -4737,6 +4737,10 @@ function SkyWorkflows({ mode = 'start' }) {
     runId: null,
     wasActive: false,
   });
+  const approvalPauseFocusRef = useRef({
+    approvalRequestId: null,
+    runId: null,
+  });
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
@@ -5375,26 +5379,50 @@ function SkyWorkflows({ mode = 'start' }) {
       runId: selectedRun?.workflowRunRecordId || null,
       wasActive: isActiveRun(selectedRun),
     };
+    approvalPauseFocusRef.current = {
+      approvalRequestId: null,
+      runId: selectedRun?.workflowRunRecordId || null,
+    };
   }, [selectedRun?.workflowRunRecordId]);
 
   useEffect(() => {
+    const runId = selectedRun?.workflowRunRecordId || null;
+
     if (!workflowApprovalPaused || !pendingApproval) {
+      approvalPauseFocusRef.current = {
+        approvalRequestId: null,
+        runId,
+      };
       return;
     }
 
     setFollowActiveRuntimeNode(false);
 
+    const approvalRequestId =
+      pendingApproval.approvalRequestId ||
+      pendingApproval.workflowApprovalId ||
+      pendingApproval.nodeKey ||
+      'pending-approval';
+    const approvalFocusAlreadyApplied =
+      approvalPauseFocusRef.current.runId === runId &&
+      approvalPauseFocusRef.current.approvalRequestId === approvalRequestId;
     const approvalNodeIndex = runtimeVisualNodes.findIndex(
       (node) => node.nodeKey && node.nodeKey === pendingApproval.nodeKey,
     );
 
-    if (approvalNodeIndex >= 0 && selectedRuntimeNodeIndex === null) {
+    if (approvalNodeIndex >= 0 && !approvalFocusAlreadyApplied) {
       setSelectedRuntimeNodeIndex(approvalNodeIndex);
+      approvalPauseFocusRef.current = {
+        approvalRequestId,
+        runId,
+      };
     }
   }, [
     pendingApproval?.approvalRequestId,
+    pendingApproval?.nodeKey,
+    pendingApproval?.workflowApprovalId,
     runtimeVisualNodes,
-    selectedRuntimeNodeIndex,
+    selectedRun?.workflowRunRecordId,
     workflowApprovalPaused,
   ]);
 

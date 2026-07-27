@@ -161,13 +161,16 @@ assert(
     graphSource.includes('onApprovalReview?.(approval, index, node)') &&
     graphSource.includes('selected={!selectionLocked && selectedNodeIndex === index}') &&
     workflowSource.includes('const workflowSelectionLocked = Boolean(isActiveRun(selectedRun) && !workflowApprovalPaused);') &&
+    workflowSource.includes('const approvalPauseFocusRef = useRef({') &&
+    workflowSource.includes('approvalFocusAlreadyApplied') &&
+    workflowSource.includes('setSelectedRuntimeNodeIndex(approvalNodeIndex)') &&
     workflowSource.includes('onApprovalReview={handleApprovalReview}') &&
     approvalOverlaySource.includes('Approve and continue') &&
     approvalOverlaySource.includes('workflowService.decideApproval') &&
     cssSource.includes('.sky-workflow-approval-node-action') &&
     cssSource.includes('.sky-card .alert-info,') &&
     cssSource.includes('.sky-workflow-visual-node.is-selection-locked {'),
-  'Active execution must lock inspection, pending approvals must unlock the graph, and approval decisions must be available from the approval node.',
+  'Active execution must lock inspection, pending approvals must unlock the graph and focus the approval node once, and approval decisions must be available from the approval node.',
 );
 
 assert(
