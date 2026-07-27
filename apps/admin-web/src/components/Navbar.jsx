@@ -391,6 +391,28 @@ function createNavGroups(hasPermission, hasRole) {
     .filter((group) => group.items.length > 0);
 }
 
+function getNavGroupForPath(navGroups = [], pathname = '') {
+  const normalizedPath = String(pathname || '').replace(/\/+$/, '') || '/';
+  const matches = navGroups.flatMap((group) =>
+    group.items
+      .filter((item) => item.to)
+      .map((item) => ({
+        group,
+        path: String(item.to).split('?')[0].replace(/\/+$/, '') || '/',
+      })),
+  );
+
+  const exactMatch = matches.find((match) => match.path === normalizedPath);
+
+  if (exactMatch) {
+    return exactMatch.group;
+  }
+
+  return matches
+    .filter((match) => normalizedPath.startsWith(`${match.path}/`))
+    .sort((left, right) => right.path.length - left.path.length)[0]?.group || null;
+}
+
 function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -401,6 +423,7 @@ function Navbar() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedNavGroupLabel, setExpandedNavGroupLabel] = useState('Dashboards');
   const [commandQuery, setCommandQuery] = useState('');
   const [topbarPanel, setTopbarPanel] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
@@ -411,6 +434,13 @@ function Navbar() {
     () => createNavGroups(hasPermission, hasRole),
     [hasPermission, hasRole],
   );
+  useEffect(() => {
+    const activeGroup = getNavGroupForPath(navGroups, location.pathname);
+    const fallbackGroup = navGroups.find((group) => group.label === 'Dashboards') || navGroups[0];
+
+    setExpandedNavGroupLabel(activeGroup?.label || fallbackGroup?.label || 'Dashboards');
+  }, [location.pathname, navGroups]);
+
   const commandSearchTargets = useMemo(
     () =>
       navGroups.flatMap((group) =>
@@ -617,6 +647,20 @@ function Navbar() {
     document.body.scrollTop = 0;
   }
 
+  function handleSidebarGroupSelect(group) {
+    if (!group?.label || group.label === expandedNavGroupLabel) {
+      return;
+    }
+
+    const firstItem = group.items?.find((item) => item.to);
+    setExpandedNavGroupLabel(group.label);
+
+    if (firstItem?.to) {
+      navigate(firstItem.to);
+      handleSidebarNavigate();
+    }
+  }
+
   async function handleLogout() {
     await logout();
     navigate('/login', { replace: true });
@@ -661,8 +705,10 @@ function Navbar() {
   return (
     <>
       <SidebarNav
+        expandedGroupLabel={expandedNavGroupLabel}
         navGroups={navGroups}
         onClose={() => setSidebarOpen(false)}
+        onGroupSelect={handleSidebarGroupSelect}
         onNavigate={handleSidebarNavigate}
         open={sidebarOpen}
       />

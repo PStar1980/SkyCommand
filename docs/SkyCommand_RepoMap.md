@@ -87,6 +87,7 @@ SkyServer/
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
 │   │       │       ├── ServerStatusPanel.jsx
+│   │       │       ├── sidebarAccordionSelfTest.js
 │   │       │       ├── SidebarNav.jsx
 │   │       │       ├── SkyCommandMark.jsx
 │   │       │       ├── SmartPollingStatus.jsx
