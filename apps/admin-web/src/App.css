@@ -370,7 +370,7 @@
   flex: 1 1 auto;
   min-height: 0;
   align-content: start;
-  gap: 1.09rem;
+  gap: 0.42rem;
   overflow-y: auto;
   padding: 1.12rem 1.2rem 2.15rem;
   scrollbar-color: rgba(124, 144, 177, 0.18) transparent;
@@ -397,22 +397,116 @@
   background-clip: padding-box;
 }
 
+.sky-sidebar-group {
+  display: grid;
+  min-width: 0;
+}
+
 .sky-sidebar-group-label {
   display: flex;
+  width: 100%;
+  min-height: 2.72rem;
   align-items: center;
   gap: 0.56rem;
+  border: 1px solid transparent;
+  border-radius: 0.78rem;
+  background: transparent;
   color: #9bbcff;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 0.92rem;
   font-weight: 900;
   letter-spacing: 0.15em;
-  padding: 0.42rem 0.66rem 0.5rem;
+  padding: 0.52rem 0.66rem;
+  text-align: left;
   text-shadow: 0 0 18px rgba(72, 167, 255, 0.12);
   text-transform: uppercase;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.sky-sidebar-group-label:hover,
+.sky-sidebar-group-label:focus-visible {
+  border-color: rgba(72, 167, 255, 0.2);
+  background: rgba(72, 167, 255, 0.045);
+  color: #d9eaff;
+  outline: none;
+}
+
+.sky-sidebar-group.is-expanded .sky-sidebar-group-label {
+  border-color: rgba(124, 168, 255, 0.24);
+  background:
+    linear-gradient(90deg, rgba(72, 167, 255, 0.09), rgba(137, 109, 255, 0.045) 70%, transparent),
+    rgba(5, 10, 20, 0.46);
+  color: #c4d7ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.sky-sidebar-group-icon {
+  display: inline-flex;
+  width: 1rem;
+  align-items: center;
+  justify-content: center;
+  color: #a7c9ff;
+  flex: 0 0 auto;
+}
+
+.sky-sidebar-group-title {
+  min-width: 0;
+}
+
+.sky-sidebar-group-chevron {
+  display: inline-flex;
+  margin-left: auto;
+  align-items: center;
+  justify-content: center;
+  color: #7185a7;
+  font-size: 1.25rem;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition:
+    color 160ms ease,
+    transform 180ms ease;
+}
+
+.sky-sidebar-group.is-expanded .sky-sidebar-group-chevron {
+  color: #9ad7ff;
+  transform: rotate(90deg);
+}
+
+.sky-sidebar-group-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.2rem);
+  transition:
+    grid-template-rows 190ms ease,
+    opacity 150ms ease,
+    transform 190ms ease;
+}
+
+.sky-sidebar-group.is-expanded .sky-sidebar-group-panel {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .sky-sidebar-group-items {
   display: grid;
+  min-height: 0;
   gap: 0.35rem;
+  overflow: hidden;
+  padding-top: 0;
+  transition: padding-top 190ms ease;
+}
+
+.sky-sidebar-group.is-expanded .sky-sidebar-group-items {
+  padding-top: 0.38rem;
 }
 
 .sky-sidebar-link {
@@ -2646,7 +2740,6 @@
   box-shadow: 0 18px 48px rgba(72, 167, 255, 0.1);
 }
 
-
 .sky-workflow-visual-node.is-selection-locked {
   cursor: default;
 }
@@ -4784,8 +4877,7 @@
 
 .sky-workflow-visual-edge.is-runtime-branch-path-edge .sky-workflow-visual-edge-arrow {
   background:
-    radial-gradient(circle, rgba(255, 210, 97, 0.12), transparent 68%),
-    rgba(7, 13, 25, 0.94);
+    radial-gradient(circle, rgba(255, 210, 97, 0.12), transparent 68%), rgba(7, 13, 25, 0.94);
 }
 
 .sky-workflow-visual-edge.is-runtime-active-edge .sky-workflow-visual-edge-line {
@@ -5263,7 +5355,6 @@
   min-height: 1.8rem;
 }
 
-
 /* Ad hoc demo polish — Data Intelligence ledger and centered command search */
 .sky-data-status-filters {
   display: grid;
@@ -5331,7 +5422,6 @@
     flex-wrap: wrap;
   }
 }
-
 
 /* Ad hoc demo polish — route-contained workflow graph and consistent navigation */
 .sky-workflow-history-shell,
@@ -5550,7 +5640,10 @@
 
 .sky-run-tool-result-metrics {
   display: grid;
-  grid-template-columns: minmax(8rem, 0.5fr) minmax(9rem, 0.7fr) minmax(18rem, 1.5fr) minmax(12rem, 0.9fr);
+  grid-template-columns: minmax(8rem, 0.5fr) minmax(9rem, 0.7fr) minmax(18rem, 1.5fr) minmax(
+      12rem,
+      0.9fr
+    );
   gap: 0.75rem;
 }
 
@@ -5800,7 +5893,6 @@
   padding-inline-start: 1.75rem;
   scroll-padding-inline-start: 1.75rem;
 }
-
 
 /* Workflow approval graph integration and dark informational notices */
 .sky-card .alert-info,
