@@ -181,6 +181,10 @@ assert.match(dashboardSource, /showRouteTable=\{false\}/);
 assert.match(dashboardSource, /<ServerStatusPanel/);
 assert.match(dashboardSource, /label: 'Web server'/);
 assert.match(dashboardSource, /label: 'Temporal worker'/);
+assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Online'/);
+assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'ONLINE'/);
+assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Polling'/);
+assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'POLLING'/);
 assert.doesNotMatch(dashboardSource, /label: 'Readiness'/);
 assert.doesNotMatch(dashboardSource, /productionReadiness/);
 
@@ -191,7 +195,15 @@ const ingestionVisualsSource = fs.readFileSync(
 assert.match(ingestionVisualsSource, /source\.counts \|\| \{\}/);
 assert.match(ingestionVisualsSource, /Configured indicators grouped by source and freshness state\./);
 
+const serverStatusPanelSource = fs.readFileSync(
+  path.join(sourceRoot, 'components/ui/ServerStatusPanel.jsx'),
+  'utf8',
+);
+assert.match(serverStatusPanelSource, /ONLINE_STATUSES/);
+assert.match(serverStatusPanelSource, /isOnlineService\(item\) \? 'is-online' : ''/);
+
 assert.match(cssSource, /route-contained workflow graph/);
 assert.match(cssSource, /\.sky-workflow-history-detail-stack \.sky-workflow-visual-map \{[\s\S]*?overflow-x: auto;/);
+assert.match(cssSource, /\.sky-server-status-card\.is-online \{[\s\S]*?rgba\(255, 210, 97, 0\.78\)/);
 
 console.log('[SkyCommand] Dashboard header and page typography self-test passed.');
