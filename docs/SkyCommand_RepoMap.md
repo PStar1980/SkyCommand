@@ -52,6 +52,7 @@ SkyServer/
 │   │       │   ├── SummaryParameterEditor.jsx
 │   │       │   ├── ToolParameterEditor.jsx
 │   │       │   ├── WaitParameterEditor.jsx
+│   │       │   ├── WorkflowApprovalOverlay.jsx
 │   │       │   ├── WorkflowRetryPolicyEditor.jsx
 │   │       │   ├── WorkflowVisualGraph.jsx
 │   │       │   ├── charts/

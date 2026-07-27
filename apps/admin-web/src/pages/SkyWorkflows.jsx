@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import WorkflowApprovalOverlay from '../components/WorkflowApprovalOverlay.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
@@ -23,6 +24,8 @@ const HISTORY_POLL_IDLE_MS = 8000;
 const HISTORY_POLL_ACTIVE_MS = 2000;
 const HISTORY_POLL_SELECTED_ACTIVE_MS = 1500;
 const HISTORY_POLL_HIDDEN_MS = 30000;
+const APPROVAL_RESUME_POLL_MS = 500;
+const APPROVAL_RESUME_FAST_WINDOW_MS = 12000;
 
 const RUNTIME_FILTER_OPTIONS = [
   { value: 'skycommand', label: 'SkyCommand ledger' },
@@ -4662,11 +4665,12 @@ function TemporalRuntimePanel({ runtime }) {
 }
 
 function SkyWorkflows({ mode = 'start' }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasRole } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const canStart = hasPermission('WORKFLOW_RUN');
   const canCancelRun = hasPermission('WORKFLOW_RUN');
   const canTerminateRun = hasPermission('WORKFLOW_RUN');
+  const canDecideApproval = hasPermission('WORKFLOW_APPROVAL_DECIDE');
 
   const [definitions, setDefinitions] = useState([]);
   const [selectedDefinition, setSelectedDefinition] = useState(null);
@@ -4693,6 +4697,8 @@ function SkyWorkflows({ mode = 'start' }) {
   const [repositoryOptions, setRepositoryOptions] = useState([]);
   const [runtimeParameterError, setRuntimeParameterError] = useState('');
   const [runDetailOverlayOpen, setRunDetailOverlayOpen] = useState(false);
+  const [approvalOverlayRequest, setApprovalOverlayRequest] = useState(null);
+  const [approvalResumePollingUntil, setApprovalResumePollingUntil] = useState(0);
   const [telemetryState, setTelemetryState] = useState({
     activeRunCount: 0,
     consecutiveErrors: 0,
@@ -4716,6 +4722,11 @@ function SkyWorkflows({ mode = 'start' }) {
   const selectedNodeOutputs = selectedRunDetail?.nodeOutputs || [];
   const selectedContextValues = selectedRunDetail?.contextValues || [];
   const selectedApprovals = selectedRunDetail?.approvals || [];
+  const pendingApproval = selectedApprovals.find(
+    (approval) => String(approval?.status || '').toUpperCase() === 'PENDING',
+  ) || null;
+  const workflowApprovalPaused = Boolean(isActiveRun(selectedRun) && pendingApproval);
+  const workflowSelectionLocked = Boolean(isActiveRun(selectedRun) && !workflowApprovalPaused);
   const selectedTemporalRuntime = getTemporalRuntime(selectedRunDetail);
   const selectedRelations = selectedRunDetail?.relations || {};
   const runtimeParameters = useMemo(
@@ -4731,17 +4742,57 @@ function SkyWorkflows({ mode = 'start' }) {
   const isHistoryMode = mode === 'history';
 
   function handleRuntimeNodeSelect(index, options = {}) {
-    if (isActiveRun(selectedRun) && !options.followActiveNode) {
+    if (workflowSelectionLocked && !options.followActiveNode) {
       return;
     }
 
     setSelectedRuntimeNodeIndex(index);
 
-    // Manual inspection must remain under user control, including for failed,
-    // terminated, and not-run nodes. Only telemetry-driven selection keeps
-    // follow mode enabled.
+    // Manual inspection must remain under user control whenever execution is
+    // paused for approval or the run is terminal. Only telemetry-driven
+    // selection keeps follow mode enabled.
     if (!options.followActiveNode) {
       setFollowActiveRuntimeNode(false);
+    }
+  }
+
+  function handleApprovalReview(approval, nodeIndex) {
+    if (!approval) {
+      return;
+    }
+
+    setSelectedRuntimeNodeIndex(nodeIndex);
+    setFollowActiveRuntimeNode(false);
+    setApprovalOverlayRequest(approval);
+  }
+
+  async function handleApprovalDecisionComplete(result, sourceApproval) {
+    const resolvedApproval = result?.approval || {
+      ...sourceApproval,
+      status: result?.output?.status || 'APPROVED',
+    };
+    const runId = selectedRun?.workflowRunRecordId || sourceApproval?.workflowRunRecordId;
+
+    setApprovalResumePollingUntil(Date.now() + APPROVAL_RESUME_FAST_WINDOW_MS);
+    setFollowActiveRuntimeNode(true);
+    setMessage(result?.message || `Approval ${String(resolvedApproval.status || 'approved').toLowerCase()}.`);
+    setSelectedRunDetail((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        approvals: (current.approvals || []).map((approval) =>
+          approval.approvalRequestId === resolvedApproval.approvalRequestId
+            ? { ...approval, ...resolvedApproval }
+            : approval,
+        ),
+      };
+    });
+
+    if (runId) {
+      loadRunDetail(runId, { quiet: true, telemetry: true });
     }
   }
 
@@ -5041,11 +5092,14 @@ function SkyWorkflows({ mode = 'start' }) {
       }
 
       const selectedRunActive = isActiveRun(refreshedDetail?.run || nextSelectedRun);
-      const nextIntervalMs = getWorkflowHistoryPollingDelay({
-        activeRunCount,
-        hidden: document.visibilityState === 'hidden',
-        selectedRunActive,
-      });
+      const approvalResumeFast = selectedRunActive && approvalResumePollingUntil > Date.now();
+      const nextIntervalMs = approvalResumeFast
+        ? APPROVAL_RESUME_POLL_MS
+        : getWorkflowHistoryPollingDelay({
+            activeRunCount,
+            hidden: document.visibilityState === 'hidden',
+            selectedRunActive,
+          });
 
       const successfulAt = new Date().toISOString();
 
@@ -5260,9 +5314,10 @@ function SkyWorkflows({ mode = 'start' }) {
 
   useEffect(() => {
     setSelectedRuntimeNodeIndex(null);
+    setApprovalOverlayRequest(null);
 
     if (isActiveRun(selectedRun)) {
-      setFollowActiveRuntimeNode(true);
+      setFollowActiveRuntimeNode(!pendingApproval);
     }
 
     completionFocusRef.current = {
@@ -5271,6 +5326,27 @@ function SkyWorkflows({ mode = 'start' }) {
       wasActive: isActiveRun(selectedRun),
     };
   }, [selectedRun?.workflowRunRecordId]);
+
+  useEffect(() => {
+    if (!workflowApprovalPaused || !pendingApproval) {
+      return;
+    }
+
+    setFollowActiveRuntimeNode(false);
+
+    const approvalNodeIndex = runtimeVisualNodes.findIndex(
+      (node) => node.nodeKey && node.nodeKey === pendingApproval.nodeKey,
+    );
+
+    if (approvalNodeIndex >= 0 && selectedRuntimeNodeIndex === null) {
+      setSelectedRuntimeNodeIndex(approvalNodeIndex);
+    }
+  }, [
+    pendingApproval?.approvalRequestId,
+    runtimeVisualNodes,
+    selectedRuntimeNodeIndex,
+    workflowApprovalPaused,
+  ]);
 
   useEffect(() => {
     if (!selectedRun?.workflowRunRecordId) {
@@ -5422,11 +5498,13 @@ function SkyWorkflows({ mode = 'start' }) {
       timerId = window.setTimeout(pollWorkflowHistory, delay);
     }
 
-    const initialDelay = getWorkflowHistoryPollingDelay({
-      activeRunCount: runs.filter(isActiveRun).length,
-      hidden: document.visibilityState === 'hidden',
-      selectedRunActive: isActiveRun(selectedRun),
-    });
+    const initialDelay = isActiveRun(selectedRun) && approvalResumePollingUntil > Date.now()
+      ? APPROVAL_RESUME_POLL_MS
+      : getWorkflowHistoryPollingDelay({
+          activeRunCount: runs.filter(isActiveRun).length,
+          hidden: document.visibilityState === 'hidden',
+          selectedRunActive: isActiveRun(selectedRun),
+        });
 
     setTelemetryState((current) => ({
       ...current,
@@ -5449,6 +5527,7 @@ function SkyWorkflows({ mode = 'start' }) {
     filters.runtime,
     selectedRun?.workflowRunRecordId,
     selectedRun?.status,
+    approvalResumePollingUntil,
   ]);
 
   useEffect(() => {
@@ -5470,7 +5549,11 @@ function SkyWorkflows({ mode = 'start' }) {
       }
 
       const stillActive = isActiveRun(detail?.run || selectedRun);
-      const delay = stillActive ? HISTORY_POLL_SELECTED_ACTIVE_MS : HISTORY_POLL_IDLE_MS;
+      const delay = stillActive
+        ? approvalResumePollingUntil > Date.now()
+          ? APPROVAL_RESUME_POLL_MS
+          : HISTORY_POLL_SELECTED_ACTIVE_MS
+        : HISTORY_POLL_IDLE_MS;
 
       setTelemetryState((current) => ({
         ...current,
@@ -5486,7 +5569,12 @@ function SkyWorkflows({ mode = 'start' }) {
       }
     }
 
-    timerId = window.setTimeout(pollStartedWorkflow, HISTORY_POLL_SELECTED_ACTIVE_MS);
+    timerId = window.setTimeout(
+      pollStartedWorkflow,
+      approvalResumePollingUntil > Date.now()
+        ? APPROVAL_RESUME_POLL_MS
+        : HISTORY_POLL_SELECTED_ACTIVE_MS,
+    );
 
     return () => {
       canceled = true;
@@ -5496,7 +5584,12 @@ function SkyWorkflows({ mode = 'start' }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHistoryMode, selectedRun?.workflowRunRecordId, selectedRun?.status]);
+  }, [
+    approvalResumePollingUntil,
+    isHistoryMode,
+    selectedRun?.workflowRunRecordId,
+    selectedRun?.status,
+  ]);
 
   function renderSelectedRunDetailContent() {
     if (!selectedRun) {
@@ -6000,6 +6093,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 nodeRuns={selectedNodeRuns}
                 nodes={runtimeVisualNodes}
                 onFollowActiveNodeChange={setFollowActiveRuntimeNode}
+                onApprovalReview={handleApprovalReview}
                 onNodeSelect={handleRuntimeNodeSelect}
                 runStatus={selectedTemporalRuntime?.status || selectedRun.status}
                 runtimeMode
@@ -6010,12 +6104,36 @@ function SkyWorkflows({ mode = 'start' }) {
               />
             )}
 
-            <WorkflowNodeOutputLedger
-              contextValues={selectedContextValues}
-              nodes={runtimeVisualNodes}
-              outputs={selectedNodeOutputs}
-              selectedNodeIndex={selectedRuntimeNodeIndex}
-            />
+            {Number.isInteger(selectedRuntimeNodeIndex)
+            && selectedRuntimeNodeIndex >= 0
+            && selectedRuntimeNodeIndex < runtimeVisualNodes.length ? (
+              isVisualNodeCompleted(
+                runtimeVisualNodes[selectedRuntimeNodeIndex],
+                selectedNodeRuns,
+                selectedApprovals,
+              ) ? (
+                <WorkflowNodeOutputLedger
+                  contextValues={selectedContextValues}
+                  nodes={runtimeVisualNodes}
+                  outputs={selectedNodeOutputs}
+                  selectedNodeIndex={selectedRuntimeNodeIndex}
+                />
+              ) : (
+                <WorkflowNodeParameterCard
+                  approvals={selectedApprovals}
+                  nodeRuns={selectedNodeRuns}
+                  nodes={runtimeVisualNodes}
+                  selectedNodeIndex={selectedRuntimeNodeIndex}
+                />
+              )
+            ) : (
+              <WorkflowNodeOutputLedger
+                contextValues={selectedContextValues}
+                nodes={runtimeVisualNodes}
+                outputs={selectedNodeOutputs}
+                selectedNodeIndex={selectedRuntimeNodeIndex}
+              />
+            )}
           </div>
         </section>
       </div>
@@ -6425,6 +6543,7 @@ function SkyWorkflows({ mode = 'start' }) {
                   nodeRuns={selectedNodeRuns}
                   nodes={runtimeVisualNodes}
                   onFollowActiveNodeChange={setFollowActiveRuntimeNode}
+                  onApprovalReview={handleApprovalReview}
                   onNodeSelect={handleRuntimeNodeSelect}
                   runStatus={selectedTemporalRuntime?.status || selectedRun?.status || 'NOT_RUN'}
                   runtimeMode
@@ -6463,6 +6582,18 @@ function SkyWorkflows({ mode = 'start' }) {
         </div>
       )}
       {renderSelectedRunDetailOverlay()}
+      <WorkflowApprovalOverlay
+        approval={approvalOverlayRequest}
+        canDecide={canDecideApproval}
+        hasRequiredRole={Boolean(
+          approvalOverlayRequest
+            && (!approvalOverlayRequest.requiredRoleCode
+              || hasRole(approvalOverlayRequest.requiredRoleCode)
+              || hasRole('SUPER_ADMIN')),
+        )}
+        onClose={() => setApprovalOverlayRequest(null)}
+        onDecisionComplete={handleApprovalDecisionComplete}
+      />
     </div>
   );
 }

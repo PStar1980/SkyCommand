@@ -18,6 +18,10 @@ const graphSource = fs.readFileSync(
   path.join(repoRoot, 'apps/admin-web/src/components/WorkflowVisualGraph.jsx'),
   'utf8',
 );
+const approvalOverlaySource = fs.readFileSync(
+  path.join(repoRoot, 'apps/admin-web/src/components/WorkflowApprovalOverlay.jsx'),
+  'utf8',
+);
 
 function assert(condition, message) {
   if (!condition) {
@@ -151,14 +155,18 @@ assert(
   'Runtime graphs must distinguish selected nodes, illuminate chosen branch paths, and support reduced motion.',
 );
 assert(
-  graphSource.includes('const selectionLocked = hasInFlightRun;') &&
-    graphSource.includes('&& !completedRun') &&
-    graphSource.includes('&& !terminalIssueRun') &&
-    graphSource.includes('disabled={selectionLocked}') &&
+  graphSource.includes('const approvalPaused = Boolean(hasInFlightRun && pendingApproval);') &&
+    graphSource.includes('const selectionLocked = hasInFlightRun && !approvalPaused;') &&
+    graphSource.includes('onApprovalReview?.(approval, index, node)') &&
     graphSource.includes('selected={!selectionLocked && selectedNodeIndex === index}') &&
-    workflowSource.includes('if (isActiveRun(selectedRun) && !options.followActiveNode)') &&
+    workflowSource.includes('const workflowSelectionLocked = Boolean(isActiveRun(selectedRun) && !workflowApprovalPaused);') &&
+    workflowSource.includes('onApprovalReview={handleApprovalReview}') &&
+    approvalOverlaySource.includes('Approve and continue') &&
+    approvalOverlaySource.includes('workflowService.decideApproval') &&
+    cssSource.includes('.sky-workflow-approval-node-action') &&
+    cssSource.includes('.sky-card .alert-info,') &&
     cssSource.includes('.sky-workflow-visual-node.is-selection-locked {'),
-  'Runtime node selection must remain locked during active execution and unlock before or after the run.',
+  'Active execution must lock inspection, pending approvals must unlock the graph, and approval decisions must be available from the approval node.',
 );
 
 console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');
