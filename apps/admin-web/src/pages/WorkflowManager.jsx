@@ -1840,7 +1840,7 @@ function WorkflowManager() {
               graph, version history, and publishing controls below.
             </p>
           </div>
-          <div className="sky-run-tools-filter-grid sky-workflow-start-filter-grid">
+          <div className="sky-run-tools-filter-grid sky-workflow-start-filter-grid sky-manage-workflows-filter-grid">
             <div className="sky-run-tools-search-filter">
               <label className="form-label" htmlFor="manageWorkflowSearchFilter">
                 Search
@@ -2247,6 +2247,7 @@ function WorkflowManager() {
                     </div>
                   )}
                   <WorkflowVisualGraph
+                    inspectorMode="navigation"
                     nodes={editorNodes}
                     onNodeMove={graphLocked ? undefined : handleVisualNodeMove}
                     onNodeReorder={graphLocked ? undefined : handleVisualNodeReorder}

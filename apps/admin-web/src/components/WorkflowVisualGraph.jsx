@@ -654,6 +654,51 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
   return rows;
 }
 
+function getDesignNodeOverlay(node = {}) {
+  const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
+  const enabledLabel = node.enabled === false ? 'Disabled' : 'Ready';
+
+  if (['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'].includes(nodeTypeCode)) {
+    return {
+      label: 'Configuration',
+      detail: `${enabledLabel} · ${getRetryPolicySummary(node.retryPolicy)} · Timeout ${formatNodeTimeout(node.timeoutMs)}`,
+    };
+  }
+
+  if (nodeTypeCode === 'CONDITION') {
+    return {
+      label: 'Configuration',
+      detail: `${enabledLabel} · Branch rules saved`,
+    };
+  }
+
+  if (nodeTypeCode === 'WAIT') {
+    return {
+      label: 'Configuration',
+      detail: `${enabledLabel} · ${formatWaitDuration(node.inputParameters)}`,
+    };
+  }
+
+  if (nodeTypeCode === 'HUMAN_APPROVAL') {
+    return {
+      label: 'Configuration',
+      detail: `${enabledLabel} · Approval policy saved`,
+    };
+  }
+
+  if (nodeTypeCode === 'SUMMARY') {
+    return {
+      label: 'Configuration',
+      detail: `${enabledLabel} · Summary output configured`,
+    };
+  }
+
+  return {
+    label: 'Configuration',
+    detail: `${enabledLabel} · Node defaults saved`,
+  };
+}
+
 function WorkflowVisualNode({
   active = false,
   approval,
@@ -682,6 +727,7 @@ function WorkflowVisualNode({
   const summary = getNodeSummary(node, catalogs);
   const detail = getNodeDetail(node, nodes);
   const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval, nodes }) : null;
+  const designOverlay = runtimeMode ? null : getDesignNodeOverlay(node);
 
   return (
     <button
@@ -720,11 +766,12 @@ function WorkflowVisualNode({
       <div className="sky-workflow-visual-key sky-mono">{node.nodeKey || `node_${index + 1}`}</div>
       <div className="sky-workflow-visual-summary sky-truncate">{summary}</div>
       <div className="sky-workflow-visual-detail sky-truncate">{detail}</div>
-      {runtimeOverlay ? (
+      {dragReorderEnabled ? <div className="sky-workflow-visual-drag-hint">Drag to reorder</div> : null}
+      {runtimeOverlay || designOverlay ? (
         <div className="sky-workflow-runtime-overlay">
-          <div className="sky-page-kicker">Runtime</div>
-          <div>{runtimeOverlay.detail}</div>
-          {runtimeOverlay.conditionRoute ? (
+          <div className="sky-page-kicker">{runtimeOverlay ? 'Runtime' : designOverlay.label}</div>
+          <div>{runtimeOverlay?.detail || designOverlay.detail}</div>
+          {runtimeOverlay?.conditionRoute ? (
             <div
               className={`sky-workflow-runtime-route is-${runtimeOverlay.conditionRoute.branchLabel.toLowerCase()}`}
               title={runtimeOverlay.conditionRoute.detail}
@@ -736,7 +783,6 @@ function WorkflowVisualNode({
           {nodeRun?.errorMessage ? <div className="sky-workflow-runtime-error">{nodeRun.errorMessage}</div> : null}
         </div>
       ) : null}
-      {dragReorderEnabled ? <div className="sky-workflow-visual-drag-hint">Drag to reorder</div> : null}
     </button>
   );
 }
