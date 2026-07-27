@@ -1,13 +1,13 @@
 export const CHART_COLORS = {
-  text: '#c8d7ef',
-  muted: '#9aadd0',
+  text: '#d7e1ee',
+  muted: '#9cacc2',
   grid: 'rgba(124, 144, 177, 0.14)',
-  blue: '#48a7ff',
-  cyan: '#50e3f2',
-  violet: '#896dff',
-  green: '#43e6a2',
-  gold: '#f2cc60',
-  red: '#f06f8b',
+  blue: '#65c8ff',
+  cyan: '#77ddff',
+  violet: '#8c78d8',
+  green: '#42d69b',
+  gold: '#dcb13f',
+  red: '#ff6178',
 };
 
 export const CHART_TYPOGRAPHY = {

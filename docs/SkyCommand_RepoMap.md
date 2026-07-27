@@ -84,6 +84,7 @@ SkyServer/
 │   │       │   │   ├── StructuredToolResultDisplay.jsx
 │   │       │   │   └── ToolExecutionOutputPanels.jsx
 │   │       │   └── ui/
+│   │       │       ├── brandThemeSelfTest.js
 │   │       │       ├── DashboardFilterCard.jsx
 │   │       │       ├── DashboardRefreshActions.jsx
 │   │       │       ├── dashboardUiConsistencySelfTest.js

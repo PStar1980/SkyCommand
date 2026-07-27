@@ -4,15 +4,15 @@ import { timeDay } from 'd3-time';
 import { timeFormat } from 'd3-time-format';
 import EChartCard from './EChartCard.jsx';
 
-const CHART_TEXT = '#c8d7ef';
-const CHART_MUTED = '#8094ba';
+const CHART_TEXT = '#d7e1ee';
+const CHART_MUTED = '#8295ad';
 const CHART_GRID = 'rgba(124, 144, 177, 0.14)';
-const SKY_BLUE = '#48a7ff';
-const SKY_CYAN = '#50e3f2';
-const SKY_VIOLET = '#896dff';
-const SKY_GREEN = '#43e6a2';
-const SKY_GOLD = '#f2cc60';
-const SKY_RED = '#f06f8b';
+const SKY_BLUE = '#65c8ff';
+const SKY_CYAN = '#77ddff';
+const SKY_VIOLET = '#8c78d8';
+const SKY_GREEN = '#42d69b';
+const SKY_GOLD = '#dcb13f';
+const SKY_RED = '#ff6178';
 
 const STOPPED_STATUSES = ['FAILED', 'TERMINATED', 'CANCELED', 'TIMED_OUT'];
 
