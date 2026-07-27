@@ -692,11 +692,7 @@ function Navbar() {
     return (
       <nav className="sky-public-navbar">
         <NavLink className="sky-public-brand" to="/" aria-label="SkyCommand home">
-          <SkyCommandMark />
-          <span className="sky-public-brand-copy">
-            <span className="sky-public-brand-title">SkyCommand</span>
-            <span className="sky-public-brand-subtitle">Workflow Automation</span>
-          </span>
+          <SkyCommandMark variant="lockup" />
         </NavLink>
       </nav>
     );

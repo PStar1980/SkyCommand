@@ -37,7 +37,10 @@ SkyServer/
 │   │   ├── index.html
 │   │   ├── vite.config.js
 │   │   ├── public/
-│   │   │   └── favicon.svg
+│   │   │   ├── favicon.svg
+│   │   │   └── brand/
+│   │   │       ├── skycommand-logo-lockup.png
+│   │   │       └── skycommand-mark-gold.png
 │   │   └── src/
 │   │       ├── App.css
 │   │       ├── App.jsx

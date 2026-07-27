@@ -118,8 +118,9 @@ assert.match(
 assert.match(navbarSource, /className="sky-topbar-center"/);
 assert.match(navbarSource, /<header className="sky-topbar" ref=\{topbarControlsRef\}>/);
 assert.match(cssSource, /\.sky-topbar \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns:/);
-assert.match(cssSource, /\.sky-public-brand \.sky-brand-mark \{[\s\S]*?width: 3\.55rem;[\s\S]*?height: 3\.55rem;/);
-assert.match(cssSource, /\.sky-sidebar-brand \.sky-brand-mark \{[\s\S]*?width: 3\.55rem;[\s\S]*?height: 3\.55rem;/);
+assert.match(cssSource, /\.sky-brand-lockup \{[\s\S]*?width: min\(17\.6rem, 100%\);/);
+assert.match(cssSource, /\.sky-sidebar-brand \.sky-brand-lockup,[\s\S]*?\.sky-public-brand \.sky-brand-lockup \{[\s\S]*?width: min\(17\.6rem, 100%\);/);
+assert.match(navbarSource, /<SkyCommandMark variant="lockup" \/>/);
 
 const toolHistorySource = fs.readFileSync(path.join(sourceRoot, 'pages/ScriptExecutions.jsx'), 'utf8');
 assert.match(toolHistorySource, /DashboardRefreshActions/);
