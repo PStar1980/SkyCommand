@@ -121,7 +121,7 @@ function ScriptExecutions() {
   const [detailError, setDetailError] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailRequestId = useRef(0);
-  const [filters, setFilters] = useState({ category: '', scriptName: '', status: '' });
+  const [filters, setFilters] = useState({ q: '', category: '', scriptName: '', status: '' });
   const [filterOptions, setFilterOptions] = useState({ categories: [], tools: [] });
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -295,6 +295,7 @@ function ScriptExecutions() {
 
   const pollingState = useSmartPolling({
     dependencies: [
+      filters.q,
       filters.category,
       filters.scriptName,
       filters.status,
@@ -331,6 +332,12 @@ function ScriptExecutions() {
       scriptName: '',
     };
 
+    setFilters(nextFilters);
+    loadExecutions(nextFilters, 1, { keepSelection: false });
+  }
+
+  function clearFilters() {
+    const nextFilters = { q: '', category: '', scriptName: '', status: '' };
     setFilters(nextFilters);
     loadExecutions(nextFilters, 1, { keepSelection: false });
   }
@@ -432,7 +439,20 @@ function ScriptExecutions() {
                 detail workspace below.
               </p>
             </div>
-            <div className="sky-history-filter-grid sky-history-filter-grid-single">
+            <div className="sky-run-tools-filter-grid sky-tool-history-filter-grid">
+              <div className="sky-run-tools-search-filter">
+                <label className="form-label" htmlFor="toolHistorySearchFilter">
+                  Search
+                </label>
+                <input
+                  className="form-control sky-form-control"
+                  id="toolHistorySearchFilter"
+                  onChange={(event) => updateFilter('q', event.target.value)}
+                  placeholder="Tool, category, user, summary..."
+                  type="search"
+                  value={filters.q}
+                />
+              </div>
               <div>
                 <label className="form-label" htmlFor="toolHistoryCategoryFilter">
                   Category
@@ -485,6 +505,15 @@ function ScriptExecutions() {
                   <option value="STARTED">RUNNING / STARTED</option>
                   <option value="CANCELLED">CANCELLED</option>
                 </select>
+              </div>
+              <div className="sky-run-tools-filter-actions">
+                <button
+                  className="btn btn-sm sky-btn-ghost"
+                  onClick={clearFilters}
+                  type="button"
+                >
+                  Clear filters
+                </button>
               </div>
             </div>
           </div>

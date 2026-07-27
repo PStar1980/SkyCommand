@@ -91,9 +91,10 @@ assert(
 assert(
   !workflowSource.includes('headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}') &&
     graphSource.includes("justify-content-end gap-2 ms-auto") &&
-    graphSource.includes("hasRuntimeExecution && runtimeCounts.completed > 0") &&
+    graphSource.includes("!runtimeMode ? (") &&
+    !graphSource.includes("hasRuntimeExecution && runtimeCounts.completed > 0") &&
     graphSource.includes("runtimeCounts.active > 0 && activeNode"),
-  'Runtime Status Overlay pills must align right and avoid duplicate or zero-value pre-run status pills.',
+  'Runtime Status Overlay pills must align right and omit graph-size and completed-count pills.',
 );
 assert(
   graphSource.includes('const viewportRef = useRef(null);') &&
@@ -167,6 +168,14 @@ assert(
     cssSource.includes('.sky-card .alert-info,') &&
     cssSource.includes('.sky-workflow-visual-node.is-selection-locked {'),
   'Active execution must lock inspection, pending approvals must unlock the graph, and approval decisions must be available from the approval node.',
+);
+
+assert(
+  workflowSource.includes('id="workflowHistorySearch"') &&
+    workflowSource.includes('clearHistoryFilters') &&
+    workflowSource.includes('Workflow Details') &&
+    !workflowSource.includes('View details'),
+  'Workflow History must provide search, Clear filters, and row-level Workflow Details actions.',
 );
 
 console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');
