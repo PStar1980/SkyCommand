@@ -105,6 +105,7 @@ SkyServer/
 │   │       │   ├── AdminUsers.jsx
 │   │       │   ├── ApiDashboard.jsx
 │   │       │   ├── apiDashboardSelfTest.js
+│   │       │   ├── approvalHistorySelfTest.js
 │   │       │   ├── AuditEvents.jsx
 │   │       │   ├── AutomationDashboard.jsx
 │   │       │   ├── AutomationListeners.jsx

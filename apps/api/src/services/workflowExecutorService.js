@@ -6309,12 +6309,18 @@ async function resolveWorkflowApprovalRequest({
 
 async function listWorkflowApprovalRequests(filters = {}) {
   const limit = parseLimit(filters.limit);
+  const requestedPage = Number.parseInt(filters.page, 10);
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const clauses = [];
   const values = [];
   const status = String(filters.status || '')
     .trim()
     .toUpperCase();
   const workflowRunRecordId = String(filters.workflowRunRecordId || '').trim();
+  const workflowCode = String(filters.workflowCode || '').trim();
+  const requiredRoleCode = normalizeRoleCode(filters.requiredRoleCode || '');
+  const userId = String(filters.userId || '').trim();
+  const searchText = String(filters.q || filters.search || '').trim();
 
   if (status && status !== 'ALL') {
     values.push(status);
@@ -6326,27 +6332,144 @@ async function listWorkflowApprovalRequests(filters = {}) {
     clauses.push(`workflow_run_record_id = $${values.length}`);
   }
 
-  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-  values.push(limit);
+  if (workflowCode) {
+    values.push(workflowCode);
+    clauses.push(`workflow_code = $${values.length}`);
+  }
 
-  const result = await query(
-    `
-      SELECT *
-      FROM worker.vw_workflow_approval_requests
-      ${whereClause}
-      ORDER BY
-        CASE status WHEN 'PENDING' THEN 0 ELSE 1 END,
-        COALESCE(requested_at, created_at) DESC,
-        created_at DESC
-      LIMIT $${values.length}
-    `,
-    values,
-  );
+  if (requiredRoleCode) {
+    values.push(requiredRoleCode);
+    clauses.push(`required_role_code = $${values.length}`);
+  }
+
+  if (userId) {
+    values.push(userId);
+    clauses.push(`(
+      requested_by_user_id::text = $${values.length}
+      OR decided_by_user_id::text = $${values.length}
+    )`);
+  }
+
+  if (searchText) {
+    values.push(`%${searchText}%`);
+    clauses.push(`(
+      COALESCE(workflow_display_name, '') ILIKE $${values.length}
+      OR COALESCE(workflow_code, '') ILIKE $${values.length}
+      OR COALESCE(approval_title, '') ILIKE $${values.length}
+      OR COALESCE(approval_key, '') ILIKE $${values.length}
+      OR COALESCE(node_key, '') ILIKE $${values.length}
+      OR COALESCE(node_display_name, '') ILIKE $${values.length}
+      OR COALESCE(instructions, '') ILIKE $${values.length}
+      OR COALESCE(required_role_code, '') ILIKE $${values.length}
+      OR COALESCE(requested_by_display_name, '') ILIKE $${values.length}
+      OR COALESCE(requested_by_email, '') ILIKE $${values.length}
+      OR COALESCE(decided_by_display_name, '') ILIKE $${values.length}
+      OR COALESCE(decided_by_email, '') ILIKE $${values.length}
+      OR COALESCE(decision_note, '') ILIKE $${values.length}
+      OR COALESCE(status, '') ILIKE $${values.length}
+    )`);
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const countValues = [...values];
+  const offset = (page - 1) * limit;
+  const itemValues = [...values, limit, offset];
+  const limitParameter = itemValues.length - 1;
+  const offsetParameter = itemValues.length;
+
+  const [countResult, itemResult, workflowResult, roleResult, userResult, statusResult] = await Promise.all([
+    query(
+      `
+        SELECT COUNT(*)::integer AS total
+        FROM worker.vw_workflow_approval_requests
+        ${whereClause}
+      `,
+      countValues,
+    ),
+    query(
+      `
+        SELECT *
+        FROM worker.vw_workflow_approval_requests
+        ${whereClause}
+        ORDER BY COALESCE(requested_at, created_at) DESC, created_at DESC
+        LIMIT $${limitParameter}
+        OFFSET $${offsetParameter}
+      `,
+      itemValues,
+    ),
+    query(
+      `
+        SELECT workflow_code, MAX(workflow_display_name) AS workflow_display_name
+        FROM worker.vw_workflow_approval_requests
+        WHERE workflow_code IS NOT NULL
+        GROUP BY workflow_code
+        ORDER BY MAX(workflow_display_name), workflow_code
+      `,
+    ),
+    query(
+      `
+        SELECT DISTINCT required_role_code
+        FROM worker.vw_workflow_approval_requests
+        WHERE required_role_code IS NOT NULL
+          AND BTRIM(required_role_code) <> ''
+        ORDER BY required_role_code
+      `,
+    ),
+    query(
+      `
+        SELECT user_id, MAX(display_name) AS display_name, MAX(email) AS email
+        FROM (
+          SELECT requested_by_user_id AS user_id,
+                 requested_by_display_name AS display_name,
+                 requested_by_email AS email
+          FROM worker.vw_workflow_approval_requests
+          WHERE requested_by_user_id IS NOT NULL
+          UNION ALL
+          SELECT decided_by_user_id AS user_id,
+                 decided_by_display_name AS display_name,
+                 decided_by_email AS email
+          FROM worker.vw_workflow_approval_requests
+          WHERE decided_by_user_id IS NOT NULL
+        ) approval_users
+        GROUP BY user_id
+        ORDER BY COALESCE(MAX(display_name), MAX(email), user_id::text)
+      `,
+    ),
+    query(
+      `
+        SELECT status, COUNT(*)::integer AS count
+        FROM worker.vw_workflow_approval_requests
+        GROUP BY status
+        ORDER BY status
+      `,
+    ),
+  ]);
+
+  const total = Number(countResult.rows[0]?.total || 0);
+  const pageCount = Math.max(1, Math.ceil(total / limit));
 
   return {
-    total: result.rows.length,
+    total,
     limit,
-    items: result.rows.map(normalizeApprovalRow),
+    page,
+    pageCount,
+    items: itemResult.rows.map(normalizeApprovalRow),
+    facets: {
+      workflows: workflowResult.rows.map((row) => ({
+        value: row.workflow_code,
+        label: row.workflow_display_name || row.workflow_code,
+      })),
+      roles: roleResult.rows.map((row) => row.required_role_code),
+      users: userResult.rows.map((row) => ({
+        userId: row.user_id,
+        displayName: row.display_name || null,
+        email: row.email || null,
+      })),
+      statuses: statusResult.rows.map((row) => ({
+        status: row.status,
+        count: Number(row.count || 0),
+      })),
+    },
   };
 }
 
