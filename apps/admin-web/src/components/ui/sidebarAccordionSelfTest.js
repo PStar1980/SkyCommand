@@ -52,5 +52,15 @@ assert(
     cssSource.includes('.sky-sidebar-group.is-expanded .sky-sidebar-group-panel'),
   'Collapsed and expanded category presentation must be styled.',
 );
+assert(
+  cssSource.includes('border-radius: 0.18rem;') &&
+    cssSource.includes('border-color: rgba(236, 190, 74, 0.72);'),
+  'Selected navigation cards must use the compact square gold-highlight treatment.',
+);
+assert(
+  cssSource.includes('.sky-sidebar-group.is-expanded .sky-sidebar-group-items::before') &&
+    cssSource.includes('width: 100%;'),
+  'Expanded child navigation must keep full-width cards with a visible hierarchy guide.',
+);
 
 console.log('[SkyCommand] Sidebar accordion navigation self-test passed.');

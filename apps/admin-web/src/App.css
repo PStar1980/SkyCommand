@@ -405,19 +405,19 @@
 .sky-sidebar-group-label {
   display: flex;
   width: 100%;
-  min-height: 2.72rem;
+  min-height: 3rem;
   align-items: center;
-  gap: 0.56rem;
-  border: 1px solid transparent;
-  border-radius: 0.78rem;
-  background: transparent;
+  gap: 0.62rem;
+  border: 1px solid rgba(124, 144, 177, 0.13);
+  border-radius: 0.28rem;
+  background: rgba(4, 9, 18, 0.54);
   color: #9bbcff;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.92rem;
   font-weight: 900;
   letter-spacing: 0.15em;
-  padding: 0.52rem 0.66rem;
+  padding: 0.64rem 0.72rem;
   text-align: left;
   text-shadow: 0 0 18px rgba(72, 167, 255, 0.12);
   text-transform: uppercase;
@@ -431,18 +431,20 @@
 .sky-sidebar-group-label:hover,
 .sky-sidebar-group-label:focus-visible {
   border-color: rgba(72, 167, 255, 0.2);
-  background: rgba(72, 167, 255, 0.045);
+  background: rgba(72, 167, 255, 0.055);
   color: #d9eaff;
   outline: none;
 }
 
 .sky-sidebar-group.is-expanded .sky-sidebar-group-label {
-  border-color: rgba(124, 168, 255, 0.24);
+  border-color: rgba(236, 190, 74, 0.48);
   background:
-    linear-gradient(90deg, rgba(72, 167, 255, 0.09), rgba(137, 109, 255, 0.045) 70%, transparent),
-    rgba(5, 10, 20, 0.46);
-  color: #c4d7ff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    linear-gradient(90deg, rgba(236, 190, 74, 0.11), rgba(72, 167, 255, 0.075) 58%, rgba(5, 10, 20, 0.64)),
+    rgba(5, 10, 20, 0.58);
+  color: #e8f1ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 0 18px rgba(236, 190, 74, 0.06);
 }
 
 .sky-sidebar-group-icon {
@@ -497,9 +499,10 @@
 }
 
 .sky-sidebar-group-items {
+  position: relative;
   display: grid;
   min-height: 0;
-  gap: 0.35rem;
+  gap: 0.3rem;
   overflow: hidden;
   padding-top: 0;
   transition: padding-top 190ms ease;
@@ -509,23 +512,34 @@
   padding-top: 0.38rem;
 }
 
+.sky-sidebar-group.is-expanded .sky-sidebar-group-items::before {
+  position: absolute;
+  top: 0.54rem;
+  bottom: 0.38rem;
+  left: 0.58rem;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(236, 190, 74, 0.4), rgba(72, 167, 255, 0.18), transparent);
+  content: '';
+  pointer-events: none;
+}
+
 .sky-sidebar-link {
   position: relative;
   display: flex;
+  width: 100%;
   align-items: center;
-  gap: 1.01rem;
+  gap: 0.88rem;
   min-height: 4.08rem;
   overflow: hidden;
   border: 1px solid transparent;
-  border-radius: 1.09rem;
+  border-radius: 0.18rem;
   color: #c8d7ef;
-  padding: 0.83rem 0.92rem;
+  padding: 0.78rem 0.82rem 0.78rem 1.08rem;
   text-decoration: none;
   transition:
     border-color 150ms ease,
     background 150ms ease,
     color 150ms ease,
-    transform 150ms ease,
     box-shadow 150ms ease;
 }
 
@@ -546,32 +560,34 @@
 
 .sky-sidebar-link:hover,
 .sky-sidebar-link:focus {
-  border-color: rgba(72, 167, 255, 0.2);
-  background: rgba(72, 167, 255, 0.04);
+  border-color: transparent;
+  background: rgba(72, 167, 255, 0.055);
   color: #ffffff;
   outline: none;
-  transform: translateX(2px);
 }
 
 .sky-sidebar-link:hover::before,
 .sky-sidebar-link:focus::before {
-  opacity: 0.46;
-  transform: scaleY(0.72);
+  opacity: 0.32;
+  transform: scaleY(0.68);
 }
 
 .sky-sidebar-link.active {
-  border-color: rgba(124, 168, 255, 0.34);
+  border-color: rgba(236, 190, 74, 0.72);
   background:
-    linear-gradient(90deg, rgba(72, 167, 255, 0.115), rgba(137, 109, 255, 0.075) 58%, transparent),
-    rgba(5, 10, 20, 0.88);
+    linear-gradient(90deg, rgba(236, 190, 74, 0.12), rgba(72, 167, 255, 0.12) 54%, rgba(137, 109, 255, 0.07)),
+    rgba(5, 10, 20, 0.92);
   color: #ffffff;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.035),
-    0 10px 26px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(72, 167, 255, 0.035);
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 0 0 1px rgba(236, 190, 74, 0.08),
+    0 0 22px rgba(236, 190, 74, 0.11),
+    0 10px 26px rgba(0, 0, 0, 0.18);
 }
 
 .sky-sidebar-link.active::before {
+  width: 0.22rem;
+  background: linear-gradient(180deg, #ffe59a, #ecbe4a 48%, #48a7ff);
   opacity: 1;
   transform: scaleY(1);
 }
@@ -604,12 +620,14 @@
 }
 
 .sky-sidebar-link.active .sky-sidebar-link-icon {
-  border-color: rgba(112, 185, 255, 0.42);
+  border-color: rgba(236, 190, 74, 0.62);
   background:
-    radial-gradient(circle at 42% 28%, rgba(103, 245, 255, 0.16), transparent 1.1rem),
-    rgba(72, 167, 255, 0.08);
+    radial-gradient(circle at 42% 28%, rgba(255, 229, 154, 0.16), transparent 1.1rem),
+    linear-gradient(145deg, rgba(236, 190, 74, 0.1), rgba(72, 167, 255, 0.08));
   color: #ffffff;
-  box-shadow: 0 0 22px rgba(72, 167, 255, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    0 0 22px rgba(236, 190, 74, 0.1);
 }
 
 .sky-sidebar-link-copy {
