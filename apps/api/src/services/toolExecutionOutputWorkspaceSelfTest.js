@@ -50,6 +50,8 @@ assert.match(historySource, /ToolExecutionOutputPanels/);
 assert.match(historySource, /Tool Details/);
 assert.match(historySource, /sky-tool-details-modal/);
 assert.match(historySource, /sky-tool-history-workspace-card/);
+assert.match(historySource, /toolHistorySearchFilter/);
+assert.match(historySource, /Clear filters/);
 assert.doesNotMatch(historySource, /sky-execution-detail-layout/);
 assert.match(runToolsSource, /title="Run Tools"/);
 assert.match(runToolsSource, /sky-run-tools-browser/);
@@ -100,6 +102,9 @@ for (const serverLabel of [
   assert.match(dashboardSource, new RegExp(`label: '${serverLabel}'`));
 }
 assert.doesNotMatch(dashboardSource, /label: 'Readiness'/);
+assert.match(dashboardSource, /async function loadDashboardActivity\(loader\)/);
+assert.match(dashboardSource, /from: getDashboardActivityWindowStart\(\)/);
+assert.match(dashboardSource, /DASHBOARD_ACTIVITY_PAGE_SIZE = 200/);
 assert.doesNotMatch(dashboardVisualsSource, /SystemHealthStrip/);
 
 console.log('[SkyCommand] Server status and tool execution output workspace self-test passed.');

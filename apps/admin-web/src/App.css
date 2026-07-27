@@ -4074,6 +4074,22 @@
   margin-bottom: 0.35rem;
 }
 
+.sky-history-browser-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1.45fr) repeat(2, minmax(10rem, 0.75fr)) auto;
+  gap: 0.75rem;
+  align-items: end;
+  min-width: min(100%, 72rem);
+}
+
+.sky-history-browser-filter-grid .form-label {
+  margin-bottom: 0.35rem;
+}
+
+.sky-tool-history-filter-grid {
+  min-width: min(100%, 88rem);
+}
+
 .sky-workflow-history-table-card {
   max-height: min(42vh, 34rem);
 }
@@ -4165,11 +4181,28 @@
   }
 }
 
+@media (max-width: 1100px) {
+  .sky-history-browser-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sky-history-browser-filter-grid .sky-run-tools-search-filter {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 760px) {
-  .sky-history-filter-grid {
+  .sky-history-filter-grid,
+  .sky-history-browser-filter-grid {
     grid-template-columns: 1fr;
     min-width: 0;
     width: 100%;
+  }
+
+  .sky-history-browser-filter-grid .sky-run-tools-search-filter {
+    grid-column: auto;
   }
 
   .sky-pagination-row {

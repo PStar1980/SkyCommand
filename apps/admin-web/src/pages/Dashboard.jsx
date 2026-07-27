@@ -16,6 +16,45 @@ import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
 
 const DASHBOARD_RECENT_LIMIT = 60;
+const DASHBOARD_ACTIVITY_PAGE_SIZE = 200;
+const DASHBOARD_ACTIVITY_DAYS = 7;
+
+function getDashboardActivityWindowStart() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (DASHBOARD_ACTIVITY_DAYS - 1));
+  return start.toISOString();
+}
+
+async function loadDashboardActivity(loader) {
+  const query = {
+    from: getDashboardActivityWindowStart(),
+    limit: DASHBOARD_ACTIVITY_PAGE_SIZE,
+    offset: 0,
+  };
+  const firstPage = await loader(query);
+  const items = [...(firstPage?.items || [])];
+  const total = Number(firstPage?.total || items.length);
+
+  for (let offset = items.length; offset < total; offset += DASHBOARD_ACTIVITY_PAGE_SIZE) {
+    const page = await loader({
+      ...query,
+      offset,
+    });
+    const pageItems = page?.items || [];
+
+    if (pageItems.length === 0) {
+      break;
+    }
+
+    items.push(...pageItems);
+  }
+
+  return {
+    total,
+    items,
+  };
+}
 
 function Dashboard() {
   const { hasPermission, user } = useAuth();
@@ -135,12 +174,12 @@ function Dashboard() {
         loadOptional('db-health', () => api.get('/_db/health')),
         hasPermission('SCRIPT_EXECUTION_READ')
           ? loadOptional('executions', () =>
-              adminService.listScriptExecutions({ limit: DASHBOARD_RECENT_LIMIT }),
+              loadDashboardActivity((query) => adminService.listScriptExecutions(query)),
             )
           : Promise.resolve(null),
         hasPermission('AUDIT_READ')
           ? loadOptional('audit', () =>
-              adminService.listAuditEvents({ limit: DASHBOARD_RECENT_LIMIT }),
+              loadDashboardActivity((query) => adminService.listAuditEvents(query)),
             )
           : Promise.resolve(null),
         hasPermission('ADMIN_USER_READ')

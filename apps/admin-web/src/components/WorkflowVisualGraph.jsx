@@ -1270,12 +1270,15 @@ function WorkflowVisualGraph({
           {runtimeMode && runtimeCounts.active > 0 && activeNode ? (
             <span className="sky-pill sky-pill-warning">Active: {activeNode.displayName || activeNode.nodeKey || `Node ${followTargetIndex + 1}`}</span>
           ) : null}
-          <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
-          <span className="sky-pill sky-pill-info">{totalEdges} edge(s)</span>
-          <span className="sky-pill sky-pill-success">Sequential lane</span>
-          {branchEdgeCount > 0 ? <span className="sky-pill sky-pill-warning">{branchEdgeCount} branch edge(s)</span> : null}
+          {!runtimeMode ? (
+            <>
+              <span className="sky-pill sky-pill-info">{nodes.length} node(s)</span>
+              <span className="sky-pill sky-pill-info">{totalEdges} edge(s)</span>
+              <span className="sky-pill sky-pill-success">Sequential lane</span>
+              {branchEdgeCount > 0 ? <span className="sky-pill sky-pill-warning">{branchEdgeCount} branch edge(s)</span> : null}
+            </>
+          ) : null}
           {runtimeMode && runStatusMeta && !approvalPaused ? <span className={`sky-pill ${runStatusMeta.pillClassName}`}>Run {runStatusMeta.label}</span> : null}
-          {hasRuntimeExecution && runtimeCounts.completed > 0 ? <span className="sky-pill sky-pill-success">{runtimeCounts.completed} completed</span> : null}
           {hasRuntimeExecution && !approvalPaused && runtimeCounts.active > 0 ? <span className="sky-pill sky-pill-warning">{runtimeCounts.active} active</span> : null}
           {hasRuntimeExecution && runtimeCounts.failed > 0 ? <span className="sky-pill sky-pill-danger">{runtimeCounts.failed} issue(s)</span> : null}
           {hasRuntimeExecution && runtimeCounts.notRun > 0 ? <span className="sky-pill sky-pill-info">{runtimeCounts.notRun} not run</span> : null}

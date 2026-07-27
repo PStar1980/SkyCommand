@@ -268,6 +268,26 @@ function runMatchesRuntimeFilter(run, runtimeFilter) {
   return true;
 }
 
+function runMatchesHistorySearch(run, searchText = '') {
+  const normalizedSearch = String(searchText || '').trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  return [
+    run?.workflowDisplayName,
+    run?.workflowCode,
+    run?.status,
+    run?.summary,
+    run?.triggerType,
+    run?.runSource,
+    run?.temporalWorkflowId,
+    run?.temporalRunId,
+    run?.workflowRunRecordId,
+  ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
+}
+
 function formatDate(value) {
   if (!value) {
     return '—';
@@ -4678,6 +4698,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [runs, setRuns] = useState([]);
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
   const [filters, setFilters] = useState(() => ({
+    q: '',
     status: '',
     runtime: normalizeRuntimeFilter(searchParams.get('runtime')),
   }));
@@ -4830,8 +4851,12 @@ function SkyWorkflows({ mode = 'start' }) {
   }, [runs]);
 
   const historyRuns = useMemo(
-    () => runs.filter((run) => runMatchesRuntimeFilter(run, filters.runtime)),
-    [filters.runtime, runs],
+    () => runs.filter(
+      (run) =>
+        runMatchesRuntimeFilter(run, filters.runtime) &&
+        runMatchesHistorySearch(run, filters.q),
+    ),
+    [filters.q, filters.runtime, runs],
   );
   const historyPageCount = Math.max(1, Math.ceil(historyRuns.length / HISTORY_PAGE_SIZE));
   const currentHistoryPage = Math.min(historyPage, historyPageCount);
@@ -5065,7 +5090,11 @@ function SkyWorkflows({ mode = 'start' }) {
       });
       const items = result.items || [];
       const activeRunCount = items.filter(isActiveRun).length;
-      const visibleRuns = items.filter((run) => runMatchesRuntimeFilter(run, filters.runtime));
+      const visibleRuns = items.filter(
+        (run) =>
+          runMatchesRuntimeFilter(run, filters.runtime) &&
+          runMatchesHistorySearch(run, filters.q),
+      );
       const visiblePageCount = Math.max(1, Math.ceil(visibleRuns.length / HISTORY_PAGE_SIZE));
       const visibleCurrentPage = Math.min(historyPage, visiblePageCount);
       const visiblePageStart = (visibleCurrentPage - 1) * HISTORY_PAGE_SIZE;
@@ -5291,20 +5320,41 @@ function SkyWorkflows({ mode = 'start' }) {
     setHistoryPage(1);
     setSelectedRunDetail(null);
 
-    if (name === 'runtime') {
-      const nextSearchParams = new URLSearchParams(searchParams);
+    if (name === 'runtime' || name === 'q') {
+      if (name === 'runtime') {
+        const nextSearchParams = new URLSearchParams(searchParams);
 
-      if (value === 'skycommand') {
-        nextSearchParams.delete('runtime');
-      } else {
-        nextSearchParams.set('runtime', value);
+        if (value === 'skycommand') {
+          nextSearchParams.delete('runtime');
+        } else {
+          nextSearchParams.set('runtime', value);
+        }
+
+        setSearchParams(nextSearchParams, { replace: true });
       }
-
-      setSearchParams(nextSearchParams, { replace: true });
       return;
     }
 
     loadRuns(nextFilters, { keepSelection: false });
+  }
+
+  function clearHistoryFilters() {
+    const nextFilters = { q: '', status: '', runtime: 'skycommand' };
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete('runtime');
+    setSearchParams(nextSearchParams, { replace: true });
+    setFilters(nextFilters);
+    setHistoryPage(1);
+    setSelectedRunDetail(null);
+    loadRuns(nextFilters, { keepSelection: false });
+  }
+
+  async function openWorkflowDetails(workflowRunRecordId) {
+    const detail = await loadRunDetail(workflowRunRecordId);
+
+    if (detail) {
+      setRunDetailOverlayOpen(true);
+    }
   }
 
   useEffect(() => {
@@ -5523,6 +5573,7 @@ function SkyWorkflows({ mode = 'start' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isHistoryMode,
+    filters.q,
     filters.status,
     filters.runtime,
     selectedRun?.workflowRunRecordId,
@@ -5947,7 +5998,20 @@ function SkyWorkflows({ mode = 'start' }) {
                 <div className="small text-warning-emphasis mt-2">{telemetryState.error}</div>
               )}
             </div>
-            <div className="sky-history-filter-grid">
+            <div className="sky-history-browser-filter-grid">
+              <div className="sky-run-tools-search-filter">
+                <label className="form-label" htmlFor="workflowHistorySearch">
+                  Search
+                </label>
+                <input
+                  className="form-control sky-form-control"
+                  id="workflowHistorySearch"
+                  onChange={(event) => updateFilter('q', event.target.value)}
+                  placeholder="Workflow, code, status, summary..."
+                  type="search"
+                  value={filters.q}
+                />
+              </div>
               <div>
                 <label className="form-label" htmlFor="workflowHistoryRuntime">
                   Runtime source
@@ -5982,6 +6046,15 @@ function SkyWorkflows({ mode = 'start' }) {
                   ))}
                 </select>
               </div>
+              <div className="sky-run-tools-filter-actions">
+                <button
+                  className="btn btn-sm sky-btn-ghost"
+                  onClick={clearHistoryFilters}
+                  type="button"
+                >
+                  Clear filters
+                </button>
+              </div>
             </div>
           </div>
           <div className="table-responsive sky-table-card sky-functional-history-table-card sky-workflow-history-table-card">
@@ -5994,19 +6067,20 @@ function SkyWorkflows({ mode = 'start' }) {
                   <th>Duration</th>
                   <th>Completed</th>
                   <th>Runtime</th>
+                  <th className="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       <div className="sky-empty-state">Loading workflow runs...</div>
                     </td>
                   </tr>
                 )}
                 {!loading && historyRuns.length === 0 && (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       <div className="sky-empty-state">
                         No workflow runs found for these filters.
                       </div>
@@ -6049,6 +6123,18 @@ function SkyWorkflows({ mode = 'start' }) {
                           <span className="sky-pill sky-pill-info">Inline/local</span>
                         )}
                       </td>
+                      <td className="text-end">
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openWorkflowDetails(run.workflowRunRecordId);
+                          }}
+                          type="button"
+                        >
+                          Workflow Details
+                        </button>
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -6077,17 +6163,6 @@ function SkyWorkflows({ mode = 'start' }) {
               <WorkflowVisualGraph
                 approvals={selectedApprovals}
                 headingKicker="Runtime status overlay"
-                headerActions={
-                  <button
-                    className="btn btn-sm sky-btn-ghost"
-                    disabled={!selectedRun}
-                    onClick={() => setRunDetailOverlayOpen(true)}
-                    type="button"
-                  >
-                    View details
-                  </button>
-                }
-                headerActionsStandalone
                 followActiveNode={followActiveRuntimeNode}
                 inspectorMode="navigation"
                 nodeRuns={selectedNodeRuns}
