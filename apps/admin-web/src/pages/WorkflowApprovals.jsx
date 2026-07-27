@@ -90,7 +90,23 @@ function statusClass(status) {
 }
 
 function formatAction(value) {
-  return String(value || '—').replace(/_/g, ' ');
+  const normalized = String(value || '').trim().toUpperCase();
+  const labels = {
+    CONTINUE: 'Continue workflow',
+    FAIL_WORKFLOW: 'Fail workflow',
+    STOP_FAILURE: 'Stop workflow as failed',
+    STOP_SUCCESS: 'Stop workflow successfully',
+    STOP_WORKFLOW: 'Stop workflow',
+  };
+
+  if (!normalized) {
+    return '—';
+  }
+
+  return labels[normalized] || normalized
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/^./, (character) => character.toUpperCase());
 }
 
 function ApprovalDetailField({ label, value, mono = false }) {
@@ -519,52 +535,110 @@ function WorkflowApprovals() {
             <div className="d-flex flex-column gap-4">
               <div>
                 <div className="sky-page-kicker mb-2">Approval request</div>
-                <div className="sky-node-parameter-preview-grid">
-                  <ApprovalDetailField label="Workflow" value={selectedApproval.workflowDisplayName || selectedApproval.workflowCode} />
-                  <ApprovalDetailField label="Workflow code" value={selectedApproval.workflowCode} mono />
-                  <ApprovalDetailField label="Node" value={selectedApproval.nodeDisplayName || selectedApproval.nodeKey} />
-                  <ApprovalDetailField label="Node key" value={selectedApproval.nodeKey} mono />
-                  <ApprovalDetailField label="Approval key" value={selectedApproval.approvalKey} mono />
-                  <ApprovalDetailField label="Required role" value={selectedApproval.requiredRoleCode || 'Any approver'} mono />
-                  <ApprovalDetailField label="Requested by" value={formatIdentity(selectedApproval.requestedByDisplayName, selectedApproval.requestedByEmail)} />
-                  <ApprovalDetailField label="Requested at" value={formatDate(selectedApproval.requestedAt || selectedApproval.createdAt)} />
-                  <ApprovalDetailField label="Timeout" value={formatDurationMs(selectedApproval.timeoutMs)} />
-                  <ApprovalDetailField label="Expires at" value={formatDate(selectedApproval.expiresAt)} />
-                </div>
-                <div className="sky-node-parameter-preview mt-3">
-                  <div className="sky-page-kicker">Instructions</div>
-                  <div className="sky-detail-value mt-1">
-                    {selectedApproval.instructions || 'No approval instructions were recorded.'}
-                  </div>
+                <div className="table-responsive sky-table-card">
+                  <table className="table table-sm sky-table align-middle mb-0">
+                    <tbody>
+                      <tr>
+                        <th scope="row">Workflow</th>
+                        <td>{selectedApproval.workflowDisplayName || selectedApproval.workflowCode}</td>
+                        <th scope="row">Workflow code</th>
+                        <td className="sky-mono">{selectedApproval.workflowCode || '—'}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Approval step</th>
+                        <td>{selectedApproval.nodeDisplayName || selectedApproval.nodeKey || '—'}</td>
+                        <th scope="row">Required role</th>
+                        <td>
+                          <span className="sky-pill sky-pill-info">
+                            {selectedApproval.requiredRoleCode || 'Any authorized approver'}
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Node key</th>
+                        <td className="sky-mono">{selectedApproval.nodeKey || '—'}</td>
+                        <th scope="row">Approval key</th>
+                        <td className="sky-mono">{selectedApproval.approvalKey || '—'}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Requested by</th>
+                        <td>
+                          {formatIdentity(
+                            selectedApproval.requestedByDisplayName,
+                            selectedApproval.requestedByEmail,
+                          )}
+                        </td>
+                        <th scope="row">Requested at</th>
+                        <td>{formatDate(selectedApproval.requestedAt || selectedApproval.createdAt)}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Approval window</th>
+                        <td>{formatDurationMs(selectedApproval.timeoutMs)}</td>
+                        <th scope="row">Expires at</th>
+                        <td>{formatDate(selectedApproval.expiresAt)}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Instructions</th>
+                        <td colSpan="3">
+                          {selectedApproval.instructions || 'No approval instructions were recorded.'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
               <div>
                 <div className="sky-page-kicker mb-2">Recorded result</div>
-                <div className="sky-node-parameter-preview-grid">
-                  <ApprovalDetailField label="Decision" value={selectedApproval.status || 'UNKNOWN'} />
-                  <ApprovalDetailField
-                    label="Decided by"
-                    value={formatIdentity(
-                      selectedApproval.decidedByDisplayName,
-                      selectedApproval.decidedByEmail,
-                      selectedApproval.status === 'PENDING' ? 'Awaiting decision' : 'System / unavailable',
-                    )}
-                  />
-                  <ApprovalDetailField label="Decided at" value={formatDate(selectedApproval.decidedAt)} />
-                  <ApprovalDetailField label="When rejected" value={formatAction(selectedApproval.onReject)} />
-                  <ApprovalDetailField label="When timed out" value={formatAction(selectedApproval.onTimeout)} />
-                  <ApprovalDetailField label="Temporal link" value={selectedApproval.temporalWorkflowId ? 'Linked' : 'Not linked'} />
-                </div>
-                <div className="sky-node-parameter-preview mt-3">
-                  <div className="sky-page-kicker">Decision note</div>
-                  <div className="sky-detail-value mt-1">
-                    {selectedApproval.decisionNote || (
-                      selectedApproval.status === 'PENDING'
-                        ? 'No decision has been recorded.'
-                        : 'No decision note was provided.'
-                    )}
-                  </div>
+                <div className="table-responsive sky-table-card">
+                  <table className="table table-sm sky-table align-middle mb-0">
+                    <tbody>
+                      <tr>
+                        <th scope="row">Decision</th>
+                        <td>
+                          <span className={`sky-pill ${statusClass(selectedApproval.status)}`}>
+                            {selectedApproval.status || 'UNKNOWN'}
+                          </span>
+                        </td>
+                        <th scope="row">Decided by</th>
+                        <td>
+                          {formatIdentity(
+                            selectedApproval.decidedByDisplayName,
+                            selectedApproval.decidedByEmail,
+                            selectedApproval.status === 'PENDING'
+                              ? 'Awaiting decision'
+                              : 'System / unavailable',
+                          )}
+                        </td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Decided at</th>
+                        <td>{formatDate(selectedApproval.decidedAt)}</td>
+                        <th scope="row">Temporal execution</th>
+                        <td>
+                          {selectedApproval.temporalWorkflowId
+                            ? 'Linked to workflow execution'
+                            : 'No Temporal execution link recorded'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <th scope="row">If rejected</th>
+                        <td>{formatAction(selectedApproval.onReject)}</td>
+                        <th scope="row">If timed out</th>
+                        <td>{formatAction(selectedApproval.onTimeout)}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Decision note</th>
+                        <td colSpan="3">
+                          {selectedApproval.decisionNote || (
+                            selectedApproval.status === 'PENDING'
+                              ? 'No decision has been recorded.'
+                              : 'No decision note was provided.'
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
