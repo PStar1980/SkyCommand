@@ -45,7 +45,11 @@ const COMMAND_SEARCH_ALIASES = {
   health: '/dashboard/automation',
   approvals: '/workflows/approvals',
   temporal: '/workflows/history?runtime=temporal',
-  scheduler: '/automation/scheduler',
+  scheduler: '/automation/schedules/history',
+  'scheduler history': '/automation/schedules/history',
+  'manage schedules': '/automation/schedules/manage',
+  'create schedule': '/automation/schedules/create',
+  'worker history': '/automation/workers/history',
   listeners: '/automation/listeners',
   ingestion: '/dashboard/data-pipeline',
   data: '/dashboard/data-pipeline',
@@ -118,7 +122,11 @@ function createNavGroups(hasPermission, hasRole) {
     hasPermission('TEMPORAL_WORKFLOW_READ') ||
     hasPermission('WORKFLOW_APPROVAL_READ');
   const canViewAutomation =
-    hasPermission('WORKER_SCHEDULE_READ') || hasPermission('WORKER_LISTENER_READ');
+    hasPermission('WORKER_SCHEDULE_READ') ||
+    hasPermission('WORKER_SCHEDULE_CREATE') ||
+    hasPermission('WORKER_SCHEDULE_CHANGE') ||
+    hasPermission('WORKER_ADMIN') ||
+    hasPermission('WORKER_LISTENER_READ');
   const canViewData =
     hasPermission('INGESTION_VIEW_STATUS') || hasPermission('ADMIN_REPOSITORY_READ');
   const canViewReadiness = hasRole('SUPER_ADMIN');
@@ -261,11 +269,32 @@ function createNavGroups(hasPermission, hasRole) {
       visible: canViewAutomation,
       items: [
         {
-          label: 'Scheduler',
-          to: '/automation/scheduler',
-          icon: '◴',
+          label: 'Scheduler History',
+          to: '/automation/schedules/history',
+          icon: '↺',
           visible: hasPermission('WORKER_SCHEDULE_READ'),
-          description: 'Timed starts',
+          description: 'Execution ledger',
+        },
+        {
+          label: 'Manage Schedules',
+          to: '/automation/schedules/manage',
+          icon: '▧',
+          visible: hasPermission('WORKER_SCHEDULE_READ'),
+          description: 'Timed configuration',
+        },
+        {
+          label: 'Create Schedules',
+          to: '/automation/schedules/create',
+          icon: '+',
+          visible: hasPermission('WORKER_SCHEDULE_CREATE'),
+          description: 'New timed start',
+        },
+        {
+          label: 'Worker History',
+          to: '/automation/workers/history',
+          icon: '◷',
+          visible: hasPermission('WORKER_ADMIN'),
+          description: 'Heartbeat ledger',
         },
         {
           label: 'Listeners',

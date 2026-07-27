@@ -32,6 +32,10 @@ const STATUS_OPTIONS = [
 ];
 
 const DEFAULT_TIMEZONE = 'America/Toronto';
+const SCHEDULER_PAGE_SIZE = 10;
+const SCHEDULER_HISTORY_POLL_FAST_MS = 2500;
+const SCHEDULER_HISTORY_POLL_IDLE_MS = 15000;
+const WORKER_HISTORY_POLL_MS = 10000;
 
 function getDefaultRunAt() {
   const date = new Date(Date.now() + 10 * 60 * 1000);
@@ -635,7 +639,7 @@ function buildStatCards(health, tools) {
   ];
 }
 
-function SchedulerControl() {
+function SchedulerControl({ view = 'manage' }) {
   const { hasPermission } = useAuth();
   const canCreateSchedules = hasPermission('WORKER_SCHEDULE_CREATE');
   const canChangeSchedules = hasPermission('WORKER_SCHEDULE_CHANGE');
@@ -651,8 +655,10 @@ function SchedulerControl() {
   const [runs, setRuns] = useState([]);
   const [runTotal, setRunTotal] = useState(0);
   const [nodes, setNodes] = useState([]);
+  const [nodeTotal, setNodeTotal] = useState(0);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [selectedRun, setSelectedRun] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
   const [formMode, setFormMode] = useState('create');
   const [scheduleForm, setScheduleForm] = useState(createBlankScheduleForm());
   const [scheduleFilters, setScheduleFilters] = useState({
@@ -660,12 +666,21 @@ function SchedulerControl() {
     scheduleType: '',
     status: '',
     q: '',
-    limit: 50,
+    limit: SCHEDULER_PAGE_SIZE,
+    offset: 0,
   });
   const [runFilters, setRunFilters] = useState({
     status: '',
     toolCode: '',
-    limit: 25,
+    q: '',
+    limit: SCHEDULER_PAGE_SIZE,
+    offset: 0,
+  });
+  const [nodeFilters, setNodeFilters] = useState({
+    status: '',
+    q: '',
+    limit: SCHEDULER_PAGE_SIZE,
+    offset: 0,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -692,6 +707,22 @@ function SchedulerControl() {
     [activeWorkflows, selectedWorkflowCode],
   );
   const statCards = useMemo(() => buildStatCards(health, tools), [health, tools]);
+  const schedulePageCount = Math.max(1, Math.ceil(scheduleTotal / scheduleFilters.limit));
+  const currentSchedulePage = Math.min(
+    Math.floor(scheduleFilters.offset / scheduleFilters.limit) + 1,
+    schedulePageCount,
+  );
+  const runPageCount = Math.max(1, Math.ceil(runTotal / runFilters.limit));
+  const currentRunPage = Math.min(
+    Math.floor(runFilters.offset / runFilters.limit) + 1,
+    runPageCount,
+  );
+  const nodePageCount = Math.max(1, Math.ceil(nodeTotal / nodeFilters.limit));
+  const currentNodePage = Math.min(
+    Math.floor(nodeFilters.offset / nodeFilters.limit) + 1,
+    nodePageCount,
+  );
+  const hasActiveScheduleRuns = Number(health?.runs24h?.active || 0) > 0 || runs.some((run) => ['QUEUED', 'STARTED'].includes(normalizeStatus(run.status)));
 
   async function loadWorkerTools() {
     const result = await workerService.listTools();
@@ -759,14 +790,29 @@ function SchedulerControl() {
     });
   }
 
-  async function loadNodes() {
+  async function loadNodes(nextFilters = nodeFilters) {
     if (!canViewNodes) {
       setNodes([]);
+      setNodeTotal(0);
+      setSelectedNode(null);
       return;
     }
 
-    const result = await workerService.listNodes({ limit: 25 });
-    setNodes(result.items || []);
+    const result = await workerService.listNodes(nextFilters);
+    const nextItems = result.items || [];
+    setNodes(nextItems);
+    setNodeTotal(result.total || 0);
+    setSelectedNode((currentSelected) => {
+      if (!currentSelected) {
+        return nextItems[0] || null;
+      }
+
+      return (
+        nextItems.find((node) => node.workerNodeId === currentSelected.workerNodeId) ||
+        nextItems[0] ||
+        null
+      );
+    });
   }
 
   async function refreshAll() {
@@ -790,6 +836,34 @@ function SchedulerControl() {
     }
   }
 
+  async function refreshCurrentView({ quiet = false } = {}) {
+    if (!quiet) {
+      setLoading(true);
+      setError('');
+    }
+
+    try {
+      if (view === 'history') {
+        await Promise.all([loadHealth(), loadWorkerTools(), loadRuns(runFilters)]);
+      } else if (view === 'worker') {
+        await Promise.all([loadHealth(), loadNodes(nodeFilters)]);
+      } else if (view === 'create') {
+        await Promise.all([loadHealth(), loadWorkerTools(), loadActiveWorkflows()]);
+      } else {
+        await Promise.all([loadHealth(), loadWorkerTools(), loadActiveWorkflows(), loadSchedules(scheduleFilters)]);
+      }
+      setLastRefreshAt(new Date());
+    } catch (loadError) {
+      if (!quiet) {
+        setError(loadError.message || 'Failed to refresh automation data.');
+      }
+    } finally {
+      if (!quiet) {
+        setLoading(false);
+      }
+    }
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -809,10 +883,47 @@ function SchedulerControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (view !== 'history' && view !== 'worker') {
+      return undefined;
+    }
+
+    let canceled = false;
+    let timerId = null;
+
+    async function poll() {
+      await refreshCurrentView({ quiet: true });
+
+      if (canceled) {
+        return;
+      }
+
+      const hiddenDelay = document.visibilityState === 'hidden' ? 30000 : null;
+      const delay = hiddenDelay || (view === 'history'
+        ? (hasActiveScheduleRuns ? SCHEDULER_HISTORY_POLL_FAST_MS : SCHEDULER_HISTORY_POLL_IDLE_MS)
+        : WORKER_HISTORY_POLL_MS);
+      timerId = window.setTimeout(poll, delay);
+    }
+
+    const initialDelay = view === 'history'
+      ? (hasActiveScheduleRuns ? SCHEDULER_HISTORY_POLL_FAST_MS : SCHEDULER_HISTORY_POLL_IDLE_MS)
+      : WORKER_HISTORY_POLL_MS;
+    timerId = window.setTimeout(poll, initialDelay);
+
+    return () => {
+      canceled = true;
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, hasActiveScheduleRuns, runFilters, nodeFilters]);
+
   function updateScheduleFilter(name, value) {
     setScheduleFilters((currentFilters) => ({
       ...currentFilters,
       [name]: value,
+      offset: 0,
     }));
   }
 
@@ -820,6 +931,15 @@ function SchedulerControl() {
     setRunFilters((currentFilters) => ({
       ...currentFilters,
       [name]: value,
+      offset: 0,
+    }));
+  }
+
+  function updateNodeFilter(name, value) {
+    setNodeFilters((currentFilters) => ({
+      ...currentFilters,
+      [name]: value,
+      offset: 0,
     }));
   }
 
@@ -843,6 +963,53 @@ function SchedulerControl() {
     } catch (loadError) {
       setError(loadError.message || 'Failed to load schedule runs.');
     }
+  }
+
+  async function applyNodeFilters(event) {
+    event.preventDefault();
+    setError('');
+
+    try {
+      await loadNodes(nodeFilters);
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load worker nodes.');
+    }
+  }
+
+  async function clearScheduleFilters() {
+    const nextFilters = {
+      enabled: '',
+      scheduleType: '',
+      status: '',
+      q: '',
+      limit: SCHEDULER_PAGE_SIZE,
+      offset: 0,
+    };
+    setScheduleFilters(nextFilters);
+    await loadSchedules(nextFilters);
+  }
+
+  async function clearRunFilters() {
+    const nextFilters = {
+      status: '',
+      toolCode: '',
+      q: '',
+      limit: SCHEDULER_PAGE_SIZE,
+      offset: 0,
+    };
+    setRunFilters(nextFilters);
+    await loadRuns(nextFilters);
+  }
+
+  async function clearNodeFilters() {
+    const nextFilters = {
+      status: '',
+      q: '',
+      limit: SCHEDULER_PAGE_SIZE,
+      offset: 0,
+    };
+    setNodeFilters(nextFilters);
+    await loadNodes(nextFilters);
   }
 
   function resetForm(tool = getDefaultTool(tools)) {
@@ -1199,35 +1366,119 @@ function SchedulerControl() {
     );
   }
 
+  function goToSchedulePage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), schedulePageCount);
+    const nextFilters = { ...scheduleFilters, offset: (nextPage - 1) * scheduleFilters.limit };
+    setScheduleFilters(nextFilters);
+    loadSchedules(nextFilters);
+  }
+
+  function goToRunPage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), runPageCount);
+    const nextFilters = { ...runFilters, offset: (nextPage - 1) * runFilters.limit };
+    setRunFilters(nextFilters);
+    loadRuns(nextFilters);
+  }
+
+  function goToNodePage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), nodePageCount);
+    const nextFilters = { ...nodeFilters, offset: (nextPage - 1) * nodeFilters.limit };
+    setNodeFilters(nextFilters);
+    loadNodes(nextFilters);
+  }
+
+  function renderPagination({ currentPage, pageCount, total, label, onPageChange }) {
+    const rangeStart = total === 0 ? 0 : (currentPage - 1) * SCHEDULER_PAGE_SIZE + 1;
+    const rangeEnd = Math.min(currentPage * SCHEDULER_PAGE_SIZE, total);
+    const selectId = `${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-page-select`;
+
+    return (
+      <div className="sky-pagination-row">
+        <div className="small sky-muted">
+          Showing {rangeStart}-{rangeEnd} of {total} {label}
+        </div>
+        <div className="sky-pagination-controls" aria-label={`${label} pagination`}>
+          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage <= 1} onClick={() => onPageChange(1)} type="button">First</button>
+          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} type="button">Back</button>
+          <label className="sky-pagination-select-label" htmlFor={selectId}>Page</label>
+          <select className="form-select form-select-sm sky-form-control sky-pagination-select" id={selectId} onChange={(event) => onPageChange(event.target.value)} value={currentPage}>
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
+              <option key={page} value={page}>{page}</option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {pageCount}</span>
+          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage >= pageCount} onClick={() => onPageChange(currentPage + 1)} type="button">Next</button>
+          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage >= pageCount} onClick={() => onPageChange(pageCount)} type="button">Last</button>
+        </div>
+      </div>
+    );
+  }
+
+  const pageMeta = {
+    history: {
+      kicker: 'Automation · History',
+      title: 'Scheduler History',
+      subtitle: 'Search scheduled executions, inspect structured results, and follow active worker runs with smart polling.',
+      refreshLabel: 'Refresh history',
+    },
+    manage: {
+      kicker: 'Automation · Manage',
+      title: 'Manage Schedules',
+      subtitle: 'Search, configure, queue, enable, disable, and retire schedules for worker tools and workflows.',
+      refreshLabel: 'Refresh schedules',
+    },
+    create: {
+      kicker: 'Automation · Create',
+      title: 'Create Schedules',
+      subtitle: 'Create a timed or recurring schedule for a worker-visible tool or published SkyCommand workflow.',
+      refreshLabel: 'Refresh targets',
+    },
+    worker: {
+      kicker: 'Automation · Workers',
+      title: 'Worker History',
+      subtitle: 'Inspect registered worker processes, heartbeat freshness, runtime identity, and node metadata with smart polling.',
+      refreshLabel: 'Refresh workers',
+    },
+  }[view] || {};
+
   return (
     <>
       <header className="sky-page-header">
         <div>
-          <div className="sky-page-kicker">Automation schedules</div>
-          <h1 className="sky-page-title">Scheduler</h1>
-          <p className="sky-page-subtitle">
-            Manage active schedules for worker-visible tools, queue immediate runs, monitor worker
-            nodes, and inspect schedule execution history from SkyCommand Admin.
-          </p>
+          <div className="sky-page-kicker">{pageMeta.kicker}</div>
+          <h1 className="sky-page-title">{pageMeta.title}</h1>
+          <p className="sky-page-subtitle">{pageMeta.subtitle}</p>
         </div>
         <div className="text-md-end">
           <button
             className="btn sky-btn-ghost"
             disabled={loading}
-            onClick={refreshAll}
+            onClick={() => refreshCurrentView()}
             type="button"
           >
-            {loading ? 'Refreshing...' : 'Refresh scheduler'}
+            {loading ? 'Refreshing...' : pageMeta.refreshLabel}
           </button>
           <div className="small sky-muted mt-2">
             Last refresh: {lastRefreshAt ? formatDate(lastRefreshAt) : '—'}
           </div>
+          {(view === 'history' || view === 'worker') && (
+            <div className="d-flex flex-wrap justify-content-md-end gap-2 mt-2">
+              <span className="sky-pill sky-pill-success">Smart polling live</span>
+              <span className="sky-pill sky-pill-info">
+                {view === 'history'
+                  ? (hasActiveScheduleRuns ? 'Every 2.5 s while active' : 'Every 15 s')
+                  : 'Every 10 s'}
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
       {error && <div className="alert alert-danger">{error}</div>}
       {notice && <div className="alert alert-success">{notice}</div>}
 
+      {view === 'worker' && (
+        <>
       <section className="sky-worker-hero mb-3">
         <div>
           <div className="d-flex align-items-center gap-2 mb-2">
@@ -1280,8 +1531,13 @@ function SchedulerControl() {
         ))}
       </div>
 
+        </>
+      )}
+
+      {(view === 'create' || view === 'manage') && (
       <div className="row g-3 mt-1">
-        <div className="col-xl-4">
+        {(view === 'create' || (view === 'manage' && formMode === 'edit')) && (
+          <div className="col-12">
           <section className="sky-card h-100">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
@@ -1627,9 +1883,11 @@ function SchedulerControl() {
               </form>
             </div>
           </section>
-        </div>
+          </div>
+        )}
 
-        <div className="col-xl-8">
+        {view === 'manage' && (
+          <div className="col-12">
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header">
               <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -1641,6 +1899,13 @@ function SchedulerControl() {
                   </div>
                 </div>
                 <form className="sky-inline-filter-form" onSubmit={applyScheduleFilters}>
+                  <input
+                    className="form-control form-control-sm sky-form-control"
+                    onChange={(event) => updateScheduleFilter('q', event.target.value)}
+                    placeholder="Search schedules"
+                    type="search"
+                    value={scheduleFilters.q}
+                  />
                   <select
                     className="form-select form-select-sm sky-form-control"
                     onChange={(event) => updateScheduleFilter('enabled', event.target.value)}
@@ -1659,16 +1924,17 @@ function SchedulerControl() {
                     <option value="ONCE">ONCE</option>
                     <option value="INTERVAL">INTERVAL</option>
                   </select>
-                  <input
-                    className="form-control form-control-sm sky-form-control"
-                    onChange={(event) => updateScheduleFilter('q', event.target.value)}
-                    placeholder="Search schedules"
-                    type="search"
-                    value={scheduleFilters.q}
-                  />
-                  <button className="btn btn-sm sky-btn-primary" type="submit">
-                    Apply
-                  </button>
+                  <select
+                    className="form-select form-select-sm sky-form-control"
+                    onChange={(event) => updateScheduleFilter('status', event.target.value)}
+                    value={scheduleFilters.status}
+                  >
+                    {STATUS_OPTIONS.map((option) => (
+                      <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <button className="btn btn-sm sky-btn-primary" type="submit">Apply filters</button>
+                  <button className="btn btn-sm sky-btn-ghost" onClick={clearScheduleFilters} type="button">Clear filters</button>
                 </form>
               </div>
             </div>
@@ -1799,12 +2065,24 @@ function SchedulerControl() {
                 </table>
               </div>
             )}
+            {renderPagination({
+              currentPage: currentSchedulePage,
+              pageCount: schedulePageCount,
+              total: scheduleTotal,
+              label: 'schedule definition(s)',
+              onPageChange: goToSchedulePage,
+            })}
           </section>
-        </div>
+          </div>
+        )}
       </div>
 
+      )}
+
+      {(view === 'manage' || view === 'history') && (
       <div className="row g-3 mt-1">
-        <div className="col-xl-5">
+        {view === 'manage' && (
+          <div className="col-12">
           <section className="sky-card sky-sticky-detail-card">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
@@ -1950,9 +2228,11 @@ function SchedulerControl() {
               )}
             </div>
           </section>
-        </div>
+          </div>
+        )}
 
-        <div className="col-xl-7">
+        {view === 'history' && (
+          <div className="col-12">
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header">
               <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -1964,6 +2244,13 @@ function SchedulerControl() {
                   </div>
                 </div>
                 <form className="sky-inline-filter-form" onSubmit={applyRunFilters}>
+                  <input
+                    className="form-control form-control-sm sky-form-control"
+                    onChange={(event) => updateRunFilter('q', event.target.value)}
+                    placeholder="Search runs"
+                    type="search"
+                    value={runFilters.q}
+                  />
                   <select
                     className="form-select form-select-sm sky-form-control"
                     onChange={(event) => updateRunFilter('status', event.target.value)}
@@ -1987,9 +2274,8 @@ function SchedulerControl() {
                       </option>
                     ))}
                   </select>
-                  <button className="btn btn-sm sky-btn-primary" type="submit">
-                    Apply
-                  </button>
+                  <button className="btn btn-sm sky-btn-primary" type="submit">Apply filters</button>
+                  <button className="btn btn-sm sky-btn-ghost" onClick={clearRunFilters} type="button">Clear filters</button>
                 </form>
               </div>
             </div>
@@ -2039,12 +2325,24 @@ function SchedulerControl() {
                 </table>
               </div>
             )}
+            {renderPagination({
+              currentPage: currentRunPage,
+              pageCount: runPageCount,
+              total: runTotal,
+              label: 'schedule run(s)',
+              onPageChange: goToRunPage,
+            })}
           </section>
-        </div>
+          </div>
+        )}
       </div>
 
+      )}
+
+      {(view === 'history' || view === 'worker') && (
       <div className="row g-3 mt-1">
-        <div className="col-xl-5">
+        {view === 'history' && (
+          <div className="col-12">
           <section className="sky-card h-100">
             <div className="sky-card-header">
               <h2 className="h5 mb-1">Run detail</h2>
@@ -2103,74 +2401,179 @@ function SchedulerControl() {
               )}
             </div>
           </section>
-        </div>
+          </div>
+        )}
 
-        <div className="col-xl-7">
-          <section className="sky-card h-100">
-            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
-              <div>
-                <h2 className="h5 mb-1">Worker nodes</h2>
-                <div className="small sky-muted">
-                  Registered daemon processes and heartbeat state.
+        {view === 'worker' && (
+          <div className="col-12">
+          <div className="d-flex flex-column gap-3">
+            <section className="sky-card sky-table-card">
+              <div className="sky-card-header">
+                <div className="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                  <div>
+                    <div className="sky-page-kicker">Worker browser</div>
+                    <h2 className="h5 mb-1">Registered worker nodes</h2>
+                    <div className="small sky-muted">
+                      Heartbeat records refresh automatically while this page remains open.
+                    </div>
+                  </div>
+                  {canViewNodes ? (
+                    <form className="sky-inline-filter-form" onSubmit={applyNodeFilters}>
+                      <input
+                        className="form-control form-control-sm sky-form-control"
+                        onChange={(event) => updateNodeFilter('q', event.target.value)}
+                        placeholder="Search node, host, version..."
+                        type="search"
+                        value={nodeFilters.q}
+                      />
+                      <select
+                        className="form-select form-select-sm sky-form-control"
+                        onChange={(event) => updateNodeFilter('status', event.target.value)}
+                        value={nodeFilters.status}
+                      >
+                        <option value="">All statuses</option>
+                        <option value="ONLINE">Online</option>
+                        <option value="ERROR">Error</option>
+                        <option value="OFFLINE">Offline</option>
+                      </select>
+                      <button className="btn btn-sm sky-btn-primary" type="submit">Apply filters</button>
+                      <button className="btn btn-sm sky-btn-ghost" onClick={clearNodeFilters} type="button">Clear filters</button>
+                    </form>
+                  ) : (
+                    <span className="sky-pill sky-pill-info">WORKER_ADMIN required</span>
+                  )}
                 </div>
               </div>
-              {!canViewNodes && (
-                <span className="sky-pill sky-pill-info">WORKER_ADMIN required</span>
-              )}
-            </div>
 
-            {canViewNodes ? (
-              nodes.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table sky-table">
-                    <thead>
-                      <tr>
-                        <th>Node</th>
-                        <th>Status</th>
-                        <th>Heartbeat</th>
-                        <th>PID</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {nodes.map((node) => (
-                        <tr key={node.workerNodeId}>
-                          <td>
-                            <div className="fw-bold sky-detail-value">{node.nodeName}</div>
-                            <div className="small sky-muted">{node.hostname || '—'}</div>
-                          </td>
-                          <td>
-                            <span className={`sky-pill ${statusClass(node.status)}`}>
-                              {node.status}
-                            </span>
-                          </td>
-                          <td>
-                            <div>{formatDate(node.lastHeartbeatAt)}</div>
-                            <div className="small sky-muted">
-                              {node.secondsSinceHeartbeat === undefined ||
-                              node.secondsSinceHeartbeat === null
-                                ? '—'
-                                : `${formatNumber(node.secondsSinceHeartbeat)}s ago`}
-                            </div>
-                          </td>
-                          <td>{node.processId || '—'}</td>
+              {canViewNodes ? (
+                nodes.length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="table table-hover sky-table align-middle mb-0">
+                      <thead>
+                        <tr>
+                          <th>Node</th>
+                          <th>Status</th>
+                          <th>Heartbeat</th>
+                          <th>Process</th>
+                          <th>Version</th>
+                          <th>Started</th>
+                          <th className="text-end">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {nodes.map((node) => (
+                          <tr
+                            className={`sky-clickable-row ${selectedNode?.workerNodeId === node.workerNodeId ? 'sky-selected-row' : ''}`}
+                            key={node.workerNodeId}
+                            onClick={() => setSelectedNode(node)}
+                          >
+                            <td>
+                              <div className="fw-bold sky-detail-value">{node.nodeName}</div>
+                              <div className="small sky-muted">{node.hostname || '—'}</div>
+                            </td>
+                            <td><span className={`sky-pill ${statusClass(node.status)}`}>{node.status}</span></td>
+                            <td>
+                              <div>{formatDate(node.lastHeartbeatAt)}</div>
+                              <div className="small sky-muted">
+                                {node.secondsSinceHeartbeat === undefined || node.secondsSinceHeartbeat === null
+                                  ? '—'
+                                  : `${formatNumber(node.secondsSinceHeartbeat)}s ago`}
+                              </div>
+                            </td>
+                            <td>{node.processId || '—'}</td>
+                            <td>{node.appVersion || '—'}</td>
+                            <td>{formatDate(node.startedAt)}</td>
+                            <td className="text-end">
+                              <button
+                                className="btn btn-sm sky-btn-ghost"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSelectedNode(node);
+                                }}
+                                type="button"
+                              >
+                                {selectedNode?.workerNodeId === node.workerNodeId ? 'Selected' : 'View worker'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="sky-empty-state">No worker nodes match the current filters.</div>
+                )
               ) : (
-                <div className="sky-empty-state">
-                  No worker nodes registered yet. Start the daemon with npm run worker.
+                <div className="sky-empty-state">Worker node visibility requires WORKER_ADMIN.</div>
+              )}
+              {canViewNodes ? renderPagination({
+                currentPage: currentNodePage,
+                pageCount: nodePageCount,
+                total: nodeTotal,
+                label: 'worker node(s)',
+                onPageChange: goToNodePage,
+              }) : null}
+            </section>
+
+            <section className="sky-card">
+              <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+                <div>
+                  <div className="sky-page-kicker">Selected worker record</div>
+                  <h2 className="h5 mb-1">{selectedNode?.nodeName || 'Worker detail'}</h2>
+                  <div className="small sky-muted">Runtime identity, heartbeat timing, and registration metadata.</div>
                 </div>
-              )
-            ) : (
-              <div className="sky-empty-state">Worker node visibility requires WORKER_ADMIN.</div>
-            )}
-          </section>
-        </div>
+                {selectedNode ? <span className={`sky-pill ${statusClass(selectedNode.status)}`}>{selectedNode.status}</span> : null}
+              </div>
+              <div className="sky-card-body">
+                {selectedNode ? (
+                  <>
+                    <div className="table-responsive sky-table-card mb-3">
+                      <table className="table table-sm sky-table align-middle mb-0">
+                        <tbody>
+                          <tr><th>Node name</th><td>{selectedNode.nodeName || '—'}</td><th>Hostname</th><td>{selectedNode.hostname || '—'}</td></tr>
+                          <tr><th>Process ID</th><td>{selectedNode.processId || '—'}</td><th>Application version</th><td>{selectedNode.appVersion || '—'}</td></tr>
+                          <tr><th>Started</th><td>{formatDate(selectedNode.startedAt)}</td><th>Last heartbeat</th><td>{formatDate(selectedNode.lastHeartbeatAt)}</td></tr>
+                          <tr><th>Heartbeat age</th><td>{selectedNode.secondsSinceHeartbeat == null ? '—' : `${formatNumber(selectedNode.secondsSinceHeartbeat)} seconds`}</td><th>Registered</th><td>{formatDate(selectedNode.createdAt)}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <details className="sky-details-panel">
+                      <summary>Technical identifiers and metadata</summary>
+                      <div className="pt-3">
+                        <div className="sky-page-kicker">Worker node ID</div>
+                        <div className="sky-mono small mb-3">{selectedNode.workerNodeId}</div>
+                        <pre className="sky-code-block sky-worker-json-preview mb-0">{getJsonPreview(selectedNode.metadata)}</pre>
+                      </div>
+                    </details>
+                  </>
+                ) : (
+                  <div className="sky-empty-state">Select a worker row to inspect its heartbeat record.</div>
+                )}
+              </div>
+            </section>
+          </div>
+          </div>
+        )}
       </div>
+      )}
     </>
   );
 }
 
-export default SchedulerControl;
+export function SchedulerHistory() {
+  return <SchedulerControl view="history" />;
+}
+
+export function ManageSchedules() {
+  return <SchedulerControl view="manage" />;
+}
+
+export function CreateSchedule() {
+  return <SchedulerControl view="create" />;
+}
+
+export function WorkerHistory() {
+  return <SchedulerControl view="worker" />;
+}
+
+export default ManageSchedules;

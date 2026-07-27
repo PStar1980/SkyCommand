@@ -27,7 +27,7 @@ import AddTool from './pages/AddTool.jsx';
 import ToolsDashboard from './pages/ToolsDashboard.jsx';
 import WorkflowsDashboard from './pages/WorkflowsDashboard.jsx';
 import AutomationListeners from './pages/AutomationListeners.jsx';
-import SchedulerControl from './pages/SchedulerControl.jsx';
+import { CreateSchedule, ManageSchedules, SchedulerHistory, WorkerHistory } from './pages/SchedulerControl.jsx';
 import { TemporalStartWorkflow } from './pages/TemporalWorkflows.jsx';
 import WorkflowBuilder from './pages/WorkflowBuilder.jsx';
 import WorkflowManager from './pages/WorkflowManager.jsx';
@@ -148,12 +148,37 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={<Navigate replace to="/dashboard/data-pipeline" />}
             />
 
-            <Route path="worker" element={<Navigate replace to="/automation/scheduler" />} />
+            <Route path="worker" element={<Navigate replace to="/automation/workers/history" />} />
+            <Route path="automation/scheduler" element={<Navigate replace to="/automation/schedules/history" />} />
             <Route
-              path="automation/scheduler"
+              path="automation/schedules/history"
               element={
                 <ProtectedRoute permissionCode="WORKER_SCHEDULE_READ">
-                  <SchedulerControl />
+                  <SchedulerHistory />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="automation/schedules/manage"
+              element={
+                <ProtectedRoute permissionCode="WORKER_SCHEDULE_READ">
+                  <ManageSchedules />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="automation/schedules/create"
+              element={
+                <ProtectedRoute permissionCode="WORKER_SCHEDULE_CREATE">
+                  <CreateSchedule />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="automation/workers/history"
+              element={
+                <ProtectedRoute permissionCode="WORKER_ADMIN">
+                  <WorkerHistory />
                 </ProtectedRoute>
               }
             />

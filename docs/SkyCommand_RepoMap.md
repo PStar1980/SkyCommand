@@ -119,6 +119,7 @@ SkyServer/
 │   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── ReadinessDashboard.jsx
 │   │       │   ├── SchedulerControl.jsx
+│   │       │   ├── schedulerPageSplitSelfTest.js
 │   │       │   ├── ScriptExecutions.jsx
 │   │       │   ├── SkyWorkflows.jsx
 │   │       │   ├── TemporalWorkflows.jsx

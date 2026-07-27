@@ -1258,6 +1258,13 @@ async function listScheduleRuns(filters = {}) {
     clauses.push(`tool_code = $${values.length}`);
   }
 
+  addSearchFilter({
+    clauses,
+    values,
+    columns: ['schedule_code', 'schedule_name', 'tool_code', 'tool_label', 'node_name', 'execution_id'],
+    searchText: filters.q || filters.search,
+  });
+
   const whereClause = buildWhereClause(clauses);
 
   const [countResult, rowsResult] = await Promise.all([
