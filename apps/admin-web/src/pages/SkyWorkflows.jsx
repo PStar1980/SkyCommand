@@ -6352,7 +6352,6 @@ function SkyWorkflows({ mode = 'start' }) {
                 <thead>
                   <tr>
                     <th>Workflow</th>
-                    <th>Code</th>
                     <th>Status</th>
                     <th>Structure</th>
                     <th>Nodes</th>
@@ -6365,7 +6364,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 <tbody>
                   {visibleStartDefinitions.length === 0 ? (
                     <tr>
-                      <td colSpan="9">
+                      <td colSpan="8">
                         <div className="sky-empty-state">
                           No workflows match the current filters.
                         </div>
@@ -6386,11 +6385,10 @@ function SkyWorkflows({ mode = 'start' }) {
                             <div className="fw-bold sky-detail-value">
                               {definition.displayName}
                             </div>
-                            <div className="small sky-muted">
-                              {definition.description || 'No workflow description.'}
+                            <div className="small sky-mono sky-muted">
+                              {definition.workflowCode}
                             </div>
                           </td>
-                          <td className="sky-mono">{definition.workflowCode}</td>
                           <td>
                             <span className={`sky-pill ${statusClass(definition.status)}`}>
                               {definition.status || 'ACTIVE'}

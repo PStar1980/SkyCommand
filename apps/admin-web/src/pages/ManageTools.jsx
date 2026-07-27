@@ -951,21 +951,14 @@ function ManageTools() {
           </p>
         </div>
 
-        <div className="d-flex flex-wrap gap-2">
-          <button
-            className="btn sky-btn-ghost"
-            disabled={loading}
-            onClick={() => loadList()}
-            type="button"
-          >
-            {loading ? 'Refreshing...' : 'Refresh catalogue'}
-          </button>
-          {canWrite && (
-            <button className="btn sky-btn-primary" onClick={startCreate} type="button">
-              Add catalogue record
-            </button>
-          )}
-        </div>
+        <button
+          className="btn sky-btn-ghost"
+          disabled={loading}
+          onClick={() => loadList()}
+          type="button"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
       </header>
 
       {error && <div className="alert alert-danger">{error}</div>}

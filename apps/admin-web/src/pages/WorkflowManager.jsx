@@ -977,6 +977,7 @@ function WorkflowManager() {
   const [versionHistoryPage, setVersionHistoryPage] = useState(1);
   const [manageWorkflowFilters, setManageWorkflowFilters] = useState(DEFAULT_MANAGE_WORKFLOW_FILTERS);
   const [manageWorkflowPage, setManageWorkflowPage] = useState(1);
+  const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
   const toolTargets = useMemo(
     () => [...(catalog.toolTargets || [])].sort((a, b) => {
@@ -1044,6 +1045,8 @@ function WorkflowManager() {
       } else {
         setDetail(null);
       }
+
+      setLastRefreshAt(new Date().toISOString());
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow definitions.'));
     } finally {
@@ -1814,9 +1817,19 @@ function WorkflowManager() {
             delete old definitions, and publish graph edits through draft workflow versions.
           </p>
         </div>
-        <button className="btn sky-btn-ghost" disabled={loading || saving} onClick={() => loadDefinitions()} type="button">
-          {loading ? 'Refreshing...' : 'Refresh workflows'}
-        </button>
+        <div className="sky-dashboard-refresh-stack">
+          <button
+            className="btn sky-btn-ghost"
+            disabled={loading || saving}
+            onClick={() => loadDefinitions()}
+            type="button"
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <div className="small sky-muted sky-dashboard-last-refresh">
+            Last refresh: {formatDateTime(lastRefreshAt)}
+          </div>
+        </div>
       </header>
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -1929,19 +1942,18 @@ function WorkflowManager() {
             <thead>
               <tr>
                 <th>Workflow</th>
-                <th>Code</th>
-                <th>Status</th>
                 <th>Structure</th>
                 <th>Nodes</th>
                 <th>Edges</th>
                 <th>Runtime parameters</th>
                 <th>Published version</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {visibleDefinitions.length === 0 ? (
                 <tr>
-                  <td colSpan="8">
+                  <td colSpan="7">
                     <div className="sky-empty-state">
                       No workflow definitions match the current filters.
                     </div>
@@ -1959,19 +1971,16 @@ function WorkflowManager() {
                     >
                       <td>
                         <div className="fw-bold sky-detail-value">{definition.displayName}</div>
-                        <div className="small sky-muted">
-                          {definition.description || 'No workflow description.'}
-                        </div>
-                      </td>
-                      <td className="sky-mono">{definition.workflowCode}</td>
-                      <td>
-                        <StatusPill status={definition.status || 'ACTIVE'} />
+                        <div className="small sky-mono sky-muted">{definition.workflowCode}</div>
                       </td>
                       <td>{getDefinitionStructureLabel(definition)}</td>
                       <td>{getDefinitionNodeCount(definition)}</td>
                       <td>{getDefinitionEdgeCount(definition)}</td>
                       <td>{getDefinitionRuntimeParameterCount(definition)}</td>
                       <td>{definition.publishedVersionNumber || '—'}</td>
+                      <td>
+                        <StatusPill status={definition.status || 'ACTIVE'} />
+                      </td>
                     </tr>
                   );
                 })
