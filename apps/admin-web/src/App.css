@@ -405,7 +405,7 @@
 .sky-sidebar-group-label {
   display: flex;
   width: 100%;
-  min-height: 3rem;
+  min-height: 3.12rem;
   align-items: center;
   gap: 0.62rem;
   border: 1px solid rgba(124, 144, 177, 0.13);
@@ -414,10 +414,10 @@
   color: #9bbcff;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.92rem;
+  font-size: 1.02rem;
   font-weight: 900;
-  letter-spacing: 0.15em;
-  padding: 0.64rem 0.72rem;
+  letter-spacing: 0.115em;
+  padding: 0.76rem 0.76rem;
   text-align: left;
   text-shadow: 0 0 18px rgba(72, 167, 255, 0.12);
   text-transform: uppercase;
@@ -465,8 +465,8 @@
   margin-left: auto;
   align-items: center;
   justify-content: center;
-  color: #7185a7;
-  font-size: 1.25rem;
+  color: #8fa9cf;
+  font-size: 1.38rem;
   line-height: 1;
   transform: rotate(0deg);
   transition:
@@ -475,7 +475,8 @@
 }
 
 .sky-sidebar-group.is-expanded .sky-sidebar-group-chevron {
-  color: #9ad7ff;
+  color: #c9e9ff;
+  filter: drop-shadow(0 0 6px rgba(72, 167, 255, 0.2));
   transform: rotate(90deg);
 }
 
