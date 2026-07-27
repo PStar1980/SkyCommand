@@ -564,6 +564,7 @@ function ManageTools() {
   const [success, setSuccess] = useState('');
   const verificationPanelRef = useRef(null);
   const verificationScrollHandledRef = useRef(false);
+  const filterAutoApplyReadyRef = useRef(false);
 
   const selectedListTool = useMemo(
     () => tools.find((tool) => tool.toolId === selectedToolId) || null,
@@ -704,6 +705,22 @@ function ManageTools() {
   useEffect(() => {
     loadDetail(selectedToolId);
   }, [selectedToolId, creating]);
+
+  useEffect(() => {
+    if (!filterAutoApplyReadyRef.current) {
+      filterAutoApplyReadyRef.current = true;
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCreating(false);
+      loadList(filters, '', 1);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+    // loadList intentionally uses the latest filter snapshot from this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   useEffect(() => {
     if (
@@ -850,16 +867,9 @@ function ManageTools() {
     await loadList(filters, updatedTool.toolId);
   }
 
-  function applyFilters(event) {
-    event.preventDefault();
-    setCreating(false);
-    loadList(filters, '', 1);
-  }
-
   function clearFilters() {
     setFilters(DEFAULT_FILTERS);
     setCreating(false);
-    loadList(DEFAULT_FILTERS, '', 1);
   }
 
   function goToPage(page) {
@@ -971,7 +981,7 @@ function ManageTools() {
               below.
             </p>
           </div>
-          <form className="sky-manage-tools-filter-grid" onSubmit={applyFilters}>
+          <div className="sky-manage-tools-filter-grid">
             <div className="sky-manage-tools-search-filter">
               <label className="form-label sky-form-label" htmlFor="toolSearch">
                 Search
@@ -1064,14 +1074,11 @@ function ManageTools() {
               </select>
             </div>
             <div className="sky-manage-tools-filter-actions">
-              <button className="btn btn-sm sky-btn-primary" type="submit">
-                Apply filters
-              </button>
               <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
                 Clear filters
               </button>
             </div>
-          </form>
+          </div>
         </div>
 
         <div className="table-responsive sky-table-card sky-functional-history-table-card">
@@ -1079,13 +1086,13 @@ function ManageTools() {
             <thead>
               <tr>
                 <th>Tool</th>
+                <th>Category</th>
                 <th>Runtime</th>
                 <th>Risk</th>
                 <th>Parameters</th>
                 <th>Visibility</th>
                 <th>Output contract</th>
                 <th>Status</th>
-                <th className="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1122,8 +1129,8 @@ function ManageTools() {
                     <td>
                       <div className="fw-semibold sky-detail-value">{tool.label}</div>
                       <div className="small sky-mono">{tool.toolCode}</div>
-                      <div className="small sky-muted">{tool.categoryLabel}</div>
                     </td>
+                    <td>{tool.categoryLabel || '—'}</td>
                     <td>{tool.runtimeCode || '—'}</td>
                     <td>
                       <span className={`sky-pill ${
@@ -1161,21 +1168,6 @@ function ManageTools() {
                       <StatusPill status={tool.enabled ? 'ACTIVE' : 'OFFLINE'}>
                         {tool.enabled ? 'Enabled' : 'Disabled'}
                       </StatusPill>
-                    </td>
-                    <td className="text-end">
-                      <button
-                        className="btn btn-sm sky-btn-ghost"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setCreating(false);
-                          setSelectedToolId(tool.toolId);
-                          setSuccess('');
-                          setError('');
-                        }}
-                        type="button"
-                      >
-                        {tool.toolId === selectedToolId && !creating ? 'Selected' : 'Manage tool'}
-                      </button>
                     </td>
                   </tr>
                 ))

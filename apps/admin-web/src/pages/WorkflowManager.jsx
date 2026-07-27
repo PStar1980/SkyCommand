@@ -1936,13 +1936,12 @@ function WorkflowManager() {
                 <th>Edges</th>
                 <th>Runtime parameters</th>
                 <th>Published version</th>
-                <th className="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
               {visibleDefinitions.length === 0 ? (
                 <tr>
-                  <td colSpan="9">
+                  <td colSpan="8">
                     <div className="sky-empty-state">
                       No workflow definitions match the current filters.
                     </div>
@@ -1973,18 +1972,6 @@ function WorkflowManager() {
                       <td>{getDefinitionEdgeCount(definition)}</td>
                       <td>{getDefinitionRuntimeParameterCount(definition)}</td>
                       <td>{definition.publishedVersionNumber || '—'}</td>
-                      <td className="text-end">
-                        <button
-                          className="btn btn-sm sky-btn-ghost"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            selectDefinition(definition.workflowCode);
-                          }}
-                          type="button"
-                        >
-                          {selected ? 'Selected' : 'Select workflow'}
-                        </button>
-                      </td>
                     </tr>
                   );
                 })

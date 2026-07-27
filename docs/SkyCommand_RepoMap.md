@@ -195,6 +195,7 @@ SkyServer/
 │   │       │   ├── skywebPreferencesService.js
 │   │       │   ├── skywebProfileService.js
 │   │       │   ├── skywebSavedViewsService.js
+│   │       │   ├── structuredToolContractAssociationSelfTest.js
 │   │       │   ├── temporalService.js
 │   │       │   ├── toolAdminService.js
 │   │       │   ├── toolExecutionHttpResponse.js
@@ -337,7 +338,8 @@ SkyServer/
 │   │           ├── 00067__tool_catalogue_admin_permissions_seed.sql
 │   │           ├── 00069__db_health_structured_output_seed.sql
 │   │           ├── 00070__db_build_structured_output_seed.sql
-│   │           └── 00072__api_telemetry_permissions_seed.sql
+│   │           ├── 00072__api_telemetry_permissions_seed.sql
+│   │           └── 00073__structured_tool_contract_associations_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
