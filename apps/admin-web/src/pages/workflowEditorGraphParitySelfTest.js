@@ -37,6 +37,17 @@ const checks = [
     manageToolsSource.includes('Clear filters'),
     'Manage Tools must label the reset action Clear filters.',
   ],
+  [
+    !manageToolsSource.includes('Apply filters')
+      && manageToolsSource.includes('filterAutoApplyReadyRef')
+      && manageToolsSource.includes('<th>Category</th>'),
+    'Manage Tools filters must auto-apply and the catalogue must expose a dedicated Category column.',
+  ],
+  [
+    !manageToolsSource.includes('<th className="text-end">Actions</th>')
+      && !managerSource.includes('<th className="text-end">Actions</th>'),
+    'Manage Tools and Manage Workflows must use row selection without redundant Actions columns.',
+  ],
 ];
 
 const failures = checks.filter(([passed]) => !passed).map(([, message]) => message);
