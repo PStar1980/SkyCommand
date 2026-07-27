@@ -719,6 +719,7 @@ function WorkflowVisualNode({
   onDragOver,
   onDragStart,
   onDrop,
+  onApprovalReview,
   onSelect,
 }) {
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
@@ -728,17 +729,28 @@ function WorkflowVisualNode({
   const detail = getNodeDetail(node, nodes);
   const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval, nodes }) : null;
   const designOverlay = runtimeMode ? null : getDesignNodeOverlay(node);
+  const pendingApprovalAction = runtimeMode
+    && nodeTypeCode === 'HUMAN_APPROVAL'
+    && String(approval?.status || '').toUpperCase() === 'PENDING'
+    && onApprovalReview;
 
   return (
-    <button
+    <div
       aria-disabled={selectionLocked}
       aria-label={`${selectionLocked ? 'Workflow node selection locked during execution' : 'Select workflow node'} ${index + 1}: ${title}`}
       className={`sky-workflow-visual-node ${meta.className} ${runtimeOverlay?.nodeClassName || ''} ${active ? 'is-runtime-active' : ''} ${selected ? 'is-selected' : ''} ${selectionLocked ? 'is-selection-locked' : ''} ${dragging ? 'is-dragging' : ''} ${dropTarget ? 'is-drop-target' : ''}`}
-      disabled={selectionLocked}
       draggable={dragReorderEnabled && !selectionLocked}
       ref={setNodeRef}
+      role="button"
+      tabIndex={selectionLocked ? -1 : 0}
       onClick={() => {
         if (!selectionLocked) {
+          onSelect?.(index, { scrollToEditor: true });
+        }
+      }}
+      onKeyDown={(event) => {
+        if (!selectionLocked && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
           onSelect?.(index, { scrollToEditor: true });
         }
       }}
@@ -748,11 +760,10 @@ function WorkflowVisualNode({
       onDragStart={(event) => onDragStart?.(event, index)}
       onDrop={(event) => onDrop?.(event, index)}
       title={selectionLocked
-        ? 'Node selection unlocks when the workflow run completes.'
+        ? 'Node selection unlocks when active execution pauses or completes.'
         : dragReorderEnabled
           ? 'Drag this node to reorder the sequential lane.'
           : undefined}
-      type="button"
     >
       <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
         <div className="sky-workflow-visual-marker" aria-hidden="true">{meta.marker}</div>
@@ -781,9 +792,22 @@ function WorkflowVisualNode({
             </div>
           ) : null}
           {nodeRun?.errorMessage ? <div className="sky-workflow-runtime-error">{nodeRun.errorMessage}</div> : null}
+          {pendingApprovalAction ? (
+            <button
+              className="btn btn-sm sky-workflow-approval-node-action"
+              onClick={(event) => {
+                event.stopPropagation();
+                onApprovalReview?.(approval, index, node);
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+              type="button"
+            >
+              Review approval
+            </button>
+          ) : null}
         </div>
       ) : null}
-    </button>
+    </div>
   );
 }
 
@@ -983,6 +1007,7 @@ function WorkflowVisualGraph({
   temporalWorkflowTargets = [],
   selectedNodeIndex = null,
   onFollowActiveNodeChange,
+  onApprovalReview,
   onNodeMove,
   onNodeReorder,
   onNodeSelect,
@@ -1051,10 +1076,14 @@ function WorkflowVisualGraph({
     && !completedRun
     && !terminalIssueRun
     && (runtimeCounts.active > 0 || isRuntimeInFlightStatus(runtimeStatus));
-  const selectionLocked = hasInFlightRun;
-  const visualExecutionNodeIndex = hasInFlightRun ? followTargetIndex : -1;
-  const activeEdgeIndex = hasInFlightRun && followTargetIndex > 0 ? followTargetIndex - 1 : -1;
-  const activeConditionRoute = hasInFlightRun
+  const pendingApproval = runtimeMode
+    ? approvals.find((approval) => String(approval?.status || '').toUpperCase() === 'PENDING') || null
+    : null;
+  const approvalPaused = Boolean(hasInFlightRun && pendingApproval);
+  const selectionLocked = hasInFlightRun && !approvalPaused;
+  const visualExecutionNodeIndex = selectionLocked ? followTargetIndex : -1;
+  const activeEdgeIndex = selectionLocked && followTargetIndex > 0 ? followTargetIndex - 1 : -1;
+  const activeConditionRoute = selectionLocked
     ? runtimeConditionRoutes.find((route) => route.targetIndex === followTargetIndex)
     : null;
   const activeBranchEdgeIndices = new Set(activeConditionRoute?.edgeIndices || []);
@@ -1081,7 +1110,7 @@ function WorkflowVisualGraph({
   }, [nodeSignature]);
 
   useEffect(() => {
-    if (!runtimeMode || !followActiveNode || followTargetIndex < 0) {
+    if (!runtimeMode || approvalPaused || !followActiveNode || followTargetIndex < 0) {
       return;
     }
 
@@ -1106,7 +1135,7 @@ function WorkflowVisualGraph({
         left: targetLeft,
       });
     }
-  }, [followActiveNode, followTargetIndex, onNodeSelect, runtimeMode, selectedNodeIndex]);
+  }, [approvalPaused, followActiveNode, followTargetIndex, onNodeSelect, runtimeMode, selectedNodeIndex]);
 
   function suspendFollowForManualNavigation() {
     if (runtimeMode && followActiveNode && onFollowActiveNodeChange) {
@@ -1206,7 +1235,7 @@ function WorkflowVisualGraph({
               <div className="d-flex w-100 justify-content-end">{headerActions}</div>
             ) : headerActions
           ) : null}
-          {runtimeMode && onFollowActiveNodeChange ? (
+          {runtimeMode && onFollowActiveNodeChange && !approvalPaused ? (
             followActiveNode ? (
               <label className="sky-follow-active-toggle is-enabled">
                 <input
@@ -1235,6 +1264,9 @@ function WorkflowVisualGraph({
               </label>
             )
           ) : null}
+          {approvalPaused ? (
+            <span className="sky-pill sky-pill-warning">Approval required</span>
+          ) : null}
           {runtimeMode && runtimeCounts.active > 0 && activeNode ? (
             <span className="sky-pill sky-pill-warning">Active: {activeNode.displayName || activeNode.nodeKey || `Node ${followTargetIndex + 1}`}</span>
           ) : null}
@@ -1242,9 +1274,9 @@ function WorkflowVisualGraph({
           <span className="sky-pill sky-pill-info">{totalEdges} edge(s)</span>
           <span className="sky-pill sky-pill-success">Sequential lane</span>
           {branchEdgeCount > 0 ? <span className="sky-pill sky-pill-warning">{branchEdgeCount} branch edge(s)</span> : null}
-          {runtimeMode && runStatusMeta ? <span className={`sky-pill ${runStatusMeta.pillClassName}`}>Run {runStatusMeta.label}</span> : null}
+          {runtimeMode && runStatusMeta && !approvalPaused ? <span className={`sky-pill ${runStatusMeta.pillClassName}`}>Run {runStatusMeta.label}</span> : null}
           {hasRuntimeExecution && runtimeCounts.completed > 0 ? <span className="sky-pill sky-pill-success">{runtimeCounts.completed} completed</span> : null}
-          {hasRuntimeExecution && runtimeCounts.active > 0 ? <span className="sky-pill sky-pill-warning">{runtimeCounts.active} active</span> : null}
+          {hasRuntimeExecution && !approvalPaused && runtimeCounts.active > 0 ? <span className="sky-pill sky-pill-warning">{runtimeCounts.active} active</span> : null}
           {hasRuntimeExecution && runtimeCounts.failed > 0 ? <span className="sky-pill sky-pill-danger">{runtimeCounts.failed} issue(s)</span> : null}
           {hasRuntimeExecution && runtimeCounts.notRun > 0 ? <span className="sky-pill sky-pill-info">{runtimeCounts.notRun} not run</span> : null}
           {dragReorderEnabled ? <span className="sky-pill sky-pill-warning">Drag reorder</span> : null}
@@ -1262,9 +1294,11 @@ function WorkflowVisualGraph({
           ) : null}
           {runtimeMode ? (
             <div className="sky-workflow-visual-runtime-note mb-3">
-              {selectionLocked
-                ? 'Runtime overlay is read-only. Node selection is locked while execution is active so the golden flow remains the focal point.'
-                : 'Runtime overlay is read-only. Completed nodes and executed condition routes illuminate gold; skipped or unexecuted nodes remain dim.'}
+              {approvalPaused
+                ? 'Execution is paused at a human approval checkpoint. Inspect completed output or pending node parameters, then review the approval directly from the approval node.'
+                : selectionLocked
+                  ? 'Runtime overlay is read-only. Node selection is locked while execution is active so the golden flow remains the focal point.'
+                  : 'Runtime overlay is read-only. Completed nodes and executed condition routes illuminate gold; skipped or unexecuted nodes remain dim.'}
             </div>
           ) : null}
           <div className="sky-workflow-visual-viewport">
@@ -1298,6 +1332,7 @@ function WorkflowVisualGraph({
                   onDragOver={handleDragOver}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
+                  onApprovalReview={onApprovalReview}
                   onSelect={onNodeSelect}
                   selected={!selectionLocked && selectedNodeIndex === index}
                 />

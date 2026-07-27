@@ -5757,3 +5757,97 @@
   scroll-padding-inline-start: 1.75rem;
 }
 
+
+/* Workflow approval graph integration and dark informational notices */
+.sky-card .alert-info,
+.alert-info {
+  border-color: rgba(72, 167, 255, 0.38);
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.12), rgba(137, 109, 255, 0.045)),
+    rgba(7, 14, 28, 0.92);
+  color: #a8d9ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 0 22px rgba(72, 167, 255, 0.055);
+}
+
+.sky-workflow-visual-node:not(.is-selection-locked) {
+  cursor: pointer;
+}
+
+.sky-workflow-approval-node-action {
+  width: 100%;
+  margin-top: 0.65rem;
+  border: 1px solid rgba(255, 210, 97, 0.5);
+  background:
+    linear-gradient(135deg, rgba(255, 210, 97, 0.16), rgba(72, 167, 255, 0.08)),
+    rgba(5, 11, 22, 0.88);
+  color: #ffe8a8;
+  font-weight: 850;
+  letter-spacing: 0.015em;
+  box-shadow: 0 0 18px rgba(255, 210, 97, 0.08);
+}
+
+.sky-workflow-approval-node-action:hover,
+.sky-workflow-approval-node-action:focus-visible {
+  border-color: rgba(255, 226, 145, 0.82);
+  background:
+    linear-gradient(135deg, rgba(255, 210, 97, 0.24), rgba(72, 167, 255, 0.12)),
+    rgba(5, 11, 22, 0.94);
+  color: #ffffff;
+  box-shadow:
+    0 0 0 0.16rem rgba(255, 210, 97, 0.1),
+    0 0 24px rgba(255, 210, 97, 0.14);
+  outline: none;
+}
+
+.sky-workflow-approval-modal-backdrop {
+  z-index: 5200;
+}
+
+.sky-workflow-approval-modal {
+  width: min(62rem, calc(100vw - 4rem));
+  max-height: calc(100vh - 4rem);
+}
+
+.sky-workflow-approval-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(1rem, 1.35vw, 1.6rem);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 215, 255, 0.34) rgba(4, 8, 16, 0.48);
+}
+
+.sky-workflow-approval-instructions {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(72, 167, 255, 0.24);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(135deg, rgba(72, 167, 255, 0.09), rgba(137, 109, 255, 0.045)),
+    rgba(4, 10, 22, 0.66);
+  color: #dce8ff;
+}
+
+.sky-workflow-approval-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .sky-workflow-approval-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .sky-workflow-approval-modal {
+    width: calc(100vw - 1.5rem);
+    max-height: calc(100vh - 1.5rem);
+  }
+
+  .sky-workflow-approval-metrics {
+    grid-template-columns: 1fr;
+  }
+}
