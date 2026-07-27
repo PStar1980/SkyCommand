@@ -29,11 +29,7 @@ function SidebarNav({
       <div className="sky-sidebar-glow" aria-hidden="true" />
       <div className="sky-sidebar-brand-wrap">
         <NavLink className="sky-sidebar-brand" to="/dashboard" onClick={onNavigate}>
-          <SkyCommandMark />
-          <span className="sky-sidebar-brand-copy">
-            <span className="sky-sidebar-brand-title">SkyCommand</span>
-            <span className="sky-sidebar-brand-subtitle">Workflow Automation</span>
-          </span>
+          <SkyCommandMark variant="lockup" />
         </NavLink>
         <button
           aria-label="Close navigation"
