@@ -126,6 +126,7 @@ SkyServer/
 │   │       │   ├── WorkflowApprovals.jsx
 │   │       │   ├── WorkflowBuilder.jsx
 │   │       │   ├── workflowDatabaseOutputSelfTest.js
+│   │       │   ├── workflowEditorGraphParitySelfTest.js
 │   │       │   ├── WorkflowManager.jsx
 │   │       │   ├── WorkflowsDashboard.jsx
 │   │       │   ├── workflowStartCatalogueSelfTest.js

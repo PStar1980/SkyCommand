@@ -1373,7 +1373,7 @@ function WorkflowBuilder() {
           </div>
           <div className="sky-card-body">
             <WorkflowVisualGraph
-              includeRuntimeInspectorRows
+              inspectorMode="navigation"
               nodes={nodes}
               onNodeMove={(index, direction) => moveNode(index, direction)}
               onNodeReorder={reorderNode}

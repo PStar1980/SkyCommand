@@ -2610,6 +2610,8 @@
 }
 
 .sky-workflow-visual-node {
+  display: flex;
+  flex-direction: column;
   width: min(72vw, 280px);
   min-height: 15rem;
   border: 1px solid rgba(124, 144, 177, 0.2);
@@ -2893,7 +2895,7 @@
 }
 
 .sky-workflow-runtime-overlay {
-  margin-top: 0.85rem;
+  margin-top: auto;
   padding: 0.65rem 0.7rem;
   border: 1px solid rgba(124, 144, 177, 0.15);
   border-radius: 0.75rem;
@@ -5575,6 +5577,11 @@
   min-width: min(100%, 92rem);
 }
 
+.sky-manage-workflows-filter-grid {
+  grid-template-columns: minmax(15rem, 1.45fr) repeat(4, minmax(8.5rem, 0.68fr)) auto;
+  min-width: min(100%, 92rem);
+}
+
 .sky-run-tools-filter-grid .form-label,
 .sky-manage-tools-filter-grid .form-label {
   margin-bottom: 0.35rem;
@@ -5704,6 +5711,8 @@
 }
 
 .sky-workflow-start-detail-stack {
+  display: grid;
+  gap: 1rem;
   overflow: hidden;
 }
 

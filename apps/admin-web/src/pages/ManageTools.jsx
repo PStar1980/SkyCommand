@@ -1068,7 +1068,7 @@ function ManageTools() {
                 Apply filters
               </button>
               <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
-                Clear
+                Clear filters
               </button>
             </div>
           </form>
