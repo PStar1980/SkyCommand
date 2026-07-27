@@ -247,11 +247,11 @@ function createNavGroups(hasPermission, hasRole) {
           description: 'New process graph',
         },
         {
-          label: 'Approvals',
+          label: 'Approval History',
           to: '/workflows/approvals',
           icon: '☑',
           visible: hasPermission('WORKFLOW_APPROVAL_READ'),
-          description: 'Human gates',
+          description: 'Decision ledger',
         },
       ],
     },
@@ -422,8 +422,8 @@ function Navbar() {
       to: '/dashboard/automation',
     },
     permittedRoutes.has('/workflows/approvals') && {
-      label: 'Approval gates',
-      meta: 'Review human approval checkpoints before workflow continuation.',
+      label: 'Approval history',
+      meta: 'Review recorded human approval checkpoints and decisions.',
       status: 'Ready',
       to: '/workflows/approvals',
     },
@@ -437,8 +437,8 @@ function Navbar() {
 
   const messageItems = [
     permittedRoutes.has('/workflows/approvals') && {
-      label: 'Approval handoffs',
-      meta: 'Review approval requests and workflow handoff checkpoints.',
+      label: 'Approval records',
+      meta: 'Inspect approval requests, decision makers, roles, and outcomes.',
       status: 'Open',
       to: '/workflows/approvals',
     },
