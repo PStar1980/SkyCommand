@@ -6081,3 +6081,419 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* SkyCommand Midnight Gold brand system — July 2026 */
+.sky-app-shell {
+  --sky-bg-deep: #02050a;
+  --sky-bg: #050a12;
+  --sky-surface: #0a111d;
+  --sky-surface-raised: #0e1726;
+  --sky-surface-hover: #121e30;
+  --sky-border: #25354a;
+  --sky-border-soft: rgba(145, 170, 205, 0.16);
+  --sky-text: #f4f7fb;
+  --sky-text-muted: #9cacc2;
+  --sky-text-subtle: #70819a;
+  --sky-gold-deep: #8f6415;
+  --sky-gold: #dcb13f;
+  --sky-gold-bright: #ffd978;
+  --sky-gold-pale: #fff0ae;
+  --sky-cyan: #65c8ff;
+  --sky-blue: #408ee8;
+  --sky-purple: #8c78d8;
+  --sky-success: #42d69b;
+  --sky-warning: #e0ad43;
+  --sky-danger: #ff6178;
+  color: var(--sky-text);
+}
+
+.sky-app-shell-authenticated {
+  background:
+    radial-gradient(circle at 11% 8%, rgba(101, 200, 255, 0.12), transparent 20rem),
+    radial-gradient(circle at 94% 80%, rgba(220, 177, 63, 0.07), transparent 26rem),
+    linear-gradient(180deg, #050a12 0%, #070d17 46%, #040810 100%);
+}
+
+.sky-app-shell-authenticated::before {
+  background:
+    linear-gradient(130deg, rgba(255, 255, 255, 0.035), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 22rem),
+    radial-gradient(circle at 4% 8%, rgba(101, 200, 255, 0.075), transparent 17rem),
+    radial-gradient(circle at 92% 96%, rgba(220, 177, 63, 0.055), transparent 24rem);
+}
+
+.sky-app-shell-public {
+  background:
+    radial-gradient(circle at 52% 72%, rgba(220, 177, 63, 0.12), transparent 21rem),
+    radial-gradient(circle at 22% 14%, rgba(101, 200, 255, 0.12), transparent 22rem),
+    radial-gradient(circle at 88% 92%, rgba(140, 120, 216, 0.06), transparent 26rem),
+    linear-gradient(180deg, #02050a 0%, #07101c 46%, #050912 72%, #03060c 100%);
+}
+
+.sky-app-shell-public::before {
+  background:
+    linear-gradient(180deg, rgba(1, 4, 9, 0.76) 0%, rgba(4, 8, 17, 0.2) 28%, rgba(1, 4, 9, 0.38) 100%),
+    radial-gradient(ellipse at 50% 66%, rgba(220, 177, 63, 0.14), transparent 29rem),
+    radial-gradient(ellipse at 48% 72%, rgba(255, 217, 120, 0.065), transparent 19rem),
+    radial-gradient(ellipse at 36% 42%, rgba(101, 200, 255, 0.075), transparent 30rem),
+    linear-gradient(180deg, rgba(10, 18, 32, 0.46), rgba(3, 7, 14, 0.94));
+}
+
+.sky-public-navbar,
+.sky-topbar {
+  border-bottom-color: rgba(220, 177, 63, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 64%),
+    radial-gradient(circle at 18% -40%, rgba(101, 200, 255, 0.09), transparent 21rem),
+    radial-gradient(circle at 72% -70%, rgba(220, 177, 63, 0.055), transparent 24rem),
+    #010409;
+}
+
+/* Page and card surfaces */
+.sky-page-header {
+  border-color: rgba(145, 170, 205, 0.18);
+  background:
+    radial-gradient(circle at 7% 12%, rgba(101, 200, 255, 0.095), transparent 18rem),
+    radial-gradient(circle at 94% 88%, rgba(220, 177, 63, 0.055), transparent 23rem),
+    linear-gradient(135deg, rgba(13, 23, 38, 0.91), rgba(5, 10, 19, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 24px 86px rgba(0, 0, 0, 0.24);
+}
+
+.sky-page-header::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(101, 200, 255, 0.28),
+    rgba(220, 177, 63, 0.34),
+    transparent
+  );
+}
+
+.sky-page-kicker,
+.sky-detail-label,
+.form-label {
+  color: #a9c7ef;
+}
+
+.sky-page-title,
+.sky-card :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--sky-text);
+}
+
+.sky-page-subtitle,
+.sky-muted,
+.form-text {
+  color: var(--sky-text-muted);
+}
+
+.sky-card {
+  border-color: rgba(145, 170, 205, 0.17);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(101, 200, 255, 0.05), transparent 19rem),
+    radial-gradient(circle at 100% 100%, rgba(220, 177, 63, 0.035), transparent 19rem),
+    linear-gradient(135deg, rgba(10, 18, 31, 0.9), rgba(5, 10, 19, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.018),
+    0 22px 76px rgba(0, 0, 0, 0.23);
+}
+
+.sky-card-header {
+  border-bottom-color: rgba(145, 170, 205, 0.14);
+  background:
+    linear-gradient(135deg, rgba(101, 200, 255, 0.035), rgba(220, 177, 63, 0.022)),
+    rgba(4, 9, 17, 0.56);
+}
+
+.sky-dashboard-visuals,
+.sky-dashboard-command-hero,
+.sky-dashboard-shortcuts,
+.sky-worker-hero {
+  border-color: rgba(145, 170, 205, 0.17);
+  background:
+    radial-gradient(circle at 10% 14%, rgba(101, 200, 255, 0.075), transparent 19rem),
+    radial-gradient(circle at 92% 92%, rgba(220, 177, 63, 0.04), transparent 22rem),
+    linear-gradient(135deg, rgba(8, 15, 27, 0.9), rgba(4, 9, 17, 0.82));
+}
+
+.sky-chart-card {
+  border-color: rgba(145, 170, 205, 0.16);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(101, 200, 255, 0.06), transparent 13rem),
+    radial-gradient(circle at 100% 100%, rgba(220, 177, 63, 0.03), transparent 15rem),
+    rgba(5, 10, 19, 0.72);
+}
+
+/* Primary and secondary actions */
+.sky-btn-primary,
+.btn.sky-btn-primary {
+  border: 1px solid rgba(255, 217, 120, 0.82);
+  background: linear-gradient(135deg, #fff0ae 0%, #e4b83f 52%, #a97016 100%);
+  color: #090b0f;
+  font-weight: 850;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 0 22px rgba(220, 177, 63, 0.14),
+    0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.sky-btn-primary:hover,
+.sky-btn-primary:focus-visible,
+.btn.sky-btn-primary:hover,
+.btn.sky-btn-primary:focus-visible {
+  border-color: var(--sky-gold-pale);
+  background: linear-gradient(135deg, #fff7cf 0%, #f0c84e 52%, #bc811a 100%);
+  color: #05070a;
+  box-shadow:
+    0 0 0 0.2rem rgba(220, 177, 63, 0.13),
+    0 0 30px rgba(255, 217, 120, 0.2),
+    0 12px 30px rgba(0, 0, 0, 0.2);
+  filter: none;
+}
+
+.sky-btn-primary:disabled,
+.btn.sky-btn-primary:disabled {
+  border-color: rgba(220, 177, 63, 0.28);
+  background: linear-gradient(135deg, #7d7046, #6a5523);
+  color: rgba(9, 11, 15, 0.72);
+  box-shadow: none;
+}
+
+.sky-btn-ghost {
+  border-color: rgba(145, 170, 205, 0.28);
+  background: rgba(255, 255, 255, 0.032);
+  color: #dfe9f7;
+}
+
+.sky-btn-ghost:hover,
+.sky-btn-ghost:focus-visible {
+  border-color: rgba(101, 200, 255, 0.52);
+  background: rgba(101, 200, 255, 0.09);
+  color: #ffffff;
+  box-shadow: 0 0 0 0.18rem rgba(101, 200, 255, 0.08);
+}
+
+/* Form controls and browser autofill */
+.sky-form-control,
+.sky-form-control:focus {
+  border-color: rgba(145, 170, 205, 0.28);
+  background-color: rgba(3, 8, 15, 0.88);
+  color: var(--sky-text);
+  caret-color: var(--sky-gold-bright);
+}
+
+.sky-form-control:hover {
+  border-color: rgba(145, 170, 205, 0.46);
+}
+
+.sky-form-control:focus {
+  border-color: rgba(220, 177, 63, 0.72);
+  box-shadow:
+    0 0 0 0.2rem rgba(220, 177, 63, 0.1),
+    0 0 20px rgba(220, 177, 63, 0.055);
+}
+
+:is(.sky-functional-history-browser, .sky-run-tools-filter-grid, .sky-workflow-start-filter-grid)
+  .sky-form-control:focus {
+  border-color: rgba(101, 200, 255, 0.62);
+  box-shadow: 0 0 0 0.2rem rgba(101, 200, 255, 0.09);
+}
+
+.sky-form-control:-webkit-autofill,
+.sky-form-control:-webkit-autofill:hover,
+.sky-form-control:-webkit-autofill:focus,
+.sky-login-card input:-webkit-autofill,
+.sky-login-card input:-webkit-autofill:hover,
+.sky-login-card input:-webkit-autofill:focus {
+  border-color: rgba(220, 177, 63, 0.62);
+  -webkit-text-fill-color: var(--sky-text);
+  -webkit-box-shadow: 0 0 0 1000px #050b14 inset;
+  caret-color: var(--sky-gold-bright);
+  transition: background-color 9999s ease-out 0s;
+}
+
+.sky-card .form-check-input:checked,
+.sky-login-remember .form-check-input:checked {
+  border-color: rgba(220, 177, 63, 0.9);
+  background-color: var(--sky-gold);
+}
+
+/* Table hierarchy: cyan exploration, gold selection */
+.sky-table.table {
+  --bs-table-bg: rgba(5, 10, 19, 0.72);
+  --bs-table-striped-bg: rgba(101, 200, 255, 0.018);
+  --bs-table-hover-bg: rgba(101, 200, 255, 0.075);
+  --bs-table-active-bg: rgba(220, 177, 63, 0.1);
+}
+
+.sky-table thead th {
+  background:
+    linear-gradient(135deg, rgba(101, 200, 255, 0.05), rgba(220, 177, 63, 0.02)),
+    rgba(4, 9, 17, 0.98);
+  color: #b7d2f7;
+}
+
+.sky-clickable-row:hover td {
+  background: rgba(101, 200, 255, 0.065);
+}
+
+.sky-table tbody tr.sky-selected-row td {
+  background: linear-gradient(90deg, rgba(220, 177, 63, 0.15), rgba(101, 200, 255, 0.075));
+  box-shadow: inset 0 1px 0 rgba(255, 217, 120, 0.06);
+}
+
+.sky-table tbody tr.sky-selected-row td:first-child {
+  box-shadow:
+    inset 3px 0 0 var(--sky-gold),
+    inset 0 1px 0 rgba(255, 217, 120, 0.06);
+}
+
+/* Login and authentication surfaces */
+.sky-login-wrap::before {
+  background:
+    radial-gradient(circle at 50% 54%, rgba(220, 177, 63, 0.13), transparent 43%),
+    radial-gradient(circle at 38% 34%, rgba(101, 200, 255, 0.09), transparent 49%),
+    radial-gradient(circle at 68% 72%, rgba(140, 120, 216, 0.045), transparent 56%);
+}
+
+.sky-login-card {
+  border-color: rgba(220, 177, 63, 0.28);
+  background:
+    linear-gradient(145deg, rgba(13, 23, 38, 0.96), rgba(5, 10, 19, 0.94) 58%, rgba(10, 12, 20, 0.96)),
+    #050a12;
+  box-shadow:
+    0 34px 110px rgba(0, 0, 0, 0.58),
+    0 0 90px rgba(220, 177, 63, 0.09),
+    0 0 100px rgba(101, 200, 255, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.sky-login-card::before {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(101, 200, 255, 0.12), transparent 14rem),
+    radial-gradient(circle at 86% 110%, rgba(220, 177, 63, 0.11), transparent 17rem),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.035), transparent 42%);
+}
+
+.sky-login-card-signal {
+  border-color: rgba(101, 200, 255, 0.26);
+  background: rgba(101, 200, 255, 0.065);
+  color: #bce7ff;
+}
+
+.sky-login-submit {
+  box-shadow:
+    0 0 24px rgba(220, 177, 63, 0.14),
+    0 14px 34px rgba(0, 0, 0, 0.22);
+}
+
+.sky-login-access-button {
+  border-color: rgba(145, 170, 205, 0.18);
+  background:
+    linear-gradient(135deg, rgba(101, 200, 255, 0.035), rgba(220, 177, 63, 0.02)),
+    rgba(3, 8, 15, 0.72);
+}
+
+.sky-login-access-button:hover,
+.sky-login-access-button:focus-visible,
+.sky-login-access-button.is-active {
+  border-color: rgba(220, 177, 63, 0.48);
+  background:
+    linear-gradient(135deg, rgba(220, 177, 63, 0.09), rgba(101, 200, 255, 0.055)),
+    rgba(5, 11, 20, 0.84);
+  box-shadow: 0 16px 44px rgba(220, 177, 63, 0.07);
+}
+
+/* Modal and human-approval importance */
+.sky-modal-backdrop {
+  background: rgba(0, 0, 0, 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.sky-modal-card,
+.sky-workflow-approval-modal {
+  border-color: rgba(220, 177, 63, 0.36);
+  background:
+    radial-gradient(circle at top left, rgba(101, 200, 255, 0.075), transparent 35%),
+    radial-gradient(circle at bottom right, rgba(220, 177, 63, 0.055), transparent 38%),
+    #09111e;
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.62),
+    0 0 44px rgba(220, 177, 63, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.sky-modal-header {
+  border-bottom-color: rgba(220, 177, 63, 0.18);
+}
+
+.sky-workflow-approval-instructions {
+  border-color: rgba(220, 177, 63, 0.3);
+  background:
+    linear-gradient(135deg, rgba(220, 177, 63, 0.08), rgba(101, 200, 255, 0.045)),
+    rgba(3, 8, 15, 0.74);
+}
+
+.sky-workflow-approval-node-action {
+  border-color: rgba(220, 177, 63, 0.66);
+  background:
+    linear-gradient(135deg, rgba(255, 217, 120, 0.17), rgba(220, 177, 63, 0.1)),
+    rgba(5, 11, 20, 0.9);
+  color: var(--sky-gold-pale);
+}
+
+.sky-workflow-approval-node-action:hover,
+.sky-workflow-approval-node-action:focus-visible {
+  border-color: var(--sky-gold-pale);
+  background:
+    linear-gradient(135deg, rgba(255, 217, 120, 0.25), rgba(220, 177, 63, 0.14)),
+    rgba(5, 11, 20, 0.96);
+  box-shadow:
+    0 0 0 0.16rem rgba(220, 177, 63, 0.11),
+    0 0 26px rgba(220, 177, 63, 0.16);
+}
+
+/* Semantic notices retain their operational colours without purple contamination. */
+.sky-card .alert-info,
+.alert-info {
+  border-color: rgba(101, 200, 255, 0.36);
+  background:
+    linear-gradient(135deg, rgba(101, 200, 255, 0.09), rgba(64, 142, 232, 0.035)),
+    rgba(5, 12, 23, 0.94);
+  color: #bce7ff;
+}
+
+.sky-card .alert-warning,
+.alert-warning {
+  border-color: rgba(224, 173, 67, 0.4);
+  background:
+    linear-gradient(135deg, rgba(224, 173, 67, 0.12), rgba(220, 177, 63, 0.035)),
+    rgba(8, 13, 21, 0.94);
+  color: #ffe3a0;
+}
+
+.sky-pill-info {
+  border-color: rgba(101, 200, 255, 0.34);
+  background: rgba(101, 200, 255, 0.1);
+  color: #b8e5ff;
+}
+
+.sky-pill-warning {
+  border-color: rgba(224, 173, 67, 0.38);
+  background: rgba(224, 173, 67, 0.11);
+  color: #ffe09a;
+}
+
+.sky-pill-success {
+  border-color: rgba(66, 214, 155, 0.36);
+  background: rgba(66, 214, 155, 0.11);
+  color: #78efbd;
+}
+
+.sky-pill-danger {
+  border-color: rgba(255, 97, 120, 0.36);
+  background: rgba(255, 97, 120, 0.11);
+  color: #ff9aad;
+}
