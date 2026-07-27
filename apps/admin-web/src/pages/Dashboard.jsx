@@ -402,14 +402,14 @@ function Dashboard() {
                 ? 'Checking'
                 : 'Unknown'
               : workflowHealth.worker?.status === 'ONLINE' && workflowTaskQueue.healthy
-                ? 'Polling'
+                ? 'Online'
                 : workflowHealth.worker?.status || 'Unknown',
             status: !workflowHealth
               ? loading
                 ? 'PENDING'
                 : 'UNKNOWN'
               : workflowHealth.worker?.status === 'ONLINE' && workflowTaskQueue.healthy
-                ? 'POLLING'
+                ? 'ONLINE'
                 : workflowHealth.worker?.status || 'UNKNOWN',
             helper: workflowHealth
               ? `${workflowTaskQueue.pollerCount || 0} poller(s) · ${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'task queue'}`
