@@ -33,6 +33,14 @@ assert(
 );
 
 assert(
+  toolsSource.includes('<th>Status</th>')
+    && !toolsSource.includes('<th className="text-end">Actions</th>')
+    && toolsSource.includes("<StatusPill status={tool.enabled ? 'ACTIVE' : 'OFFLINE'}>")
+    && toolsSource.includes("{tool.enabled ? 'Enabled' : 'Disabled'}"),
+  'Run Tools must use row selection without a redundant Actions column and display the catalogue enabled status.',
+);
+
+assert(
   manifestSource.includes('tool.runtime_code')
     && manifestSource.includes('runtime.runtime_name')
     && manifestSource.includes('runtimeCode: row.runtime_code || null'),

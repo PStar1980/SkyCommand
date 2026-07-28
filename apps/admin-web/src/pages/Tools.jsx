@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ToolExecutionOutputPanels from '../components/tools/ToolExecutionOutputPanels.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import StatusPill from '../components/ui/StatusPill.jsx';
 import toolService from '../services/toolService';
 
 const HIGH_RISK_CONFIRMATION_PHRASE = 'RUN HIGH RISK';
@@ -795,7 +796,7 @@ function Tools() {
                     <th>Risk</th>
                     <th>Parameters</th>
                     <th>Output contract</th>
-                    <th className="text-end">Actions</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -835,18 +836,10 @@ function Tools() {
                             <span className="sky-muted">Standard process output</span>
                           )}
                         </td>
-                        <td className="text-end">
-                          <button
-                            className="btn btn-sm sky-btn-ghost"
-                            disabled={interactionLocked}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleSelectTool(tool);
-                            }}
-                            type="button"
-                          >
-                            {selectedTool?.toolCode === tool.toolCode ? 'Selected' : 'Select tool'}
-                          </button>
+                        <td>
+                          <StatusPill status={tool.enabled ? 'ACTIVE' : 'OFFLINE'}>
+                            {tool.enabled ? 'Enabled' : 'Disabled'}
+                          </StatusPill>
                         </td>
                       </tr>
                     ))
