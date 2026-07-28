@@ -849,7 +849,7 @@ function Navbar() {
             <button
               aria-expanded={topbarPanel === 'messages'}
               aria-label="Open messages"
-              className="sky-topbar-icon-button"
+              className="sky-topbar-icon-button sky-topbar-icon-button-message"
               onClick={() => toggleTopbarPanel('messages')}
               title="Messages and activity inbox"
               type="button"
