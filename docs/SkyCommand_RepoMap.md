@@ -131,6 +131,7 @@ SkyServer/
 │   │       │   ├── ScriptExecutions.jsx
 │   │       │   ├── SkyWorkflows.jsx
 │   │       │   ├── TemporalWorkflows.jsx
+│   │       │   ├── toolHistoryCatalogueSelfTest.js
 │   │       │   ├── Tools.jsx
 │   │       │   ├── ToolsDashboard.jsx
 │   │       │   ├── WorkerControl.jsx
