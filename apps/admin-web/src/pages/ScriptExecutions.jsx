@@ -59,6 +59,32 @@ function getStatusLabel(status) {
   return status || 'UNKNOWN';
 }
 
+function getToolCode(item) {
+  return item?.metadata?.toolCode || item?.scriptName || 'unknown_tool';
+}
+
+function getToolLabel(item) {
+  return item?.metadata?.toolLabel || item?.scriptName || 'Unknown tool';
+}
+
+function getCategoryLabel(item) {
+  const category = String(item?.metadata?.categoryLabel || item?.category || '').trim();
+
+  if (!category) {
+    return 'Uncategorized';
+  }
+
+  if (/\s/.test(category)) {
+    return category;
+  }
+
+  return category
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
 function getDisplaySummary(summary, status) {
   if (status === 'STARTED' && !summary) {
     return 'Execution is currently running.';
@@ -523,6 +549,7 @@ function ScriptExecutions() {
               <thead>
                 <tr>
                   <th>Tool</th>
+                  <th>Category</th>
                   <th>Status</th>
                   <th>Started</th>
                   <th>Duration</th>
@@ -533,14 +560,14 @@ function ScriptExecutions() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       <div className="sky-empty-state">Loading executions...</div>
                     </td>
                   </tr>
                 )}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       <div className="sky-empty-state">
                         No tool executions found for this filter.
                       </div>
@@ -557,9 +584,10 @@ function ScriptExecutions() {
                       onClick={() => selectExecution(item)}
                     >
                       <td>
-                        <div className="fw-bold sky-detail-value">{item.scriptName}</div>
-                        <div className="small sky-muted">{item.category}</div>
+                        <div className="fw-bold sky-detail-value">{getToolLabel(item)}</div>
+                        <div className="small sky-muted sky-mono">{getToolCode(item)}</div>
                       </td>
+                      <td>{getCategoryLabel(item)}</td>
                       <td>
                         <span className={`sky-pill ${statusClass(item.status)}`}>
                           {getStatusLabel(item.status)}
