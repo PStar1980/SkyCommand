@@ -1507,7 +1507,7 @@
 .sky-login-card {
   position: relative;
   overflow: hidden;
-  width: min(100%, 680px);
+  width: min(100%, 710px);
   border-color: rgba(124, 144, 177, 0.3);
   background:
     linear-gradient(
@@ -1620,9 +1620,12 @@
 
 .sky-login-card-header .sky-page-title {
   margin: 0;
-  font-size: clamp(1.58rem, 2vw, 1.95rem);
+  color: #fff8e6;
+  font-size: clamp(1.7rem, 2.1vw, 2.08rem);
+  font-weight: 900;
   line-height: 1.02;
   letter-spacing: -0.045em;
+  text-shadow: 0 0 18px rgba(255, 229, 154, 0.08);
 }
 
 .sky-login-brand-tagline {
@@ -1747,8 +1750,10 @@
 }
 
 .sky-login-access-button {
+  position: relative;
   display: flex;
   min-height: 5.3rem;
+  overflow: hidden;
   align-items: flex-start;
   gap: 0.76rem;
   border: 1px solid rgba(124, 144, 177, 0.18);
@@ -1766,15 +1771,41 @@
     background 160ms ease;
 }
 
+.sky-login-access-button::before {
+  position: absolute;
+  top: 0;
+  right: 0.9rem;
+  left: 0.9rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 229, 154, 0.72), transparent);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.72);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
 .sky-login-access-button:hover,
-.sky-login-access-button:focus,
+.sky-login-access-button:focus-visible,
 .sky-login-access-button.is-active {
-  border-color: rgba(72, 167, 255, 0.48);
+  border-color: rgba(220, 177, 63, 0.54);
   background:
-    linear-gradient(135deg, rgba(72, 167, 255, 0.12), rgba(155, 89, 255, 0.08)),
-    rgba(6, 13, 26, 0.78);
-  box-shadow: 0 16px 44px rgba(72, 167, 255, 0.09);
-  transform: translateY(-1px);
+    linear-gradient(135deg, rgba(220, 177, 63, 0.11), rgba(101, 200, 255, 0.045)),
+    rgba(5, 11, 20, 0.86);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.24),
+    0 0 22px rgba(220, 177, 63, 0.08);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.sky-login-access-button:hover::before,
+.sky-login-access-button:focus-visible::before,
+.sky-login-access-button.is-active::before {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .sky-login-access-icon {
@@ -6530,10 +6561,10 @@
 }
 
 .sky-login-card {
-  border-color: rgba(220, 177, 63, 0.28);
+  border-color: rgba(220, 177, 63, 0.3);
   background:
-    linear-gradient(145deg, rgba(13, 23, 38, 0.96), rgba(5, 10, 19, 0.94) 58%, rgba(10, 12, 20, 0.96)),
-    #050a12;
+    linear-gradient(145deg, rgba(8, 15, 26, 0.985), rgba(3, 7, 14, 0.98) 58%, rgba(7, 8, 14, 0.985)),
+    #02050a;
   box-shadow:
     0 34px 110px rgba(0, 0, 0, 0.58),
     0 0 90px rgba(220, 177, 63, 0.09),
@@ -6544,10 +6575,10 @@
 .sky-login-card::before {
   background:
     url('./assets/sky-net-background.svg') center center / cover no-repeat,
-    radial-gradient(circle at 18% 0%, rgba(101, 200, 255, 0.08), transparent 14rem),
-    radial-gradient(circle at 86% 110%, rgba(220, 177, 63, 0.1), transparent 17rem),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.028), transparent 42%);
-  opacity: 0.34;
+    radial-gradient(circle at 18% 0%, rgba(101, 200, 255, 0.06), transparent 14rem),
+    radial-gradient(circle at 86% 110%, rgba(220, 177, 63, 0.085), transparent 17rem),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.022), transparent 42%);
+  opacity: 0.27;
 }
 
 .sky-login-card-signal {
@@ -6583,11 +6614,13 @@
 .sky-login-access-button:hover,
 .sky-login-access-button:focus-visible,
 .sky-login-access-button.is-active {
-  border-color: rgba(220, 177, 63, 0.48);
+  border-color: rgba(220, 177, 63, 0.58);
   background:
-    linear-gradient(135deg, rgba(220, 177, 63, 0.09), rgba(101, 200, 255, 0.055)),
-    rgba(5, 11, 20, 0.84);
-  box-shadow: 0 16px 44px rgba(220, 177, 63, 0.07);
+    linear-gradient(135deg, rgba(220, 177, 63, 0.12), rgba(101, 200, 255, 0.04)),
+    rgba(4, 9, 17, 0.92);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.26),
+    0 0 24px rgba(220, 177, 63, 0.09);
 }
 
 /* Modal and human-approval importance */
