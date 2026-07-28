@@ -67,6 +67,20 @@ assert(
   'Login support actions must retain their restrained gold hover and focus treatment.',
 );
 assert(
+  cssSource.includes('select.sky-form-control {') &&
+    cssSource.includes('color-scheme: dark;') &&
+    cssSource.includes("stroke='%23dcb13f'") &&
+    cssSource.includes('select.sky-form-control option:checked'),
+  'Native selects must retain the dark Midnight Gold surface, branded chevron, and selected-option treatment.',
+);
+assert(
+  cssSource.includes('.sky-topbar-icon-button-message') &&
+    cssSource.includes('.sky-topbar-count-badge-muted') &&
+    cssSource.includes('linear-gradient(135deg, #fff0ae, #dcb13f 58%, #a97016)') &&
+    cssSource.includes('.sky-navbar-dropdown .dropdown-item:hover'),
+  'Topbar messages, account actions, and account dropdowns must use the Midnight Gold interaction treatment.',
+);
+assert(
   cssSource.includes("url('./assets/sky-net-background.png')") &&
     !cssSource.includes("url('./assets/sky-net-background.svg')"),
   'The login and authenticated shells must use the unified organic PNG sky-net background.',
