@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import SkyCommandMark from '../components/ui/SkyCommandMark.jsx';
 
 const LOGIN_REDIRECT_PATH = '/dashboard';
 const REMEMBERED_EMAIL_KEY = 'skycommand.rememberedEmail';
@@ -64,12 +65,15 @@ function Login() {
     <div className="sky-login-wrap">
       <section className="sky-card sky-login-card">
         <div className="sky-card-header sky-login-card-header">
-          <div>
-            <div className="sky-page-kicker">Workflow Automation Engine</div>
-            <h1 className="h3 sky-page-title">SkyCommand</h1>
-            <p className="sky-page-subtitle">
-              Sign in to run approved tools, inspect execution history, and monitor the control layer.
-            </p>
+          <div className="sky-login-brand-intro">
+            <SkyCommandMark className="sky-login-card-mark" />
+            <div className="sky-login-brand-copy">
+              <div className="sky-page-kicker">Workflow Automation Engine</div>
+              <h1 className="h3 sky-page-title">SkyCommand</h1>
+              <p className="sky-page-subtitle">
+                Secure operator access to workflows, tools, and runtime intelligence.
+              </p>
+            </div>
           </div>
           <div className="sky-login-card-signal" aria-hidden="true">
             <span />
@@ -160,16 +164,26 @@ function Login() {
               onClick={() => selectAuthPath('forgot')}
               type="button"
             >
-              <strong>Password recovery</strong>
-              <span>Reset access when the auth workflow is connected.</span>
+              <span className="sky-login-access-icon" aria-hidden="true">
+                ↻
+              </span>
+              <span className="sky-login-access-copy">
+                <strong>Password recovery</strong>
+                <span>Reset access when the authentication workflow is connected.</span>
+              </span>
             </button>
             <button
               className={`sky-login-access-button${authPath === 'request' ? ' is-active' : ''}`}
               onClick={() => selectAuthPath('request')}
               type="button"
             >
-              <strong>Request access</strong>
-              <span>Ask an administrator to provision a SkyCommand identity.</span>
+              <span className="sky-login-access-icon" aria-hidden="true">
+                +
+              </span>
+              <span className="sky-login-access-copy">
+                <strong>Request access</strong>
+                <span>Ask an administrator to provision your SkyCommand identity.</span>
+              </span>
             </button>
           </div>
 
