@@ -55,6 +55,18 @@ assert(
   'The login-card mark must anchor the full branded header with the dedicated tagline treatment.',
 );
 assert(
+  cssSource.includes('width: min(100%, 710px);') &&
+    cssSource.includes('font-size: clamp(1.7rem, 2.1vw, 2.08rem);') &&
+    cssSource.includes('opacity: 0.27;'),
+  'The final login-card polish must preserve the wider terminal, stronger product title, and darker interior.',
+);
+assert(
+  cssSource.includes('.sky-login-access-button::before') &&
+    cssSource.includes('transform: translateY(-2px);') &&
+    cssSource.includes('0 0 24px rgba(220, 177, 63, 0.09)'),
+  'Login support actions must retain their restrained gold hover and focus treatment.',
+);
+assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&
     chartThemeSource.includes("gold: '#dcb13f'") &&
     chartThemeSource.includes("green: '#42d69b'"),
