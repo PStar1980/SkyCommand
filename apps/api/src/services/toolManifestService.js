@@ -37,12 +37,15 @@ function sanitizeTool(row) {
     permissionCode: row.permission_code,
     riskCode: row.risk_code,
     riskRank: row.risk_rank,
+    runtimeCode: row.runtime_code || null,
+    runtimeName: row.runtime_name || null,
     requiresConfirmation: toBoolean(row.requires_confirmation),
     confirmationText: row.confirmation_text || null,
     capturesOutput: toBoolean(row.captures_output),
     allowParams: toBoolean(row.allow_params),
     displayOrder: row.display_order,
     enabled: toBoolean(row.enabled),
+    outputType: row.output_type || null,
     parameters: [],
   };
 }
@@ -156,29 +159,34 @@ async function getAdminWebToolRows() {
   const result = await query(
     `
       SELECT
-        app_code,
-        category_id,
-        category_code,
-        category_label,
-        category_description,
-        category_display_order,
-        tool_id,
-        tool_code,
-        name,
-        label,
-        description,
-        permission_code,
-        risk_code,
-        risk_rank,
-        requires_confirmation,
-        confirmation_text,
-        captures_output,
-        allow_params,
-        display_order,
-        enabled
-      FROM core.vw_admin_web_tools
-      WHERE app_code = $1
-      ORDER BY category_display_order, display_order, label
+        admin_tool.app_code,
+        admin_tool.category_id,
+        admin_tool.category_code,
+        admin_tool.category_label,
+        admin_tool.category_description,
+        admin_tool.category_display_order,
+        admin_tool.tool_id,
+        admin_tool.tool_code,
+        admin_tool.name,
+        admin_tool.label,
+        admin_tool.description,
+        admin_tool.permission_code,
+        admin_tool.risk_code,
+        admin_tool.risk_rank,
+        tool.runtime_code,
+        runtime.runtime_name,
+        admin_tool.requires_confirmation,
+        admin_tool.confirmation_text,
+        admin_tool.captures_output,
+        admin_tool.allow_params,
+        admin_tool.display_order,
+        admin_tool.enabled,
+        tool.output_type
+      FROM core.vw_admin_web_tools admin_tool
+      JOIN core.tools tool ON tool.tool_id = admin_tool.tool_id
+      JOIN core.runtimes runtime ON runtime.runtime_code = tool.runtime_code
+      WHERE admin_tool.app_code = $1
+      ORDER BY admin_tool.category_display_order, admin_tool.display_order, admin_tool.label
     `,
     [APP_CODE],
   );
@@ -190,29 +198,34 @@ async function getAdminWebToolRow(toolCode) {
   const result = await query(
     `
       SELECT
-        app_code,
-        category_id,
-        category_code,
-        category_label,
-        category_description,
-        category_display_order,
-        tool_id,
-        tool_code,
-        name,
-        label,
-        description,
-        permission_code,
-        risk_code,
-        risk_rank,
-        requires_confirmation,
-        confirmation_text,
-        captures_output,
-        allow_params,
-        display_order,
-        enabled
-      FROM core.vw_admin_web_tools
-      WHERE app_code = $1
-        AND tool_code = $2
+        admin_tool.app_code,
+        admin_tool.category_id,
+        admin_tool.category_code,
+        admin_tool.category_label,
+        admin_tool.category_description,
+        admin_tool.category_display_order,
+        admin_tool.tool_id,
+        admin_tool.tool_code,
+        admin_tool.name,
+        admin_tool.label,
+        admin_tool.description,
+        admin_tool.permission_code,
+        admin_tool.risk_code,
+        admin_tool.risk_rank,
+        tool.runtime_code,
+        runtime.runtime_name,
+        admin_tool.requires_confirmation,
+        admin_tool.confirmation_text,
+        admin_tool.captures_output,
+        admin_tool.allow_params,
+        admin_tool.display_order,
+        admin_tool.enabled,
+        tool.output_type
+      FROM core.vw_admin_web_tools admin_tool
+      JOIN core.tools tool ON tool.tool_id = admin_tool.tool_id
+      JOIN core.runtimes runtime ON runtime.runtime_code = tool.runtime_code
+      WHERE admin_tool.app_code = $1
+        AND admin_tool.tool_code = $2
       LIMIT 1
     `,
     [APP_CODE, toolCode],
