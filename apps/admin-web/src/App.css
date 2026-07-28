@@ -56,7 +56,7 @@
   z-index: 0;
   pointer-events: none;
   background:
-    url('./assets/sky-net-background.svg') center top / cover no-repeat,
+    url('./assets/sky-net-background.png') center top / cover no-repeat,
     linear-gradient(115deg, transparent 0 20%, rgba(255, 255, 255, 0.015) 24%, transparent 36%),
     radial-gradient(ellipse at 30% 50%, rgba(244, 151, 88, 0.045), transparent 20rem),
     radial-gradient(ellipse at 72% 74%, rgba(97, 177, 255, 0.04), transparent 24rem);
@@ -92,7 +92,7 @@
   z-index: 0;
   pointer-events: none;
   background:
-    url('./assets/sky-net-background.svg') center top / cover no-repeat,
+    url('./assets/sky-net-background.png') center top / cover no-repeat,
     linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 18rem),
     radial-gradient(circle at 8% 10%, rgba(77, 151, 236, 0.045), transparent 16rem),
     radial-gradient(circle at 94% 94%, rgba(220, 177, 63, 0.06), transparent 22rem);
@@ -1530,7 +1530,7 @@
   inset: 0;
   pointer-events: none;
   background:
-    url('./assets/sky-net-background.svg') center center / cover no-repeat,
+    url('./assets/sky-net-background.png') center center / cover no-repeat,
     radial-gradient(circle at 18% 0%, rgba(72, 167, 255, 0.08), transparent 14rem),
     radial-gradient(circle at 86% 110%, rgba(255, 126, 54, 0.1), transparent 16rem),
     linear-gradient(120deg, rgba(255, 255, 255, 0.03), transparent 42%);
@@ -6307,7 +6307,7 @@
 
 .sky-app-shell-authenticated::before {
   background:
-    url('./assets/sky-net-background.svg') center top / cover no-repeat,
+    url('./assets/sky-net-background.png') center top / cover no-repeat,
     linear-gradient(130deg, rgba(255, 255, 255, 0.012), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent 22rem),
     radial-gradient(circle at 4% 8%, rgba(101, 200, 255, 0.04), transparent 17rem),
@@ -6334,7 +6334,7 @@
 
 .sky-app-shell-public::after {
   background:
-    url('./assets/sky-net-background.svg') center top / cover no-repeat,
+    url('./assets/sky-net-background.png') center top / cover no-repeat,
     linear-gradient(115deg, transparent 0 20%, rgba(255, 255, 255, 0.012) 24%, transparent 36%),
     radial-gradient(ellipse at 30% 50%, rgba(244, 151, 88, 0.04), transparent 20rem),
     radial-gradient(ellipse at 72% 74%, rgba(97, 177, 255, 0.035), transparent 24rem);
@@ -6574,7 +6574,7 @@
 
 .sky-login-card::before {
   background:
-    url('./assets/sky-net-background.svg') center center / cover no-repeat,
+    url('./assets/sky-net-background.png') center center / cover no-repeat,
     radial-gradient(circle at 18% 0%, rgba(101, 200, 255, 0.06), transparent 14rem),
     radial-gradient(circle at 86% 110%, rgba(220, 177, 63, 0.085), transparent 17rem),
     linear-gradient(120deg, rgba(255, 255, 255, 0.022), transparent 42%);

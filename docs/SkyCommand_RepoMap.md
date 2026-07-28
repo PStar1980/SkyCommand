@@ -37,16 +37,17 @@ SkyServer/
 │   │   ├── index.html
 │   │   ├── vite.config.js
 │   │   ├── public/
-│   │   │   ├── favicon.svg
 │   │   │   └── brand/
 │   │   │       ├── skycommand-logo-lockup.png
-│   │   │       └── skycommand-mark-gold.png
+│   │   │       ├── skycommand-mark-gold.png
+│   │   │       └── assets/
 │   │   └── src/
 │   │       ├── App.css
 │   │       ├── App.jsx
 │   │       ├── index.css
 │   │       ├── main.jsx
 │   │       ├── assets/
+│   │       │   ├── sky-net-background.png
 │   │       │   └── sky-net-background.svg
 │   │       ├── components/
 │   │       │   ├── ConditionParameterEditor.jsx

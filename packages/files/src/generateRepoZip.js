@@ -79,7 +79,10 @@ const IMAGE_FILE_EXTENSIONS = new Set([
   '.heif',
 ]);
 
-const PRESERVED_IMAGE_RELATIVE_PATHS = new Set(['apps/admin-web/public/favicon.svg']);
+const PRESERVED_IMAGE_RELATIVE_PATHS = new Set([
+  'apps/admin-web/public/favicon.svg',
+  'apps/admin-web/src/assets/sky-net-background.png',
+]);
 
 function hasPathSeparators(value) {
   return /[\\/]/.test(value);
