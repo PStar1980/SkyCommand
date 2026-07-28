@@ -790,7 +790,7 @@ function Tools() {
                 <thead>
                   <tr>
                     <th>Tool</th>
-                    <th>Code</th>
+                    <th>Category</th>
                     <th>Runtime</th>
                     <th>Risk</th>
                     <th>Parameters</th>
@@ -818,10 +818,10 @@ function Tools() {
                       >
                         <td>
                           <div className="fw-bold sky-detail-value">{tool.label}</div>
-                          <div className="small sky-muted">{getCategoryLabel(tool)}</div>
+                          <div className="small sky-mono">{tool.toolCode}</div>
                         </td>
-                        <td className="sky-mono">{tool.toolCode}</td>
-                        <td>{tool.runtimeCode || '—'}</td>
+                        <td>{getCategoryLabel(tool)}</td>
+                        <td>{tool.runtimeCode || tool.runtimeName || '—'}</td>
                         <td>
                           <span className={`sky-pill ${riskClass(tool.riskCode)}`}>
                             {tool.riskCode || 'unknown'}

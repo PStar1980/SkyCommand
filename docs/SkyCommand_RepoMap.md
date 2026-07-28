@@ -125,6 +125,7 @@ SkyServer/
 │   │       │   ├── manageToolsVerificationNavigationSelfTest.js
 │   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── ReadinessDashboard.jsx
+│   │       │   ├── runToolsCatalogueSelfTest.js
 │   │       │   ├── SchedulerControl.jsx
 │   │       │   ├── schedulerPageSplitSelfTest.js
 │   │       │   ├── ScriptExecutions.jsx
