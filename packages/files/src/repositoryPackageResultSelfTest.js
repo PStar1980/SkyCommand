@@ -5,7 +5,9 @@ const path = require('path');
 
 const {
   executeRepositoryZip,
+  flattenFiles,
   parseRepositoryZipArgs,
+  scanDirectory,
 } = require('./generateRepoZip');
 const {
   REPOSITORY_PACKAGE_OUTPUT_TYPE,
@@ -18,18 +20,15 @@ function run() {
   const outputRoot = path.join(tempRoot, 'output');
 
   fs.mkdirSync(path.join(sourceRoot, 'src'), { recursive: true });
-  const preservedBackgroundPath = path.join(
-    sourceRoot,
-    'apps',
-    'admin-web',
-    'src',
-    'assets',
-    'sky-net-background.png',
-  );
-  fs.mkdirSync(path.dirname(preservedBackgroundPath), { recursive: true });
+  const assetRoot = path.join(sourceRoot, 'apps', 'admin-web', 'src', 'assets');
+  const publicRoot = path.join(sourceRoot, 'apps', 'admin-web', 'public');
+  fs.mkdirSync(assetRoot, { recursive: true });
+  fs.mkdirSync(publicRoot, { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'README.md'), '# Sample\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, 'src', 'index.js'), 'console.log("hello");\n', 'utf8');
-  fs.writeFileSync(preservedBackgroundPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  fs.writeFileSync(path.join(assetRoot, 'sky-net-background.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  fs.writeFileSync(path.join(assetRoot, 'optional-preview.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  fs.writeFileSync(path.join(publicRoot, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, '.env'), 'SECRET=do-not-package\n', 'utf8');
 
   try {
@@ -37,6 +36,23 @@ function run() {
     assert.strictEqual(parsed.fileName, 'sample-package.zip');
     assert.strictEqual(parsed.includeImages, false);
     assert.strictEqual(parsed.includeNodeModules, false);
+
+    const defaultFiles = flattenFiles(scanDirectory(sourceRoot, sourceRoot, parsed));
+    assert.ok(defaultFiles.some((file) => file.relativePath.endsWith(path.join('public', 'favicon.svg'))));
+    assert.ok(!defaultFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.png'));
+    assert.ok(!defaultFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.jpg'));
+
+    const includeImagesParsed = parseRepositoryZipArgs([
+      sourceRoot,
+      'sample-package-with-images',
+      outputRoot,
+      '--include-images',
+    ]);
+    const includeImageFiles = flattenFiles(
+      scanDirectory(sourceRoot, sourceRoot, includeImagesParsed),
+    );
+    assert.ok(includeImageFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.jpg'));
+    assert.ok(!includeImageFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.png'));
 
     const result = executeRepositoryZip([sourceRoot, 'sample-package', outputRoot]);
     assert.strictEqual(result.ok, true);

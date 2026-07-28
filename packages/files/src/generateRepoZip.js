@@ -79,10 +79,13 @@ const IMAGE_FILE_EXTENSIONS = new Set([
   '.heif',
 ]);
 
-const PRESERVED_IMAGE_RELATIVE_PATHS = new Set([
-  'apps/admin-web/public/favicon.svg',
-  'apps/admin-web/src/assets/sky-net-background.png',
-]);
+// PNG assets are intentionally never copied into compact handoff archives.
+// They can be large, are available in the live repository, and should be shared
+// separately when a reviewer specifically needs them. This invariant applies
+// even when --include-images is supplied or a future preserved-image path is added.
+const ALWAYS_EXCLUDED_FILE_EXTENSIONS = new Set(['.png']);
+
+const PRESERVED_IMAGE_RELATIVE_PATHS = new Set(['apps/admin-web/public/favicon.svg']);
 
 function hasPathSeparators(value) {
   return /[\\/]/.test(value);
@@ -218,6 +221,10 @@ function shouldSkipFile(fullPath, options) {
 
   const extension = path.extname(fullPath).toLowerCase();
   const relativeAssetPath = normalizeRelativeAssetPath(fullPath, options.location);
+
+  if (ALWAYS_EXCLUDED_FILE_EXTENSIONS.has(extension)) {
+    return true;
+  }
 
   if (
     !options.includeImages &&
