@@ -1561,10 +1561,10 @@
 .sky-login-card-header {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 1.25rem;
-  padding: 1.35rem 1.45rem 1.25rem;
+  gap: 1.15rem;
+  padding: 1.32rem 1.45rem 1.22rem;
 }
 
 .sky-login-card-header::after {
@@ -1581,17 +1581,22 @@
 .sky-login-brand-intro {
   display: flex;
   min-width: 0;
-  align-items: center;
-  gap: 1rem;
+  align-items: flex-start;
+  gap: 1.05rem;
 }
 
 .sky-login-brand-copy {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: 0.02rem;
 }
 
 .sky-login-card-mark {
-  width: 4rem;
-  height: 4rem;
+  width: 5.65rem;
+  height: 5.65rem;
+  flex: 0 0 5.65rem;
   border-color: rgba(236, 190, 74, 0.64);
   border-radius: 1.12rem;
   background:
@@ -1613,26 +1618,34 @@
   border-color: rgba(255, 229, 154, 0.14);
 }
 
-.sky-login-card-header .sky-page-kicker {
-  margin-bottom: 0.2rem;
-  color: #d6b85f;
-}
-
 .sky-login-card-header .sky-page-title {
-  font-size: clamp(1.45rem, 1.9vw, 1.8rem);
+  margin: 0;
+  font-size: clamp(1.58rem, 2vw, 1.95rem);
+  line-height: 1.02;
   letter-spacing: -0.045em;
 }
 
-.sky-login-card-header .sky-page-subtitle {
-  max-width: 28rem;
+.sky-login-brand-tagline {
   margin-top: 0.32rem;
+  color: #d6b85f;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.sky-login-card-header .sky-page-subtitle {
+  max-width: 24rem;
+  margin-top: 0.54rem;
   color: #c1d1ee;
-  font-size: 0.94rem;
-  line-height: 1.5;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .sky-login-card-signal {
   display: inline-flex;
+  align-self: flex-start;
   align-items: center;
   gap: 0.45rem;
   min-width: max-content;
@@ -3510,11 +3523,22 @@
 
   .sky-login-brand-intro {
     align-items: flex-start;
+    gap: 0.85rem;
   }
 
   .sky-login-card-mark {
-    width: 3.55rem;
-    height: 3.55rem;
+    width: 4.45rem;
+    height: 4.45rem;
+    flex-basis: 4.45rem;
+  }
+
+  .sky-login-card-header .sky-page-title {
+    font-size: 1.55rem;
+  }
+
+  .sky-login-brand-tagline {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
   }
 
   .sky-login-card-signal {

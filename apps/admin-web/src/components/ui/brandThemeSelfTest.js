@@ -10,10 +10,12 @@ function assert(condition, message) {
 const cssPath = path.join(__dirname, '..', '..', 'App.css');
 const chartThemePath = path.join(__dirname, '..', 'charts', 'chartTheme.js');
 const dashboardVisualsPath = path.join(__dirname, '..', 'charts', 'DashboardVisuals.jsx');
+const loginPath = path.join(__dirname, '..', '..', 'pages', 'Login.jsx');
 
 const cssSource = fs.readFileSync(cssPath, 'utf8');
 const chartThemeSource = fs.readFileSync(chartThemePath, 'utf8');
 const dashboardVisualsSource = fs.readFileSync(dashboardVisualsPath, 'utf8');
+const loginSource = fs.readFileSync(loginPath, 'utf8');
 
 assert(
   cssSource.includes('SkyCommand Midnight Gold brand system') &&
@@ -39,6 +41,18 @@ assert(
   cssSource.includes('.sky-workflow-approval-instructions') &&
     cssSource.includes('border-color: rgba(220, 177, 63, 0.3);'),
   'Human approval surfaces must carry the restrained gold importance treatment.',
+);
+assert(
+  loginSource.includes('<h1 className="h3 sky-page-title">SkyCommand</h1>') &&
+    loginSource.includes('<div className="sky-login-brand-tagline">Workflow Automation</div>') &&
+    !loginSource.includes('Workflow Automation Engine'),
+  'The login card must use the product-first SkyCommand / Workflow Automation brand hierarchy.',
+);
+assert(
+  cssSource.includes('width: 5.65rem;') &&
+    cssSource.includes('flex: 0 0 5.65rem;') &&
+    cssSource.includes('.sky-login-brand-tagline'),
+  'The login-card mark must anchor the full branded header with the dedicated tagline treatment.',
 );
 assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&

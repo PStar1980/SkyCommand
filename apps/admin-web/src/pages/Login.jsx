@@ -68,8 +68,8 @@ function Login() {
           <div className="sky-login-brand-intro">
             <SkyCommandMark className="sky-login-card-mark" />
             <div className="sky-login-brand-copy">
-              <div className="sky-page-kicker">Workflow Automation Engine</div>
               <h1 className="h3 sky-page-title">SkyCommand</h1>
+              <div className="sky-login-brand-tagline">Workflow Automation</div>
               <p className="sky-page-subtitle">
                 Secure operator access to workflows, tools, and runtime intelligence.
               </p>
