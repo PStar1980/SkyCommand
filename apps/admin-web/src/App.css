@@ -425,13 +425,13 @@
   flex: 1 1 auto;
   min-height: 0;
   align-content: start;
-  gap: 0.42rem;
+  gap: 0.36rem;
   overflow-y: auto;
-  margin: 0 0.72rem 0.88rem;
-  padding: 0.88rem 0.78rem 1.38rem;
+  margin: 0 0.34rem 0.34rem;
+  padding: 0.58rem 0.42rem 0.56rem;
   border: 1px solid rgba(236, 190, 74, 0.24);
   border-radius: 0.42rem;
-  background: linear-gradient(180deg, rgba(236, 190, 74, 0.03), rgba(72, 167, 255, 0.015) 32%, rgba(4, 9, 18, 0.22));
+  background: linear-gradient(180deg, rgba(236, 190, 74, 0.03), rgba(72, 167, 255, 0.012) 32%, rgba(4, 9, 18, 0.22));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.02),
     0 0 20px rgba(236, 190, 74, 0.035);
@@ -516,8 +516,9 @@
   width: 1rem;
   align-items: center;
   justify-content: center;
-  color: #a7c9ff;
+  color: #ecbe4a;
   flex: 0 0 auto;
+  text-shadow: 0 0 12px rgba(236, 190, 74, 0.18);
 }
 
 .sky-sidebar-group-title {
@@ -529,7 +530,7 @@
   margin-left: auto;
   align-items: center;
   justify-content: center;
-  color: #8fa9cf;
+  color: rgba(236, 190, 74, 0.76);
   font-size: 1.38rem;
   line-height: 1;
   transform: rotate(0deg);
@@ -539,8 +540,8 @@
 }
 
 .sky-sidebar-group.is-expanded .sky-sidebar-group-chevron {
-  color: #c9e9ff;
-  filter: drop-shadow(0 0 6px rgba(72, 167, 255, 0.2));
+  color: #ffe59a;
+  filter: drop-shadow(0 0 8px rgba(236, 190, 74, 0.22));
   transform: rotate(90deg);
 }
 
@@ -567,21 +568,21 @@
   position: relative;
   display: grid;
   min-height: 0;
-  gap: 0.3rem;
+  gap: 0.24rem;
   overflow: hidden;
   padding-top: 0;
   transition: padding-top 190ms ease;
 }
 
 .sky-sidebar-group.is-expanded .sky-sidebar-group-items {
-  padding-top: 0.38rem;
+  padding-top: 0.32rem;
 }
 
 .sky-sidebar-group.is-expanded .sky-sidebar-group-items::before {
   position: absolute;
-  top: 0.54rem;
-  bottom: 0.38rem;
-  left: 0.58rem;
+  top: 0.46rem;
+  bottom: 0.3rem;
+  left: 0.52rem;
   width: 1px;
   background: linear-gradient(180deg, rgba(236, 190, 74, 0.4), rgba(72, 167, 255, 0.18), transparent);
   content: '';
@@ -593,14 +594,14 @@
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.88rem;
-  min-height: 4.08rem;
+  gap: 0.78rem;
+  min-height: 3.28rem;
   overflow: hidden;
   border: 1px solid rgba(236, 190, 74, 0.26);
   border-radius: 0.18rem;
   background: rgba(4, 9, 18, 0.54);
-  color: #c8d7ef;
-  padding: 0.78rem 0.82rem 0.78rem 1.08rem;
+  color: #dbe6f8;
+  padding: 0.68rem 0.82rem 0.68rem 0.98rem;
   text-decoration: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
   transition:
@@ -667,14 +668,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.3rem;
-  height: 2.3rem;
+  width: 2.1rem;
+  height: 2.1rem;
   flex: 0 0 auto;
-  border: 1px solid rgba(124, 144, 177, 0.18);
-  border-radius: 0.71rem;
-  background: rgba(255, 255, 255, 0.026);
-  color: #9ad7ff;
-  font-size: 0.99rem;
+  border: 1px solid rgba(236, 190, 74, 0.24);
+  border-radius: 0.64rem;
+  background: rgba(236, 190, 74, 0.05);
+  color: #ecbe4a;
+  font-size: 0.95rem;
   font-weight: 850;
   transition:
     border-color 150ms ease,
@@ -685,17 +686,17 @@
 
 .sky-sidebar-link:hover .sky-sidebar-link-icon,
 .sky-sidebar-link:focus .sky-sidebar-link-icon {
-  border-color: rgba(72, 167, 255, 0.3);
-  background: rgba(72, 167, 255, 0.065);
-  color: #dff5ff;
+  border-color: rgba(236, 190, 74, 0.42);
+  background: rgba(236, 190, 74, 0.09);
+  color: #ffe9a6;
 }
 
 .sky-sidebar-link.active .sky-sidebar-link-icon {
-  border-color: rgba(236, 190, 74, 0.62);
+  border-color: rgba(236, 190, 74, 0.72);
   background:
-    radial-gradient(circle at 42% 28%, rgba(255, 229, 154, 0.16), transparent 1.1rem),
-    linear-gradient(145deg, rgba(236, 190, 74, 0.1), rgba(72, 167, 255, 0.08));
-  color: #ffffff;
+    radial-gradient(circle at 42% 28%, rgba(255, 229, 154, 0.18), transparent 1.1rem),
+    linear-gradient(145deg, rgba(236, 190, 74, 0.16), rgba(236, 190, 74, 0.08));
+  color: #fff3c4;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.025),
     0 0 22px rgba(236, 190, 74, 0.1);
@@ -705,31 +706,12 @@
   min-width: 0;
 }
 
-.sky-sidebar-link-title,
-.sky-sidebar-link-description {
-  display: block;
-  line-height: 1.15;
-}
-
 .sky-sidebar-link-title {
+  display: block;
   color: inherit;
-  font-size: 1.16rem;
+  font-size: 1.14rem;
   font-weight: 780;
-}
-
-.sky-sidebar-link-description {
-  margin-top: 0.18rem;
-  color: #93a5c3;
-  font-size: 0.94rem;
-}
-
-.sky-sidebar-link:hover .sky-sidebar-link-description,
-.sky-sidebar-link:focus .sky-sidebar-link-description {
-  color: #aec5e8;
-}
-
-.sky-sidebar-link.active .sky-sidebar-link-description {
-  color: #b9d0f5;
+  line-height: 1.15;
 }
 
 .sky-topbar {
@@ -943,14 +925,15 @@
   position: absolute;
   z-index: 1200;
   overflow: hidden;
-  border: 1px solid rgba(124, 144, 177, 0.26);
+  border: 1px solid rgba(236, 190, 74, 0.3);
   border-radius: 1.05rem;
   background:
-    linear-gradient(135deg, rgba(72, 167, 255, 0.08), rgba(137, 109, 255, 0.065)),
-    rgba(5, 10, 21, 0.98);
+    linear-gradient(180deg, rgba(236, 190, 74, 0.05), rgba(236, 190, 74, 0.01) 22%, rgba(1, 4, 9, 0) 46%),
+    rgba(3, 7, 14, 0.985);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.48),
-    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+    0 24px 70px rgba(0, 0, 0, 0.56),
+    0 0 28px rgba(236, 190, 74, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   color: #dce8ff;
   backdrop-filter: blur(20px);
   max-height: min(72vh, 42rem);
@@ -976,9 +959,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid rgba(124, 144, 177, 0.16);
-  background: rgba(1, 4, 9, 0.42);
-  color: #a7bfeb;
+  border-bottom: 1px solid rgba(236, 190, 74, 0.16);
+  background: linear-gradient(180deg, rgba(236, 190, 74, 0.08), rgba(236, 190, 74, 0.02));
+  color: #ffe59a;
   font-size: 0.82rem;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -987,7 +970,7 @@
 }
 
 .sky-topbar-popover-header span:last-child {
-  color: #7f92b4;
+  color: rgba(255, 229, 154, 0.72);
   font-size: 0.72rem;
   letter-spacing: 0.05em;
 }
@@ -1000,7 +983,7 @@
   overflow-y: auto;
   padding: 0.55rem;
   scrollbar-width: thin;
-  scrollbar-color: rgba(154, 215, 255, 0.36) rgba(4, 8, 16, 0.4);
+  scrollbar-color: rgba(236, 190, 74, 0.38) rgba(4, 8, 16, 0.4);
 }
 
 .sky-command-search-results::-webkit-scrollbar,
@@ -1018,7 +1001,7 @@
 .sky-topbar-popover-list::-webkit-scrollbar-thumb {
   border: 2px solid rgba(4, 8, 16, 0.4);
   border-radius: 999px;
-  background: rgba(154, 215, 255, 0.4);
+  background: rgba(236, 190, 74, 0.4);
 }
 
 .sky-command-search-result,
@@ -1028,9 +1011,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.9rem;
-  border: 1px solid transparent;
+  border: 1px solid rgba(236, 190, 74, 0.08);
   border-radius: 0.82rem;
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(255, 255, 255, 0.018);
   color: #dce8ff;
   padding: 0.74rem 0.82rem;
   text-align: left;
@@ -1045,10 +1028,10 @@
 .sky-command-search-result.is-active,
 .sky-topbar-popover-item:hover,
 .sky-topbar-popover-item:focus {
-  border-color: rgba(72, 167, 255, 0.34);
+  border-color: rgba(236, 190, 74, 0.42);
   background:
-    linear-gradient(135deg, rgba(72, 167, 255, 0.14), rgba(137, 109, 255, 0.09)),
-    rgba(255, 255, 255, 0.045);
+    linear-gradient(135deg, rgba(236, 190, 74, 0.14), rgba(236, 190, 74, 0.04) 58%, rgba(72, 167, 255, 0.04)),
+    rgba(255, 255, 255, 0.04);
   outline: none;
   transform: translateY(-1px);
 }
@@ -1072,14 +1055,14 @@
 .sky-topbar-popover-item small {
   display: block;
   margin-top: 0.2rem;
-  color: #8fa1bf;
+  color: #aeb8ca;
   font-size: 0.78rem;
   line-height: 1.35;
 }
 
 .sky-command-search-result > span:last-child {
   flex: 0 0 auto;
-  color: #9ad7ff;
+  color: #ffe59a;
   font-size: 0.78rem;
   font-weight: 780;
   letter-spacing: 0.06em;
@@ -1100,7 +1083,7 @@
 }
 
 .sky-command-search-empty {
-  color: #8fa1bf;
+  color: #b5c0d3;
   font-size: 0.88rem;
   padding: 1rem;
 }
