@@ -6386,13 +6386,12 @@ function SkyWorkflows({ mode = 'start' }) {
                     <th>Edges</th>
                     <th>Runtime parameters</th>
                     <th>Published version</th>
-                    <th className="text-end">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleStartDefinitions.length === 0 ? (
                     <tr>
-                      <td colSpan="8">
+                      <td colSpan="7">
                         <div className="sky-empty-state">
                           No workflows match the current filters.
                         </div>
@@ -6427,18 +6426,6 @@ function SkyWorkflows({ mode = 'start' }) {
                           <td>{getDefinitionEdgeCount(definition)}</td>
                           <td>{getDefinitionRuntimeParameterCount(definition)}</td>
                           <td>{definition.publishedVersionNumber || '—'}</td>
-                          <td className="text-end">
-                            <button
-                              className="btn btn-sm sky-btn-ghost"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleDefinitionSelect(definition.workflowCode);
-                              }}
-                              type="button"
-                            >
-                              {selected ? 'Selected' : 'Select workflow'}
-                            </button>
-                          </td>
                         </tr>
                       );
                     })

@@ -51,9 +51,11 @@ assert(
 );
 assert(
   workflowSource.includes('<th>Workflow</th>') &&
-    workflowSource.includes("'Select workflow'") &&
+    workflowSource.includes('onClick={() => handleDefinitionSelect(definition.workflowCode)}') &&
+    workflowSource.includes('<th>Published version</th>\n                  </tr>') &&
+    !workflowSource.includes("{selected ? 'Selected' : 'Select workflow'}") &&
     !workflowSource.includes('id="workflowStartDefinition"'),
-  'Start Workflow must use a selectable full-width table instead of the legacy dropdown.',
+  'Start Workflow must use row selection without a redundant Actions column or legacy dropdown.',
 );
 assert(
   workflowSource.includes('{selectedDefinition && (') &&
