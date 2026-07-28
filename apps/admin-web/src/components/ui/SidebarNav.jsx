@@ -85,7 +85,6 @@ function SidebarNav({
                       <span className="sky-sidebar-link-icon">{item.icon}</span>
                       <span className="sky-sidebar-link-copy">
                         <span className="sky-sidebar-link-title">{item.label}</span>
-                        <span className="sky-sidebar-link-description">{item.description}</span>
                       </span>
                     </NavLink>
                   ))}
