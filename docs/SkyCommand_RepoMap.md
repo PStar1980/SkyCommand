@@ -46,6 +46,8 @@ SkyServer/
 │   │       ├── App.jsx
 │   │       ├── index.css
 │   │       ├── main.jsx
+│   │       ├── assets/
+│   │       │   └── sky-net-background.svg
 │   │       ├── components/
 │   │       │   ├── ConditionParameterEditor.jsx
 │   │       │   ├── HumanApprovalParameterEditor.jsx
