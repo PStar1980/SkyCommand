@@ -67,6 +67,11 @@ assert(
   'Login support actions must retain their restrained gold hover and focus treatment.',
 );
 assert(
+  cssSource.includes("url('./assets/sky-net-background.png')") &&
+    !cssSource.includes("url('./assets/sky-net-background.svg')"),
+  'The login and authenticated shells must use the unified organic PNG sky-net background.',
+);
+assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&
     chartThemeSource.includes("gold: '#dcb13f'") &&
     chartThemeSource.includes("green: '#42d69b'"),
