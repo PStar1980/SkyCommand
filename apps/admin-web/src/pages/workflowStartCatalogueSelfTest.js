@@ -52,7 +52,8 @@ assert(
 assert(
   workflowSource.includes('<th>Workflow</th>') &&
     workflowSource.includes('onClick={() => handleDefinitionSelect(definition.workflowCode)}') &&
-    workflowSource.includes('<th>Published version</th>\n                  </tr>') &&
+    workflowSource.includes('<th>Published version</th>\n                    <th>Status</th>\n                  </tr>') &&
+    workflowSource.includes('<span className="sky-pill sky-pill-success">') &&
     !workflowSource.includes("{selected ? 'Selected' : 'Select workflow'}") &&
     !workflowSource.includes('id="workflowStartDefinition"'),
   'Start Workflow must use row selection without a redundant Actions column or legacy dropdown.',
