@@ -6380,12 +6380,12 @@ function SkyWorkflows({ mode = 'start' }) {
                 <thead>
                   <tr>
                     <th>Workflow</th>
-                    <th>Status</th>
                     <th>Structure</th>
                     <th>Nodes</th>
                     <th>Edges</th>
                     <th>Runtime parameters</th>
                     <th>Published version</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -6416,16 +6416,16 @@ function SkyWorkflows({ mode = 'start' }) {
                               {definition.workflowCode}
                             </div>
                           </td>
-                          <td>
-                            <span className={`sky-pill ${statusClass(definition.status)}`}>
-                              {definition.status || 'ACTIVE'}
-                            </span>
-                          </td>
                           <td>{getDefinitionStructureLabel(definition)}</td>
                           <td>{getDefinitionNodeCount(definition)}</td>
                           <td>{getDefinitionEdgeCount(definition)}</td>
                           <td>{getDefinitionRuntimeParameterCount(definition)}</td>
                           <td>{definition.publishedVersionNumber || '—'}</td>
+                          <td>
+                            <span className="sky-pill sky-pill-success">
+                              {definition.status || 'ACTIVE'}
+                            </span>
+                          </td>
                         </tr>
                       );
                     })
