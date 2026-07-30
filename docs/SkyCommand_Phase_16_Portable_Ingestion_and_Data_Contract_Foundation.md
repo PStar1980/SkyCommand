@@ -8,6 +8,7 @@
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
+- **Implementation progress:** Phase 16.0 baseline audit complete; Phase 16.1 semantic ingestion identity in progress.
 
 ## Governing constraint
 

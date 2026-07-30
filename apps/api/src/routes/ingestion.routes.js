@@ -9,6 +9,7 @@ router.use(requireAuth);
 router.use(requirePermission('INGESTION_VIEW_STATUS'));
 
 router.get('/status', ingestionController.getStatus);
+router.get('/tools', ingestionController.listTools);
 
 router.get('/sources', ingestionController.listSources);
 router.get('/sources/:source', ingestionController.getSource);

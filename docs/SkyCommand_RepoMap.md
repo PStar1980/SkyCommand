@@ -248,6 +248,7 @@ SkyServer/
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
+│   ├── SkyCommand_Phase_16_1_Semantic_Ingestion_Identity.md
 │   ├── SkyCommand_Phase_16_Baseline_and_Coupling_Inventory.md
 │   ├── SkyCommand_Phase_16_Portable_Ingestion_and_Data_Contract_Foundation.md
 │   ├── SkyCommand_RepoMap.md
@@ -321,7 +322,8 @@ SkyServer/
 │   │       │   ├── 00065__repository_intelligence_tool.sql
 │   │       │   ├── 00066__tool_catalogue_administration.sql
 │   │       │   ├── 00068__skycommand_repository_designation.sql
-│   │       │   └── 00071__api_request_telemetry.sql
+│   │       │   ├── 00071__api_request_telemetry.sql
+│   │       │   └── 00074__portable_ingestion_identity.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -356,7 +358,8 @@ SkyServer/
 │   │           ├── 00069__db_health_structured_output_seed.sql
 │   │           ├── 00070__db_build_structured_output_seed.sql
 │   │           ├── 00072__api_telemetry_permissions_seed.sql
-│   │           └── 00073__structured_tool_contract_associations_seed.sql
+│   │           ├── 00073__structured_tool_contract_associations_seed.sql
+│   │           └── 00075__portable_ingestion_identity_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -388,6 +391,10 @@ SkyServer/
 │   │       ├── loadStatCanMacroData.js
 │   │       ├── audit/
 │   │       │   └── phase16BaselineAudit.js
+│   │       ├── catalogue/
+│   │       │   ├── ingestionCatalogueService.js
+│   │       │   ├── phase16IngestionIdentity.js
+│   │       │   └── phase16IngestionIdentitySelfTest.js
 │   │       ├── config/
 │   │       │   ├── manualIngestion.json
 │   │       │   ├── statcanIndicators.js

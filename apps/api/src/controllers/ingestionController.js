@@ -82,6 +82,20 @@ async function getStatus(req, res, next) {
   }
 }
 
+
+async function listTools(req, res, next) {
+  try {
+    const payload = await ingestionStatusService.listIngestionTools(req.query || {});
+
+    res.json({
+      ok: true,
+      items: payload.items,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function listSources(req, res, next) {
   try {
     const payload = await ingestionStatusService.listIngestionSources();
@@ -153,6 +167,7 @@ async function getIndicatorStatus(req, res, next) {
 
 module.exports = {
   getStatus,
+  listTools,
   listSources,
   getSource,
   getRecentExecutions,

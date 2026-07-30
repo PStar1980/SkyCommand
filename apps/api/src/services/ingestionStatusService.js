@@ -1,44 +1,10 @@
 const { query } = require('../../../../packages/db/src/connection');
+const ingestionCatalogueService = require('../../../../packages/ingestion/src/catalogue/ingestionCatalogueService');
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 const DEFAULT_RECENT_LIMIT = 25;
 const MAX_RECENT_LIMIT = 200;
-
-const INGESTION_SOURCE_REGISTRY = [
-  {
-    source: 'FRED',
-    label: 'Federal Reserve Economic Data',
-    provider: 'Federal Reserve Bank of St. Louis',
-    category: 'macro',
-    description: 'U.S. macroeconomic indicator ingestion from FRED.',
-    scriptFiles: ['loadFREDMacroData.js'],
-  },
-  {
-    source: 'BOC',
-    label: 'Bank of Canada',
-    provider: 'Bank of Canada',
-    category: 'macro',
-    description: 'Canadian rates and foreign exchange ingestion from Bank of Canada data sources.',
-    scriptFiles: ['loadBoCMacroData.js'],
-  },
-  {
-    source: 'STATCAN',
-    label: 'Statistics Canada',
-    provider: 'Statistics Canada',
-    category: 'macro',
-    description: 'Canadian macroeconomic indicator ingestion from Statistics Canada vector data.',
-    scriptFiles: ['loadStatCanMacroData.js'],
-  },
-];
-
-const INGESTION_SOURCE_BY_CODE = new Map(
-  INGESTION_SOURCE_REGISTRY.map((source) => [source.source, source]),
-);
-
-const INGESTION_SCRIPT_FILE_NAMES = INGESTION_SOURCE_REGISTRY.flatMap(
-  (source) => source.scriptFiles,
-);
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
@@ -84,32 +50,32 @@ function normalizeBooleanFilter(value) {
 
 function normalizeSource(source) {
   const normalized = normalizeOptionalString(source);
-
-  if (!normalized) {
-    return null;
-  }
-
-  const upperSource = normalized.toUpperCase();
-
-  if (upperSource === 'BANK_OF_CANADA' || upperSource === 'BANK-CANADA') {
-    return 'BOC';
-  }
-
-  if (upperSource === 'STATISTICS_CANADA' || upperSource === 'STATISTICS-CANADA') {
-    return 'STATCAN';
-  }
-
-  return upperSource;
+  return normalized ? normalized.toUpperCase() : null;
 }
 
-function getSourceDefinition(source) {
+async function loadIngestionCatalogueContext() {
+  const [tools, sources] = await Promise.all([
+    ingestionCatalogueService.listIngestionTools(),
+    ingestionCatalogueService.listIngestionSources(),
+  ]);
+
+  return { tools, sources };
+}
+
+async function getSourceDefinition(source, catalogueContext = null) {
   const normalizedSource = normalizeSource(source);
 
   if (!normalizedSource) {
     throw createHttpError(400, 'source is required.');
   }
 
-  const sourceDefinition = INGESTION_SOURCE_BY_CODE.get(normalizedSource);
+  const sourceDefinition = catalogueContext
+    ? catalogueContext.sources.find(
+        (candidate) =>
+          candidate.sourceCode === normalizedSource ||
+          candidate.aliases.some((alias) => normalizeSource(alias) === normalizedSource),
+      )
+    : await ingestionCatalogueService.getIngestionSource(normalizedSource);
 
   if (!sourceDefinition) {
     throw createHttpError(404, 'Ingestion source not found.', {
@@ -207,45 +173,57 @@ function addTimestampRangeFilters({ clauses, values, columnName, from, to }) {
   }
 }
 
-function addIngestionExecutionFilter({ clauses }) {
-  const scriptFileClauses = INGESTION_SCRIPT_FILE_NAMES.map(
-    (scriptFile) => `script_file ILIKE '%${scriptFile.replace(/'/g, "''")}%'`,
-  );
+function addIngestionExecutionFilter({ clauses, values, tools }) {
+  const toolIds = tools.map((tool) => String(tool.toolId));
+  const toolCodes = tools.map((tool) => tool.toolCode);
+  const scriptPaths = tools.map((tool) => tool.scriptPath);
 
-  clauses.push(`(
-    category ILIKE '%ingest%'
-    OR script_name ILIKE '%ingest%'
-    OR script_file ILIKE '%ingestion%'
-    OR ${scriptFileClauses.join('\n    OR ')}
-  )`);
-}
-
-function addExecutionSourceFilter({ clauses, values, source }) {
-  const normalizedSource = normalizeSource(source);
-
-  if (!normalizedSource) {
+  if (toolIds.length === 0) {
+    clauses.push('FALSE');
     return;
   }
 
-  values.push(`%${normalizedSource}%`);
-  const sourcePlaceholder = `$${values.length}`;
-
-  const sourceDefinition = INGESTION_SOURCE_BY_CODE.get(normalizedSource);
-  const scriptFileClauses = [];
-
-  if (sourceDefinition) {
-    for (const scriptFile of sourceDefinition.scriptFiles) {
-      values.push(`%${scriptFile}%`);
-      scriptFileClauses.push(`script_file ILIKE $${values.length}`);
-    }
-  }
+  values.push(toolIds);
+  const toolIdsPlaceholder = `$${values.length}`;
+  values.push(toolCodes);
+  const toolCodesPlaceholder = `$${values.length}`;
+  values.push(scriptPaths);
+  const scriptPathsPlaceholder = `$${values.length}`;
 
   clauses.push(`(
-    UPPER(COALESCE(script_name, '')) LIKE ${sourcePlaceholder}
-    OR UPPER(COALESCE(category, '')) LIKE ${sourcePlaceholder}
-    OR UPPER(COALESCE(summary, '')) LIKE ${sourcePlaceholder}
-    OR UPPER(COALESCE(script_file, '')) LIKE ${sourcePlaceholder}
-    ${scriptFileClauses.length > 0 ? `OR ${scriptFileClauses.join(' OR ')}` : ''}
+    COALESCE(metadata->>'toolId', '') = ANY(${toolIdsPlaceholder}::text[])
+    OR script_name = ANY(${toolCodesPlaceholder}::text[])
+    OR EXISTS (
+      SELECT 1
+      FROM unnest(${scriptPathsPlaceholder}::text[]) AS configured_path
+      WHERE COALESCE(script_file, '') ILIKE '%' || configured_path
+    )
+  )`);
+}
+
+function addExecutionSourceFilter({ clauses, values, sourceDefinition }) {
+  if (!sourceDefinition) {
+    return;
+  }
+
+  values.push(sourceDefinition.toolIds.map(String));
+  const toolIdsPlaceholder = `$${values.length}`;
+  values.push(sourceDefinition.toolCodes);
+  const toolCodesPlaceholder = `$${values.length}`;
+  values.push(sourceDefinition.scriptPaths);
+  const scriptPathsPlaceholder = `$${values.length}`;
+  values.push(sourceDefinition.sourceCode);
+  const sourceCodePlaceholder = `$${values.length}`;
+
+  clauses.push(`(
+    COALESCE(metadata->>'toolId', '') = ANY(${toolIdsPlaceholder}::text[])
+    OR script_name = ANY(${toolCodesPlaceholder}::text[])
+    OR EXISTS (
+      SELECT 1
+      FROM unnest(${scriptPathsPlaceholder}::text[]) AS configured_path
+      WHERE COALESCE(script_file, '') ILIKE '%' || configured_path
+    )
+    OR UPPER(COALESCE(metadata->>'source', '')) = ${sourceCodePlaceholder}
   )`);
 }
 
@@ -276,12 +254,18 @@ function camelizeRow(row) {
 
 function sanitizeSourceDefinition(sourceDefinition) {
   return {
-    source: sourceDefinition.source,
-    label: sourceDefinition.label,
-    provider: sourceDefinition.provider,
-    category: sourceDefinition.category,
+    source: sourceDefinition.sourceCode,
+    label: sourceDefinition.sourceName,
+    provider: sourceDefinition.providerName,
+    category: String(sourceDefinition.domainCode || '').toLowerCase(),
     description: sourceDefinition.description,
-    scriptFiles: sourceDefinition.scriptFiles,
+    domainCode: sourceDefinition.domainCode,
+    sourceId: sourceDefinition.sourceId,
+    toolCodes: sourceDefinition.toolCodes,
+    adapterCodes: sourceDefinition.adapterCodes,
+    scriptFiles: sourceDefinition.scriptPaths.map((scriptPath) =>
+      String(scriptPath || '').split('/').pop(),
+    ),
   };
 }
 
@@ -296,7 +280,7 @@ function sanitizeIndicator(row) {
   };
 }
 
-function sanitizeExecution(row) {
+function sanitizeExecution(row, sourceDefinitions = []) {
   const execution = camelizeRow(row);
 
   return {
@@ -306,7 +290,7 @@ function sanitizeExecution(row) {
     username: execution.username || null,
     displayName: execution.displayName || null,
     sessionId: execution.sessionId || null,
-    source: inferExecutionSource(row),
+    source: inferExecutionSource(row, sourceDefinitions),
     scriptName: execution.scriptName,
     scriptFile: execution.scriptFile,
     category: execution.category,
@@ -322,34 +306,31 @@ function sanitizeExecution(row) {
   };
 }
 
-function inferExecutionSource(row = {}) {
-  const searchableText = [
-    row.script_name,
-    row.script_file,
-    row.category,
-    row.summary,
-    JSON.stringify(row.parameters || {}),
-    JSON.stringify(row.metadata || {}),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toUpperCase();
+function inferExecutionSource(row = {}, sourceDefinitions = []) {
+  const metadata = row.metadata || {};
+  const metadataToolId = String(metadata.toolId || '');
+  const scriptName = String(row.script_name || '');
+  const scriptFile = String(row.script_file || '');
 
-  for (const sourceDefinition of INGESTION_SOURCE_REGISTRY) {
-    if (searchableText.includes(sourceDefinition.source)) {
-      return sourceDefinition.source;
+  for (const sourceDefinition of sourceDefinitions) {
+    if (sourceDefinition.toolIds.map(String).includes(metadataToolId)) {
+      return sourceDefinition.sourceCode;
+    }
+
+    if (sourceDefinition.toolCodes.includes(scriptName)) {
+      return sourceDefinition.sourceCode;
     }
 
     if (
-      sourceDefinition.scriptFiles.some((scriptFile) =>
-        searchableText.includes(scriptFile.toUpperCase()),
+      sourceDefinition.scriptPaths.some((configuredPath) =>
+        scriptFile.replace(/\\/g, '/').endsWith(String(configuredPath || '').replace(/\\/g, '/')),
       )
     ) {
-      return sourceDefinition.source;
+      return sourceDefinition.sourceCode;
     }
   }
 
-  return null;
+  return normalizeSource(metadata.source) || null;
 }
 
 function getFreshnessThresholdDays(frequency) {
@@ -691,16 +672,20 @@ async function buildIndicatorStatuses(indicators) {
   return Promise.all(indicators.map((indicator) => buildIndicatorStatus(indicator)));
 }
 
-async function getRecentIngestionExecutions(filters = {}) {
+async function getRecentIngestionExecutions(filters = {}, catalogueContext = null) {
+  const context = catalogueContext || (await loadIngestionCatalogueContext());
   const { limit, offset } = getPagination(filters, {
     defaultLimit: DEFAULT_RECENT_LIMIT,
     maxLimit: MAX_RECENT_LIMIT,
   });
   const clauses = [];
   const values = [];
+  const sourceDefinition = filters.source
+    ? await getSourceDefinition(filters.source, context)
+    : null;
 
-  addIngestionExecutionFilter({ clauses });
-  addExecutionSourceFilter({ clauses, values, source: filters.source });
+  addIngestionExecutionFilter({ clauses, values, tools: context.tools });
+  addExecutionSourceFilter({ clauses, values, sourceDefinition });
 
   const normalizedStatus = normalizeOptionalString(filters.status);
 
@@ -765,15 +750,18 @@ async function getRecentIngestionExecutions(filters = {}) {
     total,
     limit,
     offset,
-    items: dataResult.rows.map(sanitizeExecution),
+    items: dataResult.rows.map((row) => sanitizeExecution(row, context.sources)),
   };
 }
 
-async function getLatestExecutionsBySource() {
-  const recentPayload = await getRecentIngestionExecutions({
-    limit: 100,
-    offset: 0,
-  });
+async function getLatestExecutionsBySource(catalogueContext) {
+  const recentPayload = await getRecentIngestionExecutions(
+    {
+      limit: 100,
+      offset: 0,
+    },
+    catalogueContext,
+  );
   const latestBySource = new Map();
 
   for (const execution of recentPayload.items) {
@@ -787,32 +775,54 @@ async function getLatestExecutionsBySource() {
   return latestBySource;
 }
 
+async function listIngestionTools(filters = {}) {
+  return {
+    items: await ingestionCatalogueService.listIngestionTools({
+      domainCode: filters.domainCode,
+      sourceCode: filters.source,
+      channelCode: filters.channelCode,
+    }),
+  };
+}
+
 async function listIngestionSources() {
+  const catalogueContext = await loadIngestionCatalogueContext();
+  const observableSources = catalogueContext.sources.filter(
+    (sourceDefinition) =>
+      sourceDefinition.observabilityEnabled && sourceDefinition.legacyIndicatorSourceCode,
+  );
   const [allIndicators, latestExecutionsBySource] = await Promise.all([
     buildIndicatorStatuses(await loadIndicatorRows({})),
-    getLatestExecutionsBySource(),
+    getLatestExecutionsBySource(catalogueContext),
   ]);
 
   return {
-    items: INGESTION_SOURCE_REGISTRY.map((sourceDefinition) => {
+    items: observableSources.map((sourceDefinition) => {
+      const indicatorSource = sourceDefinition.legacyIndicatorSourceCode;
       const sourceIndicators = allIndicators.filter(
-        (indicator) => indicator.source === sourceDefinition.source,
+        (indicator) => indicator.source === indicatorSource,
       );
 
       return buildSourceStatus({
         sourceDefinition,
         indicators: sourceIndicators,
-        latestExecution: latestExecutionsBySource.get(sourceDefinition.source) || null,
+        latestExecution: latestExecutionsBySource.get(sourceDefinition.sourceCode) || null,
       });
     }),
   };
 }
 
 async function getIngestionSource(source) {
-  const sourceDefinition = getSourceDefinition(source);
+  const catalogueContext = await loadIngestionCatalogueContext();
+  const sourceDefinition = await getSourceDefinition(source, catalogueContext);
+  const indicatorSource =
+    sourceDefinition.legacyIndicatorSourceCode || sourceDefinition.sourceCode;
   const [sourceIndicators, recentPayload] = await Promise.all([
-    buildIndicatorStatuses(await loadIndicatorRows({ source: sourceDefinition.source })),
-    getRecentIngestionExecutions({ source: sourceDefinition.source, limit: 10 }),
+    buildIndicatorStatuses(await loadIndicatorRows({ source: indicatorSource })),
+    getRecentIngestionExecutions(
+      { source: sourceDefinition.sourceCode, limit: 10 },
+      catalogueContext,
+    ),
   ]);
 
   return {
@@ -908,6 +918,7 @@ async function getIngestionStatusSummary(filters = {}) {
 }
 
 module.exports = {
+  listIngestionTools,
   listIngestionSources,
   getIngestionSource,
   getRecentIngestionExecutions,
