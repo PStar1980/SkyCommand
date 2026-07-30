@@ -248,15 +248,22 @@ SkyServer/
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
+│   ├── SkyCommand_Phase_16_Baseline_and_Coupling_Inventory.md
+│   ├── SkyCommand_Phase_16_Portable_Ingestion_and_Data_Contract_Foundation.md
 │   ├── SkyCommand_RepoMap.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
 │   ├── SkyServer_Temporal_Local_Setup.md
 │   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
-│   └── assets/
-│       ├── auth_schema_ERD.png
-│       ├── core_schema_ERD.png
-│       ├── skyweb_schema_ERD.png
-│       └── worker_schema_ERD.png
+│   ├── assets/
+│   │   ├── auth_schema_ERD.png
+│   │   ├── core_schema_ERD.png
+│   │   ├── skyweb_schema_ERD.png
+│   │   └── worker_schema_ERD.png
+│   └── audits/
+│       └── phase16/
+│           ├── SkyCommand_Phase_16_Baseline_Audit.json
+│           ├── SkyCommand_Phase_16_Baseline_Audit.md
+│           └── SkyCommand_Phase_16_Indicator_Audit.csv
 ├── packages/
 │   ├── auth/
 │   │   └── src/
@@ -379,6 +386,8 @@ SkyServer/
 │   │       ├── loadFREDMacroData.js
 │   │       ├── loadManualData.js
 │   │       ├── loadStatCanMacroData.js
+│   │       ├── audit/
+│   │       │   └── phase16BaselineAudit.js
 │   │       ├── config/
 │   │       │   ├── manualIngestion.json
 │   │       │   ├── statcanIndicators.js
