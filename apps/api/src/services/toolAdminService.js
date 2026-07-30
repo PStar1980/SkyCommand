@@ -8,6 +8,8 @@ const TOOL_CODE_PATTERN = /^[a-z][a-z0-9_]*$/;
 const PARAMETER_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OUTPUT_TYPE_PATTERN = /^[a-z][a-z0-9_]*(?:\.v[1-9][0-9]*)?$/;
+const ADAPTER_CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+const CONTRACT_VERSION_PATTERN = /^[a-z][a-z0-9_]*(?:\.v[1-9][0-9]*)?$/;
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
@@ -190,6 +192,104 @@ function normalizeStringArray(value, label, { uppercase = false, lowercase = fal
   return [...new Set(normalized)];
 }
 
+function normalizeJsonObject(value, label) {
+  if (value === undefined || value === null || value === '') {
+    return {};
+  }
+
+  let parsed = value;
+
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch (_error) {
+      throw createHttpError(400, `${label} must contain valid JSON.`);
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw createHttpError(400, `${label} must be a JSON object.`);
+  }
+
+  return parsed;
+}
+
+function normalizeIngestionProfile(value) {
+  if (value === null) {
+    return null;
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw createHttpError(400, 'ingestionProfile must be an object or null.');
+  }
+
+  const adapterCode = normalizeRequiredString(value.adapterCode, 'ingestionProfile.adapterCode')
+    .toUpperCase();
+  const contractVersion = normalizeRequiredString(
+    value.contractVersion || 'ingestion_run_summary.v1',
+    'ingestionProfile.contractVersion',
+  ).toLowerCase();
+
+  if (!ADAPTER_CODE_PATTERN.test(adapterCode)) {
+    throw createHttpError(
+      400,
+      'ingestionProfile.adapterCode must start with an uppercase letter and contain only uppercase letters, numbers, and underscores.',
+    );
+  }
+
+  if (!CONTRACT_VERSION_PATTERN.test(contractVersion)) {
+    throw createHttpError(
+      400,
+      'ingestionProfile.contractVersion must use a lowercase contract identifier such as ingestion_run_summary.v1.',
+    );
+  }
+
+  return {
+    dataDomainId: normalizeUuid(
+      value.dataDomainId || value.domainId,
+      'ingestionProfile.dataDomainId',
+    ),
+    sourceId: normalizeUuid(value.sourceId, 'ingestionProfile.sourceId'),
+    adapterCode,
+    contractVersion,
+    supportsIncremental: normalizeBoolean(
+      value.supportsIncremental,
+      false,
+      'ingestionProfile.supportsIncremental',
+    ),
+    supportsSelectedAssets: normalizeBoolean(
+      value.supportsSelectedAssets,
+      false,
+      'ingestionProfile.supportsSelectedAssets',
+    ),
+    supportsBackfill: normalizeBoolean(
+      value.supportsBackfill,
+      false,
+      'ingestionProfile.supportsBackfill',
+    ),
+    supportsRevisions: normalizeBoolean(
+      value.supportsRevisions,
+      false,
+      'ingestionProfile.supportsRevisions',
+    ),
+    supportsResume: normalizeBoolean(
+      value.supportsResume,
+      false,
+      'ingestionProfile.supportsResume',
+    ),
+    supportsDryRun: normalizeBoolean(
+      value.supportsDryRun,
+      false,
+      'ingestionProfile.supportsDryRun',
+    ),
+    configuration: normalizeJsonObject(
+      value.configuration,
+      'ingestionProfile.configuration',
+    ),
+    active: normalizeBoolean(value.active, true, 'ingestionProfile.active'),
+  };
+}
+
 function getActorUserId(actor) {
   return actor?.userId || actor?.user_id || actor?.id || null;
 }
@@ -227,8 +327,44 @@ function sanitizeToolListRow(row) {
     outputType: row.output_type || null,
     outputSchemaPath: row.output_schema_path || null,
     managedBySkyCommand: toBoolean(row.managed_by_skycommand),
+    ingestionProfileConfigured: toBoolean(row.ingestion_profile_configured),
+    ingestionProfileActive:
+      row.ingestion_profile_active === null || row.ingestion_profile_active === undefined
+        ? null
+        : toBoolean(row.ingestion_profile_active),
+    ingestionDomainCode: row.ingestion_domain_code || null,
+    ingestionSourceCode: row.ingestion_source_code || null,
+    ingestionAdapterCode: row.ingestion_adapter_code || null,
+    ingestionContractVersion: row.ingestion_contract_version || null,
     parameterCount: Number(row.parameter_count || 0),
     visibility: row.visibility_channels || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function sanitizeIngestionProfile(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    dataDomainId: row.data_domain_id,
+    domainCode: row.domain_code,
+    domainName: row.domain_name,
+    sourceId: row.source_id,
+    sourceCode: row.source_code,
+    sourceName: row.source_name,
+    adapterCode: row.adapter_code,
+    contractVersion: row.contract_version,
+    supportsIncremental: toBoolean(row.supports_incremental),
+    supportsSelectedAssets: toBoolean(row.supports_selected_assets),
+    supportsBackfill: toBoolean(row.supports_backfill),
+    supportsRevisions: toBoolean(row.supports_revisions),
+    supportsResume: toBoolean(row.supports_resume),
+    supportsDryRun: toBoolean(row.supports_dry_run),
+    configuration: row.configuration || {},
+    active: toBoolean(row.active),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -250,7 +386,7 @@ function sanitizeParameter(row, options = []) {
   };
 }
 
-function sanitizeToolDetail(row, visibility, parameters) {
+function sanitizeToolDetail(row, visibility, parameters, ingestionProfile = null) {
   return {
     ...sanitizeToolListRow(row),
     confirmationText: row.confirmation_text || null,
@@ -262,6 +398,7 @@ function sanitizeToolDetail(row, visibility, parameters) {
     fileHash: row.file_hash || null,
     visibility,
     parameters,
+    ingestionProfile,
   };
 }
 
@@ -368,6 +505,12 @@ async function listTools(filters = {}) {
         tool.output_type,
         tool.output_schema_path,
         tool.managed_by_skycommand,
+        (ingestion_profile.tool_id IS NOT NULL) AS ingestion_profile_configured,
+        ingestion_profile.active AS ingestion_profile_active,
+        ingestion_domain.domain_code AS ingestion_domain_code,
+        ingestion_source.source_code AS ingestion_source_code,
+        ingestion_profile.adapter_code AS ingestion_adapter_code,
+        ingestion_profile.contract_version AS ingestion_contract_version,
         tool.created_at,
         tool.updated_at,
         COALESCE(parameter_counts.parameter_count, 0)::int AS parameter_count,
@@ -378,6 +521,12 @@ async function listTools(filters = {}) {
       JOIN core.repositories repository ON repository.repo_id = tool.script_repo_id
       JOIN core.runtimes runtime ON runtime.runtime_code = tool.runtime_code
       JOIN core.risk_levels risk ON risk.risk_code = tool.risk_code
+      LEFT JOIN data.ingestion_tool_profiles ingestion_profile
+        ON ingestion_profile.tool_id = tool.tool_id
+      LEFT JOIN data.domains ingestion_domain
+        ON ingestion_domain.domain_id = ingestion_profile.data_domain_id
+      LEFT JOIN data.sources ingestion_source
+        ON ingestion_source.source_id = ingestion_profile.source_id
       LEFT JOIN LATERAL (
         SELECT COUNT(*)::int AS parameter_count
         FROM core.tool_parameters parameter
@@ -438,6 +587,12 @@ async function getToolRow(client, toolId, { forUpdate = false } = {}) {
         tool.output_type,
         tool.output_schema_path,
         tool.managed_by_skycommand,
+        (ingestion_profile.tool_id IS NOT NULL) AS ingestion_profile_configured,
+        ingestion_profile.active AS ingestion_profile_active,
+        ingestion_domain.domain_code AS ingestion_domain_code,
+        ingestion_source.source_code AS ingestion_source_code,
+        ingestion_profile.adapter_code AS ingestion_adapter_code,
+        ingestion_profile.contract_version AS ingestion_contract_version,
         tool.original_filename,
         tool.descriptor_path,
         tool.registered_at,
@@ -463,6 +618,12 @@ async function getToolRow(client, toolId, { forUpdate = false } = {}) {
       JOIN core.runtimes runtime ON runtime.runtime_code = tool.runtime_code
       JOIN core.risk_levels risk ON risk.risk_code = tool.risk_code
       LEFT JOIN auth.users registered_user ON registered_user.user_id = tool.registered_by
+      LEFT JOIN data.ingestion_tool_profiles ingestion_profile
+        ON ingestion_profile.tool_id = tool.tool_id
+      LEFT JOIN data.domains ingestion_domain
+        ON ingestion_domain.domain_id = ingestion_profile.data_domain_id
+      LEFT JOIN data.sources ingestion_source
+        ON ingestion_source.source_id = ingestion_profile.source_id
       WHERE application.app_code = $1
         AND tool.tool_id = $2
       ${forUpdate ? 'FOR UPDATE OF tool' : ''}
@@ -553,18 +714,52 @@ async function getToolParameters(client, toolId) {
   );
 }
 
+async function getToolIngestionProfile(client, toolId) {
+  const result = await client.query(
+    `
+      SELECT
+        profile.data_domain_id,
+        domain.domain_code,
+        domain.name AS domain_name,
+        profile.source_id,
+        source.source_code,
+        source.name AS source_name,
+        profile.adapter_code,
+        profile.contract_version,
+        profile.supports_incremental,
+        profile.supports_selected_assets,
+        profile.supports_backfill,
+        profile.supports_revisions,
+        profile.supports_resume,
+        profile.supports_dry_run,
+        profile.configuration,
+        profile.active,
+        profile.created_at,
+        profile.updated_at
+      FROM data.ingestion_tool_profiles profile
+      JOIN data.domains domain ON domain.domain_id = profile.data_domain_id
+      JOIN data.sources source ON source.source_id = profile.source_id
+      WHERE profile.tool_id = $1
+    `,
+    [toolId],
+  );
+
+  return result.rowCount > 0 ? sanitizeIngestionProfile(result.rows[0]) : null;
+}
+
 async function getTool(toolId) {
   const client = await pool.connect();
 
   try {
     const row = await getToolRow(client, toolId);
-    const [visibility, parameters] = await Promise.all([
+    const [visibility, parameters, ingestionProfile] = await Promise.all([
       getToolVisibility(client, row.tool_id),
       getToolParameters(client, row.tool_id),
+      getToolIngestionProfile(client, row.tool_id),
     ]);
 
     return {
-      tool: sanitizeToolDetail(row, visibility, parameters),
+      tool: sanitizeToolDetail(row, visibility, parameters, ingestionProfile),
     };
   } finally {
     client.release();
@@ -581,6 +776,8 @@ async function getOptions() {
     paramTypes,
     optionSources,
     channels,
+    dataDomains,
+    dataSources,
   ] = await Promise.all([
     query(
       `
@@ -655,6 +852,32 @@ async function getOptions() {
           ORDER BY channel_name, channel_code
         `,
     ),
+    query(
+      `
+          SELECT domain_id, domain_code, name, description, active
+          FROM data.domains
+          WHERE active = TRUE
+          ORDER BY name, domain_code
+        `,
+    ),
+    query(
+      `
+          SELECT
+            source.source_id,
+            source.source_code,
+            source.name,
+            source.provider_name,
+            source.provider_type,
+            source.description,
+            source.domain_id,
+            domain.domain_code
+          FROM data.sources source
+          JOIN data.domains domain ON domain.domain_id = source.domain_id
+          WHERE source.active = TRUE
+            AND domain.active = TRUE
+          ORDER BY domain.name, source.name, source.source_code
+        `,
+    ),
   ]);
 
   return {
@@ -705,6 +928,23 @@ async function getOptions() {
       channelCode: row.channel_code,
       channelName: row.channel_name,
       description: row.description,
+    })),
+    dataDomains: dataDomains.rows.map((row) => ({
+      domainId: row.domain_id,
+      domainCode: row.domain_code,
+      name: row.name,
+      description: row.description,
+      active: toBoolean(row.active),
+    })),
+    dataSources: dataSources.rows.map((row) => ({
+      sourceId: row.source_id,
+      sourceCode: row.source_code,
+      name: row.name,
+      providerName: row.provider_name,
+      providerType: row.provider_type,
+      description: row.description,
+      domainId: row.domain_id,
+      domainCode: row.domain_code,
     })),
   };
 }
@@ -794,6 +1034,10 @@ function normalizeToolPayload(body = {}, { patch = false } = {}) {
 
   if (!patch || has('visibility')) {
     payload.visibility = normalizeStringArray(body.visibility, 'visibility', { lowercase: true });
+  }
+
+  if (has('ingestionProfile')) {
+    payload.ingestionProfile = normalizeIngestionProfile(body.ingestionProfile);
   }
 
   if (has('parameters')) {
@@ -896,6 +1140,136 @@ function normalizeParameterOptions(options) {
       enabled: normalizeBoolean(option.enabled, true, 'option.enabled'),
     };
   });
+}
+
+async function getCategoryMetadata(client, categoryId) {
+  const result = await client.query(
+    `
+      SELECT
+        category.category_id,
+        category.category_code,
+        category.label,
+        category.category_kind_code
+      FROM core.tool_categories category
+      JOIN core.applications application ON application.app_id = category.app_id
+      WHERE category.category_id = $1
+        AND category.enabled = TRUE
+        AND application.app_code = $2
+    `,
+    [categoryId, CORE_APP_CODE],
+  );
+
+  if (result.rowCount === 0) {
+    throw createHttpError(400, 'categoryId is not an active SkyServer Core category.');
+  }
+
+  return {
+    categoryId: result.rows[0].category_id,
+    categoryCode: result.rows[0].category_code,
+    label: result.rows[0].label,
+    categoryKindCode: result.rows[0].category_kind_code || 'GENERAL',
+  };
+}
+
+async function getRawIngestionProfile(client, toolId) {
+  const result = await client.query(
+    `
+      SELECT
+        tool_id,
+        data_domain_id,
+        source_id,
+        adapter_code,
+        contract_version,
+        supports_incremental,
+        supports_selected_assets,
+        supports_backfill,
+        supports_revisions,
+        supports_resume,
+        supports_dry_run,
+        configuration,
+        active
+      FROM data.ingestion_tool_profiles
+      WHERE tool_id = $1
+    `,
+    [toolId],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  return {
+    dataDomainId: row.data_domain_id,
+    sourceId: row.source_id,
+    adapterCode: row.adapter_code,
+    contractVersion: row.contract_version,
+    supportsIncremental: toBoolean(row.supports_incremental),
+    supportsSelectedAssets: toBoolean(row.supports_selected_assets),
+    supportsBackfill: toBoolean(row.supports_backfill),
+    supportsRevisions: toBoolean(row.supports_revisions),
+    supportsResume: toBoolean(row.supports_resume),
+    supportsDryRun: toBoolean(row.supports_dry_run),
+    configuration: row.configuration || {},
+    active: toBoolean(row.active),
+  };
+}
+
+async function assertIngestionProfileReferences(client, profile) {
+  if (!profile) {
+    return;
+  }
+
+  const result = await client.query(
+    `
+      SELECT
+        domain.domain_id,
+        source.source_id
+      FROM data.domains domain
+      JOIN data.sources source ON source.domain_id = domain.domain_id
+      WHERE domain.domain_id = $1
+        AND source.source_id = $2
+        AND domain.active = TRUE
+        AND source.active = TRUE
+    `,
+    [profile.dataDomainId, profile.sourceId],
+  );
+
+  if (result.rowCount === 0) {
+    throw createHttpError(
+      400,
+      'ingestionProfile source must be active and belong to the selected active data domain.',
+      { code: 'INGESTION_PROFILE_SOURCE_DOMAIN_MISMATCH' },
+    );
+  }
+}
+
+function assertIngestionAssignment({ category, profile, enabled }) {
+  const isIngestionCategory = category.categoryKindCode === 'INGESTION';
+
+  if (isIngestionCategory && !profile) {
+    throw createHttpError(
+      400,
+      'Tools assigned to an INGESTION category require a portable ingestion profile.',
+      { code: 'INGESTION_PROFILE_REQUIRED' },
+    );
+  }
+
+  if (!isIngestionCategory && profile) {
+    throw createHttpError(
+      400,
+      'An ingestion profile may only be assigned to a tool in an INGESTION category.',
+      { code: 'INGESTION_PROFILE_CATEGORY_KIND_REQUIRED' },
+    );
+  }
+
+  if (isIngestionCategory && enabled && !profile.active) {
+    throw createHttpError(
+      400,
+      'An enabled ingestion tool requires an active ingestion profile.',
+      { code: 'INGESTION_PROFILE_ACTIVE_REQUIRED' },
+    );
+  }
 }
 
 async function assertReferences(client, payload) {
@@ -1031,6 +1405,7 @@ async function assertReferences(client, payload) {
   }
 
   await Promise.all(checks);
+  await assertIngestionProfileReferences(client, payload.ingestionProfile);
 }
 
 async function replaceVisibility(client, toolId, visibility) {
@@ -1113,6 +1488,63 @@ async function replaceParameters(client, toolId, parameters) {
   );
 }
 
+async function replaceIngestionProfile(client, toolId, profile) {
+  if (!profile) {
+    await client.query('DELETE FROM data.ingestion_tool_profiles WHERE tool_id = $1', [toolId]);
+    return;
+  }
+
+  await client.query(
+    `
+      INSERT INTO data.ingestion_tool_profiles (
+        tool_id,
+        data_domain_id,
+        source_id,
+        adapter_code,
+        contract_version,
+        supports_incremental,
+        supports_selected_assets,
+        supports_backfill,
+        supports_revisions,
+        supports_resume,
+        supports_dry_run,
+        configuration,
+        active
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
+      ON CONFLICT (tool_id) DO UPDATE
+      SET data_domain_id = EXCLUDED.data_domain_id,
+          source_id = EXCLUDED.source_id,
+          adapter_code = EXCLUDED.adapter_code,
+          contract_version = EXCLUDED.contract_version,
+          supports_incremental = EXCLUDED.supports_incremental,
+          supports_selected_assets = EXCLUDED.supports_selected_assets,
+          supports_backfill = EXCLUDED.supports_backfill,
+          supports_revisions = EXCLUDED.supports_revisions,
+          supports_resume = EXCLUDED.supports_resume,
+          supports_dry_run = EXCLUDED.supports_dry_run,
+          configuration = EXCLUDED.configuration,
+          active = EXCLUDED.active,
+          updated_at = CURRENT_TIMESTAMP
+    `,
+    [
+      toolId,
+      profile.dataDomainId,
+      profile.sourceId,
+      profile.adapterCode,
+      profile.contractVersion,
+      profile.supportsIncremental,
+      profile.supportsSelectedAssets,
+      profile.supportsBackfill,
+      profile.supportsRevisions,
+      profile.supportsResume,
+      profile.supportsDryRun,
+      JSON.stringify(profile.configuration || {}),
+      profile.active,
+    ],
+  );
+}
+
 async function insertAuditEvent(
   client,
   { actor, context = {}, eventType, resourceId, action, message, metadata = {} },
@@ -1153,6 +1585,12 @@ async function createTool({ body = {}, actor, context = {} }) {
   try {
     await client.query('BEGIN');
     await assertReferences(client, payload);
+    const category = await getCategoryMetadata(client, payload.categoryId);
+    assertIngestionAssignment({
+      category,
+      profile: payload.ingestionProfile || null,
+      enabled: payload.enabled,
+    });
 
     const result = await client.query(
       `
@@ -1211,6 +1649,8 @@ async function createTool({ body = {}, actor, context = {} }) {
       await replaceParameters(client, toolId, payload.parameters);
     }
 
+    await replaceIngestionProfile(client, toolId, payload.ingestionProfile || null);
+
     await insertAuditEvent(client, {
       actor,
       context,
@@ -1227,6 +1667,16 @@ async function createTool({ body = {}, actor, context = {} }) {
         enabled: payload.enabled,
         parameterCount: payload.parameters?.length || 0,
         visibility: payload.visibility || [],
+        categoryKindCode: category.categoryKindCode,
+        ingestionProfile: payload.ingestionProfile
+          ? {
+              dataDomainId: payload.ingestionProfile.dataDomainId,
+              sourceId: payload.ingestionProfile.sourceId,
+              adapterCode: payload.ingestionProfile.adapterCode,
+              contractVersion: payload.ingestionProfile.contractVersion,
+              active: payload.ingestionProfile.active,
+            }
+          : null,
       },
     });
 
@@ -1253,6 +1703,12 @@ async function validateToolConfiguration(body = {}) {
 
   try {
     await assertReferences(client, payload);
+    const category = await getCategoryMetadata(client, payload.categoryId);
+    assertIngestionAssignment({
+      category,
+      profile: payload.ingestionProfile || null,
+      enabled: false,
+    });
     const collision = await client.query(
       'SELECT tool_id FROM core.tools WHERE tool_code = $1 LIMIT 1',
       [payload.toolCode],
@@ -1288,6 +1744,12 @@ async function createManagedTool({ body = {}, actor, context = {}, registration 
   try {
     await client.query('BEGIN');
     await assertReferences(client, payload);
+    const category = await getCategoryMetadata(client, payload.categoryId);
+    assertIngestionAssignment({
+      category,
+      profile: payload.ingestionProfile || null,
+      enabled: false,
+    });
 
     const result = await client.query(
       `
@@ -1352,6 +1814,7 @@ async function createManagedTool({ body = {}, actor, context = {}, registration 
 
     await replaceVisibility(client, toolId, payload.visibility || []);
     await replaceParameters(client, toolId, payload.parameters || []);
+    await replaceIngestionProfile(client, toolId, payload.ingestionProfile || null);
 
     await insertAuditEvent(client, {
       actor,
@@ -1370,6 +1833,16 @@ async function createManagedTool({ body = {}, actor, context = {}, registration 
         visibility: payload.visibility || [],
         fileHash,
         enabled: false,
+        categoryKindCode: category.categoryKindCode,
+        ingestionProfile: payload.ingestionProfile
+          ? {
+              dataDomainId: payload.ingestionProfile.dataDomainId,
+              sourceId: payload.ingestionProfile.sourceId,
+              adapterCode: payload.ingestionProfile.adapterCode,
+              contractVersion: payload.ingestionProfile.contractVersion,
+              active: payload.ingestionProfile.active,
+            }
+          : null,
       },
     });
 
@@ -1453,6 +1926,7 @@ async function updateTool({ toolId, body = {}, actor, context = {} }) {
   try {
     await client.query('BEGIN');
     const current = await getToolRow(client, toolId, { forUpdate: true });
+    const currentProfile = await getRawIngestionProfile(client, current.tool_id);
 
     if (payload.toolCode && payload.toolCode !== current.tool_code) {
       throw createHttpError(
@@ -1476,6 +1950,23 @@ async function updateTool({ toolId, body = {}, actor, context = {} }) {
     }
 
     await assertReferences(client, payload);
+    const resolvedCategory = await getCategoryMetadata(
+      client,
+      payload.categoryId || current.category_id,
+    );
+    const profileSupplied = Object.prototype.hasOwnProperty.call(payload, 'ingestionProfile');
+    const resolvedProfile = profileSupplied ? payload.ingestionProfile : currentProfile;
+    const resolvedEnabled = Object.prototype.hasOwnProperty.call(payload, 'enabled')
+      ? payload.enabled
+      : toBoolean(current.enabled);
+
+    assertIngestionAssignment({
+      category: resolvedCategory,
+      profile: resolvedProfile,
+      enabled: resolvedEnabled,
+    });
+
+    await assertIngestionProfileReferences(client, resolvedProfile);
 
     const fieldMap = {
       name: 'name',
@@ -1529,6 +2020,14 @@ async function updateTool({ toolId, body = {}, actor, context = {} }) {
       await replaceParameters(client, current.tool_id, payload.parameters);
     }
 
+    if (resolvedCategory.categoryKindCode === 'INGESTION') {
+      if (profileSupplied) {
+        await replaceIngestionProfile(client, current.tool_id, resolvedProfile);
+      }
+    } else if (currentProfile) {
+      await replaceIngestionProfile(client, current.tool_id, null);
+    }
+
     await insertAuditEvent(client, {
       actor,
       context,
@@ -1540,6 +2039,8 @@ async function updateTool({ toolId, body = {}, actor, context = {} }) {
         toolId: current.tool_id,
         changedFields: Object.keys(payload).filter((key) => key !== 'parameters'),
         parameterCount: payload.parameters?.length,
+        categoryKindCode: resolvedCategory.categoryKindCode,
+        ingestionProfileChanged: profileSupplied || Boolean(currentProfile),
       },
     });
 
@@ -1564,6 +2065,13 @@ async function updateToolStatus({ toolId, body = {}, actor, context = {} }) {
   try {
     await client.query('BEGIN');
     const current = await getToolRow(client, toolId, { forUpdate: true });
+    const [category, ingestionProfile] = await Promise.all([
+      getCategoryMetadata(client, current.category_id),
+      getRawIngestionProfile(client, current.tool_id),
+    ]);
+
+    assertIngestionAssignment({ category, profile: ingestionProfile, enabled });
+    await assertIngestionProfileReferences(client, ingestionProfile);
 
     await client.query(
       `

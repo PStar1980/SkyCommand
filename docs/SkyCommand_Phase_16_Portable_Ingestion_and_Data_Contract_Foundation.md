@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 1
+- **Revision:** 2
 - **Date:** 2026-07-30
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 baseline audit complete; Phase 16.1 semantic ingestion identity in progress.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1.1 semantic ingestion identity proven; Phase 16.1.2 portable profile administration and onboarding guardrails implemented pending local verification.
 
 ## Governing constraint
 
@@ -476,6 +476,11 @@ Close the Phase 15 baseline and lock the portable architecture before structural
 ---
 
 ## Phase 16.1 — Semantic Ingestion Tools category and dynamic discovery
+
+### Implementation slices
+
+- **Phase 16.1.1 — Semantic ingestion identity:** implemented and locally proven. Tool-category kinds, portable domains/sources, ingestion profiles, dynamic discovery views, and the ingestion-tools API are active without changing existing macro status contracts.
+- **Phase 16.1.2 — Profile administration and onboarding guardrails:** implemented pending local verification. Admin and managed onboarding now treat the portable ingestion profile as part of the transactional tool definition; deferred PostgreSQL invariants prevent profile/category drift.
 
 ### Purpose
 
