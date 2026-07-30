@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
+import IngestionProfileEditor from '../components/IngestionProfileEditor.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService.js';
 
@@ -15,13 +16,53 @@ const DEFAULT_FILTERS = {
   enabled: '',
 };
 
+function getCategoryKind(options = {}, categoryId) {
+  return (
+    (options.categories || []).find((category) => category.categoryId === categoryId)
+      ?.categoryKindCode || 'GENERAL'
+  );
+}
+
+function createEmptyIngestionProfile(options = {}, preferredDomainId = '') {
+  const domain =
+    (options.dataDomains || []).find((item) => item.domainId === preferredDomainId) ||
+    options.dataDomains?.[0];
+  const source = (options.dataSources || []).find(
+    (item) => !domain?.domainId || item.domainId === domain.domainId,
+  );
+
+  return {
+    dataDomainId: domain?.domainId || '',
+    sourceId: source?.sourceId || '',
+    adapterCode: source?.sourceCode || '',
+    contractVersion: 'ingestion_run_summary.v1',
+    supportsIncremental: false,
+    supportsSelectedAssets: false,
+    supportsBackfill: false,
+    supportsRevisions: false,
+    supportsResume: false,
+    supportsDryRun: false,
+    active: true,
+    configurationText: '{}',
+  };
+}
+
+function parseConfigurationObject(text) {
+  const parsed = JSON.parse(String(text || '{}'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Ingestion profile configuration must be a JSON object.');
+  }
+  return parsed;
+}
+
 function createEmptyToolForm(options = {}) {
+  const categoryId = options.categories?.[0]?.categoryId || '';
   return {
     toolCode: '',
     name: '',
     label: '',
     description: '',
-    categoryId: options.categories?.[0]?.categoryId || '',
+    categoryId,
     scriptRepoId: options.repositories?.[0]?.repoId || '',
     scriptPath: '',
     runtimeCode: options.runtimes?.[0]?.runtimeCode || 'node',
@@ -37,6 +78,10 @@ function createEmptyToolForm(options = {}) {
     outputSchemaPath: '',
     visibility: options.visibilityChannels?.map((channel) => channel.channelCode) || [],
     parameters: [],
+    ingestionProfile:
+      getCategoryKind(options, categoryId) === 'INGESTION'
+        ? createEmptyIngestionProfile(options)
+        : null,
   };
 }
 
@@ -119,10 +164,18 @@ function populateToolForm(tool, options = {}) {
       enabled: parameter.enabled !== false,
       optionText: serializeOptions(parameter.options),
     })),
+    ingestionProfile: tool.ingestionProfile
+      ? {
+          ...tool.ingestionProfile,
+          configurationText: JSON.stringify(tool.ingestionProfile.configuration || {}, null, 2),
+        }
+      : getCategoryKind(options, tool.categoryId) === 'INGESTION'
+        ? createEmptyIngestionProfile(options)
+        : null,
   };
 }
 
-function buildToolPayload(form) {
+function buildToolPayload(form, options = {}) {
   const parameters = form.parameters.map((parameter) => ({
     parameterName: parameter.parameterName.trim(),
     label: parameter.label.trim() || parameter.parameterName.trim(),
@@ -135,6 +188,18 @@ function buildToolPayload(form) {
     enabled: Boolean(parameter.enabled),
     options: parameter.optionSourceCode ? [] : parseOptions(parameter.optionText),
   }));
+
+  const ingestionProfile =
+    getCategoryKind(options, form.categoryId) === 'INGESTION'
+      ? {
+          ...form.ingestionProfile,
+          configuration: parseConfigurationObject(form.ingestionProfile?.configurationText),
+        }
+      : null;
+
+  if (ingestionProfile) {
+    delete ingestionProfile.configurationText;
+  }
 
   return {
     toolCode: form.toolCode.trim(),
@@ -157,6 +222,7 @@ function buildToolPayload(form) {
     outputSchemaPath: form.outputSchemaPath.trim() || null,
     visibility: form.visibility,
     parameters,
+    ingestionProfile,
   };
 }
 
@@ -756,7 +822,25 @@ function ManageTools() {
   }
 
   function updateForm(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key !== 'categoryId') {
+        return { ...current, [key]: value };
+      }
+
+      const categoryKindCode = getCategoryKind(options, value);
+      return {
+        ...current,
+        categoryId: value,
+        ingestionProfile:
+          categoryKindCode === 'INGESTION'
+            ? current.ingestionProfile || createEmptyIngestionProfile(options)
+            : null,
+      };
+    });
+  }
+
+  function updateIngestionProfile(profile) {
+    setForm((current) => ({ ...current, ingestionProfile: profile }));
   }
 
   function toggleVisibility(channelCode) {
@@ -814,7 +898,7 @@ function ManageTools() {
     setSuccess('');
 
     try {
-      const payload = buildToolPayload(form);
+      const payload = buildToolPayload(form, options);
       const result = creating
         ? await adminService.createAdminTool(payload)
         : await adminService.updateAdminTool(selectedTool.toolId, payload);
@@ -1451,6 +1535,15 @@ function ManageTools() {
                       value={form.outputSchemaPath}
                     />
                   </div>
+
+                  {getCategoryKind(options, form.categoryId) === 'INGESTION' && (
+                    <IngestionProfileEditor
+                      disabled={!canWrite || saving}
+                      onChange={updateIngestionProfile}
+                      options={options}
+                      profile={form.ingestionProfile}
+                    />
+                  )}
 
                   <div className="col-12">
                     <div className="sky-subsection-title">Visibility and execution controls</div>

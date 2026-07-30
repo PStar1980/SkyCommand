@@ -2006,6 +2006,7 @@ function buildRegistrationPlan({
     },
     visibility: payload.visibility,
     parameters: payload.parameters,
+    ingestionProfile: payload.ingestionProfile || null,
   };
   const fingerprint = hashJson({
     sessionId: session.sessionId,

@@ -52,6 +52,7 @@ SkyServer/
 │   │       ├── components/
 │   │       │   ├── ConditionParameterEditor.jsx
 │   │       │   ├── HumanApprovalParameterEditor.jsx
+│   │       │   ├── IngestionProfileEditor.jsx
 │   │       │   ├── Navbar.jsx
 │   │       │   ├── ProtectedRoute.jsx
 │   │       │   ├── RuntimeParameterSchemaEditor.jsx
@@ -323,7 +324,8 @@ SkyServer/
 │   │       │   ├── 00066__tool_catalogue_administration.sql
 │   │       │   ├── 00068__skycommand_repository_designation.sql
 │   │       │   ├── 00071__api_request_telemetry.sql
-│   │       │   └── 00074__portable_ingestion_identity.sql
+│   │       │   ├── 00074__portable_ingestion_identity.sql
+│   │       │   └── 00076__ingestion_profile_guardrails.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -394,7 +396,9 @@ SkyServer/
 │   │       ├── catalogue/
 │   │       │   ├── ingestionCatalogueService.js
 │   │       │   ├── phase16IngestionIdentity.js
-│   │       │   └── phase16IngestionIdentitySelfTest.js
+│   │       │   ├── phase16IngestionIdentitySelfTest.js
+│   │       │   ├── phase16IngestionProfileGuardrails.js
+│   │       │   └── phase16IngestionProfileGuardrailsSelfTest.js
 │   │       ├── config/
 │   │       │   ├── manualIngestion.json
 │   │       │   ├── statcanIndicators.js

@@ -2,9 +2,49 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
+import IngestionProfileEditor from '../components/IngestionProfileEditor.jsx';
 import adminService from '../services/adminService.js';
 
 const EMPTY_FILES = { script: null, descriptor: null, schema: null };
+
+function getCategoryKind(options = {}, categoryId) {
+  return (
+    (options.categories || []).find((category) => category.categoryId === categoryId)
+      ?.categoryKindCode || 'GENERAL'
+  );
+}
+
+function createEmptyIngestionProfile(options = {}, preferredDomainId = '') {
+  const domain =
+    (options.dataDomains || []).find((item) => item.domainId === preferredDomainId) ||
+    options.dataDomains?.[0];
+  const source = (options.dataSources || []).find(
+    (item) => !domain?.domainId || item.domainId === domain.domainId,
+  );
+
+  return {
+    dataDomainId: domain?.domainId || '',
+    sourceId: source?.sourceId || '',
+    adapterCode: source?.sourceCode || '',
+    contractVersion: 'ingestion_run_summary.v1',
+    supportsIncremental: false,
+    supportsSelectedAssets: false,
+    supportsBackfill: false,
+    supportsRevisions: false,
+    supportsResume: false,
+    supportsDryRun: false,
+    active: true,
+    configurationText: '{}',
+  };
+}
+
+function parseConfigurationObject(text) {
+  const parsed = JSON.parse(String(text || '{}'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Ingestion profile configuration must be a JSON object.');
+  }
+  return parsed;
+}
 
 function formatBytes(value) {
   const bytes = Number(value || 0);
@@ -62,6 +102,8 @@ function createForm(analysis, catalogueOptions = {}) {
     ? suggestions.visibility
     : (catalogueOptions.visibilityChannels || []).map((item) => item.channelCode);
 
+  const categoryId = category?.categoryId || catalogueOptions.categories?.[0]?.categoryId || '';
+
   return {
     toolCode: suggestions.toolCode || '',
     packageRelativePath:
@@ -72,7 +114,7 @@ function createForm(analysis, catalogueOptions = {}) {
     name: suggestions.name || suggestions.toolCode || '',
     label: suggestions.label || '',
     description: suggestions.description || '',
-    categoryId: category?.categoryId || catalogueOptions.categories?.[0]?.categoryId || '',
+    categoryId,
     runtimeCode: 'node',
     permissionCode: suggestions.permissionCode || '',
     riskCode: suggestions.riskCode || catalogueOptions.risks?.[0]?.riskCode || 'low',
@@ -94,6 +136,10 @@ function createForm(analysis, catalogueOptions = {}) {
       enabled: true,
       optionText: serializeOptions(parameter.options || []),
     })),
+    ingestionProfile:
+      getCategoryKind(catalogueOptions, categoryId) === 'INGESTION'
+        ? createEmptyIngestionProfile(catalogueOptions)
+        : null,
   };
 }
 
@@ -112,7 +158,7 @@ function createEmptyParameter(index, catalogueOptions = {}) {
   };
 }
 
-function buildConfiguration(form) {
+function buildConfiguration(form, catalogueOptions = {}) {
   const parameters = form.parameters.map((parameter) => ({
     parameterName: parameter.parameterName.trim(),
     label: parameter.label.trim() || parameter.parameterName.trim(),
@@ -125,6 +171,18 @@ function buildConfiguration(form) {
     enabled: Boolean(parameter.enabled),
     options: parameter.optionSourceCode ? [] : parseOptions(parameter.optionText),
   }));
+
+  const ingestionProfile =
+    getCategoryKind(catalogueOptions, form.categoryId) === 'INGESTION'
+      ? {
+          ...form.ingestionProfile,
+          configuration: parseConfigurationObject(form.ingestionProfile?.configurationText),
+        }
+      : null;
+
+  if (ingestionProfile) {
+    delete ingestionProfile.configurationText;
+  }
 
   return {
     toolCode: form.toolCode.trim(),
@@ -146,6 +204,7 @@ function buildConfiguration(form) {
     outputType: form.outputType.trim() || null,
     visibility: form.visibility,
     parameters,
+    ingestionProfile,
   };
 }
 
@@ -251,7 +310,26 @@ function AddTool() {
   }
 
   function updateForm(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key !== 'categoryId') {
+        return { ...current, [key]: value };
+      }
+
+      const categoryKindCode = getCategoryKind(catalogueOptions, value);
+      return {
+        ...current,
+        categoryId: value,
+        ingestionProfile:
+          categoryKindCode === 'INGESTION'
+            ? current.ingestionProfile || createEmptyIngestionProfile(catalogueOptions)
+            : null,
+      };
+    });
+    invalidatePreview();
+  }
+
+  function updateIngestionProfile(profile) {
+    setForm((current) => ({ ...current, ingestionProfile: profile }));
     invalidatePreview();
   }
 
@@ -307,7 +385,7 @@ function AddTool() {
     try {
       const result = await adminService.previewToolOnboardingRegistration({
         sessionId: analysis.session.sessionId,
-        configuration: buildConfiguration(form),
+        configuration: buildConfiguration(form, catalogueOptions),
       });
       setPreview(result.preview);
     } catch (previewError) {
@@ -324,7 +402,7 @@ function AddTool() {
     try {
       const result = await adminService.registerToolOnboardingPackage({
         sessionId: analysis.session.sessionId,
-        configuration: buildConfiguration(form),
+        configuration: buildConfiguration(form, catalogueOptions),
         previewFingerprint: preview.fingerprint,
       });
       setRegistration(result.registration);
@@ -718,6 +796,14 @@ function AddTool() {
                         />
                       </div>
                     )}
+
+                    {getCategoryKind(catalogueOptions, form.categoryId) === 'INGESTION' && (
+                      <IngestionProfileEditor
+                        onChange={updateIngestionProfile}
+                        options={catalogueOptions}
+                        profile={form.ingestionProfile}
+                      />
+                    )}
                   </div>
 
                   <h3 className="h6 mt-4">Visibility</h3>
@@ -1007,6 +1093,14 @@ function AddTool() {
                       </tbody>
                     </table>
                   </div>
+                  {preview.databasePreview?.ingestionProfile && (
+                    <>
+                      <h3 className="h6 mt-4">Portable ingestion profile</h3>
+                      <pre className="sky-code-block mb-0">
+                        {JSON.stringify(preview.databasePreview.ingestionProfile, null, 2)}
+                      </pre>
+                    </>
+                  )}
                   <label className="form-check mt-3">
                     <input
                       checked={confirmRegistration}
