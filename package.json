@@ -62,7 +62,7 @@
     "api-dashboard:self-test": "node apps/admin-web/src/pages/apiDashboardSelfTest.js",
     "tool-execution-output-workspace:self-test": "node apps/api/src/services/toolExecutionOutputWorkspaceSelfTest.js",
     "workflow-start-catalogue:self-test": "node apps/admin-web/src/pages/workflowStartCatalogueSelfTest.js",
-    "brand-theme:self-test": "node apps/admin-web/src/components/ui/brandThemeSelfTest.js"
+    "brand-theme:self-test2": "node apps/admin-web/src/components/ui/brandThemeSelfTest.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
