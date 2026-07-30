@@ -208,6 +208,7 @@ function sanitizeToolListRow(row) {
     categoryId: row.category_id,
     categoryCode: row.category_code,
     categoryLabel: row.category_label,
+    categoryKindCode: row.category_kind_code || 'GENERAL',
     scriptRepoId: row.script_repo_id,
     scriptRepoCode: row.script_repo_code,
     scriptRepoName: row.script_repo_name,
@@ -299,6 +300,9 @@ function buildWhereClause(filters = {}) {
   }
 
   addEquals('category.category_code', filters.categoryCode, (value) => String(value).trim());
+  addEquals('category.category_kind_code', filters.categoryKindCode, (value) =>
+    String(value).trim().toUpperCase(),
+  );
   addEquals('tool.runtime_code', filters.runtimeCode, (value) =>
     String(value).trim().toLowerCase(),
   );
@@ -345,6 +349,7 @@ async function listTools(filters = {}) {
         tool.category_id,
         category.category_code,
         category.label AS category_label,
+        category.category_kind_code,
         tool.script_repo_id,
         repository.repo_code AS script_repo_code,
         repository.repo_name AS script_repo_name,
@@ -413,6 +418,7 @@ async function getToolRow(client, toolId, { forUpdate = false } = {}) {
         tool.category_id,
         category.category_code,
         category.label AS category_label,
+        category.category_kind_code,
         tool.script_repo_id,
         repository.repo_code AS script_repo_code,
         repository.repo_name AS script_repo_name,
@@ -583,6 +589,7 @@ async function getOptions() {
             category.category_code,
             category.label,
             category.description,
+            category.category_kind_code,
             category.display_order
           FROM core.tool_categories category
           JOIN core.applications application ON application.app_id = category.app_id
@@ -655,6 +662,7 @@ async function getOptions() {
     categories: categories.rows.map((row) => ({
       categoryId: row.category_id,
       categoryCode: row.category_code,
+      categoryKindCode: row.category_kind_code || 'GENERAL',
       label: row.label,
       description: row.description,
       displayOrder: Number(row.display_order || 0),

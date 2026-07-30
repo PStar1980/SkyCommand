@@ -4,6 +4,10 @@ async function getStatusSummary(filters = {}) {
   return api.get('/api/ingestion/status', { query: filters });
 }
 
+async function listTools(filters = {}) {
+  return api.get('/api/ingestion/tools', { query: filters });
+}
+
 async function listSources() {
   return api.get('/api/ingestion/sources');
 }
@@ -26,6 +30,7 @@ async function getIndicatorStatus(indicatorCode) {
 
 const ingestionService = {
   getStatusSummary,
+  listTools,
   listSources,
   getSource,
   listRecentExecutions,
