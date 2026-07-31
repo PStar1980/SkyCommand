@@ -57,7 +57,7 @@ async function createFixture(client, suffix) {
     await client.query(
       `
         INSERT INTO data.asset_source_bindings (
-          asset_id, source_id, provider_asset_code, is_primary, active
+          asset_id, source_id, provider_asset_code, primary_binding, active
         ) VALUES ($1, $2, $3, TRUE, TRUE)
       `,
       [asset.rows[0].asset_id, sourceId, assetCode],
