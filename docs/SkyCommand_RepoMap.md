@@ -193,6 +193,8 @@ SkyServer/
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
 │   │       │   ├── ingestionStatusService.js
+│   │       │   ├── legacyMacroFreshnessAdapter.js
+│   │       │   ├── legacyMacroFreshnessAdapterSelfTest.js
 │   │       │   ├── macroReadService.js
 │   │       │   ├── phase15ClosureReadinessSelfTest.js
 │   │       │   ├── productionReadinessService.js
@@ -265,6 +267,8 @@ SkyServer/
 │       └── phase16/
 │           ├── SkyCommand_Phase_16_Baseline_Audit.json
 │           ├── SkyCommand_Phase_16_Baseline_Audit.md
+│           ├── SkyCommand_Phase_16_Explainable_Freshness_Audit.csv
+│           ├── SkyCommand_Phase_16_Explainable_Freshness_Audit.md
 │           └── SkyCommand_Phase_16_Indicator_Audit.csv
 ├── packages/
 │   ├── auth/
@@ -430,9 +434,12 @@ SkyServer/
 │   │       ├── fred/
 │   │       │   └── fredBatchRunner.js
 │   │       ├── freshness/
+│   │       │   ├── freshnessAdminService.js
 │   │       │   ├── freshnessService.js
 │   │       │   ├── freshnessServiceSelfTest.js
-│   │       │   └── phase16ExplainableFreshness.js
+│   │       │   ├── phase16ExplainableFreshness.js
+│   │       │   ├── phase16FreshnessIntegration.js
+│   │       │   └── phase16FreshnessPortabilityProof.js
 │   │       ├── loaders/
 │   │       │   ├── copyLoader.js
 │   │       │   └── manualCopyLoader.js

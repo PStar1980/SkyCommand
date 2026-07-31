@@ -1,5 +1,6 @@
 const { query } = require('../../../../packages/db/src/connection');
 const ingestionCatalogueService = require('../../../../packages/ingestion/src/catalogue/ingestionCatalogueService');
+const legacyMacroFreshnessAdapter = require('./legacyMacroFreshnessAdapter');
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
@@ -227,21 +228,6 @@ function addExecutionSourceFilter({ clauses, values, sourceDefinition }) {
   )`);
 }
 
-function assertSafeIdentifier(identifier, label) {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
-    throw createHttpError(400, `${label} contains invalid characters.`);
-  }
-}
-
-function quoteIdentifier(identifier) {
-  assertSafeIdentifier(identifier, 'SQL identifier');
-  return `"${identifier.replace(/"/g, '""')}"`;
-}
-
-function getIndicatorRelationSql(indicatorCode) {
-  return `${quoteIdentifier('macro')}.${quoteIdentifier(indicatorCode)}`;
-}
-
 function toCamelCase(value) {
   return String(value).replace(/_([a-z0-9])/g, (_, character) => character.toUpperCase());
 }
@@ -333,34 +319,6 @@ function inferExecutionSource(row = {}, sourceDefinitions = []) {
   return normalizeSource(metadata.source) || null;
 }
 
-function getFreshnessThresholdDays(frequency) {
-  const normalizedFrequency = String(frequency || '')
-    .trim()
-    .toLowerCase();
-
-  if (normalizedFrequency.includes('daily')) {
-    return 7;
-  }
-
-  if (normalizedFrequency.includes('weekly')) {
-    return 21;
-  }
-
-  if (normalizedFrequency.includes('monthly')) {
-    return 75;
-  }
-
-  if (normalizedFrequency.includes('quarterly')) {
-    return 190;
-  }
-
-  if (normalizedFrequency.includes('annual') || normalizedFrequency.includes('yearly')) {
-    return 550;
-  }
-
-  return 120;
-}
-
 function getDaysSince(dateValue) {
   if (!dateValue) {
     return null;
@@ -400,57 +358,6 @@ function getEarliestDate(dateValues) {
   }
 
   return new Date(Math.min(...validDates.map((dateValue) => dateValue.getTime())));
-}
-
-function evaluateIndicatorStatus(indicator, stats) {
-  if (!indicator.active) {
-    return {
-      status: 'INACTIVE',
-      severity: 'info',
-      message: 'Indicator is inactive.',
-    };
-  }
-
-  if (stats.error) {
-    return {
-      status: 'ERROR',
-      severity: 'error',
-      message: stats.error,
-    };
-  }
-
-  if (!stats.tableExists) {
-    return {
-      status: 'MISSING_TABLE',
-      severity: 'error',
-      message: 'Indicator table does not exist.',
-    };
-  }
-
-  if (!stats.totalRows || !stats.maxDate) {
-    return {
-      status: 'NO_DATA',
-      severity: 'warning',
-      message: 'Indicator table exists but has no loaded data.',
-    };
-  }
-
-  const thresholdDays = getFreshnessThresholdDays(indicator.frequency);
-  const daysSinceLatest = getDaysSince(stats.maxDate);
-
-  if (daysSinceLatest !== null && daysSinceLatest > thresholdDays) {
-    return {
-      status: 'STALE',
-      severity: 'warning',
-      message: `Latest data is ${daysSinceLatest} day(s) old; threshold is ${thresholdDays} day(s).`,
-    };
-  }
-
-  return {
-    status: 'CURRENT',
-    severity: 'ok',
-    message: 'Indicator data is current based on its frequency threshold.',
-  };
 }
 
 function countIndicatorStatuses(indicators) {
@@ -603,73 +510,12 @@ async function loadSingleIndicatorRow(indicatorCode) {
   return sanitizeIndicator(result.rows[0]);
 }
 
-async function checkIndicatorTableExists(indicatorCode) {
-  const relationSql = getIndicatorRelationSql(indicatorCode);
-  const result = await query('SELECT to_regclass($1) AS relation_name', [relationSql]);
-
-  return Boolean(result.rows[0]?.relation_name);
-}
-
-async function getIndicatorTableStats(indicatorCode) {
-  try {
-    const tableExists = await checkIndicatorTableExists(indicatorCode);
-
-    if (!tableExists) {
-      return {
-        tableExists: false,
-        totalRows: 0,
-        minDate: null,
-        maxDate: null,
-      };
-    }
-
-    const relationSql = getIndicatorRelationSql(indicatorCode);
-    const result = await query(
-      `
-        SELECT
-          COUNT(*)::int AS total_rows,
-          MIN(edate) AS min_date,
-          MAX(edate) AS max_date
-        FROM ${relationSql}
-      `,
-    );
-
-    const row = result.rows[0] || {};
-
-    return {
-      tableExists: true,
-      totalRows: row.total_rows || 0,
-      minDate: row.min_date || null,
-      maxDate: row.max_date || null,
-    };
-  } catch (error) {
-    return {
-      tableExists: false,
-      totalRows: 0,
-      minDate: null,
-      maxDate: null,
-      error: error.message || 'Failed to read indicator table stats.',
-    };
-  }
-}
-
 async function buildIndicatorStatus(indicator) {
-  const stats = await getIndicatorTableStats(indicator.indicatorCode);
-  const evaluation = evaluateIndicatorStatus(indicator, stats);
-
-  return {
-    ...indicator,
-    status: evaluation.status,
-    severity: evaluation.severity,
-    message: evaluation.message,
-    freshnessThresholdDays: getFreshnessThresholdDays(indicator.frequency),
-    daysSinceLatestData: getDaysSince(stats.maxDate),
-    stats,
-  };
+  return legacyMacroFreshnessAdapter.loadStatus(indicator);
 }
 
 async function buildIndicatorStatuses(indicators) {
-  return Promise.all(indicators.map((indicator) => buildIndicatorStatus(indicator)));
+  return legacyMacroFreshnessAdapter.loadStatuses(indicators);
 }
 
 async function getRecentIngestionExecutions(filters = {}, catalogueContext = null) {

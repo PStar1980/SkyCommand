@@ -2,6 +2,7 @@ const ingestionStatusService = require('../services/ingestionStatusService');
 const dataCatalogueService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueService');
 const dataCatalogueAdminService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueAdminService');
 const freshnessService = require('../../../../packages/ingestion/src/freshness/freshnessService');
+const freshnessAdminService = require('../../../../packages/ingestion/src/freshness/freshnessAdminService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function isActiveIngestionExecution(execution = {}) {
@@ -211,6 +212,61 @@ async function refreshCatalogueFreshness(req, res, next) {
   }
 }
 
+
+async function getFreshnessPolicyOptions(req, res, next) {
+  try {
+    const options = await freshnessAdminService.listPolicyOptions(req.query || {});
+    res.json({ ok: true, options });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveSourceFreshnessPolicy(req, res, next) {
+  try {
+    const policy = await freshnessAdminService.saveSourcePolicy(
+      req.params.domainCode,
+      req.params.sourceCode,
+      req.params.frequencyCode,
+      req.body || {},
+    );
+    await freshnessService.refreshFreshnessSnapshots({ persist: true });
+    res.json({
+      ok: true,
+      contractVersion: freshnessService.FRESHNESS_CONTRACT_VERSION,
+      policy,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveAssetFreshnessPolicy(req, res, next) {
+  try {
+    const policy = await freshnessAdminService.saveAssetPolicy(
+      req.params.domainCode,
+      req.params.assetCode,
+      req.body || {},
+    );
+    await freshnessService.refreshFreshnessSnapshots({ persist: true });
+    const item = await freshnessService.getFreshness(
+      req.params.domainCode,
+      req.params.assetCode,
+    );
+    res.json({
+      ok: true,
+      contractVersion: freshnessService.FRESHNESS_CONTRACT_VERSION,
+      policy,
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
 async function getCatalogueAdminOptions(req, res, next) {
   try {
     const options = await dataCatalogueAdminService.listAdminOptions(req.query?.domainCode);
@@ -391,6 +447,9 @@ module.exports = {
   listCatalogueFreshness,
   getCatalogueFreshness,
   refreshCatalogueFreshness,
+  getFreshnessPolicyOptions,
+  saveSourceFreshnessPolicy,
+  saveAssetFreshnessPolicy,
   getCatalogueAdminOptions,
   saveCatalogueDomain,
   saveCatalogueSource,
