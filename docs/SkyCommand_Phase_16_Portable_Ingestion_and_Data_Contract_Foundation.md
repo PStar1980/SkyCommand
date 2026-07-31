@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 2
+- **Revision:** 3
 - **Date:** 2026-07-30
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1.1 semantic ingestion identity proven; Phase 16.1.2 portable profile administration and onboarding guardrails implemented pending local verification.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1.1 semantic ingestion identity proven; Phase 16.1.2 portable profile administration and onboarding guardrails locally proven; Phase 16.1.3 portability closure proof implemented pending local execution.
 
 ## Governing constraint
 
@@ -480,7 +480,8 @@ Close the Phase 15 baseline and lock the portable architecture before structural
 ### Implementation slices
 
 - **Phase 16.1.1 — Semantic ingestion identity:** implemented and locally proven. Tool-category kinds, portable domains/sources, ingestion profiles, dynamic discovery views, and the ingestion-tools API are active without changing existing macro status contracts.
-- **Phase 16.1.2 — Profile administration and onboarding guardrails:** implemented pending local verification. Admin and managed onboarding now treat the portable ingestion profile as part of the transactional tool definition; deferred PostgreSQL invariants prevent profile/category drift.
+- **Phase 16.1.2 — Profile administration and onboarding guardrails:** implemented and locally proven. Admin and managed onboarding treat the portable ingestion profile as part of the transactional tool definition; deferred PostgreSQL invariants prevent profile/category drift.
+- **Phase 16.1.3 — Portability closure proof:** implemented pending local execution. An ephemeral non-macro domain, source, uniquely named INGESTION category, tool, and profile are created inside one database transaction, validated through the generic discovery views, then removed by transaction rollback with baseline counts verified.
 
 ### Purpose
 
@@ -828,20 +829,21 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The first implementation package should be **Phase 16.0 — Baseline Closure and Portability Charter**.
+The active implementation checkpoint is **Phase 16.1.3 — Portability Closure Proof**.
 
-It should include only:
+The proof must:
 
-1. the package-script correction;
-2. Phase 15 documentation reconciliation;
-3. this roadmap in `SkyServer/docs`;
-4. a read-only ingestion coupling inventory;
-5. a read-only 69-series baseline audit;
-6. a compatibility snapshot of current APIs, views, tool outputs, and status calculations.
+1. create an ephemeral non-macro domain and synthetic source;
+2. create a uniquely coded and labelled category whose semantic kind is `INGESTION`;
+3. register a disabled ingestion tool and portable profile without adding the source or tool name to core code;
+4. confirm the disabled definition is visible in the semantic view but excluded from default discovery;
+5. enable the profile and tool as one deferred-constraint transaction and confirm both tool and source become discoverable;
+6. use transaction rollback rather than cleanup SQL to remove every proof record;
+7. verify discovery counts and catalogue residue return exactly to baseline.
 
-No dashboard redesign, source migration, generic schema migration, or retry rewrite should begin until the baseline and coupling inventory are reviewed.
+The proof is metadata-only. It does not execute a source adapter, create observation tables, or modify macro data.
 
-The next structural implementation after that is **Phase 16.1 — Semantic Ingestion Tools Category and Dynamic Discovery**. This is the portability keystone. Once SkyCommand can identify ingestion tools and their capabilities without knowing FRED, BoC, StatCan, or filenames, every later hardening increment can be built on a transferable foundation.
+After this proof passes locally, Phase 16.1 is closed and the next structural increment is **Phase 16.2 — Generic Domain, Source, Asset, and Metric Catalogue**. That phase will project the current macro indicator registry into portable asset metadata while preserving all existing macro tables, views, routes, and dashboards.
 
 ---
 
