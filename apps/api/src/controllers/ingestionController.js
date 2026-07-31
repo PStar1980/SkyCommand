@@ -1,4 +1,5 @@
 const ingestionStatusService = require('../services/ingestionStatusService');
+const dataCatalogueService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function isActiveIngestionExecution(execution = {}) {
@@ -65,6 +66,94 @@ function sendServiceError(res, error) {
   });
 
   return true;
+}
+
+
+async function listCatalogueDomains(req, res, next) {
+  try {
+    const items = await dataCatalogueService.listDomains(req.query || {});
+
+    res.json({
+      ok: true,
+      contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      items,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function listCatalogueAssets(req, res, next) {
+  try {
+    const payload = await dataCatalogueService.listAssets(req.query || {});
+
+    res.json({
+      ok: true,
+      contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function getCatalogueAsset(req, res, next) {
+  try {
+    const asset = await dataCatalogueService.getAsset(
+      req.params.domainCode,
+      req.params.assetCode,
+    );
+
+    if (!asset) {
+      res.status(404).json({
+        ok: false,
+        error: 'Data asset not found.',
+      });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      asset,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function listCatalogueMetrics(req, res, next) {
+  try {
+    const payload = await dataCatalogueService.listMetrics(req.query || {});
+
+    res.json({
+      ok: true,
+      contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
 }
 
 async function getStatus(req, res, next) {
@@ -173,4 +262,8 @@ module.exports = {
   getRecentExecutions,
   listIndicatorStatuses,
   getIndicatorStatus,
+  listCatalogueDomains,
+  listCatalogueAssets,
+  getCatalogueAsset,
+  listCatalogueMetrics,
 };

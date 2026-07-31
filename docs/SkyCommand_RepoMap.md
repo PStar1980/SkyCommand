@@ -325,7 +325,8 @@ SkyServer/
 │   │       │   ├── 00068__skycommand_repository_designation.sql
 │   │       │   ├── 00071__api_request_telemetry.sql
 │   │       │   ├── 00074__portable_ingestion_identity.sql
-│   │       │   └── 00076__ingestion_profile_guardrails.sql
+│   │       │   ├── 00076__ingestion_profile_guardrails.sql
+│   │       │   └── 00077__portable_asset_metric_catalogue.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -361,7 +362,8 @@ SkyServer/
 │   │           ├── 00070__db_build_structured_output_seed.sql
 │   │           ├── 00072__api_telemetry_permissions_seed.sql
 │   │           ├── 00073__structured_tool_contract_associations_seed.sql
-│   │           └── 00075__portable_ingestion_identity_seed.sql
+│   │           ├── 00075__portable_ingestion_identity_seed.sql
+│   │           └── 00078__portable_asset_metric_catalogue_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -394,7 +396,10 @@ SkyServer/
 │   │       ├── audit/
 │   │       │   └── phase16BaselineAudit.js
 │   │       ├── catalogue/
+│   │       │   ├── dataCatalogueService.js
+│   │       │   ├── dataCatalogueServiceSelfTest.js
 │   │       │   ├── ingestionCatalogueService.js
+│   │       │   ├── phase16AssetMetricCatalogue.js
 │   │       │   ├── phase16IngestionIdentity.js
 │   │       │   ├── phase16IngestionIdentitySelfTest.js
 │   │       │   ├── phase16IngestionProfileGuardrails.js

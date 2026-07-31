@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 3
+- **Revision:** 4
 - **Date:** 2026-07-30
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1.1 semantic ingestion identity proven; Phase 16.1.2 portable profile administration and onboarding guardrails locally proven; Phase 16.1.3 portability closure proof implemented pending local execution.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 semantic ingestion identity, profile guardrails, and non-macro portability proof locally proven; Phase 16.2.1 portable asset and metric catalogue implemented pending local database/API verification.
 
 ## Governing constraint
 
@@ -481,7 +481,7 @@ Close the Phase 15 baseline and lock the portable architecture before structural
 
 - **Phase 16.1.1 — Semantic ingestion identity:** implemented and locally proven. Tool-category kinds, portable domains/sources, ingestion profiles, dynamic discovery views, and the ingestion-tools API are active without changing existing macro status contracts.
 - **Phase 16.1.2 — Profile administration and onboarding guardrails:** implemented and locally proven. Admin and managed onboarding treat the portable ingestion profile as part of the transactional tool definition; deferred PostgreSQL invariants prevent profile/category drift.
-- **Phase 16.1.3 — Portability closure proof:** implemented pending local execution. An ephemeral non-macro domain, source, uniquely named INGESTION category, tool, and profile are created inside one database transaction, validated through the generic discovery views, then removed by transaction rollback with baseline counts verified.
+- **Phase 16.1.3 — Portability closure proof:** locally proven. An ephemeral non-macro domain, source, uniquely named INGESTION category, tool, and profile were discovered without core-code registration and removed by transaction rollback with baseline counts restored.
 
 ### Purpose
 
@@ -508,6 +508,11 @@ Make ingestion identity catalogue-driven and eliminate source/file-name inferenc
 ---
 
 ## Phase 16.2 — Generic domain, source, asset, and metric catalogue
+
+### Implementation slices
+
+- **Phase 16.2.1 — Portable asset and metric catalogue:** implemented pending local proof. Adds generic asset kinds, assets, source bindings, metric kinds, metrics, dependencies, PostgreSQL domain guardrails, macro compatibility projection, initial headline metric examples, and authenticated `data_catalogue.v1` read APIs.
+- **Phase 16.2.2 — Catalogue administration and second-domain proof:** planned. Add managed catalogue administration/validation and prove a non-macro source, asset, and metric through the same generic API without schema redesign.
 
 ### Purpose
 
@@ -829,21 +834,30 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.1.3 — Portability Closure Proof**.
+The active implementation checkpoint is **Phase 16.2.1 — Portable Asset and Metric Catalogue**.
 
-The proof must:
+This increment introduces the generic catalogue beside the legacy macro registry:
 
-1. create an ephemeral non-macro domain and synthetic source;
-2. create a uniquely coded and labelled category whose semantic kind is `INGESTION`;
-3. register a disabled ingestion tool and portable profile without adding the source or tool name to core code;
-4. confirm the disabled definition is visible in the semantic view but excluded from default discovery;
-5. enable the profile and tool as one deferred-constraint transaction and confirm both tool and source become discoverable;
-6. use transaction rollback rather than cleanup SQL to remove every proof record;
-7. verify discovery counts and catalogue residue return exactly to baseline.
+1. `data.assets` describes portable source data assets independently of storage technology;
+2. `data.asset_source_bindings` stores provider identifiers and extraction metadata;
+3. `data.metrics` describes replaceable KPI intent and calculation metadata;
+4. `data.metric_dependencies` links metrics to assets or other metrics;
+5. domain-alignment triggers prevent cross-domain source bindings and metric dependencies;
+6. all 73 existing macro indicators are projected without deleting or rewriting `macro.indicators`;
+7. Statistics Canada vector, product, coordinate, and transform metadata is projected into PostgreSQL;
+8. five initial headline macro metrics prove the KPI catalogue without introducing a formula-builder;
+9. authenticated `data_catalogue.v1` endpoints expose domains, assets, individual asset details, and metrics.
 
-The proof is metadata-only. It does not execute a source adapter, create observation tables, or modify macro data.
+The local proof must confirm:
 
-After this proof passes locally, Phase 16.1 is closed and the next structural increment is **Phase 16.2 — Generic Domain, Source, Asset, and Metric Catalogue**. That phase will project the current macro indicator registry into portable asset metadata while preserving all existing macro tables, views, routes, and dashboards.
+- 73 macro assets and 69 active assets;
+- source counts remain FRED 54, BOC 5, and STATCAN 14;
+- all 14 StatCan assets retain vector/product metadata;
+- no macro indicator is missing or mismatched in the generic projection;
+- five seeded metric definitions have valid same-domain dependencies;
+- existing ingestion status, macro tables, views, APIs, and dashboards remain unchanged.
+
+After this proof passes, Phase 16.2.2 will add managed catalogue administration and a transactional non-macro asset/metric API proof.
 
 ---
 
