@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 4
-- **Date:** 2026-07-30
+- **Revision:** 5
+- **Date:** 2026-07-31
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 semantic ingestion identity, profile guardrails, and non-macro portability proof locally proven; Phase 16.2.1 portable asset and metric catalogue locally verified; Phase 16.2.2 managed catalogue administration and second-domain proof implemented pending local proof.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3.1 explainable freshness foundation implemented pending local PostgreSQL proof.
 
 ## Governing constraint
 
@@ -850,30 +850,29 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.2.2 — Catalogue Administration and Second-Domain Proof**.
+The active implementation checkpoint is **Phase 16.3.1 — Explainable Freshness Foundation**.
 
-This increment introduces the generic catalogue beside the legacy macro registry:
+This increment introduces the generic freshness seam beside the existing macro status surfaces:
 
-1. `data.assets` describes portable source data assets independently of storage technology;
-2. `data.asset_source_bindings` stores provider identifiers and extraction metadata;
-3. `data.metrics` describes replaceable KPI intent and calculation metadata;
-4. `data.metric_dependencies` links metrics to assets or other metrics;
-5. domain-alignment triggers prevent cross-domain source bindings and metric dependencies;
-6. all 73 existing macro indicators are projected without deleting or rewriting `macro.indicators`;
-7. Statistics Canada vector, product, coordinate, and transform metadata is projected into PostgreSQL;
-8. five initial headline macro metrics prove the KPI catalogue without introducing a formula-builder;
-9. authenticated `data_catalogue.v1` endpoints expose domains, assets, individual asset details, and metrics.
+1. `data.freshness_status_codes` separates operational severity from explanatory reason;
+2. `data.freshness_reason_codes` defines portable reasons such as `EXPECTED_PROVIDER_LAG`, `SOURCE_NOT_UPDATED`, `LOAD_BEHIND_SOURCE`, and `INGESTION_FAILED`;
+3. `data.freshness_frequency_policies` models cadence as represented period + release lag + tolerance instead of raw observation age;
+4. `data.source_freshness_policies` provides source-level overrides while asset-level metadata retains highest precedence;
+5. `data.asset_freshness_snapshots` persists read-optimized evidence without replacing the durable run ledger planned for Phase 16.4;
+6. the refresh engine reads all configured storage relations in batched database queries rather than issuing a table-exists query and a stats query for every asset;
+7. existing structured ingestion output is used as compatibility source evidence for provider-latest dates and attempt/success timestamps;
+8. `asset_freshness.v1` endpoints expose portable freshness by domain, source, status, and reason;
+9. a Phase 16 audit report records expected date, source latest date, target latest date, last attempt, and the final reason code for every active discoverable asset.
 
 The local proof must confirm:
 
-- 73 macro assets and 69 active assets;
-- source counts remain FRED 54, BOC 5, and STATCAN 14;
-- all 14 StatCan assets retain vector/product metadata;
-- no macro indicator is missing or mismatched in the generic projection;
-- five seeded metric definitions have valid same-domain dependencies;
-- existing ingestion status, macro tables, views, APIs, and dashboards remain unchanged.
+- all 69 active macro assets receive a persisted explainable freshness snapshot;
+- every active asset has a non-null reason code;
+- source-evidence dates are recovered from current ingestion executions where available;
+- legacy age-only `STALE` cases are separated into healthy expected-provider lag versus actual source/target/pipeline conditions;
+- no macro observations, analytical views, or existing APIs are rewritten by the freshness foundation.
 
-After this proof passes, Phase 16.2 closes and Phase 16.3 begins the source/asset audit and explainable freshness model.
+After this proof, **Phase 16.3.2** will integrate the snapshot seam into the existing Data Status/ingestion status services, retire the current N+1 table-scan path, add source/asset policy administration, and complete a non-macro freshness portability proof.
 
 ---
 

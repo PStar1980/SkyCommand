@@ -15,6 +15,17 @@ router.get(
   ingestionController.getCatalogueAsset,
 );
 router.get('/catalogue/metrics', ingestionController.listCatalogueMetrics);
+router.get('/catalogue/freshness', ingestionController.listCatalogueFreshness);
+router.get(
+  '/catalogue/freshness/:domainCode/:assetCode',
+  ingestionController.getCatalogueFreshness,
+);
+
+router.post(
+  '/catalogue/admin/freshness/refresh',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.refreshCatalogueFreshness,
+);
 
 router.get(
   '/catalogue/admin/options',
