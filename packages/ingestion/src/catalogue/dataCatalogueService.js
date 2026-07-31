@@ -161,7 +161,8 @@ function sanitizeMetric(row) {
   };
 }
 
-async function listDomains(filters = {}) {
+async function listDomains(filters = {}, options = {}) {
+  const query = options.query || getDatabaseQuery();
   const active = normalizeBoolean(filters.active);
   const values = [];
   const clauses = [];
@@ -171,7 +172,7 @@ async function listDomains(filters = {}) {
     clauses.push(`domain.active = $${values.length}`);
   }
 
-  const result = await getDatabaseQuery()(
+  const result = await query(
     `
       SELECT
         domain.domain_id,
@@ -209,7 +210,8 @@ async function listDomains(filters = {}) {
   return result.rows.map(sanitizeDomain);
 }
 
-async function listAssets(filters = {}) {
+async function listAssets(filters = {}, options = {}) {
+  const query = options.query || getDatabaseQuery();
   const values = [];
   const clauses = [];
   const domainCode = normalizeCode(filters.domainCode);
@@ -266,7 +268,7 @@ async function listAssets(filters = {}) {
   values.push(offset);
   const offsetParameter = `$${values.length}`;
 
-  const result = await getDatabaseQuery()(
+  const result = await query(
     `
       SELECT *, COUNT(*) OVER()::int AS total_count
       FROM data.vw_assets
@@ -286,7 +288,8 @@ async function listAssets(filters = {}) {
   };
 }
 
-async function getAsset(domainCode, assetCode) {
+async function getAsset(domainCode, assetCode, options = {}) {
+  const query = options.query || getDatabaseQuery();
   const normalizedDomainCode = normalizeCode(domainCode);
   const normalizedAssetCode = normalizeCode(assetCode);
 
@@ -294,7 +297,7 @@ async function getAsset(domainCode, assetCode) {
     return null;
   }
 
-  const result = await getDatabaseQuery()(
+  const result = await query(
     `
       SELECT *
       FROM data.vw_assets
@@ -308,7 +311,8 @@ async function getAsset(domainCode, assetCode) {
   return result.rows[0] ? sanitizeAsset(result.rows[0]) : null;
 }
 
-async function listMetrics(filters = {}) {
+async function listMetrics(filters = {}, options = {}) {
+  const query = options.query || getDatabaseQuery();
   const values = [];
   const clauses = [];
   const domainCode = normalizeCode(filters.domainCode);
@@ -352,7 +356,7 @@ async function listMetrics(filters = {}) {
   values.push(offset);
   const offsetParameter = `$${values.length}`;
 
-  const result = await getDatabaseQuery()(
+  const result = await query(
     `
       SELECT *, COUNT(*) OVER()::int AS total_count
       FROM data.vw_metrics

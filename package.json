@@ -74,7 +74,11 @@
     "phase16:portability-proof:self-test": "node packages/ingestion/src/catalogue/phase16PortabilityProofSelfTest.js",
     "phase16:asset-catalogue:setup": "node packages/ingestion/src/catalogue/phase16AssetMetricCatalogue.js setup",
     "phase16:asset-catalogue:verify": "node packages/ingestion/src/catalogue/phase16AssetMetricCatalogue.js verify",
-    "phase16:data-catalogue:self-test": "node packages/ingestion/src/catalogue/dataCatalogueServiceSelfTest.js"
+    "phase16:data-catalogue:self-test": "node packages/ingestion/src/catalogue/dataCatalogueServiceSelfTest.js",
+    "phase16:catalogue-admin:self-test": "node packages/ingestion/src/catalogue/dataCatalogueAdminServiceSelfTest.js",
+    "phase16:catalogue-admin:proof": "node packages/ingestion/src/catalogue/phase16SecondDomainProof.js",
+    "phase16:catalogue-admin:setup": "node packages/ingestion/src/catalogue/phase16CatalogueAdministration.js setup",
+    "phase16:catalogue-admin:verify": "node packages/ingestion/src/catalogue/phase16CatalogueAdministration.js verify"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

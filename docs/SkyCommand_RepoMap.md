@@ -252,7 +252,6 @@ SkyServer/
 │   ├── SkyCommand_Phase_16_1_Semantic_Ingestion_Identity.md
 │   ├── SkyCommand_Phase_16_Baseline_and_Coupling_Inventory.md
 │   ├── SkyCommand_Phase_16_Portable_Ingestion_and_Data_Contract_Foundation.md
-│   ├── SkyCommand_RepoMap.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
 │   ├── SkyServer_Temporal_Local_Setup.md
 │   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
@@ -326,7 +325,8 @@ SkyServer/
 │   │       │   ├── 00071__api_request_telemetry.sql
 │   │       │   ├── 00074__portable_ingestion_identity.sql
 │   │       │   ├── 00076__ingestion_profile_guardrails.sql
-│   │       │   └── 00077__portable_asset_metric_catalogue.sql
+│   │       │   ├── 00077__portable_asset_metric_catalogue.sql
+│   │       │   └── 00079__portable_catalogue_administration.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -396,16 +396,20 @@ SkyServer/
 │   │       ├── audit/
 │   │       │   └── phase16BaselineAudit.js
 │   │       ├── catalogue/
+│   │       │   ├── dataCatalogueAdminService.js
+│   │       │   ├── dataCatalogueAdminServiceSelfTest.js
 │   │       │   ├── dataCatalogueService.js
 │   │       │   ├── dataCatalogueServiceSelfTest.js
 │   │       │   ├── ingestionCatalogueService.js
 │   │       │   ├── phase16AssetMetricCatalogue.js
+│   │       │   ├── phase16CatalogueAdministration.js
 │   │       │   ├── phase16IngestionIdentity.js
 │   │       │   ├── phase16IngestionIdentitySelfTest.js
 │   │       │   ├── phase16IngestionProfileGuardrails.js
 │   │       │   ├── phase16IngestionProfileGuardrailsSelfTest.js
 │   │       │   ├── phase16PortabilityProof.js
-│   │       │   └── phase16PortabilityProofSelfTest.js
+│   │       │   ├── phase16PortabilityProofSelfTest.js
+│   │       │   └── phase16SecondDomainProof.js
 │   │       ├── config/
 │   │       │   ├── manualIngestion.json
 │   │       │   ├── statcanIndicators.js

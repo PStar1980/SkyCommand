@@ -16,6 +16,32 @@ router.get(
 );
 router.get('/catalogue/metrics', ingestionController.listCatalogueMetrics);
 
+router.get(
+  '/catalogue/admin/options',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.getCatalogueAdminOptions,
+);
+router.put(
+  '/catalogue/admin/domains/:domainCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveCatalogueDomain,
+);
+router.put(
+  '/catalogue/admin/sources/:domainCode/:sourceCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveCatalogueSource,
+);
+router.put(
+  '/catalogue/admin/assets/:domainCode/:assetCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveCatalogueAsset,
+);
+router.put(
+  '/catalogue/admin/metrics/:domainCode/:metricCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveCatalogueMetric,
+);
+
 router.get('/status', ingestionController.getStatus);
 router.get('/tools', ingestionController.listTools);
 

@@ -1,5 +1,6 @@
 const ingestionStatusService = require('../services/ingestionStatusService');
 const dataCatalogueService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueService');
+const dataCatalogueAdminService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueAdminService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function isActiveIngestionExecution(execution = {}) {
@@ -156,6 +157,74 @@ async function listCatalogueMetrics(req, res, next) {
   }
 }
 
+
+async function getCatalogueAdminOptions(req, res, next) {
+  try {
+    const options = await dataCatalogueAdminService.listAdminOptions(req.query?.domainCode);
+    res.json({ ok: true, options });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveCatalogueDomain(req, res, next) {
+  try {
+    await dataCatalogueAdminService.saveDomain(req.params.domainCode, req.body || {});
+    const items = await dataCatalogueService.listDomains({ active: '' });
+    const domain = items.find((item) => item.domainCode === String(req.params.domainCode).toUpperCase());
+    res.json({ ok: true, contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION, domain });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveCatalogueSource(req, res, next) {
+  try {
+    const source = await dataCatalogueAdminService.saveSource(
+      req.params.domainCode, req.params.sourceCode, req.body || {},
+    );
+    res.json({ ok: true, source });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveCatalogueAsset(req, res, next) {
+  try {
+    await dataCatalogueAdminService.saveAsset(
+      req.params.domainCode, req.params.assetCode, req.body || {},
+    );
+    const asset = await dataCatalogueService.getAsset(req.params.domainCode, req.params.assetCode);
+    res.json({ ok: true, contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION, asset });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveCatalogueMetric(req, res, next) {
+  try {
+    await dataCatalogueAdminService.saveMetric(
+      req.params.domainCode, req.params.metricCode, req.body || {},
+    );
+    const payload = await dataCatalogueService.listMetrics({
+      domainCode: req.params.domainCode,
+      search: req.params.metricCode,
+      limit: 500,
+    });
+    const metric = payload.items.find(
+      (item) => item.metricCode === String(req.params.metricCode).toUpperCase(),
+    );
+    res.json({ ok: true, contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION, metric });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
 async function getStatus(req, res, next) {
   try {
     const payload = await ingestionStatusService.getIngestionStatusSummary(req.query || {});
@@ -266,4 +335,9 @@ module.exports = {
   listCatalogueAssets,
   getCatalogueAsset,
   listCatalogueMetrics,
+  getCatalogueAdminOptions,
+  saveCatalogueDomain,
+  saveCatalogueSource,
+  saveCatalogueAsset,
+  saveCatalogueMetric,
 };
