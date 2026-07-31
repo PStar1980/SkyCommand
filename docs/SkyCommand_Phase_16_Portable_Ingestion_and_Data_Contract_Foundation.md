@@ -8,7 +8,7 @@
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 semantic ingestion identity, profile guardrails, and non-macro portability proof locally proven; Phase 16.2.1 portable asset and metric catalogue implemented pending local database/API verification.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 semantic ingestion identity, profile guardrails, and non-macro portability proof locally proven; Phase 16.2.1 portable asset and metric catalogue locally verified; Phase 16.2.2 managed catalogue administration and second-domain proof implemented pending local proof.
 
 ## Governing constraint
 
@@ -511,8 +511,24 @@ Make ingestion identity catalogue-driven and eliminate source/file-name inferenc
 
 ### Implementation slices
 
-- **Phase 16.2.1 — Portable asset and metric catalogue:** implemented pending local proof. Adds generic asset kinds, assets, source bindings, metric kinds, metrics, dependencies, PostgreSQL domain guardrails, macro compatibility projection, initial headline metric examples, and authenticated `data_catalogue.v1` read APIs.
-- **Phase 16.2.2 — Catalogue administration and second-domain proof:** planned. Add managed catalogue administration/validation and prove a non-macro source, asset, and metric through the same generic API without schema redesign.
+- **Phase 16.2.1 — Portable asset and metric catalogue:** complete and locally verified. Adds generic asset kinds, assets, source bindings, metric kinds, metrics, dependencies, PostgreSQL domain guardrails, macro compatibility projection, initial headline metric examples, and authenticated `data_catalogue.v1` read APIs.
+- **Phase 16.2.2 — Catalogue administration and second-domain proof:** implemented pending local proof. Adds transactional managed writes for domains, sources, assets, source bindings, metrics and dependencies; a dedicated write permission; deferred domain-alignment guardrails; generic admin API endpoints; and a rollback-safe non-macro service-level discovery proof.
+
+#### Phase 16.2.2 managed administration contract
+
+Catalogue writes are idempotent resource replacements addressed by portable codes rather than internal UUIDs. They require `DATA_CATALOGUE_WRITE` in addition to the existing ingestion-status read permission.
+
+```text
+GET /api/ingestion/catalogue/admin/options
+PUT /api/ingestion/catalogue/admin/domains/:domainCode
+PUT /api/ingestion/catalogue/admin/sources/:domainCode/:sourceCode
+PUT /api/ingestion/catalogue/admin/assets/:domainCode/:assetCode
+PUT /api/ingestion/catalogue/admin/metrics/:domainCode/:metricCode
+```
+
+Asset writes may atomically create/update the active primary source binding. Metric writes replace the supplied dependency set transactionally. The write service resolves source and dependency codes only within the selected domain, while deferred PostgreSQL guardrails protect the same invariant from direct SQL or future write paths.
+
+The closure proof creates a temporary `CLIENT_SERVICES_PROOF_*` domain with a database source, `SERVICE_EPISODES` record-set asset, and `SAME_DAY_ACCESS_RATE` aggregate metric. It reads the fixture through the same `data_catalogue.v1` service used by the generic API and rolls the transaction back completely.
 
 ### Purpose
 
@@ -834,7 +850,7 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.2.1 — Portable Asset and Metric Catalogue**.
+The active implementation checkpoint is **Phase 16.2.2 — Catalogue Administration and Second-Domain Proof**.
 
 This increment introduces the generic catalogue beside the legacy macro registry:
 
@@ -857,7 +873,7 @@ The local proof must confirm:
 - five seeded metric definitions have valid same-domain dependencies;
 - existing ingestion status, macro tables, views, APIs, and dashboards remain unchanged.
 
-After this proof passes, Phase 16.2.2 will add managed catalogue administration and a transactional non-macro asset/metric API proof.
+After this proof passes, Phase 16.2 closes and Phase 16.3 begins the source/asset audit and explainable freshness model.
 
 ---
 
