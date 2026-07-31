@@ -40,16 +40,20 @@ async function applyMigration(pool) {
 async function verify(pool) {
   const [permissionResult, roleResult, triggerResult, macroResult] = await Promise.all([
     pool.query(`
-      SELECT permission_code, active
-      FROM auth.permissions
-      WHERE permission_code = 'DATA_CATALOGUE_WRITE'
+      SELECT permission.permission_code, permission.active, application.app_code
+      FROM auth.permissions permission
+      JOIN core.applications application ON application.app_id = permission.app_id
+      WHERE permission.permission_code = 'DATA_CATALOGUE_WRITE'
     `),
     pool.query(`
       SELECT role.role_code, role_permission.active
       FROM auth.role_permissions role_permission
       JOIN auth.roles role ON role.role_id = role_permission.role_id
       JOIN auth.permissions permission ON permission.permission_id = role_permission.permission_id
+      JOIN core.applications application ON application.app_id = role.app_id
       WHERE permission.permission_code = 'DATA_CATALOGUE_WRITE'
+        AND permission.app_id = role.app_id
+        AND application.app_code = 'SKYSERVER_ADMIN'
         AND role.role_code IN ('SUPER_ADMIN', 'ADMIN')
       ORDER BY role.role_code
     `),
@@ -75,12 +79,14 @@ async function verify(pool) {
   console.log('\nSkyCommand Phase 16.2.2 catalogue administration guardrails');
   console.log('---------------------------------------------------------');
   console.log(`Write permission: ${permissionResult.rows[0]?.permission_code || 'missing'}`);
+  console.log(`Permission app: ${permissionResult.rows[0]?.app_code || 'missing'}`);
   console.log(`Admin role grants: ${roleResult.rows.filter((row) => row.active).length}`);
   console.log(`Deferred alignment triggers: ${triggerResult.rows.length}`);
   console.log(`Macro assets preserved: ${macroResult.rows[0]?.asset_count || 0}`);
 
   const failures = [];
   if (!permissionResult.rows[0]?.active) failures.push('DATA_CATALOGUE_WRITE permission missing/inactive');
+  if (permissionResult.rows[0]?.app_code !== 'SKYSERVER_ADMIN') failures.push('DATA_CATALOGUE_WRITE is not scoped to SKYSERVER_ADMIN');
   if (roleResult.rows.filter((row) => row.active).length !== 2) failures.push('expected SUPER_ADMIN and ADMIN grants');
   if (triggerResult.rows.length !== 3) failures.push('expected 3 catalogue-alignment triggers');
   if (Number(macroResult.rows[0]?.asset_count || 0) !== 73) failures.push('macro asset compatibility count changed');

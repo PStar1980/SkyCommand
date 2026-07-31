@@ -1,25 +1,35 @@
 -- Migration: 00079__portable_catalogue_administration.sql
 -- Phase 16.2.2: Managed catalogue write permission and deferred
 -- domain-alignment guardrails for administrative edits.
+-- Authorization is application-scoped; DATA_CATALOGUE_WRITE belongs to SKYSERVER_ADMIN.
 
 BEGIN;
 
+WITH admin_app AS (
+  SELECT app_id
+  FROM core.applications
+  WHERE app_code = 'SKYSERVER_ADMIN'
+  LIMIT 1
+)
 INSERT INTO auth.permissions (
+  app_id,
   permission_code,
   resource,
   action,
   description,
   active
 )
-VALUES (
+SELECT
+  admin_app.app_id,
   'DATA_CATALOGUE_WRITE',
   'data_catalogue',
   'write',
   'Create and update portable data domains, sources, assets, metrics, and dependencies.',
   TRUE
-)
+FROM admin_app
 ON CONFLICT (permission_code)
 DO UPDATE SET
+  app_id = EXCLUDED.app_id,
   resource = EXCLUDED.resource,
   action = EXCLUDED.action,
   description = EXCLUDED.description,
@@ -31,6 +41,10 @@ SELECT role.role_id, permission.permission_id, TRUE
 FROM auth.roles role
 JOIN auth.permissions permission
   ON permission.permission_code = 'DATA_CATALOGUE_WRITE'
+ AND permission.app_id = role.app_id
+JOIN core.applications application
+  ON application.app_id = role.app_id
+ AND application.app_code = 'SKYSERVER_ADMIN'
 WHERE role.role_code IN ('SUPER_ADMIN', 'ADMIN')
 ON CONFLICT (role_id, permission_id)
 DO UPDATE SET
