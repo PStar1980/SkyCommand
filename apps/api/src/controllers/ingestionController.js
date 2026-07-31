@@ -1,6 +1,7 @@
 const ingestionStatusService = require('../services/ingestionStatusService');
 const dataCatalogueService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueService');
 const dataCatalogueAdminService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueAdminService');
+const freshnessService = require('../../../../packages/ingestion/src/freshness/freshnessService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function isActiveIngestionExecution(execution = {}) {
@@ -157,6 +158,58 @@ async function listCatalogueMetrics(req, res, next) {
   }
 }
 
+
+
+async function listCatalogueFreshness(req, res, next) {
+  try {
+    const payload = await freshnessService.listFreshness(req.query || {});
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function getCatalogueFreshness(req, res, next) {
+  try {
+    const item = await freshnessService.getFreshness(
+      req.params.domainCode,
+      req.params.assetCode,
+    );
+    if (!item) {
+      res.status(404).json({ ok: false, error: 'Data asset freshness not found.' });
+      return;
+    }
+    res.json({
+      ok: true,
+      contractVersion: freshnessService.FRESHNESS_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function refreshCatalogueFreshness(req, res, next) {
+  try {
+    const rows = await freshnessService.refreshFreshnessSnapshots({ persist: true });
+    res.json({
+      ok: true,
+      contractVersion: freshnessService.FRESHNESS_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      refreshedAssets: rows.length,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
 
 async function getCatalogueAdminOptions(req, res, next) {
   try {
@@ -335,6 +388,9 @@ module.exports = {
   listCatalogueAssets,
   getCatalogueAsset,
   listCatalogueMetrics,
+  listCatalogueFreshness,
+  getCatalogueFreshness,
+  refreshCatalogueFreshness,
   getCatalogueAdminOptions,
   saveCatalogueDomain,
   saveCatalogueSource,
