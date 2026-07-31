@@ -251,6 +251,12 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
       resume: Boolean(identity.supports_resume),
       dryRun: Boolean(identity.supports_dry_run),
     };
+    const totals = context.runTotalsOverride && typeof context.runTotalsOverride === 'object'
+      ? {
+          ...summary.totals,
+          ...context.runTotalsOverride,
+        }
+      : summary.totals;
 
     const runError = summary.error || null;
     const runErrorCategory = runError
@@ -301,19 +307,19 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
         JSON.stringify(summary.selectedAssets || []),
         JSON.stringify(safeJsonObject(capabilitySnapshot)),
         JSON.stringify(safeJsonObject(context.requestContext)),
-        summary.totals.itemsRequested,
-        summary.totals.itemsSucceeded,
-        summary.totals.itemsFailed,
-        summary.totals.itemsUpdated,
-        summary.totals.itemsUnchanged,
-        summary.totals.rowsStaged,
-        summary.totals.rowsDetectedAsNew,
-        summary.totals.rowsInserted,
-        summary.totals.rowsUpdated,
-        summary.totals.rowsUnchanged,
-        summary.totals.rowsRejected,
-        summary.totals.attempts,
-        summary.totals.retries,
+        totals.itemsRequested,
+        totals.itemsSucceeded,
+        totals.itemsFailed,
+        totals.itemsUpdated,
+        totals.itemsUnchanged,
+        totals.rowsStaged,
+        totals.rowsDetectedAsNew,
+        totals.rowsInserted,
+        totals.rowsUpdated,
+        totals.rowsUnchanged,
+        totals.rowsRejected,
+        totals.attempts,
+        totals.retries,
         runErrorCategory,
         boundedText(runError?.code, 250),
         boundedText(runError?.message),

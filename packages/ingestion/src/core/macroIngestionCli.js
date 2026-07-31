@@ -3,6 +3,10 @@ const {
   createMacroIngestionToolResult,
 } = require('./macroIngestionResult');
 const { runToolCli } = require('../../../tools/src/toolCliAdapter');
+const {
+  persistMacroBatchResultSafely,
+  persistMacroToolResultSafely,
+} = require('../ledger/ingestionLedgerIntegration');
 const { writeToolResult } = require('../../../tools/src/toolResultTransport');
 
 const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
@@ -53,21 +57,65 @@ function runMacroIngestionCli({
   const normalizedSourceCode = String(sourceCode || 'UNKNOWN').toUpperCase();
   const startedAt = new Date().toISOString();
 
+  const toolCode = getMacroToolCode(normalizedSourceCode);
+  let ledgerReference = null;
+  const executeWithLedger = async (executionArgs, toolContext) => {
+    try {
+      const batchResult = await execute(executionArgs, toolContext);
+      ledgerReference = await persistMacroBatchResultSafely({
+        sourceCode: normalizedSourceCode,
+        toolCode,
+        batchResult,
+      }, logger);
+
+      return batchResult;
+    } catch (error) {
+      const failureToolResult = createMacroIngestionFailureToolResult({
+        sourceCode: normalizedSourceCode,
+        error,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      });
+
+      ledgerReference = await persistMacroToolResultSafely({
+        sourceCode: normalizedSourceCode,
+        toolCode,
+        toolResult: failureToolResult,
+        refreshFreshness: true,
+      }, logger);
+
+      throw error;
+    }
+  };
+
   return runToolCli({
-    toolCode: getMacroToolCode(normalizedSourceCode),
+    toolCode,
     outputType: MACRO_INGESTION_OUTPUT_TYPE,
     args,
-    execute,
+    execute: executeWithLedger,
     createToolResult: (result) => createMacroIngestionToolResult({
       sourceCode: normalizedSourceCode,
-      batchResult: result,
+      batchResult: {
+        ...result,
+        ledger: ledgerReference,
+      },
     }),
-    createFailureToolResult: (error) => createMacroIngestionFailureToolResult({
-      sourceCode: normalizedSourceCode,
-      error,
-      startedAt,
-      completedAt: new Date().toISOString(),
-    }),
+    createFailureToolResult: (error) => {
+      const failureResult = createMacroIngestionFailureToolResult({
+        sourceCode: normalizedSourceCode,
+        error,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      });
+
+      return {
+        ...failureResult,
+        metadata: {
+          ...(failureResult.metadata || {}),
+          ingestionLedger: ledgerReference,
+        },
+      };
+    },
     renderConsole: printResult,
     shouldFailProcess: ({ result }) => !result.ok && !hasFlag(args, 'allow-failures'),
     emitResult,
