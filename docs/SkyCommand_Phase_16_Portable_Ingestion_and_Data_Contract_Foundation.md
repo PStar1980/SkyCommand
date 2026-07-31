@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 5
+- **Revision:** 6
 - **Date:** 2026-07-31
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3.1 explainable freshness foundation implemented pending local PostgreSQL proof.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3.1 explainable freshness foundation locally proven; Phase 16.3.2 snapshot integration, policy administration, and non-macro freshness proof implemented pending local verification.
 
 ## Governing constraint
 
@@ -850,9 +850,29 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.3.1 — Explainable Freshness Foundation**.
+The active implementation checkpoint is **Phase 16.3.2 — Snapshot Integration, Policy Administration, and Freshness Portability Proof**.
 
-This increment introduces the generic freshness seam beside the existing macro status surfaces:
+Phase 16.3.1 is locally proven. The July 31, 2026 refresh produced 69/69 active snapshots with no load-behind-source, ingestion-failure, configuration-error, or no-data conditions. The explainable result split was 56 `CURRENT`, 10 `EXPECTED_PROVIDER_LAG`, and 3 `SOURCE_NOT_UPDATED`. The three investigation items were `CAD_GDP_MOM_GROWTH`, `CAD_REAL_GDP_MONTHLY`, and the long-discontinued-looking FRED `USSLIND` source series.
+
+Phase 16.3.2 completes the integration by:
+
+1. routing the existing macro `/api/ingestion/status`, `/sources`, and `/indicators` compatibility contracts through `data.vw_asset_freshness` rather than per-indicator storage scans;
+2. retaining legacy `CURRENT` / `STALE` summary fields while exposing the precise `asset_freshness.v1` reason and policy evidence on every indicator row;
+3. adding managed source-level and asset-level freshness policy APIs with frequency defaults < source override < asset override precedence;
+4. making the Data Intelligence source filter catalogue-driven and surfacing reason, expected date, source-latest date, and policy origin in the selected indicator workspace;
+5. proving that a temporary non-macro domain/source/asset can be evaluated by the same freshness engine, first with a source policy and then with an asset override, with the entire fixture rolled back afterward.
+
+The local proof must confirm:
+
+- active macro legacy status counts reconcile exactly to persisted snapshot status counts;
+- the runtime status path no longer executes table-exists plus count/min/max queries for every indicator;
+- source and asset freshness policies can be administered without domain-specific code;
+- the non-macro proof asset returns a valid generic freshness result and demonstrates policy precedence;
+- rollback restores catalogue/freshness counts to baseline.
+
+After this proof, **Phase 16.3 is complete** and Phase 16.4 begins the durable generic ingestion ledger.
+
+For historical context, Phase 16.3.1 introduced the generic freshness seam beside the existing macro status surfaces:
 
 1. `data.freshness_status_codes` separates operational severity from explanatory reason;
 2. `data.freshness_reason_codes` defines portable reasons such as `EXPECTED_PROVIDER_LAG`, `SOURCE_NOT_UPDATED`, `LOAD_BEHIND_SOURCE`, and `INGESTION_FAILED`;
@@ -872,7 +892,7 @@ The local proof must confirm:
 - legacy age-only `STALE` cases are separated into healthy expected-provider lag versus actual source/target/pipeline conditions;
 - no macro observations, analytical views, or existing APIs are rewritten by the freshness foundation.
 
-After this proof, **Phase 16.3.2** will integrate the snapshot seam into the existing Data Status/ingestion status services, retire the current N+1 table-scan path, add source/asset policy administration, and complete a non-macro freshness portability proof.
+Phase 16.3.2 implements the integration and portability proof described above; once locally proven, Phase 16.3 closes and the durable ingestion ledger becomes the next checkpoint.
 
 ---
 

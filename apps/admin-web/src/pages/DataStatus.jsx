@@ -9,12 +9,7 @@ import ingestionService from '../services/ingestionService';
 
 const DATA_INTELLIGENCE_PAGE_SIZE = 10;
 
-const SOURCE_OPTIONS = [
-  { value: '', label: 'All sources' },
-  { value: 'FRED', label: 'FRED' },
-  { value: 'BOC', label: 'Bank of Canada' },
-  { value: 'STATCAN', label: 'Statistics Canada' },
-];
+const DEFAULT_SOURCE_OPTIONS = [{ value: '', label: 'All sources' }];
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -93,6 +88,7 @@ function getLatestDataDate(indicator) {
 
 function DataStatus() {
   const [items, setItems] = useState([]);
+  const [sourceOptions, setSourceOptions] = useState(DEFAULT_SOURCE_OPTIONS);
   const [selectedItem, setSelectedItem] = useState(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftSearch, setDraftSearch] = useState('');
@@ -107,6 +103,19 @@ function DataStatus() {
   const safeCurrentPage = Math.min(currentPage, pageCount);
   const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * DATA_INTELLIGENCE_PAGE_SIZE + 1;
   const rangeEnd = Math.min(safeCurrentPage * DATA_INTELLIGENCE_PAGE_SIZE, total);
+
+  async function loadSourceOptions() {
+    try {
+      const result = await ingestionService.listSources();
+      const nextOptions = (result.items || []).map((source) => ({
+        value: source.source,
+        label: source.label || source.source,
+      }));
+      setSourceOptions([...DEFAULT_SOURCE_OPTIONS, ...nextOptions]);
+    } catch {
+      setSourceOptions(DEFAULT_SOURCE_OPTIONS);
+    }
+  }
 
   async function loadIndicators(
     nextFilters = filters,
@@ -184,6 +193,7 @@ function DataStatus() {
   }
 
   useEffect(() => {
+    loadSourceOptions();
     loadIndicators(DEFAULT_FILTERS, 1, { keepSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -316,7 +326,7 @@ function DataStatus() {
           />
         }
         kicker="Data · Intelligence"
-        subtitle="Inspect indicator freshness, source coverage, and the evidence behind each macro data-health state."
+        subtitle="Inspect freshness, source coverage, and the evidence behind each data-health state."
         title="Data Intelligence"
       />
 
@@ -344,7 +354,7 @@ function DataStatus() {
                   onChange={(event) => updateFilter('source', event.target.value)}
                   value={filters.source}
                 >
-                  {SOURCE_OPTIONS.map((option) => (
+                  {sourceOptions.map((option) => (
                     <option key={option.value || 'all'} value={option.value}>
                       {option.label}
                     </option>
@@ -420,6 +430,7 @@ function DataStatus() {
                   <th>Source</th>
                   <th>Frequency</th>
                   <th>Status</th>
+                  <th>Reason</th>
                   <th>Latest data</th>
                   <th>Days old</th>
                   <th>Rows</th>
@@ -428,14 +439,14 @@ function DataStatus() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan="8">
                       <div className="sky-empty-state">Loading indicator freshness...</div>
                     </td>
                   </tr>
                 )}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan="8">
                       <div className="sky-empty-state">
                         No indicator status records matched these filters.
                       </div>
@@ -467,6 +478,9 @@ function DataStatus() {
                         <span className={`sky-pill ${statusClass(indicator.status)}`}>
                           {normalizeStatus(indicator.status)}
                         </span>
+                      </td>
+                      <td className="small sky-mono">
+                        {indicator.freshness?.reasonCode || '—'}
                       </td>
                       <td>{formatDate(getLatestDataDate(indicator), { dateOnly: true })}</td>
                       <td>{indicator.daysSinceLatestData ?? '—'}</td>
@@ -521,9 +535,9 @@ function DataStatus() {
                       </div>
                     </div>
                     <div className="sky-mini-metric">
-                      <div className="sky-page-kicker">Freshness threshold</div>
+                      <div className="sky-page-kicker">Expected latest</div>
                       <div className="sky-detail-value">
-                        {selectedItem.freshnessThresholdDays ?? '—'} day(s)
+                        {formatDate(selectedItem.freshness?.expectedLatestDate, { dateOnly: true })}
                       </div>
                     </div>
                     <div className="sky-mini-metric">
@@ -543,6 +557,18 @@ function DataStatus() {
                       <dt className="col-sm-5 sky-detail-label">Active</dt>
                       <dd className="col-sm-7 sky-detail-value">
                         {selectedItem.active ? 'Yes' : 'No'}
+                      </dd>
+                      <dt className="col-sm-5 sky-detail-label">Freshness reason</dt>
+                      <dd className="col-sm-7 sky-detail-value sky-mono">
+                        {selectedItem.freshness?.reasonCode || '—'}
+                      </dd>
+                      <dt className="col-sm-5 sky-detail-label">Source latest</dt>
+                      <dd className="col-sm-7 sky-detail-value">
+                        {formatDate(selectedItem.freshness?.sourceLatestDate, { dateOnly: true })}
+                      </dd>
+                      <dt className="col-sm-5 sky-detail-label">Policy</dt>
+                      <dd className="col-sm-7 sky-detail-value">
+                        {selectedItem.freshness?.policyOriginCode || '—'} · lag {selectedItem.freshness?.releaseLagDays ?? '—'}d · tolerance {selectedItem.freshness?.freshnessToleranceDays ?? '—'}d
                       </dd>
                       <dt className="col-sm-5 sky-detail-label">Minimum date</dt>
                       <dd className="col-sm-7 sky-detail-value">

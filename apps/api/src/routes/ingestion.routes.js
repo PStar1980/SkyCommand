@@ -28,6 +28,22 @@ router.post(
 );
 
 router.get(
+  '/catalogue/admin/freshness/policies',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.getFreshnessPolicyOptions,
+);
+router.put(
+  '/catalogue/admin/freshness/source-policies/:domainCode/:sourceCode/:frequencyCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveSourceFreshnessPolicy,
+);
+router.put(
+  '/catalogue/admin/freshness/asset-policies/:domainCode/:assetCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveAssetFreshnessPolicy,
+);
+
+router.get(
   '/catalogue/admin/options',
   requirePermission('DATA_CATALOGUE_WRITE'),
   ingestionController.getCatalogueAdminOptions,
