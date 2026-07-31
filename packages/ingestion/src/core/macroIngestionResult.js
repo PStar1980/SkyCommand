@@ -180,6 +180,7 @@ function createMacroIngestionToolResult({ sourceCode, batchResult = {}, message 
       mode: batchResult.mode || 'indicator_batch',
       concurrency: normalizeNumber(batchResult.concurrency),
       batchCount: normalizeNumber(batchResult.batchCount),
+      ingestionLedger: batchResult.ledger || null,
     },
   });
 }

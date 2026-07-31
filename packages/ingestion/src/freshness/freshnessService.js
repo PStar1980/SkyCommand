@@ -246,7 +246,7 @@ function evaluateFreshness({
     compareDates(sourceLatestDate, expectedLatestDate) < 0
   ) {
     const latestAttemptFailed =
-      lastAttemptStatus && !['SUCCESS', 'COMPLETED'].includes(lastAttemptStatus) &&
+      lastAttemptStatus && !['SUCCESS', 'COMPLETED', 'UPDATED', 'UNCHANGED'].includes(lastAttemptStatus) &&
       (!lastSuccessAt || (lastAttemptAt && lastAttemptAt.getTime() >= lastSuccessAt.getTime()));
 
     if (latestAttemptFailed) {
@@ -260,7 +260,7 @@ function evaluateFreshness({
     if (!lastAttemptAt) {
       reasonCode = 'INGESTION_NOT_RUN';
       message = `Target storage is behind the expected ${dateOnly(expectedLatestDate)} observation and no ingestion-attempt evidence is available.`;
-    } else if (lastAttemptStatus && !['SUCCESS', 'COMPLETED'].includes(lastAttemptStatus)) {
+    } else if (lastAttemptStatus && !['SUCCESS', 'COMPLETED', 'UPDATED', 'UNCHANGED'].includes(lastAttemptStatus)) {
       reasonCode = 'INGESTION_FAILED';
       message = `Latest ingestion attempt failed while target storage remains behind the expected ${dateOnly(expectedLatestDate)} observation.`;
     } else {
@@ -299,14 +299,28 @@ function quoteIdentifier(identifier) {
   return `"${identifier}"`;
 }
 
-async function loadAssets(query) {
-  const result = await query(`
-    SELECT *
-    FROM data.vw_assets
-    WHERE asset_active = TRUE
-      AND discoverable = TRUE
-    ORDER BY domain_code, asset_code
-  `);
+async function loadAssets(query, options = {}) {
+  const sourceCode = normalizeCode(options.sourceCode);
+  const values = [];
+  const clauses = [
+    'asset_active = TRUE',
+    'discoverable = TRUE',
+  ];
+
+  if (sourceCode) {
+    values.push(sourceCode);
+    clauses.push(`source_code = $${values.length}`);
+  }
+
+  const result = await query(
+    `
+      SELECT *
+      FROM data.vw_assets
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY domain_code, asset_code
+    `,
+    values,
+  );
 
   return result.rows.map((row) => ({
     assetId: row.asset_id,
@@ -532,66 +546,109 @@ function extractAssetEvidenceFromExecution(row) {
 async function loadExecutionEvidence(query) {
   const result = await query(`
     SELECT
-      tool.source_id,
-      tool.source_code,
-      tool.tool_code,
-      execution.status,
-      execution.started_at,
-      execution.finished_at,
-      execution.metadata
-    FROM data.vw_ingestion_tools tool
-    JOIN auth.vw_script_execution_recent execution
-      ON execution.script_name = tool.tool_code
-    WHERE tool.discoverable = TRUE
-    ORDER BY execution.started_at DESC
-    LIMIT 500
+      run.ingestion_run_id,
+      run.script_execution_id,
+      run.workflow_run_record_id,
+      run.workflow_node_run_record_id,
+      run.temporal_workflow_id,
+      run.temporal_run_id,
+      run.source_id,
+      run.source_code,
+      run.status_code AS run_status,
+      run.started_at AS run_started_at,
+      run.completed_at AS run_completed_at,
+      item.ingestion_run_item_id,
+      item.asset_code,
+      item.attempt_number,
+      item.outcome_code,
+      item.success_like AS item_success_like,
+      item.source_max_date,
+      item.current_target_max_date,
+      item.started_at AS item_started_at,
+      item.completed_at AS item_completed_at
+    FROM data.vw_ingestion_runs run
+    LEFT JOIN data.vw_ingestion_run_items item
+      ON item.ingestion_run_id = run.ingestion_run_id
+    WHERE run.terminal = TRUE
+    ORDER BY
+      run.started_at DESC,
+      item.asset_code NULLS LAST,
+      item.attempt_number DESC NULLS LAST,
+      item.created_at DESC NULLS LAST
+    LIMIT 5000
   `);
 
   const sourceAttempts = new Map();
   const sourceSuccesses = new Map();
-  const assetEvidence = new Map();
+  const assetAttempts = new Map();
+  const assetSuccesses = new Map();
 
   for (const row of result.rows) {
     if (!sourceAttempts.has(row.source_id)) {
       sourceAttempts.set(row.source_id, {
-        lastAttemptAt: row.started_at,
-        lastAttemptStatus: row.status,
+        lastAttemptAt: row.run_started_at,
+        lastAttemptStatus: row.run_status,
       });
     }
 
-    const executionSucceeded = String(row.status || '').toUpperCase() === 'SUCCESS';
-    if (executionSucceeded && !sourceSuccesses.has(row.source_id)) {
-      sourceSuccesses.set(row.source_id, row.finished_at || row.started_at);
+    if (row.item_success_like && !sourceSuccesses.has(row.source_id)) {
+      sourceSuccesses.set(row.source_id, row.item_completed_at || row.run_completed_at || row.run_started_at);
     }
 
-    if (executionSucceeded) {
-      for (const item of extractAssetEvidenceFromExecution(row)) {
-        const key = `${row.source_id}:${item.assetCode}`;
-        if (!assetEvidence.has(key)) {
-          assetEvidence.set(key, {
-            sourceLatestDate: item.sourceLatestDate,
-            targetLatestDate: item.targetLatestDate,
-            evidenceExecutionAt: row.finished_at || row.started_at,
-          });
-        }
-      }
+    if (!row.asset_code) continue;
+    const key = `${row.source_id}:${row.asset_code}`;
+
+    if (!assetAttempts.has(key)) {
+      assetAttempts.set(key, {
+        lastAttemptAt: row.item_started_at || row.run_started_at,
+        lastAttemptStatus: row.outcome_code,
+      });
+    }
+
+    if (row.item_success_like && !assetSuccesses.has(key)) {
+      assetSuccesses.set(key, {
+        lastSuccessAt: row.item_completed_at || row.run_completed_at || row.run_started_at,
+        sourceLatestDate: dateOnly(row.source_max_date),
+        targetLatestDate: dateOnly(row.current_target_max_date),
+        evidenceExecutionAt: row.item_completed_at || row.run_completed_at || row.run_started_at,
+        ingestionRunId: row.ingestion_run_id || null,
+        ingestionRunItemId: row.ingestion_run_item_id || null,
+        scriptExecutionId: row.script_execution_id || null,
+        workflowRunRecordId: row.workflow_run_record_id || null,
+        workflowNodeRunRecordId: row.workflow_node_run_record_id || null,
+        temporalWorkflowId: row.temporal_workflow_id || null,
+        temporalRunId: row.temporal_run_id || null,
+      });
     }
   }
 
-  return { sourceAttempts, sourceSuccesses, assetEvidence };
+  return { sourceAttempts, sourceSuccesses, assetAttempts, assetSuccesses };
 }
 
 function buildSourceEvidence(asset, executionEvidence) {
-  const attempt = executionEvidence.sourceAttempts.get(asset.sourceId) || {};
-  const successAt = executionEvidence.sourceSuccesses.get(asset.sourceId) || null;
-  const item = executionEvidence.assetEvidence.get(`${asset.sourceId}:${asset.assetCode}`) || {};
+  const sourceAttempt = executionEvidence.sourceAttempts.get(asset.sourceId) || {};
+  const sourceSuccessAt = executionEvidence.sourceSuccesses.get(asset.sourceId) || null;
+  const key = `${asset.sourceId}:${asset.assetCode}`;
+  const assetAttempt = executionEvidence.assetAttempts.get(key) || {};
+  const assetSuccess = executionEvidence.assetSuccesses.get(key) || {};
+  const sourceAttemptAt = toDate(sourceAttempt.lastAttemptAt);
+  const assetAttemptAt = toDate(assetAttempt.lastAttemptAt);
+  const useSourceAttempt = sourceAttemptAt && (!assetAttemptAt || sourceAttemptAt.getTime() > assetAttemptAt.getTime());
+  const latestAttempt = useSourceAttempt ? sourceAttempt : assetAttempt;
   return {
-    lastAttemptAt: attempt.lastAttemptAt || null,
-    lastAttemptStatus: attempt.lastAttemptStatus || null,
-    lastSuccessAt: successAt,
-    sourceLatestDate: item.sourceLatestDate || null,
-    executionTargetLatestDate: item.targetLatestDate || null,
-    evidenceExecutionAt: item.evidenceExecutionAt || null,
+    lastAttemptAt: latestAttempt.lastAttemptAt || sourceAttempt.lastAttemptAt || null,
+    lastAttemptStatus: latestAttempt.lastAttemptStatus || sourceAttempt.lastAttemptStatus || null,
+    lastSuccessAt: assetSuccess.lastSuccessAt || sourceSuccessAt,
+    sourceLatestDate: assetSuccess.sourceLatestDate || null,
+    executionTargetLatestDate: assetSuccess.targetLatestDate || null,
+    evidenceExecutionAt: assetSuccess.evidenceExecutionAt || null,
+    ingestionRunId: assetSuccess.ingestionRunId || null,
+    ingestionRunItemId: assetSuccess.ingestionRunItemId || null,
+    scriptExecutionId: assetSuccess.scriptExecutionId || null,
+    workflowRunRecordId: assetSuccess.workflowRunRecordId || null,
+    workflowNodeRunRecordId: assetSuccess.workflowNodeRunRecordId || null,
+    temporalWorkflowId: assetSuccess.temporalWorkflowId || null,
+    temporalRunId: assetSuccess.temporalRunId || null,
   };
 }
 
@@ -656,6 +713,15 @@ async function persistSnapshots(rows, query) {
           contractVersion: FRESHNESS_CONTRACT_VERSION,
           sourceEvidenceAt: row.sourceEvidence.evidenceExecutionAt || null,
           executionTargetLatestDate: row.sourceEvidence.executionTargetLatestDate || null,
+          ledger: {
+            ingestionRunId: row.sourceEvidence.ingestionRunId || null,
+            ingestionRunItemId: row.sourceEvidence.ingestionRunItemId || null,
+            scriptExecutionId: row.sourceEvidence.scriptExecutionId || null,
+            workflowRunRecordId: row.sourceEvidence.workflowRunRecordId || null,
+            workflowNodeRunRecordId: row.sourceEvidence.workflowNodeRunRecordId || null,
+            temporalWorkflowId: row.sourceEvidence.temporalWorkflowId || null,
+            temporalRunId: row.sourceEvidence.temporalRunId || null,
+          },
           legacyHeuristic: {
             thresholdDays: legacyThresholdDays(row.asset.frequencyCode),
             wouldBeStale: isLegacyHeuristicStale(row.stats.maxDate, row.asset.frequencyCode, row.asOf),
@@ -670,7 +736,7 @@ async function refreshFreshnessSnapshots(options = {}) {
   const query = options.query || getDatabaseQuery();
   const asOf = toDate(options.asOf) || new Date();
   const [assets, policies, executionEvidence] = await Promise.all([
-    loadAssets(query),
+    loadAssets(query, { sourceCode: options.sourceCode }),
     loadPolicies(query),
     loadExecutionEvidence(query),
   ]);

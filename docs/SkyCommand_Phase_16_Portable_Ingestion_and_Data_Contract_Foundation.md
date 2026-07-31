@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 7
+- **Revision:** 8
 - **Date:** 2026-07-31
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4.1 durable generic ingestion ledger foundation implemented and awaiting local database proof.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4.1 durable generic ingestion ledger foundation locally proven; Phase 16.4.2 production ledger integration implemented and awaiting local production-run proof.
 
 ## Governing constraint
 
@@ -850,34 +850,33 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.4.1 — Durable Generic Ingestion Ledger Foundation**.
+The active implementation checkpoint is **Phase 16.4.2 — Production Ledger Integration**.
 
-Phase 16.3 is now accepted as complete. The explainable-freshness refresh produced 69/69 active snapshots, and the compatibility Data Intelligence surface now resolves 66 healthy/current records versus only 3 watch records. `EXPECTED_PROVIDER_LAG` remains healthy, while the three remaining `SOURCE_NOT_UPDATED` cases expose provider-side evidence rather than falsely blaming the loader.
+Phase 16.4.1 is accepted as complete. The local proof demonstrated a durable `PARTIAL` run with three requested assets, two successful assets, one terminal failure, four persisted attempts, and one retry while preserving each attempt as separate PostgreSQL evidence.
 
-Phase 16.4.1 establishes the durable relational authority beneath future retries and recovery without changing the production source runners yet. It delivers:
+Phase 16.4.2 wires the production ingestion paths into that durable authority while preserving compatibility:
 
-1. `data.ingestion_runs` as the durable run-level authority for domain, source, mode, trigger, capability snapshot, execution linkage, totals, timings, terminal state, and bounded diagnostics;
-2. `data.ingestion_run_items` as per-asset **attempt** evidence so retries append rows rather than overwriting the failure that caused them;
-3. explicit run-status, item-outcome, and normalized error-category catalogues;
-4. deferred PostgreSQL guardrails requiring run source/domain alignment, workflow-run/node alignment, and asset/source/domain alignment;
-5. optional linkage to `auth.script_execution_log`, SkyCommand workflow run/node records, and Temporal workflow/run identifiers;
-6. generic `data.vw_ingestion_runs` and `data.vw_ingestion_run_items` read models;
-7. a domain-neutral `ingestion_run_summary.v1` ToolResult contract plus a compatibility adapter from the existing `macro_ingestion_summary.v1`;
-8. generic read APIs at `/api/ingestion/runs` and `/api/ingestion/runs/:ingestionRunId`;
-9. a rollback-safe second-domain ledger proof containing successful, failed, and retried asset attempts in one run.
+1. FRED, Bank of Canada, and Statistics Canada continue to emit `macro_ingestion_summary.v1` for existing Tool History and Workflow History consumers;
+2. each completed production macro run is also translated into `ingestion_run_summary.v1` and persisted in `data.ingestion_runs` / `data.ingestion_run_items`;
+3. ledger persistence is fail-open relative to completed domain work so an evidence-transport defect does not falsely reverse a successful source load, while the legacy ToolResult records the ledger warning/reference;
+4. `SKYCOMMAND_EXECUTION_ID` links ingestion runs to `auth.script_execution_log`; workflow run/node and Temporal identifiers are resolved from the execution metadata when available;
+5. direct CLI runs remain valid and create ledger evidence without requiring a script-execution record;
+6. manual ingestion is linked at run level without inventing catalogue assets for arbitrary manual jobs; its run metadata explicitly records `RUN_ONLY` evidence granularity until those jobs are deliberately asset-bound;
+7. recent legacy structured macro executions are backfilled idempotently into the ledger before the freshness cutover;
+8. explainable freshness now reads source/target evidence from durable ledger rows rather than extracting historical ToolResult payloads at runtime;
+9. successful or failed macro ingestion automatically refreshes freshness snapshots for the affected source;
+10. snapshot evidence retains ingestion-run, item-attempt, script-execution, workflow, and Temporal identifiers for traceability.
 
-The local proof must confirm:
+Focused acceptance requires:
 
-- a run can represent mixed successful and failed assets with a `PARTIAL` terminal state;
-- retries remain individually queryable as separate attempt rows;
-- the stateless service can reconstruct full evidence from PostgreSQL without process-memory state;
-- normalized error categories are preserved independently of provider-specific error text;
-- the same generic summary can represent a non-macro fixture;
-- all 73 existing macro assets and 69 active discoverable macro assets remain unchanged.
+- `phase16:ledger-integration:setup` to backfill eligible structured history, refresh freshness, and reconcile all eligible legacy macro executions to a ledger row;
+- no duplicate ledger runs for one script execution;
+- `/api/ingestion/runs` to expose backfilled and new production runs;
+- a live selected-indicator ingestion to preserve `macro_ingestion_summary.v1` while adding an `ingestionLedger` reference in ToolResult metadata;
+- the persisted run/item rows to carry the real script execution identifier and, for a workflow-launched proof, workflow/Temporal linkage;
+- Data Intelligence freshness to remain explainable after the cutover without depending on `auth.vw_script_execution_recent` ToolResult extraction.
 
-**Phase 16.4.2 — Production Ledger Integration** follows after this schema/service proof. That increment will wire FRED, Bank of Canada, Statistics Canada, and manual ingestion into the ledger while preserving `macro_ingestion_summary.v1` for Tool History and Workflow History during the transition. It will also attach real tool/workflow/Temporal execution identifiers and make freshness consume ledger evidence instead of compatibility extraction from historical ToolResult payloads.
-
-Phase 16.5 then converges source adapters, timeout, and retry behaviour on top of this ledger rather than mixing orchestration refactoring into the evidence-schema increment.
+After this proof, **Phase 16.4 is complete**. Phase 16.5 then converges source adapters, source-level timeouts, retry classification, bounded exponential backoff, and per-asset retry recording on top of the proven ledger rather than mixing those concerns into the evidence integration.
 
 ---
 

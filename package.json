@@ -89,7 +89,11 @@
     "phase16:ledger:setup": "node packages/ingestion/src/ledger/phase16IngestionLedger.js setup",
     "phase16:ledger:verify": "node packages/ingestion/src/ledger/phase16IngestionLedger.js verify",
     "phase16:ledger:self-test": "node packages/ingestion/src/ledger/ingestionRunResultSelfTest.js",
-    "phase16:ledger:proof": "node packages/ingestion/src/ledger/phase16IngestionLedgerProof.js"
+    "phase16:ledger:proof": "node packages/ingestion/src/ledger/phase16IngestionLedgerProof.js",
+    "phase16:ledger-integration:setup": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js setup",
+    "phase16:ledger-integration:backfill": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js backfill",
+    "phase16:ledger-integration:refresh": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js refresh",
+    "phase16:ledger-integration:verify": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js verify"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
