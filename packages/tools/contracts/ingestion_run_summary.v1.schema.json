@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SkyCommand Generic Ingestion Run Summary v1",
+  "type": "object",
+  "required": ["domainCode", "sourceCode", "modeCode", "outcome", "totals", "items"],
+  "properties": {
+    "ingestionRunId": { "type": ["string", "null"] },
+    "domainCode": { "type": "string" },
+    "sourceCode": { "type": "string" },
+    "modeCode": { "type": "string" },
+    "triggerCode": { "type": "string" },
+    "outcome": { "type": "string", "enum": ["SUCCESS", "PARTIAL", "FAILED", "CANCELLED"] },
+    "selectedAssets": { "type": "array", "items": { "type": "string" } },
+    "startedAt": { "type": "string" },
+    "completedAt": { "type": "string" },
+    "durationMs": { "type": "number" },
+    "totals": { "type": "object" },
+    "items": { "type": "array", "items": { "type": "object" } },
+    "error": { "type": ["object", "null"] },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}

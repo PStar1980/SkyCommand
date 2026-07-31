@@ -332,7 +332,8 @@ SkyServer/
 │   │       │   ├── 00076__ingestion_profile_guardrails.sql
 │   │       │   ├── 00077__portable_asset_metric_catalogue.sql
 │   │       │   ├── 00079__portable_catalogue_administration.sql
-│   │       │   └── 00080__explainable_freshness_foundation.sql
+│   │       │   ├── 00080__explainable_freshness_foundation.sql
+│   │       │   └── 00082__generic_ingestion_ledger.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -370,7 +371,8 @@ SkyServer/
 │   │           ├── 00073__structured_tool_contract_associations_seed.sql
 │   │           ├── 00075__portable_ingestion_identity_seed.sql
 │   │           ├── 00078__portable_asset_metric_catalogue_seed.sql
-│   │           └── 00081__explainable_freshness_foundation_seed.sql
+│   │           ├── 00081__explainable_freshness_foundation_seed.sql
+│   │           └── 00083__generic_ingestion_ledger_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -440,6 +442,12 @@ SkyServer/
 │   │       │   ├── phase16ExplainableFreshness.js
 │   │       │   ├── phase16FreshnessIntegration.js
 │   │       │   └── phase16FreshnessPortabilityProof.js
+│   │       ├── ledger/
+│   │       │   ├── ingestionLedgerService.js
+│   │       │   ├── ingestionRunResult.js
+│   │       │   ├── ingestionRunResultSelfTest.js
+│   │       │   ├── phase16IngestionLedger.js
+│   │       │   └── phase16IngestionLedgerProof.js
 │   │       ├── loaders/
 │   │       │   ├── copyLoader.js
 │   │       │   └── manualCopyLoader.js
@@ -477,6 +485,7 @@ SkyServer/
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── git_repository_status.v1.schema.json
+│       │   ├── ingestion_run_summary.v1.schema.json
 │       │   ├── macro_ingestion_summary.v1.schema.json
 │       │   ├── postgresql_database_comparison_summary.v1.schema.json
 │       │   ├── repository_map_summary.v1.schema.json
