@@ -106,10 +106,11 @@ async function loadVerification(pool) {
         SELECT
           asset.asset_code,
           asset.domain_code AS asset_domain,
-          source.domain_code AS source_domain,
+          source_domain.domain_code AS source_domain,
           asset.source_code
         FROM data.vw_assets asset
         JOIN data.sources source ON source.source_id = asset.source_id
+        JOIN data.domains source_domain ON source_domain.domain_id = source.domain_id
         WHERE asset.domain_id <> source.domain_id
       `),
       pool.query(`
