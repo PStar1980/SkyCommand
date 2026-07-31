@@ -85,7 +85,11 @@
     "phase16:freshness:self-test": "node packages/ingestion/src/freshness/freshnessServiceSelfTest.js",
     "phase16:freshness-integration:verify": "node packages/ingestion/src/freshness/phase16FreshnessIntegration.js",
     "phase16:freshness-integration:self-test": "node apps/api/src/services/legacyMacroFreshnessAdapterSelfTest.js",
-    "phase16:freshness-portability:proof": "node packages/ingestion/src/freshness/phase16FreshnessPortabilityProof.js"
+    "phase16:freshness-portability:proof": "node packages/ingestion/src/freshness/phase16FreshnessPortabilityProof.js",
+    "phase16:ledger:setup": "node packages/ingestion/src/ledger/phase16IngestionLedger.js setup",
+    "phase16:ledger:verify": "node packages/ingestion/src/ledger/phase16IngestionLedger.js verify",
+    "phase16:ledger:self-test": "node packages/ingestion/src/ledger/ingestionRunResultSelfTest.js",
+    "phase16:ledger:proof": "node packages/ingestion/src/ledger/phase16IngestionLedgerProof.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

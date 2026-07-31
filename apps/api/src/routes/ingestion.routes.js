@@ -69,6 +69,9 @@ router.put(
   ingestionController.saveCatalogueMetric,
 );
 
+router.get('/runs', ingestionController.listIngestionRuns);
+router.get('/runs/:ingestionRunId', ingestionController.getIngestionRun);
+
 router.get('/status', ingestionController.getStatus);
 router.get('/tools', ingestionController.listTools);
 

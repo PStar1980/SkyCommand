@@ -3,6 +3,7 @@ const dataCatalogueService = require('../../../../packages/ingestion/src/catalog
 const dataCatalogueAdminService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueAdminService');
 const freshnessService = require('../../../../packages/ingestion/src/freshness/freshnessService');
 const freshnessAdminService = require('../../../../packages/ingestion/src/freshness/freshnessAdminService');
+const ingestionLedgerService = require('../../../../packages/ingestion/src/ledger/ingestionLedgerService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function isActiveIngestionExecution(execution = {}) {
@@ -363,6 +364,38 @@ async function listTools(req, res, next) {
   }
 }
 
+async function listIngestionRuns(req, res, next) {
+  try {
+    const payload = await ingestionLedgerService.listRuns(req.query || {});
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function getIngestionRun(req, res, next) {
+  try {
+    const payload = await ingestionLedgerService.getRun(req.params.ingestionRunId);
+    if (!payload) {
+      res.status(404).json({ ok: false, error: 'Ingestion run not found.' });
+      return;
+    }
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
 async function listSources(req, res, next) {
   try {
     const payload = await ingestionStatusService.listIngestionSources();
@@ -455,4 +488,6 @@ module.exports = {
   saveCatalogueSource,
   saveCatalogueAsset,
   saveCatalogueMetric,
+  listIngestionRuns,
+  getIngestionRun,
 };

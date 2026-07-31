@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 6
+- **Revision:** 7
 - **Date:** 2026-07-31
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3.1 explainable freshness foundation locally proven; Phase 16.3.2 snapshot integration, policy administration, and non-macro freshness proof implemented pending local verification.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4.1 durable generic ingestion ledger foundation implemented and awaiting local database proof.
 
 ## Governing constraint
 
@@ -850,49 +850,34 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.3.2 — Snapshot Integration, Policy Administration, and Freshness Portability Proof**.
+The active implementation checkpoint is **Phase 16.4.1 — Durable Generic Ingestion Ledger Foundation**.
 
-Phase 16.3.1 is locally proven. The July 31, 2026 refresh produced 69/69 active snapshots with no load-behind-source, ingestion-failure, configuration-error, or no-data conditions. The explainable result split was 56 `CURRENT`, 10 `EXPECTED_PROVIDER_LAG`, and 3 `SOURCE_NOT_UPDATED`. The three investigation items were `CAD_GDP_MOM_GROWTH`, `CAD_REAL_GDP_MONTHLY`, and the long-discontinued-looking FRED `USSLIND` source series.
+Phase 16.3 is now accepted as complete. The explainable-freshness refresh produced 69/69 active snapshots, and the compatibility Data Intelligence surface now resolves 66 healthy/current records versus only 3 watch records. `EXPECTED_PROVIDER_LAG` remains healthy, while the three remaining `SOURCE_NOT_UPDATED` cases expose provider-side evidence rather than falsely blaming the loader.
 
-Phase 16.3.2 completes the integration by:
+Phase 16.4.1 establishes the durable relational authority beneath future retries and recovery without changing the production source runners yet. It delivers:
 
-1. routing the existing macro `/api/ingestion/status`, `/sources`, and `/indicators` compatibility contracts through `data.vw_asset_freshness` rather than per-indicator storage scans;
-2. retaining legacy `CURRENT` / `STALE` summary fields while exposing the precise `asset_freshness.v1` reason and policy evidence on every indicator row;
-3. adding managed source-level and asset-level freshness policy APIs with frequency defaults < source override < asset override precedence;
-4. making the Data Intelligence source filter catalogue-driven and surfacing reason, expected date, source-latest date, and policy origin in the selected indicator workspace;
-5. proving that a temporary non-macro domain/source/asset can be evaluated by the same freshness engine, first with a source policy and then with an asset override, with the entire fixture rolled back afterward.
-
-The local proof must confirm:
-
-- active macro legacy status counts reconcile exactly to persisted snapshot status counts;
-- the runtime status path no longer executes table-exists plus count/min/max queries for every indicator;
-- source and asset freshness policies can be administered without domain-specific code;
-- the non-macro proof asset returns a valid generic freshness result and demonstrates policy precedence;
-- rollback restores catalogue/freshness counts to baseline.
-
-After this proof, **Phase 16.3 is complete** and Phase 16.4 begins the durable generic ingestion ledger.
-
-For historical context, Phase 16.3.1 introduced the generic freshness seam beside the existing macro status surfaces:
-
-1. `data.freshness_status_codes` separates operational severity from explanatory reason;
-2. `data.freshness_reason_codes` defines portable reasons such as `EXPECTED_PROVIDER_LAG`, `SOURCE_NOT_UPDATED`, `LOAD_BEHIND_SOURCE`, and `INGESTION_FAILED`;
-3. `data.freshness_frequency_policies` models cadence as represented period + release lag + tolerance instead of raw observation age;
-4. `data.source_freshness_policies` provides source-level overrides while asset-level metadata retains highest precedence;
-5. `data.asset_freshness_snapshots` persists read-optimized evidence without replacing the durable run ledger planned for Phase 16.4;
-6. the refresh engine reads all configured storage relations in batched database queries rather than issuing a table-exists query and a stats query for every asset;
-7. existing structured ingestion output is used as compatibility source evidence for provider-latest dates and attempt/success timestamps;
-8. `asset_freshness.v1` endpoints expose portable freshness by domain, source, status, and reason;
-9. a Phase 16 audit report records expected date, source latest date, target latest date, last attempt, and the final reason code for every active discoverable asset.
+1. `data.ingestion_runs` as the durable run-level authority for domain, source, mode, trigger, capability snapshot, execution linkage, totals, timings, terminal state, and bounded diagnostics;
+2. `data.ingestion_run_items` as per-asset **attempt** evidence so retries append rows rather than overwriting the failure that caused them;
+3. explicit run-status, item-outcome, and normalized error-category catalogues;
+4. deferred PostgreSQL guardrails requiring run source/domain alignment, workflow-run/node alignment, and asset/source/domain alignment;
+5. optional linkage to `auth.script_execution_log`, SkyCommand workflow run/node records, and Temporal workflow/run identifiers;
+6. generic `data.vw_ingestion_runs` and `data.vw_ingestion_run_items` read models;
+7. a domain-neutral `ingestion_run_summary.v1` ToolResult contract plus a compatibility adapter from the existing `macro_ingestion_summary.v1`;
+8. generic read APIs at `/api/ingestion/runs` and `/api/ingestion/runs/:ingestionRunId`;
+9. a rollback-safe second-domain ledger proof containing successful, failed, and retried asset attempts in one run.
 
 The local proof must confirm:
 
-- all 69 active macro assets receive a persisted explainable freshness snapshot;
-- every active asset has a non-null reason code;
-- source-evidence dates are recovered from current ingestion executions where available;
-- legacy age-only `STALE` cases are separated into healthy expected-provider lag versus actual source/target/pipeline conditions;
-- no macro observations, analytical views, or existing APIs are rewritten by the freshness foundation.
+- a run can represent mixed successful and failed assets with a `PARTIAL` terminal state;
+- retries remain individually queryable as separate attempt rows;
+- the stateless service can reconstruct full evidence from PostgreSQL without process-memory state;
+- normalized error categories are preserved independently of provider-specific error text;
+- the same generic summary can represent a non-macro fixture;
+- all 73 existing macro assets and 69 active discoverable macro assets remain unchanged.
 
-Phase 16.3.2 implements the integration and portability proof described above; once locally proven, Phase 16.3 closes and the durable ingestion ledger becomes the next checkpoint.
+**Phase 16.4.2 — Production Ledger Integration** follows after this schema/service proof. That increment will wire FRED, Bank of Canada, Statistics Canada, and manual ingestion into the ledger while preserving `macro_ingestion_summary.v1` for Tool History and Workflow History during the transition. It will also attach real tool/workflow/Temporal execution identifiers and make freshness consume ledger evidence instead of compatibility extraction from historical ToolResult payloads.
+
+Phase 16.5 then converges source adapters, timeout, and retry behaviour on top of this ledger rather than mixing orchestration refactoring into the evidence-schema increment.
 
 ---
 
