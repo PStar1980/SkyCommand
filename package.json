@@ -93,7 +93,8 @@
     "phase16:ledger-integration:setup": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js setup",
     "phase16:ledger-integration:backfill": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js backfill",
     "phase16:ledger-integration:refresh": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js refresh",
-    "phase16:ledger-integration:verify": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js verify"
+    "phase16:ledger-integration:verify": "node packages/ingestion/src/ledger/phase16ProductionLedgerIntegration.js verify",
+    "phase16:ledger-workflow:verify": "node packages/ingestion/src/ledger/phase16WorkflowLedgerLinkage.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
