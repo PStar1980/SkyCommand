@@ -325,7 +325,6 @@ function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath, qua
   }
 
   if (rowCountPolicy.enabled && (minRows !== null || maxRows !== null)) {
-    sql.pop();
     const conditions = [];
     if (minRows !== null) conditions.push(`COUNT(*) < ${minRows}`);
     if (maxRows !== null) conditions.push(`COUNT(*) > ${maxRows}`);
