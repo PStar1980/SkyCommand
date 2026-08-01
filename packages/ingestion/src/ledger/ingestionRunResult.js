@@ -171,17 +171,81 @@ function fromMacroToolResult(toolResult = {}, options = {}) {
     startedAt: output.startedAt,
     completedAt: output.completedAt,
     durationMs: output.durationMs,
-    items: indicators.map((item) => ({
-      ...item,
-      assetCode: item.indicatorCode,
-      attemptNumber: 1,
-    })),
+    items: indicators.flatMap((item) => {
+      const attempts = Array.isArray(item.attempts) ? item.attempts : [];
+
+      if (attempts.length === 0) {
+        return [{
+          ...item,
+          assetCode: item.indicatorCode,
+          attemptNumber: 1,
+        }];
+      }
+
+      return attempts.map((attempt) => ({
+        ...item,
+        ...attempt,
+        assetCode: item.indicatorCode,
+        attemptNumber: attempt.attemptNumber || 1,
+        error: attempt.outcome === 'FAILED'
+          ? {
+              code: attempt.errorCode || item.error?.code || 'INGESTION_ATTEMPT_FAILED',
+              message: attempt.errorMessage || item.error?.message || 'Ingestion attempt failed.',
+            }
+          : null,
+      }));
+    }),
     error: toolResult.error || null,
     metadata: {
       legacyOutputType: toolResult.outputType || null,
       legacySchemaVersion: toolResult.schemaVersion || null,
       ...(options.metadata || {}),
     },
+  });
+}
+
+function fromMacroBatchResult(batchResult = {}, options = {}) {
+  const results = Array.isArray(batchResult.results) ? batchResult.results : [];
+  const items = results.flatMap((result) => {
+    const attempts = Array.isArray(result.attempts) ? result.attempts : [];
+
+    if (attempts.length === 0) {
+      return [{
+        ...result,
+        assetCode: result.indicatorCode || result.code,
+        attemptNumber: 1,
+      }];
+    }
+
+    return attempts.map((attempt) => ({
+      ...result,
+      ...attempt,
+      assetCode: result.indicatorCode || result.code,
+      attemptNumber: attempt.attemptNumber || 1,
+      error: attempt.outcome === 'FAILED'
+        ? {
+            code: attempt.errorCode || result.error?.code || 'INGESTION_ATTEMPT_FAILED',
+            message: attempt.errorMessage || result.error?.message || 'Ingestion attempt failed.',
+          }
+        : null,
+    }));
+  });
+
+  return normalizeRunSummary({
+    domainCode: options.domainCode || 'MACRO',
+    sourceCode: options.sourceCode || batchResult.source,
+    modeCode: batchResult.selectedIndicators ? 'SELECTED' : 'INCREMENTAL',
+    triggerCode: options.triggerCode || 'UNKNOWN',
+    selectedAssets: batchResult.selectedIndicators
+      ? results.map((item) => item.indicatorCode || item.code).filter(Boolean)
+      : [],
+    startedAt: batchResult.startedAt,
+    completedAt: batchResult.completedAt,
+    durationMs: batchResult.startedAt && batchResult.completedAt
+      ? Math.max(0, new Date(batchResult.completedAt).getTime() - new Date(batchResult.startedAt).getTime())
+      : 0,
+    items,
+    metadata: options.metadata || {},
   });
 }
 
@@ -218,6 +282,7 @@ module.exports = {
   classifyError,
   createIngestionRunToolResult,
   determineRunOutcome,
+  fromMacroBatchResult,
   fromMacroToolResult,
   normalizeItem,
   normalizeRunSummary,

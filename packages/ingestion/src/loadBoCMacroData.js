@@ -2,9 +2,8 @@ require('dotenv').config({
   path: require('path').join(__dirname, '../../../.env'),
 });
 
-const path = require('path');
 
-const { runPipeline } = require('./core/runPipeline');
+const { runSourceAdapter } = require('./core/sourceAdapter');
 const {
   getConcurrency,
   getRequestedIndicators,
@@ -12,21 +11,10 @@ const {
   printPipelineResult,
 } = require('./core/cliOptions');
 const { runMacroIngestionCli } = require('./core/macroIngestionCli');
-const { getIndicators } = require('./sources/indicators');
-const { downloadBoCCSV } = require('./sources/boc');
-const { normalizeBoCCSV } = require('./transform/csvNormalizer');
-const { copyIntoTable } = require('./loaders/copyLoader');
-
-const tempDir = path.join(__dirname, 'tmp', 'boc-batch');
+const bocAdapter = require('./adapters/bocAdapter');
 
 async function executeBoCIngestion(args = process.argv.slice(2)) {
-  return runPipeline({
-    name: 'BoC',
-    getIndicators: () => getIndicators('BOC'),
-    download: downloadBoCCSV,
-    normalize: normalizeBoCCSV,
-    load: copyIntoTable,
-    tempDir,
+  return runSourceAdapter(bocAdapter, {
     indicators: getRequestedIndicators(args),
     concurrency: getConcurrency(args, 'BOC_INGESTION_CONCURRENCY', 3),
     runId: getRunId(args, 'BOC_INGESTION_RUN_ID', 'boc-tool'),

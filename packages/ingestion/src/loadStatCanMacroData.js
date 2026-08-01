@@ -2,9 +2,8 @@ require('dotenv').config({
   path: require('path').join(__dirname, '../../../.env'),
 });
 
-const path = require('path');
 
-const { runPipeline } = require('./core/runPipeline');
+const { runSourceAdapter } = require('./core/sourceAdapter');
 const {
   getConcurrency,
   getRequestedIndicators,
@@ -12,22 +11,12 @@ const {
   printPipelineResult,
 } = require('./core/cliOptions');
 const { runMacroIngestionCli } = require('./core/macroIngestionCli');
-const { getIndicators } = require('./sources/indicators');
-const { downloadStatCanVectorCSV } = require('./sources/statcan');
-const { copyIntoTable } = require('./loaders/copyLoader');
-
-const tempDir = path.join(__dirname, 'tmp', 'statcan-batch');
+const statcanAdapter = require('./adapters/statcanAdapter');
 const STATCAN_DEFAULT_CONCURRENCY = 2;
 const STATCAN_MAX_CONCURRENCY = 3;
 
 async function executeStatCanIngestion(args = process.argv.slice(2)) {
-  return runPipeline({
-    name: 'StatCan',
-    getIndicators: () => getIndicators('STATCAN'),
-    download: downloadStatCanVectorCSV,
-    normalize: null,
-    load: copyIntoTable,
-    tempDir,
+  return runSourceAdapter(statcanAdapter, {
     indicators: getRequestedIndicators(args),
     concurrency: getConcurrency(
       args,

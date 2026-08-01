@@ -333,7 +333,8 @@ SkyServer/
 │   │       │   ├── 00077__portable_asset_metric_catalogue.sql
 │   │       │   ├── 00079__portable_catalogue_administration.sql
 │   │       │   ├── 00080__explainable_freshness_foundation.sql
-│   │       │   └── 00082__generic_ingestion_ledger.sql
+│   │       │   ├── 00082__generic_ingestion_ledger.sql
+│   │       │   └── 00084__source_request_retry_policies.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -372,7 +373,8 @@ SkyServer/
 │   │           ├── 00075__portable_ingestion_identity_seed.sql
 │   │           ├── 00078__portable_asset_metric_catalogue_seed.sql
 │   │           ├── 00081__explainable_freshness_foundation_seed.sql
-│   │           └── 00083__generic_ingestion_ledger_seed.sql
+│   │           ├── 00083__generic_ingestion_ledger_seed.sql
+│   │           └── 00085__source_request_retry_policies_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -402,6 +404,11 @@ SkyServer/
 │   │       ├── loadFREDMacroData.js
 │   │       ├── loadManualData.js
 │   │       ├── loadStatCanMacroData.js
+│   │       ├── adapters/
+│   │       │   ├── bocAdapter.js
+│   │       │   ├── fredAdapter.js
+│   │       │   ├── manualAdapter.js
+│   │       │   └── statcanAdapter.js
 │   │       ├── audit/
 │   │       │   └── phase16BaselineAudit.js
 │   │       ├── catalogue/
@@ -425,11 +432,17 @@ SkyServer/
 │   │       │   └── statcanVectors.js
 │   │       ├── core/
 │   │       │   ├── cliOptions.js
+│   │       │   ├── httpSourceClient.js
 │   │       │   ├── macroIngestionCli.js
 │   │       │   ├── macroIngestionCliSelfTest.js
 │   │       │   ├── macroIngestionResult.js
 │   │       │   ├── macroIngestionResultSelfTest.js
-│   │       │   └── runPipeline.js
+│   │       │   ├── phase16AdapterRetryFramework.js
+│   │       │   ├── retryExecutor.js
+│   │       │   ├── runPipeline.js
+│   │       │   ├── sourceAdapter.js
+│   │       │   ├── sourceAdapterRetrySelfTest.js
+│   │       │   └── sourceRequestPolicy.js
 │   │       ├── discovery/
 │   │       │   ├── discoverStatCanMetadata.js
 │   │       │   └── resolveStatCanVectors.js

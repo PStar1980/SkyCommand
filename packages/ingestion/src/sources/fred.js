@@ -1,31 +1,23 @@
-const axios = require('axios');
-const fs = require('fs');
 const path = require('path');
 
-const FRED_DOWNLOAD_TIMEOUT_MS = 100000;
+const { downloadToFileWithSourcePolicy } = require('../core/httpSourceClient');
 
-const downloadFredCSV = async (seriesId, outputDir) => {
+const downloadFredCSV = async (seriesId, outputDir, options = {}) => {
   const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
-  const filePath = path.join(outputDir, `${seriesId}.csv`);
 
-  console.log(`🌐 Downloading ${seriesId}...`);
+  console.log(`🌐 Downloading FRED ${seriesId}...`);
 
-  const response = await axios({
+  return downloadToFileWithSourcePolicy({
+    sourceCode: 'FRED',
+    domainCode: 'MACRO',
+    assetCode: seriesId,
     url,
-    method: 'GET',
-    responseType: 'stream',
-    timeout: FRED_DOWNLOAD_TIMEOUT_MS,
-  });
-
-  const writer = fs.createWriteStream(filePath);
-  response.data.pipe(writer);
-
-  return new Promise((resolve, reject) => {
-    writer.on('finish', () => {
-      console.log(`💾 Saved ${filePath}`);
-      resolve(filePath);
-    });
-    writer.on('error', reject);
+    outputDir,
+    fileName: `${path.basename(seriesId)}.csv`,
+    policy: options.requestPolicy,
+    query: options.query,
+    axiosInstance: options.axiosInstance,
+    retryOptions: options.retryOptions,
   });
 };
 
