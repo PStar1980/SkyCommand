@@ -13,6 +13,10 @@ function encode(value) {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
 }
 
+function encodeWithPostgresLineWrap(value) {
+  return encode(value).match(/.{1,76}/g).join('\n');
+}
+
 function main() {
   const revisions = [{
     observationKey: '2026-01-01',
@@ -53,9 +57,9 @@ function main() {
     'quality_issue_count=2',
     'quality_status=WARN',
     'target_max=2026-03-01',
-    `revision_events_b64=${encode(revisions)}`,
-    `rejection_events_b64=${encode(rejections)}`,
-    `quality_issues_b64=${encode(issues)}`,
+    `revision_events_b64=${encodeWithPostgresLineWrap(revisions)}`,
+    `rejection_events_b64=${encodeWithPostgresLineWrap(rejections)}`,
+    `quality_issues_b64=${encodeWithPostgresLineWrap(issues)}`,
   ].join('\n');
 
   const parsed = parseCopyOutput(output);
@@ -101,6 +105,8 @@ function main() {
   assert(sql.includes('INVALID_NUMERIC'));
   assert(sql.includes('DUPLICATE_KEY'));
   assert(sql.includes('revision_events_b64'));
+  assert(sql.includes("replace(replace(encode(convert_to("));
+  assert(sql.includes("chr(10), ''"));
   assert.strictEqual(quoteRelationName('proof.asset_a'), '"proof"."asset_a"');
 
   const failure = createQualityFailure({
