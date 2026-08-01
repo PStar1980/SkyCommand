@@ -45,7 +45,7 @@ async function verify(pool) {
       )::int AS recovery_parameters
     FROM data.ingestion_tool_profiles profile
     JOIN core.tools tool ON tool.tool_id = profile.tool_id
-    JOIN data.domains domain ON domain.domain_id = profile.domain_id
+    JOIN data.domains domain ON domain.domain_id = profile.data_domain_id
     JOIN data.sources source ON source.source_id = profile.source_id
     LEFT JOIN core.tool_parameters parameter ON parameter.tool_id = tool.tool_id
     WHERE tool.tool_code IN ('ingestion_fred', 'ingestion_boc', 'ingestion_statcan')
