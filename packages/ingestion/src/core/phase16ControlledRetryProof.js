@@ -164,6 +164,7 @@ function createProofAdapter({ domainCode, sourceCode, root, axiosInstance, waits
     domainCode,
     sourceCode,
     adapterCode: 'CONTROLLED_RETRY_PROOF',
+    resultContractVersion: 'ingestion_run_summary.v1',
     name: 'ControlledRetryProof',
     getAssets: async () => ['RETRY_SUCCESS', 'AUTH_FAILURE'],
     fetch: (code, outputDir, item, context = {}) => downloadToFileWithSourcePolicy({
@@ -205,6 +206,14 @@ function createProofAdapter({ domainCode, sourceCode, root, axiosInstance, waits
     tempDir: root,
     defaultConcurrency: 1,
     maxConcurrency: 1,
+    capabilities: {
+      incremental: false,
+      selectedAssets: true,
+      backfill: false,
+      revisions: false,
+      resume: false,
+      dryRun: false,
+    },
     requestPolicyRequired: true,
     metadata: { proof: true, phase: '16.5.2' },
   });

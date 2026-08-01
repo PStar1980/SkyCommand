@@ -17,13 +17,6 @@ function getDb() {
   return db;
 }
 
-const SOURCE_TOOL_CODES = {
-  FRED: 'ingestion_fred',
-  BOC: 'ingestion_boc',
-  STATCAN: 'ingestion_statcan',
-  MANUAL: 'ingestion_manual',
-};
-
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizeText(value) {
@@ -35,6 +28,16 @@ function normalizeText(value) {
 function normalizeCode(value) {
   const text = normalizeText(value);
   return text ? text.toUpperCase() : null;
+}
+
+function requireToolCode(value, sourceCode) {
+  const toolCode = normalizeText(value);
+  if (!toolCode) {
+    throw new Error(
+      `Ingestion ledger persistence for ${normalizeCode(sourceCode) || '(unknown source)'} requires an explicit toolCode from the ingestion profile boundary.`,
+    );
+  }
+  return toolCode;
 }
 
 function normalizeUuid(value) {
@@ -193,7 +196,7 @@ async function persistMacroToolResult({
   options = {},
 } = {}) {
   const normalizedSourceCode = normalizeCode(sourceCode);
-  const normalizedToolCode = normalizeText(toolCode) || SOURCE_TOOL_CODES[normalizedSourceCode];
+  const normalizedToolCode = requireToolCode(toolCode, normalizedSourceCode);
   const executionContext = await resolveExecutionContext(executionId, options);
   const existing = await getExistingRunForExecution(executionContext.scriptExecutionId, options);
 
@@ -242,7 +245,7 @@ async function persistMacroBatchResult({
   options = {},
 } = {}) {
   const normalizedSourceCode = normalizeCode(sourceCode);
-  const normalizedToolCode = normalizeText(toolCode) || SOURCE_TOOL_CODES[normalizedSourceCode];
+  const normalizedToolCode = requireToolCode(toolCode, normalizedSourceCode);
   const executionContext = await resolveExecutionContext(executionId, options);
   const existing = await getExistingRunForExecution(executionContext.scriptExecutionId, options);
 
@@ -306,6 +309,7 @@ function mapManualTotals(batchResult = {}) {
 
 async function persistManualBatchResult({
   batchResult,
+  toolCode,
   executionId = process.env.SKYCOMMAND_EXECUTION_ID,
   options = {},
 } = {}) {
@@ -343,7 +347,7 @@ async function persistManualBatchResult({
   const detail = await persistRunSummary(
     summary,
     {
-      toolCode: SOURCE_TOOL_CODES.MANUAL,
+      toolCode: requireToolCode(toolCode, 'MANUAL'),
       scriptExecutionId: executionContext.scriptExecutionId,
       workflowRunRecordId: executionContext.workflowRunRecordId,
       workflowNodeRunRecordId: executionContext.workflowNodeRunRecordId,
@@ -435,13 +439,13 @@ async function persistManualBatchResultSafely(input = {}, logger = console.error
 }
 
 module.exports = {
-  SOURCE_TOOL_CODES,
   buildLedgerReference,
   buildLedgerWarning,
   determineTriggerCode,
   getExistingRunForExecution,
   mapManualTotals,
   normalizeUuid,
+  requireToolCode,
   persistMacroBatchResult,
   persistMacroToolResult,
   persistMacroBatchResultSafely,

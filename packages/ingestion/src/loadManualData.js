@@ -12,7 +12,10 @@ async function executeManualIngestion() {
     cleanupQuiet: true,
   });
 
-  const ledger = await persistManualBatchResultSafely({ batchResult: result });
+  const ledger = await persistManualBatchResultSafely({
+    batchResult: result,
+    toolCode: 'ingestion_manual',
+  });
   return {
     ...result,
     ledger,

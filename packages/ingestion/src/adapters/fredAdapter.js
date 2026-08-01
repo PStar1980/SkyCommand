@@ -10,6 +10,7 @@ module.exports = defineSourceAdapter({
   domainCode: 'MACRO',
   sourceCode: 'FRED',
   adapterCode: 'FRED',
+  resultContractVersion: 'macro_ingestion_summary.v1',
   name: 'FRED',
   getAssets: () => getIndicators('FRED'),
   fetch: (code, tempDir, item, context = {}) => downloadFredCSV(code, tempDir, {
@@ -20,5 +21,13 @@ module.exports = defineSourceAdapter({
   tempDir: path.join(__dirname, '..', 'tmp', 'fred-batch'),
   defaultConcurrency: 3,
   maxConcurrency: 10,
+  capabilities: {
+    incremental: true,
+    selectedAssets: true,
+    backfill: false,
+    revisions: false,
+    resume: false,
+    dryRun: false,
+  },
   requestPolicyRequired: true,
 });

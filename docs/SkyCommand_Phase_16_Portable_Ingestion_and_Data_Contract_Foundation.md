@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 11
+- **Revision:** 12
 - **Date:** 2026-07-31
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5.1 is complete and live-proven across FRED, Bank of Canada, and Statistics Canada; Phase 16.5.2 controlled retry and terminal-failure proof is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5.1 is complete and live-proven across FRED, Bank of Canada, and Statistics Canada; Phase 16.5.2 is complete with deterministic retry, timeout, successful-recovery, and terminal-authentication evidence; Phase 16.5.3 adapter-registry and onboarding-contract closure is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,31 +850,30 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.5.2 — Controlled Retry and Terminal-Failure Proof**.
+The active implementation checkpoint is **Phase 16.5.3 — Adapter Registry and Onboarding Contract Closure**.
 
-Phase 16.4 is accepted as complete. A live `macro-refresh-pipeline` workflow produced durable ingestion runs whose PostgreSQL evidence reconciled all the way from Temporal workflow/run identifiers through SkyCommand workflow and node records, the real tool execution, the generic ingestion run, and per-asset attempt rows. Freshness remains ledger-backed, and only one currently stale macro asset (`USSLIND`) remains after the latest production refresh.
+Phase 16.5.2 is accepted as complete. The controlled proof produced the intended mixed result: one asset recovered through `HTTP 503 → ETIMEDOUT → success`, while a second asset terminated after one `HTTP 401 → AUTH` attempt. The run correctly resolved to `PARTIAL` with two requested assets, one success, one failure, four durable attempts, two retries, deterministic waits, and clean rollback. The visible failure is expected evidence—not a failed test.
 
-Phase 16.5.1 is also accepted as complete. The common adapter framework passed focused policy and deterministic retry tests, and selected live executions for FRED (`DFF`), Bank of Canada (`FXUSDCAD`), and Statistics Canada (`CAD_CPI_ALL_ITEMS`) completed successfully through the shared runner while preserving current Tool History, structured-output, ledger, and freshness behaviour.
+Phase 16.5.3 closes the remaining common-adapter portability seams:
 
-Phase 16.5.2 now proves the failure paths that healthy providers did not naturally produce during the live smoke tests:
+1. automatically discover runtime adapter modules rather than maintaining a source-name registry;
+2. require every adapter to declare `source_adapter.v1`, its result contract, capabilities, domain, and source;
+3. verify every discoverable `INGESTION` profile resolves to exactly one runtime adapter;
+4. verify profile and runtime definitions agree on domain, source, output contract, and all capability flags;
+5. require PostgreSQL request-policy evidence only for adapters that declare an HTTP/request policy requirement;
+6. remove the remaining source-to-tool maps from the macro compatibility CLI and ledger backfill path by carrying explicit tool identity or joining catalogue profiles;
+7. keep the FRED compatibility facade narrow while all production execution continues through the common runner;
+8. prove a temporary non-macro adapter can be added through one adapter module plus catalogue metadata, execute through the common runner, and roll back without editing the runner or a central source list.
 
-1. create a temporary non-macro HTTP source, two portable assets, and a PostgreSQL-authoritative request policy inside one rollback-safe transaction;
-2. execute both assets through the same `defineSourceAdapter` / `runSourceAdapter` path used by production sources;
-3. force one asset through `HTTP 503 → ETIMEDOUT → success` using deterministic backoff;
-4. force a second asset through terminal `HTTP 401 → AUTH` classification with no retry;
-5. map the common adapter result through the domain-neutral `fromAdapterBatchResult` contract seam;
-6. persist a `PARTIAL` generic ingestion run with four separate `data.ingestion_run_items` rows and two retries;
-7. preserve retry wait, `Retry-After`, and retry-decision evidence in bounded item diagnostics;
-8. verify `ingestion_run_summary.v1` represents the mixed result without source-specific fields;
-9. roll back all proof catalogue, policy, ledger, and asset metadata.
-
-There is no database migration for this checkpoint. The focused proof command is:
+Focused commands:
 
 ```text
-npm run phase16:adapter-retry:proof
+npm run phase16:adapter-registry:self-test
+npm run phase16:adapter-onboarding:verify
+npm run phase16:adapter-onboarding:proof
 ```
 
-After this proof passes, the final Phase 16.5 cleanup will remove or narrow any remaining compatibility-only source seams, verify source onboarding against the common adapter contract, and formally close the common adapter/retry framework before Phase 16.6 begins revision-aware loading and portable quality contracts.
+After these proofs pass, Phase 16.5 is formally complete and Phase 16.6 begins revision-aware loading and portable quality contracts.
 
 ---
 

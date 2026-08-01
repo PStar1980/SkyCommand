@@ -3,10 +3,7 @@ require('dotenv').config({
 });
 
 const { refreshFreshnessSnapshots } = require('../freshness/freshnessService');
-const {
-  SOURCE_TOOL_CODES,
-  persistMacroToolResultSafely,
-} = require('./ingestionLedgerIntegration');
+const { persistMacroToolResultSafely } = require('./ingestionLedgerIntegration');
 
 let db = null;
 
@@ -15,11 +12,6 @@ function getDb() {
   return db;
 }
 
-const MACRO_TOOL_SOURCES = {
-  [SOURCE_TOOL_CODES.FRED]: 'FRED',
-  [SOURCE_TOOL_CODES.BOC]: 'BOC',
-  [SOURCE_TOOL_CODES.STATCAN]: 'STATCAN',
-};
 
 function parsePositiveInteger(value, fallback = 500, max = 5000) {
   const parsed = Number.parseInt(value, 10);
@@ -28,16 +20,25 @@ function parsePositiveInteger(value, fallback = 500, max = 5000) {
 
 async function loadBackfillCandidates(limit = 500, options = {}) {
   const query = options.query || getDb().query;
-  const toolCodes = Object.keys(MACRO_TOOL_SOURCES);
   const result = await query(
     `
       SELECT
         execution.execution_id,
         execution.script_name AS tool_code,
-        execution.metadata
+        execution.metadata,
+        source.source_code
       FROM auth.script_execution_log execution
-      WHERE execution.script_name = ANY($1::text[])
-        AND execution.metadata ? 'toolResult'
+      JOIN core.tools tool
+        ON tool.tool_code = execution.script_name
+      JOIN data.ingestion_tool_profiles profile
+        ON profile.tool_id = tool.tool_id
+       AND profile.active = TRUE
+      JOIN data.domains domain
+        ON domain.domain_id = profile.data_domain_id
+       AND domain.domain_code = 'MACRO'
+      JOIN data.sources source
+        ON source.source_id = profile.source_id
+      WHERE execution.metadata ? 'toolResult'
         AND execution.metadata->'toolResult'->>'outputType' = 'macro_ingestion_summary.v1'
         AND NOT EXISTS (
           SELECT 1
@@ -45,9 +46,9 @@ async function loadBackfillCandidates(limit = 500, options = {}) {
           WHERE run.script_execution_id = execution.execution_id
         )
       ORDER BY execution.started_at DESC
-      LIMIT $2
+      LIMIT $1
     `,
-    [toolCodes, parsePositiveInteger(limit)],
+    [parsePositiveInteger(limit)],
   );
 
   return result.rows;
@@ -60,7 +61,7 @@ async function backfillLegacyMacroRuns(options = {}) {
   const warnings = [];
 
   for (const row of rows) {
-    const sourceCode = MACRO_TOOL_SOURCES[row.tool_code];
+    const sourceCode = row.source_code;
     const toolResult = row.metadata?.toolResult;
     if (!sourceCode || !toolResult) {
       skipped += 1;
@@ -101,12 +102,11 @@ async function verify(options = {}) {
   const query = options.query || getDb().query;
   const [profileResult, ledgerResult, missingResult, freshnessResult, duplicateResult] = await Promise.all([
     query(`
-      SELECT tool.tool_code, source.source_code, profile.contract_version
-      FROM data.ingestion_tool_profiles profile
-      JOIN core.tools tool ON tool.tool_id = profile.tool_id
-      JOIN data.sources source ON source.source_id = profile.source_id
-      WHERE tool.tool_code IN ('ingestion_fred','ingestion_boc','ingestion_statcan','ingestion_manual')
-      ORDER BY tool.tool_code
+      SELECT tool_code, source_code, contract_version
+      FROM data.vw_ingestion_tools
+      WHERE domain_code = 'MACRO'
+        AND discoverable = TRUE
+      ORDER BY tool_code
     `),
     query(`
       SELECT
@@ -123,8 +123,15 @@ async function verify(options = {}) {
     query(`
       SELECT COUNT(*)::int AS total
       FROM auth.script_execution_log execution
-      WHERE execution.script_name IN ('ingestion_fred','ingestion_boc','ingestion_statcan')
-        AND execution.metadata ? 'toolResult'
+      JOIN core.tools tool
+        ON tool.tool_code = execution.script_name
+      JOIN data.ingestion_tool_profiles profile
+        ON profile.tool_id = tool.tool_id
+       AND profile.active = TRUE
+      JOIN data.domains domain
+        ON domain.domain_id = profile.data_domain_id
+       AND domain.domain_code = 'MACRO'
+      WHERE execution.metadata ? 'toolResult'
         AND execution.metadata->'toolResult'->>'outputType' = 'macro_ingestion_summary.v1'
         AND NOT EXISTS (
           SELECT 1 FROM data.ingestion_runs run
@@ -159,8 +166,8 @@ async function verify(options = {}) {
   const duplicateExecutions = Number(duplicateResult.rows[0]?.duplicates || 0);
   const freshness = freshnessResult.rows[0] || {};
 
-  if (profiles.length !== 4) {
-    throw new Error(`Expected 4 production ingestion profiles; found ${profiles.length}.`);
+  if (profiles.length < 4) {
+    throw new Error(`Expected at least the 4 baseline production ingestion profiles; found ${profiles.length}.`);
   }
   if (missingBackfill !== 0) {
     throw new Error(`${missingBackfill} structured macro execution(s) are still missing ledger rows.`);

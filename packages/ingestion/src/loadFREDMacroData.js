@@ -36,6 +36,7 @@ async function executeFredIngestion(args = process.argv.slice(2)) {
 function main(args = process.argv.slice(2), options = {}) {
   return runMacroIngestionCli({
     sourceCode: 'FRED',
+    toolCode: 'ingestion_fred',
     args,
     execute: options.execute || executeFredIngestion,
     printResult: options.printResult || printPipelineResult,

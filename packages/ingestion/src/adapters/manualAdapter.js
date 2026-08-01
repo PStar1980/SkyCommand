@@ -8,6 +8,7 @@ module.exports = defineSourceAdapter({
   domainCode: 'MACRO',
   sourceCode: 'MANUAL',
   adapterCode: 'MANUAL_FILE',
+  resultContractVersion: 'legacy_unstructured.v1',
   name: 'Manual',
   getAssets: getManualJobs,
   fetch: buildManualCSV,
@@ -17,5 +18,13 @@ module.exports = defineSourceAdapter({
   tempDir: path.join(__dirname, '..', 'tmp'),
   defaultConcurrency: 1,
   maxConcurrency: 1,
+  capabilities: {
+    incremental: false,
+    selectedAssets: false,
+    backfill: false,
+    revisions: false,
+    resume: false,
+    dryRun: false,
+  },
   requestPolicyRequired: false,
 });

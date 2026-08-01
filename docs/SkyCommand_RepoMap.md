@@ -437,11 +437,14 @@ SkyServer/
 │   │       │   ├── macroIngestionCliSelfTest.js
 │   │       │   ├── macroIngestionResult.js
 │   │       │   ├── macroIngestionResultSelfTest.js
+│   │       │   ├── phase16AdapterOnboardingClosure.js
 │   │       │   ├── phase16AdapterRetryFramework.js
 │   │       │   ├── phase16ControlledRetryProof.js
 │   │       │   ├── retryExecutor.js
 │   │       │   ├── runPipeline.js
 │   │       │   ├── sourceAdapter.js
+│   │       │   ├── sourceAdapterRegistry.js
+│   │       │   ├── sourceAdapterRegistrySelfTest.js
 │   │       │   ├── sourceAdapterRetrySelfTest.js
 │   │       │   └── sourceRequestPolicy.js
 │   │       ├── discovery/

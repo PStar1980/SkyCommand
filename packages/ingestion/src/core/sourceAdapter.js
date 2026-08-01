@@ -1,6 +1,16 @@
 const { getSourceRequestPolicy } = require('./sourceRequestPolicy');
 const { runPipeline, runPipelineItem } = require('./runPipeline');
 
+const SOURCE_ADAPTER_CONTRACT_VERSION = 'source_adapter.v1';
+const CAPABILITY_KEYS = [
+  'incremental',
+  'selectedAssets',
+  'backfill',
+  'revisions',
+  'resume',
+  'dryRun',
+];
+
 function requiredFunction(value, name) {
   if (typeof value !== 'function') throw new TypeError(`Source adapter requires ${name}().`);
   return value;
@@ -13,8 +23,71 @@ function normalizeCode(value, label) {
   return code;
 }
 
+function normalizeContractVersion(value, label = 'resultContractVersion') {
+  const contractVersion = String(value || '').trim();
+  if (!contractVersion) throw new Error(`${label} is required.`);
+  if (!/^[a-z][a-z0-9_.-]*\.v[1-9][0-9]*$/i.test(contractVersion)) {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
+  return contractVersion;
+}
+
+function normalizeCapabilities(value = {}) {
+  return Object.freeze(CAPABILITY_KEYS.reduce((result, key) => {
+    result[key] = Boolean(value[key]);
+    return result;
+  }, {}));
+}
+
+function validateSourceAdapter(adapter = {}) {
+  if (!adapter || typeof adapter !== 'object') {
+    throw new TypeError('Source adapter must be an object.');
+  }
+
+  normalizeCode(adapter.sourceCode, 'sourceCode');
+  normalizeCode(adapter.adapterCode, 'adapterCode');
+  normalizeCode(adapter.domainCode, 'domainCode');
+  normalizeContractVersion(adapter.resultContractVersion);
+
+  if (adapter.contractVersion !== SOURCE_ADAPTER_CONTRACT_VERSION) {
+    throw new Error(
+      `Source adapter ${adapter.adapterCode || '(unknown)'} must declare ${SOURCE_ADAPTER_CONTRACT_VERSION}.`,
+    );
+  }
+  if (!String(adapter.name || '').trim()) throw new Error('Source adapter name is required.');
+
+  requiredFunction(adapter.getAssets, 'getAssets');
+  requiredFunction(adapter.fetch, 'fetch');
+  requiredFunction(adapter.load, 'load');
+  if (adapter.normalize !== null && typeof adapter.normalize !== 'function') {
+    throw new TypeError('Source adapter normalize must be a function or null.');
+  }
+  if (adapter.getCode !== null && typeof adapter.getCode !== 'function') {
+    throw new TypeError('Source adapter getCode must be a function or null.');
+  }
+
+  if (!Number.isFinite(adapter.defaultConcurrency) || adapter.defaultConcurrency < 1) {
+    throw new Error('Source adapter defaultConcurrency must be a positive number.');
+  }
+  if (!Number.isFinite(adapter.maxConcurrency) || adapter.maxConcurrency < adapter.defaultConcurrency) {
+    throw new Error('Source adapter maxConcurrency must be greater than or equal to defaultConcurrency.');
+  }
+
+  for (const key of CAPABILITY_KEYS) {
+    if (typeof adapter.capabilities?.[key] !== 'boolean') {
+      throw new Error(`Source adapter capability ${key} must be boolean.`);
+    }
+  }
+
+  return adapter;
+}
+
 function defineSourceAdapter(definition = {}) {
   const adapter = {
+    contractVersion: SOURCE_ADAPTER_CONTRACT_VERSION,
+    resultContractVersion: normalizeContractVersion(
+      definition.resultContractVersion || definition.contractVersion,
+    ),
     sourceCode: normalizeCode(definition.sourceCode, 'sourceCode'),
     adapterCode: normalizeCode(definition.adapterCode || definition.sourceCode, 'adapterCode'),
     domainCode: normalizeCode(definition.domainCode || 'MACRO', 'domainCode'),
@@ -28,12 +101,13 @@ function defineSourceAdapter(definition = {}) {
     defaultConcurrency: Number(definition.defaultConcurrency || 1),
     maxConcurrency: Number(definition.maxConcurrency || 10),
     requestPolicyRequired: definition.requestPolicyRequired !== false,
-    metadata: definition.metadata && typeof definition.metadata === 'object'
+    capabilities: normalizeCapabilities(definition.capabilities),
+    metadata: Object.freeze(definition.metadata && typeof definition.metadata === 'object'
       ? { ...definition.metadata }
-      : {},
+      : {}),
   };
 
-  if (!adapter.name) throw new Error('Source adapter name is required.');
+  validateSourceAdapter(adapter);
   return Object.freeze(adapter);
 }
 
@@ -57,6 +131,7 @@ function createAdapterCallbacks(adapter, requestPolicy) {
 }
 
 async function runSourceAdapter(adapter, options = {}) {
+  validateSourceAdapter(adapter);
   const requestPolicy = await resolveAdapterPolicy(adapter, options);
   const callbacks = createAdapterCallbacks(adapter, requestPolicy);
 
@@ -78,6 +153,7 @@ async function runSourceAdapter(adapter, options = {}) {
 }
 
 async function runSourceAdapterItem(adapter, item, options = {}) {
+  validateSourceAdapter(adapter);
   const requestPolicy = await resolveAdapterPolicy(adapter, options);
   const callbacks = createAdapterCallbacks(adapter, requestPolicy);
 
@@ -95,7 +171,11 @@ async function runSourceAdapterItem(adapter, item, options = {}) {
 }
 
 module.exports = {
+  CAPABILITY_KEYS,
+  SOURCE_ADAPTER_CONTRACT_VERSION,
   defineSourceAdapter,
+  normalizeCapabilities,
   runSourceAdapter,
   runSourceAdapterItem,
+  validateSourceAdapter,
 };
