@@ -4,7 +4,9 @@ const { defineSourceAdapter } = require('../core/sourceAdapter');
 const { getIndicators } = require('../sources/indicators');
 const { downloadFredCSV } = require('../sources/fred');
 const { normalizeFredCSV } = require('../transform/csvNormalizer');
-const { copyIntoTable } = require('../loaders/copyLoader');
+const { createQualityAwareTimeSeriesLoader } = require('../loaders/qualityAwareTimeSeriesLoader');
+
+const loadTimeSeries = createQualityAwareTimeSeriesLoader({ domainCode: 'MACRO', sourceCode: 'FRED' });
 
 module.exports = defineSourceAdapter({
   domainCode: 'MACRO',
@@ -17,7 +19,7 @@ module.exports = defineSourceAdapter({
     requestPolicy: context.requestPolicy,
   }),
   normalize: normalizeFredCSV,
-  load: copyIntoTable,
+  load: loadTimeSeries,
   tempDir: path.join(__dirname, '..', 'tmp', 'fred-batch'),
   defaultConcurrency: 3,
   maxConcurrency: 10,

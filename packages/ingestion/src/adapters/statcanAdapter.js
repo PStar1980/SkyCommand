@@ -3,7 +3,9 @@ const path = require('path');
 const { defineSourceAdapter } = require('../core/sourceAdapter');
 const { getIndicators } = require('../sources/indicators');
 const { downloadStatCanVectorCSV } = require('../sources/statcan');
-const { copyIntoTable } = require('../loaders/copyLoader');
+const { createQualityAwareTimeSeriesLoader } = require('../loaders/qualityAwareTimeSeriesLoader');
+
+const loadTimeSeries = createQualityAwareTimeSeriesLoader({ domainCode: 'MACRO', sourceCode: 'STATCAN' });
 
 module.exports = defineSourceAdapter({
   domainCode: 'MACRO',
@@ -16,7 +18,7 @@ module.exports = defineSourceAdapter({
     requestPolicy: context.requestPolicy,
   }),
   normalize: null,
-  load: copyIntoTable,
+  load: loadTimeSeries,
   tempDir: path.join(__dirname, '..', 'tmp', 'statcan-batch'),
   defaultConcurrency: 2,
   maxConcurrency: 3,
