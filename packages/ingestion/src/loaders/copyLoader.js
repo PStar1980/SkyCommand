@@ -47,14 +47,65 @@ const getPsqlArgs = (sqlFile) => {
   ];
 };
 
+const EVIDENCE_METRIC_KEYS = new Set([
+  'revision_events_b64',
+  'rejection_events_b64',
+  'quality_issues_b64',
+]);
+
+const BASE64_CONTINUATION_PATTERN = /^[A-Za-z0-9+/=]+$/;
+
 const getCleanOutputLines = (output) => String(output || '')
   .split(/\r?\n/)
   .map((line) => line.trim())
   .filter(Boolean);
 
-const printCleanOutput = (output) => {
+function collectOutputMetrics(output) {
+  const metrics = new Map();
+  let activeEvidenceKey = null;
+
   getCleanOutputLines(output).forEach((line) => {
-    if (!/_b64=/.test(line)) console.log(line);
+    // Check continuation before the generic key=value parser. A final base64
+    // fragment may end in '=' padding and otherwise look like a metric line.
+    if (activeEvidenceKey && BASE64_CONTINUATION_PATTERN.test(line)) {
+      metrics.set(activeEvidenceKey, `${metrics.get(activeEvidenceKey) || ''}${line}`);
+      return;
+    }
+
+    const match = line.match(/^([a-z0-9_]+)=(.*)$/i);
+
+    if (match) {
+      const key = match[1].toLowerCase();
+      metrics.set(key, match[2].trim());
+      activeEvidenceKey = EVIDENCE_METRIC_KEYS.has(key) ? key : null;
+      return;
+    }
+
+    // PostgreSQL encode(..., 'base64') may wrap output at RFC 2045 line widths.
+    // Preserve those continuation lines so evidence remains decodable even when
+    // an older/generated SQL statement does not strip the line breaks itself.
+    activeEvidenceKey = null;
+  });
+
+  return metrics;
+}
+
+const printCleanOutput = (output) => {
+  let suppressEvidenceContinuation = false;
+
+  getCleanOutputLines(output).forEach((line) => {
+    if (suppressEvidenceContinuation && BASE64_CONTINUATION_PATTERN.test(line)) return;
+
+    const match = line.match(/^([a-z0-9_]+)=(.*)$/i);
+    if (match) {
+      const key = match[1].toLowerCase();
+      suppressEvidenceContinuation = EVIDENCE_METRIC_KEYS.has(key);
+      if (!suppressEvidenceContinuation) console.log(line);
+      return;
+    }
+
+    suppressEvidenceContinuation = false;
+    console.log(line);
   });
 };
 
@@ -83,15 +134,7 @@ function parseBase64Json(value, fallback = []) {
 }
 
 function parseCopyOutput(output) {
-  const metrics = new Map();
-
-  getCleanOutputLines(output).forEach((line) => {
-    const match = line.match(/^([a-z0-9_]+)=(.*)$/i);
-
-    if (match) {
-      metrics.set(match[1].toLowerCase(), match[2].trim());
-    }
-  });
+  const metrics = collectOutputMetrics(output);
 
   return {
     stagingRows: parseMetricInteger(metrics.get('staging_rows')),
@@ -223,26 +266,26 @@ function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath }) {
     `INSERT INTO ${targetTable} (edate, value) SELECT edate, value FROM ${newRowsTable};`,
     `SELECT 'inserted_rows=' || COUNT(*) FROM ${newRowsTable};`,
     `SELECT 'target_max=' || COALESCE(MAX(edate)::text, '') FROM ${targetTable};`,
-    `SELECT 'revision_events_b64=' || encode(convert_to(`
+    `SELECT 'revision_events_b64=' || replace(replace(encode(convert_to(`
       + `COALESCE((SELECT jsonb_agg(jsonb_build_object(`
       + "'observationKey', edate::text, 'observationDate', edate, "
       + "'oldValue', jsonb_build_object('value', old_value), "
       + "'newValue', jsonb_build_object('value', new_value), "
       + "'metadata', jsonb_build_object('loader', 'revision_aware_timeseries_v1')"
-      + `) ORDER BY edate) FROM ${revisionTable}), '[]'::jsonb)::text, 'UTF8'), 'base64');`,
-    `SELECT 'rejection_events_b64=' || encode(convert_to(`
+      + `) ORDER BY edate) FROM ${revisionTable}), '[]'::jsonb)::text, 'UTF8'), 'base64'), chr(10), ''), chr(13), '');`,
+    `SELECT 'rejection_events_b64=' || replace(replace(encode(convert_to(`
       + `COALESCE((SELECT jsonb_agg(jsonb_build_object(`
       + "'checkCode', check_code, 'severityCode', severity_code, "
       + "'sourceRowNumber', source_row_number, 'observationKey', observation_key, "
       + "'rawPayload', raw_payload, 'normalizedPayload', normalized_payload, "
       + "'message', message, 'metadata', jsonb_build_object('loader', 'revision_aware_timeseries_v1')"
-      + `) ORDER BY source_row_number, check_code) FROM ${rejectionTable}), '[]'::jsonb)::text, 'UTF8'), 'base64');`,
-    `SELECT 'quality_issues_b64=' || encode(convert_to(`
+      + `) ORDER BY source_row_number, check_code) FROM ${rejectionTable}), '[]'::jsonb)::text, 'UTF8'), 'base64'), chr(10), ''), chr(13), '');`,
+    `SELECT 'quality_issues_b64=' || replace(replace(encode(convert_to(`
       + `COALESCE((SELECT jsonb_agg(jsonb_build_object(`
       + "'checkCode', check_code, 'severityCode', severity_code, 'blocking', blocking, "
       + "'observationKey', observation_key, 'sourceRowNumber', source_row_number, "
       + "'message', message, 'evidence', evidence"
-      + `) ORDER BY check_code) FROM ${issueTable}), '[]'::jsonb)::text, 'UTF8'), 'base64');`,
+      + `) ORDER BY check_code) FROM ${issueTable}), '[]'::jsonb)::text, 'UTF8'), 'base64'), chr(10), ''), chr(13), '');`,
     'COMMIT;',
   ].join('\n');
 }
