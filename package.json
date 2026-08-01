@@ -97,7 +97,8 @@
     "phase16:ledger-workflow:verify": "node packages/ingestion/src/ledger/phase16WorkflowLedgerLinkage.js",
     "phase16:adapter-retry:setup": "node packages/ingestion/src/core/phase16AdapterRetryFramework.js setup",
     "phase16:adapter-retry:verify": "node packages/ingestion/src/core/phase16AdapterRetryFramework.js verify",
-    "phase16:adapter-retry:self-test": "node packages/ingestion/src/core/sourceAdapterRetrySelfTest.js"
+    "phase16:adapter-retry:self-test": "node packages/ingestion/src/core/sourceAdapterRetrySelfTest.js",
+    "phase16:adapter-retry:proof": "node packages/ingestion/src/core/phase16ControlledRetryProof.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

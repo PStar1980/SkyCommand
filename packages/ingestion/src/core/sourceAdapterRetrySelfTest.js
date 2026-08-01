@@ -5,7 +5,7 @@ const path = require('path');
 
 const { defineSourceAdapter, runSourceAdapter } = require('./sourceAdapter');
 const { executeWithRetry, parseRetryAfterMs } = require('./retryExecutor');
-const { fromMacroBatchResult } = require('../ledger/ingestionRunResult');
+const { fromAdapterBatchResult } = require('../ledger/ingestionRunResult');
 
 async function testRetrySuccess() {
   let calls = 0;
@@ -125,7 +125,7 @@ async function testSyntheticAdapter() {
     assert.strictEqual(result.results[0].outcome, 'UPDATED');
     assert.strictEqual(result.results[0].attempts.length, 1);
 
-    const generic = fromMacroBatchResult(result, {
+    const generic = fromAdapterBatchResult(result, {
       domainCode: 'TEST_DOMAIN',
       sourceCode: 'TEST_SOURCE',
     });
@@ -139,7 +139,7 @@ async function testSyntheticAdapter() {
 
 
 function testRetryAttemptLedgerProjection() {
-  const generic = fromMacroBatchResult({
+  const generic = fromAdapterBatchResult({
     source: 'FRED',
     selectedIndicators: true,
     startedAt: '2026-01-01T00:00:00.000Z',

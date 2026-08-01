@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 10
+- **Revision:** 11
 - **Date:** 2026-07-31
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5.1 common adapter and source retry foundation is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5.1 is complete and live-proven across FRED, Bank of Canada, and Statistics Canada; Phase 16.5.2 controlled retry and terminal-failure proof is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,37 +850,31 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.5.1 — Common Source Adapter and Retry Foundation**.
+The active implementation checkpoint is **Phase 16.5.2 — Controlled Retry and Terminal-Failure Proof**.
 
 Phase 16.4 is accepted as complete. A live `macro-refresh-pipeline` workflow produced durable ingestion runs whose PostgreSQL evidence reconciled all the way from Temporal workflow/run identifiers through SkyCommand workflow and node records, the real tool execution, the generic ingestion run, and per-asset attempt rows. Freshness remains ledger-backed, and only one currently stale macro asset (`USSLIND`) remains after the latest production refresh.
 
-Phase 16.5.1 establishes the portable execution boundary before controlled live retry proofs:
+Phase 16.5.1 is also accepted as complete. The common adapter framework passed focused policy and deterministic retry tests, and selected live executions for FRED (`DFF`), Bank of Canada (`FXUSDCAD`), and Statistics Canada (`CAD_CPI_ALL_ITEMS`) completed successfully through the shared runner while preserving current Tool History, structured-output, ledger, and freshness behaviour.
 
-1. all four production ingestion tools execute through a common source-adapter runner;
-2. FRED, BoC, and StatCan HTTP access use one policy-aware request client rather than source-local retry loops;
-3. source request timeout/retry policy is PostgreSQL-authoritative through `data.source_request_policies`;
-4. retryable HTTP/transport failures are normalized into portable categories;
-5. `Retry-After`, exponential backoff, bounded jitter, maximum attempts, and maximum elapsed time are handled by one reusable executor;
-6. FRED's former parallel batch implementation remains only as a compatibility facade for the older dedicated Temporal pilot and delegates to the common adapter;
-7. manual file ingestion uses the same adapter runner but correctly declares that it does not require an HTTP request policy;
-8. request retries are materialized as distinct per-asset attempt evidence so the existing durable ledger can preserve failed attempts followed by a successful retry;
-9. existing `macro_ingestion_summary.v1`, Tool History, Workflow History, and macro table behaviour remain compatible.
+Phase 16.5.2 now proves the failure paths that healthy providers did not naturally produce during the live smoke tests:
 
-The focused database checkpoint is:
+1. create a temporary non-macro HTTP source, two portable assets, and a PostgreSQL-authoritative request policy inside one rollback-safe transaction;
+2. execute both assets through the same `defineSourceAdapter` / `runSourceAdapter` path used by production sources;
+3. force one asset through `HTTP 503 → ETIMEDOUT → success` using deterministic backoff;
+4. force a second asset through terminal `HTTP 401 → AUTH` classification with no retry;
+5. map the common adapter result through the domain-neutral `fromAdapterBatchResult` contract seam;
+6. persist a `PARTIAL` generic ingestion run with four separate `data.ingestion_run_items` rows and two retries;
+7. preserve retry wait, `Retry-After`, and retry-decision evidence in bounded item diagnostics;
+8. verify `ingestion_run_summary.v1` represents the mixed result without source-specific fields;
+9. roll back all proof catalogue, policy, ledger, and asset metadata.
 
-```text
-00084__source_request_retry_policies.sql
-00085__source_request_retry_policies_seed.sql
-```
-
-The local proof sequence is:
+There is no database migration for this checkpoint. The focused proof command is:
 
 ```text
-npm run phase16:adapter-retry:verify
-npm run phase16:adapter-retry:self-test
+npm run phase16:adapter-retry:proof
 ```
 
-After the framework is locally proven, the next Phase 16.5 checkpoint will perform a controlled live retry proof and terminal-failure proof through a production-compatible adapter path, verify multiple attempt rows in `data.ingestion_run_items`, and then remove the remaining source-specific orchestration seams that are no longer needed.
+After this proof passes, the final Phase 16.5 cleanup will remove or narrow any remaining compatibility-only source seams, verify source onboarding against the common adapter contract, and formally close the common adapter/retry framework before Phase 16.6 begins revision-aware loading and portable quality contracts.
 
 ---
 

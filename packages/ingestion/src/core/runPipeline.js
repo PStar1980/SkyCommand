@@ -217,7 +217,19 @@ function materializeItemAttempts(requestAttempts = [], finalResult = {}) {
   const earlierAttempts = attempts.slice(0, -1).map((attempt) => ({
     ...attempt,
     outcome: 'FAILED',
+    diagnostics: {
+      ...(attempt.diagnostics || {}),
+      requestWaitBeforeNextMs: attempt.waitBeforeNextMs || 0,
+      requestRetryAfterMs: attempt.retryAfterMs ?? null,
+      requestWillRetry: Boolean(attempt.willRetry),
+    },
   }));
+
+  finalAttempt.diagnostics = {
+    ...(finalAttempt.diagnostics || {}),
+    requestRetryAfterMs: attempts.at(-1)?.retryAfterMs ?? null,
+    requestWillRetry: Boolean(attempts.at(-1)?.willRetry),
+  };
 
   return [...earlierAttempts, finalAttempt];
 }

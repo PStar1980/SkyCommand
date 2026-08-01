@@ -1,5 +1,5 @@
 const {
-  fromMacroBatchResult,
+  fromAdapterBatchResult,
   fromMacroToolResult,
   normalizeRunSummary,
 } = require('./ingestionRunResult');
@@ -250,7 +250,7 @@ async function persistMacroBatchResult({
     return buildLedgerReference(existing, executionContext);
   }
 
-  const genericSummary = fromMacroBatchResult(batchResult, {
+  const genericSummary = fromAdapterBatchResult(batchResult, {
     domainCode: 'MACRO',
     sourceCode: normalizedSourceCode,
     triggerCode: executionContext.triggerCode,

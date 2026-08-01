@@ -148,6 +148,7 @@ async function executeWithRetry({
         completedAt: new Date(completedMs).toISOString(),
         durationMs: Math.max(0, completedMs - attemptStartedMs),
         waitBeforeNextMs: 0,
+        retryAfterMs: null,
       };
       attempts.push(attempt);
       if (typeof onAttempt === 'function') await onAttempt(attempt);
@@ -184,6 +185,7 @@ async function executeWithRetry({
         completedAt: new Date(completedMs).toISOString(),
         durationMs: Math.max(0, completedMs - attemptStartedMs),
         waitBeforeNextMs,
+        retryAfterMs,
       };
       attempts.push(attempt);
       if (typeof onAttempt === 'function') await onAttempt(attempt);
