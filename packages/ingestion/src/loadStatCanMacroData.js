@@ -36,6 +36,7 @@ async function executeStatCanIngestion(args = process.argv.slice(2)) {
 function main(args = process.argv.slice(2), options = {}) {
   return runMacroIngestionCli({
     sourceCode: 'STATCAN',
+    toolCode: 'ingestion_statcan',
     args,
     execute: options.execute || executeStatCanIngestion,
     printResult: options.printResult || printPipelineResult,

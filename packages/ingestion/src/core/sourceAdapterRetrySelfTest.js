@@ -87,6 +87,7 @@ async function testSyntheticAdapter() {
       domainCode: 'TEST_DOMAIN',
       sourceCode: 'TEST_SOURCE',
       adapterCode: 'TEST_ADAPTER',
+      resultContractVersion: 'ingestion_run_summary.v1',
       name: 'TestSource',
       getAssets: async () => ['ASSET_A'],
       fetch: async (code, tempDir) => {
@@ -116,6 +117,14 @@ async function testSyntheticAdapter() {
       tempDir: root,
       defaultConcurrency: 1,
       maxConcurrency: 1,
+      capabilities: {
+        incremental: false,
+        selectedAssets: true,
+        backfill: false,
+        revisions: false,
+        resume: false,
+        dryRun: true,
+      },
       requestPolicyRequired: false,
     });
 

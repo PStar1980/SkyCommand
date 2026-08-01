@@ -98,7 +98,11 @@
     "phase16:adapter-retry:setup": "node packages/ingestion/src/core/phase16AdapterRetryFramework.js setup",
     "phase16:adapter-retry:verify": "node packages/ingestion/src/core/phase16AdapterRetryFramework.js verify",
     "phase16:adapter-retry:self-test": "node packages/ingestion/src/core/sourceAdapterRetrySelfTest.js",
-    "phase16:adapter-retry:proof": "node packages/ingestion/src/core/phase16ControlledRetryProof.js"
+    "phase16:adapter-retry:proof": "node packages/ingestion/src/core/phase16ControlledRetryProof.js",
+    "phase16:adapter-registry:self-test": "node packages/ingestion/src/core/sourceAdapterRegistrySelfTest.js",
+    "phase16:adapter-onboarding:verify": "node packages/ingestion/src/core/phase16AdapterOnboardingClosure.js verify",
+    "phase16:adapter-onboarding:proof": "node packages/ingestion/src/core/phase16AdapterOnboardingClosure.js proof",
+    "phase16:adapter-onboarding:setup": "node packages/ingestion/src/core/phase16AdapterOnboardingClosure.js setup"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

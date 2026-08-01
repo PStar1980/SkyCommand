@@ -43,6 +43,7 @@ async function runSourceSuccessCase(sourceCode) {
   const batchResult = createSuccessfulBatch(sourceCode);
   const response = await runMacroIngestionCli({
     sourceCode,
+    toolCode: `ingestion_${sourceCode.toLowerCase()}`,
     args: ['--indicators=TEST'],
     execute: async () => batchResult,
     printResult: (result) => printed.push(result),
@@ -72,6 +73,7 @@ async function runFailureCase() {
   const exitCodes = [];
   const response = await runMacroIngestionCli({
     sourceCode: 'STATCAN',
+    toolCode: 'ingestion_statcan',
     args: [],
     execute: async () => {
       throw Object.assign(new Error('catalog unavailable'), { code: 'CATALOG_UNAVAILABLE' });
@@ -110,6 +112,7 @@ async function runPartialAllowFailuresCase() {
 
   const response = await runMacroIngestionCli({
     sourceCode: 'BOC',
+    toolCode: 'ingestion_boc',
     args: ['--allow-failures'],
     execute: async () => batchResult,
     emitResult: (toolResult) => {

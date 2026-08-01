@@ -10,11 +10,6 @@ const {
 const { writeToolResult } = require('../../../tools/src/toolResultTransport');
 
 const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
-const SOURCE_TOOL_CODES = {
-  FRED: 'ingestion_fred',
-  BOC: 'ingestion_boc',
-  STATCAN: 'ingestion_statcan',
-};
 
 function hasFlag(args = [], name) {
   return args.includes(`--${name}`);
@@ -28,13 +23,13 @@ function emitMacroIngestionToolResult(toolResult, emitResult = writeToolResult, 
   return emitResult(toolResult, options);
 }
 
-function getMacroToolCode(sourceCode) {
-  const normalizedSourceCode = String(sourceCode || '').toUpperCase();
-  const toolCode = SOURCE_TOOL_CODES[normalizedSourceCode];
+function getMacroToolCode(sourceCode, explicitToolCode) {
+  const normalizedSourceCode = String(sourceCode || '').trim().toUpperCase();
+  const toolCode = String(explicitToolCode || '').trim();
 
   if (!toolCode) {
     throw new Error(
-      `No macro-ingestion tool code is configured for source ${normalizedSourceCode || '(blank)'}.`,
+      `Macro compatibility execution for source ${normalizedSourceCode || '(blank)'} requires an explicit toolCode from its ingestion profile boundary.`,
     );
   }
 
@@ -43,6 +38,7 @@ function getMacroToolCode(sourceCode) {
 
 function runMacroIngestionCli({
   sourceCode,
+  toolCode: explicitToolCode,
   args = process.argv.slice(2),
   execute,
   printResult = null,
@@ -57,7 +53,7 @@ function runMacroIngestionCli({
   const normalizedSourceCode = String(sourceCode || 'UNKNOWN').toUpperCase();
   const startedAt = new Date().toISOString();
 
-  const toolCode = getMacroToolCode(normalizedSourceCode);
+  const toolCode = getMacroToolCode(normalizedSourceCode, explicitToolCode);
   let ledgerReference = null;
   const executeWithLedger = async (executionArgs, toolContext) => {
     try {
@@ -126,7 +122,6 @@ function runMacroIngestionCli({
 
 module.exports = {
   MACRO_INGESTION_OUTPUT_TYPE,
-  SOURCE_TOOL_CODES,
   emitMacroIngestionToolResult,
   getMacroToolCode,
   hasFlag,

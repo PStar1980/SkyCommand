@@ -9,6 +9,7 @@ module.exports = defineSourceAdapter({
   domainCode: 'MACRO',
   sourceCode: 'STATCAN',
   adapterCode: 'STATCAN',
+  resultContractVersion: 'macro_ingestion_summary.v1',
   name: 'StatCan',
   getAssets: () => getIndicators('STATCAN'),
   fetch: (code, tempDir, item, context = {}) => downloadStatCanVectorCSV(code, tempDir, {
@@ -19,5 +20,13 @@ module.exports = defineSourceAdapter({
   tempDir: path.join(__dirname, '..', 'tmp', 'statcan-batch'),
   defaultConcurrency: 2,
   maxConcurrency: 3,
+  capabilities: {
+    incremental: true,
+    selectedAssets: true,
+    backfill: false,
+    revisions: false,
+    resume: false,
+    dryRun: false,
+  },
   requestPolicyRequired: true,
 });

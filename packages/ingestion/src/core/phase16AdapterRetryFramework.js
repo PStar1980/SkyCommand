@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { Pool } = require('pg');
+const { discoverSourceAdapters, validateAdapterProfileAlignment } = require('./sourceAdapterRegistry');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '../../../..');
 const MIGRATION_PATH = path.join(
@@ -56,21 +57,26 @@ async function verify(pool) {
       FROM data.source_request_policies policy
       JOIN data.sources source ON source.source_id = policy.source_id
       JOIN data.domains domain ON domain.domain_id = source.domain_id
-      WHERE domain.domain_code = 'MACRO'
-        AND policy.active = TRUE
+      WHERE policy.active = TRUE
       ORDER BY source.source_code
     `),
     pool.query(`
-      SELECT tool.tool_code, profile.adapter_code, profile.configuration
-      FROM data.ingestion_tool_profiles profile
-      JOIN core.tools tool ON tool.tool_id = profile.tool_id
-      WHERE tool.tool_code IN (
-        'ingestion_fred',
-        'ingestion_boc',
-        'ingestion_statcan',
-        'ingestion_manual'
-      )
-      ORDER BY tool.tool_code
+      SELECT
+        tool_code,
+        adapter_code,
+        contract_version,
+        domain_code,
+        source_code,
+        supports_incremental,
+        supports_selected_assets,
+        supports_backfill,
+        supports_revisions,
+        supports_resume,
+        supports_dry_run,
+        profile_configuration AS configuration
+      FROM data.vw_ingestion_tools
+      WHERE discoverable = TRUE
+      ORDER BY domain_code, source_code, tool_code
     `),
     pool.query(`
       SELECT
@@ -84,6 +90,7 @@ async function verify(pool) {
   const policies = policyResult.rows;
   const profiles = profileResult.rows;
   const macro = macroResult.rows[0] || {};
+  const registry = discoverSourceAdapters();
 
   console.log('\nSkyCommand Phase 16.5.1 common adapter and retry framework');
   console.log('---------------------------------------------------------');
@@ -95,17 +102,27 @@ async function verify(pool) {
     maxDelayMs: row.max_delay_ms,
     maxElapsedMs: row.max_elapsed_ms,
   })));
+  console.log(`Runtime adapters: ${registry.size}`);
   console.log(`Adapter profiles: ${profiles.length}`);
   console.log(`Macro assets preserved: ${macro.macro_assets || 0}`);
   console.log(`Active discoverable macro assets: ${macro.active_macro_assets || 0}`);
 
   const failures = [];
-  const policySources = new Set(policies.map((row) => row.source_code));
-  for (const source of ['FRED', 'BOC', 'STATCAN', 'MANUAL']) {
-    if (!policySources.has(source)) failures.push(`missing request policy for ${source}`);
-  }
-  if (profiles.length !== 4) failures.push('expected 4 production ingestion profiles');
+  const policySources = new Set(
+    policies.map((row) => `${row.domain_code}:${row.source_code}`),
+  );
+  if (profiles.length < 4) failures.push('expected at least 4 production ingestion profiles');
   for (const profile of profiles) {
+    try {
+      const adapter = registry.get(profile.adapter_code);
+      validateAdapterProfileAlignment(adapter, profile);
+      if (adapter.requestPolicyRequired
+        && !policySources.has(`${profile.domain_code}:${profile.source_code}`)) {
+        failures.push(`missing request policy for ${profile.domain_code}/${profile.source_code}`);
+      }
+    } catch (error) {
+      failures.push(error.message);
+    }
     if (profile.configuration?.runner !== 'common_source_adapter') {
       failures.push(`${profile.tool_code} is not marked for the common source adapter runner`);
     }

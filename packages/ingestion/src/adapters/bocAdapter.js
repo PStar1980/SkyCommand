@@ -10,6 +10,7 @@ module.exports = defineSourceAdapter({
   domainCode: 'MACRO',
   sourceCode: 'BOC',
   adapterCode: 'BOC',
+  resultContractVersion: 'macro_ingestion_summary.v1',
   name: 'BoC',
   getAssets: () => getIndicators('BOC'),
   fetch: (code, tempDir, item, context = {}) => downloadBoCCSV(code, tempDir, {
@@ -20,5 +21,13 @@ module.exports = defineSourceAdapter({
   tempDir: path.join(__dirname, '..', 'tmp', 'boc-batch'),
   defaultConcurrency: 3,
   maxConcurrency: 10,
+  capabilities: {
+    incremental: true,
+    selectedAssets: true,
+    backfill: false,
+    revisions: false,
+    resume: false,
+    dryRun: false,
+  },
   requestPolicyRequired: true,
 });

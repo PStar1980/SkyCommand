@@ -25,6 +25,7 @@ async function executeBoCIngestion(args = process.argv.slice(2)) {
 function main(args = process.argv.slice(2), options = {}) {
   return runMacroIngestionCli({
     sourceCode: 'BOC',
+    toolCode: 'ingestion_boc',
     args,
     execute: options.execute || executeBoCIngestion,
     printResult: options.printResult || printPipelineResult,
