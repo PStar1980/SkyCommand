@@ -204,7 +204,7 @@ function fromMacroToolResult(toolResult = {}, options = {}) {
   });
 }
 
-function fromMacroBatchResult(batchResult = {}, options = {}) {
+function fromAdapterBatchResult(batchResult = {}, options = {}) {
   const results = Array.isArray(batchResult.results) ? batchResult.results : [];
   const items = results.flatMap((result) => {
     const attempts = Array.isArray(result.attempts) ? result.attempts : [];
@@ -249,6 +249,11 @@ function fromMacroBatchResult(batchResult = {}, options = {}) {
   });
 }
 
+
+function fromMacroBatchResult(batchResult = {}, options = {}) {
+  return fromAdapterBatchResult(batchResult, options);
+}
+
 function createIngestionRunToolResult(summary = {}, message) {
   const output = normalizeRunSummary(summary);
   const success = output.outcome === 'SUCCESS';
@@ -282,6 +287,7 @@ module.exports = {
   classifyError,
   createIngestionRunToolResult,
   determineRunOutcome,
+  fromAdapterBatchResult,
   fromMacroBatchResult,
   fromMacroToolResult,
   normalizeItem,
