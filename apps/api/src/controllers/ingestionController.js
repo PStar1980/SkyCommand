@@ -1,5 +1,6 @@
 const ingestionStatusService = require('../services/ingestionStatusService');
 const dataCatalogueService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueService');
+const ingestionCatalogueService = require('../../../../packages/ingestion/src/catalogue/ingestionCatalogueService');
 const dataCatalogueAdminService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueAdminService');
 const freshnessService = require('../../../../packages/ingestion/src/freshness/freshnessService');
 const freshnessAdminService = require('../../../../packages/ingestion/src/freshness/freshnessAdminService');
@@ -82,6 +83,29 @@ function sendServiceError(res, error) {
 async function listCatalogueDomains(req, res, next) {
   try {
     const items = await dataCatalogueService.listDomains(req.query || {});
+
+    res.json({
+      ok: true,
+      contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      items,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) {
+      return;
+    }
+
+    next(error);
+  }
+}
+
+async function listCatalogueSources(req, res, next) {
+  try {
+    const items = await ingestionCatalogueService.listIngestionSources({
+      domainCode: req.query?.domainCode,
+      observabilityOnly: req.query?.observabilityOnly === 'true',
+      discoverableOnly: req.query?.discoverableOnly !== 'false',
+    });
 
     res.json({
       ok: true,
@@ -672,6 +696,7 @@ module.exports = {
   listIndicatorStatuses,
   getIndicatorStatus,
   listCatalogueDomains,
+  listCatalogueSources,
   listCatalogueAssets,
   getCatalogueAsset,
   listCatalogueMetrics,

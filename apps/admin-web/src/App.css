@@ -6840,3 +6840,36 @@ select.sky-form-control optgroup {
   background: rgba(255, 97, 120, 0.11);
   color: #ff9aad;
 }
+
+/* Phase 16.8.1 — generic ingestion operations surface */
+.sky-ingestion-operations-filters {
+  grid-template-columns: repeat(4, minmax(10.5rem, 1fr));
+  min-width: min(100%, 76rem);
+}
+
+.sky-ingestion-operations-search {
+  grid-column: 1 / -1;
+}
+
+.sky-ingestion-run-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1199.98px) {
+  .sky-ingestion-operations-filters {
+    grid-template-columns: repeat(2, minmax(12rem, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .sky-ingestion-operations-filters,
+  .sky-ingestion-run-metric-grid {
+    grid-template-columns: 1fr;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sky-ingestion-operations-search {
+    grid-column: auto;
+  }
+}

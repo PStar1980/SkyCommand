@@ -9,6 +9,7 @@ router.use(requireAuth);
 router.use(requirePermission('INGESTION_VIEW_STATUS'));
 
 router.get('/catalogue/domains', ingestionController.listCatalogueDomains);
+router.get('/catalogue/sources', ingestionController.listCatalogueSources);
 router.get('/catalogue/assets', ingestionController.listCatalogueAssets);
 router.get(
   '/catalogue/assets/:domainCode/:assetCode',

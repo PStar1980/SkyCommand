@@ -28,6 +28,30 @@ async function getIndicatorStatus(indicatorCode) {
   return api.get(`/api/ingestion/indicators/${indicatorCode}/status`);
 }
 
+async function listCatalogueDomains(filters = {}) {
+  return api.get('/api/ingestion/catalogue/domains', { query: filters });
+}
+
+async function listCatalogueSources(filters = {}) {
+  return api.get('/api/ingestion/catalogue/sources', { query: filters });
+}
+
+async function listIngestionRuns(filters = {}) {
+  return api.get('/api/ingestion/runs', { query: filters });
+}
+
+async function getIngestionRun(ingestionRunId) {
+  return api.get(`/api/ingestion/runs/${ingestionRunId}`);
+}
+
+async function listRecoveryRequests(filters = {}) {
+  return api.get('/api/ingestion/recoveries', { query: filters });
+}
+
+async function getRecoveryRequest(recoveryRequestId) {
+  return api.get(`/api/ingestion/recoveries/${recoveryRequestId}`);
+}
+
 
 async function listFreshnessPolicies(filters = {}) {
   return api.get('/api/ingestion/catalogue/admin/freshness/policies', { query: filters });
@@ -55,6 +79,12 @@ const ingestionService = {
   listRecentExecutions,
   listIndicatorStatuses,
   getIndicatorStatus,
+  listCatalogueDomains,
+  listCatalogueSources,
+  listIngestionRuns,
+  getIngestionRun,
+  listRecoveryRequests,
+  getRecoveryRequest,
   saveAssetFreshnessPolicy,
   saveSourceFreshnessPolicy,
   listFreshnessPolicies,

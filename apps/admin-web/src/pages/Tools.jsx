@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ToolExecutionOutputPanels from '../components/tools/ToolExecutionOutputPanels.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
@@ -174,6 +175,7 @@ function getCategoryLabel(tool) {
 
 
 function Tools() {
+  const [searchParams] = useSearchParams();
   const [manifest, setManifest] = useState(null);
   const [selectedToolCode, setSelectedToolCode] = useState('');
   const [filters, setFilters] = useState(DEFAULT_TOOL_FILTERS);
@@ -187,6 +189,7 @@ function Tools() {
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
   const [confirmationPhrase, setConfirmationPhrase] = useState('');
   const [error, setError] = useState('');
+  const [queryBootstrapApplied, setQueryBootstrapApplied] = useState(false);
 
   const tools = useMemo(() => manifest?.tools || [], [manifest]);
   const categoryOptions = useMemo(() => {
@@ -261,6 +264,46 @@ function Tools() {
 
   const confirmationLocked = pendingConfirmation && !running;
   const interactionLocked = running || confirmationLocked;
+
+  useEffect(() => {
+    if (!manifest || queryBootstrapApplied) {
+      return;
+    }
+
+    const requestedToolCode = searchParams.get('toolCode');
+    if (!requestedToolCode) {
+      setQueryBootstrapApplied(true);
+      return;
+    }
+
+    const requestedTool = tools.find((tool) => tool.toolCode === requestedToolCode);
+    if (!requestedTool) {
+      setError(`The requested tool ${requestedToolCode} is not available in this catalogue.`);
+      setQueryBootstrapApplied(true);
+      return;
+    }
+
+    const nextValues = getInitialParameterValues(requestedTool);
+    (requestedTool.parameters || []).forEach((parameter) => {
+      if (!searchParams.has(parameter.parameterName)) {
+        return;
+      }
+
+      const queryValue = searchParams.get(parameter.parameterName);
+      nextValues[parameter.parameterName] =
+        parameter.paramTypeCode === 'boolean' ? getBooleanValue(queryValue) : queryValue;
+    });
+
+    const requestedIndex = tools.findIndex((tool) => tool.toolCode === requestedToolCode);
+    setFilters(DEFAULT_TOOL_FILTERS);
+    setCurrentPage(Math.max(1, Math.floor(requestedIndex / RUN_TOOLS_PAGE_SIZE) + 1));
+    setSelectedToolCode(requestedToolCode);
+    setParameterValues(nextValues);
+    setRunResult(null);
+    setPendingConfirmation(false);
+    setConfirmationPhrase('');
+    setQueryBootstrapApplied(true);
+  }, [manifest, queryBootstrapApplied, searchParams, tools]);
 
   useEffect(() => {
     if (!selectedToolCode || filteredTools.some((tool) => tool.toolCode === selectedToolCode)) {
