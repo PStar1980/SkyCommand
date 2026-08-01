@@ -380,7 +380,8 @@ SkyServer/
 │   │           ├── 00085__source_request_retry_policies_seed.sql
 │   │           ├── 00087__revision_quality_foundation_seed.sql
 │   │           ├── 00089__portable_quality_policies_seed.sql
-│   │           └── 00091__ingestion_recovery_foundation_seed.sql
+│   │           ├── 00091__ingestion_recovery_foundation_seed.sql
+│   │           └── 00092__production_ingestion_recovery_integration.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -495,8 +496,12 @@ SkyServer/
 │   │       ├── recovery/
 │   │       │   ├── ingestionRecoverySelfTest.js
 │   │       │   ├── ingestionRecoveryService.js
+│   │       │   ├── phase16ProductionRecoveryIntegration.js
+│   │       │   ├── phase16ProductionRecoveryProof.js
 │   │       │   ├── phase16RecoveryFoundation.js
-│   │       │   └── phase16RecoveryProof.js
+│   │       │   ├── phase16RecoveryProof.js
+│   │       │   ├── productionRecovery.js
+│   │       │   └── productionRecoverySelfTest.js
 │   │       ├── sources/
 │   │       │   ├── boc.js
 │   │       │   ├── fred.js

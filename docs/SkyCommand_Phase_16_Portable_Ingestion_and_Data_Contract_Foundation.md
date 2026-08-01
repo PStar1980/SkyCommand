@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 16
+- **Revision:** 17
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7.1 durable recovery intent, failed-only selection, restart-safe reconstruction, and recovery ancestry is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7.1 durable recovery intent and failed-only portability proof are complete; Phase 16.7.2 production tool, CLI, API, and workflow recovery integration is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,46 +850,36 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.7.1 — Durable Failed-Only Recovery Foundation**.
+The active implementation checkpoint is **Phase 16.7.2 — Production Failed-Only Recovery Integration**.
 
-Phase 16.6 is accepted as complete. The production closure proof confirmed that FRED `DFF`, Bank of Canada `FXUSDCAD`, and Statistics Canada `CAD_CPI_ALL_ITEMS` all execute through the revision-aware quality loader, resolve PostgreSQL-authoritative source policies, persist `PASS` quality evidence in the generic ledger, and preserve the legacy `macro_ingestion_summary.v1` contract. Empty quality/revision/rejection API lists are valid because those selected production runs contained no findings or revisions.
+Phase 16.7.1 is accepted as complete. Its database and rollback-safe proof confirmed that a partial run can produce durable recovery intent, reconstruct the failed-asset selection after process-state loss, execute only the failed asset, preserve original-run ancestry, and leave successful assets untouched.
 
-Phase 16.7.1 establishes the durable recovery contract before enabling it on production tools:
+Phase 16.7.2 connects that contract to the real production lanes:
 
-1. add `data.ingestion_recovery_requests` and a generic recovery lifecycle catalogue;
-2. reconstruct each original run's final per-asset outcome from the durable ledger;
-3. select only terminal failed/rejected/cancelled assets for `FAILED_ONLY` recovery;
-4. persist requested assets, failed-asset snapshot, mode, force/dry-run intent, status, and request context;
-5. require an ingestion profile that explicitly supports both selected assets and resume;
-6. link the recovery run through `resumed_from_run_id` and a durable recovery request;
-7. enforce domain/source/tool/asset ancestry through deferred PostgreSQL guardrails;
-8. prove that recovery can be reconstructed after process-state loss and executes only the failed asset in a temporary non-macro source;
-9. keep current production profiles `supports_resume = FALSE` until the live tool/API/workflow integration checkpoint is implemented and proven.
+1. enable `supports_resume` for the FRED, Bank of Canada, and Statistics Canada ingestion profiles and runtime adapters;
+2. add `resumeRunId`, `recoveryMode`, and `forceRefresh` parameters to the existing registered ingestion tools;
+3. accept direct CLI flags such as `--resume-run-id`, `--asset`, `--mode`, and `--force-refresh`;
+4. route Run Tools and workflow node parameters through the same loader scripts rather than adding a special source registry;
+5. add generic recovery list/detail APIs and a failed-only execution endpoint that launches the original registered ingestion tool;
+6. preserve script-execution, workflow-node, workflow-run, and Temporal linkage on the recovery child run;
+7. prevent the macro compatibility layer from duplicating a recovery run that was already persisted by the recovery service;
+8. prove the integration against a production FRED profile with a rollback-safe partial-run fixture.
 
-Database files:
+Database file:
 
 ```text
-00090__ingestion_recovery_foundation.sql
-00091__ingestion_recovery_foundation_seed.sql
+00092__production_ingestion_recovery_integration.sql
 ```
 
 Focused commands:
 
 ```text
-npm run phase16:recovery:verify
-npm run phase16:recovery:self-test
-npm run phase16:recovery:proof
+npm run phase16:recovery-integration:self-test
+npm run phase16:recovery-integration:verify
+npm run phase16:recovery-integration:proof
 ```
 
-The rollback-safe proof creates one temporary partial run:
-
-```text
-ASSET_A  UPDATED
-ASSET_B  FAILED
-ASSET_C  UNCHANGED
-```
-
-It then reconstructs a durable `FAILED_ONLY` request, executes only `ASSET_B`, persists a successful child run linked to the original run, validates deferred ancestry guardrails, and rolls every fixture record back. Production recovery enablement follows in Phase 16.7.2.
+The proof uses the real `ingestion_fred` profile and adapter identity but injects deterministic execution so it performs no provider request. The original run contains failed `DFF` and successful `CPIAUCSL`; recovery must execute only `DFF`, persist a child run with `resumed_from_run_id`, return the durable ledger reference to the tool boundary, and roll all proof evidence back.
 
 ---
 

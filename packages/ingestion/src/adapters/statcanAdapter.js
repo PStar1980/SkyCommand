@@ -27,7 +27,7 @@ module.exports = defineSourceAdapter({
     selectedAssets: true,
     backfill: false,
     revisions: true,
-    resume: false,
+    resume: true,
     dryRun: false,
   },
   requestPolicyRequired: true,

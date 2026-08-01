@@ -58,11 +58,15 @@ function runMacroIngestionCli({
   const executeWithLedger = async (executionArgs, toolContext) => {
     try {
       const batchResult = await execute(executionArgs, toolContext);
-      ledgerReference = await persistMacroBatchResultSafely({
-        sourceCode: normalizedSourceCode,
-        toolCode,
-        batchResult,
-      }, logger);
+      if (batchResult?.recoveryLedgerReference?.persisted) {
+        ledgerReference = batchResult.recoveryLedgerReference;
+      } else {
+        ledgerReference = await persistMacroBatchResultSafely({
+          sourceCode: normalizedSourceCode,
+          toolCode,
+          batchResult,
+        }, logger);
+      }
 
       return batchResult;
     } catch (error) {
