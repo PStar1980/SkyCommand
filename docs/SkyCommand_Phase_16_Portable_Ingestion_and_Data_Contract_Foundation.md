@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 13
+- **Revision:** 14
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6.1 revision-aware loading and portable quality evidence is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6.1 complete with revision-aware loading, durable old/new revision evidence, rejected-row evidence, idempotent second-load proof, and a non-macro quality fixture; Phase 16.6.2 portable quality-policy precedence and blocking enforcement is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,39 +850,39 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.6.1 — Revision-aware Loading and Quality Evidence Foundation**.
+The active implementation checkpoint is **Phase 16.6.2 — Portable Quality Policies and Blocking Enforcement**.
 
-Phase 16.5 is accepted as complete. Runtime adapter discovery, profile alignment, and the temporary new-source proof all passed: one adapter module plus catalogue metadata joined the common runner without editing a source registry, executed one asset, and removed its temporary records cleanly.
+Phase 16.6.1 is accepted as complete. The controlled proof confirmed one new observation, one historical revision, one unchanged observation, three explainable row rejections, durable old/new revision evidence, and a second identical load with zero writes or revision rewrites. The same contract worked for a temporary non-macro time-series asset and cleaned up successfully.
 
-Phase 16.6.1 introduces the first correctness layer above reliable transport:
+Phase 16.6.2 makes the remaining dataset-level checks configurable rather than hard-coded:
 
-1. replace insert-only macro time-series loading with controlled **insert / update / unchanged** semantics;
-2. update an existing observation only when the incoming value is materially different;
-3. record durable revision events with asset, observation key/date, old value, new value, run item, and detection time;
-4. retain rejected-row evidence for invalid dates, invalid numeric values, and duplicate observation keys;
-5. introduce portable quality status, severity, and check-code catalogues;
-6. add run/item totals for revisions, quality issues, and quality status;
-7. preserve existing `macro_ingestion_summary.v1` output while enriching `ingestion_run_summary.v1` and ledger detail;
-8. declare revision support for FRED, Bank of Canada, and Statistics Canada adapters/profiles;
-9. prove identical observations are not rewritten;
-10. prove the same revision/quality evidence path with a temporary non-macro time-series asset.
+1. add PostgreSQL-authoritative source and asset quality-policy tables;
+2. resolve policy precedence as **asset > source > check default**;
+3. preserve core row-level validation defaults while leaving advanced checks disabled until configured;
+4. seed FRED, Bank of Canada, and Statistics Canada with explicit source-date-regression and frequency-contract policies;
+5. resolve quality metadata for each asset through the generic catalogue;
+6. add portable `UNEXPECTED_GAP` checks driven by `maxGapDays`;
+7. add portable `ROW_COUNT_ANOMALY` checks driven by `minRows` / `maxRows`;
+8. enforce `FREQUENCY_INCOMPATIBLE` and optional `UNIT_INCOMPATIBLE` metadata checks;
+9. ensure blocking quality findings prevent inserts and updates while preserving diagnostic evidence;
+10. prove source-level warning policies and an asset-level blocking override with a temporary non-macro time-series asset.
 
 Database files:
 
 ```text
-00086__revision_quality_foundation.sql
-00087__revision_quality_foundation_seed.sql
+00088__portable_quality_policies.sql
+00089__portable_quality_policies_seed.sql
 ```
 
 Focused commands:
 
 ```text
-npm run phase16:revision-quality:verify
-npm run phase16:revision-quality:self-test
-npm run phase16:revision-quality:proof
+npm run phase16:quality-policy:verify
+npm run phase16:quality-policy:self-test
+npm run phase16:quality-policy:proof
 ```
 
-The controlled proof uses a temporary non-macro source containing one new observation, one historical revision, one unchanged observation, one duplicate key, one invalid date, and one invalid numeric value. It must persist revision and rejection evidence, repeat the same load without rewriting identical values, and remove all fixture records/storage objects afterward.
+The controlled proof first applies source-level gap and row-count policies as non-blocking warnings and loads valid data. It then adds an asset-level blocking override for the same gap check, proves that the asset policy wins without loader changes, and verifies that the blocked load performs no insert or update before removing all proof records and storage objects.
 
 ---
 

@@ -335,7 +335,8 @@ SkyServer/
 │   │       │   ├── 00080__explainable_freshness_foundation.sql
 │   │       │   ├── 00082__generic_ingestion_ledger.sql
 │   │       │   ├── 00084__source_request_retry_policies.sql
-│   │       │   └── 00086__revision_quality_foundation.sql
+│   │       │   ├── 00086__revision_quality_foundation.sql
+│   │       │   └── 00088__portable_quality_policies.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -376,7 +377,8 @@ SkyServer/
 │   │           ├── 00081__explainable_freshness_foundation_seed.sql
 │   │           ├── 00083__generic_ingestion_ledger_seed.sql
 │   │           ├── 00085__source_request_retry_policies_seed.sql
-│   │           └── 00087__revision_quality_foundation_seed.sql
+│   │           ├── 00087__revision_quality_foundation_seed.sql
+│   │           └── 00089__portable_quality_policies_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -472,12 +474,17 @@ SkyServer/
 │   │       │   └── phase16WorkflowLedgerLinkage.js
 │   │       ├── loaders/
 │   │       │   ├── copyLoader.js
-│   │       │   └── manualCopyLoader.js
+│   │       │   ├── manualCopyLoader.js
+│   │       │   └── qualityAwareTimeSeriesLoader.js
 │   │       ├── manual/
 │   │       │   └── manual_data.csv
 │   │       ├── quality/
+│   │       │   ├── phase16QualityPolicyFoundation.js
+│   │       │   ├── phase16QualityPolicyProof.js
 │   │       │   ├── phase16RevisionQualityFoundation.js
 │   │       │   ├── phase16RevisionQualityProof.js
+│   │       │   ├── qualityPolicy.js
+│   │       │   ├── qualityPolicySelfTest.js
 │   │       │   └── revisionQualitySelfTest.js
 │   │       ├── sources/
 │   │       │   ├── boc.js

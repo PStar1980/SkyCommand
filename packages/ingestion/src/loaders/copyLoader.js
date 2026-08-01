@@ -3,6 +3,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const {
+  buildMetadataQualityIssues,
+  getCheckPolicy,
+} = require('../quality/qualityPolicy');
+
 const MAX_EVENT_PAYLOAD_BYTES = 16 * 1024 * 1024;
 
 const assertSafeIdentifier = (value) => {
@@ -21,6 +26,32 @@ function quoteRelationName(value) {
 }
 
 const sqlLiteral = (value) => `'${String(value).replace(/'/g, "''")}'`;
+
+function optionalNonNegativeInteger(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function sqlJsonLiteral(value) {
+  return `${sqlLiteral(JSON.stringify(value ?? {}))}::jsonb`;
+}
+
+function buildStaticIssueInsert(issueTable, issues = []) {
+  if (!Array.isArray(issues) || issues.length === 0) return null;
+  const values = issues.map((issue) => `(${[
+    sqlLiteral(issue.checkCode),
+    sqlLiteral(issue.severityCode || 'WARNING'),
+    issue.blocking ? 'TRUE' : 'FALSE',
+    issue.observationKey ? sqlLiteral(issue.observationKey) : 'NULL',
+    issue.sourceRowNumber ? Number(issue.sourceRowNumber) : 'NULL',
+    sqlLiteral(issue.message || 'Quality-policy finding.'),
+    sqlJsonLiteral(issue.evidence || {}),
+  ].join(', ')})`);
+  return `INSERT INTO ${issueTable} (`
+    + 'check_code, severity_code, blocking, observation_key, source_row_number, message, evidence'
+    + `) VALUES ${values.join(', ')};`;
+}
 
 const getPsqlArgs = (sqlFile) => {
   if (!process.env.PGDATABASE) {
@@ -157,7 +188,7 @@ function parseCopyOutput(output) {
   };
 }
 
-function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath }) {
+function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath, qualityContext = null }) {
   const rawTable = `${tempTable}_raw`;
   const parsedTable = `${tempTable}_parsed`;
   const rejectionTable = `${tempTable}_rejections`;
@@ -166,8 +197,24 @@ function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath }) {
   const revisionTable = `${tempTable}_revisions`;
   const newRowsTable = `${tempTable}_new_rows`;
   const unchangedTable = `${tempTable}_unchanged`;
+  const decisionTable = `${tempTable}_load_decision`;
+  const appliedRevisionTable = `${tempTable}_applied_revisions`;
+  const appliedNewRowsTable = `${tempTable}_applied_new_rows`;
 
-  return [
+  const sourceRegression = getCheckPolicy(qualityContext, 'SOURCE_DATE_REGRESSION', {
+    enabled: true,
+    severityCode: 'WARNING',
+    blocking: false,
+  });
+  const gapPolicy = getCheckPolicy(qualityContext, 'UNEXPECTED_GAP');
+  const rowCountPolicy = getCheckPolicy(qualityContext, 'ROW_COUNT_ANOMALY');
+  const metadataIssues = buildMetadataQualityIssues(qualityContext);
+  const metadataInsert = buildStaticIssueInsert(issueTable, metadataIssues);
+  const maxGapDays = optionalNonNegativeInteger(gapPolicy.parameters?.maxGapDays);
+  const minRows = optionalNonNegativeInteger(rowCountPolicy.parameters?.minRows);
+  const maxRows = optionalNonNegativeInteger(rowCountPolicy.parameters?.maxRows);
+
+  const sql = [
     'SET client_min_messages TO WARNING;',
     'BEGIN;',
     `DROP TABLE IF EXISTS ${rawTable};`,
@@ -238,33 +285,90 @@ function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath }) {
       + "'No source rows passed date, numeric, and duplicate-key validation.', "
       + `(SELECT jsonb_build_object('rowsReceived', COUNT(*)) FROM ${rawTable}) `
       + `WHERE EXISTS (SELECT 1 FROM ${rawTable}) AND NOT EXISTS (SELECT 1 FROM ${acceptedTable});`,
-    `INSERT INTO ${issueTable} `
-      + "SELECT 'SOURCE_DATE_REGRESSION', 'WARNING', FALSE, NULL, NULL, "
-      + "'The source maximum date is earlier than the existing target maximum date.', "
-      + `jsonb_build_object('sourceMaxDate', (SELECT MAX(edate) FROM ${acceptedTable}), `
-      + `'targetMaxDate', (SELECT MAX(edate) FROM ${targetTable})) `
-      + `WHERE (SELECT MAX(edate) FROM ${acceptedTable}) IS NOT NULL `
-      + `AND (SELECT MAX(edate) FROM ${targetTable}) IS NOT NULL `
-      + `AND (SELECT MAX(edate) FROM ${acceptedTable}) < (SELECT MAX(edate) FROM ${targetTable});`,
+  ];
+
+  if (metadataInsert) sql.push(metadataInsert);
+
+  if (sourceRegression.enabled) {
+    sql.push(
+      `INSERT INTO ${issueTable} `
+        + `SELECT 'SOURCE_DATE_REGRESSION', ${sqlLiteral(sourceRegression.severityCode)}, `
+        + `${sourceRegression.blocking ? 'TRUE' : 'FALSE'}, NULL, NULL, `
+        + "'The source maximum date is earlier than the existing target maximum date.', "
+        + `jsonb_build_object('sourceMaxDate', (SELECT MAX(edate) FROM ${acceptedTable}), `
+        + `'targetMaxDate', (SELECT MAX(edate) FROM ${targetTable}), `
+        + `'policyOriginCode', ${sqlLiteral(sourceRegression.originCode)}, `
+        + `'policyParameters', ${sqlJsonLiteral(sourceRegression.parameters)}) `
+        + `WHERE (SELECT MAX(edate) FROM ${acceptedTable}) IS NOT NULL `
+        + `AND (SELECT MAX(edate) FROM ${targetTable}) IS NOT NULL `
+        + `AND (SELECT MAX(edate) FROM ${acceptedTable}) < (SELECT MAX(edate) FROM ${targetTable});`,
+    );
+  }
+
+  if (gapPolicy.enabled && maxGapDays !== null) {
+    sql.push(
+      `WITH ordered AS (`
+        + `SELECT edate, LAG(edate) OVER (ORDER BY edate) AS previous_edate FROM ${acceptedTable}`
+        + `), gaps AS (`
+        + `SELECT previous_edate, edate, (edate - previous_edate)::int AS gap_days `
+        + `FROM ordered WHERE previous_edate IS NOT NULL AND (edate - previous_edate)::int > ${maxGapDays}`
+        + `) INSERT INTO ${issueTable} `
+        + `SELECT 'UNEXPECTED_GAP', ${sqlLiteral(gapPolicy.severityCode)}, `
+        + `${gapPolicy.blocking ? 'TRUE' : 'FALSE'}, NULL, NULL, `
+        + `'The accepted source series contains one or more gaps beyond the configured tolerance.', `
+        + `jsonb_build_object('maxGapDays', ${maxGapDays}, 'gapCount', COUNT(*), `
+        + `'largestGapDays', MAX(gap_days), 'firstGapStart', MIN(previous_edate), `
+        + `'lastGapEnd', MAX(edate), 'policyOriginCode', ${sqlLiteral(gapPolicy.originCode)}, `
+        + `'policyParameters', ${sqlJsonLiteral(gapPolicy.parameters)}) `
+        + `FROM gaps HAVING COUNT(*) > 0;`,
+    );
+  }
+
+  if (rowCountPolicy.enabled && (minRows !== null || maxRows !== null)) {
+    sql.pop();
+    const conditions = [];
+    if (minRows !== null) conditions.push(`COUNT(*) < ${minRows}`);
+    if (maxRows !== null) conditions.push(`COUNT(*) > ${maxRows}`);
+    sql.push(
+      `INSERT INTO ${issueTable} `
+        + `SELECT 'ROW_COUNT_ANOMALY', ${sqlLiteral(rowCountPolicy.severityCode)}, `
+        + `${rowCountPolicy.blocking ? 'TRUE' : 'FALSE'}, NULL, NULL, `
+        + `'The accepted source row count is outside the configured range.', `
+        + `jsonb_build_object('acceptedRows', COUNT(*), `
+        + `'minRows', ${minRows === null ? 'NULL' : minRows}, `
+        + `'maxRows', ${maxRows === null ? 'NULL' : maxRows}, `
+        + `'policyOriginCode', ${sqlLiteral(rowCountPolicy.originCode)}, `
+        + `'policyParameters', ${sqlJsonLiteral(rowCountPolicy.parameters)}) `
+        + `FROM ${acceptedTable} HAVING ${conditions.join(' OR ')};`,
+    );
+  }
+
+  sql.push(
+    `CREATE TEMP TABLE ${decisionTable} AS `
+      + `SELECT NOT EXISTS (SELECT 1 FROM ${issueTable} WHERE blocking = TRUE) AS allowed;`,
+    `CREATE TEMP TABLE ${appliedRevisionTable} AS `
+      + `SELECT revision.* FROM ${revisionTable} revision, ${decisionTable} decision WHERE decision.allowed;`,
+    `CREATE TEMP TABLE ${appliedNewRowsTable} AS `
+      + `SELECT new_row.* FROM ${newRowsTable} new_row, ${decisionTable} decision WHERE decision.allowed;`,
     `SELECT 'staging_rows=' || COUNT(*) FROM ${rawTable};`,
     `SELECT 'accepted_rows=' || COUNT(*) FROM ${acceptedTable};`,
     `SELECT 'staging_min=' || COALESCE(MIN(edate)::text, '') FROM ${acceptedTable};`,
     `SELECT 'staging_max=' || COALESCE(MAX(edate)::text, '') FROM ${acceptedTable};`,
     `SELECT 'previous_target_max=' || COALESCE(MAX(edate)::text, '') FROM ${targetTable};`,
     `SELECT 'new_rows=' || COUNT(*) FROM ${newRowsTable};`,
-    `SELECT 'updated_rows=' || COUNT(*) FROM ${revisionTable};`,
+    `SELECT 'updated_rows=' || COUNT(*) FROM ${appliedRevisionTable};`,
     `SELECT 'unchanged_rows=' || COUNT(*) FROM ${unchangedTable};`,
     `SELECT 'rejected_rows=' || COUNT(*) FROM ${rejectionTable};`,
-    `SELECT 'revisions_detected=' || COUNT(*) FROM ${revisionTable};`,
+    `SELECT 'revisions_detected=' || COUNT(*) FROM ${appliedRevisionTable};`,
     `SELECT 'quality_issue_count=' || ((SELECT COUNT(*) FROM ${rejectionTable}) + (SELECT COUNT(*) FROM ${issueTable}));`,
     `SELECT 'quality_status=' || CASE `
       + `WHEN EXISTS (SELECT 1 FROM ${issueTable} WHERE blocking = TRUE) THEN 'FAIL' `
       + `WHEN EXISTS (SELECT 1 FROM ${issueTable}) OR EXISTS (SELECT 1 FROM ${rejectionTable}) THEN 'WARN' `
       + `ELSE 'PASS' END;`,
     `UPDATE ${targetTable} target SET value = revision.new_value `
-      + `FROM ${revisionTable} revision WHERE target.edate = revision.edate;`,
-    `INSERT INTO ${targetTable} (edate, value) SELECT edate, value FROM ${newRowsTable};`,
-    `SELECT 'inserted_rows=' || COUNT(*) FROM ${newRowsTable};`,
+      + `FROM ${appliedRevisionTable} revision WHERE target.edate = revision.edate;`,
+    `INSERT INTO ${targetTable} (edate, value) SELECT edate, value FROM ${appliedNewRowsTable};`,
+    `SELECT 'inserted_rows=' || COUNT(*) FROM ${appliedNewRowsTable};`,
     `SELECT 'target_max=' || COALESCE(MAX(edate)::text, '') FROM ${targetTable};`,
     `SELECT 'revision_events_b64=' || replace(replace(encode(convert_to(`
       + `COALESCE((SELECT jsonb_agg(jsonb_build_object(`
@@ -272,7 +376,7 @@ function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath }) {
       + "'oldValue', jsonb_build_object('value', old_value), "
       + "'newValue', jsonb_build_object('value', new_value), "
       + "'metadata', jsonb_build_object('loader', 'revision_aware_timeseries_v1')"
-      + `) ORDER BY edate) FROM ${revisionTable}), '[]'::jsonb)::text, 'UTF8'), 'base64'), chr(10), ''), chr(13), '');`,
+      + `) ORDER BY edate) FROM ${appliedRevisionTable}), '[]'::jsonb)::text, 'UTF8'), 'base64'), chr(10), ''), chr(13), '');`,
     `SELECT 'rejection_events_b64=' || replace(replace(encode(convert_to(`
       + `COALESCE((SELECT jsonb_agg(jsonb_build_object(`
       + "'checkCode', check_code, 'severityCode', severity_code, "
@@ -287,7 +391,9 @@ function buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath }) {
       + "'message', message, 'evidence', evidence"
       + `) ORDER BY check_code) FROM ${issueTable}), '[]'::jsonb)::text, 'UTF8'), 'base64'), chr(10), ''), chr(13), '');`,
     'COMMIT;',
-  ].join('\n');
+  );
+
+  return sql.join('\n');
 }
 
 function createQualityFailure(result) {
@@ -302,7 +408,7 @@ function createQualityFailure(result) {
   return error;
 }
 
-const copyIntoRelation = ({ assetCode, relationName, filePath }) => {
+const copyIntoRelation = ({ assetCode, relationName, filePath, qualityContext = null }) => {
   const code = String(assetCode || '').trim();
   assertSafeIdentifier(code);
   const normalizedPath = filePath.replace(/\\/g, '/');
@@ -317,7 +423,7 @@ const copyIntoRelation = ({ assetCode, relationName, filePath }) => {
 
   fs.writeFileSync(
     sqlFile,
-    buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath }),
+    buildRevisionAwareCopySql({ targetTable, tempTable, normalizedPath, qualityContext }),
     'utf-8',
   );
 
@@ -341,10 +447,11 @@ const copyIntoRelation = ({ assetCode, relationName, filePath }) => {
   }
 };
 
-const copyIntoTable = (table, filePath) => copyIntoRelation({
+const copyIntoTable = (table, filePath, options = {}) => copyIntoRelation({
   assetCode: table,
   relationName: `macro.${table}`,
   filePath,
+  qualityContext: options.qualityContext || null,
 });
 
 module.exports = {
