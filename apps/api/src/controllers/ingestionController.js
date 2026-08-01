@@ -4,6 +4,8 @@ const dataCatalogueAdminService = require('../../../../packages/ingestion/src/ca
 const freshnessService = require('../../../../packages/ingestion/src/freshness/freshnessService');
 const freshnessAdminService = require('../../../../packages/ingestion/src/freshness/freshnessAdminService');
 const ingestionLedgerService = require('../../../../packages/ingestion/src/ledger/ingestionLedgerService');
+const qualityPolicyAdminService = require('../../../../packages/ingestion/src/quality/qualityPolicyAdminService');
+const qualityEvidenceService = require('../../../../packages/ingestion/src/quality/qualityEvidenceService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function isActiveIngestionExecution(execution = {}) {
@@ -364,6 +366,94 @@ async function listTools(req, res, next) {
   }
 }
 
+
+async function getQualityPolicyOptions(req, res, next) {
+  try {
+    const options = await qualityPolicyAdminService.listPolicyOptions(req.query || {});
+    res.json({ ok: true, options });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveSourceQualityPolicy(req, res, next) {
+  try {
+    const policy = await qualityPolicyAdminService.saveSourcePolicy(
+      req.params.domainCode,
+      req.params.sourceCode,
+      req.params.checkCode,
+      req.body || {},
+    );
+    res.json({ ok: true, policy });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function saveAssetQualityPolicy(req, res, next) {
+  try {
+    const policy = await qualityPolicyAdminService.saveAssetPolicy(
+      req.params.domainCode,
+      req.params.assetCode,
+      req.params.checkCode,
+      req.body || {},
+    );
+    const resolvedPolicies = await qualityPolicyAdminService.getResolvedAssetPolicies(
+      req.params.domainCode,
+      req.params.assetCode,
+    );
+    res.json({ ok: true, policy, resolvedPolicies });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function getResolvedAssetQualityPolicies(req, res, next) {
+  try {
+    const items = await qualityPolicyAdminService.getResolvedAssetPolicies(
+      req.params.domainCode,
+      req.params.assetCode,
+    );
+    res.json({ ok: true, items });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function listQualityEvents(req, res, next) {
+  try {
+    const payload = await qualityEvidenceService.listQualityEvents(req.query || {});
+    res.json({ ok: true, generatedAt: new Date().toISOString(), ...payload });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function listRevisionEvents(req, res, next) {
+  try {
+    const payload = await qualityEvidenceService.listRevisionEvents(req.query || {});
+    res.json({ ok: true, generatedAt: new Date().toISOString(), ...payload });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function listRejectionEvents(req, res, next) {
+  try {
+    const payload = await qualityEvidenceService.listRejectionEvents(req.query || {});
+    res.json({ ok: true, generatedAt: new Date().toISOString(), ...payload });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
 async function listIngestionRuns(req, res, next) {
   try {
     const payload = await ingestionLedgerService.listRuns(req.query || {});
@@ -466,6 +556,13 @@ async function getIndicatorStatus(req, res, next) {
 }
 
 module.exports = {
+  getQualityPolicyOptions,
+  getResolvedAssetQualityPolicies,
+  listQualityEvents,
+  listRejectionEvents,
+  listRevisionEvents,
+  saveAssetQualityPolicy,
+  saveSourceQualityPolicy,
   getStatus,
   listTools,
   listSources,

@@ -69,6 +69,32 @@ router.put(
   ingestionController.saveCatalogueMetric,
 );
 
+
+router.get('/quality/events', ingestionController.listQualityEvents);
+router.get('/quality/revisions', ingestionController.listRevisionEvents);
+router.get('/quality/rejections', ingestionController.listRejectionEvents);
+
+router.get(
+  '/catalogue/admin/quality/policies',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.getQualityPolicyOptions,
+);
+router.get(
+  '/catalogue/admin/quality/resolved/:domainCode/:assetCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.getResolvedAssetQualityPolicies,
+);
+router.put(
+  '/catalogue/admin/quality/source-policies/:domainCode/:sourceCode/:checkCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveSourceQualityPolicy,
+);
+router.put(
+  '/catalogue/admin/quality/asset-policies/:domainCode/:assetCode/:checkCode',
+  requirePermission('DATA_CATALOGUE_WRITE'),
+  ingestionController.saveAssetQualityPolicy,
+);
+
 router.get('/runs', ingestionController.listIngestionRuns);
 router.get('/runs/:ingestionRunId', ingestionController.getIngestionRun);
 

@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 14
+- **Revision:** 15
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6.1 complete with revision-aware loading, durable old/new revision evidence, rejected-row evidence, idempotent second-load proof, and a non-macro quality fixture; Phase 16.6.2 portable quality-policy precedence and blocking enforcement is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6.1 complete with revision-aware loading, durable old/new revision evidence, rejected-row evidence, idempotent second-load proof, and a non-macro quality fixture; Phase 16.6.2 complete with PostgreSQL-authoritative quality-policy precedence, portable gap/row-count checks, and proven blocking enforcement; Phase 16.6.3 quality administration, evidence APIs, and production closure proof is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,39 +850,55 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.6.2 — Portable Quality Policies and Blocking Enforcement**.
+The active implementation checkpoint is **Phase 16.6.3 — Quality Administration, Evidence APIs, and Production Closure Proof**.
 
-Phase 16.6.1 is accepted as complete. The controlled proof confirmed one new observation, one historical revision, one unchanged observation, three explainable row rejections, durable old/new revision evidence, and a second identical load with zero writes or revision rewrites. The same contract worked for a temporary non-macro time-series asset and cleaned up successfully.
+Phase 16.6.2 is accepted as complete. The portability proof confirmed that source-level `UNEXPECTED_GAP` and `ROW_COUNT_ANOMALY` policies can produce non-blocking warning evidence, an asset-level override takes precedence without loader code changes, a blocking finding prevents inserts and updates, and the temporary non-macro fixture cleans up successfully.
 
-Phase 16.6.2 makes the remaining dataset-level checks configurable rather than hard-coded:
+Phase 16.6.3 closes the operational seam around the revision/quality foundation:
 
-1. add PostgreSQL-authoritative source and asset quality-policy tables;
-2. resolve policy precedence as **asset > source > check default**;
-3. preserve core row-level validation defaults while leaving advanced checks disabled until configured;
-4. seed FRED, Bank of Canada, and Statistics Canada with explicit source-date-regression and frequency-contract policies;
-5. resolve quality metadata for each asset through the generic catalogue;
-6. add portable `UNEXPECTED_GAP` checks driven by `maxGapDays`;
-7. add portable `ROW_COUNT_ANOMALY` checks driven by `minRows` / `maxRows`;
-8. enforce `FREQUENCY_INCOMPATIBLE` and optional `UNIT_INCOMPATIBLE` metadata checks;
-9. ensure blocking quality findings prevent inserts and updates while preserving diagnostic evidence;
-10. prove source-level warning policies and an asset-level blocking override with a temporary non-macro time-series asset.
+1. add generic managed writes for source and asset quality policies using the existing `DATA_CATALOGUE_WRITE` permission;
+2. validate check-specific parameters such as `maxGapDays`, `minRows`, and `maxRows` before PostgreSQL writes;
+3. expose resolved asset policy so administration clients can see whether a rule came from `ASSET`, `SOURCE`, or `CHECK_DEFAULT`;
+4. expose generic paginated quality, revision, and rejection evidence APIs under the ingestion surface;
+5. preserve run-detail compatibility while allowing future Data Status and SkyData Studio consumers to query evidence independently;
+6. prove the production path with selected FRED, Bank of Canada, and Statistics Canada assets after the quality-aware loader cutover;
+7. verify each live ledger item contains quality status, row outcomes, revision/rejection counts, and resolved PostgreSQL policy.
 
-Database files:
+No new database migration is required for this checkpoint. It uses the tables and views introduced by migrations `00086` through `00089`.
+
+Generic administration routes:
 
 ```text
-00088__portable_quality_policies.sql
-00089__portable_quality_policies_seed.sql
+GET /api/ingestion/catalogue/admin/quality/policies
+GET /api/ingestion/catalogue/admin/quality/resolved/:domainCode/:assetCode
+PUT /api/ingestion/catalogue/admin/quality/source-policies/:domainCode/:sourceCode/:checkCode
+PUT /api/ingestion/catalogue/admin/quality/asset-policies/:domainCode/:assetCode/:checkCode
+```
+
+Generic evidence routes:
+
+```text
+GET /api/ingestion/quality/events
+GET /api/ingestion/quality/revisions
+GET /api/ingestion/quality/rejections
 ```
 
 Focused commands:
 
 ```text
-npm run phase16:quality-policy:verify
-npm run phase16:quality-policy:self-test
-npm run phase16:quality-policy:proof
+npm run phase16:quality-admin:self-test
+npm run phase16:quality-production:verify
 ```
 
-The controlled proof first applies source-level gap and row-count policies as non-blocking warnings and loads valid data. It then adds an asset-level blocking override for the same gap check, proves that the asset policy wins without loader changes, and verifies that the blocked load performs no insert or update before removing all proof records and storage objects.
+The production closure verifier expects recent selected runs for:
+
+```text
+FRED      DFF
+BOC       FXUSDCAD
+STATCAN   CAD_CPI_ALL_ITEMS
+```
+
+It confirms that all three production adapters resolve the required quality policies and that the durable ledger exposes the resulting quality/revision evidence without breaking `macro_ingestion_summary.v1` consumers.
 
 ---
 
