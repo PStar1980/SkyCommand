@@ -54,6 +54,21 @@ function run() {
       parameters: { maxGapDays: 45 },
       policy_origin_code: 'ASSET',
     },
+    {
+      domain_code: 'CLIENT_SERVICES',
+      source_code: 'CASE_SYSTEM',
+      asset_code: 'SERVICE_EVENTS',
+      asset_frequency_code: 'MONTHLY',
+      source_frequency_code: 'DAILY',
+      asset_unit_code: 'COUNT',
+      binding_configuration: { unitCode: 'PERCENT' },
+      check_code: 'ROW_COUNT_ANOMALY',
+      enabled: true,
+      severity_code: 'WARNING',
+      blocking: false,
+      parameters: { minRows: 4 },
+      policy_origin_code: 'SOURCE',
+    },
   ]);
 
   assert.strictEqual(context.assetCode, 'SERVICE_EVENTS');
@@ -70,6 +85,7 @@ function run() {
     qualityContext: context,
   });
   assert(sql.includes("'UNEXPECTED_GAP'"));
+  assert(sql.includes("'ROW_COUNT_ANOMALY'"));
   assert(sql.includes("'FREQUENCY_INCOMPATIBLE'"));
   assert(sql.includes('stg_service_events_load_decision'));
   assert(sql.includes('stg_service_events_applied_new_rows'));
