@@ -119,7 +119,11 @@
     "phase16:recovery:proof": "node packages/ingestion/src/recovery/phase16RecoveryProof.js",
     "phase16:recovery-integration:verify": "node packages/ingestion/src/recovery/phase16ProductionRecoveryIntegration.js",
     "phase16:recovery-integration:self-test": "node packages/ingestion/src/recovery/productionRecoverySelfTest.js",
-    "phase16:recovery-integration:proof": "node packages/ingestion/src/recovery/phase16ProductionRecoveryProof.js"
+    "phase16:recovery-integration:proof": "node packages/ingestion/src/recovery/phase16ProductionRecoveryProof.js",
+    "phase16:recovery-workflow:verify": "node packages/ingestion/src/recovery/phase16WorkflowRecoveryClosure.js",
+    "phase16:recovery-live:prepare": "node packages/ingestion/src/recovery/phase16LiveRecoveryClosure.js prepare",
+    "phase16:recovery-live:verify": "node packages/ingestion/src/recovery/phase16LiveRecoveryClosure.js verify",
+    "phase16:recovery-live:self-test": "node packages/ingestion/src/recovery/phase16LiveRecoverySelfTest.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
