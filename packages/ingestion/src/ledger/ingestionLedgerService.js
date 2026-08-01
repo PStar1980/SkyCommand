@@ -507,6 +507,24 @@ async function listRuns(filters = {}, options = {}) {
     clauses.push(`${column} = $${values.length}`);
   }
 
+  const searchText = normalizeText(filters.q || filters.search);
+  if (searchText) {
+    values.push(`%${searchText}%`);
+    const searchParam = `$${values.length}`;
+    clauses.push(`(
+      domain_code ILIKE ${searchParam}
+      OR domain_name ILIKE ${searchParam}
+      OR source_code ILIKE ${searchParam}
+      OR source_name ILIKE ${searchParam}
+      OR tool_code ILIKE ${searchParam}
+      OR tool_label ILIKE ${searchParam}
+      OR status_code ILIKE ${searchParam}
+      OR summary ILIKE ${searchParam}
+      OR ingestion_run_id::text ILIKE ${searchParam}
+      OR script_execution_id::text ILIKE ${searchParam}
+    )`);
+  }
+
   values.push(limit);
   const limitParam = `$${values.length}`;
   values.push(offset);

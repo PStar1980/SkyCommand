@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 18
+- **Revision:** 19
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7.1 durable recovery intent and failed-only portability proof are complete; Phase 16.7.2 production tool, CLI, API, and workflow recovery integration is complete and locally proven; Phase 16.7.3 workflow runtime exposure and live registered-tool recovery closure is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7 complete with durable failed-only recovery through CLI, Run Tools, API, published workflow, and Temporal lanes; Phase 16.8.1 generic ingestion operations and recovery-navigation surface is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,38 +850,29 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.7.3 — Workflow Runtime and Live Recovery Closure**.
+The active implementation checkpoint is **Phase 16.8.1 — Generic Ingestion Operations Surface**.
 
-Phase 16.7.2 is accepted as complete. Its verification and production-profile proof confirmed that FRED, Bank of Canada, and Statistics Canada expose aligned resume capabilities, selected-asset recovery, and three registered recovery parameters. The production-compatible proof executed only failed `DFF`, preserved original-run ancestry, returned the durable ledger reference to the tool boundary, and left successful `CPIAUCSL` untouched.
+Phase 16.7 is accepted as complete. The final live proofs confirmed that the same failed-only recovery contract works through Run Tools and the published Macro Refresh Pipeline. In both lanes, only failed `DFF` was re-fetched and reloaded, successful `CPIAUCSL` remained untouched, and recovery request, child run, script execution, workflow node, SkyCommand workflow run, and Temporal workflow/run ancestry reconciled exactly.
 
-Phase 16.7.3 closes the remaining live-lane evidence:
+Phase 16.8.1 begins the reusable consumer layer:
 
-1. expose source-specific resume run ID, recovery mode, and force-refresh inputs on the existing `macro-refresh-pipeline` runtime-parameter schema;
-2. map those runtime values into the FRED, Bank of Canada, and Statistics Canada workflow nodes without creating a separate recovery workflow or source registry;
-3. add a durable live-proof fixture that creates a transparent FRED `PARTIAL` run with failed `DFF` and successful `CPIAUCSL`;
-4. prove the existing registered FRED tool can recover that fixture through **Run Tools** while executing only `DFF`;
-5. prove the same recovery contract through the published Macro Refresh Pipeline and preserve workflow-node, SkyCommand workflow-run, and Temporal workflow/run linkage;
-6. reconcile the recovery request, child ingestion run, script execution, structured ToolResult ledger reference, and original-run ancestry;
-7. retain the live proof records as intentional operational audit evidence rather than deleting linked records after the proof.
+1. add a generic **Data → Ingestion Operations** page backed by `ingestion_run_summary.v1` and `ingestion_recovery.v1`;
+2. filter history by domain, source, tool, status, and free-text run identity without hard-coded source arrays;
+3. display run totals, execution ancestry, item attempts, quality/revision/rejection coverage, and recovery history;
+4. expose a failed-only recovery action that deep-links into the existing registered Run Tools lane with tool and recovery parameters prefilled;
+5. add generic catalogue-source discovery at `GET /api/ingestion/catalogue/sources`;
+6. preserve the existing Data Intelligence and legacy macro surfaces unchanged;
+7. keep this first operational increment read-oriented: execution still occurs through the existing registered tool and confirmation workflow.
 
-Database file:
+No database migration is required for this checkpoint. It consumes the catalogues, ledger, quality evidence, and recovery structures already proven in Phases 16.1–16.7.
 
-```text
-00093__workflow_ingestion_recovery_parameters.sql
-```
-
-Focused commands:
+Focused command:
 
 ```text
-npm run phase16:recovery-live:self-test
-npm run phase16:recovery-workflow:verify
-npm run phase16:recovery-live:prepare -- --lane interactive
-npm run phase16:recovery-live:verify -- --lane interactive --run-id <original-run-id>
-npm run phase16:recovery-live:prepare -- --lane workflow
-npm run phase16:recovery-live:verify -- --lane workflow --run-id <original-run-id>
+npm run phase16:operations-surface:self-test
 ```
 
-The live fixture uses the real `ingestion_fred` profile and provider path. Its original run is synthetic and clearly marked as Phase 16.7.3 evidence; the recovery child is a real registered-tool execution. The verifier requires the recovery child to contain only `DFF`, rejects any unnecessary `CPIAUCSL` execution, and requires exact ledger/ToolResult ancestry. The workflow lane additionally requires non-null workflow-node, workflow-run, and Temporal identifiers.
+Local UI proof should confirm that the new page lists current macro ingestion runs, opens item-level detail, shows workflow/Temporal lineage for workflow runs, displays retained interactive/workflow recovery requests, and opens Run Tools with failed assets, resume run ID, recovery mode, concurrency, and force-refresh values already populated.
 
 ---
 

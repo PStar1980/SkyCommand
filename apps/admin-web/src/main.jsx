@@ -19,6 +19,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import DataStatus from './pages/DataStatus.jsx';
 import Home from './pages/Home.jsx';
 import IngestionStatus from './pages/IngestionStatus.jsx';
+import IngestionOperations from './pages/IngestionOperations.jsx';
 import Login from './pages/Login.jsx';
 import ScriptExecutions from './pages/ScriptExecutions.jsx';
 import Tools from './pages/Tools.jsx';
@@ -75,6 +76,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
                   <DataStatus />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="data/operations"
+              element={
+                <ProtectedRoute permissionCode="INGESTION_VIEW_STATUS">
+                  <IngestionOperations />
                 </ProtectedRoute>
               }
             />
@@ -145,7 +154,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
             <Route
               path="data/ingestion"
-              element={<Navigate replace to="/dashboard/data-pipeline" />}
+              element={<Navigate replace to="/data/operations" />}
             />
 
             <Route path="worker" element={<Navigate replace to="/automation/workers/history" />} />

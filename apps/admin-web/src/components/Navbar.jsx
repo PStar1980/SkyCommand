@@ -318,6 +318,13 @@ function createNavGroups(hasPermission, hasRole) {
           description: 'Indicator freshness',
         },
         {
+          label: 'Ingestion Operations',
+          to: '/data/operations',
+          icon: '↺',
+          visible: hasPermission('INGESTION_VIEW_STATUS'),
+          description: 'Runs, evidence, recovery',
+        },
+        {
           label: 'Repositories',
           to: '/configuration/repositories',
           icon: '▣',
