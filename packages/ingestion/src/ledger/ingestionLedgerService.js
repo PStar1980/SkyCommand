@@ -159,6 +159,9 @@ function sanitizeRun(row) {
       rowsUpdated: number(row.rows_updated),
       rowsUnchanged: number(row.rows_unchanged),
       rowsRejected: number(row.rows_rejected),
+      revisionsDetected: number(row.revisions_detected),
+      qualityIssueCount: number(row.quality_issue_count),
+      qualityStatusCode: row.quality_status_code || 'PASS',
       attempts: number(row.attempt_count),
       retries: number(row.retry_count),
     },
@@ -204,7 +207,10 @@ function sanitizeItem(row) {
       updated: number(row.rows_updated),
       unchanged: number(row.rows_unchanged),
       rejected: number(row.rows_rejected),
+      revisionsDetected: number(row.revisions_detected),
+      qualityIssueCount: number(row.quality_issue_count),
     },
+    qualityStatusCode: row.quality_status_code || 'PASS',
     error: row.error_category_code || row.error_code || row.error_message
       ? {
           categoryCode: row.error_category_code || null,
@@ -273,6 +279,7 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
           selected_assets, capabilities_snapshot, request_context,
           items_requested, items_succeeded, items_failed, items_updated, items_unchanged,
           rows_staged, rows_detected_as_new, rows_inserted, rows_updated, rows_unchanged, rows_rejected,
+          revisions_detected, quality_issue_count, quality_status_code,
           attempt_count, retry_count,
           error_category_code, error_code, error_message, summary,
           started_at, completed_at, duration_ms, metadata
@@ -285,9 +292,10 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
           $13::jsonb, $14::jsonb, $15::jsonb,
           $16, $17, $18, $19, $20,
           $21, $22, $23, $24, $25, $26,
-          $27, $28,
-          $29, $30, $31, $32,
-          $33, $34, $35, $36::jsonb
+          $27, $28, $29,
+          $30, $31,
+          $32, $33, $34, $35,
+          $36, $37, $38, $39::jsonb
         )
         RETURNING ingestion_run_id
       `,
@@ -318,6 +326,9 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
         totals.rowsUpdated,
         totals.rowsUnchanged,
         totals.rowsRejected,
+        totals.revisionsDetected || 0,
+        totals.qualityIssueCount || 0,
+        totals.qualityStatusCode || 'PASS',
         totals.attempts,
         totals.retries,
         runErrorCategory,
@@ -335,13 +346,14 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
 
     for (const item of summary.items) {
       const assetId = assetMap.get(item.assetCode);
-      await query(
+      const itemResult = await query(
         `
           INSERT INTO data.ingestion_run_items (
             ingestion_run_id, asset_id, attempt_number, outcome_code,
             retryable, http_status,
             source_min_date, source_max_date, previous_target_max_date, current_target_max_date,
             rows_staged, rows_detected_as_new, rows_inserted, rows_updated, rows_unchanged, rows_rejected,
+            revisions_detected, quality_issue_count, quality_status_code,
             error_category_code, error_code, error_message,
             started_at, completed_at, duration_ms, diagnostics, metadata
           )
@@ -351,8 +363,10 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
             $7, $8, $9, $10,
             $11, $12, $13, $14, $15, $16,
             $17, $18, $19,
-            $20, $21, $22, $23::jsonb, $24::jsonb
+            $20, $21, $22,
+            $23, $24, $25, $26::jsonb, $27::jsonb
           )
+          RETURNING ingestion_run_item_id
         `,
         [
           ingestionRunId,
@@ -371,6 +385,9 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
           item.rowsUpdated,
           item.rowsUnchanged,
           item.rowsRejected,
+          item.revisionsDetected || 0,
+          item.qualityIssueCount || 0,
+          item.qualityStatusCode || 'PASS',
           item.errorCategoryCode,
           boundedText(item.errorCode, 250),
           boundedText(item.errorMessage),
@@ -381,6 +398,82 @@ async function persistRunSummary(summaryInput = {}, context = {}, options = {}) 
           JSON.stringify(safeJsonObject(item.metadata)),
         ],
       );
+
+      const ingestionRunItemId = itemResult.rows[0].ingestion_run_item_id;
+
+      for (const event of item.revisionEvents || []) {
+        await query(
+          `
+            INSERT INTO data.ingestion_revision_events (
+              ingestion_run_id, ingestion_run_item_id, asset_id,
+              observation_key, observation_date, old_value, new_value, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)
+            ON CONFLICT (ingestion_run_item_id, observation_key) DO NOTHING
+          `,
+          [
+            ingestionRunId,
+            ingestionRunItemId,
+            assetId,
+            boundedText(event.observationKey || event.observationDate, 1000),
+            event.observationDate || null,
+            JSON.stringify(event.oldValue ?? null),
+            JSON.stringify(event.newValue ?? null),
+            JSON.stringify(safeJsonObject(event.metadata)),
+          ],
+        );
+      }
+
+      for (const issue of item.qualityIssues || []) {
+        await query(
+          `
+            INSERT INTO data.ingestion_quality_events (
+              ingestion_run_id, ingestion_run_item_id, asset_id,
+              check_code, severity_code, blocking,
+              observation_key, source_row_number, message, evidence
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+          `,
+          [
+            ingestionRunId,
+            ingestionRunItemId,
+            assetId,
+            normalizeCode(issue.checkCode) || 'TRANSFORMATION_FAILED',
+            normalizeCode(issue.severityCode) || 'ERROR',
+            Boolean(issue.blocking),
+            boundedText(issue.observationKey, 1000),
+            issue.sourceRowNumber || null,
+            boundedText(issue.message || 'Ingestion quality finding.'),
+            JSON.stringify(safeJsonObject(issue.evidence)),
+          ],
+        );
+      }
+
+      for (const rejection of item.rejectionEvents || []) {
+        await query(
+          `
+            INSERT INTO data.ingestion_rejection_events (
+              ingestion_run_id, ingestion_run_item_id, asset_id,
+              check_code, severity_code, source_row_number, observation_key,
+              raw_payload, normalized_payload, message, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb)
+          `,
+          [
+            ingestionRunId,
+            ingestionRunItemId,
+            assetId,
+            normalizeCode(rejection.checkCode) || 'TRANSFORMATION_FAILED',
+            normalizeCode(rejection.severityCode) || 'ERROR',
+            rejection.sourceRowNumber || null,
+            boundedText(rejection.observationKey, 1000),
+            JSON.stringify(safeJsonObject(rejection.rawPayload)),
+            JSON.stringify(safeJsonObject(rejection.normalizedPayload)),
+            boundedText(rejection.message || 'Source row rejected.'),
+            JSON.stringify(safeJsonObject(rejection.metadata)),
+          ],
+        );
+      }
     }
 
     if (ownsTransaction) await query('COMMIT');
@@ -445,20 +538,52 @@ async function getRun(ingestionRunId, options = {}) {
   );
   if (runResult.rows.length === 0) return null;
 
-  const itemResult = await query(
-    `
-      SELECT *
-      FROM data.vw_ingestion_run_items
-      WHERE ingestion_run_id = $1
-      ORDER BY asset_code, attempt_number, created_at
-    `,
-    [ingestionRunId],
-  );
+  const [itemResult, revisionResult, qualityResult, rejectionResult] = await Promise.all([
+    query(
+      `
+        SELECT *
+        FROM data.vw_ingestion_run_items
+        WHERE ingestion_run_id = $1
+        ORDER BY asset_code, attempt_number, created_at
+      `,
+      [ingestionRunId],
+    ),
+    query(
+      `
+        SELECT *
+        FROM data.vw_ingestion_revision_events
+        WHERE ingestion_run_id = $1
+        ORDER BY asset_code, observation_key, created_at
+      `,
+      [ingestionRunId],
+    ),
+    query(
+      `
+        SELECT *
+        FROM data.vw_ingestion_quality_events
+        WHERE ingestion_run_id = $1
+        ORDER BY asset_code, created_at
+      `,
+      [ingestionRunId],
+    ),
+    query(
+      `
+        SELECT *
+        FROM data.vw_ingestion_rejection_events
+        WHERE ingestion_run_id = $1
+        ORDER BY asset_code, source_row_number, created_at
+      `,
+      [ingestionRunId],
+    ),
+  ]);
 
   return {
     contractVersion: 'ingestion_run_summary.v1',
     run: sanitizeRun(runResult.rows[0]),
     items: itemResult.rows.map(sanitizeItem),
+    revisionEvents: revisionResult.rows,
+    qualityEvents: qualityResult.rows,
+    rejectionEvents: rejectionResult.rows,
   };
 }
 

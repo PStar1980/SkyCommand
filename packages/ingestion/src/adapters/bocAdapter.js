@@ -25,7 +25,7 @@ module.exports = defineSourceAdapter({
     incremental: true,
     selectedAssets: true,
     backfill: false,
-    revisions: false,
+    revisions: true,
     resume: false,
     dryRun: false,
   },

@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 12
-- **Date:** 2026-07-31
+- **Revision:** 13
+- **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5.1 is complete and live-proven across FRED, Bank of Canada, and Statistics Canada; Phase 16.5.2 is complete with deterministic retry, timeout, successful-recovery, and terminal-authentication evidence; Phase 16.5.3 adapter-registry and onboarding-contract closure is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6.1 revision-aware loading and portable quality evidence is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,30 +850,39 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.5.3 — Adapter Registry and Onboarding Contract Closure**.
+The active implementation checkpoint is **Phase 16.6.1 — Revision-aware Loading and Quality Evidence Foundation**.
 
-Phase 16.5.2 is accepted as complete. The controlled proof produced the intended mixed result: one asset recovered through `HTTP 503 → ETIMEDOUT → success`, while a second asset terminated after one `HTTP 401 → AUTH` attempt. The run correctly resolved to `PARTIAL` with two requested assets, one success, one failure, four durable attempts, two retries, deterministic waits, and clean rollback. The visible failure is expected evidence—not a failed test.
+Phase 16.5 is accepted as complete. Runtime adapter discovery, profile alignment, and the temporary new-source proof all passed: one adapter module plus catalogue metadata joined the common runner without editing a source registry, executed one asset, and removed its temporary records cleanly.
 
-Phase 16.5.3 closes the remaining common-adapter portability seams:
+Phase 16.6.1 introduces the first correctness layer above reliable transport:
 
-1. automatically discover runtime adapter modules rather than maintaining a source-name registry;
-2. require every adapter to declare `source_adapter.v1`, its result contract, capabilities, domain, and source;
-3. verify every discoverable `INGESTION` profile resolves to exactly one runtime adapter;
-4. verify profile and runtime definitions agree on domain, source, output contract, and all capability flags;
-5. require PostgreSQL request-policy evidence only for adapters that declare an HTTP/request policy requirement;
-6. remove the remaining source-to-tool maps from the macro compatibility CLI and ledger backfill path by carrying explicit tool identity or joining catalogue profiles;
-7. keep the FRED compatibility facade narrow while all production execution continues through the common runner;
-8. prove a temporary non-macro adapter can be added through one adapter module plus catalogue metadata, execute through the common runner, and roll back without editing the runner or a central source list.
+1. replace insert-only macro time-series loading with controlled **insert / update / unchanged** semantics;
+2. update an existing observation only when the incoming value is materially different;
+3. record durable revision events with asset, observation key/date, old value, new value, run item, and detection time;
+4. retain rejected-row evidence for invalid dates, invalid numeric values, and duplicate observation keys;
+5. introduce portable quality status, severity, and check-code catalogues;
+6. add run/item totals for revisions, quality issues, and quality status;
+7. preserve existing `macro_ingestion_summary.v1` output while enriching `ingestion_run_summary.v1` and ledger detail;
+8. declare revision support for FRED, Bank of Canada, and Statistics Canada adapters/profiles;
+9. prove identical observations are not rewritten;
+10. prove the same revision/quality evidence path with a temporary non-macro time-series asset.
+
+Database files:
+
+```text
+00086__revision_quality_foundation.sql
+00087__revision_quality_foundation_seed.sql
+```
 
 Focused commands:
 
 ```text
-npm run phase16:adapter-registry:self-test
-npm run phase16:adapter-onboarding:verify
-npm run phase16:adapter-onboarding:proof
+npm run phase16:revision-quality:verify
+npm run phase16:revision-quality:self-test
+npm run phase16:revision-quality:proof
 ```
 
-After these proofs pass, Phase 16.5 is formally complete and Phase 16.6 begins revision-aware loading and portable quality contracts.
+The controlled proof uses a temporary non-macro source containing one new observation, one historical revision, one unchanged observation, one duplicate key, one invalid date, and one invalid numeric value. It must persist revision and rejection evidence, repeat the same load without rewriting identical values, and remove all fixture records/storage objects afterward.
 
 ---
 
