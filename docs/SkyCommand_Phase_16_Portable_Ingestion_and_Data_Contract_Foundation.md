@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 9
+- **Revision:** 10
 - **Date:** 2026-07-31
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4.1 durable generic ingestion ledger foundation locally proven; Phase 16.4.2 production integration locally proven by a live selected Bank of Canada run; Phase 16.4.3 workflow/Temporal linkage proof is the active closure checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5.1 common adapter and source retry foundation is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,35 +850,37 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.4.3 — Workflow and Temporal Ledger Linkage Proof**.
+The active implementation checkpoint is **Phase 16.5.1 — Common Source Adapter and Retry Foundation**.
 
-Phase 16.4.1 is accepted as complete. The durable ledger proof demonstrated one `PARTIAL` run with three requested assets, two successful assets, one terminal failure, four persisted attempts, and one retry while preserving every attempt as separate PostgreSQL evidence.
+Phase 16.4 is accepted as complete. A live `macro-refresh-pipeline` workflow produced durable ingestion runs whose PostgreSQL evidence reconciled all the way from Temporal workflow/run identifiers through SkyCommand workflow and node records, the real tool execution, the generic ingestion run, and per-asset attempt rows. Freshness remains ledger-backed, and only one currently stale macro asset (`USSLIND`) remains after the latest production refresh.
 
-Phase 16.4.2 is also accepted at the direct-production level. A live selected Bank of Canada `FXUSDCAD` ingestion produced a `SUCCESS` durable ledger run linked to its real `auth.script_execution_log` execution while preserving the existing `macro_ingestion_summary.v1` ToolResult. The generic API exposed the same run through `ingestion_run_summary.v1`, including one requested/succeeded/updated asset, 2,391 staged rows, one detected/inserted new row, zero retries, and the production capability snapshot. Explainable freshness now consumes ledger evidence rather than mining ToolResult history at runtime.
+Phase 16.5.1 establishes the portable execution boundary before controlled live retry proofs:
 
-The final Phase 16.4 closure proof is intentionally narrow:
+1. all four production ingestion tools execute through a common source-adapter runner;
+2. FRED, BoC, and StatCan HTTP access use one policy-aware request client rather than source-local retry loops;
+3. source request timeout/retry policy is PostgreSQL-authoritative through `data.source_request_policies`;
+4. retryable HTTP/transport failures are normalized into portable categories;
+5. `Retry-After`, exponential backoff, bounded jitter, maximum attempts, and maximum elapsed time are handled by one reusable executor;
+6. FRED's former parallel batch implementation remains only as a compatibility facade for the older dedicated Temporal pilot and delegates to the common adapter;
+7. manual file ingestion uses the same adapter runner but correctly declares that it does not require an HTTP request policy;
+8. request retries are materialized as distinct per-asset attempt evidence so the existing durable ledger can preserve failed attempts followed by a successful retry;
+9. existing `macro_ingestion_summary.v1`, Tool History, Workflow History, and macro table behaviour remain compatible.
 
-1. launch any published SkyCommand workflow containing an `ingestion_fred`, `ingestion_boc`, or `ingestion_statcan` TOOL node;
-2. use a selected single asset where practical so the proof remains small and inexpensive;
-3. allow the workflow node to complete through the normal API/worker/Temporal execution path;
-4. run `npm run phase16:ledger-workflow:verify`;
-5. the verifier must prove that one durable ingestion run contains a real `script_execution_id`, `workflow_run_record_id`, `workflow_node_run_record_id`, `temporal_workflow_id`, and `temporal_run_id`;
-6. the linked `auth.script_execution_log` metadata must report `launchChannel = WORKFLOW` and its workflow run/node identifiers must match the durable ingestion run;
-7. the `worker.workflow_node_run_records` row must belong to the same workflow run and target the same ingestion tool;
-8. the linked `worker.workflow_run_records` Temporal identifiers must exactly match the ingestion ledger;
-9. the persisted structured ToolResult must contain an `ingestionLedger.ingestionRunId` reference to the same durable run;
-10. at least one durable per-asset attempt must be queryable from `data.vw_ingestion_run_items`.
-
-The verifier accepts optional targeting arguments when needed:
+The focused database checkpoint is:
 
 ```text
-npm run phase16:ledger-workflow:verify -- --source FRED
-npm run phase16:ledger-workflow:verify -- --run-id <ingestion-run-uuid>
+00084__source_request_retry_policies.sql
+00085__source_request_retry_policies_seed.sql
 ```
 
-No database migration is required for this checkpoint. The purpose is to prove the evidence chain already implemented in Phase 16.4.2 rather than add another schema layer.
+The local proof sequence is:
 
-Once this workflow-linked proof passes, **Phase 16.4 is complete**. Phase 16.5 then converges the production source adapters behind one execution boundary and introduces consistent source-level timeout, retry classification, bounded exponential backoff with jitter, and genuine per-asset retry attempt recording on top of the proven ledger.
+```text
+npm run phase16:adapter-retry:verify
+npm run phase16:adapter-retry:self-test
+```
+
+After the framework is locally proven, the next Phase 16.5 checkpoint will perform a controlled live retry proof and terminal-failure proof through a production-compatible adapter path, verify multiple attempt rows in `data.ingestion_run_items`, and then remove the remaining source-specific orchestration seams that are no longer needed.
 
 ---
 

@@ -1,5 +1,5 @@
-const { createMacroIngestionToolResult } = require('../core/macroIngestionResult');
 const {
+  fromMacroBatchResult,
   fromMacroToolResult,
   normalizeRunSummary,
 } = require('./ingestionRunResult');
@@ -250,17 +250,39 @@ async function persistMacroBatchResult({
     return buildLedgerReference(existing, executionContext);
   }
 
-  const legacyToolResult = createMacroIngestionToolResult({
+  const genericSummary = fromMacroBatchResult(batchResult, {
+    domainCode: 'MACRO',
     sourceCode: normalizedSourceCode,
-    batchResult,
+    triggerCode: executionContext.triggerCode,
+    metadata: {
+      compatibilityContract: 'macro_ingestion_summary.v1',
+      ledgerIntegration: 'phase16.5.1',
+      attemptEvidence: 'source_request_retry',
+    },
   });
-  return persistMacroToolResult({
-    sourceCode: normalizedSourceCode,
-    toolCode: normalizedToolCode,
-    toolResult: legacyToolResult,
-    executionId: executionContext.scriptExecutionId,
+
+  const detail = await persistRunSummary(
+    genericSummary,
+    {
+      toolCode: normalizedToolCode,
+      scriptExecutionId: executionContext.scriptExecutionId,
+      workflowRunRecordId: executionContext.workflowRunRecordId,
+      workflowNodeRunRecordId: executionContext.workflowNodeRunRecordId,
+      temporalWorkflowId: executionContext.temporalWorkflowId,
+      temporalRunId: executionContext.temporalRunId,
+      triggerCode: executionContext.triggerCode,
+      requestContext: executionContext.requestContext,
+      summary: `${normalizedSourceCode} ingestion ${genericSummary.outcome.toLowerCase()}.`,
+      metadata: {
+        compatibilityContract: 'macro_ingestion_summary.v1',
+        integrationVersion: 'phase16.5.1',
+        attemptEvidence: 'source_request_retry',
+      },
+    },
     options,
-  });
+  );
+
+  return buildLedgerReference(detail, executionContext);
 }
 
 function mapManualTotals(batchResult = {}) {

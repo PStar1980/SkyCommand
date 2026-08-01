@@ -168,6 +168,60 @@ function resolveItems({ items, indicators, name, getCode }) {
   };
 }
 
+function normalizeDownloadResult(value) {
+  if (typeof value === 'string') {
+    return { filePath: value, requestAttempts: [] };
+  }
+
+  if (!value || typeof value !== 'object' || !value.filePath) {
+    throw new Error('Source download must return a file path or { filePath, requestAttempts }.');
+  }
+
+  return {
+    filePath: value.filePath,
+    requestAttempts: Array.isArray(value.requestAttempts) ? value.requestAttempts : [],
+  };
+}
+
+function materializeItemAttempts(requestAttempts = [], finalResult = {}) {
+  const attempts = Array.isArray(requestAttempts) ? requestAttempts.map((item) => ({ ...item })) : [];
+  const finalAttemptNumber = Math.max(1, attempts.at(-1)?.attemptNumber || 1);
+  const finalAttempt = {
+    attemptNumber: finalAttemptNumber,
+    outcome: finalResult.outcome || 'FAILED',
+    retryable: finalResult.retryable ?? attempts.at(-1)?.retryable ?? null,
+    httpStatus: finalResult.httpStatus ?? attempts.at(-1)?.httpStatus ?? null,
+    sourceMinDate: finalResult.stagingMinDate || null,
+    sourceMaxDate: finalResult.sourceMaxDate || finalResult.stagingMaxDate || null,
+    previousTargetMaxDate: finalResult.previousTargetMaxDate || null,
+    currentTargetMaxDate: finalResult.currentTargetMaxDate || null,
+    rowsStaged: finalResult.stagingRows || 0,
+    rowsDetectedAsNew: finalResult.newRowsDetected || 0,
+    rowsInserted: finalResult.rowsInserted || 0,
+    rowsUpdated: finalResult.rowsUpdated || 0,
+    rowsUnchanged: finalResult.rowsUnchanged || 0,
+    rowsRejected: finalResult.rowsRejected || 0,
+    startedAt: attempts.at(-1)?.startedAt || finalResult.startedAt || null,
+    completedAt: finalResult.completedAt || finalResult.finishedAt || attempts.at(-1)?.completedAt || null,
+    durationMs: finalResult.durationMs || attempts.at(-1)?.durationMs || 0,
+    errorCategoryCode: finalResult.errorCategoryCode || attempts.at(-1)?.errorCategoryCode || null,
+    errorCode: finalResult.error?.code || finalResult.errorCode || attempts.at(-1)?.errorCode || null,
+    errorMessage: finalResult.error?.message || finalResult.errorMessage || attempts.at(-1)?.errorMessage || null,
+    diagnostics: {
+      requestWaitBeforeNextMs: attempts.at(-1)?.waitBeforeNextMs || 0,
+    },
+  };
+
+  if (attempts.length === 0) return [finalAttempt];
+
+  const earlierAttempts = attempts.slice(0, -1).map((attempt) => ({
+    ...attempt,
+    outcome: 'FAILED',
+  }));
+
+  return [...earlierAttempts, finalAttempt];
+}
+
 async function runPipelineItem({
   item,
   name,
@@ -182,29 +236,28 @@ async function runPipelineItem({
   const startedAt = new Date();
   const code = normalizeCode(getItemCode(item, getCode), name);
   const tempDir = path.join(tempRoot, runId, getSafePathPart(code));
+  let requestAttempts = [];
 
   console.log(`🔥 [${name}] Processing ${code}`);
 
   ensureDir(tempDir);
 
   try {
-    const filePath = await download(code, tempDir, item);
+    const downloadResult = normalizeDownloadResult(await download(code, tempDir, item));
+    const filePath = downloadResult.filePath;
+    requestAttempts = downloadResult.requestAttempts;
 
     if (normalize) {
-      normalize(filePath, code, item);
+      await normalize(filePath, code, item);
     }
 
     const loadResult = await load(code, filePath, item);
-
     const finishedAt = new Date();
-
-    console.log(`✅ [${name}] Loaded ${code}`);
-
-    return {
+    const result = {
       ok: true,
       source: name,
       indicatorCode: code,
-      outcome: loadResult?.rowsInserted > 0 ? 'UPDATED' : 'UNCHANGED',
+      outcome: loadResult?.rowsInserted > 0 || loadResult?.rowsUpdated > 0 ? 'UPDATED' : 'UNCHANGED',
       stagingRows: loadResult?.stagingRows || 0,
       stagingMinDate: loadResult?.stagingMinDate || null,
       stagingMaxDate: loadResult?.stagingMaxDate || null,
@@ -212,19 +265,27 @@ async function runPipelineItem({
       previousTargetMaxDate: loadResult?.previousTargetMaxDate || null,
       newRowsDetected: loadResult?.newRowsDetected || 0,
       rowsInserted: loadResult?.rowsInserted || 0,
+      rowsUpdated: loadResult?.rowsUpdated || 0,
+      rowsUnchanged: loadResult?.rowsUnchanged || 0,
+      rowsRejected: loadResult?.rowsRejected || 0,
       currentTargetMaxDate: loadResult?.currentTargetMaxDate || null,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
       completedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
+    result.attempts = materializeItemAttempts(requestAttempts, result);
+
+    console.log(`✅ [${name}] Loaded ${code}`);
+    return result;
   } catch (error) {
     const completedAt = new Date();
     const message = error.message || String(error);
+    requestAttempts = Array.isArray(error.retryAttempts) ? error.retryAttempts : requestAttempts;
 
     console.error(`❌ [${name}] Failed ${code}:`, message);
 
-    return {
+    const result = {
       ok: false,
       source: name,
       indicatorCode: code,
@@ -233,11 +294,16 @@ async function runPipelineItem({
       finishedAt: completedAt.toISOString(),
       completedAt: completedAt.toISOString(),
       durationMs: completedAt.getTime() - startedAt.getTime(),
+      errorCategoryCode: requestAttempts.at(-1)?.errorCategoryCode || null,
+      retryable: requestAttempts.at(-1)?.retryable ?? null,
+      httpStatus: requestAttempts.at(-1)?.httpStatus ?? null,
       error: {
         code: error.code || `${String(name || 'INGESTION').toUpperCase()}_INDICATOR_FAILED`,
         message,
       },
     };
+    result.attempts = materializeItemAttempts(requestAttempts, result);
+    return result;
   } finally {
     await cleanupTempDir(tempDir, { quiet: cleanupQuiet });
   }
@@ -348,6 +414,9 @@ module.exports = {
   chunkItems,
   normalizeCodes,
   parsePositiveInteger,
+  materializeItemAttempts,
+  normalizeDownloadResult,
   runPipeline,
+  runPipelineItem,
   summarizeResults,
 };

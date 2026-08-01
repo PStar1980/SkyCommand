@@ -1,148 +1,40 @@
-const fs = require('fs');
-const path = require('path');
-const { randomUUID } = require('crypto');
+// Phase 16.5 compatibility facade.
+// The dedicated FRED Temporal pilot still imports these functions, but the
+// implementation now delegates to the same generic source-adapter runner used
+// by the production ingestion tool.
 
-const { getIndicators } = require('../sources/indicators');
-const { downloadFredCSV } = require('../sources/fred');
-const { normalizeFredCSV } = require('../transform/csvNormalizer');
-const { copyIntoTable } = require('../loaders/copyLoader');
-const { toLegacyPipelineSummary } = require('../core/macroIngestionResult');
+const fredAdapter = require('../adapters/fredAdapter');
+const {
+  cleanupTempDir,
+  normalizeCodes,
+  parsePositiveInteger,
+} = require('../core/runPipeline');
+const {
+  runSourceAdapter,
+  runSourceAdapterItem,
+} = require('../core/sourceAdapter');
 
 const DEFAULT_FRED_CONCURRENCY = 3;
 const MAX_FRED_CONCURRENCY = 10;
 const MAX_FRED_INDICATORS_PER_RUN = 250;
-const DEFAULT_CLEANUP_RETRIES = 4;
-const DEFAULT_CLEANUP_DELAY_MS = 125;
-
-function parsePositiveInteger(value, fallback = DEFAULT_FRED_CONCURRENCY, max = MAX_FRED_CONCURRENCY) {
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-
-  return Math.min(parsed, max);
-}
 
 function normalizeIndicatorCode(value) {
-  const code = String(value || '').trim().toUpperCase();
+  const values = normalizeCodes([value], 'FRED indicator');
+  const code = values[0] || null;
 
-  if (!code) {
-    return null;
-  }
-
-  if (!/^[A-Z0-9_]+$/.test(code)) {
+  if (code && !/^[A-Z0-9_]+$/.test(code)) {
     throw new Error(`Invalid FRED indicator code: ${value}`);
   }
 
   return code;
 }
 
-function splitIndicatorText(value) {
-  return String(value || '')
-    .split(/[\s,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function normalizeIndicatorCodes(value = []) {
-  const rawValues = Array.isArray(value)
-    ? value.flatMap((item) => splitIndicatorText(item))
-    : splitIndicatorText(value);
-  const seen = new Set();
-  const codes = [];
-
-  for (const rawValue of rawValues) {
-    const code = normalizeIndicatorCode(rawValue);
-
-    if (code && !seen.has(code)) {
-      seen.add(code);
-      codes.push(code);
-    }
-  }
-
-  return codes;
-}
-
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function cleanupTempDir(dir, options = {}) {
-  if (!dir || !fs.existsSync(dir)) {
-    return { ok: true, skipped: true };
-  }
-
-  const retries = parsePositiveInteger(options.retries, DEFAULT_CLEANUP_RETRIES, 25);
-  const delayMs = parsePositiveInteger(options.delayMs, DEFAULT_CLEANUP_DELAY_MS, 5000);
-  let lastError = null;
-
-  for (let attempt = 1; attempt <= retries; attempt += 1) {
-    try {
-      fs.rmSync(dir, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: delayMs,
-      });
-
-      return { ok: true, attempts: attempt };
-    } catch (error) {
-      lastError = error;
-
-      if (attempt < retries) {
-        await sleep(delayMs * attempt);
-      }
-    }
-  }
-
-  const message = lastError?.message || String(lastError || 'unknown cleanup error');
-
-  if (!options.quiet) {
-    console.warn(`⚠️ [FRED] Temp cleanup skipped after ${retries} attempts: ${message}`);
-  }
-
-  return {
-    ok: false,
-    attempts: retries,
-    error: message,
-  };
-}
-
-function getSafeRunId(value) {
-  return String(value || `fred-${new Date().toISOString()}-${randomUUID().slice(0, 8)}`)
-    .replace(/[^A-Za-z0-9_-]/g, '_')
-    .slice(0, 140);
-}
-
-function getSafeIndicatorPathPart(value) {
-  return normalizeIndicatorCode(value) || 'UNKNOWN';
+  return normalizeCodes(value, 'FRED indicator').map(normalizeIndicatorCode).filter(Boolean);
 }
 
 function getDefaultFredTempRoot() {
-  return path.resolve(__dirname, '..', 'tmp', 'fred-batch');
-}
-
-function getIndicatorTempDir(tempRoot, runId, indicatorCode) {
-  return path.join(tempRoot, getSafeRunId(runId), getSafeIndicatorPathPart(indicatorCode));
-}
-
-function chunkItems(items, chunkSize) {
-  const chunks = [];
-
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize));
-  }
-
-  return chunks;
+  return fredAdapter.tempDir;
 }
 
 async function listFredIndicators(input = {}) {
@@ -158,7 +50,7 @@ async function listFredIndicators(input = {}) {
     };
   }
 
-  const indicators = normalizeIndicatorCodes(getIndicators('FRED')).slice(
+  const indicators = normalizeIndicatorCodes(await fredAdapter.getAssets()).slice(
     0,
     MAX_FRED_INDICATORS_PER_RUN,
   );
@@ -174,182 +66,50 @@ async function listFredIndicators(input = {}) {
 
 async function loadFredIndicator(input = {}) {
   const indicatorCode = normalizeIndicatorCode(input.indicatorCode);
+  if (!indicatorCode) throw new Error('indicatorCode is required.');
 
-  if (!indicatorCode) {
-    throw new Error('indicatorCode is required.');
+  const result = await runSourceAdapterItem(fredAdapter, indicatorCode, {
+    runId: input.runId || input.workflowId || 'manual',
+    tempRoot: input.tempRoot || getDefaultFredTempRoot(),
+    cleanupQuiet: input.cleanupQuiet,
+    requestPolicy: input.requestPolicy,
+    query: input.query,
+  });
+
+  if (!result.ok) {
+    const error = new Error(result.error?.message || `FRED ingestion failed for ${indicatorCode}.`);
+    error.code = result.error?.code || 'FRED_INDICATOR_FAILED';
+    error.result = result;
+    throw error;
   }
 
-  const startedAt = new Date();
-  const runId = input.runId || input.workflowId || 'manual';
-  const tempRoot = input.tempRoot || getDefaultFredTempRoot();
-  const tempDir = input.tempDir || getIndicatorTempDir(tempRoot, runId, indicatorCode);
-
-  console.log(`🔥 [FRED] Processing ${indicatorCode}`);
-
-  ensureDir(tempDir);
-
-  try {
-    const filePath = await downloadFredCSV(indicatorCode, tempDir);
-
-    normalizeFredCSV(filePath, indicatorCode);
-    const loadResult = copyIntoTable(indicatorCode, filePath);
-
-    const finishedAt = new Date();
-
-    console.log(`✅ [FRED] Loaded ${indicatorCode}`);
-
-    return {
-      ok: true,
-      source: 'FRED',
-      indicatorCode,
-      outcome: loadResult.rowsInserted > 0 ? 'UPDATED' : 'UNCHANGED',
-      stagingRows: loadResult.stagingRows,
-      stagingMinDate: loadResult.stagingMinDate,
-      stagingMaxDate: loadResult.stagingMaxDate,
-      sourceMaxDate: loadResult.stagingMaxDate,
-      previousTargetMaxDate: loadResult.previousTargetMaxDate,
-      newRowsDetected: loadResult.newRowsDetected,
-      rowsInserted: loadResult.rowsInserted,
-      currentTargetMaxDate: loadResult.currentTargetMaxDate,
-      startedAt: startedAt.toISOString(),
-      finishedAt: finishedAt.toISOString(),
-      completedAt: finishedAt.toISOString(),
-      durationMs: finishedAt.getTime() - startedAt.getTime(),
-    };
-  } finally {
-    if (input.cleanup !== false) {
-      await cleanupTempDir(tempDir, {
-        quiet: input.cleanupQuiet,
-      });
-    }
-  }
-}
-
-async function runFredIndicatorSafely(input = {}) {
-  const indicatorCode = normalizeIndicatorCode(input.indicatorCode);
-  const startedAt = new Date();
-
-  try {
-    return await loadFredIndicator({
-      ...input,
-      indicatorCode,
-    });
-  } catch (error) {
-    const completedAt = new Date();
-    const message = error.message || String(error);
-
-    console.error(`❌ [FRED] Failed ${indicatorCode}: ${message}`);
-
-    return {
-      ok: false,
-      source: 'FRED',
-      indicatorCode,
-      outcome: 'FAILED',
-      startedAt: startedAt.toISOString(),
-      finishedAt: completedAt.toISOString(),
-      completedAt: completedAt.toISOString(),
-      durationMs: completedAt.getTime() - startedAt.getTime(),
-      error: {
-        code: error.code || 'FRED_INDICATOR_FAILED',
-        message,
-      },
-    };
-  }
-}
-
-function summarizeResults(results = []) {
-  return toLegacyPipelineSummary(results);
+  return result;
 }
 
 async function runFredIndicatorBatch(input = {}) {
-  const startedAt = new Date().toISOString();
-  const indicatorList = await listFredIndicators({ indicators: input.indicators || [] });
-  const indicators = normalizeIndicatorCodes(indicatorList.indicators);
-  const concurrency = parsePositiveInteger(
-    input.concurrency || input.batchSize,
-    DEFAULT_FRED_CONCURRENCY,
-    input.maxConcurrency || MAX_FRED_CONCURRENCY,
-  );
-  const runId = getSafeRunId(input.runId || input.workflowId || `fred-${Date.now()}`);
-  const tempRoot = input.tempRoot || getDefaultFredTempRoot();
-  const batches = chunkItems(indicators, concurrency);
-  const results = [];
-
-  ensureDir(path.join(tempRoot, runId));
-
-  console.log(`\n📊 [FRED] Active indicators: ${indicators.length}`);
-  console.log(`⚙️ [FRED] Concurrency: ${concurrency}`);
-  console.log(`🧺 [FRED] Batches: ${batches.length}`);
-
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-    const batch = batches[batchIndex];
-
-    console.log(`\n🚦 [FRED] Batch ${batchIndex + 1}/${batches.length}: ${batch.join(', ')}`);
-
-    const batchResults = await Promise.all(
-      batch.map((indicatorCode) =>
-        runFredIndicatorSafely({
-          ...input,
-          runId,
-          tempRoot,
-          indicatorCode,
-        }),
-      ),
-    );
-
-    results.push(...batchResults);
-
-    if (typeof input.onBatchComplete === 'function') {
-      await input.onBatchComplete({
-        batchIndex,
-        batch,
-        results: batchResults,
-      });
-    }
-  }
-
-  if (input.cleanupRoot !== false) {
-    await cleanupTempDir(path.join(tempRoot, runId), {
-      quiet: input.cleanupQuiet,
-    });
-  }
-
-  const summary = summarizeResults(results);
-  const completedAt = new Date().toISOString();
-
-  console.log('');
-  console.log(`🎯 [FRED] Complete: ${summary.succeeded}/${summary.total} succeeded`);
-
-  if (summary.failed > 0) {
-    console.log(`⚠️ [FRED] Failed indicators: ${summary.failed}`);
-  }
-
-  return {
-    ok: summary.failed === 0,
-    source: 'FRED',
-    mode: 'indicator_batch',
-    selectedIndicators: indicatorList.selected,
-    concurrency,
-    batchCount: batches.length,
-    startedAt,
-    completedAt,
-    summary,
-    results,
-  };
+  return runSourceAdapter(fredAdapter, {
+    indicators: input.indicators || [],
+    concurrency: input.concurrency || input.batchSize || DEFAULT_FRED_CONCURRENCY,
+    maxConcurrency: input.maxConcurrency || MAX_FRED_CONCURRENCY,
+    runId: input.runId || input.workflowId,
+    tempDir: input.tempRoot || getDefaultFredTempRoot(),
+    cleanupQuiet: input.cleanupQuiet,
+    onBatchComplete: input.onBatchComplete,
+    requestPolicy: input.requestPolicy,
+    query: input.query,
+  });
 }
 
 module.exports = {
   DEFAULT_FRED_CONCURRENCY,
   MAX_FRED_CONCURRENCY,
   cleanupTempDir,
-  chunkItems,
   getDefaultFredTempRoot,
-  getIndicatorTempDir,
   listFredIndicators,
   loadFredIndicator,
   normalizeIndicatorCode,
   normalizeIndicatorCodes,
   parsePositiveInteger,
   runFredIndicatorBatch,
-  summarizeResults,
+  summarizeResults: require('../core/runPipeline').summarizeResults,
 };
