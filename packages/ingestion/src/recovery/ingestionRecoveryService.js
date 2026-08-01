@@ -365,6 +365,52 @@ async function getRecoveryRequest(recoveryRequestId, options = {}) {
   return result.rows[0] ? sanitizeRecoveryRequest(result.rows[0]) : null;
 }
 
+
+async function listRecoveryRequests(filters = {}, options = {}) {
+  const query = options.query || getDb().query;
+  const conditions = [];
+  const values = [];
+
+  function add(value, sql) {
+    if (value === undefined || value === null || String(value).trim() === '') return;
+    values.push(value);
+    conditions.push(sql.replace('?', `$${values.length}`));
+  }
+
+  add(normalizeCode(filters.domainCode), 'domain_code = ?');
+  add(normalizeCode(filters.sourceCode), 'source_code = ?');
+  add(normalizeCode(filters.statusCode), 'status_code = ?');
+  add(normalizeText(filters.toolCode), 'tool_code = ?');
+  add(normalizeUuid(filters.originalRunId), 'original_run_id = ?');
+
+  const limit = Math.min(Math.max(Number.parseInt(filters.limit || 50, 10) || 50, 1), 200);
+  const offset = Math.max(Number.parseInt(filters.offset || 0, 10) || 0, 0);
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM data.vw_ingestion_recovery_requests ${where}`,
+    values,
+  );
+  const rowsResult = await query(
+    `
+      SELECT *
+      FROM data.vw_ingestion_recovery_requests
+      ${where}
+      ORDER BY requested_at DESC, recovery_request_id DESC
+      LIMIT $${values.length + 1}
+      OFFSET $${values.length + 2}
+    `,
+    [...values, limit, offset],
+  );
+
+  return {
+    contractVersion: 'ingestion_recovery.v1',
+    total: Number(countResult.rows[0]?.total || 0),
+    limit,
+    offset,
+    items: rowsResult.rows.map(sanitizeRecoveryRequest),
+  };
+}
+
 async function updateRecoveryState(query, recoveryRequestId, statusCode, fields = {}) {
   const result = await query(
     `
@@ -409,6 +455,10 @@ async function executeRecoveryRequest({ recoveryRequestId, adapter, concurrency 
       409,
     );
   }
+
+  const executionContext = options.executionContext && typeof options.executionContext === 'object'
+    ? options.executionContext
+    : {};
 
   validateAdapterProfileAlignment(adapter, {
     toolCode: request.toolCode,
@@ -483,9 +533,17 @@ async function executeRecoveryRequest({ recoveryRequestId, adapter, concurrency 
         summary,
         {
           toolCode: request.toolCode,
+          scriptExecutionId: executionContext.scriptExecutionId || null,
+          workflowRunRecordId: executionContext.workflowRunRecordId || null,
+          workflowNodeRunRecordId: executionContext.workflowNodeRunRecordId || null,
+          temporalWorkflowId: executionContext.temporalWorkflowId || null,
+          temporalRunId: executionContext.temporalRunId || null,
           resumedFromRunId: request.originalRunId,
           triggerCode: 'RECOVERY',
           requestContext: {
+            ...(executionContext.requestContext && typeof executionContext.requestContext === 'object'
+              ? executionContext.requestContext
+              : {}),
             recoveryRequestId: request.recoveryRequestId,
             originalRunId: request.originalRunId,
             requestedAssets: request.requestedAssets,
@@ -496,7 +554,8 @@ async function executeRecoveryRequest({ recoveryRequestId, adapter, concurrency 
           metadata: {
             recoveryRequestId: request.recoveryRequestId,
             recoverySelectionCode: request.selectionCode,
-            phase: '16.7.1',
+            phase: '16.7.2',
+            executionLinkage: Boolean(executionContext.scriptExecutionId),
           },
         },
         { client: finalClient },
@@ -547,6 +606,7 @@ module.exports = {
   executeRecoveryRequest,
   getOriginalRunEvidence,
   getRecoveryRequest,
+  listRecoveryRequests,
   normalizeAssetCodes,
   sanitizeRecoveryRequest,
   validateRecoveryCapability,

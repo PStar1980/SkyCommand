@@ -11,13 +11,28 @@ const {
   printPipelineResult,
 } = require('./core/cliOptions');
 const { runMacroIngestionCli } = require('./core/macroIngestionCli');
+const { executeProductionRecovery } = require('./recovery/productionRecovery');
 const bocAdapter = require('./adapters/bocAdapter');
 
-async function executeBoCIngestion(args = process.argv.slice(2)) {
+async function executeBoCIngestion(args = process.argv.slice(2), runtime = {}) {
+  const concurrency = getConcurrency(args, 'BOC_INGESTION_CONCURRENCY', 3);
+  const runId = getRunId(args, 'BOC_INGESTION_RUN_ID', 'boc-tool');
+  const recovery = await (runtime.executeRecovery || executeProductionRecovery)({
+    adapter: bocAdapter,
+    toolCode: 'ingestion_boc',
+    args,
+    concurrency,
+    runId,
+    client: runtime.client,
+    execute: runtime.executeRecoveryAdapter,
+    executionContext: runtime.executionContext,
+  });
+  if (recovery) return recovery;
+
   return runSourceAdapter(bocAdapter, {
     indicators: getRequestedIndicators(args),
-    concurrency: getConcurrency(args, 'BOC_INGESTION_CONCURRENCY', 3),
-    runId: getRunId(args, 'BOC_INGESTION_RUN_ID', 'boc-tool'),
+    concurrency,
+    runId,
     cleanupQuiet: true,
   });
 }

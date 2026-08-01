@@ -11,24 +11,39 @@ const {
   printPipelineResult,
 } = require('./core/cliOptions');
 const { runMacroIngestionCli } = require('./core/macroIngestionCli');
+const { executeProductionRecovery } = require('./recovery/productionRecovery');
 const statcanAdapter = require('./adapters/statcanAdapter');
 const STATCAN_DEFAULT_CONCURRENCY = 2;
 const STATCAN_MAX_CONCURRENCY = 3;
 
-async function executeStatCanIngestion(args = process.argv.slice(2)) {
+async function executeStatCanIngestion(args = process.argv.slice(2), runtime = {}) {
+  const concurrency = getConcurrency(
+    args,
+    'STATCAN_INGESTION_CONCURRENCY',
+    STATCAN_DEFAULT_CONCURRENCY,
+  );
+  const runId = getRunId(args, 'STATCAN_INGESTION_RUN_ID', 'statcan-tool');
+  const recovery = await (runtime.executeRecovery || executeProductionRecovery)({
+    adapter: statcanAdapter,
+    toolCode: 'ingestion_statcan',
+    args,
+    concurrency,
+    runId,
+    client: runtime.client,
+    execute: runtime.executeRecoveryAdapter,
+    executionContext: runtime.executionContext,
+  });
+  if (recovery) return recovery;
+
   return runSourceAdapter(statcanAdapter, {
     indicators: getRequestedIndicators(args),
-    concurrency: getConcurrency(
-      args,
-      'STATCAN_INGESTION_CONCURRENCY',
-      STATCAN_DEFAULT_CONCURRENCY,
-    ),
+    concurrency,
     maxConcurrency:
       Number.parseInt(
         process.env.STATCAN_INGESTION_MAX_CONCURRENCY || STATCAN_MAX_CONCURRENCY,
         10,
       ) || STATCAN_MAX_CONCURRENCY,
-    runId: getRunId(args, 'STATCAN_INGESTION_RUN_ID', 'statcan-tool'),
+    runId,
     cleanupQuiet: true,
   });
 }

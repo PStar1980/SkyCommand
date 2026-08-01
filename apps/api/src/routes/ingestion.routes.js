@@ -95,6 +95,9 @@ router.put(
   ingestionController.saveAssetQualityPolicy,
 );
 
+router.get('/recoveries', ingestionController.listRecoveryRequests);
+router.get('/recoveries/:recoveryRequestId', ingestionController.getRecoveryRequest);
+router.post('/runs/:ingestionRunId/recovery', ingestionController.recoverIngestionRun);
 router.get('/runs', ingestionController.listIngestionRuns);
 router.get('/runs/:ingestionRunId', ingestionController.getIngestionRun);
 

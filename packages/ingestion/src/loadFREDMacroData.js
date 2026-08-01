@@ -11,6 +11,7 @@ const {
   printPipelineResult,
 } = require('./core/cliOptions');
 const { runMacroIngestionCli } = require('./core/macroIngestionCli');
+const { executeProductionRecovery } = require('./recovery/productionRecovery');
 
 const DEFAULT_FRED_CONCURRENCY = 3;
 const MAX_FRED_CONCURRENCY = 10;
@@ -23,12 +24,26 @@ function getRunId(args = process.argv.slice(2)) {
   return getCommonRunId(args, 'FRED_INGESTION_RUN_ID', 'fred-tool');
 }
 
-async function executeFredIngestion(args = process.argv.slice(2)) {
+async function executeFredIngestion(args = process.argv.slice(2), runtime = {}) {
+  const concurrency = getConcurrency(args);
+  const runId = getRunId(args);
+  const recovery = await (runtime.executeRecovery || executeProductionRecovery)({
+    adapter: fredAdapter,
+    toolCode: 'ingestion_fred',
+    args,
+    concurrency,
+    runId,
+    client: runtime.client,
+    execute: runtime.executeRecoveryAdapter,
+    executionContext: runtime.executionContext,
+  });
+  if (recovery) return recovery;
+
   return runSourceAdapter(fredAdapter, {
     indicators: getRequestedIndicators(args),
-    concurrency: getConcurrency(args),
+    concurrency,
     maxConcurrency: MAX_FRED_CONCURRENCY,
-    runId: getRunId(args),
+    runId,
     cleanupQuiet: true,
   });
 }

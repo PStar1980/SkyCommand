@@ -25,6 +25,18 @@ function looksNumeric(value) {
   return /^\d+$/.test(String(value || '').trim());
 }
 
+function looksUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || '').trim(),
+  );
+}
+
+function isRecoveryControlValue(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  return looksUuid(value)
+    || ['INCREMENTAL', 'BACKFILL', 'FULL', 'TRUE', 'FALSE'].includes(normalized);
+}
+
 function getRequestedIndicators(args = []) {
   const values = [];
 
@@ -37,13 +49,38 @@ function getRequestedIndicators(args = []) {
   }
 
   const positionalArgs = getPositionalArgs(args);
-  const firstPositional = positionalArgs[0];
+  const firstPositional = positionalArgs.find(
+    (value) => !looksNumeric(value) && !isRecoveryControlValue(value),
+  );
 
-  if (firstPositional && !looksNumeric(firstPositional)) {
+  if (firstPositional) {
     values.push(firstPositional);
   }
 
   return values;
+}
+
+
+function getResumeRunId(args = []) {
+  const explicit = getArgValue(args, 'resume-run-id');
+  if (explicit) return looksUuid(explicit) ? explicit : null;
+  return getPositionalArgs(args).find(looksUuid) || null;
+}
+
+function getRecoveryMode(args = []) {
+  const explicit = getArgValue(args, 'mode');
+  const positional = getPositionalArgs(args).find((value) =>
+    ['INCREMENTAL', 'BACKFILL', 'FULL'].includes(String(value || '').trim().toUpperCase()),
+  );
+  return String(explicit || positional || 'INCREMENTAL').trim().toUpperCase();
+}
+
+function getRecoveryAssets(args = []) {
+  const repeated = getRepeatedArgValues(args, 'asset');
+  const values = repeated.length > 0 ? repeated : getRequestedIndicators(args);
+  return [...new Set(values.flatMap((value) => String(value || '').split(/[\s,]+/))
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean))];
 }
 
 function getConcurrency(args = [], envKey, fallback) {
@@ -85,6 +122,11 @@ function printPipelineResult(result, args = []) {
   console.log(`  updated: ${summary.updated ?? 0}`);
   console.log(`  unchanged: ${summary.unchanged ?? 0}`);
   console.log(`  rows inserted: ${summary.rowsInserted ?? 0}`);
+  if (result.recoveryExecution?.request) {
+    console.log(`  recovery request: ${result.recoveryExecution.request.recoveryRequestId}`);
+    console.log(`  resumed from run: ${result.recoveryExecution.request.originalRunId}`);
+    console.log(`  recovered assets: ${(result.recoveryExecution.request.requestedAssets || []).join(', ')}`);
+  }
 
   if (hasFlag(args, 'json')) {
     console.log('');
@@ -95,8 +137,12 @@ function printPipelineResult(result, args = []) {
 module.exports = {
   getArgValue,
   getConcurrency,
+  getRecoveryAssets,
+  getRecoveryMode,
   getRequestedIndicators,
+  getResumeRunId,
   getRunId,
   hasFlag,
+  looksUuid,
   printPipelineResult,
 };

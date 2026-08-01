@@ -6,6 +6,10 @@ const freshnessAdminService = require('../../../../packages/ingestion/src/freshn
 const ingestionLedgerService = require('../../../../packages/ingestion/src/ledger/ingestionLedgerService');
 const qualityPolicyAdminService = require('../../../../packages/ingestion/src/quality/qualityPolicyAdminService');
 const qualityEvidenceService = require('../../../../packages/ingestion/src/quality/qualityEvidenceService');
+const ingestionRecoveryService = require('../../../../packages/ingestion/src/recovery/ingestionRecoveryService');
+const scriptExecutionService = require('../services/scriptExecutionService');
+const authService = require('../services/authService');
+const { buildToolExecutionHttpResponse } = require('../services/toolExecutionHttpResponse');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
 function isActiveIngestionExecution(execution = {}) {
@@ -454,6 +458,103 @@ async function listRejectionEvents(req, res, next) {
   }
 }
 
+
+async function listRecoveryRequests(req, res, next) {
+  try {
+    const payload = await ingestionRecoveryService.listRecoveryRequests(req.query || {});
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function getRecoveryRequest(req, res, next) {
+  try {
+    const item = await ingestionRecoveryService.getRecoveryRequest(req.params.recoveryRequestId);
+    if (!item) {
+      res.status(404).json({ ok: false, error: 'Ingestion recovery request not found.' });
+      return;
+    }
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      contractVersion: 'ingestion_recovery.v1',
+      item,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function recoverIngestionRun(req, res, next) {
+  try {
+    const body = req.body || {};
+    if (body.failedOnly === false) {
+      res.status(400).json({
+        ok: false,
+        error: 'The live recovery endpoint currently supports failed-only recovery. Supply assets only to narrow the failed subset.',
+      });
+      return;
+    }
+
+    const evidence = await ingestionRecoveryService.getOriginalRunEvidence(
+      req.params.ingestionRunId,
+    );
+    const assets = Array.isArray(body.assets)
+      ? body.assets
+      : String(body.assets || '').split(/[\s,]+/).filter(Boolean);
+    const parameters = {
+      indicators: assets.join(','),
+      concurrency: body.concurrency || 1,
+      resumeRunId: req.params.ingestionRunId,
+      recoveryMode: body.modeCode || 'INCREMENTAL',
+      forceRefresh: Boolean(body.forceRefresh),
+    };
+    const context = authService.getRequestContext(req);
+    const result = await scriptExecutionService.runTool({
+      toolCode: evidence.run.toolCode,
+      parameters,
+      confirmed: body.confirmed || body.confirm,
+      confirmationPhrase: body.confirmationPhrase || body.confirmationText,
+      user: req.user,
+      session: req.session,
+      permissions: req.permissions || [],
+      context: {
+        ...context,
+        recoveryOriginalRunId: evidence.run.originalRunId,
+        recoveryRequestedAssets: assets,
+      },
+    });
+    const response = buildToolExecutionHttpResponse(result);
+    res.status(response.statusCode).json({
+      ...response.body,
+      recovery: {
+        originalRunId: evidence.run.originalRunId,
+        toolCode: evidence.run.toolCode,
+        requestedAssets: assets,
+        selectionCode: 'FAILED_ONLY',
+      },
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    if (error.statusCode) {
+      res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+      return;
+    }
+    next(error);
+  }
+}
+
 async function listIngestionRuns(req, res, next) {
   try {
     const payload = await ingestionLedgerService.listRuns(req.query || {});
@@ -587,4 +688,7 @@ module.exports = {
   saveCatalogueMetric,
   listIngestionRuns,
   getIngestionRun,
+  listRecoveryRequests,
+  getRecoveryRequest,
+  recoverIngestionRun,
 };
