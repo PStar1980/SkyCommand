@@ -60,6 +60,12 @@ function normalizeItem(item = {}) {
     rowsUpdated: number(item.rowsUpdated),
     rowsUnchanged: number(item.rowsUnchanged),
     rowsRejected: number(item.rowsRejected),
+    revisionsDetected: number(item.revisionsDetected),
+    qualityIssueCount: number(item.qualityIssueCount),
+    qualityStatusCode: code(item.qualityStatusCode, 'PASS'),
+    revisionEvents: Array.isArray(item.revisionEvents) ? item.revisionEvents : [],
+    rejectionEvents: Array.isArray(item.rejectionEvents) ? item.rejectionEvents : [],
+    qualityIssues: Array.isArray(item.qualityIssues) ? item.qualityIssues : [],
     startedAt: nullable(item.startedAt),
     completedAt: nullable(item.completedAt || item.finishedAt),
     durationMs: number(item.durationMs),
@@ -86,6 +92,9 @@ function summarizeItems(items = []) {
     rowsUpdated: 0,
     rowsUnchanged: 0,
     rowsRejected: 0,
+    revisionsDetected: 0,
+    qualityIssueCount: 0,
+    qualityStatusCode: 'PASS',
     attempts: items.length,
     retries: items.filter((item) => item.attemptNumber > 1).length,
   };
@@ -98,6 +107,12 @@ function summarizeItems(items = []) {
     totals.rowsUpdated += item.rowsUpdated;
     totals.rowsUnchanged += item.rowsUnchanged;
     totals.rowsRejected += item.rowsRejected;
+    totals.revisionsDetected += item.revisionsDetected;
+    totals.qualityIssueCount += item.qualityIssueCount;
+    if (item.qualityStatusCode === 'FAIL') totals.qualityStatusCode = 'FAIL';
+    else if (item.qualityStatusCode === 'WARN' && totals.qualityStatusCode === 'PASS') {
+      totals.qualityStatusCode = 'WARN';
+    }
 
     const existing = latestByAsset.get(item.assetCode);
     if (!existing || item.attemptNumber >= existing.attemptNumber) {

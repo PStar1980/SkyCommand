@@ -19,12 +19,22 @@ function run() {
 
   assert.deepStrictEqual(copyResult, {
     stagingRows: 1337,
+    acceptedRows: 0,
     stagingMinDate: '1913-01-01',
     stagingMaxDate: '2026-06-01',
     previousTargetMaxDate: '2026-04-01',
     newRowsDetected: 2,
     rowsInserted: 2,
+    rowsUpdated: 0,
+    rowsUnchanged: 0,
+    rowsRejected: 0,
+    revisionsDetected: 0,
+    qualityIssueCount: 0,
+    qualityStatusCode: 'PASS',
     currentTargetMaxDate: '2026-06-01',
+    revisionEvents: [],
+    rejectionEvents: [],
+    qualityIssues: [],
   });
 
   const results = [
