@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 15
+- **Revision:** 16
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6.1 complete with revision-aware loading, durable old/new revision evidence, rejected-row evidence, idempotent second-load proof, and a non-macro quality fixture; Phase 16.6.2 complete with PostgreSQL-authoritative quality-policy precedence, portable gap/row-count checks, and proven blocking enforcement; Phase 16.6.3 quality administration, evidence APIs, and production closure proof is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7.1 durable recovery intent, failed-only selection, restart-safe reconstruction, and recovery ancestry is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,55 +850,46 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.6.3 — Quality Administration, Evidence APIs, and Production Closure Proof**.
+The active implementation checkpoint is **Phase 16.7.1 — Durable Failed-Only Recovery Foundation**.
 
-Phase 16.6.2 is accepted as complete. The portability proof confirmed that source-level `UNEXPECTED_GAP` and `ROW_COUNT_ANOMALY` policies can produce non-blocking warning evidence, an asset-level override takes precedence without loader code changes, a blocking finding prevents inserts and updates, and the temporary non-macro fixture cleans up successfully.
+Phase 16.6 is accepted as complete. The production closure proof confirmed that FRED `DFF`, Bank of Canada `FXUSDCAD`, and Statistics Canada `CAD_CPI_ALL_ITEMS` all execute through the revision-aware quality loader, resolve PostgreSQL-authoritative source policies, persist `PASS` quality evidence in the generic ledger, and preserve the legacy `macro_ingestion_summary.v1` contract. Empty quality/revision/rejection API lists are valid because those selected production runs contained no findings or revisions.
 
-Phase 16.6.3 closes the operational seam around the revision/quality foundation:
+Phase 16.7.1 establishes the durable recovery contract before enabling it on production tools:
 
-1. add generic managed writes for source and asset quality policies using the existing `DATA_CATALOGUE_WRITE` permission;
-2. validate check-specific parameters such as `maxGapDays`, `minRows`, and `maxRows` before PostgreSQL writes;
-3. expose resolved asset policy so administration clients can see whether a rule came from `ASSET`, `SOURCE`, or `CHECK_DEFAULT`;
-4. expose generic paginated quality, revision, and rejection evidence APIs under the ingestion surface;
-5. preserve run-detail compatibility while allowing future Data Status and SkyData Studio consumers to query evidence independently;
-6. prove the production path with selected FRED, Bank of Canada, and Statistics Canada assets after the quality-aware loader cutover;
-7. verify each live ledger item contains quality status, row outcomes, revision/rejection counts, and resolved PostgreSQL policy.
+1. add `data.ingestion_recovery_requests` and a generic recovery lifecycle catalogue;
+2. reconstruct each original run's final per-asset outcome from the durable ledger;
+3. select only terminal failed/rejected/cancelled assets for `FAILED_ONLY` recovery;
+4. persist requested assets, failed-asset snapshot, mode, force/dry-run intent, status, and request context;
+5. require an ingestion profile that explicitly supports both selected assets and resume;
+6. link the recovery run through `resumed_from_run_id` and a durable recovery request;
+7. enforce domain/source/tool/asset ancestry through deferred PostgreSQL guardrails;
+8. prove that recovery can be reconstructed after process-state loss and executes only the failed asset in a temporary non-macro source;
+9. keep current production profiles `supports_resume = FALSE` until the live tool/API/workflow integration checkpoint is implemented and proven.
 
-No new database migration is required for this checkpoint. It uses the tables and views introduced by migrations `00086` through `00089`.
-
-Generic administration routes:
-
-```text
-GET /api/ingestion/catalogue/admin/quality/policies
-GET /api/ingestion/catalogue/admin/quality/resolved/:domainCode/:assetCode
-PUT /api/ingestion/catalogue/admin/quality/source-policies/:domainCode/:sourceCode/:checkCode
-PUT /api/ingestion/catalogue/admin/quality/asset-policies/:domainCode/:assetCode/:checkCode
-```
-
-Generic evidence routes:
+Database files:
 
 ```text
-GET /api/ingestion/quality/events
-GET /api/ingestion/quality/revisions
-GET /api/ingestion/quality/rejections
+00090__ingestion_recovery_foundation.sql
+00091__ingestion_recovery_foundation_seed.sql
 ```
 
 Focused commands:
 
 ```text
-npm run phase16:quality-admin:self-test
-npm run phase16:quality-production:verify
+npm run phase16:recovery:verify
+npm run phase16:recovery:self-test
+npm run phase16:recovery:proof
 ```
 
-The production closure verifier expects recent selected runs for:
+The rollback-safe proof creates one temporary partial run:
 
 ```text
-FRED      DFF
-BOC       FXUSDCAD
-STATCAN   CAD_CPI_ALL_ITEMS
+ASSET_A  UPDATED
+ASSET_B  FAILED
+ASSET_C  UNCHANGED
 ```
 
-It confirms that all three production adapters resolve the required quality policies and that the durable ledger exposes the resulting quality/revision evidence without breaking `macro_ingestion_summary.v1` consumers.
+It then reconstructs a durable `FAILED_ONLY` request, executes only `ASSET_B`, persists a successful child run linked to the original run, validates deferred ancestry guardrails, and rolls every fixture record back. Production recovery enablement follows in Phase 16.7.2.
 
 ---
 

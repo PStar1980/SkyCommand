@@ -336,7 +336,8 @@ SkyServer/
 │   │       │   ├── 00082__generic_ingestion_ledger.sql
 │   │       │   ├── 00084__source_request_retry_policies.sql
 │   │       │   ├── 00086__revision_quality_foundation.sql
-│   │       │   └── 00088__portable_quality_policies.sql
+│   │       │   ├── 00088__portable_quality_policies.sql
+│   │       │   └── 00090__ingestion_recovery_foundation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -378,7 +379,8 @@ SkyServer/
 │   │           ├── 00083__generic_ingestion_ledger_seed.sql
 │   │           ├── 00085__source_request_retry_policies_seed.sql
 │   │           ├── 00087__revision_quality_foundation_seed.sql
-│   │           └── 00089__portable_quality_policies_seed.sql
+│   │           ├── 00089__portable_quality_policies_seed.sql
+│   │           └── 00091__ingestion_recovery_foundation_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -490,6 +492,11 @@ SkyServer/
 │   │       │   ├── qualityPolicyAdminService.js
 │   │       │   ├── qualityPolicySelfTest.js
 │   │       │   └── revisionQualitySelfTest.js
+│   │       ├── recovery/
+│   │       │   ├── ingestionRecoverySelfTest.js
+│   │       │   ├── ingestionRecoveryService.js
+│   │       │   ├── phase16RecoveryFoundation.js
+│   │       │   └── phase16RecoveryProof.js
 │   │       ├── sources/
 │   │       │   ├── boc.js
 │   │       │   ├── fred.js
