@@ -533,7 +533,7 @@ Audit metadata must exclude uploaded source content, secrets, and parameter valu
 
 ### Phase 15.7 - Closure and documentation — closure readiness complete
 
-- added `docs/SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md` with the minimum regression suite, failure/recovery behavior, deferred enhancements, and exact final live closure procedure;
+- defined the minimum regression suite, failure/recovery behavior, deferred enhancements, and exact final live closure procedure; the former standalone closure matrix was consolidated into this document after Phase 16 completion;
 - added `phase15:closure-readiness:self-test`, a dependency-free architectural regression proving central contracts, disposable descriptors, managed comparison placement, absence of runtime hash/fingerprint gates, workflow visibility/confirmation coverage, purpose-built database renderers, and required Phase 15 test commands;
 - extended `workflow-condition:self-test` to prove both TRUE and FALSE routing from `nodes.db_compare_node.output.databasesMatch`;
 - retained and closed regression coverage for the table-first Database Health, Database Build, PostgreSQL comparison, and Database Synchronization Summary renderers;
@@ -601,4 +601,4 @@ No workflow definition, migration, seed, approval record, or dependency change i
 | 15.5.1    | Complete    | Any create-new destination under `packages`; hashes/warnings remain advisory and non-runtime                            |
 | 15.6      | Complete    | Managed verification, explicit enablement, unattended workflow execution, database build/comparison proof, workflow visibility validation, and purpose-built database comparison/summary rendering |
 | 15.6.3    | Complete    | Add Tool verification deep-link, automatic panel focus, persistent jump action, and navigation self-test                |
-| 15.7      | Complete      | Regression/recovery matrix, closure-readiness test, comparison condition regression, validation isolation, Human Approval parameter wiring regression coverage, documentation reconciliation, and final Development Promotion proof complete |
+| 15.7      | Complete      | Regression/recovery coverage, closure-readiness test, comparison condition regression, validation isolation, Human Approval parameter wiring regression coverage, documentation reconciliation, and final Development Promotion proof complete |

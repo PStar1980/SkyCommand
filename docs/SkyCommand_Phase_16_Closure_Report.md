@@ -2,24 +2,19 @@
 
 ## Document control
 
-- **Status:** Closure candidate — final live regression and promotion pending
-- **Revision:** 1
+- **Status:** Complete
+- **Revision:** 2
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16 — Portable Ingestion and Data Contract Foundation
 
 ## 1. Closure statement
 
-Phase 16 has delivered and locally proven a portable ingestion, evidence, recovery, and consumer-contract foundation. The production macroeconomic domain remains compatible, while a temporary **PROGRAM_EVALUATION** domain completed the same generic path without a macro-specific branch or core source-list edit.
+Phase 16 delivered and proved a portable ingestion, evidence, recovery, and consumer-contract foundation. The production macroeconomic domain remains compatible, while a temporary **PROGRAM_EVALUATION** domain completed the same generic path without a macro-specific branch or core source-list edit.
 
-The remaining Phase 16.9 work is stabilization and release closure only:
+Phase 16.9 completed closure stabilization: shared-client PostgreSQL reads were sequenced safely, the closure verifier reported 68 current macro assets, one accepted watch asset (`USSLIND`), and zero freshness errors, and routine validation was moved into a cross-platform Node runner to avoid Windows command-line length limits.
 
-1. remove the node-postgres overlapping-query deprecation warning;
-2. run one concise live production regression;
-3. run repository validation and the Admin-Web production build;
-4. promote the completed phase through the normal Development Promotion workflow.
-
-No new Phase 16 architecture, database migration, source adapter, or product surface is planned after this checkpoint.
+Phase 16 is complete. Promotion, repository-map regeneration, and packaging are release operations rather than remaining phase scope. No further Phase 16 architecture, migration, adapter, or product surface is planned.
 
 ## 2. Delivered architecture
 
@@ -142,27 +137,26 @@ The following remain outside Phase 16:
 - automatic dependency installation for third-party adapters;
 - the SkyData Studio client application.
 
-## 7. Final acceptance sequence
+## 7. Final acceptance and repeatable release checks
 
-Run the focused closure checks:
+The focused closure checks passed:
 
 ```powershell
 npm run phase16:closure:self-test
 npm run phase16:closure:verify
 ```
 
-Then perform one concise live regression:
+The accepted live regression covered:
 
 1. selected FRED `DFF`, BoC `FXUSDCAD`, and StatCan `CAD_CPI_ALL_ITEMS` runs;
 2. Macro Refresh Pipeline with small selections;
 3. Data Intelligence and Ingestion Operations inspection;
 4. asset, direct metric, derived metric, and DFF run-search API checks.
 
-Complete repository closure:
+For future release handoffs, run:
 
 ```powershell
-npm run validate
-npm run web:build
+npm run validate:release
 ```
 
 Then use the normal promotion route:

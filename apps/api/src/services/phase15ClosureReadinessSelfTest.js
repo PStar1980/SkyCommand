@@ -160,8 +160,10 @@ assert(
 );
 
 assert(
-  exists('docs/SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md'),
-  'The Phase 15 regression and recovery matrix must exist.',
+  read('docs/SkyCommand_Phase_15_Tool_Catalogue_Administration.md').includes(
+    'Phase 15.7 - Closure and documentation',
+  ),
+  'The consolidated Phase 15 closure and regression record must exist.',
 );
 
 const packageJson = JSON.parse(read('package.json'));

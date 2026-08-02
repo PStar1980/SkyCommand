@@ -252,12 +252,8 @@ SkyServer/
 │   ├── SkyCommand_API_Observability.md
 │   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
-│   ├── SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
-│   ├── SkyCommand_Phase_16_1_Semantic_Ingestion_Identity.md
-│   ├── SkyCommand_Phase_16_Baseline_and_Coupling_Inventory.md
 │   ├── SkyCommand_Phase_16_Closure_Report.md
-│   ├── SkyCommand_Phase_16_Portable_Ingestion_and_Data_Contract_Foundation.md
 │   ├── SkyCommand_RepoMap.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
 │   ├── SkyServer_Temporal_Local_Setup.md
@@ -574,6 +570,7 @@ SkyServer/
 │           ├── workflowResultContext.js
 │           └── workflowResultContextSelfTest.js
 ├── scripts/
+│   ├── validate.js
 │   ├── db/
 │   │   ├── functions/
 │   │   │   ├── auth.set_updated_at.sql
