@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 19
+- **Revision:** 20
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7 complete with durable failed-only recovery through CLI, Run Tools, API, published workflow, and Temporal lanes; Phase 16.8.1 generic ingestion operations and recovery-navigation surface is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7 complete with durable failed-only recovery through CLI, Run Tools, API, published workflow, and Temporal lanes; Phase 16.8.1 complete with a generic ingestion-operations surface and failed-only recovery navigation; Phase 16.8.2 generic observation and metric consumer contracts is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,29 +850,40 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.8.1 — Generic Ingestion Operations Surface**.
+The active implementation checkpoint is **Phase 16.8.2 — Generic Observation and Metric Consumer Contracts**.
 
-Phase 16.7 is accepted as complete. The final live proofs confirmed that the same failed-only recovery contract works through Run Tools and the published Macro Refresh Pipeline. In both lanes, only failed `DFF` was re-fetched and reloaded, successful `CPIAUCSL` remained untouched, and recovery request, child run, script execution, workflow node, SkyCommand workflow run, and Temporal workflow/run ancestry reconciled exactly.
+Phase 16.8.1 is accepted as complete. The new **Data → Ingestion Operations** page reads the generic ingestion ledger, displays run/item evidence and execution lineage, exposes recovery history, and deep-links failed assets into the existing registered Run Tools lane. Catalogue-source discovery and recovery APIs are working. One acceptance check also exposed that free-text run search did not yet inspect selected/item asset codes: `q=DFF` returned zero even though retained DFF recovery evidence existed.
 
-Phase 16.8.1 begins the reusable consumer layer:
+Phase 16.8.2 completes the reusable read contract for stored time series and initial catalogue metrics:
 
-1. add a generic **Data → Ingestion Operations** page backed by `ingestion_run_summary.v1` and `ingestion_recovery.v1`;
-2. filter history by domain, source, tool, status, and free-text run identity without hard-coded source arrays;
-3. display run totals, execution ancestry, item attempts, quality/revision/rejection coverage, and recovery history;
-4. expose a failed-only recovery action that deep-links into the existing registered Run Tools lane with tool and recovery parameters prefilled;
-5. add generic catalogue-source discovery at `GET /api/ingestion/catalogue/sources`;
-6. preserve the existing Data Intelligence and legacy macro surfaces unchanged;
-7. keep this first operational increment read-oriented: execution still occurs through the existing registered tool and confirmation workflow.
+1. add `time_series_observations.v1` for any catalogue `TIME_SERIES` asset with safe storage metadata;
+2. add `metric_observations.v1` for one-asset `IDENTITY` and bounded `PCT_CHANGE` definitions;
+3. resolve domain, asset, storage, metric definition, and dependencies from PostgreSQL rather than source-specific code;
+4. reject unsupported asset kinds, unsafe storage identifiers, missing relations, unsupported metric dependency shapes, and unknown operators explicitly;
+5. add metric-detail and asset/metric observation API routes while preserving every legacy macro endpoint;
+6. make ingestion-run free-text search inspect selected assets and item-level asset names/codes so operational search matches the UI evidence model;
+7. keep formula scope intentionally narrow: no user-authored expression language and no general formula engine.
 
-No database migration is required for this checkpoint. It consumes the catalogues, ledger, quality evidence, and recovery structures already proven in Phases 16.1–16.7.
+No database migration is required for this checkpoint. It consumes the asset storage pointers, metric definitions, and dependency catalogue introduced in Phase 16.2.
 
-Focused command:
+Focused commands:
 
 ```text
-npm run phase16:operations-surface:self-test
+npm run phase16:consumer-contracts:self-test
+npm run phase16:consumer-contracts:verify
 ```
 
-Local UI proof should confirm that the new page lists current macro ingestion runs, opens item-level detail, shows workflow/Temporal lineage for workflow runs, displays retained interactive/workflow recovery requests, and opens Run Tools with failed assets, resume run ID, recovery mode, concurrency, and force-refresh values already populated.
+Local API proof should confirm:
+
+```text
+GET /api/ingestion/catalogue/assets/MACRO/DFF/observations?sortDirection=DESC&limit=5
+GET /api/ingestion/catalogue/metrics/MACRO/US_UNEMPLOYMENT_RATE
+GET /api/ingestion/catalogue/metrics/MACRO/US_UNEMPLOYMENT_RATE/observations?sortDirection=DESC&limit=5
+GET /api/ingestion/catalogue/metrics/MACRO/US_CPI_INFLATION_YOY/observations?sortDirection=DESC&limit=5
+GET /api/ingestion/runs?q=DFF&limit=10
+```
+
+After this checkpoint passes, Phase 16.8.3 will use the completed catalogue, adapter, ledger, freshness, quality, recovery, observation, and metric contracts for the final temporary non-macro end-to-end portability package and Phase 16 closure documentation.
 
 ---
 

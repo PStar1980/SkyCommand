@@ -15,7 +15,19 @@ router.get(
   '/catalogue/assets/:domainCode/:assetCode',
   ingestionController.getCatalogueAsset,
 );
+router.get(
+  '/catalogue/assets/:domainCode/:assetCode/observations',
+  ingestionController.listAssetObservations,
+);
 router.get('/catalogue/metrics', ingestionController.listCatalogueMetrics);
+router.get(
+  '/catalogue/metrics/:domainCode/:metricCode',
+  ingestionController.getCatalogueMetric,
+);
+router.get(
+  '/catalogue/metrics/:domainCode/:metricCode/observations',
+  ingestionController.listMetricObservations,
+);
 router.get('/catalogue/freshness', ingestionController.listCatalogueFreshness);
 router.get(
   '/catalogue/freshness/:domainCode/:assetCode',

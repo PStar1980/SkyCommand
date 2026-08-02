@@ -376,6 +376,29 @@ async function listMetrics(filters = {}, options = {}) {
   };
 }
 
+async function getMetric(domainCode, metricCode, options = {}) {
+  const query = options.query || getDatabaseQuery();
+  const normalizedDomainCode = normalizeCode(domainCode);
+  const normalizedMetricCode = normalizeCode(metricCode);
+
+  if (!normalizedDomainCode || !normalizedMetricCode) {
+    return null;
+  }
+
+  const result = await query(
+    `
+      SELECT *
+      FROM data.vw_metrics
+      WHERE domain_code = $1
+        AND metric_code = $2
+      LIMIT 1
+    `,
+    [normalizedDomainCode, normalizedMetricCode],
+  );
+
+  return result.rows[0] ? sanitizeMetric(result.rows[0]) : null;
+}
+
 module.exports = {
   CATALOGUE_CONTRACT_VERSION,
   normalizeBoolean,
@@ -386,4 +409,5 @@ module.exports = {
   listAssets,
   getAsset,
   listMetrics,
+  getMetric,
 };
