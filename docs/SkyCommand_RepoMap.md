@@ -440,6 +440,10 @@ SkyServer/
 │   │       │   ├── manualIngestion.json
 │   │       │   ├── statcanIndicators.js
 │   │       │   └── statcanVectors.js
+│   │       ├── consumer/
+│   │       │   ├── dataConsumerService.js
+│   │       │   ├── dataConsumerServiceSelfTest.js
+│   │       │   └── phase16ConsumerContracts.js
 │   │       ├── core/
 │   │       │   ├── cliOptions.js
 │   │       │   ├── httpSourceClient.js

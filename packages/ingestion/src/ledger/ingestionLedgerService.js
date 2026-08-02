@@ -504,7 +504,7 @@ async function listRuns(filters = {}, options = {}) {
     const value = normalizeText(filters[key]);
     if (!value) continue;
     values.push(['domainCode', 'sourceCode', 'statusCode'].includes(key) ? normalizeCode(value) : value);
-    clauses.push(`${column} = $${values.length}`);
+    clauses.push(`run.${column} = $${values.length}`);
   }
 
   const searchText = normalizeText(filters.q || filters.search);
@@ -512,16 +512,30 @@ async function listRuns(filters = {}, options = {}) {
     values.push(`%${searchText}%`);
     const searchParam = `$${values.length}`;
     clauses.push(`(
-      domain_code ILIKE ${searchParam}
-      OR domain_name ILIKE ${searchParam}
-      OR source_code ILIKE ${searchParam}
-      OR source_name ILIKE ${searchParam}
-      OR tool_code ILIKE ${searchParam}
-      OR tool_label ILIKE ${searchParam}
-      OR status_code ILIKE ${searchParam}
-      OR summary ILIKE ${searchParam}
-      OR ingestion_run_id::text ILIKE ${searchParam}
-      OR script_execution_id::text ILIKE ${searchParam}
+      run.domain_code ILIKE ${searchParam}
+      OR run.domain_name ILIKE ${searchParam}
+      OR run.source_code ILIKE ${searchParam}
+      OR run.source_name ILIKE ${searchParam}
+      OR run.tool_code ILIKE ${searchParam}
+      OR run.tool_label ILIKE ${searchParam}
+      OR run.status_code ILIKE ${searchParam}
+      OR run.summary ILIKE ${searchParam}
+      OR run.ingestion_run_id::text ILIKE ${searchParam}
+      OR run.script_execution_id::text ILIKE ${searchParam}
+      OR run.workflow_run_record_id::text ILIKE ${searchParam}
+      OR run.temporal_workflow_id ILIKE ${searchParam}
+      OR run.selected_assets::text ILIKE ${searchParam}
+      OR EXISTS (
+        SELECT 1
+        FROM data.vw_ingestion_run_items item
+        WHERE item.ingestion_run_id = run.ingestion_run_id
+          AND (
+            item.asset_code ILIKE ${searchParam}
+            OR item.asset_name ILIKE ${searchParam}
+            OR COALESCE(item.error_code, '') ILIKE ${searchParam}
+            OR COALESCE(item.error_message, '') ILIKE ${searchParam}
+          )
+      )
     )`);
   }
 
@@ -531,13 +545,14 @@ async function listRuns(filters = {}, options = {}) {
   const offsetParam = `$${values.length}`;
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
 
-  const [countResult, rowsResult] = await Promise.all([
-    query(`SELECT COUNT(*)::int AS total FROM data.vw_ingestion_runs ${where}`, values.slice(0, -2)),
-    query(
-      `SELECT * FROM data.vw_ingestion_runs ${where} ORDER BY started_at DESC, ingestion_run_id DESC LIMIT ${limitParam} OFFSET ${offsetParam}`,
-      values,
-    ),
-  ]);
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM data.vw_ingestion_runs run ${where}`,
+    values.slice(0, -2),
+  );
+  const rowsResult = await query(
+    `SELECT run.* FROM data.vw_ingestion_runs run ${where} ORDER BY run.started_at DESC, run.ingestion_run_id DESC LIMIT ${limitParam} OFFSET ${offsetParam}`,
+    values,
+  );
 
   return {
     contractVersion: 'ingestion_run_summary.v1',

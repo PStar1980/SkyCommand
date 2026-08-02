@@ -2,6 +2,7 @@ const ingestionStatusService = require('../services/ingestionStatusService');
 const dataCatalogueService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueService');
 const ingestionCatalogueService = require('../../../../packages/ingestion/src/catalogue/ingestionCatalogueService');
 const dataCatalogueAdminService = require('../../../../packages/ingestion/src/catalogue/dataCatalogueAdminService');
+const dataConsumerService = require('../../../../packages/ingestion/src/consumer/dataConsumerService');
 const freshnessService = require('../../../../packages/ingestion/src/freshness/freshnessService');
 const freshnessAdminService = require('../../../../packages/ingestion/src/freshness/freshnessAdminService');
 const ingestionLedgerService = require('../../../../packages/ingestion/src/ledger/ingestionLedgerService');
@@ -186,6 +187,68 @@ async function listCatalogueMetrics(req, res, next) {
       return;
     }
 
+    next(error);
+  }
+}
+
+async function getCatalogueMetric(req, res, next) {
+  try {
+    const metric = await dataCatalogueService.getMetric(
+      req.params.domainCode,
+      req.params.metricCode,
+    );
+
+    if (!metric) {
+      res.status(404).json({ ok: false, error: 'Data metric not found.' });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      contractVersion: dataCatalogueService.CATALOGUE_CONTRACT_VERSION,
+      generatedAt: new Date().toISOString(),
+      metric,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function listAssetObservations(req, res, next) {
+  try {
+    const payload = await dataConsumerService.listAssetObservations(
+      req.params.domainCode,
+      req.params.assetCode,
+      req.query || {},
+    );
+
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
+    next(error);
+  }
+}
+
+async function listMetricObservations(req, res, next) {
+  try {
+    const payload = await dataConsumerService.listMetricObservations(
+      req.params.domainCode,
+      req.params.metricCode,
+      req.query || {},
+    );
+
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    if (sendServiceError(res, error)) return;
     next(error);
   }
 }
@@ -699,7 +762,10 @@ module.exports = {
   listCatalogueSources,
   listCatalogueAssets,
   getCatalogueAsset,
+  listAssetObservations,
   listCatalogueMetrics,
+  getCatalogueMetric,
+  listMetricObservations,
   listCatalogueFreshness,
   getCatalogueFreshness,
   refreshCatalogueFreshness,

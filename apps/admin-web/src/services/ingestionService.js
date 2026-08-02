@@ -36,6 +36,36 @@ async function listCatalogueSources(filters = {}) {
   return api.get('/api/ingestion/catalogue/sources', { query: filters });
 }
 
+async function listCatalogueAssets(filters = {}) {
+  return api.get('/api/ingestion/catalogue/assets', { query: filters });
+}
+
+async function getCatalogueAsset(domainCode, assetCode) {
+  return api.get(`/api/ingestion/catalogue/assets/${domainCode}/${assetCode}`);
+}
+
+async function listAssetObservations(domainCode, assetCode, filters = {}) {
+  return api.get(
+    `/api/ingestion/catalogue/assets/${domainCode}/${assetCode}/observations`,
+    { query: filters },
+  );
+}
+
+async function listCatalogueMetrics(filters = {}) {
+  return api.get('/api/ingestion/catalogue/metrics', { query: filters });
+}
+
+async function getCatalogueMetric(domainCode, metricCode) {
+  return api.get(`/api/ingestion/catalogue/metrics/${domainCode}/${metricCode}`);
+}
+
+async function listMetricObservations(domainCode, metricCode, filters = {}) {
+  return api.get(
+    `/api/ingestion/catalogue/metrics/${domainCode}/${metricCode}/observations`,
+    { query: filters },
+  );
+}
+
 async function listIngestionRuns(filters = {}) {
   return api.get('/api/ingestion/runs', { query: filters });
 }
@@ -81,6 +111,12 @@ const ingestionService = {
   getIndicatorStatus,
   listCatalogueDomains,
   listCatalogueSources,
+  listCatalogueAssets,
+  getCatalogueAsset,
+  listAssetObservations,
+  listCatalogueMetrics,
+  getCatalogueMetric,
+  listMetricObservations,
   listIngestionRuns,
   getIngestionRun,
   listRecoveryRequests,
