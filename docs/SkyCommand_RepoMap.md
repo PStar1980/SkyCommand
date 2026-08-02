@@ -264,12 +264,6 @@ SkyServer/
 │   │   ├── skyweb_schema_ERD.png
 │   │   └── worker_schema_ERD.png
 │   └── audits/
-│       └── phase16/
-│           ├── SkyCommand_Phase_16_Baseline_Audit.json
-│           ├── SkyCommand_Phase_16_Baseline_Audit.md
-│           ├── SkyCommand_Phase_16_Explainable_Freshness_Audit.csv
-│           ├── SkyCommand_Phase_16_Explainable_Freshness_Audit.md
-│           └── SkyCommand_Phase_16_Indicator_Audit.csv
 ├── packages/
 │   ├── auth/
 │   │   └── src/
