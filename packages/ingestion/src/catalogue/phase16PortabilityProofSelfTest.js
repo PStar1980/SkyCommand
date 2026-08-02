@@ -12,14 +12,14 @@ const proofPath = path.join(
   'catalogue',
   'phase16PortabilityProof.js',
 );
-const roadmapPath = path.join(
+const closureReportPath = path.join(
   root,
   'docs',
-  'SkyCommand_Phase_16_Portable_Ingestion_and_Data_Contract_Foundation.md',
+  'SkyCommand_Phase_16_Closure_Report.md',
 );
 
 const proof = fs.readFileSync(proofPath, 'utf8');
-const roadmap = fs.readFileSync(roadmapPath, 'utf8');
+const closureReport = fs.readFileSync(closureReportPath, 'utf8');
 
 for (const token of [
   "category_kind_code = 'INGESTION'",
@@ -37,12 +37,12 @@ for (const token of [
 }
 
 for (const token of [
-  '**Revision:** 3',
-  'Phase 16.1.3 — Portability closure proof',
-  'transaction rollback',
+  '**Status:** Complete',
+  'PROGRAM_EVALUATION',
+  'without editing a central source registry',
 ]) {
-  if (!roadmap.includes(token)) {
-    throw new Error(`Phase 16 roadmap is missing portability proof token: ${token}`);
+  if (!closureReport.includes(token)) {
+    throw new Error(`Phase 16 closure report is missing portability token: ${token}`);
   }
 }
 

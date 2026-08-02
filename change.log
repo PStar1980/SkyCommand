@@ -1314,3 +1314,13 @@ SkyWeb Analytics owns:
 - Added the formal Phase 16 closure report and advanced the roadmap to Revision 22 with Phase 16.9 as the bounded final regression/promotion checkpoint.
 - Recorded `USSLIND` as an accepted provider-side `SOURCE_NOT_UPDATED` condition rather than ingestion debt.
 - No database migration, seed, adapter, route, workflow-definition, or Admin-Web feature change is required.
+
+## 2026-08-01 - Phase 16 completion, validation runner, and documentation consolidation
+
+- Marked Phase 16 complete in `README.md` and removed the former SkyCommand Phase 17/18 roadmap entries; client-facing Python, analytics, data-mart/warehouse, BI, and advanced chart work now belongs to the future SkyData Studio repository roadmap.
+- Replaced the oversized Windows-incompatible `npm run validate` shell chain with `scripts/validate.js`, which runs JavaScript syntax checks and permanent self-tests as separate cross-platform child processes.
+- Added `validate:syntax`, `validate:self-tests`, and `validate:release` commands plus capability-oriented ingestion self-test aliases; historical phase acceptance proofs remain available on demand but are not repeated during routine validation.
+- Finalized the Phase 16 closure report with the accepted freshness state, non-macro portability proof, PostgreSQL single-client stabilization, and repeatable release commands.
+- Removed superseded Phase 16 planning documents and generated audit snapshots from the active documentation set; retained the closure report and data-domain onboarding guide as the permanent architecture and operations references. Consolidated the older standalone Phase 15 regression matrix into the surviving Tool Catalogue administration record.
+- Updated portability and closure self-tests so they validate the final closure report and README instead of deleted in-progress roadmap documents.
+- No database migration, seed, runtime API, adapter, workflow definition, or Admin-Web behavior changed.

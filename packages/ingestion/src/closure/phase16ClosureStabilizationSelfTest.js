@@ -86,22 +86,19 @@ function proveFreshnessSingleClientDiscipline() {
 }
 
 function proveClosureDocumentation() {
-  const roadmap = fs.readFileSync(
-    path.join(REPOSITORY_ROOT, 'docs/SkyCommand_Phase_16_Portable_Ingestion_and_Data_Contract_Foundation.md'),
-    'utf8',
-  );
   const closureReport = fs.readFileSync(
     path.join(REPOSITORY_ROOT, 'docs/SkyCommand_Phase_16_Closure_Report.md'),
     'utf8',
   );
+  const readme = fs.readFileSync(path.join(REPOSITORY_ROOT, 'README.md'), 'utf8');
 
-  assert.ok(roadmap.includes('**Revision:** 22'));
-  assert.ok(roadmap.includes('Phase 16.9'));
-  assert.ok(roadmap.includes('Phase 16.8.3 is accepted as complete'));
+  assert.ok(closureReport.includes('**Status:** Complete'));
   assert.ok(closureReport.includes('time_series_observations.v1'));
   assert.ok(closureReport.includes('metric_observations.v1'));
   assert.ok(closureReport.includes('PROGRAM_EVALUATION'));
   assert.ok(closureReport.includes('USSLIND'));
+  assert.ok(readme.includes('| Phase 16   | ✅ Complete'));
+  assert.ok(readme.includes('SkyData Studio'));
 }
 
 async function main() {
