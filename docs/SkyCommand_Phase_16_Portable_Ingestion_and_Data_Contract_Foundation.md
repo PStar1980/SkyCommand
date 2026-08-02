@@ -3,12 +3,12 @@
 ## Document control
 
 - **Status:** Approved roadmap for implementation
-- **Revision:** 20
+- **Revision:** 21
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7 complete with durable failed-only recovery through CLI, Run Tools, API, published workflow, and Temporal lanes; Phase 16.8.1 complete with a generic ingestion-operations surface and failed-only recovery navigation; Phase 16.8.2 generic observation and metric consumer contracts is the active checkpoint.
+- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7 complete with durable failed-only recovery through CLI, Run Tools, API, published workflow, and Temporal lanes; Phase 16.8.1 complete with a generic ingestion-operations surface and failed-only recovery navigation; Phase 16.8.2 is complete with generic time-series observation and bounded metric consumer contracts; Phase 16.8.3 final non-macro end-to-end portability proof and closure is the active checkpoint.
 
 ## Governing constraint
 
@@ -850,40 +850,60 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.8.2 — Generic Observation and Metric Consumer Contracts**.
+The active implementation checkpoint is **Phase 16.8.3 — Final Non-Macro End-to-End Portability Proof and Closure**.
 
-Phase 16.8.1 is accepted as complete. The new **Data → Ingestion Operations** page reads the generic ingestion ledger, displays run/item evidence and execution lineage, exposes recovery history, and deep-links failed assets into the existing registered Run Tools lane. Catalogue-source discovery and recovery APIs are working. One acceptance check also exposed that free-text run search did not yet inspect selected/item asset codes: `q=DFF` returned zero even though retained DFF recovery evidence existed.
+Phase 16.8.2 is accepted as complete. The generic consumer layer now exposes any catalogue-backed `TIME_SERIES` asset through `time_series_observations.v1`, exposes one-asset `IDENTITY` and bounded `PCT_CHANGE` metrics through `metric_observations.v1`, and includes selected/item asset evidence in ingestion-run free-text search. The production macro proof returned DFF, unemployment-rate, and year-over-year CPI observations successfully.
 
-Phase 16.8.2 completes the reusable read contract for stored time series and initial catalogue metrics:
+Phase 16.8.3 proves the entire portable path with one temporary **PROGRAM_EVALUATION** domain rather than another macro source. The proof must use only the generic services already delivered during Phase 16:
 
-1. add `time_series_observations.v1` for any catalogue `TIME_SERIES` asset with safe storage metadata;
-2. add `metric_observations.v1` for one-asset `IDENTITY` and bounded `PCT_CHANGE` definitions;
-3. resolve domain, asset, storage, metric definition, and dependencies from PostgreSQL rather than source-specific code;
-4. reject unsupported asset kinds, unsafe storage identifiers, missing relations, unsupported metric dependency shapes, and unknown operators explicitly;
-5. add metric-detail and asset/metric observation API routes while preserving every legacy macro endpoint;
-6. make ingestion-run free-text search inspect selected assets and item-level asset names/codes so operational search matches the UI evidence model;
-7. keep formula scope intentionally narrow: no user-authored expression language and no general formula engine.
+1. register a temporary non-macro domain, file source, semantic `INGESTION` category, tool profile, two time-series assets, and one derived metric;
+2. discover a temporary adapter module automatically without editing the runtime source registry;
+3. execute both assets through the common source-adapter runner;
+4. persist an intentional `PARTIAL` run with one successful asset and one failed asset;
+5. persist portable quality evidence and refresh explainable freshness;
+6. create and execute a durable failed-only recovery request for the failed asset only;
+7. query the non-macro asset through `time_series_observations.v1`;
+8. query the non-macro derived metric through `metric_observations.v1`;
+9. confirm catalogue, ledger, freshness, quality, recovery, observation, and metric services expose the same domain without a macro-specific branch;
+10. remove the temporary adapter, tool, category, catalogue records, evidence, and physical storage after proof acceptance.
 
-No database migration is required for this checkpoint. It consumes the asset storage pointers, metric definitions, and dependency catalogue introduced in Phase 16.2.
+No database migration is required. The proof creates and removes its own temporary metadata and storage.
 
 Focused commands:
 
 ```text
-npm run phase16:consumer-contracts:self-test
-npm run phase16:consumer-contracts:verify
+npm run phase16:portability-closure:self-test
+npm run phase16:portability-closure:proof
 ```
 
-Local API proof should confirm:
+Expected proof shape:
 
 ```text
-GET /api/ingestion/catalogue/assets/MACRO/DFF/observations?sortDirection=DESC&limit=5
-GET /api/ingestion/catalogue/metrics/MACRO/US_UNEMPLOYMENT_RATE
-GET /api/ingestion/catalogue/metrics/MACRO/US_UNEMPLOYMENT_RATE/observations?sortDirection=DESC&limit=5
-GET /api/ingestion/catalogue/metrics/MACRO/US_CPI_INFLATION_YOY/observations?sortDirection=DESC&limit=5
-GET /api/ingestion/runs?q=DFF&limit=10
+Domain: PROGRAM_EVALUATION_PROOF_...
+Source: LOCAL_CASE_FILE
+Adapter registry: 4 -> 5
+Assets: CLIENT_INTAKE, SERVICE_ACCESS
+Metric: CLIENT_INTAKE_GROWTH (PCT_CHANGE)
+Initial run: PARTIAL
+Recovery run: SUCCESS
+Recovered assets: SERVICE_ACCESS
+Observation rows: 3
+Latest metric value: 50
 ```
 
-After this checkpoint passes, Phase 16.8.3 will use the completed catalogue, adapter, ledger, freshness, quality, recovery, observation, and metric contracts for the final temporary non-macro end-to-end portability package and Phase 16 closure documentation.
+The proof must finish with confirmations that:
+
+```text
+✅ A non-macro domain, source, time-series assets, and metric were discovered from PostgreSQL metadata.
+✅ A new adapter module joined the common runner without a core source-list edit.
+✅ The initial partial run persisted generic item, quality, and freshness evidence.
+✅ Failed-only recovery executed SERVICE_ACCESS while leaving CLIENT_INTAKE untouched.
+✅ Generic observation and derived-metric contracts queried the non-macro storage.
+✅ Generic catalogue, ledger, freshness, quality, recovery, and consumer services required no macro-specific branch.
+✅ Temporary adapter, tool, catalogue metadata, evidence, and storage were removed cleanly.
+```
+
+After these commands pass, Phase 16 may be closed. The next product phase should consume these contracts rather than extend the ingestion foundation further. The planned next repository remains **SkyData Studio**, the first full-stack Python consumer of the portable catalogue, observations, metrics, freshness, and evidence contracts.
 
 ---
 
