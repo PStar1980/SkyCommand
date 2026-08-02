@@ -1304,3 +1304,13 @@ SkyWeb Analytics owns:
 - Redirected legacy `/workflows/worker-health` bookmarks to `/dashboard/automation`, updated command-search aliases and the Production Readiness shortcut, and retained worker-health telemetry in the consolidated dashboard.
 - Extended the dependency-free dashboard UI consistency self-test to guard the title, navigation, and redirect behavior.
 - No migration, seed, API, worker, Temporal, dependency, tool-registration, or workflow-definition change is required.
+
+## 2026-08-01 - Phase 16.9 closure stabilization
+
+- Accepted the Phase 16.8.3 final non-macro PROGRAM_EVALUATION portability proof across catalogue discovery, dynamic adapter onboarding, common execution, partial-run evidence, quality/freshness, failed-only recovery, observations, derived metrics, and clean teardown.
+- Removed overlapping ledger-detail and freshness reads on one checked-out PostgreSQL client; client-bound service calls are now deliberately sequential and compatible with the node-postgres 9 execution contract.
+- Added `phase16:closure:self-test`, including a simulated one-client concurrency guard that fails if ledger detail queries overlap.
+- Added `phase16:closure:verify` to inspect the active catalogue, macro compatibility counts, freshness health, latest durable run detail, read-only freshness evaluation, and absence of the node-postgres overlapping-query warning.
+- Added the formal Phase 16 closure report and advanced the roadmap to Revision 22 with Phase 16.9 as the bounded final regression/promotion checkpoint.
+- Recorded `USSLIND` as an accepted provider-side `SOURCE_NOT_UPDATED` condition rather than ingestion debt.
+- No database migration, seed, adapter, route, workflow-definition, or Admin-Web feature change is required.

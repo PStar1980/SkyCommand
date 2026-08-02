@@ -256,6 +256,7 @@ SkyServer/
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
 │   ├── SkyCommand_Phase_16_1_Semantic_Ingestion_Identity.md
 │   ├── SkyCommand_Phase_16_Baseline_and_Coupling_Inventory.md
+│   ├── SkyCommand_Phase_16_Closure_Report.md
 │   ├── SkyCommand_Phase_16_Portable_Ingestion_and_Data_Contract_Foundation.md
 │   ├── SkyCommand_RepoMap.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
@@ -438,6 +439,8 @@ SkyServer/
 │   │       │   ├── phase16PortabilityProofSelfTest.js
 │   │       │   └── phase16SecondDomainProof.js
 │   │       ├── closure/
+│   │       │   ├── phase16ClosureStabilization.js
+│   │       │   ├── phase16ClosureStabilizationSelfTest.js
 │   │       │   ├── phase16PortabilityClosure.js
 │   │       │   └── phase16PortabilityClosureSelfTest.js
 │   │       ├── config/

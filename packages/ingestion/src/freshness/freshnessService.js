@@ -347,10 +347,16 @@ async function loadAssets(query, options = {}) {
 }
 
 async function loadPolicies(query) {
-  const [frequencyResult, sourceResult] = await Promise.all([
-    query(`SELECT * FROM data.freshness_frequency_policies WHERE active = TRUE`),
-    query(`SELECT * FROM data.source_freshness_policies WHERE active = TRUE`),
-  ]);
+  // Query functions are sometimes bound to a single pg Client during proofs,
+  // recovery, and transactional operations. Execute these reads sequentially
+  // so the service remains compatible with pg 9's one-query-at-a-time client
+  // contract while still working with pool.query callers.
+  const frequencyResult = await query(
+    `SELECT * FROM data.freshness_frequency_policies WHERE active = TRUE`,
+  );
+  const sourceResult = await query(
+    `SELECT * FROM data.source_freshness_policies WHERE active = TRUE`,
+  );
 
   const frequencyPolicies = new Map();
   for (const row of frequencyResult.rows) {
@@ -735,11 +741,12 @@ async function persistSnapshots(rows, query) {
 async function refreshFreshnessSnapshots(options = {}) {
   const query = options.query || getDatabaseQuery();
   const asOf = toDate(options.asOf) || new Date();
-  const [assets, policies, executionEvidence] = await Promise.all([
-    loadAssets(query, { sourceCode: options.sourceCode }),
-    loadPolicies(query),
-    loadExecutionEvidence(query),
-  ]);
+  // Preserve single-client safety when a transaction-bound query function is
+  // supplied. These catalogue/evidence reads are small and correctness is more
+  // important than overlapping them on a client that cannot multiplex queries.
+  const assets = await loadAssets(query, { sourceCode: options.sourceCode });
+  const policies = await loadPolicies(query);
+  const executionEvidence = await loadExecutionEvidence(query);
   const storageStats = await loadStorageStats(assets, query);
 
   const rows = assets.map((asset) => {

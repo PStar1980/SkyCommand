@@ -2,13 +2,13 @@
 
 ## Document control
 
-- **Status:** Approved roadmap for implementation
-- **Revision:** 21
+- **Status:** Closure stabilization in progress
+- **Revision:** 22
 - **Date:** 2026-08-01
 - **Product:** SkyCommand
 - **Phase:** 16
 - **Primary objective:** Harden ingestion while making sources, datasets, and KPIs replaceable without rewriting the SkyCommand platform.
-- **Implementation progress:** Phase 16.0 complete; Phase 16.1 complete and portability-proven; Phase 16.2 complete with portable assets, metrics, managed catalogue administration, and a locally proven second-domain record-set/KPI fixture; Phase 16.3 complete with explainable freshness and snapshot-backed Data Intelligence; Phase 16.4 complete with durable generic ingestion evidence, live production ledger integration, and proven workflow/Temporal linkage; Phase 16.5 complete with a common source-adapter runner, PostgreSQL-authoritative retry policies, durable retry-attempt evidence, automatic adapter discovery, and a locally proven new-source onboarding contract; Phase 16.6 complete with revision-aware loading, portable quality-policy precedence, managed policy/evidence APIs, and live FRED/BoC/StatCan production proof; Phase 16.7 complete with durable failed-only recovery through CLI, Run Tools, API, published workflow, and Temporal lanes; Phase 16.8.1 complete with a generic ingestion-operations surface and failed-only recovery navigation; Phase 16.8.2 is complete with generic time-series observation and bounded metric consumer contracts; Phase 16.8.3 final non-macro end-to-end portability proof and closure is the active checkpoint.
+- **Implementation progress:** Phase 16.0 through Phase 16.8.3 are accepted as complete. The platform now includes semantic ingestion identity, a portable domain/source/asset/metric catalogue, explainable freshness, a durable generic ledger, common adapters and retry policy, revision-aware loading, portable quality policy, failed-only recovery, an operations surface, generic observation/metric consumers, and a successful non-macro PROGRAM_EVALUATION proof. Phase 16.9 is the final closure-stabilization checkpoint: remove the node-postgres shared-client warning, record the acceptance evidence, run a concise production regression, validate/build, and promote.
 
 ## Governing constraint
 
@@ -850,60 +850,40 @@ Only after SkyData Studio consumes the generic contracts should the project deci
 
 # 11. Immediate next increment
 
-The active implementation checkpoint is **Phase 16.8.3 — Final Non-Macro End-to-End Portability Proof and Closure**.
+The active implementation checkpoint is **Phase 16.9 — Closure Stabilization, Regression, and Promotion**.
 
-Phase 16.8.2 is accepted as complete. The generic consumer layer now exposes any catalogue-backed `TIME_SERIES` asset through `time_series_observations.v1`, exposes one-asset `IDENTITY` and bounded `PCT_CHANGE` metrics through `metric_observations.v1`, and includes selected/item asset evidence in ingestion-run free-text search. The production macro proof returned DFF, unemployment-rate, and year-over-year CPI observations successfully.
+Phase 16.8.3 is accepted as complete. A temporary non-macro PROGRAM_EVALUATION domain, source, adapter, assets, derived metric, intentional partial run, quality/freshness evidence, failed-only recovery, and generic observation/metric consumers all passed without a macro-specific branch. The fixture removed its temporary runtime, catalogue, evidence, and storage objects cleanly.
 
-Phase 16.8.3 proves the entire portable path with one temporary **PROGRAM_EVALUATION** domain rather than another macro source. The proof must use only the generic services already delivered during Phase 16:
+Phase 16.9 introduces no new ingestion architecture and no database migration. Its bounded responsibilities are:
 
-1. register a temporary non-macro domain, file source, semantic `INGESTION` category, tool profile, two time-series assets, and one derived metric;
-2. discover a temporary adapter module automatically without editing the runtime source registry;
-3. execute both assets through the common source-adapter runner;
-4. persist an intentional `PARTIAL` run with one successful asset and one failed asset;
-5. persist portable quality evidence and refresh explainable freshness;
-6. create and execute a durable failed-only recovery request for the failed asset only;
-7. query the non-macro asset through `time_series_observations.v1`;
-8. query the non-macro derived metric through `metric_observations.v1`;
-9. confirm catalogue, ledger, freshness, quality, recovery, observation, and metric services expose the same domain without a macro-specific branch;
-10. remove the temporary adapter, tool, category, catalogue records, evidence, and physical storage after proof acceptance.
-
-No database migration is required. The proof creates and removes its own temporary metadata and storage.
+1. remove the node-postgres deprecation warning caused by overlapping reads on one checked-out client;
+2. add a dependency-free regression proving ledger detail reads remain sequential;
+3. add a PostgreSQL-backed closure verifier for catalogue counts, macro compatibility, freshness health, latest-run detail, and single-client warning absence;
+4. publish the formal Phase 16 closure report and accepted-condition register;
+5. run selected FRED, BoC, and StatCan ingestion plus one small Macro Refresh Pipeline regression;
+6. run `npm run validate` and `npm run web:build`;
+7. promote through the normal Development Promotion workflow and merge to main.
 
 Focused commands:
 
 ```text
-npm run phase16:portability-closure:self-test
-npm run phase16:portability-closure:proof
+npm run phase16:closure:self-test
+npm run phase16:closure:verify
 ```
 
-Expected proof shape:
+Expected closure-verifier confirmations:
 
 ```text
-Domain: PROGRAM_EVALUATION_PROOF_...
-Source: LOCAL_CASE_FILE
-Adapter registry: 4 -> 5
-Assets: CLIENT_INTAKE, SERVICE_ACCESS
-Metric: CLIENT_INTAKE_GROWTH (PCT_CHANGE)
-Initial run: PARTIAL
-Recovery run: SUCCESS
-Recovered assets: SERVICE_ACCESS
-Observation rows: 3
-Latest metric value: 50
+✅ Generic catalogue, ingestion profiles, metrics, and macro compatibility baseline are present.
+✅ Active discoverable macro assets have no freshness ERROR state.
+✅ Ledger detail and freshness reads are safe on one checked-out pg Client.
+✅ No node-postgres overlapping-query deprecation warning was emitted.
+✅ Phase 16 closure stabilization is ready for the final live regression and promotion pass.
 ```
 
-The proof must finish with confirmations that:
+The remaining `USSLIND` watch state is accepted external source evidence: the provider series itself ends in February 2020. It is not an ingestion backlog.
 
-```text
-✅ A non-macro domain, source, time-series assets, and metric were discovered from PostgreSQL metadata.
-✅ A new adapter module joined the common runner without a core source-list edit.
-✅ The initial partial run persisted generic item, quality, and freshness evidence.
-✅ Failed-only recovery executed SERVICE_ACCESS while leaving CLIENT_INTAKE untouched.
-✅ Generic observation and derived-metric contracts queried the non-macro storage.
-✅ Generic catalogue, ledger, freshness, quality, recovery, and consumer services required no macro-specific branch.
-✅ Temporary adapter, tool, catalogue metadata, evidence, and storage were removed cleanly.
-```
-
-After these commands pass, Phase 16 may be closed. The next product phase should consume these contracts rather than extend the ingestion foundation further. The planned next repository remains **SkyData Studio**, the first full-stack Python consumer of the portable catalogue, observations, metrics, freshness, and evidence contracts.
+After the final regression, build, and promotion succeed, Phase 16 is closed. The next planned repository remains **SkyData Studio**, the first full-stack Python consumer of the portable catalogue, observations, metrics, freshness, quality, ledger, and recovery contracts.
 
 ---
 

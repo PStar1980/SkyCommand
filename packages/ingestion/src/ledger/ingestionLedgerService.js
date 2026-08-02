@@ -571,44 +571,47 @@ async function getRun(ingestionRunId, options = {}) {
   );
   if (runResult.rows.length === 0) return null;
 
-  const [itemResult, revisionResult, qualityResult, rejectionResult] = await Promise.all([
-    query(
-      `
-        SELECT *
-        FROM data.vw_ingestion_run_items
-        WHERE ingestion_run_id = $1
-        ORDER BY asset_code, attempt_number, created_at
-      `,
-      [ingestionRunId],
-    ),
-    query(
-      `
-        SELECT *
-        FROM data.vw_ingestion_revision_events
-        WHERE ingestion_run_id = $1
-        ORDER BY asset_code, observation_key, created_at
-      `,
-      [ingestionRunId],
-    ),
-    query(
-      `
-        SELECT *
-        FROM data.vw_ingestion_quality_events
-        WHERE ingestion_run_id = $1
-        ORDER BY asset_code, created_at
-      `,
-      [ingestionRunId],
-    ),
-    query(
-      `
-        SELECT *
-        FROM data.vw_ingestion_rejection_events
-        WHERE ingestion_run_id = $1
-        ORDER BY asset_code, source_row_number, created_at
-      `,
-      [ingestionRunId],
-    ),
-  ]);
+  // A caller may provide a query function bound to one checked-out pg Client.
+  // node-postgres does not support overlapping queries on that client and emits
+  // a deprecation warning that becomes an error in pg 9. Keep this detail read
+  // deliberately sequential so the same service is safe for pool.query and for
+  // transaction/client-bound execution paths.
+  const itemResult = await query(
+    `
+      SELECT *
+      FROM data.vw_ingestion_run_items
+      WHERE ingestion_run_id = $1
+      ORDER BY asset_code, attempt_number, created_at
+    `,
+    [ingestionRunId],
+  );
+  const revisionResult = await query(
+    `
+      SELECT *
+      FROM data.vw_ingestion_revision_events
+      WHERE ingestion_run_id = $1
+      ORDER BY asset_code, observation_key, created_at
+    `,
+    [ingestionRunId],
+  );
+  const qualityResult = await query(
+    `
+      SELECT *
+      FROM data.vw_ingestion_quality_events
+      WHERE ingestion_run_id = $1
+      ORDER BY asset_code, created_at
+    `,
+    [ingestionRunId],
+  );
+  const rejectionResult = await query(
+    `
+      SELECT *
+      FROM data.vw_ingestion_rejection_events
+      WHERE ingestion_run_id = $1
+      ORDER BY asset_code, source_row_number, created_at
+    `,
+    [ingestionRunId],
+  );
 
   return {
     contractVersion: 'ingestion_run_summary.v1',
