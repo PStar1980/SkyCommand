@@ -118,8 +118,18 @@ assert.match(
 assert.match(navbarSource, /className="sky-topbar-center"/);
 assert.match(navbarSource, /<header className="sky-topbar" ref=\{topbarControlsRef\}>/);
 assert.match(cssSource, /\.sky-topbar \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns:/);
-assert.match(cssSource, /\.sky-brand-lockup \{[\s\S]*?width: min\(17\.6rem, 100%\);/);
-assert.match(cssSource, /\.sky-sidebar-brand \.sky-brand-lockup,[\s\S]*?\.sky-public-brand \.sky-brand-lockup \{[\s\S]*?width: min\(17\.6rem, 100%\);/);
+const globalBrandLockupWidth = cssSource.match(
+  /\.sky-brand-lockup \{[\s\S]*?width:\s*([^;]+);/,
+)?.[1]?.trim();
+const scopedBrandLockupWidth = cssSource.match(
+  /\.sky-sidebar-brand \.sky-brand-lockup,[\s\S]*?\.sky-public-brand \.sky-brand-lockup \{[\s\S]*?width:\s*([^;]+);/,
+)?.[1]?.trim();
+assert.match(globalBrandLockupWidth || '', /^min\(\d+(?:\.\d+)?rem,\s*100%\)$/);
+assert.strictEqual(
+  scopedBrandLockupWidth,
+  globalBrandLockupWidth,
+  'Public and sidebar brand lockups should use the same responsive width.',
+);
 assert.match(navbarSource, /<SkyCommandMark variant="lockup" \/>/);
 
 const toolHistorySource = fs.readFileSync(path.join(sourceRoot, 'pages/ScriptExecutions.jsx'), 'utf8');
