@@ -105,6 +105,11 @@ function createQueryMock() {
     }
     if (/to_regclass/.test(sql)) {
       assert.deepStrictEqual(values, ['macro', 'CPIAUCSL']);
+      assert.match(
+        sql,
+        /format\('%I\.%I', \$1::text, \$2::text\)/,
+        'Relation lookup parameters must be explicitly typed for PostgreSQL.',
+      );
       return { rows: [{ relation_exists: true }] };
     }
     if (/COUNT\(\*\)::int AS total/.test(sql)) {

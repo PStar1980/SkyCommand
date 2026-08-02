@@ -148,7 +148,7 @@ function validateStorage(asset) {
 async function assertRelationExists(query, storage) {
   const result = await query(
     `
-      SELECT to_regclass(format('%I.%I', $1, $2)) IS NOT NULL AS relation_exists
+      SELECT to_regclass(format('%I.%I', $1::text, $2::text)) IS NOT NULL AS relation_exists
     `,
     [storage.schemaName, storage.relationName],
   );
