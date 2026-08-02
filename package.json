@@ -126,7 +126,9 @@
     "phase16:recovery-live:self-test": "node packages/ingestion/src/recovery/phase16LiveRecoverySelfTest.js",
     "phase16:operations-surface:self-test": "node apps/admin-web/src/pages/ingestionOperationsSurfaceSelfTest.js",
     "phase16:consumer-contracts:self-test": "node packages/ingestion/src/consumer/dataConsumerServiceSelfTest.js",
-    "phase16:consumer-contracts:verify": "node packages/ingestion/src/consumer/phase16ConsumerContracts.js verify"
+    "phase16:consumer-contracts:verify": "node packages/ingestion/src/consumer/phase16ConsumerContracts.js verify",
+    "phase16:portability-closure:self-test": "node packages/ingestion/src/closure/phase16PortabilityClosureSelfTest.js",
+    "phase16:portability-closure:proof": "node packages/ingestion/src/closure/phase16PortabilityClosure.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

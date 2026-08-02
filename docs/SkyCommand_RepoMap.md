@@ -250,6 +250,7 @@ SkyServer/
 ├── docs/
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_API_Observability.md
+│   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_Phase_15_Regression_and_Recovery_Matrix.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
@@ -436,6 +437,9 @@ SkyServer/
 │   │       │   ├── phase16PortabilityProof.js
 │   │       │   ├── phase16PortabilityProofSelfTest.js
 │   │       │   └── phase16SecondDomainProof.js
+│   │       ├── closure/
+│   │       │   ├── phase16PortabilityClosure.js
+│   │       │   └── phase16PortabilityClosureSelfTest.js
 │   │       ├── config/
 │   │       │   ├── manualIngestion.json
 │   │       │   ├── statcanIndicators.js
