@@ -94,6 +94,8 @@ const identityVerification = read('packages/core/src/skyCommandIdentityVerificat
 assert(identityVerification.includes("repo_code IN ('SkyServer', 'SkyCommand')"));
 assert(identityVerification.includes('EXPECTED_REPOSITORY_URL'));
 assert(identityVerification.includes('EXPECTED_DEV_PATH'));
+assert(identityVerification.includes('ON tool.script_repo_id = repository.repo_id'));
+assert(!identityVerification.includes('ON tool.repo_id = repository.repo_id'));
 
 const readme = read('README.md');
 assert(readme.startsWith('# SkyCommand\n'));
