@@ -64,7 +64,7 @@ async function loadIdentityState(pool) {
         COUNT(tool.tool_id)::INTEGER AS linked_tool_count
       FROM core.repositories repository
       LEFT JOIN core.tools tool
-        ON tool.repo_id = repository.repo_id
+        ON tool.script_repo_id = repository.repo_id
       WHERE repository.repo_code IN ('SkyServer', 'SkyCommand')
       GROUP BY repository.repo_code
       ORDER BY repository.repo_code
