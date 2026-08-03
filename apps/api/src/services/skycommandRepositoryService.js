@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const PROFILE_CODE =
-  process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 const PACKAGES_RELATIVE_PATH = 'packages';

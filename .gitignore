@@ -7,7 +7,7 @@ __pycache__/
 *.pyc
 *.pyo
 
-# SkyServer runtime clutter
+# SkyCommand runtime clutter
 backup/
 processed/
 logs/

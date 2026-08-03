@@ -1,7 +1,7 @@
 const path = require('path');
 const { pool, query } = require('../../../../packages/db/src/connection');
 
-const CORE_APP_CODE = String(process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE')
+const CORE_APP_CODE = String(process.env.SKYCOMMAND_CORE_APP_CODE || process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE')
   .trim()
   .toUpperCase();
 const TOOL_CODE_PATTERN = /^[a-z][a-z0-9_]*$/;
@@ -1160,7 +1160,7 @@ async function getCategoryMetadata(client, categoryId) {
   );
 
   if (result.rowCount === 0) {
-    throw createHttpError(400, 'categoryId is not an active SkyServer Core category.');
+    throw createHttpError(400, 'categoryId is not an active SkyCommand Core category.');
   }
 
   return {
@@ -1291,7 +1291,7 @@ async function assertReferences(client, payload) {
         )
         .then((result) => {
           if (result.rowCount === 0) {
-            throw createHttpError(400, 'categoryId is not an active SkyServer Core category.');
+            throw createHttpError(400, 'categoryId is not an active SkyCommand Core category.');
           }
         }),
     );

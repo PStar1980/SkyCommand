@@ -1,5 +1,5 @@
 -- View: worker.vw_workflow_definitions
--- Purpose: SkyServer workflow definitions with version and graph summary counts.
+-- Purpose: SkyCommand workflow definitions with version and graph summary counts.
 
 CREATE OR REPLACE VIEW worker.vw_workflow_definitions AS
 WITH version_counts AS (
@@ -71,4 +71,4 @@ LEFT JOIN auth.users updater
 
 ALTER VIEW worker.vw_workflow_definitions OWNER TO postgres;
 
-COMMENT ON VIEW worker.vw_workflow_definitions IS 'SkyServer workflow definitions with version and graph summary counts.';
+COMMENT ON VIEW worker.vw_workflow_definitions IS 'SkyCommand workflow definitions with version and graph summary counts.';

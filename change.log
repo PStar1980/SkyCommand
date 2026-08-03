@@ -1324,3 +1324,12 @@ SkyWeb Analytics owns:
 - Removed superseded Phase 16 planning documents and generated audit snapshots from the active documentation set; retained the closure report and data-domain onboarding guide as the permanent architecture and operations references. Consolidated the older standalone Phase 15 regression matrix into the surviving Tool Catalogue administration record.
 - Updated portability and closure self-tests so they validate the final closure report and README instead of deleted in-progress roadmap documents.
 - No database migration, seed, runtime API, adapter, workflow definition, or Admin-Web behavior changed.
+
+## 2026-08-02 - SkyCommand repository identity changeover
+
+- Renamed the active Core, scheduled-workflow runner, Temporal activity/workflow, and Temporal setup/architecture files from SkyServer identifiers to canonical SkyCommand filenames and imports.
+- Updated package identity, GitHub URLs, visible runtime labels, documentation, local defaults, generated artifact naming, and canonical `SKYCOMMAND_*` configuration names while retaining bounded compatibility for older environment variables, internal headers, and browser session keys.
+- Added canonical `skyCommandRecord` Temporal response metadata while preserving the legacy `skyserverRecord` alias for existing clients. Stable PostgreSQL application/tool/option-source codes and the persisted Temporal task queue, workflow type, and activity names remain unchanged because replacing durable machine identifiers would damage permissions, workflows, sessions, audit history, or Temporal replay.
+- Added migration `00094__skycommand_repository_identity_changeover.sql` to rename the repository row in place, preserve its UUID relationships, designate it as the SkyCommand repository, update the GitHub remote and DEV_LOCAL path, and refresh human-facing application/catalogue descriptions.
+- Added `skycommand-identity:self-test` and `skycommand-identity:verify` so the file/configuration compatibility boundary and post-migration PostgreSQL identity can be proved independently.
+- The physical PostgreSQL database name `skyserver_dev` is intentionally unchanged; a database rename remains a separate maintenance operation.

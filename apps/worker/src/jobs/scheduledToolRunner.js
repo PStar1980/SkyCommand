@@ -2,13 +2,13 @@ const { query } = require('../../../../packages/db/src/connection');
 const { calculateNextRunAfterExecution } = require('../schedulers/scheduleCalculator');
 const { runWorkerTool } = require('./workerToolExecutionService');
 const { runScheduledTemporalWorkflow } = require('./scheduledTemporalWorkflowRunner');
-const { runScheduledSkyserverWorkflow } = require('./scheduledSkyserverWorkflowRunner');
+const { runScheduledSkyCommandWorkflow } = require('./scheduledSkyCommandWorkflowRunner');
 const {
   buildScheduledToolResultSummary,
 } = require('../../../../packages/tools/src/workflowResultContext');
 
 const TEMPORAL_WORKFLOW_START_TOOL_CODE = 'temporal_workflow_start';
-const SKYSERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
+const SKYCOMMAND_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
 
 function sanitizeSchedule(row) {
   return {
@@ -147,7 +147,7 @@ async function runClaimedSchedule(claim, workerNode) {
   scheduleRun = await markScheduleRunStarted(scheduleRun.scheduleRunId, workerNode?.workerNodeId);
 
   console.log(
-    `[SkyServer Worker] Starting schedule ${schedule.scheduleCode} (${schedule.toolCode}) run ${scheduleRun.scheduleRunId}`,
+    `[SkyCommand Worker] Starting schedule ${schedule.scheduleCode} (${schedule.toolCode}) run ${scheduleRun.scheduleRunId}`,
   );
 
   try {
@@ -159,8 +159,8 @@ async function runClaimedSchedule(claim, workerNode) {
         scheduleRun,
         workerNode,
       });
-    } else if (schedule.toolCode === SKYSERVER_WORKFLOW_START_TOOL_CODE) {
-      result = await runScheduledSkyserverWorkflow({
+    } else if (schedule.toolCode === SKYCOMMAND_WORKFLOW_START_TOOL_CODE) {
+      result = await runScheduledSkyCommandWorkflow({
         schedule,
         scheduleRun,
         workerNode,
@@ -207,9 +207,9 @@ async function runClaimedSchedule(claim, workerNode) {
                 runRecordId: result.runRecord?.runRecordId || null,
               }
             : null,
-        skyserverWorkflow:
-          result.skyserverWorkflow && schedule.toolCode === SKYSERVER_WORKFLOW_START_TOOL_CODE
-            ? result.skyserverWorkflow
+        skyCommandWorkflow:
+          result.skyCommandWorkflow && schedule.toolCode === SKYCOMMAND_WORKFLOW_START_TOOL_CODE
+            ? result.skyCommandWorkflow
             : null,
       },
     });
@@ -220,7 +220,7 @@ async function runClaimedSchedule(claim, workerNode) {
     });
 
     console.log(
-      `[SkyServer Worker] Finished schedule ${schedule.scheduleCode} with ${finalStatus}. Next run: ${scheduleUpdate.nextRunAt || 'none'}`,
+      `[SkyCommand Worker] Finished schedule ${schedule.scheduleCode} with ${finalStatus}. Next run: ${scheduleUpdate.nextRunAt || 'none'}`,
     );
 
     return {
@@ -247,7 +247,7 @@ async function runClaimedSchedule(claim, workerNode) {
     });
 
     console.error(
-      `[SkyServer Worker] Schedule ${schedule.scheduleCode} failed: ${error.message}. Next run: ${scheduleUpdate.nextRunAt || 'none'}`,
+      `[SkyCommand Worker] Schedule ${schedule.scheduleCode} failed: ${error.message}. Next run: ${scheduleUpdate.nextRunAt || 'none'}`,
     );
 
     return {

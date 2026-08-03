@@ -1,7 +1,7 @@
 const fredActivities = require('./fredActivities');
-const skyserverWorkflowActivities = require('./skyserverWorkflowActivities');
+const skyCommandWorkflowActivities = require('./skyCommandWorkflowActivities');
 
 module.exports = {
   ...fredActivities,
-  ...skyserverWorkflowActivities,
+  ...skyCommandWorkflowActivities,
 };

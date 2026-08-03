@@ -1,4 +1,4 @@
 require('../../../scripts/node/util/bootstrap');
 
-console.log('[SkyServer] Automation daemon running...');
-console.log('[SkyServer] TODO: register schedulers, listeners, and workers here.');
+console.log('[SkyCommand] Automation daemon running...');
+console.log('[SkyCommand] TODO: register schedulers, listeners, and workers here.');

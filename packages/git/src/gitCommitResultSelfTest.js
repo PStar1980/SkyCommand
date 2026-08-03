@@ -21,9 +21,9 @@ function run() {
   const result = createGitCommitToolResult({
     ok: true,
     outcome: 'PUSHED',
-    repositoryCode: 'SkyServer',
-    repositoryName: 'SkyServer',
-    repositoryRoot: 'C:/Projects/SkyServer',
+    repositoryCode: 'SkyCommand',
+    repositoryName: 'SkyCommand',
+    repositoryRoot: 'C:/Projects/SkyCommand',
     branch: 'dev',
     commitMessage: 'Test',
     previousHeadSha: '1'.repeat(40),
@@ -45,7 +45,7 @@ function run() {
   const noChanges = createGitCommitToolResult({
     ok: true,
     outcome: 'NO_CHANGES',
-    repositoryCode: 'SkyServer',
+    repositoryCode: 'SkyCommand',
     changes: {},
   });
   assert.equal(noChanges.success, true);

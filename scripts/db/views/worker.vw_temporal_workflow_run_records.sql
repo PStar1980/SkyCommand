@@ -48,4 +48,4 @@ LEFT JOIN auth.users terminator
 
 ALTER VIEW worker.vw_temporal_workflow_run_records OWNER TO postgres;
 
-COMMENT ON VIEW worker.vw_temporal_workflow_run_records IS 'SkyServer Temporal workflow run records enriched with definition and user metadata.';
+COMMENT ON VIEW worker.vw_temporal_workflow_run_records IS 'SkyCommand Temporal workflow run records enriched with definition and user metadata.';

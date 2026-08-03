@@ -1,9 +1,9 @@
 const { query } = require('../../../../packages/db/src/connection');
 
-const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
+const APP_CODE = process.env.SKYCOMMAND_CORE_APP_CODE || process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
-  process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 
@@ -81,7 +81,7 @@ function isRepositoryParameter(parameter) {
   return parameter.param_type_code === 'repo' || parameter.option_source_code === 'repositories';
 }
 
-function isSkyserverWorkflowParameter(parameter) {
+function isSkyCommandWorkflowParameter(parameter) {
   return parameter.option_source_code === 'skyserver_workflows';
 }
 
@@ -141,7 +141,7 @@ async function getApplicationHeader() {
   if (!app) {
     return {
       appCode: APP_CODE,
-      title: 'SkyServer Core',
+      title: 'SkyCommand Core',
       manifestVersion: null,
       description: null,
     };
@@ -289,7 +289,7 @@ async function getStaticOptionsForTools(toolCodes) {
   return result.rows;
 }
 
-async function getSkyserverWorkflowOptions() {
+async function getSkyCommandWorkflowOptions() {
   const result = await query(
     `
       SELECT workflow_code, display_name
@@ -368,7 +368,7 @@ async function hydrateToolsParameters(tools) {
   const parametersByToolCode = new Map(toolCodes.map((toolCode) => [toolCode, []]));
 
   let repositoryOptions = null;
-  let skyserverWorkflowOptions = null;
+  let skyCommandWorkflowOptions = null;
 
   for (const parameter of parameterRows) {
     const key = `${parameter.tool_code}:${parameter.parameter_name}`;
@@ -382,12 +382,12 @@ async function hydrateToolsParameters(tools) {
       options = repositoryOptions;
     }
 
-    if (isSkyserverWorkflowParameter(parameter)) {
-      if (!skyserverWorkflowOptions) {
-        skyserverWorkflowOptions = await getSkyserverWorkflowOptions();
+    if (isSkyCommandWorkflowParameter(parameter)) {
+      if (!skyCommandWorkflowOptions) {
+        skyCommandWorkflowOptions = await getSkyCommandWorkflowOptions();
       }
 
-      options = skyserverWorkflowOptions;
+      options = skyCommandWorkflowOptions;
     }
 
     if (!parametersByToolCode.has(parameter.tool_code)) {

@@ -128,12 +128,16 @@ function getWorkflowKey(workflow) {
   return `${workflow?.workflowId || ''}:${workflow?.runId || ''}`;
 }
 
+function getSkyCommandRecord(workflow) {
+  return workflow?.skyCommandRecord || workflow?.skyserverRecord || null;
+}
+
 function getWorkflowSourceLabel(workflow) {
   if (workflow?.missingFromTemporal) {
     return 'SkyCommand DB';
   }
 
-  if (workflow?.skyserverRecord) {
+  if (getSkyCommandRecord(workflow)) {
     return 'Temporal + DB';
   }
 
@@ -141,13 +145,13 @@ function getWorkflowSourceLabel(workflow) {
 }
 
 function getStartedByLabel(workflow) {
-  const record = workflow?.skyserverRecord;
+  const record = getSkyCommandRecord(workflow);
 
   return record?.startedByDisplayName || record?.startedByEmail || '—';
 }
 
 function getRunSourceLabel(workflow) {
-  return workflow?.skyserverRecord?.runSource || workflow?.runSource || '—';
+  return getSkyCommandRecord(workflow)?.runSource || workflow?.runSource || '—';
 }
 
 function workflowIsRunning(workflow) {
@@ -696,7 +700,10 @@ function TemporalWorkflows({ mode = 'history' }) {
                     <dd className="col-8 sky-detail-value">{getStartedByLabel(selectedWorkflow)}</dd>
                     <dt className="col-4 sky-detail-label">DB sync</dt>
                     <dd className="col-8 sky-detail-value">
-                      {formatDate(selectedWorkflow.skyserverRecord?.lastSeenInTemporalAt || selectedWorkflow.skyserverRecord?.updatedAt)}
+                      {formatDate(
+                        getSkyCommandRecord(selectedWorkflow)?.lastSeenInTemporalAt ||
+                          getSkyCommandRecord(selectedWorkflow)?.updatedAt,
+                      )}
                     </dd>
                   </dl>
 
@@ -787,7 +794,9 @@ function TemporalWorkflows({ mode = 'history' }) {
                         <td>
                           <div className="sky-mono text-break">{workflow.workflowId || '—'}</div>
                           <div className="small sky-muted">
-                            {workflow.skyserverRecord ? `by ${getStartedByLabel(workflow)}` : 'not recorded yet'}
+                            {getSkyCommandRecord(workflow)
+                              ? `by ${getStartedByLabel(workflow)}`
+                              : 'not recorded yet'}
                           </div>
                         </td>
                         <td>{workflow.workflowType || '—'}</td>
@@ -889,7 +898,9 @@ function TemporalWorkflows({ mode = 'history' }) {
                         <td>
                           <div className="sky-mono text-break">{workflow.workflowId || '—'}</div>
                           <div className="small sky-muted">
-                            {workflow.skyserverRecord ? `by ${getStartedByLabel(workflow)}` : 'not recorded yet'}
+                            {getSkyCommandRecord(workflow)
+                              ? `by ${getStartedByLabel(workflow)}`
+                              : 'not recorded yet'}
                           </div>
                         </td>
                         <td>{workflow.workflowType || '—'}</td>

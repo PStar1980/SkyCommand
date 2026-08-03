@@ -1,5 +1,5 @@
 -- Table: worker.temporal_worker_heartbeats
--- Purpose: SkyServer Temporal worker process heartbeat ledger for task queue health diagnostics.
+-- Purpose: SkyCommand Temporal worker process heartbeat ledger for task queue health diagnostics.
 
 CREATE TABLE IF NOT EXISTS worker.temporal_worker_heartbeats (
   worker_heartbeat_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,6 +33,6 @@ CREATE INDEX IF NOT EXISTS idx_temporal_worker_heartbeats_task_queue_seen
 CREATE INDEX IF NOT EXISTS idx_temporal_worker_heartbeats_status_seen
   ON worker.temporal_worker_heartbeats (status, last_seen_at DESC);
 
-COMMENT ON TABLE worker.temporal_worker_heartbeats IS 'SkyServer Temporal worker process heartbeat ledger for task queue health diagnostics.';
-COMMENT ON COLUMN worker.temporal_worker_heartbeats.worker_identity IS 'Stable process identity emitted by the SkyServer Temporal worker.';
+COMMENT ON TABLE worker.temporal_worker_heartbeats IS 'SkyCommand Temporal worker process heartbeat ledger for task queue health diagnostics.';
+COMMENT ON COLUMN worker.temporal_worker_heartbeats.worker_identity IS 'Stable process identity emitted by the SkyCommand Temporal worker.';
 COMMENT ON COLUMN worker.temporal_worker_heartbeats.last_seen_at IS 'Most recent heartbeat observed from the worker process.';

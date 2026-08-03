@@ -92,7 +92,7 @@ async function recordTemporalAudit(
     });
   } catch (auditError) {
     console.error(
-      `[SkyServer Temporal API] Failed to record ${eventType || action || 'Temporal'} audit event:`,
+      `[SkyCommand Temporal API] Failed to record ${eventType || action || 'Temporal'} audit event:`,
       auditError,
     );
   }
@@ -127,7 +127,7 @@ function sendServiceError(res, error) {
     response.details = error.details;
   }
 
-  console.error('[SkyServer Temporal API] Request failed:', error);
+  console.error('[SkyCommand Temporal API] Request failed:', error);
 
   res.status(statusCode).json(response);
 }

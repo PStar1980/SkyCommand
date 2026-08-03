@@ -1,5 +1,5 @@
 -- Table: worker.temporal_workflow_definitions
--- Purpose: Approved Temporal workflow templates exposed by SkyServer Core/API.
+-- Purpose: Approved Temporal workflow templates exposed by SkyCommand Core/API.
 
 CREATE TABLE IF NOT EXISTS worker.temporal_workflow_definitions (
   definition_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -47,7 +47,7 @@ ALTER TABLE worker.temporal_workflow_definitions OWNER TO postgres;
 CREATE INDEX IF NOT EXISTS idx_temporal_workflow_definitions_enabled
   ON worker.temporal_workflow_definitions (enabled, visible_in_admin, workflow_code);
 
-COMMENT ON TABLE worker.temporal_workflow_definitions IS 'Approved Temporal workflow templates that SkyServer Core/API may expose to Admin-Web and other clients.';
-COMMENT ON COLUMN worker.temporal_workflow_definitions.workflow_code IS 'Stable SkyServer template code, such as fred-ingestion.';
+COMMENT ON TABLE worker.temporal_workflow_definitions IS 'Approved Temporal workflow templates that SkyCommand Core/API may expose to Admin-Web and other clients.';
+COMMENT ON COLUMN worker.temporal_workflow_definitions.workflow_code IS 'Stable SkyCommand template code, such as fred-ingestion.';
 COMMENT ON COLUMN worker.temporal_workflow_definitions.workflow_type IS 'Temporal workflow type registered by a worker, such as fredIngestionWorkflow.';
 COMMENT ON COLUMN worker.temporal_workflow_definitions.config IS 'Template-specific configuration reserved for future engines, schedules, and Admin-Web rendering hints.';

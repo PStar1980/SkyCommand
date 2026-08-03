@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * SkyServer_Core.js
- * Interactive CLI launcher for SkyServer automation scripts.
+ * SkyCommand_Core.js
+ * Interactive CLI launcher for SkyCommand automation scripts.
  *
  * Database-backed version:
- * - Loads .env from the SkyServer repo root
- * - Reads SkyServer Core categories/tools/parameters from PostgreSQL core.* tables
+ * - Loads .env from the SkyCommand repo root
+ * - Reads SkyCommand Core categories/tools/parameters from PostgreSQL core.* tables
  * - Reads repository paths from core.repositories/core.repository_paths
  * - Lists CLI-visible categories/tools only
  * - Adds a top-level Run Tools / Run Workflows launcher
- * - Starts active, published SkyServer workflows through the Temporal-backed executor
+ * - Starts active, published SkyCommand workflows through the Temporal-backed executor
  * - Prompts for workflow-level runtime parameters from the published schema
  * - Can follow Temporal workflow progress without depending on Admin-Web/Vite
  * - Prompts for configured tool parameters
@@ -40,9 +40,9 @@ const dotenv = require('dotenv');
 
 const CORE_DIR = __dirname;
 
-// SkyServer/packages/core/src -> SkyServer
-const SKY_SERVER_ROOT = path.resolve(CORE_DIR, '../../..');
-const ENV_PATH = path.join(SKY_SERVER_ROOT, '.env');
+// SkyCommand/packages/core/src -> SkyCommand
+const SKYCOMMAND_ROOT = path.resolve(CORE_DIR, '../../..');
+const ENV_PATH = path.join(SKYCOMMAND_ROOT, '.env');
 
 dotenv.config({ path: ENV_PATH });
 
@@ -56,28 +56,30 @@ const {
   mergeWorkflowRuntimeParameters,
 } = require('./workflowCliRuntimeParameters');
 
-const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
+const APP_CODE = process.env.SKYCOMMAND_CORE_APP_CODE || process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
-  process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 
 const DEFAULT_WORKFLOW_EXECUTOR_MODE = String(
+  process.env.SKYCOMMAND_CORE_WORKFLOW_EXECUTOR_MODE ||
   process.env.SKYSERVER_CORE_WORKFLOW_EXECUTOR_MODE || 'temporal',
 )
   .trim()
   .toLowerCase();
-const CLI_USER_AGENT = 'SkyServer_Core CLI';
+const CLI_USER_AGENT = 'SkyCommand_Core CLI';
 const DEFAULT_WORKFLOW_FOLLOW =
-  String(process.env.SKYSERVER_CORE_WORKFLOW_FOLLOW || 'true').trim().toLowerCase() !== 'false';
+  String(process.env.SKYCOMMAND_CORE_WORKFLOW_FOLLOW || process.env.SKYSERVER_CORE_WORKFLOW_FOLLOW || 'true').trim().toLowerCase() !== 'false';
 const WORKFLOW_POLL_INTERVAL_MS = Math.max(
   500,
-  Number(process.env.SKYSERVER_CORE_WORKFLOW_POLL_MS) || 2000,
+  Number(process.env.SKYCOMMAND_CORE_WORKFLOW_POLL_MS || process.env.SKYSERVER_CORE_WORKFLOW_POLL_MS) || 2000,
 );
 const WORKFLOW_FOLLOW_TIMEOUT_MS = Math.max(
   30000,
-  Number(process.env.SKYSERVER_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS) || 1800000,
+  Number(process.env.SKYCOMMAND_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS ||
+    process.env.SKYSERVER_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS) || 1800000,
 );
 const ACTIVE_WORKFLOW_STATUSES = new Set(['QUEUED', 'RUNNING']);
 
@@ -485,7 +487,7 @@ async function loadWorkflowDefinitions() {
   return rows.map(mapWorkflowDefinition);
 }
 
-async function loadSkyserverWorkflowOptions() {
+async function loadSkyCommandWorkflowOptions() {
   const workflows = await loadWorkflowDefinitions();
 
   return workflows.map((workflow, index) => ({
@@ -586,17 +588,17 @@ async function loadManifestFromDatabase() {
 function getRecoveryManifest(error) {
   return {
     app: {
-      appCode: 'SKYSERVER_CORE_RECOVERY',
-      title: 'SkyServer Core Recovery',
+      appCode: 'SKYCOMMAND_CORE_RECOVERY',
+      title: 'SkyCommand Core Recovery',
       manifestVersion: 'recovery',
       description: 'Minimal recovery launcher used when database configuration cannot be loaded.',
     },
     profileCode: PROFILE_CODE,
     repositories: [
       {
-        repoCode: 'SkyServer',
-        repoName: 'SkyServer',
-        rootPath: SKY_SERVER_ROOT,
+        repoCode: 'SkyCommand',
+        repoName: 'SkyCommand',
+        rootPath: SKYCOMMAND_ROOT,
         displayOrder: 40,
         active: true,
       },
@@ -617,7 +619,7 @@ function getRecoveryManifest(error) {
             label: 'Database Health Check',
             description:
               'Checks one or two PostgreSQL databases and emits structured online/offline evidence.',
-            scriptRepoCode: 'SkyServer',
+            scriptRepoCode: 'SkyCommand',
             scriptPath: 'packages/db/src/db_health.js',
             runtimeCode: 'node',
             risk: 'low',
@@ -657,7 +659,7 @@ function getRecoveryManifest(error) {
             name: 'db_build',
             label: 'Database Build',
             description: 'Rebuilds the PostgreSQL database from ordered migrations and seed files.',
-            scriptRepoCode: 'SkyServer',
+            scriptRepoCode: 'SkyCommand',
             scriptPath: 'packages/db_build/src/db_build.js',
             runtimeCode: 'node',
             risk: 'high',
@@ -732,7 +734,7 @@ async function getOptionsForParam(param, config) {
   }
 
   if (param.optionSourceCode === 'skyserver_workflows') {
-    return loadSkyserverWorkflowOptions();
+    return loadSkyCommandWorkflowOptions();
   }
 
   return null;
@@ -743,7 +745,7 @@ function getParamPrompt(param) {
 }
 
 function resolveScriptFile(config, scriptDef) {
-  const scriptRepoCode = scriptDef.scriptRepoCode || 'SkyServer';
+  const scriptRepoCode = scriptDef.scriptRepoCode || 'SkyCommand';
   const repoRoot = getRepositoryRoot(config, scriptRepoCode);
 
   if (!repoRoot) {
@@ -795,7 +797,7 @@ function getRuntimeCommand(scriptDef) {
 
 async function mainMenu(config) {
   console.clear();
-  printHeader(config.app.title || 'SkyServer Core');
+  printHeader(config.app.title || 'SkyCommand Core');
 
   if (config.source === 'database') {
     console.log(gray(`Config source: PostgreSQL core schema | profile=${config.profileCode}\n`));
@@ -807,9 +809,9 @@ async function mainMenu(config) {
   const workflowCount = Array.isArray(config.workflows) ? config.workflows.length : 0;
 
   console.log(`${magenta(1)}) Run Tools`);
-  console.log(gray('   Database-backed SkyServer Core tools and scripts.'));
+  console.log(gray('   Database-backed SkyCommand Core tools and scripts.'));
   console.log(`${magenta(2)}) Run Workflows`);
-  console.log(gray(`   Start active published SkyServer workflows through Temporal. ${workflowCount} available.`));
+  console.log(gray(`   Start active published SkyCommand workflows through Temporal. ${workflowCount} available.`));
   console.log(`${magenta(3)}) Exit\n`);
 
   const choice = await askQuestion(yellow('Select an option: '));
@@ -837,7 +839,7 @@ async function mainMenu(config) {
 
 async function toolsCategoryMenu(config) {
   console.clear();
-  printHeader(config.app.title || 'SkyServer Core');
+  printHeader(config.app.title || 'SkyCommand Core');
 
   if (config.source === 'database') {
     console.log(gray(`Config source: PostgreSQL core schema | profile=${config.profileCode}\n`));
@@ -882,7 +884,12 @@ async function toolsCategoryMenu(config) {
 
 async function loadCoreOperator() {
   const requestedEmail = String(
-    process.env.SKYSERVER_CORE_OPERATOR_EMAIL || process.env.SKYSERVER_ADMIN_EMAIL || '',
+    process.env.SKYCOMMAND_CORE_OPERATOR_EMAIL ||
+    process.env.SKYCOMMAND_ADMIN_EMAIL ||
+    process.env.SKYCOMMAND_CORE_OPERATOR_EMAIL ||
+    process.env.SKYSERVER_CORE_OPERATOR_EMAIL ||
+    process.env.SKYCOMMAND_ADMIN_EMAIL ||
+    process.env.SKYSERVER_ADMIN_EMAIL || '',
   ).trim().toLowerCase();
 
   const userParams = [];
@@ -960,11 +967,11 @@ async function loadCoreOperator() {
       displayName: userRow.display_name,
       status: userRow.status,
       isSystemUser: toBoolean(userRow.is_system_user),
-      source: 'skyserver_core_cli',
+      source: 'skycommand_core_cli',
     },
     permissions: permissionRows.map((row) => ({ permissionCode: row.permission_code })),
     note: requestedEmail
-      ? `Operator resolved from SKYSERVER_CORE_OPERATOR_EMAIL=${requestedEmail}.`
+      ? `Operator resolved from SKYCOMMAND_CORE_OPERATOR_EMAIL=${requestedEmail}.`
       : `Operator resolved from latest active SUPER_ADMIN: ${userRow.display_name || userRow.email}.`,
   };
 }
@@ -974,7 +981,7 @@ async function workflowMenu(config) {
   printHeader('Run Workflows');
 
   if (config.source !== 'database') {
-    console.log(red('Workflows require the PostgreSQL-backed SkyServer configuration.'));
+    console.log(red('Workflows require the PostgreSQL-backed SkyCommand configuration.'));
     await waitForEnter();
     return;
   }
@@ -982,7 +989,7 @@ async function workflowMenu(config) {
   const workflows = await loadWorkflowDefinitions();
 
   if (workflows.length === 0) {
-    console.log(yellow('No active published SkyServer workflows are available.'));
+    console.log(yellow('No active published SkyCommand workflows are available.'));
     await waitForEnter();
     return;
   }
@@ -1338,7 +1345,7 @@ async function collectWorkflowInput(workflow, config) {
 
   input.runSource = input.runSource || 'manual';
   input.triggerType = input.triggerType || 'MANUAL';
-  input.startedFrom = input.startedFrom || 'skyserver_core_cli';
+  input.startedFrom = input.startedFrom || 'skycommand_core_cli';
 
   return {
     executorMode,
@@ -1693,7 +1700,7 @@ async function start() {
 }
 
 start().catch(async (error) => {
-  console.error(red('\nFatal SkyServer Core error:'));
+  console.error(red('\nFatal SkyCommand Core error:'));
   console.error(error);
   await closePool();
   process.exit(1);

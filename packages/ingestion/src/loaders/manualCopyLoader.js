@@ -53,7 +53,7 @@ const printCleanOutput = (output) => {
     .forEach((line) => console.log(line));
 };
 
-const runSql = (sql, filePrefix = 'skyserver_manual_query') => {
+const runSql = (sql, filePrefix = 'skycommand_manual_query') => {
   const sqlFile = path.join(os.tmpdir(), `${filePrefix}_${process.pid}.sql`);
 
   fs.writeFileSync(sqlFile, sql, 'utf-8');
@@ -89,7 +89,7 @@ const getPrimaryKeyColumns = (schema, table) => {
     ORDER BY array_position(i.indkey, a.attnum);
   `;
 
-  return runSql(sql, 'skyserver_manual_pk')
+  return runSql(sql, 'skycommand_manual_pk')
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -104,7 +104,7 @@ const assertColumnsExist = (schema, table, columns) => {
   `;
 
   const existingColumns = new Set(
-    runSql(sql, 'skyserver_manual_columns')
+    runSql(sql, 'skycommand_manual_columns')
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean),
@@ -201,7 +201,7 @@ const copyManualIntoTable = (code, filePath, job) => {
 
   console.log(`🔥 [COPY] ${code}`);
 
-  const output = runSql(sql, `skyserver_manual_copy_${safeName(code)}`);
+  const output = runSql(sql, `skycommand_manual_copy_${safeName(code)}`);
 
   printCleanOutput(output);
 };

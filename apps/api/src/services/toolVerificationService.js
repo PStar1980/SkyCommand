@@ -7,8 +7,8 @@ const toolAdminService = require('./toolAdminService');
 const scriptExecutionService = require('./scriptExecutionService');
 
 const PROFILE_CODE =
-  process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

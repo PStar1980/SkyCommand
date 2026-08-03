@@ -44,8 +44,8 @@ const runtimeFiles = [
   'apps/api/src/services/workflowExecutorService.js',
   'apps/worker/src/jobs/scheduledToolRunner.js',
   'apps/worker/src/jobs/scheduledTemporalWorkflowRunner.js',
-  'apps/worker/src/jobs/scheduledSkyserverWorkflowRunner.js',
-  'packages/temporal/src/activities/skyserverWorkflowActivities.js',
+  'apps/worker/src/jobs/scheduledSkyCommandWorkflowRunner.js',
+  'packages/temporal/src/activities/skyCommandWorkflowActivities.js',
 ];
 const runtimeGatePattern = /previewFingerprint|fileHash|sha256|SHA-256/;
 

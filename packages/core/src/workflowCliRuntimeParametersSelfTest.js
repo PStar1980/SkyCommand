@@ -71,7 +71,7 @@ function run() {
   assert.strictEqual(coerceWorkflowRuntimeParameterValue('', definitions[1]), 2);
   assert.strictEqual(coerceWorkflowRuntimeParameterValue('yes', definitions[2]), true);
   assert.strictEqual(coerceWorkflowRuntimeParameterValue('safe', definitions[3]), 'safe');
-  assert.strictEqual(coerceWorkflowRuntimeParameterValue('SkyServer', definitions[4]), 'SkyServer');
+  assert.strictEqual(coerceWorkflowRuntimeParameterValue('SkyCommand', definitions[4]), 'SkyCommand');
   assert.strictEqual(definitions[4].optionSourceCode, 'repositories');
   assert.deepStrictEqual(coerceWorkflowRuntimeParameterValue('{"ok":true}', definitions[5]), {
     ok: true,

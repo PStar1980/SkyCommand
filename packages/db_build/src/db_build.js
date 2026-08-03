@@ -449,10 +449,10 @@ async function executeDatabaseBuild(args = []) {
     buildResult.firstSqlFile = buildResult.files[0]?.relativePath || null;
     buildResult.lastSqlFile = buildResult.files.at(-1)?.relativePath || null;
 
-    console.log(`[SkyServer DB Build] Env file: ${ENV_PATH}`);
-    console.log(`[SkyServer DB Build] Target database: ${buildResult.targetDatabase}`);
-    console.log(`[SkyServer DB Build] SQL roots: ${SQL_ROOT_LABELS.join(', ')}`);
-    console.log(`[SkyServer DB Build] SQL files found: ${buildResult.sqlFilesDiscovered}`);
+    console.log(`[SkyCommand DB Build] Env file: ${ENV_PATH}`);
+    console.log(`[SkyCommand DB Build] Target database: ${buildResult.targetDatabase}`);
+    console.log(`[SkyCommand DB Build] SQL roots: ${SQL_ROOT_LABELS.join(', ')}`);
+    console.log(`[SkyCommand DB Build] SQL files found: ${buildResult.sqlFilesDiscovered}`);
 
     dropAndCreateDatabase(buildResult.targetDatabase, buildResult);
 

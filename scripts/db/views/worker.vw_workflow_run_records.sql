@@ -1,5 +1,5 @@
 -- View: worker.vw_workflow_run_records
--- Purpose: SkyServer workflow run records joined to user and workflow metadata.
+-- Purpose: SkyCommand workflow run records joined to user and workflow metadata.
 
 CREATE OR REPLACE VIEW worker.vw_workflow_run_records AS
 SELECT
@@ -37,4 +37,4 @@ LEFT JOIN auth.users u
 
 ALTER VIEW worker.vw_workflow_run_records OWNER TO postgres;
 
-COMMENT ON VIEW worker.vw_workflow_run_records IS 'SkyServer workflow run records joined to user and workflow metadata.';
+COMMENT ON VIEW worker.vw_workflow_run_records IS 'SkyCommand workflow run records joined to user and workflow metadata.';

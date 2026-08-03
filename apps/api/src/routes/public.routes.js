@@ -6,7 +6,7 @@ const router = express.Router();
 router.get('/_health', (req, res) => {
   res.json({
     ok: true,
-    service: 'SkyServer Public API',
+    service: 'SkyCommand Public API',
   });
 });
 

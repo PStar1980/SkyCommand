@@ -34,8 +34,8 @@ dotenv.config({ path: ENV_PATH });
 const { pool } = require('../../db/src/connection');
 
 const PROFILE_CODE =
-  process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 const GIT_COMMAND_TIMEOUT_MS = Math.max(

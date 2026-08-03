@@ -38,7 +38,7 @@ const FALLBACK_WORKFLOW_DEFINITIONS = [
     description:
       'Runs Temporal-backed FRED macro ingestion at the indicator level with configurable batching/concurrency.',
     taskQueueConfigKey: 'TEMPORAL_TASK_QUEUE',
-    workflowIdPrefix: 'skyserver-fred-ingestion',
+    workflowIdPrefix: 'skycommand-fred-ingestion',
     runSourceDefault: 'api_manual',
     defaultTimeoutMs: DEFAULT_FRED_ACTIVITY_TIMEOUT_MS,
     maxTimeoutMs: MAX_FRED_ACTIVITY_TIMEOUT_MS,
@@ -171,7 +171,7 @@ function normalizeWorkflowIdPart(value, fallback = 'workflow') {
 }
 
 function buildWorkflowId(prefix, value) {
-  const normalizedPrefix = normalizeWorkflowIdPart(prefix, 'skyserver-workflow');
+  const normalizedPrefix = normalizeWorkflowIdPart(prefix, 'skycommand-workflow');
 
   if (value) {
     return normalizeWorkflowIdPart(value, `${normalizedPrefix}-manual`);
@@ -437,11 +437,12 @@ function runRecordToWorkflowInfo(record, { missingFromTemporal = true } = {}) {
     executionTime: record.executionTime,
     closeTime: record.closeTime,
     historyLength: record.historyLength,
-    source: missingFromTemporal ? 'skyserver_db' : 'temporal',
+    source: missingFromTemporal ? 'skycommand_db' : 'temporal',
     missingFromTemporal,
+    skyCommandRecord: record,
     skyserverRecord: record,
     raw: {
-      source: 'skyserver_db',
+      source: 'skycommand_db',
       missingFromTemporal,
       record,
     },
@@ -573,7 +574,7 @@ async function upsertWorkflowRunRecord({
       return null;
     }
 
-    console.warn('[SkyServer Temporal API] Failed to persist workflow run record:', error.message);
+    console.warn('[SkyCommand Temporal API] Failed to persist workflow run record:', error.message);
     return null;
   }
 }
@@ -695,6 +696,7 @@ function mergeWorkflowItemsWithRunRecords({ items = [], records = [], namespace,
       workflowCode: item.workflowCode || record?.workflowCode,
       source: 'temporal',
       missingFromTemporal: false,
+      skyCommandRecord: record,
       skyserverRecord: record,
     });
   }
@@ -713,8 +715,20 @@ function mergeWorkflowItemsWithRunRecords({ items = [], records = [], namespace,
 
   return [...merged.values()]
     .sort((left, right) => {
-      const leftTime = new Date(left.startTime || left.executionTime || left.skyserverRecord?.createdAt || 0).getTime();
-      const rightTime = new Date(right.startTime || right.executionTime || right.skyserverRecord?.createdAt || 0).getTime();
+      const leftTime = new Date(
+        left.startTime ||
+          left.executionTime ||
+          left.skyCommandRecord?.createdAt ||
+          left.skyserverRecord?.createdAt ||
+          0,
+      ).getTime();
+      const rightTime = new Date(
+        right.startTime ||
+          right.executionTime ||
+          right.skyCommandRecord?.createdAt ||
+          right.skyserverRecord?.createdAt ||
+          0,
+      ).getTime();
       return rightTime - leftTime;
     })
     .slice(0, limit);
@@ -757,7 +771,7 @@ async function updateWorkflowRunRecordAction({ workflowId, runId, action, actor 
       return null;
     }
 
-    console.warn('[SkyServer Temporal API] Failed to update workflow action record:', error.message);
+    console.warn('[SkyCommand Temporal API] Failed to update workflow action record:', error.message);
     return null;
   }
 }
@@ -1050,6 +1064,7 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null, 
   return {
     workflow: {
       ...workflow,
+      skyCommandRecord: runRecord,
       skyserverRecord: runRecord,
       source: 'temporal',
       missingFromTemporal: false,
@@ -1064,7 +1079,7 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null, 
   };
 }
 
-async function startSkyserverWorkflowExecutorWorkflow({
+async function startSkyCommandWorkflowExecutorWorkflow({
   workflowCode,
   workflowRunRecordId,
   input = {},
@@ -1085,11 +1100,12 @@ async function startSkyserverWorkflowExecutorWorkflow({
 
   const { config, client } = await createTemporalClient();
   const workflowId = buildWorkflowId(
-    `skyserver-workflow-${normalizedWorkflowCode}`,
-    input.workflowId || input.skyserverWorkflowId,
+    `skycommand-workflow-${normalizedWorkflowCode}`,
+    input.workflowId || input.skyCommandWorkflowId || input.skyserverWorkflowId,
   );
   const startedAt = new Date().toISOString();
   const workflowInput = serializeTemporalValue({
+    identityVersion: 'skycommand.v1',
     workflowCode: normalizedWorkflowCode,
     workflowRunRecordId,
     input: getSafeJson(input),
@@ -1599,7 +1615,7 @@ function buildTemporalDiagnostics({ config, workflow = {}, workflowId, runId, hi
         namespace: config.namespace,
         workflowId: effectiveWorkflowId,
         runId: effectiveRunId,
-        reason: 'Manual diagnostics cleanup from SkyServer Admin',
+        reason: 'Manual diagnostics cleanup from SkyCommand Admin',
       }),
     },
   };
@@ -1826,6 +1842,7 @@ async function getWorkflow({ workflowId, runId } = {}) {
         workflowCode: runRecord?.workflowCode || DEFAULT_FRED_WORKFLOW_CODE,
         source: 'temporal',
         missingFromTemporal: false,
+        skyCommandRecord: runRecord,
         skyserverRecord: runRecord,
       },
     };
@@ -1836,7 +1853,7 @@ async function getWorkflow({ workflowId, runId } = {}) {
       return {
         namespace: config.namespace,
         workflow: runRecordToWorkflowInfo(runRecord, { missingFromTemporal: true }),
-        warning: 'Workflow was not found in Temporal visibility/history; returned SkyServer run record only.',
+        warning: 'Workflow was not found in Temporal visibility/history; returned SkyCommand run record only.',
       };
     }
 
@@ -1903,7 +1920,7 @@ async function terminateWorkflow({ workflowId, runId, reason, actor = null } = {
   const { client, config } = await createTemporalClient();
   const handle = client.workflow.getHandle(workflowId, runId || undefined);
 
-  const normalizedReason = reason || 'Terminated from SkyServer Temporal API.';
+  const normalizedReason = reason || 'Terminated from SkyCommand Temporal API.';
 
   await handle.terminate(normalizedReason);
 
@@ -1938,7 +1955,7 @@ module.exports = {
   listWorkflows,
   startFredIngestionWorkflow,
   signalWorkflow,
-  startSkyserverWorkflowExecutorWorkflow,
+  startSkyCommandWorkflowExecutorWorkflow,
   startWorkflowFromDefinition,
   terminateWorkflow,
 };

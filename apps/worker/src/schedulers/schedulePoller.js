@@ -206,7 +206,7 @@ async function runSchedulePollOnce({ workerNode, maxDuePerTick = getMaxDuePerTic
     };
   }
 
-  console.log(`[SkyServer Worker] Claimed ${claims.length} due schedule(s).`);
+  console.log(`[SkyCommand Worker] Claimed ${claims.length} due schedule(s).`);
 
   const results = [];
 
@@ -238,7 +238,7 @@ function startSchedulePoller({ workerNode, pollIntervalSeconds = getPollInterval
     try {
       await runSchedulePollOnce({ workerNode });
     } catch (error) {
-      console.error('[SkyServer Worker] Schedule poll failed:', error);
+      console.error('[SkyCommand Worker] Schedule poll failed:', error);
     } finally {
       running = false;
     }

@@ -1,13 +1,13 @@
-# SkyServer Workflow Architecture Upgrade Plan
+# SkyCommand Workflow Architecture Upgrade Plan
 
 ## Status Note
 
-This document is retained as the historical architecture decision record for the Temporal migration. Phase 10 has since been implemented through production-readiness inspection, so current operational details live in `README.md`, `change.log`, `docs/SkyServer_Temporal_Local_Setup.md`, and the Admin-Web workflow/health/readiness pages.
+This document is retained as the historical architecture decision record for the Temporal migration. Phase 10 has since been implemented through production-readiness inspection, so current operational details live in `README.md`, `change.log`, `docs/SkyCommand_Temporal_Local_Setup.md`, and the Admin-Web workflow/health/readiness pages.
 
 ## Temporal-Based Workflow Orchestration Roadmap
 
-**Project:** SkyServer / SkyWeb  
-**Decision:** Temporal will become the long-term workflow orchestration engine for SkyServer.  
+**Project:** SkyCommand / SkyWeb  
+**Decision:** Temporal will become the long-term workflow orchestration engine for SkyCommand.  
 **Initial hosting model:** Self-hosted/local Temporal, not Temporal Cloud.  
 **Status:** Phase 10.1 foundation started — local Temporal worker and FRED ingestion pilot added.
 
@@ -17,7 +17,7 @@ This document is retained as the historical architecture decision record for the
 
 The first implementation slice keeps the migration intentionally narrow:
 
-- add Temporal SDK dependencies to SkyServer
+- add Temporal SDK dependencies to SkyCommand
 - add a local Temporal worker entry point
 - add a FRED ingestion workflow pilot
 - wrap the existing FRED ingestion script as a Temporal Activity
@@ -29,17 +29,17 @@ The initial pilot uses a script-wrapper Activity rather than refactoring the ing
 
 ## 1. Executive Summary
 
-SkyServer is currently a Node.js-based administrative and automation platform with an API layer, worker infrastructure, user/session management, tool execution, ingestion monitoring, scheduling/listener capabilities, and operational dashboards.
+SkyCommand is currently a Node.js-based administrative and automation platform with an API layer, worker infrastructure, user/session management, tool execution, ingestion monitoring, scheduling/listener capabilities, and operational dashboards.
 
 SkyWeb is the analytics and visualization layer that reads from PostgreSQL and presents macro, reporting, dashboard, and business-process views.
 
-The next major architectural evolution is to upgrade SkyServer from a **tool launcher / scheduler-listener system** into a true **workflow automation control plane**.
+The next major architectural evolution is to upgrade SkyCommand from a **tool launcher / scheduler-listener system** into a true **workflow automation control plane**.
 
 The chosen long-term workflow engine is **Temporal**.
 
-Temporal will be introduced as the durable workflow orchestration layer for SkyServer. Existing SkyServer tools will gradually be wrapped as Temporal Activities, while higher-level business processes will be represented as Temporal Workflows.
+Temporal will be introduced as the durable workflow orchestration layer for SkyCommand. Existing SkyCommand tools will gradually be wrapped as Temporal Activities, while higher-level business processes will be represented as Temporal Workflows.
 
-This will allow SkyServer to orchestrate:
+This will allow SkyCommand to orchestrate:
 
 - Node.js tasks
 - Python scripts
@@ -50,7 +50,7 @@ This will allow SkyServer to orchestrate:
 - SQL tasks
 - future Airflow DAGs
 
-Temporal is suitable because it is open-source and self-hostable, with an optional paid managed Temporal Cloud offering. Temporal also provides a TypeScript SDK, making it a strong fit for the existing Node.js/SkyServer architecture.
+Temporal is suitable because it is open-source and self-hostable, with an optional paid managed Temporal Cloud offering. Temporal also provides a TypeScript SDK, making it a strong fit for the existing Node.js/SkyCommand architecture.
 
 ---
 
@@ -58,7 +58,7 @@ Temporal is suitable because it is open-source and self-hostable, with an option
 
 ### Decision
 
-SkyServer will adopt **Temporal** as its primary workflow orchestration engine.
+SkyCommand will adopt **Temporal** as its primary workflow orchestration engine.
 
 ### Hosting model
 
@@ -74,7 +74,7 @@ Not:
 Temporal Cloud
 ```
 
-Temporal Cloud may be considered later only if SkyServer becomes production-hosted and the operational tradeoff justifies the cost.
+Temporal Cloud may be considered later only if SkyCommand becomes production-hosted and the operational tradeoff justifies the cost.
 
 ### Strategic reason
 
@@ -96,15 +96,15 @@ Temporal is better aligned to this long-term target than building a custom workf
 
 ---
 
-## 3. Important Clarification: Temporal Does Not Replace SkyServer
+## 3. Important Clarification: Temporal Does Not Replace SkyCommand
 
-Temporal does **not** make SkyServer obsolete.
+Temporal does **not** make SkyCommand obsolete.
 
 Temporal becomes the **workflow execution engine**.
 
-SkyServer remains the **control panel, command hub, administration layer, visibility layer, and automation console**.
+SkyCommand remains the **control panel, command hub, administration layer, visibility layer, and automation console**.
 
-SkyServer will still be responsible for:
+SkyCommand will still be responsible for:
 
 - user/session management
 - admin screens
@@ -135,13 +135,13 @@ Temporal will handle:
 The relationship should be understood like this:
 
 ```text
-SkyServer = control plane / cockpit / observability hub
+SkyCommand = control plane / cockpit / observability hub
 Temporal = workflow engine / durable execution layer
 PostgreSQL = truth layer / data + audit store
 SkyWeb = visualization + analytics layer
 ```
 
-SkyServer can still execute single tools directly where appropriate.
+SkyCommand can still execute single tools directly where appropriate.
 
 Temporal is primarily needed when a process becomes a **workflow**:
 
@@ -155,9 +155,9 @@ Single tool execution remains valid. Temporal adds durable orchestration when mu
 
 ## 4. Current System Context
 
-### Current SkyServer components
+### Current SkyCommand components
 
-SkyServer currently includes:
+SkyCommand currently includes:
 
 - Node.js / Express API server
 - PostgreSQL database
@@ -210,7 +210,7 @@ PostgreSQL
 raw / staging / core / mart / audit / app / automation schemas
         ▲
         │
-SkyServer API
+SkyCommand API
 Node.js / Express
 Control plane, auth, admin UI APIs, workflow launch/status
         │
@@ -231,9 +231,9 @@ External systems / scripts / APIs / files / models / Airflow later
 
 ## 6. Component Responsibilities
 
-### 6.1 SkyServer API / Admin
+### 6.1 SkyCommand API / Admin
 
-SkyServer becomes the **control plane**.
+SkyCommand becomes the **control plane**.
 
 Responsibilities:
 
@@ -268,7 +268,7 @@ Workers execute the actual project code.
 
 Initial worker types:
 
-- Node.js worker for existing SkyServer activities
+- Node.js worker for existing SkyCommand activities
 - future Python worker for ETL/data tasks
 - future Playwright worker for test automation
 - future AI-agent activity worker
@@ -290,13 +290,13 @@ Responsibilities:
 - SkyWeb reporting views
 - ingestion/data quality metadata
 
-Temporal should ideally use its own internal persistence database/schema, separate from SkyServer’s application data.
+Temporal should ideally use its own internal persistence database/schema, separate from SkyCommand’s application data.
 
 Recommended local structure:
 
 ```text
 PostgreSQL instance
-  ├── skyserver_db
+  ├── skycommand_db
   │     ├── app
   │     ├── automation
   │     ├── raw
@@ -315,11 +315,11 @@ PostgreSQL instance
 
 ### 7.1 Temporal
 
-Temporal is selected as the primary SkyServer workflow engine because it supports durable, long-running, multi-step workflows and has a TypeScript SDK.
+Temporal is selected as the primary SkyCommand workflow engine because it supports durable, long-running, multi-step workflows and has a TypeScript SDK.
 
 Use Temporal for:
 
-- general SkyServer workflows
+- general SkyCommand workflows
 - agentic AI workflows
 - Playwright automation workflows
 - multi-step tool orchestration
@@ -343,7 +343,7 @@ Use Airflow later for:
 - reporting refresh DAGs
 - data engineering portfolio expansion
 
-Airflow should not be the main SkyServer workflow engine. It is best reserved for professional data-engineering DAGs.
+Airflow should not be the main SkyCommand workflow engine. It is best reserved for professional data-engineering DAGs.
 
 ### 7.3 BullMQ
 
@@ -357,7 +357,7 @@ BullMQ may still be used in the future for specific queue-heavy local execution 
 
 ## 8. Conceptual Model
 
-SkyServer should adopt this vocabulary:
+SkyCommand should adopt this vocabulary:
 
 ```text
 Tool
@@ -382,13 +382,13 @@ Artifact
 
 Task Queue
   Temporal routing channel workers poll from.
-  Example: skyserver-node, skyserver-python, skyserver-playwright.
+  Example: skycommand-node, skycommand-python, skycommand-playwright.
 ```
 
 Recommended mapping:
 
 ```text
-Existing SkyServer Tool
+Existing SkyCommand Tool
         ↓
 Temporal Activity
         ↓
@@ -398,14 +398,14 @@ Workflow Run
         ↓
 PostgreSQL run summary + artifacts
         ↓
-SkyServer Admin UI visibility
+SkyCommand Admin UI visibility
 ```
 
 ---
 
 ## 9. Workflow Adapter Types
 
-SkyServer should introduce a flexible adapter model so different execution types can be orchestrated consistently.
+SkyCommand should introduce a flexible adapter model so different execution types can be orchestrated consistently.
 
 Initial adapter types:
 
@@ -429,7 +429,7 @@ notification
 {
   "adapter_type": "node_script",
   "script": "scripts/generateRepoMap.js",
-  "args": ["--repo", "SkyServer"]
+  "args": ["--repo", "SkyCommand"]
 }
 ```
 
@@ -489,9 +489,9 @@ notification
 
 ## 10. Database Architecture for Workflow Metadata
 
-SkyServer should store application-level workflow metadata in PostgreSQL.
+SkyCommand should store application-level workflow metadata in PostgreSQL.
 
-Temporal stores its own execution history internally, but SkyServer should maintain a business-friendly summary layer for UI/reporting.
+Temporal stores its own execution history internally, but SkyCommand should maintain a business-friendly summary layer for UI/reporting.
 
 Recommended tables:
 
@@ -573,7 +573,7 @@ automation.tool_registry
 
 Temporal owns durable workflow execution.
 
-SkyServer owns:
+SkyCommand owns:
 
 - definitions
 - user-facing metadata
@@ -651,7 +651,7 @@ Airflow can be added later if ETL becomes large enough to justify a dedicated da
 Potential future pattern:
 
 ```text
-SkyServer starts workflow
+SkyCommand starts workflow
   → Temporal activity triggers Airflow DAG
   → Airflow runs Python ETL tasks
   → ETL writes PostgreSQL raw/staging/core/mart tables
@@ -676,7 +676,7 @@ Before pivoting to Temporal:
 Deliverable:
 
 ```text
-Stable SkyWeb/SkyServer baseline before Temporal integration.
+Stable SkyWeb/SkyCommand baseline before Temporal integration.
 ```
 
 ---
@@ -686,7 +686,7 @@ Stable SkyWeb/SkyServer baseline before Temporal integration.
 Goal:
 
 ```text
-Add Temporal locally without disrupting the current SkyServer worker/tool system.
+Add Temporal locally without disrupting the current SkyCommand worker/tool system.
 ```
 
 Tasks:
@@ -694,7 +694,7 @@ Tasks:
 1. Install Temporal CLI/dev server.
 2. Start local Temporal server.
 3. Confirm Temporal Web UI is accessible.
-4. Add Temporal TypeScript SDK to SkyServer.
+4. Add Temporal TypeScript SDK to SkyCommand.
 5. Create folder structure:
 
 ```text
@@ -711,7 +711,7 @@ src/temporal/
 Deliverable:
 
 ```text
-Temporal runs locally and SkyServer can connect to it.
+Temporal runs locally and SkyCommand can connect to it.
 ```
 
 ---
@@ -721,7 +721,7 @@ Temporal runs locally and SkyServer can connect to it.
 Goal:
 
 ```text
-Wrap one existing SkyServer tool as a Temporal Activity.
+Wrap one existing SkyCommand tool as a Temporal Activity.
 ```
 
 Initial workflow:
@@ -745,17 +745,17 @@ Initial candidate tools:
 Deliverable:
 
 ```text
-SkyServer can start a Temporal workflow that executes one existing tool.
+SkyCommand can start a Temporal workflow that executes one existing tool.
 ```
 
 ---
 
-### Phase 3 — SkyServer UI integration
+### Phase 3 — SkyCommand UI integration
 
 Goal:
 
 ```text
-Allow workflow execution from the existing SkyServer Admin UI.
+Allow workflow execution from the existing SkyCommand Admin UI.
 ```
 
 Tasks:
@@ -820,13 +820,13 @@ Tasks:
    - output schema
    - handler name
    - enabled flag
-3. Expose tool registry in SkyServer Admin.
+3. Expose tool registry in SkyCommand Admin.
 4. Preserve backward compatibility with existing tool execution during migration.
 
 Deliverable:
 
 ```text
-Existing SkyServer tools are cataloged as workflow-capable execution units.
+Existing SkyCommand tools are cataloged as workflow-capable execution units.
 ```
 
 ---
@@ -859,7 +859,7 @@ RepoQualityWorkflow
 Deliverable:
 
 ```text
-SkyServer supports multi-task workflow definitions backed by Temporal.
+SkyCommand supports multi-task workflow definitions backed by Temporal.
 ```
 
 ---
@@ -893,7 +893,7 @@ SkyWebRegressionWorkflow
 Deliverable:
 
 ```text
-SkyServer can execute Playwright test automation through Temporal workflows.
+SkyCommand can execute Playwright test automation through Temporal workflows.
 ```
 
 ---
@@ -930,7 +930,7 @@ NightlyQualityWorkflow
 Deliverable:
 
 ```text
-SkyServer supports AI-agent tasks inside durable Temporal workflows.
+SkyCommand supports AI-agent tasks inside durable Temporal workflows.
 ```
 
 ---
@@ -979,7 +979,7 @@ MacroETLWorkflow
 Deliverable:
 
 ```text
-Temporal can orchestrate Python ETL/data-processing tasks from SkyServer.
+Temporal can orchestrate Python ETL/data-processing tasks from SkyCommand.
 ```
 
 ---
@@ -1019,7 +1019,7 @@ else:
 Deliverable:
 
 ```text
-SkyServer workflows support real orchestration logic instead of simple task chains.
+SkyCommand workflows support real orchestration logic instead of simple task chains.
 ```
 
 ---
@@ -1042,7 +1042,7 @@ Tasks:
 triggerAirflowDagActivity
 ```
 
-4. Add SkyServer workflow:
+4. Add SkyCommand workflow:
 
 ```text
 RunAirflowPipelineWorkflow
@@ -1054,7 +1054,7 @@ RunAirflowPipelineWorkflow
 Deliverable:
 
 ```text
-SkyServer can orchestrate Airflow DAGs through Temporal when needed.
+SkyCommand can orchestrate Airflow DAGs through Temporal when needed.
 ```
 
 ---
@@ -1153,11 +1153,11 @@ Activities should contain side effects:
 
 Temporal stores workflow history internally.
 
-SkyServer stores app-level summaries, artifacts, and user-facing metadata.
+SkyCommand stores app-level summaries, artifacts, and user-facing metadata.
 
 ### Preserve PostgreSQL as the source of operational truth
 
-SkyServer and SkyWeb should continue relying on PostgreSQL for:
+SkyCommand and SkyWeb should continue relying on PostgreSQL for:
 
 - app state
 - data
@@ -1207,26 +1207,26 @@ That statement aligns strongly with modern roles involving:
 
 When SkyWeb stabilization is complete, begin:
 
-### SkyServer Temporal Phase 1
+### SkyCommand Temporal Phase 1
 
 ```text
 1. Add Temporal local dev server.
-2. Add Temporal SDK to SkyServer.
+2. Add Temporal SDK to SkyCommand.
 3. Create Temporal folder structure.
 4. Create first worker.
 5. Create first activity wrapping an existing tool.
 6. Create RunToolWorkflow.
 7. Add API endpoint to start workflow.
 8. Record run summary in PostgreSQL.
-9. Display basic workflow run status in SkyServer Admin.
+9. Display basic workflow run status in SkyCommand Admin.
 ```
 
 Success criteria:
 
 ```text
-From SkyServer Admin UI:
+From SkyCommand Admin UI:
   click “Run Workflow”
-    → SkyServer API starts Temporal workflow
+    → SkyCommand API starts Temporal workflow
     → Temporal worker executes existing tool
     → output is captured
     → PostgreSQL stores run summary
@@ -1237,9 +1237,9 @@ From SkyServer Admin UI:
 
 ## 17. Final Direction
 
-The workflow engine becomes the focal point of SkyServer.
+The workflow engine becomes the focal point of SkyCommand.
 
-SkyServer is no longer only:
+SkyCommand is no longer only:
 
 ```text
 Admin console + script runner + ingestion monitor
@@ -1258,7 +1258,7 @@ Python becomes the data/ETL processing lane.
 AI agents and Playwright become workflow-capable activities.  
 Airflow remains optional for dedicated future data-engineering DAGs.
 
-This is the next major architectural upgrade path for SkyServer.
+This is the next major architectural upgrade path for SkyCommand.
 
 ---
 
@@ -1278,7 +1278,7 @@ These links are included for later technical verification and implementation pla
 
 ## Phase 10.9 Clarification — Tools vs Workflows
 
-The long-term SkyServer workflow model keeps tools and workflows separate:
+The long-term SkyCommand workflow model keeps tools and workflows separate:
 
 ```text
 core.tools
@@ -1293,4 +1293,4 @@ worker.workflow_nodes
 
 A one-node workflow is allowed, but it is a convenience wrapper, not the conceptual foundation. Multi-step workflows should compose lower-level primitives rather than forcing every primitive to become its own user-facing Temporal workflow.
 
-Temporal remains the durable execution engine. SkyServer remains the builder, control plane, audit ledger, and operator UI.
+Temporal remains the durable execution engine. SkyCommand remains the builder, control plane, audit ledger, and operator UI.

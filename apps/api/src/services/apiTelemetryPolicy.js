@@ -130,6 +130,7 @@ function shouldTrackApiRequest(req = {}) {
 function resolveApplicationCode(req = {}) {
   return (
     normalizeOptionalText(req.session?.appCode, 64) ||
+    normalizeOptionalText(req.headers?.['x-skycommand-app-code'], 64) ||
     normalizeOptionalText(req.headers?.['x-skyserver-app-code'], 64) ||
     normalizeOptionalText(req.body?.appCode, 64)
   );
@@ -142,7 +143,10 @@ function resolveAuthMode(req = {}) {
     return explicitMode.toUpperCase();
   }
 
-  if (normalizeOptionalText(req.headers?.['x-skyserver-internal-token'], 32)) {
+  if (
+    normalizeOptionalText(req.headers?.['x-skycommand-internal-token'], 32) ||
+    normalizeOptionalText(req.headers?.['x-skyserver-internal-token'], 32)
+  ) {
     return 'INTERNAL_SERVICE_TOKEN';
   }
 

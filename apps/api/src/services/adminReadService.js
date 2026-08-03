@@ -893,7 +893,7 @@ async function listScriptExecutions(filters = {}) {
       reason: 'admin_read_script_executions',
     });
   } catch (cleanupError) {
-    console.warn('[SkyServer API] Stale execution cleanup failed:', cleanupError.message);
+    console.warn('[SkyCommand API] Stale execution cleanup failed:', cleanupError.message);
   }
 
   const { limit, offset } = getPagination(filters);

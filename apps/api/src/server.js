@@ -27,7 +27,7 @@ function createApp() {
   app.use(apiTelemetryMiddleware);
 
   app.get('/_health', (req, res) => {
-    res.json({ ok: true, service: 'SkyServer API' });
+    res.json({ ok: true, service: 'SkyCommand API' });
   });
 
   app.get('/_db/health', async (req, res) => {
@@ -36,16 +36,16 @@ function createApp() {
 
       res.json({
         ok: true,
-        service: 'SkyServer API',
+        service: 'SkyCommand API',
         database: db.database,
         timestamp: db.now,
       });
     } catch (error) {
-      console.error('[SkyServer DB] Health check failed:', error);
+      console.error('[SkyCommand DB] Health check failed:', error);
 
       res.status(500).json({
         ok: false,
-        service: 'SkyServer API',
+        service: 'SkyCommand API',
         error: 'Database connection failed',
       });
     }
@@ -91,7 +91,7 @@ function createApp() {
       responseBody.details = error.details;
     }
 
-    console.error('[SkyServer API] Unhandled error:', error);
+    console.error('[SkyCommand API] Unhandled error:', error);
 
     res.status(statusCode).json(responseBody);
   });
@@ -103,7 +103,7 @@ async function runStartupMaintenance() {
   const sessionConfig = authService.getSessionConfig();
 
   console.log(
-    `[SkyServer API] Session expiry: ${sessionConfig.sessionMinutes} minute(s) | revoke on start: ${sessionConfig.revokeSessionsOnStart}`,
+    `[SkyCommand API] Session expiry: ${sessionConfig.sessionMinutes} minute(s) | revoke on start: ${sessionConfig.revokeSessionsOnStart}`,
   );
 
   if (authService.shouldRevokeSessionsOnStart()) {
@@ -114,13 +114,13 @@ async function runStartupMaintenance() {
 
       if (revokeResult.revokedCount > 0) {
         console.warn(
-          `[SkyServer API] Revoked ${revokeResult.revokedCount} active session(s) on startup.`,
+          `[SkyCommand API] Revoked ${revokeResult.revokedCount} active session(s) on startup.`,
         );
       } else {
-        console.log('[SkyServer API] No active sessions required startup revocation.');
+        console.log('[SkyCommand API] No active sessions required startup revocation.');
       }
     } catch (error) {
-      console.warn('[SkyServer API] Startup session revocation failed:', error.message);
+      console.warn('[SkyCommand API] Startup session revocation failed:', error.message);
     }
   }
 
@@ -131,27 +131,27 @@ async function runStartupMaintenance() {
 
     if (staleExecutionResult.cleanedCount > 0) {
       console.warn(
-        `[SkyServer API] Cleaned ${staleExecutionResult.cleanedCount} stale STARTED script execution row(s).`,
+        `[SkyCommand API] Cleaned ${staleExecutionResult.cleanedCount} stale STARTED script execution row(s).`,
       );
     }
   } catch (error) {
-    console.warn('[SkyServer API] Startup stale execution cleanup failed:', error.message);
+    console.warn('[SkyCommand API] Startup stale execution cleanup failed:', error.message);
   }
 
   try {
     const retentionResult = await apiTelemetryService.pruneApiRequestTelemetry();
 
     console.log(
-      `[SkyServer API] API telemetry retention: ${retentionResult.retentionDays} day(s)` +
+      `[SkyCommand API] API telemetry retention: ${retentionResult.retentionDays} day(s)` +
         (retentionResult.deletedCount > 0
           ? ` | pruned ${retentionResult.deletedCount} expired row(s)`
           : ''),
     );
   } catch (error) {
     if (error?.code === '42P01') {
-      console.warn('[SkyServer API] API telemetry retention skipped until migration 00071 is applied.');
+      console.warn('[SkyCommand API] API telemetry retention skipped until migration 00071 is applied.');
     } else {
-      console.warn('[SkyServer API] API telemetry retention cleanup failed:', error.message);
+      console.warn('[SkyCommand API] API telemetry retention cleanup failed:', error.message);
     }
   }
 }
@@ -161,10 +161,10 @@ if (require.main === module) {
   const app = createApp();
 
   app.listen(port, () => {
-    console.log(`[SkyServer API] Listening on port ${port}`);
+    console.log(`[SkyCommand API] Listening on port ${port}`);
 
     runStartupMaintenance().catch((error) => {
-      console.warn('[SkyServer API] Startup maintenance failed:', error.message);
+      console.warn('[SkyCommand API] Startup maintenance failed:', error.message);
     });
   });
 }

@@ -62,10 +62,10 @@ function repositoryPackageResult() {
     output: {
       artifactKind: 'REPOSITORY_ZIP',
       outcome: 'CREATED',
-      repositoryName: 'SkyServer',
-      repositoryRoot: 'C:/Projects/SkyServer',
-      fileName: 'SkyServer_Repo.zip',
-      artifactPath: 'C:/Projects/SkyServer/zip/SkyServer_Repo.zip',
+      repositoryName: 'SkyCommand',
+      repositoryRoot: 'C:/Projects/SkyCommand',
+      fileName: 'SkyCommand_Repo.zip',
+      artifactPath: 'C:/Projects/SkyCommand/zip/SkyCommand_Repo.zip',
       startedAt: '2026-07-17T02:00:00.000Z',
       completedAt: '2026-07-17T02:00:03.000Z',
       durationMs: 3000,
@@ -100,10 +100,10 @@ function repositoryMapResult() {
     output: {
       artifactKind: 'REPOSITORY_MAP',
       outcome: 'CREATED',
-      repositoryName: 'SkyServer',
-      repositoryRoot: 'C:/Projects/SkyServer',
-      fileName: 'SkyServer_RepoMap.md',
-      artifactPath: 'C:/Projects/SkyServer/docs/SkyServer_RepoMap.md',
+      repositoryName: 'SkyCommand',
+      repositoryRoot: 'C:/Projects/SkyCommand',
+      fileName: 'SkyCommand_RepoMap.md',
+      artifactPath: 'C:/Projects/SkyCommand/docs/SkyCommand_RepoMap.md',
       format: 'MARKDOWN',
       durationMs: 100,
       directoriesDocumented: 42,
@@ -140,9 +140,9 @@ function gitBranchSyncResult() {
     output: {
       operationKind: 'MAIN_TO_DEV_SYNC',
       outcome: 'SYNCHRONIZED',
-      repositoryCode: 'SkyServer',
-      repositoryName: 'SkyServer',
-      repositoryRoot: 'C:/Projects/SkyServer',
+      repositoryCode: 'SkyCommand',
+      repositoryName: 'SkyCommand',
+      repositoryRoot: 'C:/Projects/SkyCommand',
       sourceBranch: 'main',
       targetBranch: 'dev',
       mainBranch: 'main',
@@ -186,16 +186,16 @@ function gitRepositoryStatusResult() {
   return {
     schemaVersion: '1.0',
     success: true,
-    message: 'SkyServer is ready for development promotion.',
+    message: 'SkyCommand is ready for development promotion.',
     outputType: 'git_repository_status.v1',
     output: {
       operationKind: 'REPOSITORY_STATUS',
       executionStrategy: 'CHECKOUT_FREE_INSPECTION',
       watcherSafe: true,
       outcome: 'READY',
-      repositoryCode: 'SkyServer',
-      repositoryName: 'SkyServer',
-      repositoryRoot: 'C:/Projects/SkyServer',
+      repositoryCode: 'SkyCommand',
+      repositoryName: 'SkyCommand',
+      repositoryRoot: 'C:/Projects/SkyCommand',
       remote: 'origin',
       expectedBranch: 'dev',
       currentBranch: 'dev',
@@ -244,8 +244,8 @@ function gitRepositoryStatusResult() {
         commonAncestorSha: sha,
       },
       repositoryState: {
-        gitDir: 'C:/Projects/SkyServer/.git',
-        commonDir: 'C:/Projects/SkyServer/.git',
+        gitDir: 'C:/Projects/SkyCommand/.git',
+        commonDir: 'C:/Projects/SkyCommand/.git',
         indexLockPresent: false,
         mergeInProgress: false,
         rebaseInProgress: false,
@@ -341,9 +341,9 @@ function gitCommitResult() {
     output: {
       operationKind: 'DEV_COMMIT',
       outcome: 'PUSHED',
-      repositoryCode: 'SkyServer',
-      repositoryName: 'SkyServer',
-      repositoryRoot: 'C:/Projects/SkyServer',
+      repositoryCode: 'SkyCommand',
+      repositoryName: 'SkyCommand',
+      repositoryRoot: 'C:/Projects/SkyCommand',
       branch: 'dev',
       remote: 'origin',
       commitMessage: 'Test',
@@ -621,11 +621,11 @@ function run() {
   assert.equal(repositoryLookup.package_repo.output.filesIncluded, 412);
   assert.equal(
     repositoryLookup.package_repo.output.artifactPath,
-    'C:/Projects/SkyServer/zip/SkyServer_Repo.zip',
+    'C:/Projects/SkyCommand/zip/SkyCommand_Repo.zip',
   );
 
   const repositoryKeyOutputs = buildSummaryKeyOutputs({ package_repo: repositoryResult });
-  assert.equal(repositoryKeyOutputs.package_repo.output.fileName, 'SkyServer_Repo.zip');
+  assert.equal(repositoryKeyOutputs.package_repo.output.fileName, 'SkyCommand_Repo.zip');
   assert.equal(repositoryKeyOutputs.package_repo.output.filesIncluded, 412);
 
   const scheduledRepository = buildScheduledToolResultSummary(repositoryResult);
@@ -722,7 +722,7 @@ function run() {
     main_merge_node: branchSyncResult,
   });
   assert.equal(promotion.outcome, 'PROMOTED');
-  assert.equal(promotion.repositoryCode, 'SkyServer');
+  assert.equal(promotion.repositoryCode, 'SkyCommand');
   assert.equal(promotion.pullRequestDirection, 'dev → main');
   assert.equal(promotion.synchronizationDirection, 'main → dev');
   assert.equal(promotion.approval.decision, 'APPROVED');
@@ -733,7 +733,7 @@ function run() {
   assert.equal(promotion.branchesSynchronized, true);
 
   const blockedRepositoryStatus = gitRepositoryStatusResult();
-  blockedRepositoryStatus.message = 'SkyServer is not ready for development promotion.';
+  blockedRepositoryStatus.message = 'SkyCommand is not ready for development promotion.';
   blockedRepositoryStatus.output.outcome = 'BLOCKED';
   blockedRepositoryStatus.output.readyForDevelopmentPromotion = false;
   blockedRepositoryStatus.output.blockers = ['Remote dev and main are not synchronized.'];

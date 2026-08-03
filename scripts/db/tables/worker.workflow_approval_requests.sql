@@ -1,5 +1,5 @@
 -- Table: worker.workflow_approval_requests
--- Purpose: Durable human approval checkpoints for SkyServer workflow HUMAN_APPROVAL nodes.
+-- Purpose: Durable human approval checkpoints for SkyCommand workflow HUMAN_APPROVAL nodes.
 
 CREATE TABLE IF NOT EXISTS worker.workflow_approval_requests (
   approval_request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -49,5 +49,5 @@ CREATE INDEX IF NOT EXISTS idx_workflow_approval_requests_run_node
 CREATE INDEX IF NOT EXISTS idx_workflow_approval_requests_temporal
   ON worker.workflow_approval_requests (temporal_workflow_id, temporal_run_id);
 
-COMMENT ON TABLE worker.workflow_approval_requests IS 'Durable human approval checkpoints for SkyServer workflow HUMAN_APPROVAL nodes.';
+COMMENT ON TABLE worker.workflow_approval_requests IS 'Durable human approval checkpoints for SkyCommand workflow HUMAN_APPROVAL nodes.';
 COMMENT ON COLUMN worker.workflow_approval_requests.signal_name IS 'Temporal signal used to resume the paused workflow execution.';

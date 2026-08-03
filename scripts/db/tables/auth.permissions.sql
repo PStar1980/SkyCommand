@@ -28,6 +28,6 @@ CREATE INDEX IF NOT EXISTS permissions_resource_idx
     ON auth.permissions (resource);
 
 COMMENT ON TABLE auth.permissions IS
-'Atomic permissions used to authorize Admin-Web, API, SkyServer Core, database, ingestion, Git, and automation operations.';
+'Atomic permissions used to authorize Admin-Web, API, SkyCommand Core, database, ingestion, Git, and automation operations.';
 
 ALTER TABLE auth.permissions OWNER TO postgres;

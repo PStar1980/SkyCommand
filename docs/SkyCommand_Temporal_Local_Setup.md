@@ -1,8 +1,8 @@
-# SkyServer Temporal Local Setup
+# SkyCommand Temporal Local Setup
 
 ## Purpose
 
-This document is the current local development guide for the completed Phase 10 Temporal workflow lane. Temporal runs beside the existing SkyServer worker/scheduler system and provides durable execution for SkyServer workflow definitions.
+This document is the current local development guide for the completed Phase 10 Temporal workflow lane. Temporal runs beside the existing SkyCommand worker/scheduler system and provides durable execution for SkyCommand workflow definitions.
 
 ## Local prerequisites
 
@@ -21,18 +21,18 @@ The local dev server normally exposes:
 | Temporal Web UI | `http://localhost:8233` |
 | Metrics | `http://localhost:2661/metrics` |
 
-## SkyServer environment
+## SkyCommand environment
 
-Add these values to the SkyServer root `.env` file:
+Add these values to the SkyCommand root `.env` file:
 
 ```env
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=skyserver-local
 TEMPORAL_UI_BASE_URL=http://localhost:8233
-TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skyserver-fred-ingestion
+TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skycommand-fred-ingestion
 TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS=1800000
-SKYSERVER_INTERNAL_API_TOKEN=replace_with_a_local_secret
+SKYCOMMAND_INTERNAL_API_TOKEN=replace_with_a_local_secret
 ```
 
 The internal API token is used by workflow API-call nodes and internal workflow bridge calls. Use a local secret value and keep it stable for the environment unless rotating credentials intentionally.
@@ -45,16 +45,16 @@ Run each long-lived process in its own terminal:
 # Terminal 1: Temporal server
 temporal server start-dev
 
-# Terminal 2: SkyServer API
+# Terminal 2: SkyCommand API
 npm run api
 
-# Terminal 3: SkyServer Temporal worker
+# Terminal 3: SkyCommand Temporal worker
 npm run temporal:worker:dev
 
 # Terminal 4: Admin-Web
 npm run web
 
-# Optional: classic SkyServer worker daemon for schedules/listeners
+# Optional: classic SkyCommand worker daemon for schedules/listeners
 npm run worker:dev
 ```
 
@@ -63,7 +63,7 @@ Useful checks:
 ```bash
 npm run temporal:health
 npm run db:health
-temporal task-queue describe --address localhost:7233 --namespace default --task-queue skyserver-local
+temporal task-queue describe --address localhost:7233 --namespace default --task-queue skycommand-local
 ```
 
 Optional direct FRED workflow pilot runner:
@@ -96,7 +96,7 @@ npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 
 Local `temporal server start-dev` is only for development. Production should use persistent Temporal storage, supervised API/Admin-Web/worker processes, durable PostgreSQL backups, environment-specific secrets, and retained logs. The current readiness checklist reports those gaps but does not provision deployment infrastructure.
 
-## SkyServer Core CLI workflow start
+## SkyCommand Core CLI workflow start
 
 The local Core CLI now has two top-level lanes:
 
@@ -105,7 +105,7 @@ The local Core CLI now has two top-level lanes:
 2) Run Workflows
 ```
 
-Use `npm run core`, then choose **Run Workflows** to start any active, enabled, published SkyServer workflow definition through the Temporal-backed executor. The CLI prompts for an optional Temporal workflow ID override and optional JSON input object.
+Use `npm run core`, then choose **Run Workflows** to start any active, enabled, published SkyCommand workflow definition through the Temporal-backed executor. The CLI prompts for an optional Temporal workflow ID override and optional JSON input object.
 
-The CLI resolves a local trusted operator from `SKYSERVER_CORE_OPERATOR_EMAIL` / `SKYSERVER_ADMIN_EMAIL` when configured, otherwise it uses the latest active `SUPER_ADMIN` account it can find. Workflow runs started this way appear in Workflow History just like Admin-Web starts and scheduled starts.
+The CLI resolves a local trusted operator from `SKYCOMMAND_CORE_OPERATOR_EMAIL` / `SKYCOMMAND_ADMIN_EMAIL` when configured, otherwise it uses the latest active `SUPER_ADMIN` account it can find. Workflow runs started this way appear in Workflow History just like Admin-Web starts and scheduled starts.
 

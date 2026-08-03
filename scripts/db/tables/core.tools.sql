@@ -25,5 +25,5 @@ CREATE TABLE IF NOT EXISTS core.tools (
 
 ALTER TABLE core.tools OWNER TO postgres;
 
-COMMENT ON TABLE core.tools IS 'Callable tool/script manifest replacing the script entries in SkyServer.json.';
+COMMENT ON TABLE core.tools IS 'Callable tool/script manifest replacing the script entries in SkyCommand.json.';
 COMMENT ON COLUMN core.tools.script_path IS 'Repo-relative script file path. Do not expose directly to browsers unless needed for admin diagnostics.';

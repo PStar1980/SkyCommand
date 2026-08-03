@@ -1,5 +1,5 @@
 -- Table: worker.workflow_definitions
--- Purpose: User/config-defined SkyServer workflow orchestration containers.
+-- Purpose: User/config-defined SkyCommand workflow orchestration containers.
 
 CREATE TABLE IF NOT EXISTS worker.workflow_definitions (
   workflow_definition_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,4 +28,4 @@ ALTER TABLE worker.workflow_definitions OWNER TO postgres;
 CREATE INDEX IF NOT EXISTS idx_workflow_definitions_status_enabled
   ON worker.workflow_definitions (status, enabled, visible_in_admin, workflow_code);
 
-COMMENT ON TABLE worker.workflow_definitions IS 'SkyServer workflow definitions. These are user/config-defined orchestration graphs, not raw Temporal workflow types.';
+COMMENT ON TABLE worker.workflow_definitions IS 'SkyCommand workflow definitions. These are user/config-defined orchestration graphs, not raw Temporal workflow types.';

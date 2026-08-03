@@ -55,4 +55,4 @@ GROUP BY d.definition_id;
 
 ALTER VIEW worker.vw_temporal_workflow_definitions OWNER TO postgres;
 
-COMMENT ON VIEW worker.vw_temporal_workflow_definitions IS 'Temporal workflow definitions with parameter schemas aggregated for SkyServer Core/API.';
+COMMENT ON VIEW worker.vw_temporal_workflow_definitions IS 'Temporal workflow definitions with parameter schemas aggregated for SkyCommand Core/API.';

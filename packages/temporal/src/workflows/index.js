@@ -1,7 +1,7 @@
 const fredWorkflows = require('./fredIngestionWorkflow');
-const skyserverWorkflowExecutorWorkflows = require('./skyserverWorkflowExecutorWorkflow');
+const skyCommandWorkflowExecutorWorkflows = require('./skyCommandWorkflowExecutorWorkflow');
 
 module.exports = {
   ...fredWorkflows,
-  ...skyserverWorkflowExecutorWorkflows,
+  ...skyCommandWorkflowExecutorWorkflows,
 };

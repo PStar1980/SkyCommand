@@ -415,7 +415,7 @@ const copyIntoRelation = ({ assetCode, relationName, filePath, qualityContext = 
   const targetTable = quoteRelationName(relationName);
   const sqlFile = path.join(
     os.tmpdir(),
-    `skyserver_copy_${code.toLowerCase()}_${process.pid}_${Date.now()}.sql`,
+    `skycommand_copy_${code.toLowerCase()}_${process.pid}_${Date.now()}.sql`,
   );
 
   console.log(`🔥 [COPY] ${code}`);

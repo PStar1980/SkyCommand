@@ -5,7 +5,7 @@
       "schema": "macro",
       "table": "MANUAL_TARGET_TABLE",
       "spreadsheet": {
-        "folder": "C:/Users/pauls/Dropbox/Programming/SkyEco System/SkyServer System/SkyServer/src/scripts/node/ingestion/manual",
+        "folder": "C:/Users/pauls/Dropbox/Programming/SkyEco System/SkyCommand System/SkyCommand/src/scripts/node/ingestion/manual",
         "fileName": "manual_data.csv",
         "sheetName": "Sheet1",
         "headerRow": 1

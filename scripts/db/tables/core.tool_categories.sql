@@ -17,4 +17,4 @@ CREATE TABLE IF NOT EXISTS core.tool_categories (
 
 ALTER TABLE core.tool_categories OWNER TO postgres;
 
-COMMENT ON TABLE core.tool_categories IS 'Tool categories used by SkyServer Core CLI and Admin-Web manifests.';
+COMMENT ON TABLE core.tool_categories IS 'Tool categories used by SkyCommand Core CLI and Admin-Web manifests.';

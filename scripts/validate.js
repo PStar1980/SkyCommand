@@ -45,6 +45,7 @@ const routineSelfTests = [
   'dashboard-ui-consistency:self-test',
   'sidebar-accordion:self-test',
   'brand-theme:self-test',
+  'skycommand-identity:self-test',
   'api-telemetry:self-test',
   'api-dashboard:self-test',
   'workflow-cli-params:self-test',

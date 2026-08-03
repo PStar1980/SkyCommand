@@ -5,4 +5,4 @@ CREATE SCHEMA IF NOT EXISTS worker;
 
 ALTER SCHEMA worker OWNER TO postgres;
 
-COMMENT ON SCHEMA worker IS 'SkyServer background worker schema for schedules, listener events, worker heartbeats, and schedule run history.';
+COMMENT ON SCHEMA worker IS 'SkyCommand background worker schema for schedules, listener events, worker heartbeats, and schedule run history.';

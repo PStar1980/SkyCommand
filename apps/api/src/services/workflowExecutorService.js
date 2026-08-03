@@ -26,8 +26,8 @@ const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const MAX_WORKFLOW_RUNTIME_PARAMETERS = 10;
 const PROFILE_CODE =
-  process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 const SUPPORTED_NODE_TYPES = new Set([
@@ -130,7 +130,7 @@ async function recordWorkflowAuditEvent({
     });
   } catch (auditError) {
     console.error(
-      `[SkyServer API] Failed to record ${eventType || 'workflow'} audit event:`,
+      `[SkyCommand API] Failed to record ${eventType || 'workflow'} audit event:`,
       auditError,
     );
   }
@@ -208,7 +208,7 @@ function truncateText(value, maxLength = 8000) {
     return text;
   }
 
-  return `${text.slice(0, maxLength)}\n\n[SkyServer Workflow Executor] Output truncated at ${maxLength} characters.`;
+  return `${text.slice(0, maxLength)}\n\n[SkyCommand Workflow Executor] Output truncated at ${maxLength} characters.`;
 }
 
 function truncateJsonPreview(value, maxLength = 8000) {
@@ -731,7 +731,7 @@ function buildHumanApprovalOutput({
 
 async function runHumanApprovalNodeInline() {
   throw new WorkflowServiceError(
-    'HUMAN_APPROVAL nodes require Temporal-backed execution so SkyServer can wait for an approval signal durably.',
+    'HUMAN_APPROVAL nodes require Temporal-backed execution so SkyCommand can wait for an approval signal durably.',
     409,
     {
       nodeTypeCode: 'HUMAN_APPROVAL',
@@ -752,14 +752,16 @@ function normalizeApiAuthMode(value) {
     AUTOMATIC: 'AUTO',
     NO_AUTH: 'NONE',
     NONE: 'NONE',
-    INTERNAL: 'SKYSERVER_INTERNAL',
-    INTERNAL_SERVICE: 'SKYSERVER_INTERNAL',
-    SKY_SERVER_INTERNAL: 'SKYSERVER_INTERNAL',
-    SKYSERVER_INTERNAL: 'SKYSERVER_INTERNAL',
+    INTERNAL: 'SKYCOMMAND_INTERNAL',
+    INTERNAL_SERVICE: 'SKYCOMMAND_INTERNAL',
+    SKY_COMMAND_INTERNAL: 'SKYCOMMAND_INTERNAL',
+    SKYCOMMAND_INTERNAL: 'SKYCOMMAND_INTERNAL',
+    SKY_SERVER_INTERNAL: 'SKYCOMMAND_INTERNAL',
+    SKYSERVER_INTERNAL: 'SKYCOMMAND_INTERNAL',
   };
 
   const authMode = aliases[normalized] || normalized;
-  const allowed = new Set(['AUTO', 'NONE', 'SKYSERVER_INTERNAL']);
+  const allowed = new Set(['AUTO', 'NONE', 'SKYCOMMAND_INTERNAL']);
 
   if (!allowed.has(authMode)) {
     throw new WorkflowServiceError('Unsupported API_CALL auth mode.', 400, {
@@ -772,10 +774,14 @@ function normalizeApiAuthMode(value) {
 }
 
 function getInternalApiToken() {
-  return String(process.env.SKYSERVER_INTERNAL_API_TOKEN || '').trim();
+  return String(
+    process.env.SKYCOMMAND_INTERNAL_API_TOKEN ||
+      process.env.SKYSERVER_INTERNAL_API_TOKEN ||
+      '',
+  ).trim();
 }
 
-function isLocalSkyServerUrl(url) {
+function isLocalSkyCommandUrl(url) {
   let parsed;
   try {
     parsed = new URL(url);
@@ -806,17 +812,17 @@ function applyApiAuthHeaders({ headers, authMode, url }) {
   if (authMode === 'AUTO') {
     const token = getInternalApiToken();
 
-    if (token && isLocalSkyServerUrl(url)) {
-      outputHeaders['x-skyserver-internal-token'] = token;
+    if (token && isLocalSkyCommandUrl(url)) {
+      outputHeaders['x-skycommand-internal-token'] = token;
     }
 
     return outputHeaders;
   }
 
-  if (authMode === 'SKYSERVER_INTERNAL') {
-    if (!isLocalSkyServerUrl(url)) {
+  if (authMode === 'SKYCOMMAND_INTERNAL') {
+    if (!isLocalSkyCommandUrl(url)) {
       throw new WorkflowServiceError(
-        'SkyServer internal API auth can only be used for the local SkyServer API.',
+        'SkyCommand internal API auth can only be used for the local SkyCommand API.',
         400,
         {
           url,
@@ -829,16 +835,17 @@ function applyApiAuthHeaders({ headers, authMode, url }) {
 
     if (!token) {
       throw new WorkflowServiceError(
-        'SKYSERVER_INTERNAL_API_TOKEN is required for SkyServer internal API auth.',
+        'SKYCOMMAND_INTERNAL_API_TOKEN is required for SkyCommand internal API auth.',
         500,
         {
           authMode,
-          envVar: 'SKYSERVER_INTERNAL_API_TOKEN',
+          envVar: 'SKYCOMMAND_INTERNAL_API_TOKEN',
+          legacyEnvVar: 'SKYSERVER_INTERNAL_API_TOKEN',
         },
       );
     }
 
-    outputHeaders['x-skyserver-internal-token'] = token;
+    outputHeaders['x-skycommand-internal-token'] = token;
     return outputHeaders;
   }
 
@@ -1843,7 +1850,7 @@ async function persistWorkflowContextPatch({
           sourceNodeKey || null,
           sourceNodeRunRecordId || null,
           JSON.stringify({
-            persistedBy: 'skyserver_workflow_context_store_v1',
+            persistedBy: 'skycommand_workflow_context_store_v1',
             persistedAt: new Date().toISOString(),
             ...getSafeObject(metadata),
           }),
@@ -1986,7 +1993,7 @@ async function persistWorkflowNodeOutput(nodeRun = {}) {
           nodeRun.status || null,
           Number.parseInt(nodeRun.attemptCount, 10) || 0,
           JSON.stringify({
-            persistedBy: 'skyserver_workflow_output_persistence_v1',
+            persistedBy: 'skycommand_workflow_output_persistence_v1',
             persistedAt: new Date().toISOString(),
             source: nodeRun.metadata?.temporalBacked
               ? 'temporal_workflow_activity'
@@ -2256,7 +2263,7 @@ async function insertWorkflowRun({
       }),
       user?.userId || null,
       JSON.stringify({
-        executor: 'skyserver_workflow_executor_v1',
+        executor: 'skycommand_workflow_executor_v1',
         nodeCount: definition.nodes.length,
         edgeCount: definition.edges.length,
         ...getSafeObject(metadata),
@@ -2517,7 +2524,7 @@ function buildRunControlSummary({ action, run, reason, temporalWarning }) {
   const normalizedAction = String(action || '').toLowerCase();
   const label = normalizedAction === 'terminate' ? 'terminated' : 'canceled';
   const parts = [
-    `Workflow ${run.workflowDisplayName || run.workflowCode} ${label} from SkyServer Workflow History.`,
+    `Workflow ${run.workflowDisplayName || run.workflowCode} ${label} from SkyCommand Workflow History.`,
   ];
 
   if (reason) {
@@ -2643,7 +2650,7 @@ async function requestWorkflowRunControlAction({
               workflowId: run.temporalWorkflowId,
               runId: run.temporalRunId,
               reason:
-                normalizedReason || 'Terminated from SkyServer Workflow History run controls.',
+                normalizedReason || 'Terminated from SkyCommand Workflow History run controls.',
               actor: user,
             })
           : await temporalService.cancelWorkflow({
@@ -2661,11 +2668,11 @@ async function requestWorkflowRunControlAction({
         });
       }
 
-      temporalWarning = `Temporal execution was not found; SkyServer ledger was updated locally. ${error.message || String(error)}`;
+      temporalWarning = `Temporal execution was not found; SkyCommand ledger was updated locally. ${error.message || String(error)}`;
     }
   } else {
     temporalWarning =
-      'Run has no linked Temporal workflow ID; SkyServer ledger was updated locally.';
+      'Run has no linked Temporal workflow ID; SkyCommand ledger was updated locally.';
   }
 
   const finalStatus = normalizedAction === 'terminate' ? 'TERMINATED' : 'CANCELED';
@@ -3028,7 +3035,7 @@ async function runTemporalWorkflowNode({ node, parameters, user, context }) {
     workflowCode,
     body: {
       ...parameters,
-      runSource: parameters.runSource || 'skyserver_workflow_node',
+      runSource: parameters.runSource || 'skycommand_workflow_node',
     },
     actor: user,
     context,
@@ -5284,7 +5291,7 @@ async function createChildWorkflowRun({
     context,
     status: 'QUEUED',
     metadata: {
-      executor: 'skyserver_workflow_executor_temporal_v1',
+      executor: 'skycommand_workflow_executor_temporal_v1',
       temporalBacked: true,
       childWorkflow: true,
       parentWorkflowRunRecordId: parentWorkflowRunRecordId || null,
@@ -5331,7 +5338,7 @@ async function runChildWorkflowNode({ node, parameters, user, session, permissio
     temporalWorkflowId: result.temporalWorkflow?.workflowId,
     temporalRunId: result.temporalWorkflow?.runId,
     status: result.run?.status || 'RUNNING',
-    summary: `Started child SkyServer workflow ${childWorkflowCode}.`,
+    summary: `Started child SkyCommand workflow ${childWorkflowCode}.`,
     note: 'Inline fallback starts child workflows asynchronously. Temporal-backed parent workflows wait for child completion.',
   };
 }
@@ -5724,14 +5731,14 @@ async function startWorkflowWithTemporal({
     context,
     status: 'QUEUED',
     metadata: {
-      executor: 'skyserver_workflow_executor_temporal_v1',
+      executor: 'skycommand_workflow_executor_temporal_v1',
       temporalBacked: true,
       queuedByApi: true,
     },
   });
 
   try {
-    const temporalStart = await temporalService.startSkyserverWorkflowExecutorWorkflow({
+    const temporalStart = await temporalService.startSkyCommandWorkflowExecutorWorkflow({
       workflowCode: definition.workflowCode,
       workflowRunRecordId: run.workflowRunRecordId,
       input: normalizedInput,
@@ -5745,9 +5752,9 @@ async function startWorkflowWithTemporal({
       workflowRunRecordId: run.workflowRunRecordId,
       temporalWorkflowId: temporalStart.workflow.workflowId,
       temporalRunId: temporalStart.workflow.runId,
-      summary: `Workflow ${definition.displayName} started through Temporal-backed SkyServer executor.`,
+      summary: `Workflow ${definition.displayName} started through Temporal-backed SkyCommand executor.`,
       metadata: {
-        executor: 'skyserver_workflow_executor_temporal_v1',
+        executor: 'skycommand_workflow_executor_temporal_v1',
         temporalBacked: true,
         temporalWorkflowType: temporalStart.workflow.workflowType,
         temporalTaskQueue: temporalStart.workflow.taskQueue,
@@ -5795,7 +5802,7 @@ async function startWorkflowWithTemporal({
       status: TERMINAL_FAILURE_STATUS,
       summary: `Workflow ${definition.displayName} failed to start in Temporal: ${error.message || String(error)}`,
       metadata: {
-        executor: 'skyserver_workflow_executor_temporal_v1',
+        executor: 'skycommand_workflow_executor_temporal_v1',
         temporalBacked: true,
         startFailure: true,
         errorMessage: error.message || String(error),
@@ -6212,7 +6219,7 @@ async function createWorkflowApprovalRequest({
     ...(getSafeObject(context) || {}),
     nodeKey: node.nodeKey || null,
     nodeTypeCode: node.nodeTypeCode || 'HUMAN_APPROVAL',
-    createdBy: 'skyserver_workflow_executor',
+    createdBy: 'skycommand_workflow_executor',
   };
 
   const insertResult = await query(

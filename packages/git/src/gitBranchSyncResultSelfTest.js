@@ -18,9 +18,9 @@ function run() {
   const synchronized = createGitBranchSyncToolResult({
     ok: true,
     outcome: 'SYNCHRONIZED',
-    repositoryCode: 'SkyServer',
-    repositoryName: 'SkyServer',
-    repositoryRoot: 'C:/Projects/SkyServer',
+    repositoryCode: 'SkyCommand',
+    repositoryName: 'SkyCommand',
+    repositoryRoot: 'C:/Projects/SkyCommand',
     executionStrategy: 'CHECKOUT_FREE_REMOTE_SYNC',
     watcherSafe: true,
     currentBranch: 'dev',
@@ -75,7 +75,7 @@ function run() {
   const tagged = createGitBranchSyncToolResult({
     ok: true,
     outcome: 'TAGGED',
-    repositoryCode: 'SkyServer',
+    repositoryCode: 'SkyCommand',
     sourceBranch: 'main',
     targetBranch: 'dev',
     tagName: 'v1.0.0',
