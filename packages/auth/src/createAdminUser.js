@@ -108,7 +108,7 @@ async function selectRole(client) {
 
 async function createAdminUser() {
   console.log('\n==========================================');
-  console.log('          Create SkyServer Admin User');
+  console.log('          Create SkyCommand Admin User');
   console.log('==========================================\n');
 
   const client = await pool.connect();

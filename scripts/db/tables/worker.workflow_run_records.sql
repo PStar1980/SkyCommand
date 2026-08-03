@@ -1,5 +1,5 @@
 -- Table: worker.workflow_run_records
--- Purpose: SkyServer workflow run ledger for the workflow executor.
+-- Purpose: SkyCommand workflow run ledger for the workflow executor.
 
 CREATE TABLE IF NOT EXISTS worker.workflow_run_records (
   workflow_run_record_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,4 +39,4 @@ CREATE INDEX IF NOT EXISTS idx_workflow_run_records_code_created
 CREATE INDEX IF NOT EXISTS idx_workflow_run_records_status_created
   ON worker.workflow_run_records (status, created_at DESC);
 
-COMMENT ON TABLE worker.workflow_run_records IS 'SkyServer workflow run ledger for the future workflow executor. Separate from worker.temporal_workflow_run_records.';
+COMMENT ON TABLE worker.workflow_run_records IS 'SkyCommand workflow run ledger for the future workflow executor. Separate from worker.temporal_workflow_run_records.';

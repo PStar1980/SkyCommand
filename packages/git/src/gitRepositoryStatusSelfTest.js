@@ -30,8 +30,8 @@ function branch({ name, sha, ahead = 0, behind = 0 } = {}) {
 
 function repositoryState(overrides = {}) {
   return {
-    gitDir: 'C:/Projects/SkyServer/.git',
-    commonDir: 'C:/Projects/SkyServer/.git',
+    gitDir: 'C:/Projects/SkyCommand/.git',
+    commonDir: 'C:/Projects/SkyCommand/.git',
     indexLockPresent: false,
     mergeInProgress: false,
     rebaseInProgress: false,
@@ -130,9 +130,9 @@ function run() {
     outcome: 'READY',
     executionStrategy: 'CHECKOUT_FREE_INSPECTION',
     watcherSafe: true,
-    repositoryCode: 'SkyServer',
-    repositoryName: 'SkyServer',
-    repositoryRoot: 'C:/Projects/SkyServer',
+    repositoryCode: 'SkyCommand',
+    repositoryName: 'SkyCommand',
+    repositoryRoot: 'C:/Projects/SkyCommand',
     remote: 'origin',
     expectedBranch: 'dev',
     currentBranch: 'dev',

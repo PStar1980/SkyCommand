@@ -25,4 +25,4 @@ ALTER TABLE worker.workflow_versions OWNER TO postgres;
 CREATE INDEX IF NOT EXISTS idx_workflow_versions_definition_status
   ON worker.workflow_versions (workflow_definition_id, status, version_number DESC);
 
-COMMENT ON TABLE worker.workflow_versions IS 'Versioned SkyServer workflow graphs. Runnable workflows should point at a published version.';
+COMMENT ON TABLE worker.workflow_versions IS 'Versioned SkyCommand workflow graphs. Runnable workflows should point at a published version.';

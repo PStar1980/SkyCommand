@@ -1,5 +1,5 @@
 -- Table: core.applications
--- Purpose: Stores application/manifest identity records such as SkyServer Core.
+-- Purpose: Stores application/manifest identity records such as SkyCommand Core.
 
 CREATE TABLE IF NOT EXISTS core.applications (
   app_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -14,5 +14,5 @@ CREATE TABLE IF NOT EXISTS core.applications (
 
 ALTER TABLE core.applications OWNER TO postgres;
 
-COMMENT ON TABLE core.applications IS 'Application manifest headers for SkyServer operational tools.';
+COMMENT ON TABLE core.applications IS 'Application manifest headers for SkyCommand operational tools.';
 COMMENT ON COLUMN core.applications.app_code IS 'Stable application code, e.g. SKYSERVER_CORE.';

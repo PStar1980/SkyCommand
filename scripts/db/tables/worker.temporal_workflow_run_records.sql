@@ -1,5 +1,5 @@
 -- Table: worker.temporal_workflow_run_records
--- Purpose: SkyServer control-plane metadata for Temporal workflow starts/actions.
+-- Purpose: SkyCommand control-plane metadata for Temporal workflow starts/actions.
 
 CREATE TABLE IF NOT EXISTS worker.temporal_workflow_run_records (
   run_record_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,6 +71,6 @@ CREATE INDEX IF NOT EXISTS idx_temporal_run_records_status_created
 CREATE INDEX IF NOT EXISTS idx_temporal_run_records_workflow_id
   ON worker.temporal_workflow_run_records (workflow_id);
 
-COMMENT ON TABLE worker.temporal_workflow_run_records IS 'SkyServer-owned run index for Temporal workflow starts, action requests, and visibility snapshots.';
-COMMENT ON COLUMN worker.temporal_workflow_run_records.launch_input IS 'Normalized input SkyServer sent to the Temporal workflow start call.';
-COMMENT ON COLUMN worker.temporal_workflow_run_records.last_seen_in_temporal_at IS 'Most recent time SkyServer observed this execution in Temporal visibility or describe output.';
+COMMENT ON TABLE worker.temporal_workflow_run_records IS 'SkyCommand-owned run index for Temporal workflow starts, action requests, and visibility snapshots.';
+COMMENT ON COLUMN worker.temporal_workflow_run_records.launch_input IS 'Normalized input SkyCommand sent to the Temporal workflow start call.';
+COMMENT ON COLUMN worker.temporal_workflow_run_records.last_seen_in_temporal_at IS 'Most recent time SkyCommand observed this execution in Temporal visibility or describe output.';

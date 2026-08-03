@@ -226,7 +226,7 @@ Recommended execution verification:
 9. Confirm Workflow History displays structured tables when available.
 10. Confirm a deliberately missing ToolResult produces a successful tool run with a legacy workflow fallback.
 
-## SkyServer Core workflow launch parity
+## SkyCommand Core workflow launch parity
 
 The `npm run core` launcher reads the runtime-parameter schema from the published workflow definition and prompts for each value before execution. The collected values are submitted under both `params` and `runtimeParameters`, matching the API/Admin-Web contract.
 
@@ -242,7 +242,7 @@ Phase 14.13.1 adds a first-class `repo` runtime type whose choices come from the
 {{ params.repoName }}
 ```
 
-Admin-Web and SkyServer Core both render repository selectors, while the API validates and canonicalizes the value before execution. Type-aware binding rules prevent unrelated workflow parameter types from appearing in incompatible node fields.
+Admin-Web and SkyCommand Core both render repository selectors, while the API validates and canonicalizes the value before execution. Type-aware binding rules prevent unrelated workflow parameter types from appearing in incompatible node fields.
 
 The same expression resolves in inline execution and in the Temporal workflow bundle. Advanced callers may still supply additional workflow input JSON; explicitly prompted values take precedence over duplicate parameter keys in that JSON.
 

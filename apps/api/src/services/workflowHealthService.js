@@ -57,7 +57,7 @@ function buildOperatorHints({ temporalReachable, pollerCount, recentHeartbeatCou
   }
 
   if (temporalReachable && recentHeartbeatCount <= 0) {
-    hints.push('No recent SkyServer worker heartbeat was found. Restart npm run temporal:worker:dev after applying the heartbeat migration.');
+    hints.push('No recent SkyCommand worker heartbeat was found. Restart npm run temporal:worker:dev after applying the heartbeat migration.');
   }
 
   if (staleRunningRuns > 0) {

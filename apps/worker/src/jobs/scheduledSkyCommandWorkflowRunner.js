@@ -67,7 +67,7 @@ async function loadWorkerSystemPermissions() {
   return result.rows;
 }
 
-function buildScheduledSkyserverWorkflowStart({ schedule, scheduleRun, workerNode } = {}) {
+function buildScheduledSkyCommandWorkflowStart({ schedule, scheduleRun, workerNode } = {}) {
   const parameters = schedule.parameters || {};
   const workflowCode =
     normalizeOptionalString(getParameterValue(parameters, 'workflowCode', 'workflow_code')) ||
@@ -101,12 +101,12 @@ function buildScheduledSkyserverWorkflowStart({ schedule, scheduleRun, workerNod
   };
 }
 
-async function runScheduledSkyserverWorkflow({ schedule, scheduleRun, workerNode } = {}) {
-  const startRequest = buildScheduledSkyserverWorkflowStart({ schedule, scheduleRun, workerNode });
+async function runScheduledSkyCommandWorkflow({ schedule, scheduleRun, workerNode } = {}) {
+  const startRequest = buildScheduledSkyCommandWorkflowStart({ schedule, scheduleRun, workerNode });
   const permissions = await loadWorkerSystemPermissions();
 
   console.log(
-    `[SkyServer Worker] Starting SkyServer workflow ${startRequest.workflowCode} from schedule ${schedule.scheduleCode}.`,
+    `[SkyCommand Worker] Starting SkyCommand workflow ${startRequest.workflowCode} from schedule ${schedule.scheduleCode}.`,
   );
 
   const result = await workflowExecutorService.startWorkflowWithTemporal({
@@ -117,7 +117,7 @@ async function runScheduledSkyserverWorkflow({ schedule, scheduleRun, workerNode
     permissions,
     context: {
       ipAddress: null,
-      userAgent: `SkyServer Worker scheduler (${workerNode?.nodeName || 'unknown-node'})`,
+      userAgent: `SkyCommand Worker scheduler (${workerNode?.nodeName || 'unknown-node'})`,
     },
   });
 
@@ -130,8 +130,8 @@ async function runScheduledSkyserverWorkflow({ schedule, scheduleRun, workerNode
     executionId: null,
     exitCode: 0,
     durationMs: null,
-    summary: `Started SkyServer workflow ${run.workflowDisplayName || definition.displayName || startRequest.workflowCode}.`,
-    skyserverWorkflow: {
+    summary: `Started SkyCommand workflow ${run.workflowDisplayName || definition.displayName || startRequest.workflowCode}.`,
+    skyCommandWorkflow: {
       workflowRunRecordId: run.workflowRunRecordId,
       workflowCode: run.workflowCode || definition.workflowCode || startRequest.workflowCode,
       workflowDisplayName: run.workflowDisplayName || definition.displayName || startRequest.workflowCode,
@@ -152,6 +152,6 @@ async function runScheduledSkyserverWorkflow({ schedule, scheduleRun, workerNode
 }
 
 module.exports = {
-  buildScheduledSkyserverWorkflowStart,
-  runScheduledSkyserverWorkflow,
+  buildScheduledSkyCommandWorkflowStart,
+  runScheduledSkyCommandWorkflow,
 };

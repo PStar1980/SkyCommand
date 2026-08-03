@@ -1,22 +1,34 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const SESSION_TOKEN_KEY = 'skyserver.admin.sessionToken';
-const AUTH_EXPIRED_EVENT = 'skyserver:auth-expired';
+const SESSION_TOKEN_KEY = 'skycommand.admin.sessionToken';
+const LEGACY_SESSION_TOKEN_KEY = 'skyserver.admin.sessionToken';
+const AUTH_EXPIRED_EVENT = 'skycommand:auth-expired';
 
 function getSessionToken() {
-  return localStorage.getItem(SESSION_TOKEN_KEY);
+  const token =
+    localStorage.getItem(SESSION_TOKEN_KEY) || localStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
+
+  if (token && !localStorage.getItem(SESSION_TOKEN_KEY)) {
+    localStorage.setItem(SESSION_TOKEN_KEY, token);
+    localStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
+  }
+
+  return token;
 }
 
 function setSessionToken(token) {
   if (!token) {
     localStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
     return;
   }
 
   localStorage.setItem(SESSION_TOKEN_KEY, token);
+  localStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
 }
 
 function clearSessionToken() {
   localStorage.removeItem(SESSION_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
 }
 
 function notifyAuthExpired(message = 'Invalid or expired session.') {

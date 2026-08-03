@@ -53,6 +53,6 @@ CREATE INDEX IF NOT EXISTS users_last_login_at_idx
     ON auth.users (last_login_at DESC);
 
 COMMENT ON TABLE auth.users IS
-'SkyServer user accounts for Admin-Web, API, CLI-adjacent audit ownership, and future service users.';
+'SkyCommand user accounts for Admin-Web, API, CLI-adjacent audit ownership, and future service users.';
 
 ALTER TABLE auth.users OWNER TO postgres;

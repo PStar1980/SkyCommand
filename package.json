@@ -1,7 +1,7 @@
 {
-  "name": "skyserver",
+  "name": "skycommand",
   "version": "1.0.0",
-  "description": "Private Admin & Automation Hub for the Sky Ecosystem.",
+  "description": "SkyCommand workflow automation control plane for the Sky ecosystem.",
   "main": "index.js",
   "scripts": {
     "prepare": "husky",
@@ -27,7 +27,7 @@
     "db:health": "node packages/db/src/db_health.js",
     "db:build": "node packages/db_build/src/db_build.js",
     "auth:create-admin": "node packages/auth/src/createAdminUser.js",
-    "core": "node packages/core/src/SkyServer_Core.js",
+    "core": "node packages/core/src/SkyCommand_Core.js",
     "precommit": "node -e \"console.log('Skipping heavy pre-commit validation. Run npm run validate when needed.')\"",
     "validate": "node scripts/validate.js",
     "tool-result:self-test": "node packages/tools/src/toolResultSelfTest.js",
@@ -150,7 +150,9 @@
     "ingestion-production-recovery:self-test": "node packages/ingestion/src/recovery/productionRecoverySelfTest.js",
     "ingestion-live-recovery:self-test": "node packages/ingestion/src/recovery/phase16LiveRecoverySelfTest.js",
     "ingestion-operations-surface:self-test": "node apps/admin-web/src/pages/ingestionOperationsSurfaceSelfTest.js",
-    "ingestion-consumer-contracts:self-test": "node packages/ingestion/src/consumer/dataConsumerServiceSelfTest.js"
+    "ingestion-consumer-contracts:self-test": "node packages/ingestion/src/consumer/dataConsumerServiceSelfTest.js",
+    "skycommand-identity:self-test": "node packages/core/src/skyCommandIdentitySelfTest.js",
+    "skycommand-identity:verify": "node packages/core/src/skyCommandIdentityVerification.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [
@@ -163,16 +165,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PStar1980/SkyServer.git"
+    "url": "git+https://github.com/PStar1980/SkyCommand.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/PStar1980/SkyServer/issues"
+    "url": "https://github.com/PStar1980/SkyCommand/issues"
   },
-  "homepage": "https://github.com/PStar1980/SkyServer#readme",
+  "homepage": "https://github.com/PStar1980/SkyCommand#readme",
   "dependencies": {
     "@temporalio/activity": "^1.18.1",
     "@temporalio/client": "^1.18.1",

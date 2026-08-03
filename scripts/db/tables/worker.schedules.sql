@@ -65,7 +65,7 @@ CREATE INDEX IF NOT EXISTS idx_worker_schedules_tool
 CREATE INDEX IF NOT EXISTS idx_worker_schedules_profile
   ON worker.schedules (profile_id);
 
-COMMENT ON TABLE worker.schedules IS 'Configured scheduled jobs that execute existing core.tools records through the SkyServer worker.';
+COMMENT ON TABLE worker.schedules IS 'Configured scheduled jobs that execute existing core.tools records through the SkyCommand worker.';
 COMMENT ON COLUMN worker.schedules.parameters IS 'JSON object passed to the target tool as its parameter payload.';
 COMMENT ON COLUMN worker.schedules.next_run_at IS 'Next due timestamp used by the worker poller. Null means no pending run.';
 COMMENT ON COLUMN worker.schedules.misfire_policy IS 'Initial scheduler policy for missed runs. RUN_ONCE is implemented in v1; RUN_ALL is reserved.';

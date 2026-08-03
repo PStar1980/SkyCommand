@@ -157,8 +157,14 @@ async function countRows(sql, params = []) {
 
 function buildEnvironmentSection() {
   const config = getTemporalConfig();
+  const internalApiToken =
+    process.env.SKYCOMMAND_INTERNAL_API_TOKEN || process.env.SKYSERVER_INTERNAL_API_TOKEN;
   const authEnabled =
-    String(process.env.SKYSERVER_INTERNAL_API_AUTH_ENABLED || 'true').toLowerCase() !== 'false';
+    String(
+      process.env.SKYCOMMAND_INTERNAL_API_AUTH_ENABLED ??
+        process.env.SKYSERVER_INTERNAL_API_AUTH_ENABLED ??
+        'true',
+    ).toLowerCase() !== 'false';
   const checks = [];
 
   checks.push(
@@ -187,13 +193,13 @@ function buildEnvironmentSection() {
     buildCheck(
       'internal_api_token',
       'Internal API token configured',
-      authEnabled && hasDangerousSecretValue(process.env.SKYSERVER_INTERNAL_API_TOKEN)
+      authEnabled && hasDangerousSecretValue(internalApiToken)
         ? 'FAIL'
         : authEnabled
           ? 'PASS'
           : 'WARNING',
-      authEnabled && hasDangerousSecretValue(process.env.SKYSERVER_INTERNAL_API_TOKEN)
-        ? 'Internal API auth is enabled, but SKYSERVER_INTERNAL_API_TOKEN is missing or uses the default development token.'
+      authEnabled && hasDangerousSecretValue(internalApiToken)
+        ? 'Internal API auth is enabled, but SKYCOMMAND_INTERNAL_API_TOKEN is missing or uses the default development token.'
         : authEnabled
           ? 'Internal API auth is enabled with a non-placeholder token.'
           : 'Internal API auth is not enabled. Protected API_CALL nodes should use a shared internal token outside local-only development.',
@@ -278,10 +284,10 @@ async function buildTemporalSection(workerHealthResult) {
   checks.push(
     buildCheck(
       'worker_heartbeat',
-      'SkyServer worker heartbeat is fresh',
+      'SkyCommand worker heartbeat is fresh',
       health.worker?.recentHeartbeatCount > 0 ? 'PASS' : 'WARNING',
       health.worker?.recentHeartbeatCount > 0
-        ? `${health.worker.recentHeartbeatCount} recent SkyServer worker heartbeat(s) found.`
+        ? `${health.worker.recentHeartbeatCount} recent SkyCommand worker heartbeat(s) found.`
         : 'No recent worker heartbeat was found. Restart npm run temporal:worker:dev after heartbeat migrations are applied.',
     ),
   );

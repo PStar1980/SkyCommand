@@ -4,10 +4,10 @@ const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
 const { executeToolProcess } = require('../../../../packages/tools/src');
 
-const APP_CODE = process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
+const APP_CODE = process.env.SKYCOMMAND_CORE_APP_CODE || process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
-  process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 
@@ -402,7 +402,7 @@ async function markStaleStartedExecutions(options = {}) {
           ),
           summary = COALESCE(
             summary,
-            'Marked failed by SkyServer because execution remained STARTED beyond the stale threshold.'
+            'Marked failed by SkyCommand because execution remained STARTED beyond the stale threshold.'
           ),
           metadata = metadata || $2::jsonb
       WHERE status = 'STARTED'
@@ -621,7 +621,7 @@ async function loadRepositoryOptionValues() {
   return new Set(result.rows.map((row) => row.repo_code));
 }
 
-async function loadSkyserverWorkflowOptionValues() {
+async function loadSkyCommandWorkflowOptionValues() {
   const result = await query(
     `
       SELECT workflow_code
@@ -650,7 +650,7 @@ async function buildToolArgs({ toolCode, rawParameters, includeDisabledTool = fa
   }
 
   let repositoryOptions = null;
-  let skyserverWorkflowOptions = null;
+  let skyCommandWorkflowOptions = null;
   const args = [];
   const normalizedParameters = {};
 
@@ -675,11 +675,11 @@ async function buildToolArgs({ toolCode, rawParameters, includeDisabledTool = fa
     }
 
     if (parameter.option_source_code === 'skyserver_workflows') {
-      if (!skyserverWorkflowOptions) {
-        skyserverWorkflowOptions = await loadSkyserverWorkflowOptionValues();
+      if (!skyCommandWorkflowOptions) {
+        skyCommandWorkflowOptions = await loadSkyCommandWorkflowOptionValues();
       }
 
-      if (!skyserverWorkflowOptions.has(normalizedValue)) {
+      if (!skyCommandWorkflowOptions.has(normalizedValue)) {
         throw createHttpError(400, `Invalid workflow selection: ${normalizedValue}`);
       }
     }
@@ -797,7 +797,7 @@ async function markExecutionFailedAfterUnexpectedError({ execution, executionSta
       stderr: normalizedError,
     });
   } catch (fileError) {
-    console.error('[SkyServer API] Failed to write execution failure logs:', fileError);
+    console.error('[SkyCommand API] Failed to write execution failure logs:', fileError);
   }
 
   await updateExecutionFinished({
@@ -887,7 +887,7 @@ async function executeChildProcess({ tool, scriptFile, args, executionId }) {
     env: process.env,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     maxOutputBytes: MAX_OUTPUT_BYTES,
-    outputTruncationLabel: 'SkyServer API',
+    outputTruncationLabel: 'SkyCommand API',
     executionId,
     toolCode: tool.tool_code,
     toolResultExpectedOutputType: outputContract.expectedOutputType,
@@ -1029,7 +1029,7 @@ function parseWorkflowInputJson(value) {
   return parsed;
 }
 
-async function runSkyserverWorkflowBridgeTool({
+async function runSkyCommandWorkflowBridgeTool({
   tool,
   safeParameters,
   user,
@@ -1060,7 +1060,7 @@ async function runSkyserverWorkflowBridgeTool({
 
   const execution = await insertExecutionStarted({
     tool,
-    scriptFile: `workflow://skyserver/${workflowCode}`,
+    scriptFile: `workflow://skycommand/${workflowCode}`,
     parameters: safeParameters,
     user,
     session,
@@ -1072,7 +1072,7 @@ async function runSkyserverWorkflowBridgeTool({
       context,
       toolCode: tool.tool_code,
       success: true,
-      message: `SkyServer workflow bridge started ${workflowCode}.`,
+      message: `SkyCommand workflow bridge started ${workflowCode}.`,
       action: 'start_workflow_bridge',
       metadata: {
         executionId: execution.execution_id,
@@ -1081,7 +1081,7 @@ async function runSkyserverWorkflowBridgeTool({
       },
     });
   } catch (auditError) {
-    console.error('[SkyServer API] Failed to record workflow bridge audit event:', auditError);
+    console.error('[SkyCommand API] Failed to record workflow bridge audit event:', auditError);
   }
 
   try {
@@ -1151,7 +1151,7 @@ async function runSkyserverWorkflowBridgeTool({
         userAgent: context?.userAgent || null,
       });
     } catch (auditError) {
-      console.error('[SkyServer API] Failed to record workflow bridge finish event:', auditError);
+      console.error('[SkyCommand API] Failed to record workflow bridge finish event:', auditError);
     }
 
     return {
@@ -1176,7 +1176,7 @@ async function runSkyserverWorkflowBridgeTool({
 
     throw error.statusCode
       ? error
-      : createHttpError(500, error.message || 'SkyServer workflow bridge failed unexpectedly.');
+      : createHttpError(500, error.message || 'SkyCommand workflow bridge failed unexpectedly.');
   }
 }
 
@@ -1222,7 +1222,7 @@ async function runTool({
     const executionLock = acquireExecutionLock(tool);
 
     try {
-      return await runSkyserverWorkflowBridgeTool({
+      return await runSkyCommandWorkflowBridgeTool({
         tool,
         safeParameters,
         user,
@@ -1286,7 +1286,7 @@ async function runTool({
         },
       });
     } catch (auditError) {
-      console.error('[SkyServer API] Failed to record tool start audit event:', auditError);
+      console.error('[SkyCommand API] Failed to record tool start audit event:', auditError);
     }
 
     const childResult = await executeChildProcess({
@@ -1353,7 +1353,7 @@ async function runTool({
         userAgent: context?.userAgent || null,
       });
     } catch (auditError) {
-      console.error('[SkyServer API] Failed to record tool finish audit event:', auditError);
+      console.error('[SkyCommand API] Failed to record tool finish audit event:', auditError);
     }
 
     return {
@@ -1379,7 +1379,7 @@ async function runTool({
           error,
         });
       } catch (cleanupError) {
-        console.error('[SkyServer API] Failed to clean up failed execution:', cleanupError);
+        console.error('[SkyCommand API] Failed to clean up failed execution:', cleanupError);
       }
     }
 
@@ -1451,7 +1451,7 @@ async function runManagedToolTest({
         },
       });
     } catch (auditError) {
-      console.error('[SkyServer API] Failed to record managed-tool test start:', auditError);
+      console.error('[SkyCommand API] Failed to record managed-tool test start:', auditError);
     }
 
     const childResult = await executeChildProcess({
@@ -1516,7 +1516,7 @@ async function runManagedToolTest({
         },
       });
     } catch (auditError) {
-      console.error('[SkyServer API] Failed to record managed-tool test finish:', auditError);
+      console.error('[SkyCommand API] Failed to record managed-tool test finish:', auditError);
     }
 
     return {
@@ -1546,7 +1546,7 @@ async function runManagedToolTest({
           error,
         });
       } catch (cleanupError) {
-        console.error('[SkyServer API] Failed to clean up managed-tool test:', cleanupError);
+        console.error('[SkyCommand API] Failed to clean up managed-tool test:', cleanupError);
       }
     }
 

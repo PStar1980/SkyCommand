@@ -1,4 +1,4 @@
-SkyServer/
+SkyCommand/
 ├── .editorconfig
 ├── .env.example
 ├── .gitattributes
@@ -237,7 +237,7 @@ SkyServer/
 │       └── src/
 │           ├── index.js
 │           ├── jobs/
-│           │   ├── scheduledSkyserverWorkflowRunner.js
+│           │   ├── scheduledSkyCommandWorkflowRunner.js
 │           │   ├── scheduledTemporalWorkflowRunner.js
 │           │   ├── scheduledToolRunner.js
 │           │   ├── workerNodeService.js
@@ -255,9 +255,9 @@ SkyServer/
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
 │   ├── SkyCommand_Phase_16_Closure_Report.md
 │   ├── SkyCommand_RepoMap.md
+│   ├── SkyCommand_Temporal_Local_Setup.md
+│   ├── SkyCommand_Temporal_Workflow_Architecture_Plan.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
-│   ├── SkyServer_Temporal_Local_Setup.md
-│   ├── SkyServer_Temporal_Workflow_Architecture_Plan.md
 │   ├── assets/
 │   │   ├── auth_schema_ERD.png
 │   │   ├── core_schema_ERD.png
@@ -271,7 +271,9 @@ SkyServer/
 │   │       └── password.js
 │   ├── core/
 │   │   └── src/
-│   │       ├── SkyServer_Core.js
+│   │       ├── SkyCommand_Core.js
+│   │       ├── skyCommandIdentitySelfTest.js
+│   │       ├── skyCommandIdentityVerification.js
 │   │       ├── workflowCliRuntimeParameters.js
 │   │       └── workflowCliRuntimeParametersSelfTest.js
 │   ├── db/
@@ -331,7 +333,8 @@ SkyServer/
 │   │       │   ├── 00084__source_request_retry_policies.sql
 │   │       │   ├── 00086__revision_quality_foundation.sql
 │   │       │   ├── 00088__portable_quality_policies.sql
-│   │       │   └── 00090__ingestion_recovery_foundation.sql
+│   │       │   ├── 00090__ingestion_recovery_foundation.sql
+│   │       │   └── 00094__skycommand_repository_identity_changeover.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -529,11 +532,11 @@ SkyServer/
 │   │       ├── activities/
 │   │       │   ├── fredActivities.js
 │   │       │   ├── index.js
-│   │       │   └── skyserverWorkflowActivities.js
+│   │       │   └── skyCommandWorkflowActivities.js
 │   │       └── workflows/
 │   │           ├── fredIngestionWorkflow.js
 │   │           ├── index.js
-│   │           └── skyserverWorkflowExecutorWorkflow.js
+│   │           └── skyCommandWorkflowExecutorWorkflow.js
 │   └── tools/
 │       ├── contracts/
 │       │   ├── database_build_summary.v1.schema.json

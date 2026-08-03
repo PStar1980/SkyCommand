@@ -321,7 +321,7 @@ function ApiParameterEditor({ idPrefix, parameters = {}, onChange }) {
         />
       </div>
       <div className="form-text sky-muted">
-        API nodes run as Temporal activities. SkyCommand internal auth uses SKYSERVER_INTERNAL_API_TOKEN from the environment; do not paste secrets into headers JSON.
+        API nodes run as Temporal activities. SkyCommand internal auth uses SKYCOMMAND_INTERNAL_API_TOKEN from the environment; do not paste secrets into headers JSON.
       </div>
     </div>
   );

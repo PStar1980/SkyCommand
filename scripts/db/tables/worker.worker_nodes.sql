@@ -21,5 +21,5 @@ ALTER TABLE worker.worker_nodes OWNER TO postgres;
 CREATE INDEX IF NOT EXISTS idx_worker_nodes_status_heartbeat
   ON worker.worker_nodes (status, last_heartbeat_at DESC);
 
-COMMENT ON TABLE worker.worker_nodes IS 'Registered SkyServer worker processes with heartbeat timestamps and runtime metadata.';
+COMMENT ON TABLE worker.worker_nodes IS 'Registered SkyCommand worker processes with heartbeat timestamps and runtime metadata.';
 COMMENT ON COLUMN worker.worker_nodes.node_name IS 'Stable worker node identifier, normally hostname plus process id or an explicit WORKER_NODE_NAME.';

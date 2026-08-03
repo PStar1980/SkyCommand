@@ -22,6 +22,6 @@ CREATE INDEX IF NOT EXISTS roles_active_idx
     ON auth.roles (active);
 
 COMMENT ON TABLE auth.roles IS
-'Named RBAC roles used to group permissions for SkyServer users.';
+'Named RBAC roles used to group permissions for SkyCommand users.';
 
 ALTER TABLE auth.roles OWNER TO postgres;

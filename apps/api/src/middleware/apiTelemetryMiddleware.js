@@ -25,12 +25,12 @@ function reportTelemetryFailure(error) {
 
   if (error?.code === '42P01') {
     console.warn(
-      '[SkyServer API] API telemetry table is unavailable. Apply migration 00071 to enable request evidence.',
+      '[SkyCommand API] API telemetry table is unavailable. Apply migration 00071 to enable request evidence.',
     );
     return;
   }
 
-  console.warn('[SkyServer API] Failed to persist API telemetry:', error?.message || error);
+  console.warn('[SkyCommand API] Failed to persist API telemetry:', error?.message || error);
 }
 
 function apiTelemetryMiddleware(req, res, next) {

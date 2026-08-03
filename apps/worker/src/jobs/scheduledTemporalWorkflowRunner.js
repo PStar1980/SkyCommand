@@ -122,7 +122,7 @@ async function runScheduledTemporalWorkflow({ schedule, scheduleRun, workerNode 
   const startRequest = buildScheduledWorkflowStart({ schedule, scheduleRun, workerNode });
 
   console.log(
-    `[SkyServer Worker] Starting Temporal workflow ${startRequest.workflowCode} from schedule ${schedule.scheduleCode}.`,
+    `[SkyCommand Worker] Starting Temporal workflow ${startRequest.workflowCode} from schedule ${schedule.scheduleCode}.`,
   );
 
   const result = await temporalService.startWorkflowFromDefinition({
@@ -131,7 +131,7 @@ async function runScheduledTemporalWorkflow({ schedule, scheduleRun, workerNode 
     actor: null,
     context: {
       ipAddress: null,
-      userAgent: `SkyServer Worker scheduler (${workerNode?.nodeName || 'unknown-node'})`,
+      userAgent: `SkyCommand Worker scheduler (${workerNode?.nodeName || 'unknown-node'})`,
     },
   });
 
@@ -147,7 +147,7 @@ async function runScheduledTemporalWorkflow({ schedule, scheduleRun, workerNode 
     workflow,
     definition,
     input: result.input || startRequest.body,
-    runRecord: result.runRecord || workflow.skyserverRecord || null,
+    runRecord: result.runRecord || workflow.skyCommandRecord || workflow.skyserverRecord || null,
   };
 }
 

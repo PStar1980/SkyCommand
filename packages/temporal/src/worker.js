@@ -16,7 +16,7 @@ const HEARTBEAT_INTERVAL_MS = Number.parseInt(
 
 function buildWorkerIdentity(config) {
   return [
-    'skyserver-temporal-worker',
+    'skycommand-temporal-worker',
     os.hostname(),
     process.pid,
     config.namespace,
@@ -129,7 +129,7 @@ async function main() {
   const config = getTemporalConfig();
   const workerIdentity = buildWorkerIdentity(config);
 
-  console.log('[Temporal] Starting SkyServer worker');
+  console.log('[Temporal] Starting SkyCommand worker');
   console.log(`[Temporal] address=${config.address}`);
   console.log(`[Temporal] namespace=${config.namespace}`);
   console.log(`[Temporal] taskQueue=${config.taskQueue}`);

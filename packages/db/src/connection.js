@@ -4,7 +4,7 @@ function requireEnv(name) {
   const value = process.env[name];
 
   if (value === undefined || value === null || value === '') {
-    throw new Error(`[SkyServer DB] Missing required environment variable: ${name}`);
+    throw new Error(`[SkyCommand DB] Missing required environment variable: ${name}`);
   }
 
   return value;
@@ -19,7 +19,7 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('[SkyServer DB] Unexpected idle client error:', err);
+  console.error('[SkyCommand DB] Unexpected idle client error:', err);
 });
 
 async function query(text, params) {

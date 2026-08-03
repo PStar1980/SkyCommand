@@ -162,7 +162,7 @@ function startHeartbeat(workerNode, options = {}) {
       heartbeatSource: 'timer',
       heartbeatAt: new Date().toISOString(),
     }).catch((error) => {
-      console.error('[SkyServer Worker] Heartbeat failed:', error.message);
+      console.error('[SkyCommand Worker] Heartbeat failed:', error.message);
     });
   }, intervalMs);
 

@@ -34,10 +34,10 @@ async function startWorker() {
   });
 
   console.log(
-    `[SkyServer Worker] Registered node ${workerNode.nodeName} (${workerNode.workerNodeId}).`,
+    `[SkyCommand Worker] Registered node ${workerNode.nodeName} (${workerNode.workerNodeId}).`,
   );
   console.log(
-    `[SkyServer Worker] Scheduler enabled: ${schedulerEnabled} | Listener enabled: ${listenerEnabled}`,
+    `[SkyCommand Worker] Scheduler enabled: ${schedulerEnabled} | Listener enabled: ${listenerEnabled}`,
   );
 
   const heartbeatTimer = workerNodeService.startHeartbeat(workerNode);
@@ -46,7 +46,7 @@ async function startWorker() {
   if (schedulerEnabled) {
     stopHandles.push(startSchedulePoller({ workerNode }));
     console.log(
-      `[SkyServer Worker] Schedule poller started (${getPollIntervalSeconds()}s interval).`,
+      `[SkyCommand Worker] Schedule poller started (${getPollIntervalSeconds()}s interval).`,
     );
   }
 
@@ -62,19 +62,19 @@ async function startWorker() {
     }
 
     stopping = true;
-    console.log(`[SkyServer Worker] Received ${signal}; shutting down.`);
+    console.log(`[SkyCommand Worker] Received ${signal}; shutting down.`);
 
     try {
       await workerNodeService.markWorkerNodeStopping(workerNode.workerNodeId);
     } catch (error) {
-      console.warn('[SkyServer Worker] Failed to mark worker as STOPPING:', error.message);
+      console.warn('[SkyCommand Worker] Failed to mark worker as STOPPING:', error.message);
     }
 
     for (const handle of stopHandles) {
       try {
         handle.stop?.();
       } catch (error) {
-        console.warn('[SkyServer Worker] Failed to stop worker component:', error.message);
+        console.warn('[SkyCommand Worker] Failed to stop worker component:', error.message);
       }
     }
 
@@ -86,7 +86,7 @@ async function startWorker() {
         signal,
       });
     } catch (error) {
-      console.warn('[SkyServer Worker] Failed to mark worker as OFFLINE:', error.message);
+      console.warn('[SkyCommand Worker] Failed to mark worker as OFFLINE:', error.message);
     }
 
     process.exit(0);
@@ -101,7 +101,7 @@ async function startWorker() {
   });
 
   process.on('uncaughtException', async (error) => {
-    console.error('[SkyServer Worker] Uncaught exception:', error);
+    console.error('[SkyCommand Worker] Uncaught exception:', error);
 
     try {
       await workerNodeService.markWorkerNodeError(workerNode.workerNodeId, error, {
@@ -113,7 +113,7 @@ async function startWorker() {
   });
 
   process.on('unhandledRejection', async (reason) => {
-    console.error('[SkyServer Worker] Unhandled rejection:', reason);
+    console.error('[SkyCommand Worker] Unhandled rejection:', reason);
 
     try {
       await workerNodeService.markWorkerNodeError(workerNode.workerNodeId, reason, {
@@ -132,7 +132,7 @@ async function startWorker() {
 
 if (require.main === module) {
   startWorker().catch((error) => {
-    console.error('[SkyServer Worker] Startup failed:', error);
+    console.error('[SkyCommand Worker] Startup failed:', error);
     process.exit(1);
   });
 }

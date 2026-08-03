@@ -1,8 +1,8 @@
-# SkyServer
+# SkyCommand
 
-SkyServer is the private **Node.js / Express / PostgreSQL control plane** for the Sky ecosystem. It owns operational administration, ingestion, repository tooling, worker scheduling, script execution, alert evaluation, and future workflow orchestration.
+SkyCommand is the private **Node.js / Express / PostgreSQL control plane** for the Sky ecosystem. It owns operational administration, ingestion, repository tooling, worker scheduling, script execution, alert evaluation, and future workflow orchestration.
 
-SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays behind the curtain as the trusted operational engine.
+SkyWeb Analytics is the public/member-facing analytics product. SkyCommand stays behind the curtain as the trusted operational engine.
 
 ## Stack at a Glance
 
@@ -28,7 +28,7 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 - **Reusable data-ingestion pipelines** for public macroeconomic sources with staging, normalization, incremental loading, and status inspection.
 - **Worker-backed automation foundation** for scheduled tools, worker-visible tool catalogue entries, schedule runs, node heartbeats, listener staging, and worker health checks.
 - **Temporal-backed durable workflow orchestration** with tool/API/workflow/template nodes, condition branches, waits, human approvals, retries, version guardrails, run controls, and diagnostics.
-- **Clean system boundary with SkyWeb**, where SkyServer owns ingestion/evaluation/control-plane work while SkyWeb owns analytics presentation and member workflows.
+- **Clean system boundary with SkyWeb**, where SkyCommand owns ingestion/evaluation/control-plane work while SkyWeb owns analytics presentation and member workflows.
 - **Repository automation discipline** through generated repo maps, generated lean handoff zips, and dev-commit tooling.
 - **SkyCommand visual operations layer** with reusable Apache ECharts/D3 chart cards, full-screen chart overlays, and dashboard/workflow/worker/ingestion/tool/readiness analytics.
 - **Persistent API observability** with privacy-safe PostgreSQL request evidence, normalized routes, success/error trends, p95/p99 latency, request correlation IDs, route pressure, and configurable retention.
@@ -38,9 +38,9 @@ SkyWeb Analytics is the public/member-facing analytics product. SkyServer stays 
 
 **Active status:** Phase 16 is complete. SkyCommand now provides a portable ingestion and data-contract foundation with PostgreSQL-authoritative domains, sources, assets, metrics, ingestion profiles, quality policies, explainable freshness, durable run evidence, revision history, failed-only recovery, generic operations, and versioned observation/metric consumer contracts. Production FRED, Bank of Canada, and Statistics Canada paths remain compatible, and the final non-macro portability proof completed without a macro-specific branch or central source-list edit.
 
-SkyServer has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane behind **SkyCommand**, the branded Admin-Web experience for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and operational intelligence.
+SkyCommand has completed the SkyWeb public-facing macro integration track and now serves as the private operational control plane, with a branded Admin-Web experience for ingestion, automation, repository tooling, workflow orchestration, diagnostics, approvals, scheduling, run control, readiness inspection, and operational intelligence.
 
-Phase 10 moved Temporal from a local FRED pilot into a full SkyServer workflow execution lane. SkyServer workflows can now compose tools, API calls, child workflows, Temporal-native templates, condition gates, waits, human approvals, retry policies, versioned drafts, visual graph editing, runtime overlays, diagnostics, worker health, and production-readiness checks while preserving the existing worker/tool infrastructure.
+Phase 10 moved Temporal from a local FRED pilot into a full SkyCommand workflow execution lane. SkyCommand workflows can now compose tools, API calls, child workflows, Temporal-native templates, condition gates, waits, human approvals, retry policies, versioned drafts, visual graph editing, runtime overlays, diagnostics, worker health, and production-readiness checks while preserving the existing worker/tool infrastructure.
 
 Phase 11 modernized Admin-Web into the **SkyCommand** product shell with a black navigation frame, left-side grouped navigation, branded prism mark, unified page surfaces, navbar search/popovers, and a more polished login experience.
 
@@ -56,17 +56,17 @@ Phase 15 completed the **assisted Tool Catalogue administration layer** without 
 
 The demo-polish layer now separates platform availability into a six-service **Server Status** surface and gives tool execution evidence a consistent operational home. **Tool History** reads retained stdout/stderr from managed log files and displays persisted structured ToolResult payloads in separate cards, while row-level Tool Details overlays expose execution identity, parameters, and metadata without crowding the output workspace. **Run Tools** uses the same output presentation after execution completes, so direct launches and historical inspection tell the same story. Structured results remain supplementary evidence: process exit state is still runtime authority, log reads are path-contained and capped, and large ToolResult payloads are omitted from paginated list responses until a specific execution is selected. The per-stream Tool History read cap defaults to 500,000 bytes and can be adjusted with `TOOL_HISTORY_MAX_OUTPUT_BYTES`; the API enforces a 5 MB hard ceiling.
 
-SkyServer Core now reads each published workflow's runtime-parameter schema and prompts for those values directly before launch. A node default such as `{{ params.commitMessage }}` resolves identically for Admin-Web, inline CLI execution, and Temporal-backed CLI execution. Temporal launches can be followed to completion from the CLI through the PostgreSQL workflow ledger, so Git-oriented workflows remain operable even when Vite or the browser refreshes during repository changes.
+SkyCommand Core now reads each published workflow's runtime-parameter schema and prompts for those values directly before launch. A node default such as `{{ params.commitMessage }}` resolves identically for Admin-Web, inline CLI execution, and Temporal-backed CLI execution. Temporal launches can be followed to completion from the CLI through the PostgreSQL workflow ledger, so Git-oriented workflows remain operable even when Vite or the browser refreshes during repository changes.
 
-### SkyServer Core workflow runtime parameters
+### SkyCommand Core workflow runtime parameters
 
-Published workflow runtime parameters are shared across Admin-Web and the `npm run core` launcher. SkyServer Core lists the schema count, prompts for each typed value, validates required/default/select/number/boolean/JSON rules, and submits the values under both `input.params` and `input.runtimeParameters`. Node defaults reference them with the same syntax used by Admin-Web:
+Published workflow runtime parameters are shared across Admin-Web and the `npm run core` launcher. SkyCommand Core lists the schema count, prompts for each typed value, validates required/default/select/number/boolean/JSON rules, and submits the values under both `input.params` and `input.runtimeParameters`. Node defaults reference them with the same syntax used by Admin-Web:
 
 ```text
 {{ params.commitMessage }}
 ```
 
-Phase 14.13.1 also adds the `repo` workflow parameter type. Repository values are selected from the active repository catalogue in Admin-Web or SkyServer Core, and compatible repository node fields can store a typed binding such as:
+Phase 14.13.1 also adds the `repo` workflow parameter type. Repository values are selected from the active repository catalogue in Admin-Web or SkyCommand Core, and compatible repository node fields can store a typed binding such as:
 
 ```text
 {{ params.repoName }}
@@ -79,10 +79,10 @@ The CLI still accepts an optional additional workflow-input JSON object for adva
 Optional environment controls are documented in `.env.example`:
 
 ```text
-SKYSERVER_CORE_WORKFLOW_EXECUTOR_MODE=temporal
-SKYSERVER_CORE_WORKFLOW_FOLLOW=true
-SKYSERVER_CORE_WORKFLOW_POLL_MS=2000
-SKYSERVER_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS=1800000
+SKYCOMMAND_CORE_WORKFLOW_EXECUTOR_MODE=temporal
+SKYCOMMAND_CORE_WORKFLOW_FOLLOW=true
+SKYCOMMAND_CORE_WORKFLOW_POLL_MS=2000
+SKYCOMMAND_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS=1800000
 ```
 
 ### Development promotion workflow
@@ -162,7 +162,7 @@ Structured-result files are ephemeral runtime artifacts, not source files. They 
 | SkyCommand Dashboard | Private operational intelligence dashboard for API/DB health, ingestion, automation, workflows, task queue health, readiness, tools, sessions, scripts, audits, and chart-based visual summaries |
 | Tools                | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging                                                                                                  |
 | Workflows            | Versioned workflow builder, visual graph editor, start/history, approvals, run controls, Temporal diagnostics, and worker health                                                                 |
-| Automation           | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyServer workflows                                                                                             |
+| Automation           | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyCommand workflows                                                                                             |
 | Ingestion Status     | Source health, indicator freshness, stale-data detection, run history, per-indicator diagnostics, and macro pipeline analytics                                                                   |
 | Access Control       | User, role, permission, session, password administration, and User History audit review                                                                                                          |
 | Tools History        | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability plus usage, speed, category, and outcome analytics                                                 |
@@ -172,9 +172,9 @@ Structured-result files are ephemeral runtime artifacts, not source files. They 
 
 ```mermaid
 flowchart LR
-    Admin[Admin Browser] --> AdminWeb["SkyServer Admin-Web<br/>React + Vite"]
-    AdminWeb --> Api["SkyServer API<br/>Node.js + Express"]
-    Core[SkyServer Core CLI] --> Tools["Tool Catalogue<br/>core schema"]
+    Admin[Admin Browser] --> AdminWeb["SkyCommand Admin-Web<br/>React + Vite"]
+    AdminWeb --> Api["SkyCommand API<br/>Node.js + Express"]
+    Core[SkyCommand Core CLI] --> Tools["Tool Catalogue<br/>core schema"]
     Core -->|workflow starts| Api
     Api --> Tools
     Api --> Db[("PostgreSQL<br/>auth + core + macro + skyweb + worker")]
@@ -183,7 +183,7 @@ flowchart LR
     Ingestion["Ingestion Scripts<br/>FRED + BoC + StatCan + Manual"] --> Db
     SkyWeb["SkyWeb Analytics<br/>React + ASP.NET Core"] -->|evaluate alerts only| Api
     Api -->|workflow start/control/diagnostics| Temporal["Temporal Server<br/>durable orchestration"]
-    Temporal --> TemporalWorker["SkyServer Temporal Worker<br/>task queue skyserver-local"]
+    Temporal --> TemporalWorker["SkyCommand Temporal Worker<br/>task queue skyserver-local"]
     TemporalWorker -->|activities| Tools
     TemporalWorker -->|workflow ledger| Db
     TemporalWorker --> Ingestion
@@ -193,25 +193,25 @@ Current control flow:
 
 ```text
 Admin-Web / Core CLI
-  → SkyServer API / tool launcher / workflow launcher
+  → SkyCommand API / tool launcher / workflow launcher
       → PostgreSQL auth + core + worker catalogue
       → ingestion, repo, DB, git, and operational scripts
           ↳ stdout/stderr → Tool History and diagnostics
           ↳ validated ToolResult → workflow node result and context
       → worker schedules and listener definitions
-      → Temporal-backed SkyServer workflow definitions and run ledgers
+      → Temporal-backed SkyCommand workflow definitions and run ledgers
       → audit + script execution history
 
 SkyWeb Analytics
   → SkyWeb.Api for analytics/member reads and writes
-  → SkyServer API only for evaluate-now alert execution and future control-plane workflows
+  → SkyCommand API only for evaluate-now alert execution and future control-plane workflows
 ```
 
 ## Relationship to SkyWeb Analytics
 
-SkyServer and SkyWeb now have a clean boundary:
+SkyCommand and SkyWeb now have a clean boundary:
 
-| SkyServer owns                                      | SkyWeb owns                                     |
+| SkyCommand owns                                      | SkyWeb owns                                     |
 | --------------------------------------------------- | ----------------------------------------------- |
 | Ingestion pipelines                                 | Public/member analytics UI                      |
 | Worker scheduling                                   | Dashboards and saved views                      |
@@ -221,7 +221,7 @@ SkyServer and SkyWeb now have a clean boundary:
 | Repo map/zip/dev-commit utilities                   | Portfolio-ready product presentation            |
 | Temporal orchestration and workflow diagnostics     | Public/member API consumption                   |
 
-SkyServer should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyServer administrative control surfaces.
+SkyCommand should not duplicate SkyWeb product surfaces. SkyWeb should not duplicate SkyCommand administrative control surfaces.
 
 ## SkyCommand UI and Visualization Direction
 
@@ -237,7 +237,7 @@ Phase 14 separates operational narration from workflow business results. Tool Hi
 
 ## Workflow Pages
 
-The Workflows menu is the high-level SkyServer workflow cockpit:
+The Workflows menu is the high-level SkyCommand workflow cockpit:
 
 ```text
 Workflows -> Create Workflow
@@ -254,7 +254,7 @@ The workflow surfaces can:
 - compose `TOOL`, `API_CALL`, `WORKFLOW`, `TEMPORAL_WORKFLOW`, `CONDITION`, `WAIT`, and `HUMAN_APPROVAL` nodes;
 - configure tool parameters, Temporal-template parameters, retry policy, node timeout, condition branches, wait timers, and approval role gates;
 - render workflow graphs visually with node inspection, drag reorder, branch labels, and runtime status overlays;
-- start active published workflows manually from Admin-Web, SkyServer Core CLI, Admin tool bridge, or schedules;
+- start active published workflows manually from Admin-Web, SkyCommand Core CLI, Admin tool bridge, or schedules;
 - define runtime parameter schemas for reusable workflows and capture submitted launch values as durable `params` context;
 - resolve node input templates from runtime params, workflow context, previous outputs, and named node outputs;
 - store workflow-level and node-level run records in PostgreSQL while Temporal owns durable execution state;
@@ -263,7 +263,7 @@ The workflow surfaces can:
 - inspect Temporal workflow IDs, run IDs, event summaries, diagnostic links, task queue status, and worker heartbeat health;
 - auto-refresh Workflow History and selected run telemetry through smart polling, slowing down when no active workflows exist or the browser tab is hidden.
 
-Lower-level Temporal runtime diagnostics remain available at `/workflows/temporal/start` and `/workflows/temporal/history` for direct Temporal-template visibility. Admin-Web calls SkyServer API; it never connects to Temporal directly. Legacy `/automation/temporal` and `/temporal` links redirect to the workflow cockpit.
+Lower-level Temporal runtime diagnostics remain available at `/workflows/temporal/start` and `/workflows/temporal/history` for direct Temporal-template visibility. Admin-Web calls SkyCommand API; it never connects to Temporal directly. Legacy `/automation/temporal` and `/temporal` links redirect to the workflow cockpit.
 
 ## Local Development
 
@@ -276,22 +276,22 @@ npm install
 Run common development surfaces:
 
 ```bash
-# SkyServer API
+# SkyCommand API
 npm run api
 ```
 
 ```bash
-# SkyServer Admin-Web
+# SkyCommand Admin-Web
 npm run web
 ```
 
 ```bash
-# SkyServer worker daemon
+# SkyCommand worker daemon
 npm run worker:dev
 ```
 
 ```bash
-# SkyServer Core CLI
+# SkyCommand Core CLI
 # Top menu: Run Tools / Run Workflows
 npm run core
 ```
@@ -330,8 +330,8 @@ Common optional variables:
 API_PORT=7171
 AUTH_SESSION_MINUTES=30
 AUTH_SESSION_HOURS=12
-SKYSERVER_CORE_APP_CODE=SKYSERVER_CORE
-SKYSERVER_CONFIG_PROFILE=DEV_LOCAL
+SKYCOMMAND_CORE_APP_CODE=SKYSERVER_CORE
+SKYCOMMAND_CONFIG_PROFILE=DEV_LOCAL
 TOOL_EXECUTION_TIMEOUT_MS=180000
 TOOL_EXECUTION_MAX_OUTPUT_BYTES=250000
 TOOL_EXECUTION_STALE_AFTER_MINUTES=15
@@ -351,21 +351,34 @@ TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=skyserver-local
 TEMPORAL_UI_BASE_URL=http://localhost:8233
-TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skyserver-fred-ingestion
+TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skycommand-fred-ingestion
 TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS=1800000
-SKYSERVER_INTERNAL_API_TOKEN=replace_with_a_local_secret
+SKYCOMMAND_INTERNAL_API_AUTH_ENABLED=true
+SKYCOMMAND_INTERNAL_API_TOKEN=replace_with_a_local_secret
 ```
 
-Database, ingestion, API, worker, and tool execution scripts load `.env` from the SkyServer root so tools can be executed from different command prompt locations.
+The `SKYSERVER_CORE`, `SKYSERVER_ADMIN`, and `SKYSERVER_WORKER` values are stable PostgreSQL application keys rather than product labels. They are intentionally retained so existing roles, permissions, sessions, and audit history remain valid. Runtime configuration now prefers `SKYCOMMAND_*` environment-variable names and temporarily accepts the older `SKYSERVER_*` names as transition aliases.
+
+The Temporal task queue `skyserver-local`, workflow type `skyserverWorkflowExecutorWorkflow`, and its `*SkyserverWorkflow*Activity` names are also retained as durable protocol identifiers. Temporal records these values inside workflow histories; changing them in place could strand or make existing executions non-deterministic. Their source filenames, runtime labels, and public SkyCommand-facing APIs use the current product identity while the persisted protocol keys remain stable.
+
+The physical development database remains `skyserver_dev` during this repository identity changeover. Renaming the PostgreSQL database is a separate maintenance operation because every client connection and environment must move together.
+
+After applying migration `00094__skycommand_repository_identity_changeover.sql`, verify the preserved repository relationships, canonical GitHub remote, DEV_LOCAL path, visible application titles, and compatibility boundary with:
+
+```bash
+npm run skycommand-identity:verify
+```
+
+Database, ingestion, API, worker, and tool execution scripts load `.env` from the SkyCommand root so tools can be executed from different command prompt locations.
 
 ## Primary Local URLs
 
 | Surface                 | URL                                |
 | ----------------------- | ---------------------------------- |
-| SkyServer API health    | `http://localhost:7171/_health`    |
-| SkyServer DB health     | `http://localhost:7171/_db/health` |
+| SkyCommand API health    | `http://localhost:7171/_health`    |
+| SkyCommand DB health     | `http://localhost:7171/_db/health` |
 | Temporal Web UI         | `http://localhost:8233`            |
-| SkyServer Admin-Web     | `http://localhost:5173`            |
+| SkyCommand Admin-Web     | `http://localhost:5173`            |
 | SkyWeb Analytics client | `http://localhost:5175`            |
 | SkyWeb.Api Swagger      | `http://localhost:7280/swagger`    |
 
@@ -380,12 +393,12 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run web:preview`         | Previews the built Admin-Web frontend.                                                      |
 | `npm run worker`              | Starts the worker daemon.                                                                   |
 | `npm run worker:dev`          | Starts the worker daemon with Nodemon.                                                      |
-| `npm run temporal:worker`     | Starts the SkyServer Temporal worker.                                                       |
-| `npm run temporal:worker:dev` | Starts the SkyServer Temporal worker with Nodemon.                                          |
+| `npm run temporal:worker`     | Starts the SkyCommand Temporal worker.                                                       |
+| `npm run temporal:worker:dev` | Starts the SkyCommand Temporal worker with Nodemon.                                          |
 | `npm run temporal:health`     | Checks connectivity to the configured Temporal service.                                     |
 | `npm run temporal:fred`       | Starts the FRED ingestion workflow pilot and waits for the result.                          |
 | `npm run daemon`              | Starts the API daemon entry point with Nodemon.                                             |
-| `npm run core`                | Starts the SkyServer Core CLI with top-level Run Tools / Run Workflows menus.               |
+| `npm run core`                | Starts the SkyCommand Core CLI with top-level Run Tools / Run Workflows menus.               |
 | `npm run db:health`           | Tests PostgreSQL connectivity.                                                              |
 | `npm run db:build`            | Rebuilds the configured PostgreSQL database from SQL files.                                 |
 | `npm run auth:create-admin`   | Runs the first-admin/user creation script.                                                  |
@@ -400,14 +413,14 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 ## Repository Layout
 
 ```text
-SkyServer/
+SkyCommand/
 ├── apps/
 │   ├── admin-web/        # Private React/Vite SkyCommand frontend
 │   ├── api/              # Node/Express API layer
 │   └── worker/           # Background worker daemon, schedulers, listeners
 ├── packages/
 │   ├── auth/             # Admin user creation and password helpers
-│   ├── core/             # SkyServer Core CLI tool
+│   ├── core/             # SkyCommand Core CLI tool
 │   ├── db/               # PostgreSQL connection and health utilities
 │   ├── db_build/         # Ordered migrations, seeds, and build runner
 │   ├── files/            # Repo map and repo zip utilities
@@ -420,9 +433,9 @@ SkyServer/
 │   ├── node/             # Shared Node utilities
 │   └── powershell/       # PowerShell automation helpers
 ├── docs/
-│   ├── SkyServer_RepoMap.md
-│   ├── SkyServer_Temporal_Local_Setup.md
-│   └── SkyServer_Temporal_Workflow_Architecture_Plan.md
+│   ├── SkyCommand_RepoMap.md
+│   ├── SkyCommand_Temporal_Local_Setup.md
+│   └── SkyCommand_Temporal_Workflow_Architecture_Plan.md
 ├── logs/                 # Runtime logs, excluded from generated handoff zips/maps
 ├── change.log            # Detailed phase history moved out of README
 └── package.json
@@ -478,7 +491,7 @@ Listener support is staged: schema, API endpoints, and Admin-Web surfaces exist;
 
 ### Temporal workflow orchestration
 
-Temporal is now the durable workflow execution lane for SkyServer business workflows. The existing worker daemon and scheduler/listener system remain active; Temporal is used when a process needs durable state, retries, timers, human approval signals, child workflow execution, history, or multi-step orchestration.
+Temporal is now the durable workflow execution lane for SkyCommand business workflows. The existing worker daemon and scheduler/listener system remain active; Temporal is used when a process needs durable state, retries, timers, human approval signals, child workflow execution, history, or multi-step orchestration.
 
 Local Temporal commands:
 
@@ -486,7 +499,7 @@ Local Temporal commands:
 # Start local Temporal separately
 temporal server start-dev
 
-# Run the SkyServer Temporal worker
+# Run the SkyCommand Temporal worker
 npm run temporal:worker:dev
 
 # Check Temporal connectivity
@@ -500,12 +513,12 @@ npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 Primary protected workflow API families include:
 
 ```text
-/api/workflows/*              SkyServer workflow definitions, drafts, starts, runs, approvals, run controls, and worker health
+/api/workflows/*              SkyCommand workflow definitions, drafts, starts, runs, approvals, run controls, and worker health
 /api/temporal/*               Lower-level Temporal diagnostics and template starts
 /api/admin/production-readiness  Production-readiness checklist for environment, worker, DB, workflow, and auth safety
 ```
 
-The browser/Admin-Web should call SkyServer API rather than Temporal directly, preserving the SkyServer auth/RBAC boundary and keeping audit, versioning, workflow-run persistence, and diagnostics in one control-plane layer.
+The browser/Admin-Web should call SkyCommand API rather than Temporal directly, preserving the SkyCommand auth/RBAC boundary and keeping audit, versioning, workflow-run persistence, and diagnostics in one control-plane layer.
 
 ## SkyCommand Chart System
 
@@ -534,7 +547,7 @@ Chart rules: keep status colors semantic, use cards for scanability, preserve fu
 
 ## Browser-Triggered Script Safety
 
-SkyServer allows browser-triggered tool execution through Admin-Web, so guardrails are central:
+SkyCommand allows browser-triggered tool execution through Admin-Web, so guardrails are central:
 
 - Bearer-token authentication and RBAC permission checks
 - Tool-specific permissions and risk-level execution permissions
@@ -554,8 +567,8 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 | --- | --- |
 | [`change.log`](change.log) | Canonical phase history and implementation notes |
 | [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md) | Generated repository structure map |
-| [`docs/SkyServer_Temporal_Local_Setup.md`](docs/SkyServer_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
-| [`docs/SkyServer_Temporal_Workflow_Architecture_Plan.md`](docs/SkyServer_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |
+| [`docs/SkyCommand_Temporal_Local_Setup.md`](docs/SkyCommand_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
+| [`docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md`](docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |
 | [`docs/SkyCommand_Phase_14_Structured_Tool_Results.md`](docs/SkyCommand_Phase_14_Structured_Tool_Results.md) | Structured-result contract, transport, context paths, and fail-open behavior |
 | [`docs/SkyCommand_Phase_15_Tool_Catalogue_Administration.md`](docs/SkyCommand_Phase_15_Tool_Catalogue_Administration.md) | Managed tool catalogue, onboarding, verification, and runtime boundaries |
 | [`docs/SkyCommand_Phase_16_Closure_Report.md`](docs/SkyCommand_Phase_16_Closure_Report.md) | Final portable-ingestion architecture, contracts, proof matrix, and accepted conditions |
@@ -567,12 +580,12 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 Removed after Temporal implementation because their contents are now represented by `README.md`, `change.log`, the current UI, and the surviving architecture/setup references:
 
 ```text
-docs/SkyServer_Temporal_Admin_Web_Console.md
-docs/SkyServer_Temporal_Core_API.md
-docs/SkyServer_Temporal_FRED_Pilot.md
-docs/SkyServer_Temporal_Phase_10_Roadmap.md
-docs/SkyServer_Temporal_Workflow_Templates.md
-docs/SkyServer_Workflow_Builder_Foundation.md
+docs/SkyCommand_Temporal_Admin_Web_Console.md
+docs/SkyCommand_Temporal_Core_API.md
+docs/SkyCommand_Temporal_FRED_Pilot.md
+docs/SkyCommand_Temporal_Phase_10_Roadmap.md
+docs/SkyCommand_Temporal_Workflow_Templates.md
+docs/SkyCommand_Workflow_Builder_Foundation.md
 ```
 
 ## Roadmap
@@ -583,12 +596,12 @@ docs/SkyServer_Workflow_Builder_Foundation.md
 | Phase 2    | ✅ Complete    | ESLint, Prettier, Husky, and lint-staged automation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Phase 3    | ✅ Complete    | PostgreSQL schema, indicator registry, migrations, seeds, and views                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Phase 4    | ✅ Complete    | FRED, BoC, StatCan, and manual ingestion pipelines                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Phase 5    | ✅ Complete    | SkyServer Core CLI tool with configurable script launcher model and direct active-workflow start menu                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Phase 5    | ✅ Complete    | SkyCommand Core CLI tool with configurable script launcher model and direct active-workflow start menu                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Phase 6    | ✅ Complete    | Private Admin-Web with auth, RBAC, relational tool catalogue, execution logging, audit trail, dynamic parameters, and safety UX                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Phase 7    | ✅ Complete    | Macro, ingestion status, admin-action APIs, Access Control, Ingestion Status, and Dashboard v2                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Phase 8    | ✅ Complete    | Worker automation foundation with scheduler-driven tool execution, worker daemon, worker APIs, Automation Admin-Web pages, and listener foundation                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Phase 9    | ✅ Complete    | SkyWeb integration for public-facing macro dashboards, member preferences, saved views, dashboards, alert rules, Signal Center, and alert evaluation support                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Phase 10   | ✅ Complete    | Temporal-backed SkyServer workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection                                                                                                                                                                                                                                                                                                                                                        |
+| Phase 10   | ✅ Complete    | Temporal-backed SkyCommand workflow orchestration with visual editing, version guardrails, approvals, branching, waits, retries, run controls, diagnostics, worker health, and production-readiness inspection                                                                                                                                                                                                                                                                                                                                                        |
 | Phase 11   | ✅ Complete    | SkyCommand Admin-Web modernization: branded shell, black navigation frame, sidebar/page typography, dashboard wording, navbar search/popovers, login atmosphere, brand mark, and shared UI primitives                                                                                                                                                                                                                                                                                                                                                                |
 | Phase 12   | ✅ Complete    | SkyCommand visual operations layer: ECharts/D3 dashboard intelligence, Workflow History charts, Worker Health pulse, Ingestion analytics, Tools History analytics, Production Readiness visuals, full-screen chart overlays, and reusable chart helpers                                                                                                                                                                                                                                                                                                              |
 | Phase 13   | ✅ Complete    | Live workflow telemetry, runtime context, parameterized execution, durable node outputs/context, context-aware conditions, active-node animation, summary nodes, and runtime/workbench surface separation                                                                                                                                                                                                                                                                                                                                                            |
@@ -614,12 +627,12 @@ Practical rules:
 - Keep human logs and machine workflow results on separate channels.
 - Keep workflow tool integration generic; domain flexibility belongs inside the validated output payload.
 - Keep scheduled automation explicit, observable, and reversible.
-- Keep the control-plane/product boundary clear between SkyServer and SkyWeb.
+- Keep the control-plane/product boundary clear between SkyCommand and SkyWeb.
 - Keep architecture modular before it becomes painful to change.
 
 ## Repository
 
-- **GitHub:** https://github.com/PStar1980/SkyServer
+- **GitHub:** https://github.com/PStar1980/SkyCommand
 - **Primary development branch:** `dev`
 - **Main branch:** `main`
 - **License:** ISC

@@ -115,7 +115,7 @@ async function recordWorkflowDefinitionAudit(req, {
       userAgent: context.userAgent,
     });
   } catch (auditError) {
-    console.error(`[SkyServer API] Failed to record ${eventType || 'workflow definition'} audit event:`, auditError);
+    console.error(`[SkyCommand API] Failed to record ${eventType || 'workflow definition'} audit event:`, auditError);
   }
 }
 

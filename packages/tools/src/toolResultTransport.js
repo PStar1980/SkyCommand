@@ -9,7 +9,7 @@ const {
   validateToolResult,
 } = require('./toolResultContract');
 
-function getSkyServerRoot() {
+function getSkyCommandRoot() {
   return path.resolve(__dirname, '../../..');
 }
 
@@ -45,7 +45,7 @@ function normalizeFileToken(value, fallback) {
   return normalized || fallback;
 }
 
-function getDefaultResultDirectory(rootDirectory = getSkyServerRoot()) {
+function getDefaultResultDirectory(rootDirectory = getSkyCommandRoot()) {
   return path.join(rootDirectory, 'logs', 'tool-results');
 }
 
@@ -142,7 +142,7 @@ function writeToolResult(toolResult, options = {}) {
 function createToolResultTransport({
   executionId,
   toolCode,
-  rootDirectory = getSkyServerRoot(),
+  rootDirectory = getSkyCommandRoot(),
   resultDirectory = getDefaultResultDirectory(rootDirectory),
   maxBytes,
   expectedOutputType = null,
@@ -268,6 +268,8 @@ module.exports = {
   TOOL_RESULT_FILE_EXTENSION,
   createToolResultTransport,
   getDefaultResultDirectory,
-  getSkyServerRoot,
+  getSkyCommandRoot,
+  // Legacy export retained for callers compiled against the former source-level name.
+  getSkyServerRoot: getSkyCommandRoot,
   writeToolResult,
 };

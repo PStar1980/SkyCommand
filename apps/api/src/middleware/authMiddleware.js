@@ -30,15 +30,27 @@ function parseBoolean(value, fallback = false) {
 }
 
 function getInternalServiceToken(req) {
-  return String(req.headers['x-skyserver-internal-token'] || '').trim();
+  return String(
+    req.headers['x-skycommand-internal-token'] ||
+      req.headers['x-skyserver-internal-token'] ||
+      '',
+  ).trim();
 }
 
 function getConfiguredInternalServiceToken() {
-  return String(process.env.SKYSERVER_INTERNAL_API_TOKEN || '').trim();
+  return String(
+    process.env.SKYCOMMAND_INTERNAL_API_TOKEN ||
+      process.env.SKYSERVER_INTERNAL_API_TOKEN ||
+      '',
+  ).trim();
 }
 
 function isInternalServiceAuthEnabled() {
-  return parseBoolean(process.env.SKYSERVER_INTERNAL_API_AUTH_ENABLED, true);
+  return parseBoolean(
+    process.env.SKYCOMMAND_INTERNAL_API_AUTH_ENABLED ??
+      process.env.SKYSERVER_INTERNAL_API_AUTH_ENABLED,
+    true,
+  );
 }
 
 function buildInternalServicePermission(permissionCode) {
@@ -47,7 +59,7 @@ function buildInternalServicePermission(permissionCode) {
     permissionCode,
     resource: 'internal_service',
     action: 'allow',
-    description: 'Granted through SkyServer internal service token.',
+    description: 'Granted through SkyCommand internal service token.',
     grantedThroughRoles: ['INTERNAL_SERVICE'],
     appId: null,
     appCode: 'SKYSERVER_ADMIN',
@@ -64,9 +76,9 @@ function applyInternalServiceIdentity(req) {
   };
   req.user = {
     userId: null,
-    email: 'skyserver-internal@local',
-    username: 'skyserver-internal',
-    displayName: 'SkyServer Internal Service',
+    email: 'skycommand-internal@local',
+    username: 'skycommand-internal',
+    displayName: 'SkyCommand Internal Service',
     status: 'ACTIVE',
     isSystemUser: true,
   };

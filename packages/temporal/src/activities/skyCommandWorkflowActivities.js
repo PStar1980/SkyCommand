@@ -31,12 +31,16 @@ async function loadSkyserverWorkflowDefinitionActivity(input = {}) {
 }
 
 async function linkSkyserverWorkflowRunToTemporalActivity(input = {}) {
+  const productIdentity = input.metadata?.productIdentity === 'SkyCommand' ? 'SkyCommand' : 'SkyServer';
+
   console.log(`[Temporal:SkyWorkflow] Linked run ${input.workflowRunRecordId} to Temporal ${input.temporalWorkflowId}/${input.temporalRunId}`);
   return workflowExecutorService.linkWorkflowRunToTemporal({
     workflowRunRecordId: input.workflowRunRecordId,
     temporalWorkflowId: input.temporalWorkflowId,
     temporalRunId: input.temporalRunId,
-    summary: input.summary || 'Workflow execution accepted by Temporal-backed SkyServer executor.',
+    summary:
+      input.summary ||
+      `Workflow execution accepted by Temporal-backed ${productIdentity} executor.`,
     metadata: {
       executor: 'skyserver_workflow_executor_temporal_v1',
       temporalBacked: true,
@@ -203,6 +207,7 @@ async function resolveSkyserverWorkflowApprovalRequestActivity(input = {}) {
 }
 
 module.exports = {
+  // Stable activity names retained because they are persisted in Temporal histories.
   completeSkyserverWorkflowNodeRunActivity,
   completeSkyserverWorkflowRunActivity,
   createSkyserverWorkflowApprovalRequestActivity,
@@ -216,4 +221,17 @@ module.exports = {
   markSkyserverWorkflowNodeAttemptActivity,
   startChildSkyserverWorkflowRunActivity,
   startSkyserverWorkflowNodeRunActivity,
+  // Canonical source-level aliases are available without changing persisted activity types.
+  completeSkyCommandWorkflowNodeRunActivity: completeSkyserverWorkflowNodeRunActivity,
+  completeSkyCommandWorkflowRunActivity: completeSkyserverWorkflowRunActivity,
+  createSkyCommandWorkflowApprovalRequestActivity: createSkyserverWorkflowApprovalRequestActivity,
+  executeSkyCommandWorkflowNodeActivity: executeSkyserverWorkflowNodeActivity,
+  failSkyCommandWorkflowNodeRunActivity: failSkyserverWorkflowNodeRunActivity,
+  failSkyCommandWorkflowRunActivity: failSkyserverWorkflowRunActivity,
+  resolveSkyCommandWorkflowApprovalRequestActivity: resolveSkyserverWorkflowApprovalRequestActivity,
+  linkSkyCommandWorkflowRunToTemporalActivity: linkSkyserverWorkflowRunToTemporalActivity,
+  loadSkyCommandWorkflowDefinitionActivity: loadSkyserverWorkflowDefinitionActivity,
+  markSkyCommandWorkflowNodeAttemptActivity: markSkyserverWorkflowNodeAttemptActivity,
+  startChildSkyCommandWorkflowRunActivity: startChildSkyserverWorkflowRunActivity,
+  startSkyCommandWorkflowNodeRunActivity: startSkyserverWorkflowNodeRunActivity,
 };

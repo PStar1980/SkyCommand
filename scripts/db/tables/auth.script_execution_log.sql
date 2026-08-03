@@ -58,6 +58,6 @@ CREATE INDEX IF NOT EXISTS script_execution_log_script_name_idx
     ON auth.script_execution_log (script_name);
 
 COMMENT ON TABLE auth.script_execution_log IS
-'Detailed execution history for scripts launched through SkyServer Core, Admin-Web, API, worker jobs, or future automation listeners.';
+'Detailed execution history for scripts launched through SkyCommand Core, Admin-Web, API, worker jobs, or future automation listeners.';
 
 ALTER TABLE auth.script_execution_log OWNER TO postgres;

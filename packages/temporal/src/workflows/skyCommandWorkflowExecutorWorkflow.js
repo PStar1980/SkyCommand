@@ -579,11 +579,11 @@ function buildTemporalTemplateInput({ template, parameters, workflowId }) {
   return input;
 }
 
-function buildTemporalResultPreview(value, maxLength = 4000) {
+function buildTemporalResultPreview(value, maxLength = 4000, productIdentity = 'SkyServer') {
   try {
     const text = JSON.stringify(value || {}, null, 2);
     return text.length > maxLength
-      ? `${text.slice(0, maxLength)}\n\n[SkyServer Workflow Executor] Temporal result preview truncated.`
+      ? `${text.slice(0, maxLength)}\n\n[${productIdentity} Workflow Executor] Temporal result preview truncated.`
       : text;
   } catch (error) {
     const text = String(value || '');
@@ -1455,6 +1455,7 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
   temporalWorkflowId,
   workflowRunRecordId,
   taskQueue,
+  productIdentity = 'SkyServer',
 }) {
   const retryPolicy = getNodeRetryPolicy(node);
   const templateWorkflowCode = String(parameters.workflowCode || node.targetCode || '').trim();
@@ -1531,7 +1532,7 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
         namespace: template.namespace || null,
         resultOk: childResult?.ok !== false,
         resultSummary: childResult?.summary || null,
-        resultPreview: buildTemporalResultPreview(childResult),
+        resultPreview: buildTemporalResultPreview(childResult, 4000, productIdentity),
         summary: `Temporal workflow template ${template.displayName || template.workflowCode} completed successfully.`,
       };
 
@@ -1706,6 +1707,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   const workflowCode = input.workflowCode;
   const workflowRunRecordId = input.workflowRunRecordId;
   const requestInput = getSafeObject(input.input);
+  const usesSkyCommandIdentity = input.identityVersion === 'skycommand.v1';
   const nodeRuns = [];
   const nodeOutputsByKey = {};
   let workflowRuntimeContext = {};
@@ -1754,12 +1756,13 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     workflowRunRecordId,
     temporalWorkflowId,
     temporalRunId,
-    summary: `Workflow ${definition.displayName} is running through Temporal-backed SkyServer executor.`,
+    summary: `Workflow ${definition.displayName} is running through Temporal-backed ${usesSkyCommandIdentity ? 'SkyCommand' : 'SkyServer'} executor.`,
     metadata: {
       workflowCode,
       nodeCount: definition.nodes.length,
       edgeCount: definition.edges.length,
       temporalWorkflowType: 'skyserverWorkflowExecutorWorkflow',
+      ...(usesSkyCommandIdentity ? { productIdentity: 'SkyCommand' } : {}),
     },
   });
 
@@ -1846,6 +1849,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           temporalWorkflowId,
           workflowRunRecordId,
           taskQueue: input.taskQueue,
+          productIdentity: usesSkyCommandIdentity ? 'SkyCommand' : 'SkyServer',
         });
       } else {
         completedNodeRun = await executeNodeWithRetries({
@@ -2005,5 +2009,8 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
 }
 
 module.exports = {
+  // Stable Temporal workflow type retained for durable-history replay.
   skyserverWorkflowExecutorWorkflow,
+  // Canonical source-level alias for new code; starts continue using the stable type.
+  skyCommandWorkflowExecutorWorkflow: skyserverWorkflowExecutorWorkflow,
 };

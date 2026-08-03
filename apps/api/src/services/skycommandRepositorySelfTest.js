@@ -55,9 +55,9 @@ async function run() {
       (error) => error.details?.code === 'SKYCOMMAND_TOOL_DESTINATION_UNSAFE',
     );
 
-    const windowsResolved = resolvePackagesRoot('C:\\SkyCommand\\SkyServer');
+    const windowsResolved = resolvePackagesRoot('C:\\SkyEco System\\SkyCommand System\\SkyCommand');
     assert.strictEqual(windowsResolved.pathStyle, 'windows');
-    assert.strictEqual(windowsResolved.packagesRoot, 'C:\\SkyCommand\\SkyServer\\packages');
+    assert.strictEqual(windowsResolved.packagesRoot, 'C:\\SkyEco System\\SkyCommand System\\SkyCommand\\packages');
 
     const missingInspection = await inspectSkycommandRepositoryPath(
       path.join(tempRoot, 'missing-repository'),

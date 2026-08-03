@@ -5,7 +5,7 @@
 // should be implemented after scheduler execution is proven stable.
 
 function startListenerPoller() {
-  console.log('[SkyServer Worker] Listener poller is not enabled in Phase 8.2.');
+  console.log('[SkyCommand Worker] Listener poller is not enabled in Phase 8.2.');
 
   return {
     stop() {},

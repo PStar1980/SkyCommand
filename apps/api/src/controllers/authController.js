@@ -149,7 +149,7 @@ async function changePassword(req, res, next) {
     const statusCode = error.statusCode || 500;
 
     if (statusCode >= 500) {
-      console.error('[SkyServer Auth] Password change failed:', error);
+      console.error('[SkyCommand Auth] Password change failed:', error);
     }
 
     res.status(statusCode).json({
