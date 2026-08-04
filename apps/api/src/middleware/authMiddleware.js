@@ -9,6 +9,7 @@ const INTERNAL_SERVICE_PERMISSION_CODES = [
   'WORKER_SCHEDULE_READ',
   'WORKER_SCHEDULE_RUN',
   'WORKER_SCHEDULE_RUN_IMMEDIATE',
+  'INGESTION_VIEW_STATUS',
 ];
 
 function parseBoolean(value, fallback = false) {

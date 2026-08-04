@@ -355,6 +355,8 @@ TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skycommand-fred-ingestion
 TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS=1800000
 SKYCOMMAND_INTERNAL_API_AUTH_ENABLED=true
 SKYCOMMAND_INTERNAL_API_TOKEN=replace_with_a_local_secret
+
+The internal service identity is intentionally narrow. It supports durable workflow coordination and read-only ingestion observability (`INGESTION_VIEW_STATUS`) for trusted local consumers such as SkyData Studio; it does not grant catalogue administration or ingestion mutation permissions.
 ```
 
 The `SKYSERVER_CORE`, `SKYSERVER_ADMIN`, and `SKYSERVER_WORKER` values are stable PostgreSQL application keys rather than product labels. They are intentionally retained so existing roles, permissions, sessions, and audit history remain valid. Runtime configuration now prefers `SKYCOMMAND_*` environment-variable names and temporarily accepts the older `SKYSERVER_*` names as transition aliases.

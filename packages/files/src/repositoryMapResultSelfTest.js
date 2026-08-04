@@ -14,9 +14,15 @@ function run() {
   const outputRoot = path.join(tempRoot, 'docs');
   fs.mkdirSync(path.join(sourceRoot, 'src'), { recursive: true });
   fs.mkdirSync(path.join(sourceRoot, 'node_modules', 'ignored'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, '.venv', 'Lib', 'site-packages'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, '.mypy_cache', '3.12'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, '__pycache__'), { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'README.md'), '# Sample\n');
   fs.writeFileSync(path.join(sourceRoot, 'src', 'index.js'), 'console.log("hello");\n');
   fs.writeFileSync(path.join(sourceRoot, '.env'), 'SECRET=x\n');
+  fs.writeFileSync(path.join(sourceRoot, '.venv', 'Lib', 'site-packages', 'heavy.py'), 'ignored\n');
+  fs.writeFileSync(path.join(sourceRoot, '.mypy_cache', '3.12', 'cache.db'), 'ignored\n');
+  fs.writeFileSync(path.join(sourceRoot, '__pycache__', 'module.pyc'), Buffer.from([0x00]));
   try {
     const parsed = parseRepositoryMapArgs([sourceRoot, 'Sample_RepoMap.md', outputRoot]);
     assert.equal(parsed.fileName, 'Sample_RepoMap.md');
@@ -30,6 +36,9 @@ function run() {
     const content = fs.readFileSync(result.artifactPath, 'utf8');
     assert.match(content, /README\.md/);
     assert.doesNotMatch(content, /node_modules/);
+    assert.doesNotMatch(content, /\.venv/);
+    assert.doesNotMatch(content, /\.mypy_cache/);
+    assert.doesNotMatch(content, /__pycache__/);
     assert.doesNotMatch(content, /\.env/);
     const toolResult = createRepositoryMapToolResult(result);
     assert.equal(toolResult.outputType, REPOSITORY_MAP_OUTPUT_TYPE);
