@@ -24,12 +24,18 @@ function run() {
   const publicRoot = path.join(sourceRoot, 'apps', 'admin-web', 'public');
   fs.mkdirSync(assetRoot, { recursive: true });
   fs.mkdirSync(publicRoot, { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, '.venv', 'Lib', 'site-packages'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, '.pytest_cache', 'v', 'cache'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, '__pycache__'), { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'README.md'), '# Sample\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, 'src', 'index.js'), 'console.log("hello");\n', 'utf8');
   fs.writeFileSync(path.join(assetRoot, 'sky-net-background.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   fs.writeFileSync(path.join(assetRoot, 'optional-preview.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
   fs.writeFileSync(path.join(publicRoot, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, '.env'), 'SECRET=do-not-package\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, '.venv', 'Lib', 'site-packages', 'heavy.py'), 'ignored\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, '.pytest_cache', 'v', 'cache', 'nodeids'), '[]\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, '__pycache__', 'module.pyc'), Buffer.from([0x00]));
 
   try {
     const parsed = parseRepositoryZipArgs([sourceRoot, 'sample-package', outputRoot]);
@@ -41,6 +47,9 @@ function run() {
     assert.ok(defaultFiles.some((file) => file.relativePath.endsWith(path.join('public', 'favicon.svg'))));
     assert.ok(!defaultFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.png'));
     assert.ok(!defaultFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.jpg'));
+    assert.ok(!defaultFiles.some((file) => file.relativePath.includes('.venv')));
+    assert.ok(!defaultFiles.some((file) => file.relativePath.includes('.pytest_cache')));
+    assert.ok(!defaultFiles.some((file) => file.relativePath.includes('__pycache__')));
 
     const includeImagesParsed = parseRepositoryZipArgs([
       sourceRoot,

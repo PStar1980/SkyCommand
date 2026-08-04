@@ -67,6 +67,7 @@ const authMiddleware = read('apps/api/src/middleware/authMiddleware.js');
 assert(authMiddleware.includes("req.headers['x-skycommand-internal-token']"));
 assert(authMiddleware.includes("req.headers['x-skyserver-internal-token']"));
 assert(authMiddleware.includes('process.env.SKYCOMMAND_INTERNAL_API_TOKEN'));
+assert(authMiddleware.includes("'INGESTION_VIEW_STATUS'"));
 assert(authMiddleware.includes('process.env.SKYSERVER_INTERNAL_API_TOKEN'));
 
 const temporalWorkflows = read(
