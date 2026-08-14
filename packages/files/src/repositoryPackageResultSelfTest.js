@@ -14,7 +14,7 @@ const {
   createRepositoryPackageToolResult,
 } = require('./repositoryPackageResult');
 
-function run() {
+async function run() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skycommand-repo-package-'));
   const sourceRoot = path.join(tempRoot, 'sample-repo');
   const outputRoot = path.join(tempRoot, 'output');
@@ -37,8 +37,21 @@ function run() {
   fs.writeFileSync(path.join(sourceRoot, '.pytest_cache', 'v', 'cache', 'nodeids'), '[]\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, '__pycache__', 'module.pyc'), Buffer.from([0x00]));
 
+  const loadRepositoryArtifactConfiguration = async (repositorySelection) => {
+    assert.strictEqual(repositorySelection, 'SampleRepo');
+    return {
+      repoCode: 'SampleRepo',
+      repoName: 'Sample Repository',
+      rootPath: sourceRoot,
+      repoZipFileName: 'sample-package',
+      repoZipOutputPath: outputRoot,
+    };
+  };
+
   try {
-    const parsed = parseRepositoryZipArgs([sourceRoot, 'sample-package', outputRoot]);
+    const parsed = await parseRepositoryZipArgs(['SampleRepo'], {
+      loadRepositoryArtifactConfiguration,
+    });
     assert.strictEqual(parsed.fileName, 'sample-package.zip');
     assert.strictEqual(parsed.includeImages, false);
     assert.strictEqual(parsed.includeNodeModules, false);
@@ -51,20 +64,21 @@ function run() {
     assert.ok(!defaultFiles.some((file) => file.relativePath.includes('.pytest_cache')));
     assert.ok(!defaultFiles.some((file) => file.relativePath.includes('__pycache__')));
 
-    const includeImagesParsed = parseRepositoryZipArgs([
-      sourceRoot,
-      'sample-package-with-images',
-      outputRoot,
-      '--include-images',
-    ]);
+    const includeImagesParsed = await parseRepositoryZipArgs(
+      ['SampleRepo', '--include-images'],
+      { loadRepositoryArtifactConfiguration },
+    );
     const includeImageFiles = flattenFiles(
       scanDirectory(sourceRoot, sourceRoot, includeImagesParsed),
     );
     assert.ok(includeImageFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.jpg'));
     assert.ok(!includeImageFiles.some((file) => path.extname(file.fullPath).toLowerCase() === '.png'));
 
-    const result = executeRepositoryZip([sourceRoot, 'sample-package', outputRoot]);
+    const result = await executeRepositoryZip(['SampleRepo'], {
+      loadRepositoryArtifactConfiguration,
+    });
     assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.repositoryName, 'Sample Repository');
     assert.strictEqual(result.filesIncluded, 3);
     assert.ok(result.sourceBytes > 0);
     assert.ok(result.archiveBytes > 0);
@@ -88,7 +102,10 @@ function run() {
 }
 
 if (require.main === module) {
-  run();
+  run().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }
 
 module.exports = { run };

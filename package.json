@@ -40,6 +40,7 @@
     "workflow-result-context:self-test": "node packages/tools/src/workflowResultContextSelfTest.js",
     "repository-package:self-test": "node packages/files/src/repositoryPackageResultSelfTest.js",
     "repository-map:self-test": "node packages/files/src/repositoryMapResultSelfTest.js",
+    "repository-artifact-config:self-test": "node packages/files/src/repositoryArtifactConfigurationSelfTest.js",
     "git-repository-status:self-test": "node packages/git/src/gitRepositoryStatusSelfTest.js",
     "git-commit:self-test": "node packages/git/src/gitCommitResultSelfTest.js",
     "git-branch-sync:self-test": "node packages/git/src/gitBranchSyncResultSelfTest.js",

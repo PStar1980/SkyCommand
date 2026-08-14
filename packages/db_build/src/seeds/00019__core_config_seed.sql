@@ -1,13 +1,13 @@
 -- Seed: 00019__core_config_seed.sql
--- Purpose: Seeds SkyServer Core relational configuration from current SkyServer.json and repo_path.json.
+-- Purpose: Seeds the SkyCommand relational core configuration for applications, repositories, tools, and option sources.
 
 BEGIN;
 
 INSERT INTO core.applications (app_code, title, manifest_version, description, active)
 VALUES
-  ('SKYSERVER_ADMIN','SkyCommand','1.0.0','Private administrative web console for SkyServer control-plane operations.',TRUE),
-  ('SKYSERVER_CORE','SkyServer Core','2.0.0','Shared operational manifest for SkyServer Core CLI and Admin-Web/API tool execution.',TRUE),
-  ('SKYSERVER_WORKER','SkyServer Worker','1.0.0','Background automation worker for schedules, listeners, and event-driven operations.',TRUE),
+  ('SKYSERVER_ADMIN','SkyCommand','1.0.0','Private SkyCommand administrative web console and workflow automation control plane.',TRUE),
+  ('SKYSERVER_CORE','SkyCommand Core','2.0.0','Shared operational catalogue for SkyCommand Core CLI and API/Admin-Web tool execution.',TRUE),
+  ('SKYSERVER_WORKER','SkyCommand Worker','1.0.0','SkyCommand background automation worker for schedules, listeners, tools, and workflow operations.',TRUE),
   ('SKYWEB','SkyWeb','0.1.0','Future public-facing web application and macro/dashboard experience.',TRUE)
 ON CONFLICT (app_code) DO UPDATE
 SET title = EXCLUDED.title,
@@ -18,8 +18,8 @@ SET title = EXCLUDED.title,
 
 INSERT INTO core.visibility_channels (channel_code, channel_name, description, active)
 VALUES
-  ('cli','CLI','SkyServer Core command-line interface.',TRUE),
-  ('admin-web','Admin Web','Private SkyServer Admin-Web interface.',TRUE),
+  ('cli','CLI','SkyCommand Core command-line interface.',TRUE),
+  ('admin-web','Admin Web','Private SkyCommand Admin-Web interface.',TRUE),
   ('api','API','Server-side API execution and service channel.',TRUE),
   ('worker','Worker','Background worker/listener/scheduler channel.',TRUE)
 ON CONFLICT (channel_code) DO UPDATE
@@ -71,7 +71,7 @@ SET option_source_name = EXCLUDED.option_source_name,
     active = EXCLUDED.active;
 
 INSERT INTO core.config_profiles (profile_code, profile_name, description, active)
-VALUES ('DEV_LOCAL','Local Development','Local Windows development profile for Paul/SkyServer.',TRUE)
+VALUES ('DEV_LOCAL','Local Development','Local Windows development profile for Paul and SkyCommand.',TRUE)
 ON CONFLICT (profile_code) DO UPDATE
 SET profile_name = EXCLUDED.profile_name,
     description = EXCLUDED.description,
@@ -79,10 +79,9 @@ SET profile_name = EXCLUDED.profile_name,
 
 INSERT INTO core.repositories (repo_code, repo_name, description, remote_url, main_branch, dev_branch, display_order, active)
 VALUES
-  ('NeoFinTech','NeoFinTech','NeoFinTech application repository.',NULL,'main','dev',10,TRUE),
   ('SkyOne','SkyOne','SkyOne cognitive core repository.',NULL,'main','dev',20,TRUE),
   ('SkyProject','SkyProject','SkyProject metadata and orchestration repository.',NULL,'main','dev',30,TRUE),
-  ('SkyServer','SkyServer','SkyServer private admin, automation, PostgreSQL, and ingestion hub.',NULL,'main','dev',40,TRUE),
+  ('SkyCommand','SkyCommand','SkyCommand workflow automation control plane, administrative application, PostgreSQL platform, ingestion engine, and repository automation hub.','https://github.com/PStar1980/SkyCommand.git','main','dev',40,TRUE),
   ('SkyWeb','SkyWeb','SkyWeb public web/data visualization layer repository.',NULL,'main','dev',50,TRUE)
 ON CONFLICT (repo_code) DO UPDATE
 SET repo_name = EXCLUDED.repo_name,
@@ -100,9 +99,8 @@ FROM (
   VALUES
     ('SkyOne', $$C:\Users\pauls\Dropbox\Programming\SkyEco System\SkyOne System\SkyOne$$),
     ('SkyProject', $$C:\Users\pauls\Dropbox\Programming\SkyEco System\SkyProject System\SkyProject$$),
-    ('SkyServer', $$C:\Users\pauls\Dropbox\Programming\SkyEco System\SkyServer System\SkyServer$$),
-    ('SkyWeb', $$C:\Users\pauls\Dropbox\Programming\SkyEco System\SkyWeb System\SkyWeb$$),
-    ('NeoFinTech', $$C:\Users\pauls\Dropbox\Programming\NeoFinTech System\NeoFinTech$$)
+    ('SkyCommand', $$C:\Users\pauls\Dropbox\Programming\SkyEco System\SkyCommand System\SkyCommand$$),
+    ('SkyWeb', $$C:\Users\pauls\Dropbox\Programming\SkyEco System\SkyWeb System\SkyWeb$$)
 ) AS v(repo_code, root_path)
 JOIN core.repositories r ON r.repo_code = v.repo_code
 JOIN core.config_profiles cp ON cp.profile_code = 'DEV_LOCAL'
@@ -158,7 +156,7 @@ FROM (
   VALUES
     ('database_tools','db_health','db_health','Database Health Check','Tests PostgreSQL connectivity using the configured environment.','packages/db/src/db_health.js','node','DB_HEALTH_RUN','low',FALSE,NULL,TRUE,FALSE,10),
     ('database_tools','db_build','db_build','Database Build','Drops, recreates, and rebuilds the selected PostgreSQL database from ordered migrations and seed files.','packages/db_build/src/db_build.js','node','DB_BUILD_RUN','high',TRUE,'This will drop and recreate the selected database, then run all configured migrations and seeds. Confirm only when you intentionally want to rebuild that database.',TRUE,TRUE,20),
-    ('auth_tools','auth_create_admin_user','createAdminUser','Create Admin User','Creates an ACTIVE SkyServer user and assigns an RBAC role.','packages/auth/src/createAdminUser.js','node','ADMIN_USER_WRITE','high',TRUE,'This creates an active user account and assigns a role. Confirm only when intentionally provisioning an admin user.',TRUE,FALSE,10),
+    ('auth_tools','auth_create_admin_user','createAdminUser','Create Admin User','Creates an ACTIVE SkyCommand user and assigns an RBAC role.','packages/auth/src/createAdminUser.js','node','ADMIN_USER_WRITE','high',TRUE,'This creates an active user account and assigns a role. Confirm only when intentionally provisioning an admin user.',TRUE,FALSE,10),
     ('git_tools','git_repo_status','git_repo_status','Repository Intelligence','Performs a watcher-safe checkout-free repository readiness inspection across local and remote development/main branches.','packages/git/src/git_repo_status.js','node','GIT_STATUS_RUN','low',FALSE,NULL,TRUE,TRUE,10),
     ('git_tools','dev_commit','dev_commit','Dev Commit','Runs the configured dev branch commit workflow.','packages/git/src/dev_commit.js','node','GIT_COMMIT_RUN','medium',TRUE,'This will stage, commit, and push changes for the selected repository.',TRUE,TRUE,20),
     ('git_tools','main_merge','main_merge','Main Merge','Runs the configured main branch merge and synchronization workflow.','packages/git/src/main_merge.js','node','GIT_MAIN_MERGE_RUN','high',TRUE,'This will synchronize main/dev branches and may push branch updates and tags.',TRUE,TRUE,30),
@@ -171,7 +169,7 @@ FROM (
 ) AS v(category_code, tool_code, name, label, description, script_path, runtime_code, permission_code, risk_code, requires_confirmation, confirmation_text, captures_output, allow_params, display_order)
 JOIN core.applications a ON a.app_code = 'SKYSERVER_CORE'
 JOIN core.tool_categories c ON c.app_id = a.app_id AND c.category_code = v.category_code
-JOIN core.repositories r ON r.repo_code = 'SkyServer'
+JOIN core.repositories r ON r.repo_code = 'SkyCommand'
 ON CONFLICT (tool_code) DO UPDATE
 SET category_id = EXCLUDED.category_id,
     name = EXCLUDED.name,
@@ -227,12 +225,8 @@ JOIN (
     ('ingestion_boc','concurrency','Concurrency','number','Optional batch concurrency. Defaults to 3 and caps at 10.',FALSE,'3',NULL,20),
     ('ingestion_statcan','indicators','Indicators','string','Optional Statistics Canada indicator codes, comma/space/newline separated. Leave blank for every configured StatCan indicator.',FALSE,NULL,NULL,10),
     ('ingestion_statcan','concurrency','Concurrency','number','Optional batch concurrency. Defaults to 3 and caps at 10.',FALSE,'3',NULL,20),
-    ('repo_map_generate','location','Root Folder Location','string','Enter root folder location',TRUE,NULL,NULL,10),
-    ('repo_map_generate','fileName','Output File Name','string','Enter output file name',TRUE,NULL,NULL,20),
-    ('repo_map_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location)',FALSE,NULL,NULL,30),
-    ('repo_zip_generate','location','Root Folder Location','string','Enter root folder location',TRUE,NULL,NULL,10),
-    ('repo_zip_generate','fileName','Output Zip File Name','string','Enter output zip file name',TRUE,NULL,NULL,20),
-    ('repo_zip_generate','outputPath','Optional Output Path','string','Optional output path (leave blank to use same location)',FALSE,NULL,NULL,30)
+    ('repo_map_generate','repoName','Repository','repo','Select repository',TRUE,NULL,'repositories',10),
+    ('repo_zip_generate','repoName','Repository','repo','Select repository',TRUE,NULL,'repositories',10)
 ) AS v(tool_code, parameter_name, label, param_type_code, prompt, required, default_value, option_source_code, display_order)
 ON v.tool_code = t.tool_code
 ON CONFLICT (tool_id, parameter_name) DO UPDATE
