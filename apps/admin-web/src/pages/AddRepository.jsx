@@ -105,8 +105,9 @@ function AddRepository() {
           <div className="sky-page-kicker">Git Repositories · Create</div>
           <h1 className="sky-page-title">Add Repository</h1>
           <p className="sky-page-subtitle">
-            Register repository identity, Git branch conventions, optional remote metadata, and
-            profile-specific local paths in one dedicated creation workspace.
+            Register repository identity, Git branch conventions, generated-artifact settings,
+            optional remote metadata, and profile-specific local paths in one dedicated creation
+            workspace.
           </p>
         </div>
 
@@ -130,8 +131,8 @@ function AddRepository() {
             <div className="sky-page-kicker">Repository registration</div>
             <h2 className="h5 mb-0">New repository configuration</h2>
             <p className="sky-muted small mb-0">
-              Repository code and name are required. Remote URL is optional; local roots are stored
-              independently for each SkyCommand configuration profile.
+              Repository code and name are required. Map/zip artifact settings and Remote URL are
+              optional; local roots are stored independently for each SkyCommand configuration profile.
             </p>
           </div>
         </div>
