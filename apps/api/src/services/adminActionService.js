@@ -2533,6 +2533,15 @@ async function listRepositories(filters = {}) {
     clauses.push(`active = $${values.length}`);
   }
 
+  if (
+    filters.skycommand !== undefined &&
+    filters.skycommand !== null &&
+    filters.skycommand !== ''
+  ) {
+    values.push(normalizeBoolean(filters.skycommand, 'skycommand'));
+    clauses.push(`is_skycommand_repository = $${values.length}`);
+  }
+
   const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
 
   const countResult = await query(

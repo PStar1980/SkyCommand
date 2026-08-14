@@ -1,0 +1,835 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import RepositoryForm from '../components/RepositoryForm.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
+import adminService from '../services/adminService';
+import {
+  createRepositoryForm,
+  DEFAULT_REPOSITORY_FILTERS,
+  formatRepositoryDate,
+  populateRepositoryForm,
+  REPOSITORY_PAGE_SIZE,
+  repositoryReadinessClass,
+  repositoryReadinessLabel,
+  repositoryStatusClass,
+  repositoryStatusLabel,
+  sanitizeRepositoryPayload,
+} from './repositoryAdminUtils.js';
+
+function ManageRepositories() {
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('ADMIN_REPOSITORY_WRITE');
+
+  const [repositories, setRepositories] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [selectedRepoId, setSelectedRepoId] = useState('');
+  const [selectedRepository, setSelectedRepository] = useState(null);
+  const [selectedPaths, setSelectedPaths] = useState([]);
+  const [form, setForm] = useState(createRepositoryForm());
+  const [filters, setFilters] = useState(DEFAULT_REPOSITORY_FILTERS);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [readiness, setReadiness] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
+  const filterAutoApplyReadyRef = useRef(false);
+
+  const pageCount = Math.max(1, Math.ceil(total / REPOSITORY_PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * REPOSITORY_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * REPOSITORY_PAGE_SIZE, total);
+
+  const selectedPathCount = useMemo(
+    () => selectedPaths.filter((path) => path.rootPath && path.active !== false).length,
+    [selectedPaths],
+  );
+
+  async function loadReadiness() {
+    setReadinessLoading(true);
+
+    try {
+      const result = await adminService.getSkycommandRepositoryReadiness();
+      setReadiness(result.readiness || null);
+      return result.readiness || null;
+    } catch (loadError) {
+      setReadiness({
+        ready: false,
+        status: 'BLOCKED',
+        errorCode: loadError.details?.code || 'SKYCOMMAND_REPOSITORY_READINESS_FAILED',
+        message: loadError.message || 'Failed to inspect SkyCommand repository readiness.',
+      });
+      return null;
+    } finally {
+      setReadinessLoading(false);
+    }
+  }
+
+  async function loadRepositories(
+    nextFilters = filters,
+    preferredRepoId = selectedRepoId,
+    nextPage = currentPage,
+  ) {
+    const safePage = Math.max(1, Number(nextPage) || 1);
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await adminService.listRepositories({
+        ...nextFilters,
+        limit: REPOSITORY_PAGE_SIZE,
+        offset: (safePage - 1) * REPOSITORY_PAGE_SIZE,
+      });
+      const nextRepositories = result.items || [];
+      const nextTotal = result.total || 0;
+      const nextPageCount = Math.max(1, Math.ceil(nextTotal / REPOSITORY_PAGE_SIZE));
+
+      if (nextTotal > 0 && safePage > nextPageCount) {
+        await loadRepositories(nextFilters, preferredRepoId, nextPageCount);
+        return;
+      }
+
+      setRepositories(nextRepositories);
+      setTotal(nextTotal);
+      setCurrentPage(safePage);
+
+      if (nextRepositories.length === 0) {
+        setSelectedRepoId('');
+        setSelectedRepository(null);
+        setSelectedPaths([]);
+        setForm(createRepositoryForm(profiles));
+        return;
+      }
+
+      const preferredRepositoryExists = nextRepositories.some(
+        (repository) => repository.repoId === preferredRepoId,
+      );
+      setSelectedRepoId(
+        preferredRepositoryExists ? preferredRepoId : nextRepositories[0]?.repoId || '',
+      );
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load repositories.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadSelectedRepository(repoId) {
+    if (!repoId) {
+      setSelectedRepository(null);
+      setSelectedPaths([]);
+      setForm(createRepositoryForm(profiles));
+      return;
+    }
+
+    setDetailLoading(true);
+    setError('');
+
+    try {
+      const result = await adminService.getRepository(repoId);
+      const repository = result.repository || null;
+      const paths = result.paths || [];
+
+      setSelectedRepository(repository);
+      setSelectedPaths(paths);
+      setForm(populateRepositoryForm(repository, paths, profiles));
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load repository detail.');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadInitialData() {
+      setLoading(true);
+      setReadinessLoading(true);
+      setError('');
+
+      try {
+        const [profilesResult, repositoriesResult, readinessResult] = await Promise.all([
+          adminService.listConfigProfiles(),
+          adminService.listRepositories({
+            ...DEFAULT_REPOSITORY_FILTERS,
+            limit: REPOSITORY_PAGE_SIZE,
+            offset: 0,
+          }),
+          adminService.getSkycommandRepositoryReadiness(),
+        ]);
+
+        if (!active) {
+          return;
+        }
+
+        const nextProfiles = profilesResult.items || [];
+        const nextRepositories = repositoriesResult.items || [];
+
+        setProfiles(nextProfiles);
+        setRepositories(nextRepositories);
+        setTotal(repositoriesResult.total || 0);
+        setCurrentPage(1);
+        setReadiness(readinessResult.readiness || null);
+        setSelectedRepoId(nextRepositories[0]?.repoId || '');
+        setForm(createRepositoryForm(nextProfiles));
+      } catch (loadError) {
+        if (active) {
+          setError(loadError.message || 'Failed to load repository configuration.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+          setReadinessLoading(false);
+        }
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    loadSelectedRepository(selectedRepoId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRepoId, profiles]);
+
+  useEffect(() => {
+    if (!filterAutoApplyReadyRef.current) {
+      filterAutoApplyReadyRef.current = true;
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadRepositories(filters, '', 1);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+    // loadRepositories intentionally uses the filter snapshot from this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  function updateForm(key, value) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updatePathForm(profileId, key, value) {
+    setForm((current) => ({
+      ...current,
+      paths: current.paths.map((path) =>
+        path.profileId === profileId ? { ...path, [key]: value } : path,
+      ),
+    }));
+  }
+
+  function resetSelectedForm() {
+    setForm(populateRepositoryForm(selectedRepository, selectedPaths, profiles));
+    setError('');
+    setSuccess('');
+  }
+
+  async function handleSave(event) {
+    event.preventDefault();
+
+    if (!selectedRepository || !canWrite) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const payload = sanitizeRepositoryPayload(form);
+      const result = await adminService.updateRepository(selectedRepository.repoId, payload);
+      const savedRepository = result.repository || selectedRepository;
+
+      setSuccess(`Updated repository ${savedRepository.repoCode || payload.repoCode}.`);
+      await loadSelectedRepository(selectedRepository.repoId);
+      await Promise.all([
+        loadRepositories(filters, selectedRepository.repoId, currentPage),
+        loadReadiness(),
+      ]);
+    } catch (saveError) {
+      setError(saveError.message || 'Failed to save repository.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSkycommandDesignation(repository, designated) {
+    if (!repository || !canWrite) {
+      return;
+    }
+
+    const currentRepository = readiness?.repository;
+    const prompt = designated
+      ? currentRepository && currentRepository.repoId !== repository.repoId
+        ? `Replace ${currentRepository.repoCode} with ${repository.repoCode} as the SkyCommand repository?`
+        : `Designate ${repository.repoCode} as the SkyCommand repository?`
+      : `Clear ${repository.repoCode} as the SkyCommand repository? Managed tool onboarding will remain blocked until another repository is designated.`;
+
+    if (!window.confirm(prompt)) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await adminService.updateSkycommandRepositoryDesignation(repository.repoId, {
+        designated,
+      });
+
+      setReadiness(result.readiness || null);
+      setSuccess(
+        designated
+          ? `${repository.repoCode} is now the SkyCommand repository.`
+          : `Cleared the SkyCommand repository designation from ${repository.repoCode}.`,
+      );
+
+      await loadSelectedRepository(repository.repoId);
+      await loadRepositories(filters, repository.repoId, currentPage);
+    } catch (saveError) {
+      setError(saveError.message || 'Failed to update SkyCommand repository designation.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleStatus(repository) {
+    if (!repository || !canWrite) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await adminService.updateRepositoryStatus(repository.repoId, {
+        active: !repository.active,
+      });
+
+      setSuccess(
+        `${result.repository?.repoCode || repository.repoCode} ${result.repository?.active ? 'enabled' : 'disabled'}.`,
+      );
+      await loadSelectedRepository(repository.repoId);
+      await Promise.all([
+        loadRepositories(filters, repository.repoId, currentPage),
+        loadReadiness(),
+      ]);
+    } catch (saveError) {
+      setError(saveError.message || 'Failed to update repository status.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(repository) {
+    if (!repository || !canWrite) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Disable repository ${repository.repoCode}? This preserves configuration history but removes it from active option lists.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await adminService.deleteRepository(repository.repoId, {
+        reason: 'Deleted from SkyCommand Manage Repositories page.',
+      });
+      setSuccess(`Disabled repository ${repository.repoCode}.`);
+      await Promise.all([loadRepositories(filters, '', currentPage), loadReadiness()]);
+    } catch (saveError) {
+      setError(saveError.message || 'Failed to delete repository.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function clearFilters() {
+    setFilters(DEFAULT_REPOSITORY_FILTERS);
+  }
+
+  function goToPage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
+    loadRepositories(filters, '', nextPage);
+  }
+
+  function renderPagination() {
+    return (
+      <div className="sky-pagination-row">
+        <div className="small sky-muted">
+          Showing {rangeStart}-{rangeEnd} of {total} repository configuration record(s)
+        </div>
+        <div className="sky-pagination-controls" aria-label="Manage repositories pagination">
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage <= 1 || loading}
+            onClick={() => goToPage(1)}
+            type="button"
+          >
+            First
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage <= 1 || loading}
+            onClick={() => goToPage(safeCurrentPage - 1)}
+            type="button"
+          >
+            Back
+          </button>
+          <label className="sky-pagination-select-label" htmlFor="manageRepositoriesPageSelect">
+            Page
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select"
+            disabled={loading}
+            id="manageRepositoriesPageSelect"
+            onChange={(event) => goToPage(event.target.value)}
+            value={safeCurrentPage}
+          >
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
+              <option key={page} value={page}>
+                {page}
+              </option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {pageCount}</span>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage >= pageCount || loading}
+            onClick={() => goToPage(safeCurrentPage + 1)}
+            type="button"
+          >
+            Next
+          </button>
+          <button
+            className="btn btn-sm sky-btn-ghost"
+            disabled={safeCurrentPage >= pageCount || loading}
+            onClick={() => goToPage(pageCount)}
+            type="button"
+          >
+            Last
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <header className="sky-page-header">
+        <div>
+          <div className="sky-page-kicker">Git Repositories · Manage</div>
+          <h1 className="sky-page-title">Manage Repositories</h1>
+          <p className="sky-page-subtitle">
+            Search and maintain repository identity, branch conventions, profile-specific local
+            paths, lifecycle state, and the trusted SkyCommand repository designation.
+          </p>
+        </div>
+
+        <button
+          className="btn sky-btn-ghost"
+          disabled={loading || readinessLoading}
+          onClick={() =>
+            Promise.all([
+              loadRepositories(filters, selectedRepoId, currentPage),
+              loadReadiness(),
+            ])
+          }
+          type="button"
+        >
+          {loading || readinessLoading ? 'Refreshing...' : 'Refresh repositories'}
+        </button>
+      </header>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+
+      <section className="sky-card mb-3">
+        <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <h2 className="h5 mb-0">SkyCommand repository readiness</h2>
+            <div className="small sky-muted">
+              The designated repository and active profile path become the trusted root for managed
+              tool onboarding.
+            </div>
+          </div>
+          <span className={`sky-pill ${repositoryReadinessClass(readiness)}`}>
+            {readinessLoading ? 'CHECKING' : repositoryReadinessLabel(readiness)}
+          </span>
+        </div>
+        <div className="sky-card-body">
+          <div className="row g-3">
+            <div className="col-md-3">
+              <div className="sky-detail-label">Active profile</div>
+              <div className="sky-detail-value sky-mono">{readiness?.profileCode || '—'}</div>
+            </div>
+            <div className="col-md-3">
+              <div className="sky-detail-label">SkyCommand repository</div>
+              <div className="sky-detail-value">
+                {readiness?.repository?.repoName || 'Not designated'}
+              </div>
+              <div className="small sky-muted sky-mono">
+                {readiness?.repository?.repoCode || '—'}
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="sky-detail-label">Repository root</div>
+              <div className="sky-detail-value sky-mono sky-truncate">
+                {readiness?.path?.rootPath || '—'}
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="sky-detail-label">Packages root</div>
+              <div className="sky-detail-value sky-mono sky-truncate">
+                {readiness?.path?.packagesRoot || readiness?.packagesRelativePath || '—'}
+              </div>
+            </div>
+          </div>
+          <div className={`mt-3 ${readiness?.ready ? 'text-success' : 'text-warning'}`}>
+            {readinessLoading
+              ? 'Inspecting repository designation and active-profile filesystem readiness...'
+              : readiness?.message || 'Repository readiness is unavailable.'}
+          </div>
+          {!readiness?.ready && readiness?.errorCode && (
+            <div className="small sky-muted sky-mono mt-1">{readiness.errorCode}</div>
+          )}
+        </div>
+      </section>
+
+      <section className="sky-card mb-3 sky-functional-history-browser sky-manage-repositories-browser">
+        <div className="sky-card-header">
+          <div>
+            <div className="sky-page-kicker">Repository browser</div>
+            <h2 className="h5 mb-0">Configured repositories</h2>
+            <p className="sky-muted small mb-0">
+              Filter the catalogue, then select a row to inspect or edit its configuration below.
+            </p>
+          </div>
+
+          <div className="sky-manage-repositories-filter-grid">
+            <div className="sky-manage-repositories-search-filter">
+              <label className="form-label sky-form-label" htmlFor="repositorySearch">
+                Search
+              </label>
+              <input
+                className="form-control sky-form-control"
+                id="repositorySearch"
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, q: event.target.value }))
+                }
+                placeholder="Code, name, description, remote URL..."
+                value={filters.q}
+              />
+            </div>
+            <div>
+              <label className="form-label sky-form-label" htmlFor="repositoryStatusFilter">
+                Status
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="repositoryStatusFilter"
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, active: event.target.value }))
+                }
+                value={filters.active}
+              >
+                <option value="">All</option>
+                <option value="true">Active</option>
+                <option value="false">Disabled</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label sky-form-label" htmlFor="repositoryRoleFilter">
+                Role
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="repositoryRoleFilter"
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, skycommand: event.target.value }))
+                }
+                value={filters.skycommand}
+              >
+                <option value="">All</option>
+                <option value="true">SkyCommand</option>
+                <option value="false">Standard</option>
+              </select>
+            </div>
+            <div className="sky-manage-repositories-filter-actions">
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
+                Clear filters
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="table-responsive sky-table-card sky-functional-history-table-card">
+          <table className="table table-sm table-hover sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Repository</th>
+                <th>Branches</th>
+                <th>Remote</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="6">
+                    <div className="sky-empty-state py-4">
+                      <div className="spinner-border text-info" role="status" aria-label="Loading" />
+                    </div>
+                  </td>
+                </tr>
+              ) : repositories.length === 0 ? (
+                <tr>
+                  <td colSpan="6">
+                    <div className="sky-empty-state py-4">
+                      No repositories match the current filters.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                repositories.map((repository) => (
+                  <tr
+                    className={`sky-clickable-row ${
+                      repository.repoId === selectedRepoId ? 'sky-selected-row' : ''
+                    }`}
+                    key={repository.repoId}
+                    onClick={() => {
+                      setSelectedRepoId(repository.repoId);
+                      setSuccess('');
+                      setError('');
+                    }}
+                  >
+                    <td>
+                      <div className="fw-semibold sky-detail-value">{repository.repoName}</div>
+                      <div className="small sky-muted sky-mono">{repository.repoCode}</div>
+                    </td>
+                    <td>
+                      <div className="small sky-muted">main: {repository.mainBranch}</div>
+                      <div className="small sky-muted">dev: {repository.devBranch}</div>
+                    </td>
+                    <td>
+                      <div className="sky-truncate">{repository.remoteUrl || '—'}</div>
+                    </td>
+                    <td>
+                      {repository.isSkycommandRepository ? (
+                        <span className="sky-pill sky-pill-info">SKYCOMMAND</span>
+                      ) : (
+                        <span className="sky-muted">Standard</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`sky-pill ${repositoryStatusClass(repository.active)}`}>
+                        {repositoryStatusLabel(repository.active)}
+                      </span>
+                    </td>
+                    <td>{formatRepositoryDate(repository.updatedAt)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {renderPagination()}
+      </section>
+
+      <div className="row g-3">
+        <div className="col-xl-4">
+          <section className="sky-card sky-sticky-detail-card">
+            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
+              <div>
+                <h2 className="h5 mb-0">Repository detail</h2>
+                <div className="small sky-muted">Selected repository and profile path metadata.</div>
+              </div>
+              {selectedRepository && (
+                <div className="d-flex flex-wrap gap-2">
+                  {selectedRepository.isSkycommandRepository && (
+                    <span className="sky-pill sky-pill-info">SKYCOMMAND</span>
+                  )}
+                  <span className={`sky-pill ${repositoryStatusClass(selectedRepository.active)}`}>
+                    {repositoryStatusLabel(selectedRepository.active)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {detailLoading ? (
+              <div className="sky-empty-state py-5">
+                <div className="spinner-border text-info" role="status" aria-label="Loading" />
+              </div>
+            ) : selectedRepository ? (
+              <div className="sky-card-body">
+                <dl className="row g-2 mb-0">
+                  <dt className="col-5 sky-detail-label">Repository</dt>
+                  <dd className="col-7 sky-detail-value">{selectedRepository.repoName}</dd>
+                  <dt className="col-5 sky-detail-label">Code</dt>
+                  <dd className="col-7 sky-detail-value sky-mono">{selectedRepository.repoCode}</dd>
+                  <dt className="col-5 sky-detail-label">Role</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {selectedRepository.isSkycommandRepository ? 'Designated' : 'Standard repository'}
+                  </dd>
+                  <dt className="col-5 sky-detail-label">Paths</dt>
+                  <dd className="col-7 sky-detail-value">{selectedPathCount}</dd>
+                  <dt className="col-5 sky-detail-label">Display order</dt>
+                  <dd className="col-7 sky-detail-value">{selectedRepository.displayOrder}</dd>
+                  <dt className="col-5 sky-detail-label">Updated</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {formatRepositoryDate(selectedRepository.updatedAt)}
+                  </dd>
+                  <dt className="col-5 sky-detail-label">Created</dt>
+                  <dd className="col-7 sky-detail-value">
+                    {formatRepositoryDate(selectedRepository.createdAt)}
+                  </dd>
+                </dl>
+
+                <hr />
+
+                <div className="sky-page-kicker mb-2">Configured paths</div>
+                <div className="table-responsive">
+                  <table className="table table-sm sky-table mb-0">
+                    <thead>
+                      <tr>
+                        <th>Profile</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPaths.map((path) => (
+                        <tr key={path.profileId}>
+                          <td>
+                            <div className="fw-semibold sky-detail-value">{path.profileCode}</div>
+                            <div className="small sky-muted sky-mono text-break">
+                              {path.rootPath || 'Not configured'}
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              className={`sky-pill ${repositoryStatusClass(
+                                path.active && path.rootPath,
+                              )}`}
+                            >
+                              {path.active && path.rootPath ? 'ACTIVE' : 'NOT SET'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="sky-empty-state py-5">Select a repository to inspect.</div>
+            )}
+          </section>
+        </div>
+
+        <div className="col-xl-8">
+          <section className="sky-card">
+            <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div>
+                <h2 className="h5 mb-0">Repository configuration</h2>
+                <div className="small sky-muted">
+                  Edit metadata and profile-specific local paths for the selected repository.
+                </div>
+              </div>
+              {selectedRepository && canWrite && (
+                <div className="d-flex flex-wrap gap-2">
+                  <button
+                    className={
+                      selectedRepository.isSkycommandRepository
+                        ? 'btn btn-sm btn-outline-warning'
+                        : 'btn btn-sm sky-btn-ghost'
+                    }
+                    disabled={
+                      saving ||
+                      (!selectedRepository.active && !selectedRepository.isSkycommandRepository)
+                    }
+                    onClick={() =>
+                      handleSkycommandDesignation(
+                        selectedRepository,
+                        !selectedRepository.isSkycommandRepository,
+                      )
+                    }
+                    type="button"
+                  >
+                    {selectedRepository.isSkycommandRepository
+                      ? 'Clear SkyCommand'
+                      : 'Set SkyCommand'}
+                  </button>
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    disabled={saving || selectedRepository.isSkycommandRepository}
+                    onClick={() => handleToggleStatus(selectedRepository)}
+                    type="button"
+                  >
+                    {selectedRepository.active ? 'Disable repository' : 'Enable repository'}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline-danger"
+                    disabled={
+                      saving ||
+                      !selectedRepository.active ||
+                      selectedRepository.isSkycommandRepository
+                    }
+                    onClick={() => handleDelete(selectedRepository)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {detailLoading ? (
+              <div className="sky-empty-state py-5">
+                <div className="spinner-border text-info" role="status" aria-label="Loading" />
+              </div>
+            ) : selectedRepository ? (
+              <RepositoryForm
+                canWrite={canWrite}
+                form={form}
+                idPrefix="manage-repository"
+                onFormChange={updateForm}
+                onPathChange={updatePathForm}
+                onReset={resetSelectedForm}
+                onSubmit={handleSave}
+                saving={saving}
+                selectedRepository={selectedRepository}
+                submitLabel="Save repository"
+              />
+            ) : (
+              <div className="sky-empty-state py-5">
+                Select a repository to inspect or edit its configuration.
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default ManageRepositories;

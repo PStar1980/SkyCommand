@@ -44,6 +44,7 @@ const routineSelfTests = [
   'chart-typography:self-test',
   'dashboard-ui-consistency:self-test',
   'sidebar-accordion:self-test',
+  'repository-page-split:self-test',
   'brand-theme:self-test',
   'skycommand-identity:self-test',
   'api-telemetry:self-test',

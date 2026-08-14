@@ -62,6 +62,7 @@
     "chart-typography:self-test": "node apps/admin-web/src/components/charts/chartTypographySelfTest.js",
     "dashboard-ui-consistency:self-test": "node apps/admin-web/src/components/ui/dashboardUiConsistencySelfTest.js",
     "sidebar-accordion:self-test": "node apps/admin-web/src/components/ui/sidebarAccordionSelfTest.js",
+    "repository-page-split:self-test": "node apps/admin-web/src/pages/repositoryPageSplitSelfTest.js",
     "api-telemetry:self-test": "node apps/api/src/services/apiTelemetryPolicySelfTest.js",
     "api-dashboard:self-test": "node apps/admin-web/src/pages/apiDashboardSelfTest.js",
     "tool-execution-output-workspace:self-test": "node apps/api/src/services/toolExecutionOutputWorkspaceSelfTest.js",
