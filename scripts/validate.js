@@ -30,6 +30,7 @@ const routineSelfTests = [
   'workflow-result-context:self-test',
   'repository-package:self-test',
   'repository-map:self-test',
+  'repository-artifact-config:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',
   'git-branch-sync:self-test',

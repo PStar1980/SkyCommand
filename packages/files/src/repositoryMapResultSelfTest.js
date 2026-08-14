@@ -8,7 +8,7 @@ const {
   createRepositoryMapToolResult,
 } = require('./repositoryMapResult');
 
-function run() {
+async function run() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skycommand-repo-map-'));
   const sourceRoot = path.join(tempRoot, 'sample-repo');
   const outputRoot = path.join(tempRoot, 'docs');
@@ -23,11 +23,31 @@ function run() {
   fs.writeFileSync(path.join(sourceRoot, '.venv', 'Lib', 'site-packages', 'heavy.py'), 'ignored\n');
   fs.writeFileSync(path.join(sourceRoot, '.mypy_cache', '3.12', 'cache.db'), 'ignored\n');
   fs.writeFileSync(path.join(sourceRoot, '__pycache__', 'module.pyc'), Buffer.from([0x00]));
+
+  const loadRepositoryArtifactConfiguration = async (repositorySelection) => {
+    assert.equal(repositorySelection, 'SampleRepo');
+    return {
+      repoCode: 'SampleRepo',
+      repoName: 'Sample Repository',
+      rootPath: sourceRoot,
+      repoMapFileName: 'Sample_RepoMap.md',
+      repoMapOutputPath: outputRoot,
+    };
+  };
+
   try {
-    const parsed = parseRepositoryMapArgs([sourceRoot, 'Sample_RepoMap.md', outputRoot]);
+    const parsed = await parseRepositoryMapArgs(['SampleRepo'], {
+      loadRepositoryArtifactConfiguration,
+    });
     assert.equal(parsed.fileName, 'Sample_RepoMap.md');
-    const result = executeRepositoryMap([sourceRoot, 'Sample_RepoMap.md', outputRoot]);
+    assert.equal(parsed.location, path.resolve(sourceRoot));
+    assert.equal(parsed.outputPath, path.resolve(outputRoot));
+
+    const result = await executeRepositoryMap(['SampleRepo'], {
+      loadRepositoryArtifactConfiguration,
+    });
     assert.equal(result.ok, true);
+    assert.equal(result.repositoryName, 'Sample Repository');
     assert.equal(result.filesDocumented, 2);
     assert.ok(result.directoriesDocumented >= 2);
     assert.ok(result.outputBytes > 0);
@@ -49,5 +69,12 @@ function run() {
   }
   console.log('[SkyCommand] Repository map result self-test passed.');
 }
-if (require.main === module) run();
+
+if (require.main === module) {
+  run().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+
 module.exports = { run };

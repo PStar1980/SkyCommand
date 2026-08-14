@@ -6,7 +6,10 @@
  *
  * Human-readable console output remains unchanged for direct CLI and Run Tools.
  * Workflow consumers receive only the structured result through the shared
- * ToolResult transport.
+ * ToolResult transport. Repository root, archive file name, and output path
+ * are resolved from the selected SkyCommand repository record/profile path.
+ *
+ * Usage: node generateRepoZip.js <repository> [options]
  */
 
 const fs = require('fs');
@@ -14,6 +17,9 @@ const path = require('path');
 const zlib = require('zlib');
 
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
+const {
+  loadRepositoryArtifactConfiguration,
+} = require('./repositoryArtifactConfiguration');
 const {
   createRepositoryPackageFailureToolResult,
   createRepositoryPackageToolResult,
@@ -114,7 +120,7 @@ function normalizeOutputFileName(value) {
   return path.extname(normalized).toLowerCase() === '.zip' ? normalized : `${normalized}.zip`;
 }
 
-function parseRepositoryZipArgs(args = []) {
+async function parseRepositoryZipArgs(args = [], dependencies = {}) {
   const rawArgs = Array.isArray(args) ? args.map(String) : [];
   const optionArgs = rawArgs.filter((arg) => arg.startsWith('--'));
   const positionalArgs = rawArgs.filter((arg) => !arg.startsWith('--'));
@@ -128,28 +134,39 @@ function parseRepositoryZipArgs(args = []) {
     );
   }
 
-  if (positionalArgs.length < 2) {
+  if (positionalArgs.length !== 1) {
+    throw new Error('❌ Error: You must provide exactly one repository.');
+  }
+
+  const loadRepository =
+    dependencies.loadRepositoryArtifactConfiguration || loadRepositoryArtifactConfiguration;
+  const repository = await loadRepository(positionalArgs[0]);
+  const configuredRootPath = String(repository.rootPath || '').trim();
+  const configuredOutputPath = String(repository.repoZipOutputPath || '').trim();
+
+  if (!String(repository.repoZipFileName || '').trim()) {
     throw new Error(
-      '❌ Error: You must provide location and fileName. outputPath is optional.',
+      `❌ Error: Repository '${repository.repoCode || positionalArgs[0]}' does not have a Repository Zip File Name configured.`,
     );
   }
 
-  const [rawLocation, rawFileName, rawOutputPath] = positionalArgs;
-  const location = path.resolve(rawLocation);
-  const fileName = normalizeOutputFileName(rawFileName);
-  const outputPath = rawOutputPath ? path.resolve(rawOutputPath) : location;
+  const location = path.resolve(configuredRootPath);
+  const fileName = normalizeOutputFileName(repository.repoZipFileName);
+  const outputPath = configuredOutputPath ? path.resolve(configuredOutputPath) : location;
 
-  if (!fs.existsSync(location)) {
-    throw new Error(`❌ Error: The location path does not exist:\n   ${location}`);
+  if (!configuredRootPath || !fs.existsSync(location)) {
+    throw new Error(`❌ Error: The configured repository path does not exist:\n   ${location}`);
   }
 
   const locationStats = fs.statSync(location);
 
   if (!locationStats.isDirectory()) {
-    throw new Error(`❌ Error: The location must be a directory:\n   ${location}`);
+    throw new Error(`❌ Error: The configured repository path must be a directory:\n   ${location}`);
   }
 
   return {
+    repositoryCode: repository.repoCode,
+    repositoryName: repository.repoName,
     location,
     fileName,
     outputPath,
@@ -503,9 +520,9 @@ function writeZipArchive(files, rootName, targetFilePath) {
   }
 }
 
-function executeRepositoryZip(args = []) {
+async function executeRepositoryZip(args = [], dependencies = {}) {
   const startedAt = new Date().toISOString();
-  const options = parseRepositoryZipArgs(args);
+  const options = await parseRepositoryZipArgs(args, dependencies);
   const rootName = path.basename(options.location);
   const structure = scanDirectory(options.location, options.location, options);
   const files = flattenFiles(structure);
@@ -532,7 +549,7 @@ function executeRepositoryZip(args = []) {
 
   return {
     ok: true,
-    repositoryName: rootName,
+    repositoryName: options.repositoryName || rootName,
     repositoryRoot: options.location,
     fileName: options.fileName,
     artifactPath: options.outputFilePath,

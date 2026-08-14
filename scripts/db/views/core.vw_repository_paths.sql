@@ -1,5 +1,5 @@
 -- View: core.vw_repository_paths
--- Purpose: Display active repository paths by configuration profile.
+-- Purpose: Display active repository paths and artifact configuration by profile.
 
 CREATE OR REPLACE VIEW core.vw_repository_paths AS
 SELECT
@@ -14,7 +14,12 @@ SELECT
   r.display_order,
   rp.root_path,
   r.active AS repo_active,
-  rp.active AS path_active
+  rp.active AS path_active,
+  r.is_skycommand_repository,
+  r.repo_map_file_name,
+  r.repo_map_output_path,
+  r.repo_zip_file_name,
+  r.repo_zip_output_path
 FROM core.repositories r
 JOIN core.repository_paths rp
   ON rp.repo_id = r.repo_id

@@ -8,13 +8,19 @@
  * repository_map_summary.v1 ToolResult through the shared result transport.
  *
  * Usage:
- *   node generateRepoMap.js <location> <fileName> [outputPath]
+ *   node generateRepoMap.js <repository>
+ *
+ * Repository root, output file name, and output path are resolved from the
+ * active SkyCommand repository record/profile path.
  */
 
 const fs = require('fs');
 const path = require('path');
 
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
+const {
+  loadRepositoryArtifactConfiguration,
+} = require('./repositoryArtifactConfiguration');
 const {
   createRepositoryMapFailureToolResult,
   createRepositoryMapToolResult,
@@ -79,28 +85,41 @@ function normalizeOutputFileName(value) {
   return normalized;
 }
 
-function parseRepositoryMapArgs(args = []) {
+async function parseRepositoryMapArgs(args = [], dependencies = {}) {
   const positionalArgs = (Array.isArray(args) ? args : [])
     .map(String)
     .filter((arg) => !arg.startsWith('--'));
 
-  if (positionalArgs.length < 2) {
-    throw new Error('❌ Error: You must provide location and fileName. outputPath is optional.');
+  if (positionalArgs.length !== 1) {
+    throw new Error('❌ Error: You must provide exactly one repository.');
   }
 
-  const [rawLocation, rawFileName, rawOutputPath] = positionalArgs;
-  const location = path.resolve(rawLocation);
-  const fileName = normalizeOutputFileName(rawFileName);
-  const outputPath = rawOutputPath ? path.resolve(rawOutputPath) : location;
+  const loadRepository =
+    dependencies.loadRepositoryArtifactConfiguration || loadRepositoryArtifactConfiguration;
+  const repository = await loadRepository(positionalArgs[0]);
+  const configuredRootPath = String(repository.rootPath || '').trim();
+  const configuredOutputPath = String(repository.repoMapOutputPath || '').trim();
 
-  if (!fs.existsSync(location)) {
-    throw new Error(`❌ Error: The location path does not exist:\n   ${location}`);
+  if (!String(repository.repoMapFileName || '').trim()) {
+    throw new Error(
+      `❌ Error: Repository '${repository.repoCode || positionalArgs[0]}' does not have a Repository Map File Name configured.`,
+    );
+  }
+
+  const location = path.resolve(configuredRootPath);
+  const fileName = normalizeOutputFileName(repository.repoMapFileName);
+  const outputPath = configuredOutputPath ? path.resolve(configuredOutputPath) : location;
+
+  if (!configuredRootPath || !fs.existsSync(location)) {
+    throw new Error(`❌ Error: The configured repository path does not exist:\n   ${location}`);
   }
   if (!fs.statSync(location).isDirectory()) {
-    throw new Error(`❌ Error: The location must be a directory:\n   ${location}`);
+    throw new Error(`❌ Error: The configured repository path must be a directory:\n   ${location}`);
   }
 
   return {
+    repositoryCode: repository.repoCode,
+    repositoryName: repository.repoName,
     location,
     fileName,
     outputPath,
@@ -203,10 +222,10 @@ function renderTree(nodeName, children, prefix = '') {
   return output;
 }
 
-function executeRepositoryMap(args = []) {
+async function executeRepositoryMap(args = [], dependencies = {}) {
   const startedAt = new Date().toISOString();
-  const options = parseRepositoryMapArgs(args);
-  const repositoryName = path.basename(options.location);
+  const options = await parseRepositoryMapArgs(args, dependencies);
+  const repositoryName = options.repositoryName || path.basename(options.location);
   const statistics = createScanStatistics();
   const structure = scanDirectory(options.location, '', statistics);
   const asciiTree = renderTree(repositoryName, structure);

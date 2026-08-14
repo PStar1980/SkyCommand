@@ -340,7 +340,9 @@ SkyCommand/
 │   │       │   ├── 00088__portable_quality_policies.sql
 │   │       │   ├── 00090__ingestion_recovery_foundation.sql
 │   │       │   ├── 00094__skycommand_repository_identity_changeover.sql
-│   │       │   └── 00095__repository_artifact_configuration.sql
+│   │       │   ├── 00095__repository_artifact_configuration.sql
+│   │       │   ├── 00096__repository_artifact_tool_parameters.sql
+│   │       │   └── 00097__repository_registry_legacy_cleanup.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -393,6 +395,8 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
 │   │       ├── generateRepoZip.js
+│   │       ├── repositoryArtifactConfiguration.js
+│   │       ├── repositoryArtifactConfigurationSelfTest.js
 │   │       ├── repositoryMapResult.js
 │   │       ├── repositoryMapResultSelfTest.js
 │   │       ├── repositoryPackageResult.js
