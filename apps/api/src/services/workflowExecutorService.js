@@ -522,6 +522,9 @@ function normalizeHumanApprovalParameters(parameters = {}, node = {}) {
       input.onReject || input.rejectAction || 'STOP_SUCCESS',
       'onReject action',
     ),
+    rejectTargetNodeKey: normalizeConditionBranchTargetNodeKey(
+      input.rejectTargetNodeKey || input.rejectionTargetNodeKey,
+    ),
     onTimeout: normalizeHumanApprovalAction(
       input.onTimeout || input.timeoutAction || 'FAIL_WORKFLOW',
       'onTimeout action',
@@ -604,6 +607,7 @@ function normalizeApprovalRow(row) {
     status: item.status,
     requiredRoleCode: item.requiredRoleCode,
     onReject: item.onReject,
+    rejectTargetNodeKey: item.metadata?.rejectTargetNodeKey || null,
     onTimeout: item.onTimeout,
     timeoutMs: item.timeoutMs,
     temporalWorkflowId: item.temporalWorkflowId,
@@ -700,11 +704,18 @@ function buildHumanApprovalOutput({
     approval?.decidedByEmail ||
     null;
   const title = approval?.approvalTitle || approval?.title || 'Approval required';
+  const rejectTargetNodeKey = normalizedDecision === 'REJECTED'
+    ? normalizeConditionBranchTargetNodeKey(
+        approval?.rejectTargetNodeKey || approval?.metadata?.rejectTargetNodeKey,
+      )
+    : '';
   const summary =
     normalizedDecision === 'APPROVED'
       ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
       : normalizedDecision === 'REJECTED'
-        ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
+        ? rejectTargetNodeKey
+          ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; routing to ${rejectTargetNodeKey}.`
+          : `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
         : `Approval timed out for ${title}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
 
   return {
@@ -715,6 +726,9 @@ function buildHumanApprovalOutput({
     timedOut: timedOut || normalizedDecision === 'TIMED_OUT',
     decision: normalizedDecision,
     action,
+    branchTaken: Boolean(rejectTargetNodeKey),
+    branchLabel: rejectTargetNodeKey ? 'REJECTED' : null,
+    branchTargetNodeKey: rejectTargetNodeKey || null,
     approvalRequestId: approval?.approvalRequestId || null,
     approvalKey: approval?.approvalKey || null,
     approvalTitle: title,
@@ -4279,8 +4293,59 @@ function validateConditionBranchTargets(nodes = []) {
   }
 }
 
+function validateHumanApprovalBranchTargets(nodes = []) {
+  const nodeKeyToIndex = new Map();
+
+  nodes.forEach((node, index) => {
+    nodeKeyToIndex.set(node.nodeKey, index);
+  });
+
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+
+    if (node.nodeTypeCode !== 'HUMAN_APPROVAL') {
+      continue;
+    }
+
+    const targetNodeKey = normalizeConditionBranchTargetNodeKey(
+      node.inputParameters?.rejectTargetNodeKey || node.inputParameters?.rejectionTargetNodeKey,
+    );
+
+    if (!targetNodeKey) {
+      continue;
+    }
+
+    if (!nodeKeyToIndex.has(targetNodeKey)) {
+      throw new WorkflowServiceError(
+        'Human approval rejection branch target node was not found in this workflow graph.',
+        400,
+        {
+          nodeKey: node.nodeKey,
+          targetNodeKey,
+        },
+      );
+    }
+
+    const targetIndex = nodeKeyToIndex.get(targetNodeKey);
+
+    if (targetIndex <= index) {
+      throw new WorkflowServiceError(
+        'Human approval rejection branch targets must point to later nodes in the sequential lane.',
+        400,
+        {
+          nodeKey: node.nodeKey,
+          targetNodeKey,
+          currentDisplayOrder: index + 1,
+          targetDisplayOrder: targetIndex + 1,
+        },
+      );
+    }
+  }
+}
+
 async function validateWorkflowTargets(client, nodes, { parentWorkflowCode = null } = {}) {
   validateConditionBranchTargets(nodes);
+  validateHumanApprovalBranchTargets(nodes);
 
   const toolTargetCodes = [
     ...new Set(nodes.filter((node) => node.nodeTypeCode === 'TOOL').map((node) => node.targetCode)),
@@ -6261,6 +6326,7 @@ async function createWorkflowApprovalRequest({
     ...(getSafeObject(context) || {}),
     nodeKey: node.nodeKey || null,
     nodeTypeCode: node.nodeTypeCode || 'HUMAN_APPROVAL',
+    rejectTargetNodeKey: approvalParameters.rejectTargetNodeKey || null,
     createdBy: 'skycommand_workflow_executor',
   };
 

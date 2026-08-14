@@ -2578,7 +2578,11 @@ function HumanApprovalOutput({ approvalResult }) {
                 <span className={`sky-pill ${operationOutcomeClass(decision)}`}>{decision}</span>
               </td>
               <th>Workflow action</th>
-              <td>{humanizeOutputKey(approval.action || 'continue')}</td>
+              <td>
+                {approval.branchTargetNodeKey
+                  ? `Jump to ${approval.branchTargetNodeKey}`
+                  : humanizeOutputKey(approval.action || 'continue')}
+              </td>
             </tr>
             <tr>
               <th>Decided by</th>
@@ -6214,7 +6218,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 runStatus={selectedTemporalRuntime?.status || selectedRun.status}
                 runtimeMode
                 selectedNodeIndex={selectedRuntimeNodeIndex}
-                subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition branch decisions for the selected run."
+                subtitle="Read-only execution overlay showing node outcomes, pending approvals, errors, and condition or approval branch decisions for the selected run."
                 temporalRuntime={selectedTemporalRuntime}
                 title="Runtime workflow map"
               />

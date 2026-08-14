@@ -16,6 +16,7 @@ export const DEFAULT_HUMAN_APPROVAL_PARAMETERS = {
   approvalKey: '',
   requiredRoleCode: 'SUPER_ADMIN',
   onReject: 'STOP_SUCCESS',
+  rejectTargetNodeKey: '',
   timeoutDuration: '24',
   timeoutUnit: 'HOURS',
   onTimeout: 'FAIL_WORKFLOW',
@@ -65,6 +66,9 @@ export function cleanHumanApprovalParameterValues(values = {}, roleOptions = [])
     approvalKey,
     requiredRoleCode,
     onReject: parameters.onReject || 'STOP_SUCCESS',
+    rejectTargetNodeKey: String(
+      parameters.rejectTargetNodeKey || parameters.rejectionTargetNodeKey || '',
+    ).trim(),
     onTimeout: parameters.onTimeout || 'FAIL_WORKFLOW',
   };
 
@@ -93,10 +97,21 @@ export function getHumanApprovalSummary(parameters = {}) {
     ? ` · timeout ${timeoutDuration} ${String(values.timeoutUnit || 'HOURS').toLowerCase()}`
     : ' · no timeout';
 
-  return `${title}${timeoutText} · reject: ${getApprovalActionLabel(values.onReject)}`;
+  const rejectTargetNodeKey = String(values.rejectTargetNodeKey || values.rejectionTargetNodeKey || '').trim();
+  const rejectText = rejectTargetNodeKey
+    ? `jump to ${rejectTargetNodeKey}`
+    : getApprovalActionLabel(values.onReject);
+
+  return `${title}${timeoutText} · reject: ${rejectText}`;
 }
 
-function HumanApprovalParameterEditor({ idPrefix, parameters = {}, onChange, roleOptions = [] }) {
+function HumanApprovalParameterEditor({
+  branchTargetOptions = [],
+  idPrefix,
+  parameters = {},
+  onChange,
+  roleOptions = [],
+}) {
   const values = {
     ...DEFAULT_HUMAN_APPROVAL_PARAMETERS,
     ...(parameters || {}),
@@ -190,6 +205,27 @@ function HumanApprovalParameterEditor({ idPrefix, parameters = {}, onChange, rol
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
+      </div>
+      <div className="col-lg-4">
+        <label className="form-label" htmlFor={`${idPrefix}-rejectTargetNodeKey`}>
+          When rejected, jump to
+        </label>
+        <select
+          className="form-select sky-form-control"
+          id={`${idPrefix}-rejectTargetNodeKey`}
+          onChange={(event) => patch({ rejectTargetNodeKey: event.target.value })}
+          value={values.rejectTargetNodeKey || values.rejectionTargetNodeKey || ''}
+        >
+          <option value="">Use rejection action</option>
+          {branchTargetOptions.map((target) => (
+            <option key={target.nodeKey} value={target.nodeKey}>
+              {target.label}
+            </option>
+          ))}
+        </select>
+        <div className="form-text sky-muted">
+          Optional forward branch. When set, it overrides the rejection action.
+        </div>
       </div>
       <div className="col-lg-4">
         <label className="form-label" htmlFor={`${idPrefix}-timeoutAction`}>When timed out</label>

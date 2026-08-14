@@ -232,8 +232,8 @@ function WorkflowApprovalOverlay({
 
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
             <div className="small sky-muted">
-              Approval resumes the workflow. Rejection follows the node&apos;s configured rejection
-              policy.
+              Approval resumes the workflow. Rejection follows the node&apos;s configured action or
+              forward branch.
             </div>
             <div className="d-flex flex-wrap gap-2">
               <button

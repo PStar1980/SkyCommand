@@ -228,6 +228,7 @@ SkyCommand/
 │   │       │   ├── toolVerificationSelfTest.js
 │   │       │   ├── toolVerificationService.js
 │   │       │   ├── workerService.js
+│   │       │   ├── workflowApprovalBranchSelfTest.js
 │   │       │   ├── workflowCloneParitySelfTest.js
 │   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowConditionService.js
