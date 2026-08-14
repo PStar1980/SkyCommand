@@ -39,7 +39,7 @@ const checks = [
   ],
   [
     !manageToolsSource.includes('Apply filters')
-      && manageToolsSource.includes('filterAutoApplyReadyRef')
+      && manageToolsSource.includes('initialLoadCompleteRef')
       && manageToolsSource.includes('<th>Category</th>'),
     'Manage Tools filters must auto-apply and the catalogue must expose a dedicated Category column.',
   ],
