@@ -68,6 +68,8 @@
     "api-dashboard:self-test": "node apps/admin-web/src/pages/apiDashboardSelfTest.js",
     "tool-execution-output-workspace:self-test": "node apps/api/src/services/toolExecutionOutputWorkspaceSelfTest.js",
     "workflow-start-catalogue:self-test": "node apps/admin-web/src/pages/workflowStartCatalogueSelfTest.js",
+    "workflow-clone-parity:self-test": "node apps/api/src/services/workflowCloneParitySelfTest.js",
+    "auth-expiry-refresh:self-test": "node apps/admin-web/src/services/authExpiryRefreshSelfTest.js",
     "brand-theme:self-test": "node apps/admin-web/src/components/ui/brandThemeSelfTest.js",
     "phase16:profile-guardrails:setup": "node packages/ingestion/src/catalogue/phase16IngestionProfileGuardrails.js setup",
     "phase16:profile-guardrails:verify": "node packages/ingestion/src/catalogue/phase16IngestionProfileGuardrails.js verify",
