@@ -466,8 +466,9 @@ function ManageRepositories() {
           <div className="sky-page-kicker">Git Repositories · Manage</div>
           <h1 className="sky-page-title">Manage Repositories</h1>
           <p className="sky-page-subtitle">
-            Search and maintain repository identity, branch conventions, profile-specific local
-            paths, lifecycle state, and the trusted SkyCommand repository designation.
+            Search and maintain repository identity, branch conventions, generated-artifact
+            settings, profile-specific local paths, lifecycle state, and the trusted SkyCommand
+            repository designation.
           </p>
         </div>
 
@@ -650,7 +651,8 @@ function ManageRepositories() {
           <div>
             <h2 className="h5 mb-0">Repository configuration</h2>
             <div className="small sky-muted">
-              Edit metadata and profile-specific local paths for the selected repository.
+              Edit metadata, generated-artifact settings, and profile-specific local paths for the
+              selected repository.
             </div>
           </div>
           {selectedRepository && canWrite && (
@@ -825,6 +827,35 @@ function ManageRepositories() {
                         <dt className="col-md-3 sky-detail-label">Created</dt>
                         <dd className="col-md-9 sky-detail-value">
                           {formatRepositoryDate(selectedRepository.createdAt)}
+                        </dd>
+                      </dl>
+                    </div>
+                  </section>
+
+                  <section className="sky-card mb-3">
+                    <div className="sky-card-header">
+                      <div>
+                        <div className="sky-page-kicker">Generated artifacts</div>
+                        <h3 className="h5 mb-0">Map and zip configuration</h3>
+                      </div>
+                    </div>
+                    <div className="sky-card-body">
+                      <dl className="row g-2 mb-0">
+                        <dt className="col-md-3 sky-detail-label">Map file name</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono text-break">
+                          {selectedRepository.repoMapFileName || '—'}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Map output path</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono text-break">
+                          {selectedRepository.repoMapOutputPath || 'Repository root'}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Zip file name</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono text-break">
+                          {selectedRepository.repoZipFileName || '—'}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Zip output path</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono text-break">
+                          {selectedRepository.repoZipOutputPath || 'Repository root'}
                         </dd>
                       </dl>
                     </div>

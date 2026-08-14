@@ -339,7 +339,8 @@ SkyCommand/
 │   │       │   ├── 00086__revision_quality_foundation.sql
 │   │       │   ├── 00088__portable_quality_policies.sql
 │   │       │   ├── 00090__ingestion_recovery_foundation.sql
-│   │       │   └── 00094__skycommand_repository_identity_changeover.sql
+│   │       │   ├── 00094__skycommand_repository_identity_changeover.sql
+│   │       │   └── 00095__repository_artifact_configuration.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

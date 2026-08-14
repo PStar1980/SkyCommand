@@ -19,6 +19,17 @@ const utilsSource = fs.readFileSync(
   path.join(repoRoot, 'apps/admin-web/src/pages/repositoryAdminUtils.js'),
   'utf8',
 );
+const formSource = fs.readFileSync(
+  path.join(repoRoot, 'apps/admin-web/src/components/RepositoryForm.jsx'),
+  'utf8',
+);
+const artifactMigrationSource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    'packages/db_build/src/migrations/00095__repository_artifact_configuration.sql',
+  ),
+  'utf8',
+);
 const adminActionSource = fs.readFileSync(
   path.join(repoRoot, 'apps/api/src/services/adminActionService.js'),
   'utf8',
@@ -71,6 +82,41 @@ const checks = [
     addSource.includes('<h1 className="sky-page-title">Add Repository</h1>') &&
       addSource.includes('adminService.createRepository(payload)'),
     'Add Repository must expose a dedicated creation surface.',
+  ],
+  [
+    ['repoMapFileName', 'repoMapOutputPath', 'repoZipFileName', 'repoZipOutputPath'].every(
+      (field) => utilsSource.includes(field),
+    ),
+    'Repository form state must include map/zip artifact file names and output paths.',
+  ],
+  [
+    formSource.includes('Repository Map File Name') &&
+      formSource.includes('Repository Map Output Path') &&
+      formSource.includes('Repository Zip File Name') &&
+      formSource.includes('Repository Zip Output Path'),
+    'Add/Manage Repository form must expose all four generated-artifact settings.',
+  ],
+  [
+    manageSource.includes('selectedRepository.repoMapFileName') &&
+      manageSource.includes('selectedRepository.repoMapOutputPath') &&
+      manageSource.includes('selectedRepository.repoZipFileName') &&
+      manageSource.includes('selectedRepository.repoZipOutputPath'),
+    'Repository Details must display the generated-artifact settings.',
+  ],
+  [
+    [
+      'repo_map_file_name',
+      'repo_map_output_path',
+      'repo_zip_file_name',
+      'repo_zip_output_path',
+    ].every((column) => artifactMigrationSource.includes(column)),
+    'Repository artifact configuration migration must add all four database columns.',
+  ],
+  [
+    ['repoMapFileName', 'repoMapOutputPath', 'repoZipFileName', 'repoZipOutputPath'].every(
+      (field) => adminActionSource.includes(field),
+    ),
+    'Repository Admin API must persist and return all four generated-artifact settings.',
   ],
   [
     adminActionSource.includes("normalizeBoolean(filters.skycommand, 'skycommand')") &&

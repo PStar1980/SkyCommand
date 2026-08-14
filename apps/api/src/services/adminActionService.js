@@ -356,6 +356,10 @@ function sanitizeRepository(row) {
     remoteUrl: row.remote_url,
     mainBranch: row.main_branch,
     devBranch: row.dev_branch,
+    repoMapFileName: row.repo_map_file_name,
+    repoMapOutputPath: row.repo_map_output_path,
+    repoZipFileName: row.repo_zip_file_name,
+    repoZipOutputPath: row.repo_zip_output_path,
     displayOrder: row.display_order,
     active: row.active,
     isSkycommandRepository: Boolean(row.is_skycommand_repository),
@@ -2563,6 +2567,10 @@ async function listRepositories(filters = {}) {
         remote_url,
         main_branch,
         dev_branch,
+        repo_map_file_name,
+        repo_map_output_path,
+        repo_zip_file_name,
+        repo_zip_output_path,
         display_order,
         active,
         is_skycommand_repository,
@@ -2611,6 +2619,10 @@ async function getRepositoryRowById(client, rawRepoId, options = {}) {
         remote_url,
         main_branch,
         dev_branch,
+        repo_map_file_name,
+        repo_map_output_path,
+        repo_zip_file_name,
+        repo_zip_output_path,
         display_order,
         active,
         is_skycommand_repository,
@@ -2687,6 +2699,10 @@ function normalizeRepositoryPayload(body = {}, options = {}) {
   for (const [bodyKey, payloadKey] of [
     ['description', 'description'],
     ['remoteUrl', 'remoteUrl'],
+    ['repoMapFileName', 'repoMapFileName'],
+    ['repoMapOutputPath', 'repoMapOutputPath'],
+    ['repoZipFileName', 'repoZipFileName'],
+    ['repoZipOutputPath', 'repoZipOutputPath'],
   ]) {
     if (!patch || Object.prototype.hasOwnProperty.call(body, bodyKey)) {
       payload[payloadKey] = normalizeOptionalString(body[bodyKey]);
@@ -2782,10 +2798,14 @@ async function createRepository({ body = {}, actor, context = {} }) {
           remote_url,
           main_branch,
           dev_branch,
+          repo_map_file_name,
+          repo_map_output_path,
+          repo_zip_file_name,
+          repo_zip_output_path,
           display_order,
           active
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING
           repo_id,
           repo_code,
@@ -2794,6 +2814,10 @@ async function createRepository({ body = {}, actor, context = {} }) {
           remote_url,
           main_branch,
           dev_branch,
+          repo_map_file_name,
+          repo_map_output_path,
+          repo_zip_file_name,
+          repo_zip_output_path,
           display_order,
           active,
           is_skycommand_repository,
@@ -2807,6 +2831,10 @@ async function createRepository({ body = {}, actor, context = {} }) {
         payload.remoteUrl,
         payload.mainBranch,
         payload.devBranch,
+        payload.repoMapFileName,
+        payload.repoMapOutputPath,
+        payload.repoZipFileName,
+        payload.repoZipOutputPath,
         payload.displayOrder,
         payload.active,
       ],
@@ -2884,6 +2912,10 @@ async function updateRepository({ repoId, body = {}, actor, context = {} }) {
       ['remoteUrl', 'remote_url'],
       ['mainBranch', 'main_branch'],
       ['devBranch', 'dev_branch'],
+      ['repoMapFileName', 'repo_map_file_name'],
+      ['repoMapOutputPath', 'repo_map_output_path'],
+      ['repoZipFileName', 'repo_zip_file_name'],
+      ['repoZipOutputPath', 'repo_zip_output_path'],
       ['displayOrder', 'display_order'],
       ['active', 'active'],
     ];

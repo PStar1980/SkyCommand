@@ -111,6 +111,69 @@ function RepositoryForm({
         </div>
       </div>
 
+      <hr />
+
+      <div className="sky-page-kicker mb-1">Generated Artifacts</div>
+      <div className="small sky-muted mb-3">
+        Store the repository-specific file names and output locations that will later feed the
+        Generate Repository Map and Generate Repository Zip tools.
+      </div>
+
+      <div className="row g-3">
+        <div className="col-md-6">
+          <label className="form-label sky-form-label" htmlFor={fieldId('repo-map-file-name')}>
+            Repository Map File Name
+          </label>
+          <input
+            className="form-control sky-form-control sky-mono"
+            disabled={!canWrite || saving}
+            id={fieldId('repo-map-file-name')}
+            onChange={(event) => onFormChange('repoMapFileName', event.target.value)}
+            placeholder="e.g. repository-map.txt"
+            value={form.repoMapFileName}
+          />
+        </div>
+        <div className="col-md-6">
+          <label className="form-label sky-form-label" htmlFor={fieldId('repo-map-output-path')}>
+            Repository Map Output Path
+          </label>
+          <input
+            className="form-control sky-form-control sky-mono"
+            disabled={!canWrite || saving}
+            id={fieldId('repo-map-output-path')}
+            onChange={(event) => onFormChange('repoMapOutputPath', event.target.value)}
+            placeholder="Leave blank to use the repository root"
+            value={form.repoMapOutputPath}
+          />
+        </div>
+        <div className="col-md-6">
+          <label className="form-label sky-form-label" htmlFor={fieldId('repo-zip-file-name')}>
+            Repository Zip File Name
+          </label>
+          <input
+            className="form-control sky-form-control sky-mono"
+            disabled={!canWrite || saving}
+            id={fieldId('repo-zip-file-name')}
+            onChange={(event) => onFormChange('repoZipFileName', event.target.value)}
+            placeholder="e.g. repository.zip"
+            value={form.repoZipFileName}
+          />
+        </div>
+        <div className="col-md-6">
+          <label className="form-label sky-form-label" htmlFor={fieldId('repo-zip-output-path')}>
+            Repository Zip Output Path
+          </label>
+          <input
+            className="form-control sky-form-control sky-mono"
+            disabled={!canWrite || saving}
+            id={fieldId('repo-zip-output-path')}
+            onChange={(event) => onFormChange('repoZipOutputPath', event.target.value)}
+            placeholder="Leave blank to use the repository root"
+            value={form.repoZipOutputPath}
+          />
+        </div>
+      </div>
+
       <div className="form-check form-switch mt-3">
         <input
           checked={form.active}
