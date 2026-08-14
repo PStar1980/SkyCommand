@@ -298,11 +298,36 @@ function getConditionRuntimeRoute({ node = {}, nodeRun = null, nodes = [] } = {}
   };
 }
 
+function getHumanApprovalRuntimeRoute({ node = {}, nodeRun = null, nodes = [] } = {}) {
+  if (normalizeNodeType(node.nodeTypeCode) !== 'HUMAN_APPROVAL' || !nodeRun?.output) {
+    return null;
+  }
+
+  const output = nodeRun.output || {};
+  const branchTargetNodeKey = String(output.branchTargetNodeKey || '').trim();
+
+  if (String(output.status || '').toUpperCase() !== 'REJECTED' || !branchTargetNodeKey) {
+    return null;
+  }
+
+  const targetIndex = nodes.findIndex((candidate) => candidate.nodeKey === branchTargetNodeKey);
+  const targetLabel = getBranchTargetLabel(nodes, branchTargetNodeKey);
+
+  return {
+    branchLabel: 'REJECTED',
+    detail: `REJECTED → ${targetLabel}`,
+    targetIndex,
+    targetLabel,
+    targetNodeKey: branchTargetNodeKey,
+  };
+}
+
 function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null, nodes = [] } = {}) {
   const status = getRuntimeStatusForNode({ nodeRun, approval });
   const meta = getRuntimeStatusMeta(status);
   const durationMs = getNodeRunDurationMs(nodeRun);
-  const conditionRoute = getConditionRuntimeRoute({ node, nodeRun, nodes });
+  const conditionRoute = getConditionRuntimeRoute({ node, nodeRun, nodes })
+    || getHumanApprovalRuntimeRoute({ node, nodeRun, nodes });
   const pieces = [];
 
   if (nodeRun?.attemptCount !== undefined && nodeRun?.attemptCount !== null) {
@@ -355,14 +380,18 @@ function isRuntimeInFlightStatus(status) {
 
 function getRuntimeConditionRoutes(nodes = [], nodeRuns = [], approvals = []) {
   return nodes.reduce((routes, node, index) => {
-    if (normalizeNodeType(node.nodeTypeCode) !== 'CONDITION') {
+    const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
+
+    if (!['CONDITION', 'HUMAN_APPROVAL'].includes(nodeTypeCode)) {
       return routes;
     }
 
     const nodeRun = getNodeRunForNode(node, nodeRuns);
     const approval = getApprovalForNode({ node, nodeRun, approvals });
     const status = getRuntimeStatusForNode({ nodeRun, approval });
-    const route = getConditionRuntimeRoute({ node, nodeRun, nodes });
+    const route = nodeTypeCode === 'CONDITION'
+      ? getConditionRuntimeRoute({ node, nodeRun, nodes })
+      : getHumanApprovalRuntimeRoute({ node, nodeRun, nodes });
 
     if (!isRuntimeCompletedStatus(status) || !route || route.targetIndex <= index) {
       return routes;
@@ -481,6 +510,33 @@ function getConditionBranchBadges(node = {}, nodes = []) {
   return badges;
 }
 
+function getHumanApprovalBranchBadges(node = {}, nodes = []) {
+  if (normalizeNodeType(node.nodeTypeCode) !== 'HUMAN_APPROVAL') {
+    return [];
+  }
+
+  const rejectTargetNodeKey = String(
+    node.inputParameters?.rejectTargetNodeKey || node.inputParameters?.rejectionTargetNodeKey || '',
+  ).trim();
+
+  if (!rejectTargetNodeKey) {
+    return [];
+  }
+
+  return [{
+    label: 'REJECTED',
+    value: getBranchTargetLabel(nodes, rejectTargetNodeKey),
+    className: 'sky-pill-warning',
+  }];
+}
+
+function getWorkflowBranchBadges(node = {}, nodes = []) {
+  return [
+    ...getConditionBranchBadges(node, nodes),
+    ...getHumanApprovalBranchBadges(node, nodes),
+  ];
+}
+
 function getCatalogLabel(catalogs = {}, node = {}) {
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
 
@@ -548,7 +604,10 @@ function getNodeDetail(node, nodes = []) {
 
   if (nodeTypeCode === 'HUMAN_APPROVAL') {
     const role = parameters.requiredRoleCode || 'No role gate';
-    return `Role: ${role}`;
+    const rejectTargetNodeKey = String(parameters.rejectTargetNodeKey || '').trim();
+    return rejectTargetNodeKey
+      ? `Role: ${role} · REJECTED → ${getBranchTargetLabel(nodes, rejectTargetNodeKey)}`
+      : `Role: ${role}`;
   }
 
   if (nodeTypeCode === 'SUMMARY') {
@@ -630,6 +689,7 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
       ['Required role', parameters.requiredRoleCode || '—'],
       ['Timeout', `${parameters.timeoutDuration || 24} ${String(parameters.timeoutUnit || 'HOURS').toLowerCase()}`],
       ['When rejected', formatAction(parameters.onReject || parameters.onRejected, 'STOP_SUCCESS')],
+      ['Rejected branch', parameters.rejectTargetNodeKey ? getBranchTargetLabel(nodes, parameters.rejectTargetNodeKey) : 'rejection action'],
       ['When timed out', formatAction(parameters.onTimeout, 'FAIL_WORKFLOW')],
     );
     return rows;
@@ -1017,7 +1077,7 @@ function WorkflowVisualGraph({
     workflowTargets,
     temporalWorkflowTargets,
   };
-  const branchEdgeCount = nodes.reduce((count, node) => count + getConditionBranchBadges(node, nodes).length, 0);
+  const branchEdgeCount = nodes.reduce((count, node) => count + getWorkflowBranchBadges(node, nodes).length, 0);
   const totalEdges = Math.max(nodes.length - 1, 0) + branchEdgeCount;
   const dragReorderEnabled = Boolean(onNodeReorder) && nodes.length > 1;
   const runtimeOverlays = runtimeMode
@@ -1093,7 +1153,7 @@ function WorkflowVisualGraph({
   const resolvedHeadingKicker = headingKicker || (runtimeMode ? 'Runtime status overlay' : 'Visual designer foundation');
   const resolvedTitle = title || (runtimeMode ? 'Runtime workflow map' : 'Sequential workflow map');
   const resolvedSubtitle = subtitle || (runtimeMode
-    ? 'Run-aware visual map with node status, approval waits, failures, and condition branch decisions overlaid on the workflow graph.'
+    ? 'Run-aware visual map with node status, approval waits, failures, and configured branch decisions overlaid on the workflow graph.'
     : 'Live visual preview with node inspection and drag reorder. Save the graph to publish the new sequential order.');
   const [draggedNodeIndex, setDraggedNodeIndex] = useState(null);
   const [dropTargetIndex, setDropTargetIndex] = useState(null);

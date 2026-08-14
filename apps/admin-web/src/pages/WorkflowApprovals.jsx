@@ -623,7 +623,11 @@ function WorkflowApprovals() {
                       </tr>
                       <tr>
                         <th scope="row">If rejected</th>
-                        <td>{formatAction(selectedApproval.onReject)}</td>
+                        <td>
+                          {selectedApproval.rejectTargetNodeKey
+                            ? `Jump to ${selectedApproval.rejectTargetNodeKey}`
+                            : formatAction(selectedApproval.onReject)}
+                        </td>
                         <th scope="row">If timed out</th>
                         <td>{formatAction(selectedApproval.onTimeout)}</td>
                       </tr>

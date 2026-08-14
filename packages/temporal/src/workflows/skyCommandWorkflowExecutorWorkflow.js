@@ -891,6 +891,47 @@ function resolveConditionBranchIndex({ output, currentIndex, executionPlan }) {
   return targetIndex;
 }
 
+function createHumanApprovalBranchFailure(message, details = {}) {
+  return ApplicationFailure.create({
+    message,
+    type: 'SkyServerWorkflowApprovalBranchError',
+    nonRetryable: true,
+    details: [details],
+  });
+}
+
+function resolveHumanApprovalBranchIndex({ output, currentIndex, executionPlan }) {
+  if (String(output?.status || '').toUpperCase() !== 'REJECTED') {
+    return null;
+  }
+
+  const branchTargetNodeKey = normalizeConditionBranchTargetNodeKey(
+    output?.branchTargetNodeKey || output?.rejectTargetNodeKey,
+  );
+
+  if (!branchTargetNodeKey) {
+    return null;
+  }
+
+  const targetIndex = executionPlan.nodeIndexByKey.get(branchTargetNodeKey);
+
+  if (!Number.isInteger(targetIndex)) {
+    throw createHumanApprovalBranchFailure(
+      'Human approval rejection branch target was not found in the workflow graph.',
+      { branchTargetNodeKey, output },
+    );
+  }
+
+  if (targetIndex <= currentIndex) {
+    throw createHumanApprovalBranchFailure(
+      'Human approval rejection branch target must point to a later node in the sequential lane.',
+      { branchTargetNodeKey, currentIndex, targetIndex },
+    );
+  }
+
+  return targetIndex;
+}
+
 function createHumanApprovalInputFailure(message, details = {}) {
   return ApplicationFailure.create({
     message,
@@ -1034,6 +1075,9 @@ function normalizeHumanApprovalParameters(parameters = {}, node = {}) {
       input.onReject || input.rejectAction || 'STOP_SUCCESS',
       'STOP_SUCCESS',
     ),
+    rejectTargetNodeKey: normalizeConditionBranchTargetNodeKey(
+      input.rejectTargetNodeKey || input.rejectionTargetNodeKey,
+    ),
     onTimeout: normalizeHumanApprovalAction(
       input.onTimeout || input.timeoutAction || 'FAIL_WORKFLOW',
       'FAIL_WORKFLOW',
@@ -1122,11 +1166,16 @@ function buildHumanApprovalOutput({
     null;
   const title = approval?.approvalTitle || approvalParameters?.approvalTitle || 'Approval required';
   const decisionNote = decisionPayload.decisionNote || approval?.decisionNote || null;
+  const rejectTargetNodeKey = decision === 'REJECTED'
+    ? normalizeConditionBranchTargetNodeKey(approvalParameters?.rejectTargetNodeKey)
+    : '';
   const summary =
     decision === 'APPROVED'
       ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
       : decision === 'REJECTED'
-        ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
+        ? rejectTargetNodeKey
+          ? `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; routing to ${rejectTargetNodeKey}.`
+          : `Approval rejected for ${title}${actorName ? ` by ${actorName}` : ''}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`
         : `Approval timed out for ${title}; ${action === 'STOP_SUCCESS' ? 'stopping workflow successfully' : action === 'FAIL_WORKFLOW' ? 'failing workflow' : 'continuing anyway'}.`;
 
   return {
@@ -1137,6 +1186,9 @@ function buildHumanApprovalOutput({
     timedOut: timedOut || decision === 'TIMED_OUT',
     decision,
     action,
+    branchTaken: Boolean(rejectTargetNodeKey),
+    branchLabel: rejectTargetNodeKey ? 'REJECTED' : null,
+    branchTargetNodeKey: rejectTargetNodeKey || null,
     approvalRequestId: approval?.approvalRequestId || decisionPayload.approvalRequestId || null,
     approvalKey:
       approval?.approvalKey ||
@@ -1769,6 +1821,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   try {
     const executionPlan = buildWorkflowExecutionPlan(definition.nodes);
     const conditionBranchRoutes = [];
+    const approvalBranchRoutes = [];
     let currentNodeIndex = 0;
 
     while (currentNodeIndex < executionPlan.nodes.length) {
@@ -1914,20 +1967,35 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         node.nodeTypeCode === 'HUMAN_APPROVAL' &&
         completedNodeRun?.output?.status !== 'APPROVED'
       ) {
-        const action = completedNodeRun.output.action || 'FAIL_WORKFLOW';
+        const approvalBranchTargetIndex = resolveHumanApprovalBranchIndex({
+          output: completedNodeRun?.output || {},
+          currentIndex: currentNodeIndex,
+          executionPlan,
+        });
 
-        if (action === 'FAIL_WORKFLOW') {
-          throw ApplicationFailure.create({
-            message: completedNodeRun.output.summary || 'Workflow human approval gate failed.',
-            type: 'SkyServerWorkflowApprovalFailed',
-            nonRetryable: true,
-            details: [{ nodeKey: node.nodeKey, output: completedNodeRun.output }],
+        if (Number.isInteger(approvalBranchTargetIndex)) {
+          approvalBranchRoutes.push({
+            nodeKey: node.nodeKey,
+            branchLabel: 'REJECTED',
+            targetNodeKey: completedNodeRun.output.branchTargetNodeKey,
           });
-        }
+          nextNodeIndex = approvalBranchTargetIndex;
+        } else {
+          const action = completedNodeRun.output.action || 'FAIL_WORKFLOW';
 
-        if (action === 'STOP_SUCCESS') {
-          approvalStop = { nodeKey: node.nodeKey, output: completedNodeRun.output };
-          break;
+          if (action === 'FAIL_WORKFLOW') {
+            throw ApplicationFailure.create({
+              message: completedNodeRun.output.summary || 'Workflow human approval gate failed.',
+              type: 'SkyServerWorkflowApprovalFailed',
+              nonRetryable: true,
+              details: [{ nodeKey: node.nodeKey, output: completedNodeRun.output }],
+            });
+          }
+
+          if (action === 'STOP_SUCCESS') {
+            approvalStop = { nodeKey: node.nodeKey, output: completedNodeRun.output };
+            break;
+          }
         }
       }
 
@@ -1962,6 +2030,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         conditionStopNodeKey: conditionStop?.nodeKey || null,
         approvalStopNodeKey: approvalStop?.nodeKey || null,
         conditionBranchRoutes,
+        approvalBranchRoutes,
         summaryNodeKey: summaryOutput?.nodeKey || null,
         summaryTitle: summaryOutput?.title || null,
         temporalWorkflowId,

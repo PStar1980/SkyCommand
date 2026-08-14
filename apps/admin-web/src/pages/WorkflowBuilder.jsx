@@ -695,13 +695,14 @@ function WorkflowBuilderNodeCard({
             <>
               <div className="sky-page-kicker mb-2">Human approval parameters</div>
               <HumanApprovalParameterEditor
+                branchTargetOptions={getForwardBranchTargetOptions(allNodes, index)}
                 idPrefix={`node-${index}-approval`}
                 onChange={(inputParameters) => patch({ inputParameters })}
                 parameters={node.inputParameters || {}}
                 roleOptions={approvalRoleTargets}
               />
               <div className="form-text mt-2">
-                Creates a pending approval request and waits for a Temporal signal before continuing.
+                Creates a pending approval request and waits for a Temporal signal. Rejection can stop, fail, continue, or jump to a later node.
               </div>
             </>
           ) : nodeTypeCode === 'SUMMARY' ? (

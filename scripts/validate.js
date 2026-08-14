@@ -36,6 +36,7 @@ const routineSelfTests = [
   'git-branch-sync:self-test',
   'workflow-node-parameters:self-test',
   'workflow-condition:self-test',
+  'workflow-approval-branch:self-test',
   'workflow-tool-confirmation:self-test',
   'workflow-tool-visibility:self-test',
   'workflow-database-output:self-test',

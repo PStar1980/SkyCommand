@@ -45,6 +45,7 @@
     "git-commit:self-test": "node packages/git/src/gitCommitResultSelfTest.js",
     "git-branch-sync:self-test": "node packages/git/src/gitBranchSyncResultSelfTest.js",
     "workflow-condition:self-test": "node apps/api/src/services/workflowConditionSelfTest.js",
+    "workflow-approval-branch:self-test": "node apps/api/src/services/workflowApprovalBranchSelfTest.js",
     "workflow-node-parameters:self-test": "node apps/api/src/services/workflowParameterUtilsSelfTest.js",
     "workflow-cli-params:self-test": "node packages/core/src/workflowCliRuntimeParametersSelfTest.js",
     "tool-template:self-test": "node packages/tools/custom/_template/src/tool.js SkyCommand",
