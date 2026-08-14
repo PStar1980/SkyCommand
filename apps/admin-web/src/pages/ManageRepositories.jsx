@@ -8,8 +8,6 @@ import {
   formatRepositoryDate,
   populateRepositoryForm,
   REPOSITORY_PAGE_SIZE,
-  repositoryReadinessClass,
-  repositoryReadinessLabel,
   repositoryStatusClass,
   repositoryStatusLabel,
   sanitizeRepositoryPayload,
@@ -35,6 +33,7 @@ function ManageRepositories() {
   const [success, setSuccess] = useState('');
   const [readiness, setReadiness] = useState(null);
   const [readinessLoading, setReadinessLoading] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const filterAutoApplyReadyRef = useRef(false);
 
   const pageCount = Math.max(1, Math.ceil(total / REPOSITORY_PAGE_SIZE));
@@ -214,8 +213,36 @@ function ManageRepositories() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
+  useEffect(() => {
+    if (!detailsOpen) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setDetailsOpen(false);
+      }
+    }
+
+    const priorOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = priorOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [detailsOpen]);
+
   function updateForm(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function openRepositoryDetails(repository) {
+    setSelectedRepoId(repository.repoId);
+    setSuccess('');
+    setError('');
+    setDetailsOpen(true);
   }
 
   function updatePathForm(profileId, key, value) {
@@ -455,64 +482,12 @@ function ManageRepositories() {
           }
           type="button"
         >
-          {loading || readinessLoading ? 'Refreshing...' : 'Refresh repositories'}
+          {loading || readinessLoading ? 'Refreshing...' : 'Refresh'}
         </button>
       </header>
 
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
-
-      <section className="sky-card mb-3">
-        <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-          <div>
-            <h2 className="h5 mb-0">SkyCommand repository readiness</h2>
-            <div className="small sky-muted">
-              The designated repository and active profile path become the trusted root for managed
-              tool onboarding.
-            </div>
-          </div>
-          <span className={`sky-pill ${repositoryReadinessClass(readiness)}`}>
-            {readinessLoading ? 'CHECKING' : repositoryReadinessLabel(readiness)}
-          </span>
-        </div>
-        <div className="sky-card-body">
-          <div className="row g-3">
-            <div className="col-md-3">
-              <div className="sky-detail-label">Active profile</div>
-              <div className="sky-detail-value sky-mono">{readiness?.profileCode || '—'}</div>
-            </div>
-            <div className="col-md-3">
-              <div className="sky-detail-label">SkyCommand repository</div>
-              <div className="sky-detail-value">
-                {readiness?.repository?.repoName || 'Not designated'}
-              </div>
-              <div className="small sky-muted sky-mono">
-                {readiness?.repository?.repoCode || '—'}
-              </div>
-            </div>
-            <div className="col-md-3">
-              <div className="sky-detail-label">Repository root</div>
-              <div className="sky-detail-value sky-mono sky-truncate">
-                {readiness?.path?.rootPath || '—'}
-              </div>
-            </div>
-            <div className="col-md-3">
-              <div className="sky-detail-label">Packages root</div>
-              <div className="sky-detail-value sky-mono sky-truncate">
-                {readiness?.path?.packagesRoot || readiness?.packagesRelativePath || '—'}
-              </div>
-            </div>
-          </div>
-          <div className={`mt-3 ${readiness?.ready ? 'text-success' : 'text-warning'}`}>
-            {readinessLoading
-              ? 'Inspecting repository designation and active-profile filesystem readiness...'
-              : readiness?.message || 'Repository readiness is unavailable.'}
-          </div>
-          {!readiness?.ready && readiness?.errorCode && (
-            <div className="small sky-muted sky-mono mt-1">{readiness.errorCode}</div>
-          )}
-        </div>
-      </section>
 
       <section className="sky-card mb-3 sky-functional-history-browser sky-manage-repositories-browser">
         <div className="sky-card-header">
@@ -520,7 +495,8 @@ function ManageRepositories() {
             <div className="sky-page-kicker">Repository browser</div>
             <h2 className="h5 mb-0">Configured repositories</h2>
             <p className="sky-muted small mb-0">
-              Filter the catalogue, then select a row to inspect or edit its configuration below.
+              Filter the catalogue, select a row to edit its configuration below, or open its
+              repository details.
             </p>
           </div>
 
@@ -591,12 +567,13 @@ function ManageRepositories() {
                 <th>Role</th>
                 <th>Status</th>
                 <th>Updated</th>
+                <th className="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="sky-empty-state py-4">
                       <div className="spinner-border text-info" role="status" aria-label="Loading" />
                     </div>
@@ -604,7 +581,7 @@ function ManageRepositories() {
                 </tr>
               ) : repositories.length === 0 ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="sky-empty-state py-4">
                       No repositories match the current filters.
                     </div>
@@ -647,6 +624,18 @@ function ManageRepositories() {
                       </span>
                     </td>
                     <td>{formatRepositoryDate(repository.updatedAt)}</td>
+                    <td className="text-end">
+                      <button
+                        className="btn btn-sm sky-btn-ghost"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openRepositoryDetails(repository);
+                        }}
+                        type="button"
+                      >
+                        Repository Details
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -656,178 +645,251 @@ function ManageRepositories() {
         {renderPagination()}
       </section>
 
-      <div className="row g-3">
-        <div className="col-xl-4">
-          <section className="sky-card sky-sticky-detail-card">
-            <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
-              <div>
-                <h2 className="h5 mb-0">Repository detail</h2>
-                <div className="small sky-muted">Selected repository and profile path metadata.</div>
-              </div>
-              {selectedRepository && (
-                <div className="d-flex flex-wrap gap-2">
-                  {selectedRepository.isSkycommandRepository && (
-                    <span className="sky-pill sky-pill-info">SKYCOMMAND</span>
-                  )}
-                  <span className={`sky-pill ${repositoryStatusClass(selectedRepository.active)}`}>
-                    {repositoryStatusLabel(selectedRepository.active)}
-                  </span>
-                </div>
-              )}
+      <section className="sky-card">
+        <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <h2 className="h5 mb-0">Repository configuration</h2>
+            <div className="small sky-muted">
+              Edit metadata and profile-specific local paths for the selected repository.
             </div>
-
-            {detailLoading ? (
-              <div className="sky-empty-state py-5">
-                <div className="spinner-border text-info" role="status" aria-label="Loading" />
-              </div>
-            ) : selectedRepository ? (
-              <div className="sky-card-body">
-                <dl className="row g-2 mb-0">
-                  <dt className="col-5 sky-detail-label">Repository</dt>
-                  <dd className="col-7 sky-detail-value">{selectedRepository.repoName}</dd>
-                  <dt className="col-5 sky-detail-label">Code</dt>
-                  <dd className="col-7 sky-detail-value sky-mono">{selectedRepository.repoCode}</dd>
-                  <dt className="col-5 sky-detail-label">Role</dt>
-                  <dd className="col-7 sky-detail-value">
-                    {selectedRepository.isSkycommandRepository ? 'Designated' : 'Standard repository'}
-                  </dd>
-                  <dt className="col-5 sky-detail-label">Paths</dt>
-                  <dd className="col-7 sky-detail-value">{selectedPathCount}</dd>
-                  <dt className="col-5 sky-detail-label">Display order</dt>
-                  <dd className="col-7 sky-detail-value">{selectedRepository.displayOrder}</dd>
-                  <dt className="col-5 sky-detail-label">Updated</dt>
-                  <dd className="col-7 sky-detail-value">
-                    {formatRepositoryDate(selectedRepository.updatedAt)}
-                  </dd>
-                  <dt className="col-5 sky-detail-label">Created</dt>
-                  <dd className="col-7 sky-detail-value">
-                    {formatRepositoryDate(selectedRepository.createdAt)}
-                  </dd>
-                </dl>
-
-                <hr />
-
-                <div className="sky-page-kicker mb-2">Configured paths</div>
-                <div className="table-responsive">
-                  <table className="table table-sm sky-table mb-0">
-                    <thead>
-                      <tr>
-                        <th>Profile</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedPaths.map((path) => (
-                        <tr key={path.profileId}>
-                          <td>
-                            <div className="fw-semibold sky-detail-value">{path.profileCode}</div>
-                            <div className="small sky-muted sky-mono text-break">
-                              {path.rootPath || 'Not configured'}
-                            </div>
-                          </td>
-                          <td>
-                            <span
-                              className={`sky-pill ${repositoryStatusClass(
-                                path.active && path.rootPath,
-                              )}`}
-                            >
-                              {path.active && path.rootPath ? 'ACTIVE' : 'NOT SET'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              <div className="sky-empty-state py-5">Select a repository to inspect.</div>
-            )}
-          </section>
+          </div>
+          {selectedRepository && canWrite && (
+            <div className="d-flex flex-wrap gap-2">
+              <button
+                className={
+                  selectedRepository.isSkycommandRepository
+                    ? 'btn btn-sm btn-outline-warning'
+                    : 'btn btn-sm sky-btn-ghost'
+                }
+                disabled={
+                  saving ||
+                  (!selectedRepository.active && !selectedRepository.isSkycommandRepository)
+                }
+                onClick={() =>
+                  handleSkycommandDesignation(
+                    selectedRepository,
+                    !selectedRepository.isSkycommandRepository,
+                  )
+                }
+                type="button"
+              >
+                {selectedRepository.isSkycommandRepository
+                  ? 'Clear SkyCommand'
+                  : 'Set SkyCommand'}
+              </button>
+              <button
+                className="btn btn-sm sky-btn-ghost"
+                disabled={saving || selectedRepository.isSkycommandRepository}
+                onClick={() => handleToggleStatus(selectedRepository)}
+                type="button"
+              >
+                {selectedRepository.active ? 'Disable repository' : 'Enable repository'}
+              </button>
+              <button
+                className="btn btn-sm btn-outline-danger"
+                disabled={
+                  saving ||
+                  !selectedRepository.active ||
+                  selectedRepository.isSkycommandRepository
+                }
+                onClick={() => handleDelete(selectedRepository)}
+                type="button"
+              >
+                Delete
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="col-xl-8">
-          <section className="sky-card">
-            <div className="sky-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        {detailLoading ? (
+          <div className="sky-empty-state py-5">
+            <div className="spinner-border text-info" role="status" aria-label="Loading" />
+          </div>
+        ) : selectedRepository ? (
+          <RepositoryForm
+            canWrite={canWrite}
+            form={form}
+            idPrefix="manage-repository"
+            onFormChange={updateForm}
+            onPathChange={updatePathForm}
+            onReset={resetSelectedForm}
+            onSubmit={handleSave}
+            saving={saving}
+            selectedRepository={selectedRepository}
+            submitLabel="Save repository"
+          />
+        ) : (
+          <div className="sky-empty-state py-5">
+            Select a repository to inspect or edit its configuration.
+          </div>
+        )}
+      </section>
+
+      {detailsOpen && (
+        <div
+          aria-label="Repository details"
+          aria-modal="true"
+          className="sky-chart-modal-backdrop sky-tool-details-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setDetailsOpen(false);
+            }
+          }}
+          role="dialog"
+        >
+          <section className="sky-chart-modal sky-tool-details-modal">
+            <div className="sky-chart-modal-header">
               <div>
-                <h2 className="h5 mb-0">Repository configuration</h2>
-                <div className="small sky-muted">
-                  Edit metadata and profile-specific local paths for the selected repository.
-                </div>
+                <div className="sky-page-kicker sky-chart-modal-kicker">Repository details</div>
+                <h2>
+                  {selectedRepository?.repoId === selectedRepoId
+                    ? selectedRepository.repoName
+                    : 'Repository details'}
+                </h2>
+                <p>
+                  {selectedRepository?.repoId === selectedRepoId
+                    ? selectedRepository.repoCode
+                    : 'Loading selected repository...'}
+                </p>
               </div>
-              {selectedRepository && canWrite && (
-                <div className="d-flex flex-wrap gap-2">
-                  <button
-                    className={
-                      selectedRepository.isSkycommandRepository
-                        ? 'btn btn-sm btn-outline-warning'
-                        : 'btn btn-sm sky-btn-ghost'
-                    }
-                    disabled={
-                      saving ||
-                      (!selectedRepository.active && !selectedRepository.isSkycommandRepository)
-                    }
-                    onClick={() =>
-                      handleSkycommandDesignation(
-                        selectedRepository,
-                        !selectedRepository.isSkycommandRepository,
-                      )
-                    }
-                    type="button"
-                  >
-                    {selectedRepository.isSkycommandRepository
-                      ? 'Clear SkyCommand'
-                      : 'Set SkyCommand'}
-                  </button>
-                  <button
-                    className="btn btn-sm sky-btn-ghost"
-                    disabled={saving || selectedRepository.isSkycommandRepository}
-                    onClick={() => handleToggleStatus(selectedRepository)}
-                    type="button"
-                  >
-                    {selectedRepository.active ? 'Disable repository' : 'Enable repository'}
-                  </button>
-                  <button
-                    className="btn btn-sm btn-outline-danger"
-                    disabled={
-                      saving ||
-                      !selectedRepository.active ||
-                      selectedRepository.isSkycommandRepository
-                    }
-                    onClick={() => handleDelete(selectedRepository)}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
+              <button
+                aria-label="Close repository details"
+                className="sky-chart-modal-close"
+                onClick={() => setDetailsOpen(false)}
+                type="button"
+              >
+                <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
             </div>
 
-            {detailLoading ? (
-              <div className="sky-empty-state py-5">
-                <div className="spinner-border text-info" role="status" aria-label="Loading" />
-              </div>
-            ) : selectedRepository ? (
-              <RepositoryForm
-                canWrite={canWrite}
-                form={form}
-                idPrefix="manage-repository"
-                onFormChange={updateForm}
-                onPathChange={updatePathForm}
-                onReset={resetSelectedForm}
-                onSubmit={handleSave}
-                saving={saving}
-                selectedRepository={selectedRepository}
-                submitLabel="Save repository"
-              />
-            ) : (
-              <div className="sky-empty-state py-5">
-                Select a repository to inspect or edit its configuration.
-              </div>
-            )}
+            <div className="sky-tool-details-modal-body">
+              {detailLoading || selectedRepository?.repoId !== selectedRepoId ? (
+                <div className="sky-empty-state py-5">
+                  <div className="spinner-border text-info" role="status" aria-label="Loading" />
+                </div>
+              ) : selectedRepository ? (
+                <>
+                  <div className="sky-execution-metric-grid">
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Status</div>
+                      <span className={`sky-pill ${repositoryStatusClass(selectedRepository.active)}`}>
+                        {repositoryStatusLabel(selectedRepository.active)}
+                      </span>
+                    </div>
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Role</div>
+                      <div className="sky-mini-metric-value">
+                        {selectedRepository.isSkycommandRepository ? 'SkyCommand' : 'Standard'}
+                      </div>
+                    </div>
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Configured paths</div>
+                      <div className="sky-mini-metric-value">{selectedPathCount}</div>
+                    </div>
+                    <div className="sky-mini-metric">
+                      <div className="sky-page-kicker">Display order</div>
+                      <div className="sky-mini-metric-value">{selectedRepository.displayOrder}</div>
+                    </div>
+                  </div>
+
+                  <section className="sky-card mb-3">
+                    <div className="sky-card-header">
+                      <h3 className="h5 mb-0">Repository identity</h3>
+                    </div>
+                    <div className="sky-card-body">
+                      <dl className="row g-2 mb-0">
+                        <dt className="col-md-3 sky-detail-label">Repository</dt>
+                        <dd className="col-md-9 sky-detail-value">{selectedRepository.repoName}</dd>
+                        <dt className="col-md-3 sky-detail-label">Code</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono">
+                          {selectedRepository.repoCode}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Main branch</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono">
+                          {selectedRepository.mainBranch}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Dev branch</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono">
+                          {selectedRepository.devBranch}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Remote URL</dt>
+                        <dd className="col-md-9 sky-detail-value sky-mono text-break">
+                          {selectedRepository.remoteUrl || '—'}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Updated</dt>
+                        <dd className="col-md-9 sky-detail-value">
+                          {formatRepositoryDate(selectedRepository.updatedAt)}
+                        </dd>
+                        <dt className="col-md-3 sky-detail-label">Created</dt>
+                        <dd className="col-md-9 sky-detail-value">
+                          {formatRepositoryDate(selectedRepository.createdAt)}
+                        </dd>
+                      </dl>
+                    </div>
+                  </section>
+
+                  <section className="sky-card">
+                    <div className="sky-card-header">
+                      <div>
+                        <div className="sky-page-kicker">Profile paths</div>
+                        <h3 className="h5 mb-0">Configured paths</h3>
+                      </div>
+                    </div>
+                    <div className="table-responsive">
+                      <table className="table table-sm sky-table mb-0">
+                        <thead>
+                          <tr>
+                            <th>Profile</th>
+                            <th>Root path</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedPaths.length === 0 ? (
+                            <tr>
+                              <td colSpan="3">
+                                <div className="sky-empty-state py-3">
+                                  No profile paths are configured for this repository.
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            selectedPaths.map((path) => (
+                              <tr key={path.profileId}>
+                                <td>
+                                  <div className="fw-semibold sky-detail-value">
+                                    {path.profileCode}
+                                  </div>
+                                </td>
+                                <td className="sky-mono small text-break">
+                                  {path.rootPath || 'Not configured'}
+                                </td>
+                                <td>
+                                  <span
+                                    className={`sky-pill ${repositoryStatusClass(
+                                      path.active && path.rootPath,
+                                    )}`}
+                                  >
+                                    {path.active && path.rootPath ? 'ACTIVE' : 'NOT SET'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <div className="sky-empty-state py-5">Repository details are unavailable.</div>
+              )}
+            </div>
           </section>
         </div>
-      </div>
+      )}
     </>
   );
 }

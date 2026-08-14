@@ -48,6 +48,26 @@ const checks = [
     'Manage Repositories pagination is required.',
   ],
   [
+    manageSource.includes('<th className="text-end">Actions</th>') &&
+      manageSource.includes('Repository Details') &&
+      manageSource.includes('aria-label="Repository details"'),
+    'Manage Repositories must expose row-level Repository Details actions and a details modal.',
+  ],
+  [
+    !manageSource.includes('<h2 className="h5 mb-0">Repository detail</h2>') &&
+      manageSource.includes('<h2 className="h5 mb-0">Repository configuration</h2>'),
+    'Repository configuration must be the full-width workspace below the repository browser.',
+  ],
+  [
+    !manageSource.includes('<h2 className="h5 mb-0">SkyCommand repository readiness</h2>'),
+    'Manage Repositories must not render the SkyCommand repository readiness card.',
+  ],
+  [
+    !manageSource.includes('Refresh repositories') &&
+      manageSource.includes("? 'Refreshing...' : 'Refresh'"),
+    'Manage Repositories refresh action must use the concise Refresh label.',
+  ],
+  [
     addSource.includes('<h1 className="sky-page-title">Add Repository</h1>') &&
       addSource.includes('adminService.createRepository(payload)'),
     'Add Repository must expose a dedicated creation surface.',
