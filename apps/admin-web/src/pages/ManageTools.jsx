@@ -630,7 +630,7 @@ function ManageTools() {
   const [success, setSuccess] = useState('');
   const verificationPanelRef = useRef(null);
   const verificationScrollHandledRef = useRef(false);
-  const filterAutoApplyReadyRef = useRef(false);
+  const initialLoadCompleteRef = useRef(false);
 
   const selectedListTool = useMemo(
     () => tools.find((tool) => tool.toolId === selectedToolId) || null,
@@ -756,6 +756,7 @@ function ManageTools() {
         }
       } finally {
         if (active) {
+          initialLoadCompleteRef.current = true;
           setLoading(false);
         }
       }
@@ -773,8 +774,7 @@ function ManageTools() {
   }, [selectedToolId, creating]);
 
   useEffect(() => {
-    if (!filterAutoApplyReadyRef.current) {
-      filterAutoApplyReadyRef.current = true;
+    if (!initialLoadCompleteRef.current) {
       return undefined;
     }
 
