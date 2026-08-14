@@ -155,6 +155,7 @@ SkyCommand/
 │   │       └── services/
 │   │           ├── adminService.js
 │   │           ├── api.js
+│   │           ├── authExpiryRefreshSelfTest.js
 │   │           ├── authService.js
 │   │           ├── ingestionService.js
 │   │           ├── temporalService.js
@@ -227,6 +228,7 @@ SkyCommand/
 │   │       │   ├── toolVerificationSelfTest.js
 │   │       │   ├── toolVerificationService.js
 │   │       │   ├── workerService.js
+│   │       │   ├── workflowCloneParitySelfTest.js
 │   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowConditionService.js
 │   │       │   ├── workflowExecutorService.js

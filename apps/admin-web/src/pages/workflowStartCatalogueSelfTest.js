@@ -91,6 +91,12 @@ assert(
     workflowSource.includes("{starting ? 'Running workflow...' : 'Start Workflow'}"),
   'Start Workflow must use one consistent launch button label for every workflow.',
 );
+
+assert(
+  workflowSource.includes('function getClearedRuntimeParameterValues(parameters = [])') &&
+    workflowSource.includes('setRuntimeParameterValues(getClearedRuntimeParameterValues(runtimeParameters));'),
+  'A successful Start Workflow launch must clear operator-entered runtime parameter values to prevent accidental duplicate execution.',
+);
 assert(
   !workflowSource.includes('headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}') &&
     graphSource.includes("justify-content-end gap-2 ms-auto") &&

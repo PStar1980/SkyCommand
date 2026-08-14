@@ -2,6 +2,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const SESSION_TOKEN_KEY = 'skycommand.admin.sessionToken';
 const LEGACY_SESSION_TOKEN_KEY = 'skyserver.admin.sessionToken';
 const AUTH_EXPIRED_EVENT = 'skycommand:auth-expired';
+const AUTH_EXPIRED_NOTICE_KEY = 'skycommand.auth.expiredNotice';
+const LOGIN_PATH = '/login';
 
 function getSessionToken() {
   const token =
@@ -31,8 +33,21 @@ function clearSessionToken() {
   localStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
 }
 
+function consumeAuthExpiredNotice() {
+  const notice = window.sessionStorage.getItem(AUTH_EXPIRED_NOTICE_KEY) || '';
+  window.sessionStorage.removeItem(AUTH_EXPIRED_NOTICE_KEY);
+  return notice;
+}
+
+function redirectToLogin() {
+  if (window.location.pathname !== LOGIN_PATH) {
+    window.location.replace(LOGIN_PATH);
+  }
+}
+
 function notifyAuthExpired(message = 'Invalid or expired session.') {
   clearSessionToken();
+  window.sessionStorage.setItem(AUTH_EXPIRED_NOTICE_KEY, message);
 
   window.dispatchEvent(
     new CustomEvent(AUTH_EXPIRED_EVENT, {
@@ -41,6 +56,11 @@ function notifyAuthExpired(message = 'Invalid or expired session.') {
       },
     }),
   );
+
+  // Every Admin-Web refresh path uses this API client. A 401 therefore becomes
+  // one application-wide expiry contract for manual refreshes, polling, and
+  // ordinary API activity instead of relying on each page to handle it itself.
+  redirectToLogin();
 }
 
 function buildUrl(path, query = {}) {
@@ -119,6 +139,7 @@ async function request(path, options = {}) {
 
 const api = {
   AUTH_EXPIRED_EVENT,
+  consumeAuthExpiredNotice,
   getSessionToken,
   setSessionToken,
   clearSessionToken,

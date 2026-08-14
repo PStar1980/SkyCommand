@@ -3514,7 +3514,26 @@ async function insertWorkflowEdges({
   return edges;
 }
 
-async function createWorkflowDefinition({ payload = {}, user, permissions = [] } = {}) {
+function getCloneableWorkflowConfig(config = {}) {
+  const sourceConfig = { ...getSafeObject(config) };
+
+  // These fields describe the source definition's authoring lifecycle rather than
+  // executable workflow behavior. The clone receives fresh provenance below.
+  delete sourceConfig.createdBy;
+  delete sourceConfig.updatedBy;
+  delete sourceConfig.lastVersionCreatedBy;
+  delete sourceConfig.clonedFromWorkflowCode;
+  delete sourceConfig.runtimeParameters;
+
+  return sourceConfig;
+}
+
+async function createWorkflowDefinition({
+  payload = {},
+  user,
+  permissions = [],
+  definitionDefaults = {},
+} = {}) {
   assertPermission({
     permissionCode: WORKFLOW_CREATE_PERMISSION,
     permissions,
@@ -3530,6 +3549,13 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
   const nodesInput = getSafeArray(payload.nodes);
   assertWorkflowParameterDefinitionLimit(payload.runtimeParameters);
   const runtimeParameters = normalizeWorkflowParameterDefinitions(payload.runtimeParameters);
+  const baseDefinitionConfig = getSafeObject(definitionDefaults.config);
+  const startPermissionCode =
+    String(definitionDefaults.startPermissionCode || DEFAULT_START_PERMISSION).trim() ||
+    DEFAULT_START_PERMISSION;
+  const cancelPermissionCode =
+    String(definitionDefaults.cancelPermissionCode || DEFAULT_CANCEL_PERMISSION).trim() ||
+    DEFAULT_CANCEL_PERMISSION;
 
   if (!workflowCode) {
     throw new WorkflowServiceError('workflowCode or displayName is required.', 400);
@@ -3594,10 +3620,13 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
         publish ? 'ACTIVE' : 'INACTIVE',
         visibleInAdmin,
         enabled,
-        DEFAULT_START_PERMISSION,
-        DEFAULT_CANCEL_PERMISSION,
+        startPermissionCode,
+        cancelPermissionCode,
         JSON.stringify({
-          createdBy: 'workflow_builder_v1',
+          ...baseDefinitionConfig,
+          createdBy: definitionDefaults.clonedFromWorkflowCode
+            ? 'workflow_clone_v1'
+            : 'workflow_builder_v1',
           builderVersion: '10.25',
           supportedNodeTypes: [
             'TOOL',
@@ -3609,6 +3638,9 @@ async function createWorkflowDefinition({ payload = {}, user, permissions = [] }
             'HUMAN_APPROVAL',
             'SUMMARY',
           ],
+          ...(definitionDefaults.clonedFromWorkflowCode
+            ? { clonedFromWorkflowCode: definitionDefaults.clonedFromWorkflowCode }
+            : {}),
           runtimeParameters,
         }),
         user?.userId || null,
@@ -5197,6 +5229,9 @@ async function cloneWorkflowDefinition({
 
   const source = await getWorkflowDefinitionForManage(workflowCode);
   const sourceNodes = source.publishedGraph?.nodes || source.latestGraph?.nodes || [];
+  const sourceRuntimeParameters = normalizeWorkflowParameterDefinitions(
+    source.runtimeParameters || getParameterSchemaFromConfig(source.config || {}),
+  );
   const cloneCode = normalizeWorkflowCode(payload.workflowCode || `${source.workflowCode}-copy`);
   const cloneName = String(payload.displayName || `${source.displayName} Copy`).trim();
 
@@ -5218,7 +5253,14 @@ async function cloneWorkflowDefinition({
       publish: payload.publish !== false,
       visibleInAdmin: true,
       enabled: true,
+      runtimeParameters: sourceRuntimeParameters,
       nodes: versionNodesToCreateInput(sourceNodes),
+    },
+    definitionDefaults: {
+      config: getCloneableWorkflowConfig(source.config),
+      startPermissionCode: source.startPermissionCode,
+      cancelPermissionCode: source.cancelPermissionCode,
+      clonedFromWorkflowCode: source.workflowCode,
     },
     user,
     permissions,

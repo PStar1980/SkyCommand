@@ -40,6 +40,8 @@ const routineSelfTests = [
   'workflow-tool-visibility:self-test',
   'workflow-database-output:self-test',
   'workflow-start-catalogue:self-test',
+  'workflow-clone-parity:self-test',
+  'auth-expiry-refresh:self-test',
   'tool-execution-response:self-test',
   'tool-execution-output-workspace:self-test',
   'chart-typography:self-test',

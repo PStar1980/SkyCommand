@@ -88,6 +88,14 @@ export function AuthProvider({ children }) {
   }, [clearAuthState, handleExpiredSession]);
 
   useEffect(() => {
+    const pendingNotice = api.consumeAuthExpiredNotice();
+
+    if (pendingNotice) {
+      setAuthNotice(pendingNotice);
+    }
+  }, []);
+
+  useEffect(() => {
     function onAuthExpired(event) {
       handleExpiredSession(event.detail?.message || 'Your session expired. Please sign in again.');
     }

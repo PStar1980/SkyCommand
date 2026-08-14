@@ -183,6 +183,13 @@ function getInitialRuntimeParameterValues(parameters = []) {
   }, {});
 }
 
+function getClearedRuntimeParameterValues(parameters = []) {
+  return parameters.reduce((accumulator, parameter) => {
+    accumulator[parameter.key] = parameter.type === 'boolean' ? false : '';
+    return accumulator;
+  }, {});
+}
+
 function parseRuntimeParameterValues(parameters = [], values = {}) {
   return parameters.reduce((accumulator, parameter) => {
     const rawValue = values[parameter.key];
@@ -5202,6 +5209,12 @@ function SkyWorkflows({ mode = 'start' }) {
           runtimeParameters: params,
         },
       });
+
+      // A successful launch consumes the operator-entered values. Clearing them here
+      // prevents an accidental second execution with the same repository/message/etc.
+      // Validation failures intentionally keep the form populated so they can be corrected.
+      setRuntimeParameterValues(getClearedRuntimeParameterValues(runtimeParameters));
+      setRuntimeParameterError('');
 
       setMessage(
         result.started
