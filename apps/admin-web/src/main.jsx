@@ -8,7 +8,8 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import AuditEvents from './pages/AuditEvents.jsx';
 import AdminPrivileges from './pages/AdminPrivileges.jsx';
-import AdminRepositories from './pages/AdminRepositories.jsx';
+import AddRepository from './pages/AddRepository.jsx';
+import ManageRepositories from './pages/ManageRepositories.jsx';
 import ProductionReadiness from './pages/ProductionReadiness.jsx';
 import AdminRoles from './pages/AdminRoles.jsx';
 import AdminSessions from './pages/AdminSessions.jsx';
@@ -277,13 +278,26 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
+            <Route path="git-repositories" element={<Navigate replace to="/git-repositories/manage" />} />
             <Route
-              path="configuration/repositories"
+              path="git-repositories/manage"
               element={
                 <ProtectedRoute permissionCode="ADMIN_REPOSITORY_READ">
-                  <AdminRepositories />
+                  <ManageRepositories />
                 </ProtectedRoute>
               }
+            />
+            <Route
+              path="git-repositories/add"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_REPOSITORY_WRITE">
+                  <AddRepository />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="configuration/repositories"
+              element={<Navigate replace to="/git-repositories/manage" />}
             />
 
             <Route path="access-control" element={<Navigate replace to="/admin/users" />} />

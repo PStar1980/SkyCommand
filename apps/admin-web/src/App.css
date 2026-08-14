@@ -6873,3 +6873,54 @@ select.sky-form-control optgroup {
     grid-column: auto;
   }
 }
+
+/* Git repository administration — split manage/create surfaces */
+.sky-manage-repositories-browser {
+  min-width: 0;
+}
+
+.sky-manage-repositories-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1.45fr) repeat(2, minmax(10rem, 0.72fr)) auto;
+  gap: 0.75rem;
+  align-items: end;
+  min-width: min(100%, 68rem);
+}
+
+.sky-manage-repositories-filter-grid .form-label {
+  margin-bottom: 0.35rem;
+}
+
+.sky-manage-repositories-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding-bottom: 0.05rem;
+}
+
+.sky-manage-repositories-browser .sky-table {
+  min-width: 72rem;
+}
+
+@media (max-width: 1200px) {
+  .sky-manage-repositories-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sky-manage-repositories-search-filter {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .sky-manage-repositories-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-manage-repositories-search-filter {
+    grid-column: auto;
+  }
+}

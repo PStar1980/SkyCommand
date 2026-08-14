@@ -54,8 +54,12 @@ const COMMAND_SEARCH_ALIASES = {
   ingestion: '/dashboard/data-pipeline',
   data: '/dashboard/data-pipeline',
   readiness: '/configuration/production-readiness',
-  repositories: '/configuration/repositories',
-  repos: '/configuration/repositories',
+  repository: '/git-repositories/manage',
+  repositories: '/git-repositories/manage',
+  repos: '/git-repositories/manage',
+  'git repositories': '/git-repositories/manage',
+  'manage repositories': '/git-repositories/manage',
+  'add repository': '/git-repositories/add',
   users: '/admin/users',
   sessions: '/admin/sessions',
   roles: '/admin/roles',
@@ -127,8 +131,9 @@ function createNavGroups(hasPermission, hasRole) {
     hasPermission('WORKER_SCHEDULE_CHANGE') ||
     hasPermission('WORKER_ADMIN') ||
     hasPermission('WORKER_LISTENER_READ');
-  const canViewData =
-    hasPermission('INGESTION_VIEW_STATUS') || hasPermission('ADMIN_REPOSITORY_READ');
+  const canViewData = hasPermission('INGESTION_VIEW_STATUS');
+  const canViewRepositories =
+    hasPermission('ADMIN_REPOSITORY_READ') || hasPermission('ADMIN_REPOSITORY_WRITE');
   const canViewReadiness = hasRole('SUPER_ADMIN');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
@@ -324,12 +329,26 @@ function createNavGroups(hasPermission, hasRole) {
           visible: hasPermission('INGESTION_VIEW_STATUS'),
           description: 'Runs, evidence, recovery',
         },
+      ],
+    },
+    {
+      label: 'Git Repositories',
+      icon: '▣',
+      visible: canViewRepositories,
+      items: [
         {
-          label: 'Repositories',
-          to: '/configuration/repositories',
-          icon: '▣',
+          label: 'Manage Repositories',
+          to: '/git-repositories/manage',
+          icon: '▧',
           visible: hasPermission('ADMIN_REPOSITORY_READ'),
-          description: 'Repo paths',
+          description: 'Repository catalogue',
+        },
+        {
+          label: 'Add Repository',
+          to: '/git-repositories/add',
+          icon: '+',
+          visible: hasPermission('ADMIN_REPOSITORY_WRITE'),
+          description: 'Repository registration',
         },
       ],
     },
