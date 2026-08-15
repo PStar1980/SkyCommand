@@ -35,6 +35,14 @@ assert(
   'Authenticated page cards and structural labels must use the neutral-black and gold-forward treatment.',
 );
 assert(
+  cssSource.includes('--sky-heading-text: #ffffff;') &&
+    cssSource.includes('.sky-workflow-visual-title,') &&
+    cssSource.includes('.sky-dashboard-command-title,') &&
+    cssSource.includes('.sky-login-card-header .sky-page-title {') &&
+    cssSource.includes('color: var(--sky-heading-text);'),
+  'Primary headings must remain full white while gold is reserved for structural labels and accents.',
+);
+assert(
   indexCssSource.includes('background: #010203;') &&
     indexCssSource.includes('rgba(220, 177, 63, 0.045)'),
   'The document root must match the authenticated black-gold shell to avoid a blue loading flash.',
@@ -66,8 +74,8 @@ assert(
   'The login card must use the product-first SkyCommand / Workflow Automation brand hierarchy.',
 );
 assert(
-  cssSource.includes('width: 5.65rem;') &&
-    cssSource.includes('flex: 0 0 5.65rem;') &&
+  cssSource.includes('width: 5.2rem;') &&
+    cssSource.includes('flex: 0 0 5.2rem;') &&
     cssSource.includes('.sky-login-brand-tagline'),
   'The login-card mark must anchor the full branded header with the dedicated tagline treatment.',
 );

@@ -6374,6 +6374,7 @@ select.sky-form-control optgroup {
   --sky-border: #5b481e;
   --sky-border-soft: rgba(220, 177, 63, 0.2);
   --sky-text: #f5f2e9;
+  --sky-heading-text: #ffffff;
   --sky-text-muted: #b3ac9d;
   --sky-text-subtle: #81796b;
   --sky-gold-deep: #8f6415;
@@ -6471,8 +6472,11 @@ select.sky-form-control optgroup {
 }
 
 .sky-page-title,
-.sky-card :is(h1, h2, h3, h4, h5, h6) {
-  color: var(--sky-text);
+.sky-card :is(h1, h2, h3, h4, h5, h6),
+.sky-workflow-visual-title,
+.sky-dashboard-command-title,
+.sky-login-card-header .sky-page-title {
+  color: var(--sky-heading-text);
 }
 
 .sky-page-subtitle,
