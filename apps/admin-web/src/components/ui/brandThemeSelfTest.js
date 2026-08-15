@@ -103,6 +103,23 @@ assert(
   'The login and authenticated shells must use the unified organic PNG sky-net background.',
 );
 assert(
+  cssSource.includes('.sky-workflow-visual-node.is-selected {') &&
+    cssSource.includes('border-color: rgba(255, 217, 120, 0.9);') &&
+    cssSource.includes('outline: 4px solid rgba(255, 217, 120, 0.98);') &&
+    cssSource.includes('border: 1px solid rgba(255, 240, 174, 0.9);') &&
+    cssSource.includes('box-shadow: 0 18px 48px rgba(220, 177, 63, 0.09);') &&
+    !cssSource.includes('outline: 3px solid rgba(84, 202, 255, 0.98);'),
+  'Selected workflow nodes must use a thicker gold focus frame rather than the legacy cyan highlight.',
+);
+assert(
+  cssSource.includes('.sky-sidebar-brand-wrap {') &&
+    cssSource.includes('border: 1px solid rgba(220, 177, 63, 0.72);') &&
+    cssSource.includes('border-radius: 0;') &&
+    cssSource.includes('margin: 0;') &&
+    cssSource.includes('padding: 0;'),
+  'The SkyCommand sidebar branding frame must sit flush against its outer square gold border.',
+);
+assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&
     chartThemeSource.includes("gold: '#dcb13f'") &&
     chartThemeSource.includes("green: '#42d69b'"),

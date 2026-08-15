@@ -308,17 +308,27 @@
   align-items: center;
   justify-content: flex-start;
   gap: 0.95rem;
+  box-sizing: border-box;
   text-align: left;
-  border-bottom: 1px solid rgba(124, 144, 177, 0.28);
+  border: 1px solid rgba(220, 177, 63, 0.72);
+  border-radius: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 62%), #010409;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38);
-  padding: 0.62rem 1.18rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 217, 120, 0.035),
+    0 18px 60px rgba(0, 0, 0, 0.38),
+    0 0 18px rgba(220, 177, 63, 0.055);
+  margin: 0;
+  padding: 0;
 }
 
 .sky-sidebar-brand {
   width: 100%;
+  min-height: calc(var(--sky-topbar-height) - 2px);
+  align-items: center;
   justify-content: flex-start;
   gap: 0;
+  box-sizing: border-box;
+  padding: 0.62rem 1.18rem;
 }
 
 .sky-sidebar-brand .sky-brand-lockup,
@@ -3067,12 +3077,14 @@ select.sky-form-control optgroup {
 .sky-workflow-visual-node:not(.is-selection-locked):hover,
 .sky-workflow-visual-node:not(.is-selection-locked):focus,
 .sky-workflow-visual-node.is-selected {
-  border-color: rgba(72, 167, 255, 0.72);
-  background: linear-gradient(135deg, rgba(72, 167, 255, 0.16), rgba(155, 89, 255, 0.1));
+  border-color: rgba(220, 177, 63, 0.68);
+  background:
+    radial-gradient(circle at top right, rgba(255, 217, 120, 0.09), transparent 42%),
+    linear-gradient(135deg, rgba(220, 177, 63, 0.09), rgba(7, 10, 13, 0.9));
   color: #ffffff;
   outline: none;
   transform: translateY(-1px);
-  box-shadow: 0 18px 48px rgba(72, 167, 255, 0.1);
+  box-shadow: 0 18px 48px rgba(220, 177, 63, 0.09);
 }
 
 .sky-workflow-visual-node.is-selection-locked {
@@ -5139,34 +5151,37 @@ select.sky-form-control optgroup {
 .sky-workflow-visual-node.is-selected {
   position: relative;
   z-index: 2;
-  outline: 3px solid rgba(84, 202, 255, 0.98);
-  outline-offset: -4px;
+  border-color: rgba(255, 217, 120, 0.9);
+  outline: 4px solid rgba(255, 217, 120, 0.98);
+  outline-offset: -5px;
   box-shadow:
-    inset 0 0 0 1px rgba(191, 227, 255, 0.28),
-    0 0 0 1px rgba(84, 202, 255, 0.16),
-    0 0 26px rgba(72, 167, 255, 0.24),
-    0 18px 42px rgba(72, 167, 255, 0.12);
+    inset 0 0 0 1px rgba(255, 240, 174, 0.3),
+    0 0 0 1px rgba(220, 177, 63, 0.24),
+    0 0 30px rgba(255, 217, 120, 0.22),
+    0 18px 44px rgba(220, 177, 63, 0.12);
 }
 
 .sky-workflow-visual-node.is-selected::before {
   position: absolute;
   inset: 7px;
-  border: 1px solid rgba(191, 240, 255, 0.92);
+  border: 1px solid rgba(255, 240, 174, 0.9);
   border-radius: 0.82rem;
   box-shadow:
-    0 0 0 1px rgba(72, 167, 255, 0.2),
-    inset 0 0 18px rgba(72, 167, 255, 0.08),
-    0 0 18px rgba(72, 167, 255, 0.14);
+    0 0 0 1px rgba(220, 177, 63, 0.2),
+    inset 0 0 18px rgba(255, 217, 120, 0.07),
+    0 0 18px rgba(255, 217, 120, 0.12);
   content: '';
   pointer-events: none;
 }
 
 .sky-workflow-visual-node.is-selected:not(.is-runtime-active) {
-  background: linear-gradient(135deg, rgba(72, 167, 255, 0.18), rgba(155, 89, 255, 0.11));
+  background:
+    radial-gradient(circle at top right, rgba(255, 217, 120, 0.12), transparent 42%),
+    linear-gradient(135deg, rgba(220, 177, 63, 0.105), rgba(7, 10, 13, 0.9));
 }
 
 .sky-workflow-visual-node.is-runtime-active.is-selected {
-  outline-color: rgba(205, 244, 255, 1);
+  outline-color: rgba(255, 240, 174, 1);
 }
 
 .sky-workflow-visual-node.is-runtime-active {
