@@ -862,7 +862,7 @@
 }
 
 .sky-topbar-command-search input::placeholder {
-  color: #7d8eac;
+  color: #aeb8ca;
   opacity: 1;
 }
 
@@ -1337,7 +1337,8 @@
 }
 
 .sky-form-control::placeholder {
-  color: #61718f;
+  color: #aeb8ca;
+  opacity: 1;
 }
 
 .sky-form-control option {
@@ -1395,7 +1396,7 @@ select.sky-form-control optgroup {
 
 .sky-form-control:disabled::placeholder,
 .sky-form-control[disabled]::placeholder {
-  color: #61718f;
+  color: #aeb8ca;
   opacity: 1;
 }
 
@@ -6784,7 +6785,7 @@ select.sky-form-control optgroup {
 
 .sky-workflow-approval-modal .sky-form-control::placeholder,
 .sky-workflow-approval-modal textarea.sky-form-control::placeholder {
-  color: #8ea4c4;
+  color: #aeb8ca;
   opacity: 1;
 }
 
