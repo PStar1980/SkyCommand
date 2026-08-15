@@ -186,6 +186,13 @@ assert(
   'Shared action buttons must use the metallic gold button treatment with dark text.',
 );
 assert(
+  cssSource.includes('.sky-topbar-command-search input::placeholder {') &&
+    cssSource.includes('color: #aeb8ca;') &&
+    cssSource.includes('.sky-form-control::placeholder {') &&
+    cssSource.includes('.sky-workflow-approval-modal .sky-form-control::placeholder,'),
+  'Default input placeholder text should use the softer neutral gray (#aeb8ca) instead of the older blue tint.',
+);
+assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&
     chartThemeSource.includes("gold: '#dcb13f'") &&
     chartThemeSource.includes("green: '#42d69b'"),
