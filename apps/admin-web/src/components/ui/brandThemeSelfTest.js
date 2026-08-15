@@ -130,11 +130,12 @@ assert(
 );
 assert(
   cssSource.includes('.sky-topbar {') &&
+    cssSource.includes('height: calc(var(--sky-topbar-height) + 2px);') &&
     cssSource.includes('border: 1px solid rgba(220, 177, 63, 0.68);') &&
     cssSource.includes('padding: 0.42rem 1rem;') &&
     cssSource.includes('.sky-public-navbar {') &&
     cssSource.includes('padding: 0.34rem 0.72rem;'),
-  'Authenticated and public navbars must carry the same outer gold frame, with tighter branding spacing.',
+  'Authenticated and public navbars must carry the same outer gold frame, with tighter branding spacing and a bottom edge aligned to the sidebar branding plaque.',
 );
 assert(
   cssSource.includes('.sky-sidebar-brand {') &&
