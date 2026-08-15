@@ -172,7 +172,7 @@ assert(
 );
 assert(
   cssSource.includes('.sky-workflow-visual-node.is-selected {') &&
-    cssSource.includes('outline: 3px solid rgba(84, 202, 255, 0.98);') &&
+    cssSource.includes('outline: 4px solid rgba(255, 217, 120, 0.98);') &&
     cssSource.includes('.sky-workflow-visual-edge.is-runtime-branch-path-edge') &&
     cssSource.includes('@media (prefers-reduced-motion: reduce)'),
   'Runtime graphs must distinguish selected nodes, illuminate chosen branch paths, and support reduced motion.',
