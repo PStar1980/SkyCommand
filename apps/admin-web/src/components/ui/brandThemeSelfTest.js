@@ -8,11 +8,13 @@ function assert(condition, message) {
 }
 
 const cssPath = path.join(__dirname, '..', '..', 'App.css');
+const indexCssPath = path.join(__dirname, '..', '..', 'index.css');
 const chartThemePath = path.join(__dirname, '..', 'charts', 'chartTheme.js');
 const dashboardVisualsPath = path.join(__dirname, '..', 'charts', 'DashboardVisuals.jsx');
 const loginPath = path.join(__dirname, '..', '..', 'pages', 'Login.jsx');
 
 const cssSource = fs.readFileSync(cssPath, 'utf8');
+const indexCssSource = fs.readFileSync(indexCssPath, 'utf8');
 const chartThemeSource = fs.readFileSync(chartThemePath, 'utf8');
 const dashboardVisualsSource = fs.readFileSync(dashboardVisualsPath, 'utf8');
 const loginSource = fs.readFileSync(loginPath, 'utf8');
@@ -20,8 +22,22 @@ const loginSource = fs.readFileSync(loginPath, 'utf8');
 assert(
   cssSource.includes('SkyCommand Midnight Gold brand system') &&
     cssSource.includes('--sky-gold: #dcb13f;') &&
-    cssSource.includes('--sky-cyan: #65c8ff;'),
-  'The semantic Midnight Gold design tokens must remain available.',
+    cssSource.includes('--sky-cyan: #65c8ff;') &&
+    cssSource.includes('--sky-surface: #05080b;') &&
+    cssSource.includes('--sky-border-soft: rgba(220, 177, 63, 0.2);'),
+  'The semantic Midnight Gold design tokens must remain available with the neutral-black surface hierarchy.',
+);
+assert(
+  cssSource.includes('border-color: rgba(220, 177, 63, 0.27);') &&
+    cssSource.includes('linear-gradient(135deg, rgba(5, 8, 12, 0.94), rgba(2, 5, 8, 0.9))') &&
+    cssSource.includes('.sky-page-kicker,') &&
+    cssSource.includes('color: #d9bd70;'),
+  'Authenticated page cards and structural labels must use the neutral-black and gold-forward treatment.',
+);
+assert(
+  indexCssSource.includes('background: #010203;') &&
+    indexCssSource.includes('rgba(220, 177, 63, 0.045)'),
+  'The document root must match the authenticated black-gold shell to avoid a blue loading flash.',
 );
 assert(
   cssSource.includes('background: linear-gradient(135deg, #fff0ae 0%, #e4b83f 52%, #a97016 100%);'),
@@ -29,8 +45,9 @@ assert(
 );
 assert(
   cssSource.includes('inset 3px 0 0 var(--sky-gold)') &&
-    cssSource.includes('rgba(101, 200, 255, 0.065)'),
-  'Table selection must remain gold while exploratory hover remains cyan.',
+    cssSource.includes('--bs-table-hover-bg: rgba(220, 177, 63, 0.055);') &&
+    cssSource.includes('color: #d9bd70;'),
+  'Table exploration and selection must use the restrained Midnight Gold hierarchy.',
 );
 assert(
   cssSource.includes('.sky-form-control:-webkit-autofill') &&
@@ -39,7 +56,7 @@ assert(
 );
 assert(
   cssSource.includes('.sky-workflow-approval-instructions') &&
-    cssSource.includes('border-color: rgba(220, 177, 63, 0.3);'),
+    cssSource.includes('border-color: rgba(220, 177, 63, 0.34);'),
   'Human approval surfaces must carry the restrained gold importance treatment.',
 );
 assert(
