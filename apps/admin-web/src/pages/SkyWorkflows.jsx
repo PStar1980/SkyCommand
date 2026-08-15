@@ -3186,7 +3186,7 @@ function DatabaseBuildOutput({ toolResult }) {
 
       {uiFilesTruncated ? (
         <div className="small sky-muted mt-2">
-          Workflow History displays the first 250 SQL rows; the complete structured result remains persisted.
+          Workflow Operations displays the first 250 SQL rows; the complete structured result remains persisted.
         </div>
       ) : null}
 
@@ -4991,7 +4991,7 @@ function SkyWorkflows({ mode = 'start' }) {
 
       if (stillVisible) {
         await loadRunDetail(stillVisible.workflowRunRecordId);
-        return;
+        return items;
       }
     }
 
@@ -5007,8 +5007,15 @@ function SkyWorkflows({ mode = 'start' }) {
     setError('');
 
     try {
-      await loadDefinitions({ keepSelection });
-      const loadedRuns = await loadRuns(filters, { keepSelection });
+      // Workflow Operations refreshes only the execution ledger/detail. Reloading the
+      // definition catalogue here is unnecessary and can transiently desynchronize the
+      // selected run from its graph while a manual refresh is in flight. Start Workflow
+      // still refreshes definitions because its catalogue is part of that page's surface.
+      if (!isHistoryMode) {
+        await loadDefinitions({ keepSelection });
+      }
+
+      const loadedRuns = (await loadRuns(filters, { keepSelection })) || [];
 
       if (isHistoryMode) {
         const refreshedAt = new Date().toISOString();
@@ -5260,7 +5267,7 @@ function SkyWorkflows({ mode = 'start' }) {
 
     try {
       const result = await workflowService.cancelRun(selectedRun.workflowRunRecordId, {
-        reason: 'Canceled from SkyCommand Workflow History.',
+        reason: 'Canceled from SkyCommand Workflow Operations.',
       });
       setMessage(result.message || 'Workflow run canceled.');
       await loadRuns(filters, { keepSelection: true });
@@ -5279,7 +5286,7 @@ function SkyWorkflows({ mode = 'start' }) {
 
     const reason = window.prompt(
       'Terminate this workflow run? Add a cleanup reason:',
-      'Terminated from SkyCommand Workflow History.',
+      'Terminated from SkyCommand Workflow Operations.',
     );
 
     if (reason === null) {
@@ -6029,7 +6036,7 @@ function SkyWorkflows({ mode = 'start' }) {
           <div className="sky-card-header">
             <div>
               <div className="sky-page-kicker">Run browser</div>
-              <h2 className="h5 mb-0">Workflow history data</h2>
+              <h2 className="h5 mb-0">Workflow operations data</h2>
               <p className="sky-muted small mb-0">
                 Select the execution surface and status, then inspect a run in the detail workspace
                 below.
@@ -6260,8 +6267,8 @@ function SkyWorkflows({ mode = 'start' }) {
     );
   }
 
-  const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
-  const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
+  const pageKicker = isHistoryMode ? 'Workflows · Operations' : 'Workflows · Start';
+  const pageTitle = isHistoryMode ? 'Workflow Operations' : 'Start Workflow';
   const pageSubtitle = isHistoryMode
     ? 'Inspect SkyCommand workflow runs, node outcomes, and the executor ledger.'
     : 'Start approved SkyCommand workflow definitions built from tools, Temporal templates, APIs, agents, and future node types.';
@@ -6653,7 +6660,7 @@ function SkyWorkflows({ mode = 'start' }) {
                   runStatus={selectedTemporalRuntime?.status || selectedRun?.status || 'NOT_RUN'}
                   runtimeMode
                   selectedNodeIndex={selectedRuntimeNodeIndex}
-                  subtitle="Live run overlay for the workflow you start here. The graph uses the same page-width, horizontally scrollable runtime lane as Workflow History."
+                  subtitle="Live run overlay for the workflow you start here. The graph uses the same page-width, horizontally scrollable runtime lane as Workflow Operations."
                   temporalRuntime={selectedTemporalRuntime}
                   title="Runtime workflow map"
                 />

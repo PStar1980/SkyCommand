@@ -12,7 +12,7 @@ const source = fs.readFileSync(path.join(__dirname, 'SkyWorkflows.jsx'), 'utf8')
 
 assert(
   source.includes('function DatabaseHealthOutput({ toolResult })'),
-  'Workflow History must have a purpose-built Database Health renderer.',
+  'Workflow Operations must have a purpose-built Database Health renderer.',
 );
 assert(
   source.includes('Health-check overview') && source.includes('Database results'),
@@ -24,7 +24,7 @@ assert(
 );
 assert(
   source.includes('function DatabaseBuildOutput({ toolResult })'),
-  'Workflow History must have a purpose-built Database Build renderer.',
+  'Workflow Operations must have a purpose-built Database Build renderer.',
 );
 assert(
   source.includes('SQL execution totals') && source.includes('Ordered SQL execution'),
@@ -37,7 +37,7 @@ assert(
 
 assert(
   source.includes('function DatabaseComparisonOutput({ toolResult })'),
-  'Workflow History must have a purpose-built PostgreSQL comparison renderer.',
+  'Workflow Operations must have a purpose-built PostgreSQL comparison renderer.',
 );
 assert(
   source.includes('Differences by object type'),
@@ -49,7 +49,7 @@ assert(
 );
 assert(
   source.includes('function DatabaseSynchronizationSummary({ synchronization })'),
-  'Workflow History must have a purpose-built database synchronization summary.',
+  'Workflow Operations must have a purpose-built database synchronization summary.',
 );
 assert(
   source.includes('Database synchronization proof'),

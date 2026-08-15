@@ -175,7 +175,7 @@ function ScriptExecutions() {
         tools: result.tools || [],
       });
     } catch (loadError) {
-      console.warn('[SkyCommand Tool History] Filter options failed to load:', loadError);
+      console.warn('[SkyCommand Tool Operations] Filter options failed to load:', loadError);
     }
   }
 
@@ -447,9 +447,9 @@ function ScriptExecutions() {
             pollingState={pollingState}
           />
         }
-        kicker="Tools · History"
+        kicker="Tools · Operations"
         subtitle="Read-only trace of tools launched through the API, Admin-Web, CLI-adjacent workflows, and workers."
-        title="Tool History"
+        title="Tool Operations"
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -459,7 +459,7 @@ function ScriptExecutions() {
           <div className="sky-card-header">
             <div>
               <div className="sky-page-kicker">Execution browser</div>
-              <h2 className="h5 mb-0">Tool history data</h2>
+              <h2 className="h5 mb-0">Tool operations data</h2>
               <p className="sky-muted small mb-0">
                 Filter the operational tool ledger, then inspect the selected execution in the
                 detail workspace below.
