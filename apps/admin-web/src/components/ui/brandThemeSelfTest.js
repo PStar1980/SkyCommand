@@ -193,6 +193,17 @@ assert(
   'Default input placeholder text should use the softer neutral gray (#aeb8ca) instead of the older blue tint.',
 );
 assert(
+  cssSource.includes('.sky-workflow-visual-shell {') &&
+    cssSource.includes('border: 1px solid rgba(220, 177, 63, 0.24);') &&
+    cssSource.includes('.sky-workflow-visual-runtime-note {') &&
+    cssSource.includes('background: rgba(220, 177, 63, 0.065);') &&
+    cssSource.includes('.sky-workflow-visual-viewport {') &&
+    cssSource.includes('radial-gradient(circle at top center, rgba(220, 177, 63, 0.06), transparent 58%)') &&
+    cssSource.includes('.sky-workflow-runtime-overlay {') &&
+    cssSource.includes('color: var(--sky-text-muted);'),
+  'Workflow runtime overlays must use the Midnight Gold shell and muted neutral text instead of the legacy blue treatment.',
+);
+assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&
     chartThemeSource.includes("gold: '#dcb13f'") &&
     chartThemeSource.includes("green: '#42d69b'"),

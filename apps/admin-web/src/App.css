@@ -3043,11 +3043,11 @@ select.sky-form-control optgroup {
 }
 
 .sky-workflow-visual-shell {
-  border: 1px solid rgba(124, 144, 177, 0.16);
+  border: 1px solid rgba(220, 177, 63, 0.24);
   border-radius: 1rem;
   background:
-    radial-gradient(circle at top left, rgba(72, 167, 255, 0.12), transparent 34%),
-    rgba(6, 11, 22, 0.42);
+    radial-gradient(circle at top left, rgba(220, 177, 63, 0.08), transparent 34%),
+    linear-gradient(135deg, rgba(5, 8, 12, 0.72), rgba(2, 5, 8, 0.46));
   padding: 1rem;
 }
 
@@ -3073,10 +3073,10 @@ select.sky-form-control optgroup {
   flex-direction: column;
   width: min(72vw, 280px);
   min-height: 15rem;
-  border: 1px solid rgba(124, 144, 177, 0.2);
+  border: 1px solid rgba(220, 177, 63, 0.18);
   border-radius: 1rem;
-  background: rgba(8, 15, 28, 0.72);
-  color: #dce8ff;
+  background: rgba(5, 8, 12, 0.72);
+  color: var(--sky-text);
   padding: 1rem;
   text-align: left;
   transition:
@@ -3155,9 +3155,9 @@ select.sky-form-control optgroup {
   justify-content: center;
   width: 2.2rem;
   height: 2.2rem;
-  border: 1px solid rgba(124, 144, 177, 0.28);
+  border: 1px solid rgba(220, 177, 63, 0.26);
   border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(220, 177, 63, 0.07);
   color: #f6f9ff;
   font-weight: 850;
 }
@@ -3171,20 +3171,20 @@ select.sky-form-control optgroup {
 
 .sky-workflow-visual-key {
   margin-top: 0.2rem;
-  color: #9ad7ff;
+  color: #aeb8ca;
   font-size: 0.78rem;
 }
 
 .sky-workflow-visual-summary {
   margin-top: 0.75rem;
-  color: #dce8ff;
+  color: var(--sky-text-muted);
   font-size: 0.88rem;
   -webkit-line-clamp: 2;
 }
 
 .sky-workflow-visual-detail {
   margin-top: 0.5rem;
-  color: #9fb0cc;
+  color: var(--sky-text-subtle);
   font-size: 0.8rem;
   -webkit-line-clamp: 2;
 }
@@ -3199,10 +3199,10 @@ select.sky-form-control optgroup {
 }
 
 .sky-workflow-visual-reorder-note {
-  border: 1px dashed rgba(255, 210, 97, 0.28);
+  border: 1px dashed rgba(220, 177, 63, 0.3);
   border-radius: 0.75rem;
-  background: rgba(255, 210, 97, 0.065);
-  color: #dce8ff;
+  background: rgba(220, 177, 63, 0.07);
+  color: var(--sky-text-muted);
   padding: 0.7rem 0.85rem;
   font-size: 0.86rem;
 }
@@ -3213,7 +3213,7 @@ select.sky-form-control optgroup {
   min-height: 15rem;
   align-content: center;
   justify-items: center;
-  color: #83a4d7;
+  color: #aeb8ca;
 }
 
 .sky-workflow-visual-edge-line {
@@ -3224,18 +3224,18 @@ select.sky-form-control optgroup {
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    rgba(124, 144, 177, 0.18),
-    rgba(72, 167, 255, 0.64),
-    rgba(124, 144, 177, 0.18)
+    rgba(220, 177, 63, 0.14),
+    rgba(220, 177, 63, 0.66),
+    rgba(220, 177, 63, 0.14)
   );
 }
 
 .sky-workflow-visual-edge-arrow {
   margin-top: -1rem;
-  border: 1px solid rgba(72, 167, 255, 0.34);
+  border: 1px solid rgba(220, 177, 63, 0.34);
   border-radius: 999px;
-  background: rgba(7, 13, 25, 0.94);
-  color: #9ad7ff;
+  background: rgba(5, 8, 12, 0.94);
+  color: #d9bd70;
   padding: 0.12rem 0.45rem;
   font-weight: 850;
 }
@@ -3251,9 +3251,9 @@ select.sky-form-control optgroup {
 .sky-workflow-visual-inspector {
   margin-top: 1rem;
   padding: 1rem;
-  border: 1px solid rgba(72, 167, 255, 0.22);
+  border: 1px solid rgba(220, 177, 63, 0.22);
   border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(72, 167, 255, 0.09), rgba(4, 10, 22, 0.72));
+  background: linear-gradient(135deg, rgba(220, 177, 63, 0.09), rgba(4, 10, 22, 0.72));
 }
 
 .sky-workflow-visual-inspector-empty {
@@ -3270,7 +3270,7 @@ select.sky-form-control optgroup {
 .sky-workflow-visual-inspector-row {
   min-width: 0;
   padding: 0.75rem;
-  border: 1px solid rgba(124, 144, 177, 0.16);
+  border: 1px solid rgba(220, 177, 63, 0.16);
   border-radius: 0.8rem;
   background: rgba(7, 13, 25, 0.72);
 }
@@ -3284,10 +3284,10 @@ select.sky-form-control optgroup {
 
 .sky-workflow-visual-inspector-note {
   padding: 0.85rem;
-  border: 1px solid rgba(124, 144, 177, 0.16);
+  border: 1px solid rgba(220, 177, 63, 0.16);
   border-radius: 0.8rem;
-  background: rgba(255, 255, 255, 0.035);
-  color: #dce8ff;
+  background: rgba(220, 177, 63, 0.045);
+  color: var(--sky-text-muted);
 }
 
 .sky-editor-node-highlight {
@@ -3357,10 +3357,10 @@ select.sky-form-control optgroup {
 .sky-workflow-runtime-overlay {
   margin-top: auto;
   padding: 0.65rem 0.7rem;
-  border: 1px solid rgba(124, 144, 177, 0.15);
+  border: 1px solid rgba(220, 177, 63, 0.18);
   border-radius: 0.75rem;
   background: rgba(0, 0, 0, 0.18);
-  color: #dce8ff;
+  color: var(--sky-text-muted);
   font-size: 0.78rem;
 }
 
@@ -3371,10 +3371,10 @@ select.sky-form-control optgroup {
 }
 
 .sky-workflow-visual-runtime-note {
-  border: 1px dashed rgba(72, 167, 255, 0.26);
+  border: 1px dashed rgba(220, 177, 63, 0.28);
   border-radius: 0.75rem;
-  background: rgba(72, 167, 255, 0.065);
-  color: #dce8ff;
+  background: rgba(220, 177, 63, 0.065);
+  color: var(--sky-text-muted);
   padding: 0.7rem 0.85rem;
   font-size: 0.86rem;
 }
@@ -3733,7 +3733,7 @@ select.sky-form-control optgroup {
 .sky-workflow-visual-viewport {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(124, 144, 177, 0.12);
+  border: 1px solid rgba(220, 177, 63, 0.18);
   border-radius: 1rem;
   background:
     linear-gradient(
@@ -3743,6 +3743,7 @@ select.sky-form-control optgroup {
       rgba(4, 8, 16, 0.18) 82%,
       rgba(4, 8, 16, 0.52)
     ),
+    radial-gradient(circle at top center, rgba(220, 177, 63, 0.06), transparent 58%),
     rgba(4, 8, 16, 0.24);
 }
 
@@ -3759,12 +3760,12 @@ select.sky-form-control optgroup {
 
 .sky-workflow-visual-viewport::before {
   left: 0;
-  background: linear-gradient(90deg, rgba(4, 8, 16, 0.9), transparent);
+  background: linear-gradient(90deg, rgba(4, 8, 16, 0.92), rgba(220, 177, 63, 0.05), transparent);
 }
 
 .sky-workflow-visual-viewport::after {
   right: 0;
-  background: linear-gradient(270deg, rgba(4, 8, 16, 0.9), transparent);
+  background: linear-gradient(270deg, rgba(4, 8, 16, 0.92), rgba(220, 177, 63, 0.05), transparent);
 }
 
 .sky-workflow-visual-map {
