@@ -326,8 +326,6 @@ function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null, nodes =
   const status = getRuntimeStatusForNode({ nodeRun, approval });
   const meta = getRuntimeStatusMeta(status);
   const durationMs = getNodeRunDurationMs(nodeRun);
-  const conditionRoute = getConditionRuntimeRoute({ node, nodeRun, nodes })
-    || getHumanApprovalRuntimeRoute({ node, nodeRun, nodes });
   const pieces = [];
 
   if (nodeRun?.attemptCount !== undefined && nodeRun?.attemptCount !== null) {
@@ -350,7 +348,6 @@ function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null, nodes =
     ...meta,
     status,
     detail: pieces.join(' · ') || (nodeRun ? 'Runtime captured' : 'No node run recorded'),
-    conditionRoute,
     nodeRun,
     approval,
     node,
@@ -842,15 +839,6 @@ function WorkflowVisualNode({
         <div className="sky-workflow-runtime-overlay">
           <div className="sky-page-kicker">{runtimeOverlay ? 'Runtime' : designOverlay.label}</div>
           <div>{runtimeOverlay?.detail || designOverlay.detail}</div>
-          {runtimeOverlay?.conditionRoute ? (
-            <div
-              className={`sky-workflow-runtime-route is-${runtimeOverlay.conditionRoute.branchLabel.toLowerCase()}`}
-              title={runtimeOverlay.conditionRoute.detail}
-            >
-              <span className="sky-workflow-runtime-route-label">Condition route</span>
-              <strong>{runtimeOverlay.conditionRoute.detail}</strong>
-            </div>
-          ) : null}
           {nodeRun?.errorMessage ? <div className="sky-workflow-runtime-error">{nodeRun.errorMessage}</div> : null}
           {pendingApprovalAction ? (
             <button

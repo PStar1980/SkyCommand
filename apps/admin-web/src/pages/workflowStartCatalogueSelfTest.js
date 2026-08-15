@@ -147,8 +147,9 @@ assert(
   graphSource.includes('function getRuntimeConditionRoutes(') &&
     graphSource.includes('runtimeBranchEdgeIndices.has(index)') &&
     graphSource.includes('activeBranchEdgeIndices.has(index)') &&
-    graphSource.includes('sky-workflow-runtime-route'),
-  'Condition gates must expose the executed route and illuminate connector paths across skipped nodes.',
+    !graphSource.includes('sky-workflow-runtime-route') &&
+    !cssSource.includes('.sky-workflow-runtime-route'),
+  'Condition and approval routes must be conveyed by graph illumination without adding route details to runtime node cards.',
 );
 assert(
   graphSource.includes('↪ Return to active node') &&
