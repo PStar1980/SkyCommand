@@ -64,7 +64,7 @@ function getNodeTypeMeta(nodeTypeCode) {
     },
     HUMAN_APPROVAL: {
       badge: 'APPROVAL',
-      label: 'Human checkpoint',
+      label: 'Approval',
       marker: '✓',
       className: 'sky-workflow-visual-node-approval',
       pillClassName: 'sky-pill-success',
@@ -224,6 +224,90 @@ function getNodeRunDurationMs(nodeRun) {
   return nodeRun?.metadata?.durationMs || getDateDiffMs(nodeRun?.startedAt || nodeRun?.createdAt, nodeRun?.completedAt);
 }
 
+function getApprovalExpiryMs(approval = null, node = {}) {
+  const explicitExpiry = approval?.expiresAt ? new Date(approval.expiresAt).getTime() : Number.NaN;
+
+  if (Number.isFinite(explicitExpiry)) {
+    return explicitExpiry;
+  }
+
+  const requestedAt = approval?.requestedAt || approval?.createdAt;
+  const requestedAtMs = requestedAt ? new Date(requestedAt).getTime() : Number.NaN;
+  const timeoutMs = Number(approval?.timeoutMs);
+
+  if (Number.isFinite(requestedAtMs) && Number.isFinite(timeoutMs) && timeoutMs > 0) {
+    return requestedAtMs + timeoutMs;
+  }
+
+  const parameters = node.inputParameters || {};
+  const duration = Number(parameters.timeoutDuration);
+  const unit = String(parameters.timeoutUnit || 'HOURS').trim().toUpperCase();
+  const multiplierByUnit = {
+    SECONDS: 1000,
+    MINUTES: 60 * 1000,
+    HOURS: 60 * 60 * 1000,
+    DAYS: 24 * 60 * 60 * 1000,
+  };
+
+  if (Number.isFinite(requestedAtMs) && Number.isFinite(duration) && duration > 0 && multiplierByUnit[unit]) {
+    return requestedAtMs + (duration * multiplierByUnit[unit]);
+  }
+
+  return null;
+}
+
+function formatApprovalCountdown(expiresAtMs, nowMs = Date.now()) {
+  if (!Number.isFinite(expiresAtMs)) {
+    return 'Unavailable';
+  }
+
+  const remainingMs = Math.max(0, expiresAtMs - nowMs);
+
+  if (remainingMs <= 0) {
+    return 'Expired';
+  }
+
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pieces = [];
+
+  if (days > 0) {
+    pieces.push(`${days}d`);
+  }
+
+  if (hours > 0 || days > 0) {
+    pieces.push(`${hours}h`);
+  }
+
+  pieces.push(`${minutes}m`, `${seconds}s`);
+  return pieces.join(' ');
+}
+
+function getApprovalRuntimeCardText({ approval = null, node = {}, nowMs = Date.now() } = {}) {
+  const status = String(approval?.status || '').trim().toUpperCase();
+
+  if (status === 'PENDING') {
+    return `Approve Timeout: ${formatApprovalCountdown(getApprovalExpiryMs(approval, node), nowMs)}`;
+  }
+
+  if (status === 'APPROVED') {
+    return 'Approved';
+  }
+
+  if (status === 'REJECTED') {
+    return 'Rejected';
+  }
+
+  if (status === 'TIMED_OUT') {
+    return 'Timed out';
+  }
+
+  return '';
+}
+
 function getNodeRunForNode(node = {}, nodeRuns = []) {
   if (!nodeRuns.length) {
     return null;
@@ -334,10 +418,6 @@ function getRuntimeOverlay({ node = {}, nodeRun = null, approval = null, nodes =
 
   if (durationMs !== null && durationMs !== undefined) {
     pieces.push(`Duration ${formatRuntimeDuration(durationMs)}`);
-  }
-
-  if (approval?.status) {
-    pieces.push(`Approval ${String(approval.status).toLowerCase()}`);
   }
 
   if (nodeRun?.errorMessage) {
@@ -782,14 +862,31 @@ function WorkflowVisualNode({
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
   const meta = getNodeTypeMeta(nodeTypeCode);
   const title = node.displayName || getNodeSummary(node, catalogs) || `Node ${index + 1}`;
-  const summary = getNodeSummary(node, catalogs);
-  const detail = getNodeDetail(node, nodes);
+  const [approvalClockMs, setApprovalClockMs] = useState(() => Date.now());
+  const approvalStatus = String(approval?.status || '').trim().toUpperCase();
+  const approvalRuntimeCardText = runtimeMode && nodeTypeCode === 'HUMAN_APPROVAL'
+    ? getApprovalRuntimeCardText({ approval, node, nowMs: approvalClockMs })
+    : '';
+  const summary = approvalRuntimeCardText || getNodeSummary(node, catalogs);
+  const detail = runtimeMode && nodeTypeCode === 'HUMAN_APPROVAL' && approvalRuntimeCardText
+    ? ''
+    : getNodeDetail(node, nodes);
   const runtimeOverlay = runtimeMode ? getRuntimeOverlay({ node, nodeRun, approval, nodes }) : null;
   const designOverlay = runtimeMode ? null : getDesignNodeOverlay(node);
   const pendingApprovalAction = runtimeMode
     && nodeTypeCode === 'HUMAN_APPROVAL'
-    && String(approval?.status || '').toUpperCase() === 'PENDING'
+    && approvalStatus === 'PENDING'
     && onApprovalReview;
+
+  useEffect(() => {
+    if (!runtimeMode || nodeTypeCode !== 'HUMAN_APPROVAL' || approvalStatus !== 'PENDING') {
+      return undefined;
+    }
+
+    setApprovalClockMs(Date.now());
+    const timer = window.setInterval(() => setApprovalClockMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [approvalStatus, nodeTypeCode, runtimeMode]);
 
   return (
     <div
@@ -833,7 +930,7 @@ function WorkflowVisualNode({
       <div className="sky-workflow-visual-title">{title}</div>
       <div className="sky-workflow-visual-key sky-mono">{node.nodeKey || `node_${index + 1}`}</div>
       <div className="sky-workflow-visual-summary sky-truncate">{summary}</div>
-      <div className="sky-workflow-visual-detail sky-truncate">{detail}</div>
+      {detail ? <div className="sky-workflow-visual-detail sky-truncate">{detail}</div> : null}
       {dragReorderEnabled ? <div className="sky-workflow-visual-drag-hint">Drag to reorder</div> : null}
       {runtimeOverlay || designOverlay ? (
         <div className="sky-workflow-runtime-overlay">
