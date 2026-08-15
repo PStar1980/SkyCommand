@@ -149,12 +149,22 @@ assert(
 );
 assert(
   cssSource.includes('.sky-sidebar-nav {') &&
+    cssSource.includes('gap: 0;') &&
     cssSource.includes('margin: 0;') &&
     cssSource.includes('padding: 0;') &&
-    cssSource.includes('border: 0;') &&
-    cssSource.includes('background: transparent;') &&
-    cssSource.includes('box-shadow: none;'),
-  'Sidebar navigation groups must sit flush inside the gold frame without extra outer padding or inset chrome.',
+    cssSource.includes('.sky-sidebar-group-label {') &&
+    cssSource.includes('min-height: 3.76rem;') &&
+    cssSource.includes('border-radius: 0;') &&
+    cssSource.includes('.sky-sidebar-group-items {') &&
+    cssSource.includes('gap: 0;'),
+  'Sidebar category chrome must be square, taller, and flush without gaps between category rows.',
+);
+assert(
+  cssSource.includes('.sky-topbar::after,') &&
+    cssSource.includes('.sky-public-navbar::after {') &&
+    cssSource.includes('bottom: -1px;') &&
+    cssSource.includes('background: rgba(220, 177, 63, 0.68);'),
+  'Authenticated and public navbars must render an explicit gold bottom outline that matches the sidebar frame.',
 );
 assert(
   cssSource.includes('.sky-chart-modal-backdrop {') &&
