@@ -197,7 +197,7 @@ function createNavGroups(hasPermission, hasRole) {
       visible: canViewTools,
       items: [
         {
-          label: 'Tool History',
+          label: 'Tool Operations',
           to: '/tools/executions',
           icon: '↺',
           visible: hasPermission('SCRIPT_EXECUTION_READ'),
@@ -232,7 +232,7 @@ function createNavGroups(hasPermission, hasRole) {
       visible: canViewWorkflows,
       items: [
         {
-          label: 'Workflow History',
+          label: 'Workflow Operations',
           to: '/workflows/history',
           icon: '◷',
           visible: hasPermission('WORKFLOW_READ'),
@@ -274,7 +274,7 @@ function createNavGroups(hasPermission, hasRole) {
       visible: canViewAutomation,
       items: [
         {
-          label: 'Scheduler History',
+          label: 'Scheduler Operations',
           to: '/automation/schedules/history',
           icon: '↺',
           visible: hasPermission('WORKER_SCHEDULE_READ'),
@@ -295,7 +295,7 @@ function createNavGroups(hasPermission, hasRole) {
           description: 'New timed start',
         },
         {
-          label: 'Worker History',
+          label: 'Worker Operations',
           to: '/automation/workers/history',
           icon: '◷',
           visible: hasPermission('WORKER_ADMIN'),

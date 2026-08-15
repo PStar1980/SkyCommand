@@ -47,7 +47,7 @@ assert(
 assert(
   workflowSource.includes('renderStartWorkflowPagination()') &&
     workflowSource.includes('aria-label="Start workflow pagination"'),
-  'Start Workflow must provide Tool History-style pagination.',
+  'Start Workflow must provide Tool Operations-style pagination.',
 );
 assert(
   workflowSource.includes('<th>Workflow</th>') &&
@@ -72,7 +72,7 @@ assert(
   workflowSource.includes('className="sky-workflow-start-detail-stack"') &&
     cssSource.includes('.sky-workflow-start-detail-stack .sky-workflow-visual-map') &&
     cssSource.includes('overflow-x: auto;'),
-  'Start Workflow graph must stay page-width and scroll horizontally like Workflow History.',
+  'Start Workflow graph must stay page-width and scroll horizontally like Workflow Operations.',
 );
 assert(
   !workflowSource.includes('Runtime values are saved into workflow context as <code>params</code>'),
@@ -195,12 +195,20 @@ assert(
   'Active execution must lock inspection, pending approvals must unlock the graph and focus the approval node once, and approval decisions must be available from the approval node.',
 );
 
+
+assert(
+  workflowSource.includes('await loadRunDetail(stillVisible.workflowRunRecordId);\n        return items;') &&
+    workflowSource.includes('const loadedRuns = (await loadRuns(filters, { keepSelection })) || [];') &&
+    workflowSource.includes('if (!isHistoryMode) {\n        await loadDefinitions({ keepSelection });\n      }'),
+  'Workflow Operations manual refresh must preserve selected-run data, return the refreshed run collection, and avoid reloading unrelated definitions.',
+);
+
 assert(
   workflowSource.includes('id="workflowHistorySearch"') &&
     workflowSource.includes('clearHistoryFilters') &&
     workflowSource.includes('Workflow Details') &&
     !workflowSource.includes('View details'),
-  'Workflow History must provide search, Clear filters, and row-level Workflow Details actions.',
+  'Workflow Operations must provide search, Clear filters, and row-level Workflow Details actions.',
 );
 
 console.log('[SkyCommand] Start Workflow catalogue, conditional node detail, and Add Tool upload UI self-test passed.');

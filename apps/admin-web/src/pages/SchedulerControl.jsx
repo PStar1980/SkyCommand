@@ -1416,8 +1416,8 @@ function SchedulerControl({ view = 'manage' }) {
 
   const pageMeta = {
     history: {
-      kicker: 'Automation · History',
-      title: 'Scheduler History',
+      kicker: 'Automation · Operations',
+      title: 'Scheduler Operations',
       subtitle: 'Search scheduled executions, inspect structured results, and follow active worker runs with smart polling.',
       refreshLabel: 'Refresh history',
     },
@@ -1434,8 +1434,8 @@ function SchedulerControl({ view = 'manage' }) {
       refreshLabel: 'Refresh targets',
     },
     worker: {
-      kicker: 'Automation · Workers',
-      title: 'Worker History',
+      kicker: 'Automation · Operations',
+      title: 'Worker Operations',
       subtitle: 'Inspect registered worker processes, heartbeat freshness, runtime identity, and node metadata with smart polling.',
       refreshLabel: 'Refresh workers',
     },

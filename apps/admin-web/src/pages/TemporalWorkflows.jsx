@@ -448,8 +448,8 @@ function TemporalWorkflows({ mode = 'history' }) {
 
   const isHistoryMode = mode === 'history';
   const activeWorkflows = workflows.filter(workflowIsRunning);
-  const pageKicker = isHistoryMode ? 'Workflows · History' : 'Workflows · Start';
-  const pageTitle = isHistoryMode ? 'Workflow History' : 'Start Workflow';
+  const pageKicker = isHistoryMode ? 'Workflows · Operations' : 'Workflows · Start';
+  const pageTitle = isHistoryMode ? 'Workflow Operations' : 'Start Workflow';
   const pageSubtitle = isHistoryMode
     ? 'Inspect recent Temporal workflow runs, review SkyCommand run records, and manage active executions through SkyCommand Core.'
     : 'Start approved Temporal workflow templates through SkyCommand Core instead of the CLI.';

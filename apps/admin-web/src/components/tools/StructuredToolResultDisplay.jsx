@@ -1476,7 +1476,7 @@ function DatabaseBuildOutput({ toolResult }) {
 
       {uiFilesTruncated ? (
         <div className="small sky-muted mt-2">
-          Workflow History displays the first 250 SQL rows; the complete structured result remains persisted.
+          Workflow Operations displays the first 250 SQL rows; the complete structured result remains persisted.
         </div>
       ) : null}
 
