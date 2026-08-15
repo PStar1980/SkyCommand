@@ -3332,33 +3332,6 @@ select.sky-form-control optgroup {
   font-size: 0.78rem;
 }
 
-.sky-workflow-runtime-route {
-  display: grid;
-  gap: 0.12rem;
-  margin-top: 0.45rem;
-  padding-top: 0.42rem;
-  border-top: 1px solid rgba(124, 144, 177, 0.14);
-  color: #ffe8a8;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.sky-workflow-runtime-route-label {
-  color: #88a7d8;
-  font-size: 0.66rem;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.sky-workflow-runtime-route.is-true strong {
-  color: #9ff6cf;
-}
-
-.sky-workflow-runtime-route.is-false strong {
-  color: #ffe08f;
-}
-
 .sky-workflow-runtime-error {
   margin-top: 0.45rem;
   color: #ff9db8;
