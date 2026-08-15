@@ -129,6 +129,25 @@ assert(
   'The sidebar shell must carry its own aligned outer gold rectangle so the branding plaque and navigation frame read as one system.',
 );
 assert(
+  cssSource.includes('.sky-topbar {') &&
+    cssSource.includes('border: 1px solid rgba(220, 177, 63, 0.68);') &&
+    cssSource.includes('padding: 0.42rem 1rem;') &&
+    cssSource.includes('.sky-public-navbar {') &&
+    cssSource.includes('padding: 0.34rem 0.72rem;'),
+  'Authenticated and public navbars must carry the same outer gold frame, with tighter branding spacing.',
+);
+assert(
+  cssSource.includes('.sky-sidebar-brand {') &&
+    cssSource.includes('padding: 0.32rem 0.72rem 0.28rem;') &&
+    cssSource.includes('.sky-public-brand {') &&
+    cssSource.includes('gap: 0.48rem;') &&
+    cssSource.includes('.sky-login-card-header {') &&
+    cssSource.includes('padding: 1.08rem 1.12rem 1rem;') &&
+    cssSource.includes('.sky-login-brand-intro {') &&
+    cssSource.includes('gap: 0.78rem;'),
+  'Sidebar, public, and login branding should use tighter padding and spacing around the lockup.',
+);
+assert(
   cssSource.includes('.sky-sidebar-nav {') &&
     cssSource.includes('margin: 0;') &&
     cssSource.includes('padding: 0;') &&
