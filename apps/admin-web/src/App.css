@@ -258,10 +258,14 @@
   z-index: 1080;
   display: flex;
   width: var(--sky-sidebar-width);
+  box-sizing: border-box;
   flex-direction: column;
-  border-right: 0;
+  border: 1px solid rgba(220, 177, 63, 0.68);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 54%), #010409;
-  box-shadow: 22px 0 72px rgba(0, 0, 0, 0.44);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 224, 140, 0.028),
+    22px 0 72px rgba(0, 0, 0, 0.44),
+    0 0 28px rgba(220, 177, 63, 0.048);
   backdrop-filter: none;
   overflow: hidden;
 }
@@ -278,12 +282,12 @@
 
 .sky-sidebar::after {
   position: absolute;
-  top: var(--sky-topbar-height);
-  right: 0;
-  bottom: 0;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
   width: 1px;
   pointer-events: none;
-  background: rgba(124, 144, 177, 0.2);
+  background: linear-gradient(180deg, rgba(220, 177, 63, 0.18), rgba(220, 177, 63, 0.04));
   content: '';
 }
 
