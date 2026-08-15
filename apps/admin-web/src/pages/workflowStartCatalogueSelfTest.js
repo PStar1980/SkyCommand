@@ -151,6 +151,18 @@ assert(
     !cssSource.includes('.sky-workflow-runtime-route'),
   'Condition and approval routes must be conveyed by graph illumination without adding route details to runtime node cards.',
 );
+
+assert(
+  graphSource.includes("label: 'Approval'") &&
+    !graphSource.includes("label: 'Human checkpoint'") &&
+    graphSource.includes('function formatApprovalCountdown(') &&
+    graphSource.includes('Approve Timeout: ${formatApprovalCountdown(') &&
+    graphSource.includes("return 'Approved';") &&
+    graphSource.includes("return 'Rejected';") &&
+    graphSource.includes("window.setInterval(() => setApprovalClockMs(Date.now()), 1000)") &&
+    !graphSource.includes('pieces.push(`Approval ${String(approval.status).toLowerCase()}`);'),
+  'Approval runtime cards must use the compact Approval label, live timeout countdown, terminal decision text, and omit duplicated approval status from Runtime details.',
+);
 assert(
   graphSource.includes('↪ Return to active node') &&
     graphSource.includes('suspendFollowForManualNavigation') &&
