@@ -129,6 +129,33 @@ assert(
   'The sidebar shell must carry its own aligned outer gold rectangle so the branding plaque and navigation frame read as one system.',
 );
 assert(
+  cssSource.includes('.sky-sidebar-nav {') &&
+    cssSource.includes('margin: 0;') &&
+    cssSource.includes('padding: 0;') &&
+    cssSource.includes('border: 0;') &&
+    cssSource.includes('background: transparent;') &&
+    cssSource.includes('box-shadow: none;'),
+  'Sidebar navigation groups must sit flush inside the gold frame without extra outer padding or inset chrome.',
+);
+assert(
+  cssSource.includes('.sky-chart-modal-backdrop {') &&
+    cssSource.includes('rgba(220, 177, 63, 0.11)') &&
+    cssSource.includes('rgba(0, 0, 0, 0.78);') &&
+    cssSource.includes('.sky-chart-modal {') &&
+    cssSource.includes('border: 1px solid rgba(220, 177, 63, 0.4);') &&
+    cssSource.includes('#05080b;') &&
+    cssSource.includes('.sky-chart-modal-kicker {') &&
+    cssSource.includes('color: #d9bd70;'),
+  'Chart overlays must use the approval-style Midnight Gold modal treatment instead of the legacy blue tint.',
+);
+assert(
+  cssSource.includes('.sky-btn-ghost,') &&
+    cssSource.includes('background: linear-gradient(135deg, #fff0ae 0%, #e4b83f 52%, #a97016 100%);') &&
+    cssSource.includes('color: #090b0f;') &&
+    cssSource.includes('.btn.sky-btn-ghost:disabled {'),
+  'Shared action buttons must use the metallic gold button treatment with dark text.',
+);
+assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&
     chartThemeSource.includes("gold: '#dcb13f'") &&
     chartThemeSource.includes("green: '#42d69b'"),
