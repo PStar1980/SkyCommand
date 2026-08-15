@@ -124,7 +124,7 @@
   left: 0;
   z-index: 1040;
   display: flex;
-  height: var(--sky-topbar-height);
+  height: calc(var(--sky-topbar-height) + 2px);
   box-sizing: border-box;
   align-items: center;
   justify-content: flex-start;
@@ -754,7 +754,7 @@
   left: var(--sky-sidebar-width);
   z-index: 1040;
   display: grid;
-  height: var(--sky-topbar-height);
+  height: calc(var(--sky-topbar-height) + 2px);
   box-sizing: border-box;
   grid-template-columns: minmax(0, 1fr) minmax(22rem, 50.7rem) minmax(0, 1fr);
   align-items: center;
