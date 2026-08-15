@@ -119,6 +119,15 @@ assert(
     cssSource.includes('padding: 0;'),
   'The SkyCommand sidebar branding frame must sit flush against its outer square gold border.',
 );
+
+assert(
+  cssSource.includes('.sky-sidebar {') &&
+    cssSource.includes('border: 1px solid rgba(220, 177, 63, 0.68);') &&
+    cssSource.includes('box-sizing: border-box;') &&
+    cssSource.includes("background: linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 54%), #010409;") &&
+    cssSource.includes("background: linear-gradient(180deg, rgba(220, 177, 63, 0.18), rgba(220, 177, 63, 0.04));"),
+  'The sidebar shell must carry its own aligned outer gold rectangle so the branding plaque and navigation frame read as one system.',
+);
 assert(
   chartThemeSource.includes("cyan: '#77ddff'") &&
     chartThemeSource.includes("gold: '#dcb13f'") &&
