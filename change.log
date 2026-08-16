@@ -1,3 +1,8 @@
+2026-08-16 - Temporal Docker volume ownership correction
+- Added a one-shot Compose volume initializer that grants the official non-root Temporal CLI user (UID 1000) write access to the persistent SQLite volume before the development service starts.
+- Preserved host ports 7233/8600, the named Temporal volume, and the host-run Temporal worker boundary.
+- Added regression coverage and troubleshooting guidance for SQLite CANTOPEN / worker ECONNREFUSED startup failures.
+
 ## 2026-07-25 — Ad Hoc Demo Polish: Server Status and Tool Output Workspaces
 
 - Separated Command Center platform availability from Automation Intelligence with a dedicated **Server Status** card for the Admin-Web server, PostgreSQL database, API server, Node worker, Temporal server, and Temporal worker; removed the former Readiness tile from that operational group.

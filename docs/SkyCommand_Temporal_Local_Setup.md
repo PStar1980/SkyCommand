@@ -28,6 +28,8 @@ The root `compose.yaml` defines the `temporal` service using the pinned `tempora
 
 The service runs `temporal server start-dev --ip 0.0.0.0 --db-filename /var/lib/temporal/temporal.db`. The named volume keeps the SQLite development database when the container is restarted or recreated.
 
+The official `temporalio/temporal` CLI image runs as the non-root `temporal` user (UID 1000). Compose therefore runs a small one-shot `temporal-volume-init` service first to make the named volume writable by UID 1000 before the Temporal service starts.
+
 Host ports bind to `127.0.0.1`, so the local development service is not intentionally exposed to the LAN.
 
 ## SkyCommand environment
@@ -132,6 +134,8 @@ Do not delete that volume casually: removing it intentionally resets the local T
 | Port `7233` is already allocated | A manually started/headless Temporal service is still running | Stop the host Temporal process, then start the Docker service |
 | Temporal UI does not open | Host port `8600` is unavailable or container is unhealthy | Run `npm run temporal:server:status` and `npm run temporal:server:logs` |
 | Workflow starts but does not progress | Host-run Temporal worker is not running or task queue mismatch | Confirm `TEMPORAL_TASK_QUEUE=skyserver-local` and run `npm run temporal:worker:dev` |
+| Temporal log shows `unable to open database file ... (14)` | The named volume is not writable by the Temporal CLI user | Use the current Compose file; `temporal-volume-init` repairs ownership before server startup. Run `docker compose down`, then `npm run temporal:server:up`. |
+| Host Temporal worker reports `ECONNREFUSED 127.0.0.1:7233` | The Docker Temporal service did not become healthy | Fix/start the Temporal service first; the host worker will connect once `localhost:7233` is listening. |
 | Command Center shows Temporal service offline | Docker service is stopped/unhealthy or `.env` points elsewhere | Run `npm run temporal:server:status`, then `npm run temporal:health` |
 | Worker Health shows no heartbeat | Temporal worker is offline or cannot write to PostgreSQL | Restart `npm run temporal:worker:dev` and check PostgreSQL environment values |
 | Approval does not resume workflow | Pending approval was deleted or the Temporal execution is gone | Use Workflow Operations run controls to terminate/clean up and retry fresh |
