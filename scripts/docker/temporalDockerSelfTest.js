@@ -25,6 +25,13 @@ assert(
   'compose.yaml must define a pinned Temporal CLI development-service image.',
 );
 assert(
+  composeSource.includes('temporal-volume-init:') &&
+    composeSource.includes('image: alpine:3.23.4') &&
+    composeSource.includes('chown -R 1000:1000 /var/lib/temporal') &&
+    composeSource.includes('condition: service_completed_successfully'),
+  'Compose must initialize the Temporal named volume for the non-root Temporal CLI user before server startup.',
+);
+assert(
   composeSource.includes('127.0.0.1:7233:7233') &&
     composeSource.includes('127.0.0.1:8600:8233'),
   'Temporal gRPC must remain on host 7233 and the Web UI must publish safely on host 8600.',
