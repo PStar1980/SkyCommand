@@ -2,7 +2,7 @@ const DEFAULT_TEMPORAL_ADDRESS = 'localhost:7233';
 const DEFAULT_TEMPORAL_NAMESPACE = 'default';
 const DEFAULT_TEMPORAL_TASK_QUEUE = 'skyserver-local';
 const DEFAULT_FRED_WORKFLOW_ID_PREFIX = 'skycommand-fred-ingestion';
-const DEFAULT_TEMPORAL_UI_BASE_URL = 'http://localhost:8233';
+const DEFAULT_TEMPORAL_UI_BASE_URL = 'http://localhost:8600';
 
 function getTemporalConfig() {
   return {

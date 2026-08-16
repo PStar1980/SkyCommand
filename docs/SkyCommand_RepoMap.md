@@ -6,6 +6,7 @@ SkyCommand/
 ├── .prettierignore
 ├── .prettierrc.json
 ├── change.log
+├── compose.yaml
 ├── eslint.config.mjs
 ├── nodemon.json
 ├── package-lock.json
@@ -742,6 +743,8 @@ SkyCommand/
 │   │       ├── worker.vw_workflow_run_context_values.sql
 │   │       ├── worker.vw_workflow_run_node_outputs.sql
 │   │       └── worker.vw_workflow_run_records.sql
+│   ├── docker/
+│   │   └── temporalDockerSelfTest.js
 │   ├── node/
 │   │   └── util/
 │   │       ├── bootstrap.js

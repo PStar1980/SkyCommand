@@ -40,7 +40,7 @@ SkyCommand is now a mature private operational control plane for the Sky ecosyst
 
 The ingestion and data-contract foundation is portable beyond the original macroeconomic use case while retaining the established FRED, Bank of Canada, and Statistics Canada paths. Current development is focused on reusable operational tooling, workflow templates, repository automation, diagnostics, testing, documentation, and continued UI polish rather than adding another large numbered milestone.
 
-The next major infrastructure step is **Docker containerization**. The goal is to make SkyCommand services easier to start consistently, reduce machine-specific environment drift, simplify local setup, and establish a cleaner deployment foundation for future environments.
+Docker containerization has now begun with the **Temporal development service**. Temporal runs from a pinned container with persistent local state, while the SkyCommand Temporal worker remains host-run for the first proof boundary. The next infrastructure slice will containerize the worker after Docker-specific repository paths and Git authentication are handled deliberately.
 
 ## Workflow Runtime and Structured Results
 
@@ -336,7 +336,7 @@ WORKER_ALLOW_HIGH_RISK_TOOLS=false
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=skyserver-local
-TEMPORAL_UI_BASE_URL=http://localhost:8233
+TEMPORAL_UI_BASE_URL=http://localhost:8600
 TEMPORAL_FRED_WORKFLOW_ID_PREFIX=skycommand-fred-ingestion
 TEMPORAL_FRED_ACTIVITY_TIMEOUT_MS=1800000
 SKYCOMMAND_INTERNAL_API_AUTH_ENABLED=true
@@ -365,7 +365,7 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | ----------------------- | ---------------------------------- |
 | SkyCommand API health    | `http://localhost:7171/_health`    |
 | SkyCommand DB health     | `http://localhost:7171/_db/health` |
-| Temporal Web UI         | `http://localhost:8233`            |
+| Temporal Web UI         | `http://localhost:8600`            |
 | SkyCommand Admin-Web     | `http://localhost:5173`            |
 | SkyWeb Analytics client | `http://localhost:5175`            |
 | SkyWeb.Api Swagger      | `http://localhost:7280/swagger`    |
@@ -381,9 +381,14 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run web:preview`         | Previews the built Admin-Web frontend.                                                      |
 | `npm run worker`              | Starts the worker daemon.                                                                   |
 | `npm run worker:dev`          | Starts the worker daemon with Nodemon.                                                      |
-| `npm run temporal:worker`     | Starts the SkyCommand Temporal worker.                                                       |
-| `npm run temporal:worker:dev` | Starts the SkyCommand Temporal worker with Nodemon.                                          |
-| `npm run temporal:health`     | Checks connectivity to the configured Temporal service.                                     |
+| `npm run temporal:server:up`      | Starts/recreates the Dockerized Temporal development service in the background.              |
+| `npm run temporal:server:stop`    | Stops the Temporal service container without deleting its persistent volume.                |
+| `npm run temporal:server:restart` | Restarts the Temporal service container.                                                     |
+| `npm run temporal:server:status`  | Shows the Temporal service container status/health.                                         |
+| `npm run temporal:server:logs`    | Follows Temporal service container logs.                                                     |
+| `npm run temporal:worker`         | Starts the SkyCommand Temporal worker on the host.                                           |
+| `npm run temporal:worker:dev`     | Starts the SkyCommand Temporal worker with Nodemon on the host.                              |
+| `npm run temporal:health`         | Checks connectivity to the configured Temporal service.                                     |
 | `npm run temporal:fred`       | Starts the FRED ingestion workflow pilot and waits for the result.                          |
 | `npm run daemon`              | Starts the API daemon entry point with Nodemon.                                             |
 | `npm run core`                | Starts the SkyCommand Core CLI with top-level Run Tools / Run Workflows menus.               |
@@ -484,19 +489,27 @@ Temporal is now the durable workflow execution lane for SkyCommand business work
 Local Temporal commands:
 
 ```bash
-# Start local Temporal separately
-temporal server start-dev
+# Start the Dockerized Temporal development service
+npm run temporal:server:up
 
-# Run the SkyCommand Temporal worker
+# Inspect service/container status
+npm run temporal:server:status
+
+# Run the SkyCommand Temporal worker on the host for this first Docker slice
 npm run temporal:worker:dev
 
-# Check Temporal connectivity
+# Check SkyCommand -> Temporal connectivity
 npm run temporal:health
+
+# Optional: follow Temporal container logs
+npm run temporal:server:logs
 
 # Optional direct FRED workflow pilot runner
 npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
+
+The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, and persists the local SQLite development database in the named volume `skycommand_temporal_data`. The image is pinned to Temporal CLI `1.7.2` so the containerized service matches the currently proven local Temporal generation instead of drifting on `latest`.
 
 Primary protected workflow API families include:
 

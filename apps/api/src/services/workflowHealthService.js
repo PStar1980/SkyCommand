@@ -49,7 +49,7 @@ function buildOperatorHints({ temporalReachable, pollerCount, recentHeartbeatCou
   const hints = [];
 
   if (!temporalReachable) {
-    hints.push('Temporal is not reachable. Start it with: temporal server start-dev');
+    hints.push('Temporal is not reachable. Start the Dockerized service with: npm run temporal:server:up');
   }
 
   if (temporalReachable && pollerCount <= 0) {
@@ -195,7 +195,7 @@ async function getScheduledWorkflowSummary() {
 
 function buildCliCommands(config) {
   return {
-    startTemporal: 'temporal server start-dev',
+    startTemporal: 'npm run temporal:server:up',
     startWorker: 'npm run temporal:worker:dev',
     describeTaskQueue: `temporal task-queue describe --address ${config.address} --namespace ${config.namespace} --task-queue ${config.taskQueue}`,
   };

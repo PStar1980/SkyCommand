@@ -781,7 +781,7 @@ function buildCommands(workerHealthResult) {
   return {
     startApi: 'npm run api',
     startWeb: 'npm run web',
-    startTemporal: commands.startTemporal || 'temporal server start-dev',
+    startTemporal: commands.startTemporal || 'npm run temporal:server:up',
     startTemporalWorker: commands.startWorker || 'npm run temporal:worker:dev',
     describeTaskQueue:
       commands.describeTaskQueue ||
