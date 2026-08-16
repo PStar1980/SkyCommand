@@ -54,6 +54,7 @@ const routineSelfTests = [
   'api-telemetry:self-test',
   'api-dashboard:self-test',
   'workflow-cli-params:self-test',
+  'temporal-docker:self-test',
   'ingestion-identity:self-test',
   'ingestion-profile-guardrails:self-test',
   'ingestion-data-catalogue:self-test',

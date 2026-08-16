@@ -1333,3 +1333,12 @@ SkyWeb Analytics owns:
 - Added migration `00094__skycommand_repository_identity_changeover.sql` to rename the repository row in place, preserve its UUID relationships, designate it as the SkyCommand repository, update the GitHub remote and DEV_LOCAL path, and refresh human-facing application/catalogue descriptions.
 - Added `skycommand-identity:self-test` and `skycommand-identity:verify` so the file/configuration compatibility boundary and post-migration PostgreSQL identity can be proved independently.
 - The physical PostgreSQL database name `skyserver_dev` is intentionally unchanged; a database rename remains a separate maintenance operation.
+
+## 2026-08-16 - Temporal development service Dockerization
+
+- Added root `compose.yaml` with a pinned `temporalio/temporal:1.7.2` development-service container, localhost-only gRPC/UI port publishing, a persistent named SQLite volume, Docker health checking, graceful stop behavior, and `restart: unless-stopped` recovery.
+- Standardized local Temporal endpoints on `localhost:7233` for gRPC and `http://localhost:8600` for the Web UI, avoiding the Windows-reserved 8233 host-port conflict while keeping Temporal's internal UI port unchanged.
+- Added npm helpers for Temporal container start, stop, restart, status, and logs; the SkyCommand Temporal worker intentionally remains host-run for this first Docker proof boundary.
+- Updated workflow-health/readiness operator guidance, default Temporal UI configuration, `.env.example`, README startup guidance, and the dedicated local Temporal setup document for the Dockerized service.
+- Added `temporal-docker:self-test` and routine validation coverage for the pinned image, port contract, persistent volume, Docker health/restart policy, npm commands, environment defaults, and operator guidance.
+- No database migration, workflow-definition change, tool-registration change, or Temporal worker containerization is included in this slice.
