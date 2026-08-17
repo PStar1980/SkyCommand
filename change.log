@@ -1390,3 +1390,14 @@ SkyWeb Analytics owns:
 - Added Docker tool guardrails for unsupported runtimes and disabled Git automation, plus relative execution-log persistence compatible with Tool Operations.
 - Added start/stop/restart/status/log/Git-check npm helpers, combined automation-stack helpers, and `node-worker-docker:self-test` in routine validation.
 - No database migration is required; migration `00098` and the Docker Git secret/profile already proven by the Temporal worker are reused.
+
+## 2026-08-17 - SkyCommand API Docker foundation
+
+- Added a dedicated `api` Compose service and minimal multi-stage Node image for the SkyCommand Express API while keeping Admin-Web/Vite host-run for local development.
+- Published the API only on `127.0.0.1:7171`, connected PostgreSQL through `host.docker.internal`, connected Temporal through `temporal:7233`, and reused the proven `DOCKER_LOCAL` workspace mount plus GitHub runtime secret/commit identity.
+- Added API Docker startup preflight validation for the mounted repository profile, exact Git `safe.directory` entries, optional Git credentials, and the shared script-execution log directory.
+- Configured built-in SkyCommand tool scripts to execute from `/app` while repository working-tree/artifact operations continue against `/workspace/SkyEco System`.
+- Hardened direct Docker API tool execution to claim Node.js runtimes only; PowerShell/pwsh tools fail closed with a host-runtime compatibility message.
+- Updated Tool Operations output resolution so portable `logs/script-executions/...` paths use the configured shared Docker log mount and prior Windows-host absolute paths are translated into the mounted Docker workspace.
+- Added API start/stop/restart/status/log/Git-check helpers, combined Docker backend stack helpers, localhost API health checking, dedicated API Docker setup documentation, and `api-docker:self-test` in routine validation.
+- No database migration is required; migration `00098`, the Docker repository profile, workspace mount, and Git secret already proven by the Docker workers are reused.

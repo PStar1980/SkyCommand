@@ -198,6 +198,7 @@ SkyCommand/
 │   │       ├── services/
 │   │       │   ├── adminActionService.js
 │   │       │   ├── adminReadService.js
+│   │       │   ├── apiDockerPreflight.js
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryPolicySelfTest.js
 │   │       │   ├── apiTelemetryService.js
@@ -258,6 +259,8 @@ SkyCommand/
 │               ├── scheduleCalculator.js
 │               └── schedulePoller.js
 ├── docker/
+│   ├── api.Dockerfile
+│   ├── api.package.json
 │   ├── empty-github-token
 │   ├── git-credential-skycommand.js
 │   ├── git-credential-skycommand.sh
@@ -267,6 +270,7 @@ SkyCommand/
 │   └── temporal-worker.package.json
 ├── docs/
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
+│   ├── SkyCommand_API_Docker_Local_Setup.md
 │   ├── SkyCommand_API_Observability.md
 │   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
@@ -756,6 +760,8 @@ SkyCommand/
 │   │       ├── worker.vw_workflow_run_node_outputs.sql
 │   │       └── worker.vw_workflow_run_records.sql
 │   ├── docker/
+│   │   ├── apiDocker.js
+│   │   ├── apiDockerSelfTest.js
 │   │   ├── nodeWorkerDocker.js
 │   │   ├── nodeWorkerDockerSelfTest.js
 │   │   ├── temporalDockerSelfTest.js

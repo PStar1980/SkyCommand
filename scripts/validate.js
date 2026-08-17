@@ -58,6 +58,7 @@ const routineSelfTests = [
   'temporal-docker:self-test',
   'temporal-worker-docker:self-test',
   'node-worker-docker:self-test',
+  'api-docker:self-test',
   'ingestion-identity:self-test',
   'ingestion-profile-guardrails:self-test',
   'ingestion-data-catalogue:self-test',

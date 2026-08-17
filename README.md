@@ -40,7 +40,7 @@ SkyCommand is now a mature private operational control plane for the Sky ecosyst
 
 The ingestion and data-contract foundation is portable beyond the original macroeconomic use case while retaining the established FRED, Bank of Canada, and Statistics Canada paths. Current development is focused on reusable operational tooling, workflow templates, repository automation, diagnostics, testing, documentation, and continued UI polish rather than adding another large numbered milestone.
 
-Docker containerization now covers the **Temporal development service**, the **SkyCommand Temporal worker**, and the Docker foundation for the **scheduler/listener Node worker**. Both worker containers use the `DOCKER_LOCAL` repository profile, the mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, shared GitHub secret/commit identity, and host-readable execution logs. The Node worker deliberately claims only Node.js-backed schedules in Docker; Windows PowerShell schedules remain available to a compatible host worker until they are migrated or a cross-platform runtime is added.
+Docker containerization now covers the **Temporal development service**, **SkyCommand Temporal worker**, and the proven **scheduler/listener Node worker**, with the **SkyCommand API** added as the next containerized backend service. Dockerized application processes use the `DOCKER_LOCAL` repository profile, mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, shared GitHub secret/commit identity, and host-readable execution logs. The Node worker and Docker API deliberately execute only Node.js-backed tools; Windows PowerShell tools remain available to compatible host processes until they are migrated or a cross-platform runtime is added. Admin-Web remains host-run under Vite for fast local iteration.
 
 ## Workflow Runtime and Structured Results
 
@@ -376,6 +376,14 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | ----------------------------- | ------------------------------------------------------------------------------------------- |
 | `npm run start`               | Starts the API server.                                                                      |
 | `npm run api`                 | Starts the API server with Nodemon.                                                         |
+| `npm run api:docker:up`      | Builds and starts the Dockerized SkyCommand API on host port 7171.                          |
+| `npm run api:docker:stop`    | Stops the Dockerized API.                                                                   |
+| `npm run api:docker:restart` | Rebuilds/recreates the Dockerized API.                                                       |
+| `npm run api:docker:status`  | Shows the Dockerized API container status/health.                                            |
+| `npm run api:docker:logs`    | Follows Dockerized API logs.                                                                 |
+| `npm run api:docker:git:check` | Runs the layered GitHub credential proof inside the API container.                         |
+| `npm run backend:stack:up`   | Starts/builds API, Node worker, Temporal worker, and Temporal service together.              |
+| `npm run backend:stack:stop` | Stops the Docker backend services while preserving Temporal data.                            |
 | `npm run web`                 | Starts the Admin-Web Vite development server.                                               |
 | `npm run web:build`           | Builds the Admin-Web frontend.                                                              |
 | `npm run web:preview`         | Previews the built Admin-Web frontend.                                                      |
@@ -524,7 +532,17 @@ npm run worker:docker:up
 npm run worker:docker:status
 npm run worker:docker:logs
 
-# Optional combined automation stack startup
+# Stop the host `npm run api` process, then build/start the API in Docker
+npm run api:docker:up
+
+# Inspect the API container or follow its logs
+npm run api:docker:status
+npm run api:docker:logs
+
+# Optional combined Docker backend startup
+npm run backend:stack:up
+
+# Automation-only stack remains available without the API
 npm run automation:stack:up
 
 # Host worker fallback for Windows-only scheduled tools
@@ -541,7 +559,7 @@ npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
-The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, and persists the local SQLite development database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `temporal-worker` and `node-worker` services connect to Temporal over the Compose network, reach host PostgreSQL through `host.docker.internal`, and mount the host SkyEco workspace at `/workspace/SkyEco System`. The Node worker registers under the stable name `skycommand-node-worker-docker`; stop the host `npm run worker:dev` process before proving Docker scheduling so only the intended worker claims due schedules.
+The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, and persists the local Temporal SQLite database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `api`, `temporal-worker`, and `node-worker` services reach host PostgreSQL through `host.docker.internal`, use the `DOCKER_LOCAL` repository profile, and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. The Node worker registers under the stable name `skycommand-node-worker-docker`. Stop the host `npm run worker:dev` process before proving Docker scheduling, and stop the host `npm run api` process before starting the Docker API so port `7171` is available. See `docs/SkyCommand_API_Docker_Local_Setup.md` for the API proof sequence.
 
 Primary protected workflow API families include:
 

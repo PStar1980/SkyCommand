@@ -90,18 +90,37 @@ function assertDockerToolSupported(tool) {
     return;
   }
 
+  const dockerRuntimeLabel =
+    normalizeOptionalString(process.env.SKYCOMMAND_DOCKER_RUNTIME_LABEL) || 'Docker Temporal worker';
+  const credentialCheckCommand =
+    normalizeOptionalString(process.env.SKYCOMMAND_DOCKER_GIT_CHECK_COMMAND) ||
+    'npm run temporal:worker:docker:git:check';
+  const runtime = String(tool?.runtime_code || 'node').trim().toLowerCase();
+
+  if (runtime !== 'node') {
+    throw createHttpError(
+      409,
+      `${dockerRuntimeLabel} does not execute ${runtime || 'unknown'} runtime tools. Run the tool through a compatible host runtime or migrate it to Node.js.`,
+      {
+        toolCode: tool?.tool_code || null,
+        runtimeCode: runtime || null,
+        runtimeEnvironment: 'docker',
+      },
+    );
+  }
+
   const gitToolCodes = new Set(['git_repo_status', 'dev_commit', 'main_merge']);
   const gitEnabled = toBoolean(process.env.SKYCOMMAND_DOCKER_GIT_ENABLED);
 
   if (gitToolCodes.has(tool?.tool_code) && !gitEnabled) {
     throw createHttpError(
       409,
-      'Git automation is disabled in the Docker Temporal worker. Configure the Docker GitHub credential secret and commit identity, then set SKYCOMMAND_DOCKER_GIT_ENABLED=true.',
+      `Git automation is disabled in the ${dockerRuntimeLabel}. Configure the Docker GitHub credential secret and commit identity, then set SKYCOMMAND_DOCKER_GIT_ENABLED=true.`,
       {
         toolCode: tool.tool_code,
         runtimeEnvironment: 'docker',
         enableEnvVar: 'SKYCOMMAND_DOCKER_GIT_ENABLED',
-        credentialCheckCommand: 'npm run temporal:worker:docker:git:check',
+        credentialCheckCommand,
       },
     );
   }
