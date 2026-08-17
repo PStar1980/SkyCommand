@@ -1,0 +1,13 @@
+{
+  "name": "skycommand-node-worker-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal runtime dependency manifest for the SkyCommand scheduler/listener worker Docker image.",
+  "dependencies": {
+    "@temporalio/client": "1.18.1",
+    "axios": "1.15.2",
+    "bcryptjs": "2.4.3",
+    "dotenv": "17.2.3",
+    "pg": "8.20.0"
+  }
+}

@@ -261,6 +261,8 @@ SkyCommand/
 │   ├── empty-github-token
 │   ├── git-credential-skycommand.js
 │   ├── git-credential-skycommand.sh
+│   ├── node-worker.Dockerfile
+│   ├── node-worker.package.json
 │   ├── temporal-worker.Dockerfile
 │   └── temporal-worker.package.json
 ├── docs/
@@ -754,6 +756,8 @@ SkyCommand/
 │   │       ├── worker.vw_workflow_run_node_outputs.sql
 │   │       └── worker.vw_workflow_run_records.sql
 │   ├── docker/
+│   │   ├── nodeWorkerDocker.js
+│   │   ├── nodeWorkerDockerSelfTest.js
 │   │   ├── temporalDockerSelfTest.js
 │   │   ├── temporalWorkerDocker.js
 │   │   ├── temporalWorkerDockerSelfTest.js

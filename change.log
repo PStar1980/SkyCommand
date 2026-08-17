@@ -1380,3 +1380,13 @@ SkyWeb Analytics owns:
 - Added `npm run temporal:worker:docker:git:check`, which proves authenticated read access and push authorization using `git ls-remote` plus `git push --dry-run` before Development Promotion is attempted.
 - Kept `SKYCOMMAND_DOCKER_GIT_ENABLED=false` as the default; Git-changing tools remain fail-closed until the operator explicitly configures and enables credentials.
 
+## 2026-08-17 - Scheduler/listener Node worker Docker foundation
+
+- Added a dedicated `node-worker` Compose service and minimal multi-stage Node image for the existing scheduler/listener worker daemon.
+- Reused the proven `DOCKER_LOCAL` repository profile, SkyEco workspace bind mount, host PostgreSQL bridge, Temporal Compose address, GitHub runtime secret, commit identity, exact Git safe-directory registration, and host-readable execution-log strategy.
+- Added stable Docker worker identity (`skycommand-node-worker-docker`) plus runtime/profile metadata so restarts update one worker record cleanly.
+- Added Docker startup preflight checks for the mounted repository profile and Git secret; active non-Node worker schedules are counted and reported.
+- Docker Node workers claim only Node.js-backed schedules. PowerShell / pwsh schedules remain unclaimed for a compatible host worker rather than failing after claim.
+- Added Docker tool guardrails for unsupported runtimes and disabled Git automation, plus relative execution-log persistence compatible with Tool Operations.
+- Added start/stop/restart/status/log/Git-check npm helpers, combined automation-stack helpers, and `node-worker-docker:self-test` in routine validation.
+- No database migration is required; migration `00098` and the Docker Git secret/profile already proven by the Temporal worker are reused.
