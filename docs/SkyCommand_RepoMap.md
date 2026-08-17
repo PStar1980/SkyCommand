@@ -1,4 +1,5 @@
 SkyCommand/
+├── .dockerignore
 ├── .editorconfig
 ├── .env.example
 ├── .gitattributes
@@ -256,6 +257,8 @@ SkyCommand/
 │           └── schedulers/
 │               ├── scheduleCalculator.js
 │               └── schedulePoller.js
+├── docker/
+│   └── temporal-worker.Dockerfile
 ├── docs/
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_API_Observability.md
@@ -280,6 +283,8 @@ SkyCommand/
 │   │       └── password.js
 │   ├── core/
 │   │   └── src/
+│   │       ├── runtimePathResolver.js
+│   │       ├── runtimePathResolverSelfTest.js
 │   │       ├── SkyCommand_Core.js
 │   │       ├── skyCommandIdentitySelfTest.js
 │   │       ├── skyCommandIdentityVerification.js
@@ -346,7 +351,8 @@ SkyCommand/
 │   │       │   ├── 00094__skycommand_repository_identity_changeover.sql
 │   │       │   ├── 00095__repository_artifact_configuration.sql
 │   │       │   ├── 00096__repository_artifact_tool_parameters.sql
-│   │       │   └── 00097__repository_registry_legacy_cleanup.sql
+│   │       │   ├── 00097__repository_registry_legacy_cleanup.sql
+│   │       │   └── 00098__docker_local_repository_profile.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -744,7 +750,9 @@ SkyCommand/
 │   │       ├── worker.vw_workflow_run_node_outputs.sql
 │   │       └── worker.vw_workflow_run_records.sql
 │   ├── docker/
-│   │   └── temporalDockerSelfTest.js
+│   │   ├── temporalDockerSelfTest.js
+│   │   ├── temporalWorkerDocker.js
+│   │   └── temporalWorkerDockerSelfTest.js
 │   ├── node/
 │   │   └── util/
 │   │       ├── bootstrap.js

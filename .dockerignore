@@ -1,0 +1,14 @@
+.git
+.github
+.vscode
+node_modules
+.env
+.env.*
+!.env.example
+logs
+zip
+dist
+coverage
+*.zip
+*.patch
+*.log

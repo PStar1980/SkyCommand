@@ -81,6 +81,31 @@ function normalizeOptionalString(value) {
   return text === '' ? null : text;
 }
 
+function isDockerRuntime() {
+  return String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase() === 'docker';
+}
+
+function assertDockerToolSupported(tool) {
+  if (!isDockerRuntime()) {
+    return;
+  }
+
+  const gitToolCodes = new Set(['git_repo_status', 'dev_commit', 'main_merge']);
+  const gitEnabled = toBoolean(process.env.SKYCOMMAND_DOCKER_GIT_ENABLED);
+
+  if (gitToolCodes.has(tool?.tool_code) && !gitEnabled) {
+    throw createHttpError(
+      409,
+      'Git automation is intentionally disabled in the Docker Temporal worker until container Git credentials are configured.',
+      {
+        toolCode: tool.tool_code,
+        runtimeEnvironment: 'docker',
+        enableEnvVar: 'SKYCOMMAND_DOCKER_GIT_ENABLED',
+      },
+    );
+  }
+}
+
 function normalizeConfirmationPhrase(value) {
   return String(value || '')
     .trim()
@@ -282,8 +307,23 @@ function assertPathInsideRoot(scriptFile, repoRoot) {
   }
 }
 
+function getToolRuntimeRepositoryRoot(tool) {
+  const configuredRoot = normalizeOptionalString(tool?.root_path);
+  const overrideRoot = normalizeOptionalString(process.env.SKYCOMMAND_SCRIPT_RUNTIME_ROOT);
+  const overrideRepository = normalizeOptionalString(
+    process.env.SKYCOMMAND_SCRIPT_RUNTIME_REPOSITORY || 'SkyCommand',
+  );
+
+  if (overrideRoot && tool?.script_repo_code === overrideRepository) {
+    return path.resolve(overrideRoot);
+  }
+
+  return configuredRoot ? path.resolve(configuredRoot) : null;
+}
+
 function resolveScriptFile(tool) {
-  if (!tool.root_path) {
+  const repoRoot = getToolRuntimeRepositoryRoot(tool);
+  if (!repoRoot) {
     throw createHttpError(500, 'Tool repository root path is not configured.');
   }
 
@@ -294,7 +334,6 @@ function resolveScriptFile(tool) {
   assertNoNullByte(tool.root_path, 'root_path');
   assertNoNullByte(tool.script_path, 'script_path');
 
-  const repoRoot = path.resolve(tool.root_path);
   const scriptFile = path.isAbsolute(tool.script_path)
     ? path.resolve(tool.script_path)
     : path.resolve(repoRoot, tool.script_path);
@@ -309,25 +348,40 @@ function resolveScriptFile(tool) {
 }
 
 function getLogDirectory() {
-  const skyServerRoot = path.resolve(__dirname, '../../../..');
-  const logDirectory = path.join(skyServerRoot, 'logs', 'script-executions');
+  const configuredLogRoot = normalizeOptionalString(process.env.SKYCOMMAND_EXECUTION_LOG_ROOT);
+  const skyCommandRoot = path.resolve(__dirname, '../../../..');
+  const logDirectory = configuredLogRoot
+    ? path.resolve(configuredLogRoot)
+    : path.join(skyCommandRoot, 'logs', 'script-executions');
 
   fs.mkdirSync(logDirectory, { recursive: true });
 
   return logDirectory;
 }
 
+function getPersistedExecutionOutputPath(filePath) {
+  const pathMode = String(process.env.SKYCOMMAND_EXECUTION_LOG_PATH_MODE || 'absolute')
+    .trim()
+    .toLowerCase();
+
+  if (pathMode === 'relative') {
+    return path.posix.join('logs', 'script-executions', path.basename(filePath));
+  }
+
+  return filePath;
+}
+
 function writeExecutionOutputFiles({ executionId, stdout, stderr }) {
   const logDirectory = getLogDirectory();
-  const stdoutPath = path.join(logDirectory, `${executionId}.stdout.log`);
-  const stderrPath = path.join(logDirectory, `${executionId}.stderr.log`);
+  const stdoutFile = path.join(logDirectory, `${executionId}.stdout.log`);
+  const stderrFile = path.join(logDirectory, `${executionId}.stderr.log`);
 
-  fs.writeFileSync(stdoutPath, stdout || '', 'utf8');
-  fs.writeFileSync(stderrPath, stderr || '', 'utf8');
+  fs.writeFileSync(stdoutFile, stdout || '', 'utf8');
+  fs.writeFileSync(stderrFile, stderr || '', 'utf8');
 
   return {
-    stdoutPath,
-    stderrPath,
+    stdoutPath: getPersistedExecutionOutputPath(stdoutFile),
+    stderrPath: getPersistedExecutionOutputPath(stderrFile),
   };
 }
 
@@ -851,7 +905,10 @@ async function loadConfiguredOutputSchema(tool) {
   }
 
   try {
-    const repoRoot = path.resolve(tool.root_path);
+    const repoRoot = getToolRuntimeRepositoryRoot(tool);
+    if (!repoRoot) {
+      throw new Error('Tool repository root path is not configured.');
+    }
     const schemaFile = path.resolve(repoRoot, schemaPath);
     assertPathInsideRoot(schemaFile, repoRoot);
     const content = await fs.promises.readFile(schemaFile, 'utf8');
@@ -892,7 +949,7 @@ async function executeChildProcess({ tool, scriptFile, args, executionId }) {
     toolCode: tool.tool_code,
     toolResultExpectedOutputType: outputContract.expectedOutputType,
     toolResultOutputSchema: outputContract.outputSchema,
-    rootDirectory: tool.root_path,
+    rootDirectory: getToolRuntimeRepositoryRoot(tool) || tool.root_path,
   });
 
   return {
@@ -1208,6 +1265,7 @@ async function runTool({
     user,
     context,
   });
+  assertDockerToolSupported(tool);
 
   const confirmationDecision = assertConfirmationIfRequired({
     tool,

@@ -2,6 +2,7 @@ require('dotenv').config({
   path: require('path').join(__dirname, '../../../.env'),
 });
 
+const fs = require('fs');
 const os = require('os');
 const { NativeConnection, Worker } = require('@temporalio/worker');
 
@@ -79,6 +80,10 @@ async function recordWorkerHeartbeat({ config, workerIdentity, status = 'ONLINE'
           nodeVersion: process.version,
           pid: process.pid,
           heartbeatIntervalMs: HEARTBEAT_INTERVAL_MS,
+          runtimeEnvironment: process.env.SKYCOMMAND_RUNTIME_ENV || 'host',
+          configProfile: process.env.SKYCOMMAND_CONFIG_PROFILE || null,
+          runtimeEnvironment: process.env.SKYCOMMAND_RUNTIME_ENV || 'host',
+          configProfile: process.env.SKYCOMMAND_CONFIG_PROFILE || null,
           ...(error ? { error: error.message || String(error) } : {}),
         }),
       ],
@@ -91,6 +96,55 @@ async function recordWorkerHeartbeat({ config, workerIdentity, status = 'ONLINE'
 
     console.warn('[Temporal] Failed to record worker heartbeat:', heartbeatError.message || heartbeatError);
   }
+}
+
+async function assertDockerWorkerConfiguration() {
+  const runtime = String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase();
+  if (runtime !== 'docker') {
+    return null;
+  }
+
+  const profileCode = String(process.env.SKYCOMMAND_CONFIG_PROFILE || '').trim();
+  if (profileCode !== 'DOCKER_LOCAL') {
+    throw new Error(
+      `Docker Temporal worker requires SKYCOMMAND_CONFIG_PROFILE=DOCKER_LOCAL; received '${profileCode || 'blank'}'.`,
+    );
+  }
+
+  const result = await query(
+    `
+      SELECT rp.root_path
+      FROM core.repository_paths rp
+      JOIN core.repositories r ON r.repo_id = rp.repo_id
+      JOIN core.config_profiles cp ON cp.profile_id = rp.profile_id
+      WHERE r.repo_code = 'SkyCommand'
+        AND cp.profile_code = 'DOCKER_LOCAL'
+        AND r.active = TRUE
+        AND rp.active = TRUE
+        AND cp.active = TRUE
+      LIMIT 1
+    `,
+  );
+
+  const rootPath = String(result.rows?.[0]?.root_path || '').trim();
+  if (!rootPath) {
+    throw new Error(
+      'Docker Temporal worker requires the DOCKER_LOCAL repository profile. Apply migration 00098__docker_local_repository_profile.sql first.',
+    );
+  }
+  if (!fs.existsSync(rootPath)) {
+    throw new Error(
+      `DOCKER_LOCAL SkyCommand path is not mounted inside the worker container: ${rootPath}. Check SKYCOMMAND_DOCKER_WORKSPACE_ROOT.`,
+    );
+  }
+
+  console.log(`[Temporal] dockerProfile=${profileCode}`);
+  console.log(`[Temporal] dockerSkyCommandRoot=${rootPath}`);
+  if (String(process.env.SKYCOMMAND_DOCKER_GIT_ENABLED || '').trim().toLowerCase() !== 'true') {
+    console.log('[Temporal] Docker Git-changing tools are disabled until container Git credentials are configured.');
+  }
+
+  return { profileCode, rootPath };
 }
 
 function startHeartbeatLoop(config, workerIdentity) {
@@ -135,6 +189,7 @@ async function main() {
   console.log(`[Temporal] taskQueue=${config.taskQueue}`);
   console.log(`[Temporal] workerIdentity=${workerIdentity}`);
 
+  await assertDockerWorkerConfiguration();
   await recordWorkerHeartbeat({ config, workerIdentity, status: 'STARTING' });
 
   const connection = await NativeConnection.connect({

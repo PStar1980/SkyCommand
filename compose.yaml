@@ -47,6 +47,39 @@ services:
     restart: unless-stopped
     stop_grace_period: 20s
 
+  temporal-worker:
+    build:
+      context: .
+      dockerfile: docker/temporal-worker.Dockerfile
+    image: skycommand-temporal-worker:local
+    container_name: skycommand-temporal-worker
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      PGHOST: host.docker.internal
+      SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
+      SKYCOMMAND_RUNTIME_ENV: docker
+      SKYCOMMAND_SCRIPT_RUNTIME_ROOT: /app
+      SKYCOMMAND_SCRIPT_RUNTIME_REPOSITORY: SkyCommand
+      SKYCOMMAND_EXECUTION_LOG_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/logs/script-executions
+      SKYCOMMAND_EXECUTION_LOG_PATH_MODE: relative
+      SKYCOMMAND_DOCKER_HOST_WORKSPACE_ROOT: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-}
+      SKYCOMMAND_DOCKER_CONTAINER_WORKSPACE_ROOT: /workspace/SkyEco System
+      SKYCOMMAND_CONTAINER_HOST_ALIAS: host.docker.internal
+      SKYCOMMAND_DOCKER_GIT_ENABLED: ${SKYCOMMAND_DOCKER_GIT_ENABLED:-false}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-.}
+        target: /workspace/SkyEco System
+    restart: unless-stopped
+    stop_grace_period: 30s
+
 volumes:
   temporal_data:
     name: skycommand_temporal_data

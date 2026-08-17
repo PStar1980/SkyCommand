@@ -51,6 +51,35 @@ async function run() {
   assert.equal(configuration.repoZipFileName, 'SkyCommand_RepoZip.zip');
   assert.equal(configuration.repoZipOutputPath, 'C:\\SkyCommand\\zip');
 
+  const dockerConfiguration = await loadRepositoryArtifactConfiguration('SkyCommand', {
+    profileCode: 'DOCKER_LOCAL',
+    query: async () => ({
+      rows: [
+        {
+          profile_code: 'DOCKER_LOCAL',
+          repo_id: '11111111-1111-1111-1111-111111111111',
+          repo_code: 'SkyCommand',
+          repo_name: 'SkyCommand',
+          root_path: '/workspace/SkyEco System/SkyCommand System/SkyCommand',
+          repo_map_file_name: 'SkyCommand_RepoMap.md',
+          repo_map_output_path:
+            'C:\\Users\\test\\Dropbox\\Programming\\SkyEco System\\SkyCommand System\\SkyCommand\\docs',
+          repo_zip_file_name: 'SkyCommand_RepoZip.zip',
+          repo_zip_output_path:
+            'C:\\Users\\test\\Dropbox\\Programming\\SkyEco System\\SkyCommand System\\SkyCommand\\zip',
+        },
+      ],
+    }),
+  });
+  assert.equal(
+    dockerConfiguration.repoMapOutputPath,
+    '/workspace/SkyEco System/SkyCommand System/SkyCommand/docs',
+  );
+  assert.equal(
+    dockerConfiguration.repoZipOutputPath,
+    '/workspace/SkyEco System/SkyCommand System/SkyCommand/zip',
+  );
+
   let missingCall = 0;
   const missingQuery = async () => {
     missingCall += 1;
