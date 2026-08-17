@@ -63,6 +63,8 @@ services:
       PGHOST: host.docker.internal
       SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
       SKYCOMMAND_RUNTIME_ENV: docker
+      SKYCOMMAND_DOCKER_RUNTIME_LABEL: Docker Temporal worker
+      SKYCOMMAND_DOCKER_GIT_CHECK_COMMAND: npm run temporal:worker:docker:git:check
       SKYCOMMAND_SCRIPT_RUNTIME_ROOT: /app
       SKYCOMMAND_SCRIPT_RUNTIME_REPOSITORY: SkyCommand
       SKYCOMMAND_EXECUTION_LOG_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/logs/script-executions
@@ -133,6 +135,65 @@ services:
         target: skycommand_github_token
     restart: unless-stopped
     stop_grace_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    image: skycommand-api:local
+    container_name: skycommand-api
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      API_PORT: 7171
+      PGHOST: host.docker.internal
+      TEMPORAL_ADDRESS: temporal:7233
+      SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
+      SKYCOMMAND_RUNTIME_ENV: docker
+      SKYCOMMAND_DOCKER_RUNTIME_LABEL: Docker API
+      SKYCOMMAND_DOCKER_GIT_CHECK_COMMAND: npm run api:docker:git:check
+      SKYCOMMAND_SCRIPT_RUNTIME_ROOT: /app
+      SKYCOMMAND_SCRIPT_RUNTIME_REPOSITORY: SkyCommand
+      SKYCOMMAND_EXECUTION_LOG_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/logs/script-executions
+      SKYCOMMAND_EXECUTION_LOG_PATH_MODE: relative
+      SKYCOMMAND_DOCKER_HOST_WORKSPACE_ROOT: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-}
+      SKYCOMMAND_DOCKER_CONTAINER_WORKSPACE_ROOT: /workspace/SkyEco System
+      SKYCOMMAND_CONTAINER_HOST_ALIAS: host.docker.internal
+      SKYCOMMAND_DOCKER_GIT_ENABLED: ${SKYCOMMAND_DOCKER_GIT_ENABLED:-false}
+      SKYCOMMAND_GITHUB_HOST: "${SKYCOMMAND_GITHUB_HOST:-github.com}"
+      SKYCOMMAND_GITHUB_USERNAME: "${SKYCOMMAND_GITHUB_USERNAME:-}"
+      SKYCOMMAND_GITHUB_TOKEN_FILE: /run/secrets/skycommand_github_token
+      GIT_AUTHOR_NAME: "${SKYCOMMAND_GIT_AUTHOR_NAME:-}"
+      GIT_AUTHOR_EMAIL: "${SKYCOMMAND_GIT_AUTHOR_EMAIL:-}"
+      GIT_COMMITTER_NAME: "${SKYCOMMAND_GIT_AUTHOR_NAME:-}"
+      GIT_COMMITTER_EMAIL: "${SKYCOMMAND_GIT_AUTHOR_EMAIL:-}"
+      SERVE_ADMIN_WEB: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:7171:7171"
+    volumes:
+      - type: bind
+        source: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-.}
+        target: /workspace/SkyEco System
+    secrets:
+      - source: github_token
+        target: skycommand_github_token
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:7171/_health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 20s
 
 volumes:
   temporal_data:

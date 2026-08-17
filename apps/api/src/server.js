@@ -17,6 +17,7 @@ const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 const apiTelemetryService = require('./services/apiTelemetryService');
 const { apiTelemetryMiddleware } = require('./middleware/apiTelemetryMiddleware');
+const apiDockerPreflight = require('./services/apiDockerPreflight');
 
 function createApp() {
   const app = express();
@@ -156,19 +157,30 @@ async function runStartupMaintenance() {
   }
 }
 
-if (require.main === module) {
+async function startServer() {
   const port = Number(process.env.API_PORT || process.env.ADMIN_PORT || 7171);
-  const app = createApp();
+  await apiDockerPreflight.assertDockerApiConfiguration();
 
-  app.listen(port, () => {
+  const app = createApp();
+  const server = app.listen(port, () => {
     console.log(`[SkyCommand API] Listening on port ${port}`);
 
     runStartupMaintenance().catch((error) => {
       console.warn('[SkyCommand API] Startup maintenance failed:', error.message);
     });
   });
+
+  return server;
+}
+
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error('[SkyCommand API] Failed to start:', error);
+    process.exitCode = 1;
+  });
 }
 
 module.exports = {
   createApp,
+  startServer,
 };

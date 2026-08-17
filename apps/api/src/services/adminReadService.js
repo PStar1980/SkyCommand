@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const scriptExecutionService = require('./scriptExecutionService');
+const { translateWorkspacePath } = require('../../../../packages/core/src/runtimePathResolver');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -16,11 +17,13 @@ const MAX_EXECUTION_OUTPUT_BYTES =
     ? Math.min(configuredExecutionOutputBytes, HARD_MAX_EXECUTION_OUTPUT_BYTES)
     : DEFAULT_EXECUTION_OUTPUT_BYTES;
 const SCRIPT_EXECUTION_REPOSITORY_ROOT = path.resolve(__dirname, '../../../..');
-const SCRIPT_EXECUTION_LOG_ROOT = path.join(
-  SCRIPT_EXECUTION_REPOSITORY_ROOT,
-  'logs',
-  'script-executions',
+const SCRIPT_EXECUTION_LOG_ROOT = path.resolve(
+  String(
+    process.env.SKYCOMMAND_EXECUTION_LOG_ROOT ||
+      path.join(SCRIPT_EXECUTION_REPOSITORY_ROOT, 'logs', 'script-executions'),
+  ),
 );
+const SCRIPT_EXECUTION_RELATIVE_LOG_PREFIX = 'logs/script-executions/';
 const DEFAULT_ADMIN_APP_CODE = String(process.env.AUTH_APP_CODE || 'SKYSERVER_ADMIN')
   .trim()
   .toUpperCase();
@@ -358,15 +361,34 @@ function sanitizeScriptExecution(row) {
   };
 }
 
+function resolveScriptExecutionOutputPath(filePath) {
+  const storedPath = String(filePath || '');
+  if (path.isAbsolute(storedPath)) {
+    return path.resolve(storedPath);
+  }
+
+  const translatedPath = translateWorkspacePath(storedPath);
+  if (translatedPath && path.isAbsolute(String(translatedPath))) {
+    return path.resolve(String(translatedPath));
+  }
+
+  const portablePath = storedPath.replace(/\\/g, '/');
+  if (portablePath.startsWith(SCRIPT_EXECUTION_RELATIVE_LOG_PREFIX)) {
+    return path.resolve(
+      SCRIPT_EXECUTION_LOG_ROOT,
+      portablePath.slice(SCRIPT_EXECUTION_RELATIVE_LOG_PREFIX.length),
+    );
+  }
+
+  return path.resolve(SCRIPT_EXECUTION_REPOSITORY_ROOT, storedPath);
+}
+
 function readScriptExecutionOutput(filePath) {
   if (!filePath) {
     return { available: false, content: '', truncated: false };
   }
 
-  const storedPath = String(filePath);
-  const resolvedPath = path.isAbsolute(storedPath)
-    ? path.resolve(storedPath)
-    : path.resolve(SCRIPT_EXECUTION_REPOSITORY_ROOT, storedPath);
+  const resolvedPath = resolveScriptExecutionOutputPath(filePath);
   const relativePath = path.relative(SCRIPT_EXECUTION_LOG_ROOT, resolvedPath);
   const withinLogRoot =
     relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
