@@ -1,3 +1,10 @@
+2026-08-16 - Temporal worker Docker foundation
+- Added a Linux Node Temporal worker image and Compose service that connects to the Dockerized Temporal service, host PostgreSQL through `host.docker.internal`, and the mounted SkyEco workspace.
+- Added migration 00098 and fresh-build seed support for the `DOCKER_LOCAL` repository profile, plus container-aware repository artifact path translation and localhost API-call routing.
+- Added fail-fast Docker worker profile/mount validation, Docker runtime heartbeat metadata, a separate image runtime root, and portable shared execution-log paths so Tool Operations can still read Docker-produced stdout/stderr from the host API.
+- Git repository tools remain fail-closed in the Docker worker until explicit container Git credentials are configured; host worker execution remains the safe compatibility path for Development Promotion.
+- Added Docker worker lifecycle commands, Docker/runtime self-tests, setup/troubleshooting documentation, and validation wiring.
+
 2026-08-16 - Temporal Docker volume ownership correction
 - Added a one-shot Compose volume initializer that grants the official non-root Temporal CLI user (UID 1000) write access to the persistent SQLite volume before the development service starts.
 - Preserved host ports 7233/8600, the named Temporal volume, and the host-run Temporal worker boundary.

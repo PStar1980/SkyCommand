@@ -805,6 +805,12 @@ function isLocalSkyCommandUrl(url) {
 
   const host = String(parsed.hostname || '').toLowerCase();
   const allowedHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  const containerHostAlias = String(process.env.SKYCOMMAND_CONTAINER_HOST_ALIAS || '')
+    .trim()
+    .toLowerCase();
+  if (containerHostAlias) {
+    allowedHosts.add(containerHostAlias);
+  }
 
   if (!allowedHosts.has(host)) {
     return false;
@@ -903,6 +909,23 @@ function normalizeApiUrl(value) {
     throw new WorkflowServiceError('API_CALL only supports http and https URLs.', 400, {
       protocol: parsed.protocol,
     });
+  }
+
+  return parsed.toString();
+}
+
+function translateLocalApiUrlForRuntime(value) {
+  const normalized = normalizeApiUrl(value);
+  const hostAlias = String(process.env.SKYCOMMAND_CONTAINER_HOST_ALIAS || '').trim();
+  const runtime = String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase();
+
+  if (runtime !== 'docker' || !hostAlias) {
+    return normalized;
+  }
+
+  const parsed = new URL(normalized);
+  if (['localhost', '127.0.0.1', '::1'].includes(parsed.hostname.toLowerCase())) {
+    parsed.hostname = hostAlias;
   }
 
   return parsed.toString();
@@ -2960,7 +2983,7 @@ async function runToolNode({ node, parameters, user, session, permissions, conte
 
 async function runApiCallNode({ node, parameters }) {
   const method = normalizeHttpMethod(parameters.method);
-  const url = normalizeApiUrl(parameters.url || node.targetCode);
+  const url = translateLocalApiUrlForRuntime(parameters.url || node.targetCode);
   const authMode = normalizeApiAuthMode(parameters.authMode || 'AUTO');
   const configuredHeaders = parseJsonText(
     parameters.headersJson ?? parameters.headers,

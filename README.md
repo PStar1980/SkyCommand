@@ -40,7 +40,7 @@ SkyCommand is now a mature private operational control plane for the Sky ecosyst
 
 The ingestion and data-contract foundation is portable beyond the original macroeconomic use case while retaining the established FRED, Bank of Canada, and Statistics Canada paths. Current development is focused on reusable operational tooling, workflow templates, repository automation, diagnostics, testing, documentation, and continued UI polish rather than adding another large numbered milestone.
 
-Docker containerization has now begun with the **Temporal development service**. Temporal runs from a pinned container with persistent local state, while the SkyCommand Temporal worker remains host-run for the first proof boundary. The next infrastructure slice will containerize the worker after Docker-specific repository paths and Git authentication are handled deliberately.
+Docker containerization now covers the **Temporal development service** and a Docker-ready **SkyCommand Temporal worker**. The worker uses a dedicated `DOCKER_LOCAL` repository profile, a mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, and container-aware path/API translation. Git-changing tools remain fail-closed in the container until Docker-specific Git credentials are configured; the host worker remains available as a compatibility fallback during that final authentication slice.
 
 ## Workflow Runtime and Structured Results
 
@@ -386,8 +386,14 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run temporal:server:restart` | Restarts the Temporal service container.                                                     |
 | `npm run temporal:server:status`  | Shows the Temporal service container status/health.                                         |
 | `npm run temporal:server:logs`    | Follows Temporal service container logs.                                                     |
-| `npm run temporal:worker`         | Starts the SkyCommand Temporal worker on the host.                                           |
-| `npm run temporal:worker:dev`     | Starts the SkyCommand Temporal worker with Nodemon on the host.                              |
+| `npm run temporal:worker:docker:up` | Builds and starts the Dockerized SkyCommand Temporal worker.                               |
+| `npm run temporal:worker:docker:stop` | Stops the Dockerized Temporal worker.                                                     |
+| `npm run temporal:worker:docker:status` | Shows the Dockerized Temporal worker container status.                                  |
+| `npm run temporal:worker:docker:logs` | Follows Dockerized Temporal worker logs.                                                 |
+| `npm run temporal:stack:up`       | Starts/builds the Temporal service and Docker worker together.                               |
+| `npm run temporal:stack:stop`     | Stops the Docker worker and Temporal service while preserving Temporal data.                  |
+| `npm run temporal:worker`         | Starts the SkyCommand Temporal worker on the host as a compatibility fallback.                |
+| `npm run temporal:worker:dev`     | Starts the host Temporal worker with Nodemon.                                                |
 | `npm run temporal:health`         | Checks connectivity to the configured Temporal service.                                     |
 | `npm run temporal:fred`       | Starts the FRED ingestion workflow pilot and waits for the result.                          |
 | `npm run daemon`              | Starts the API daemon entry point with Nodemon.                                             |
@@ -495,7 +501,15 @@ npm run temporal:server:up
 # Inspect service/container status
 npm run temporal:server:status
 
-# Run the SkyCommand Temporal worker on the host for this first Docker slice
+# After applying migration 00098 and configuring SKYCOMMAND_DOCKER_WORKSPACE_ROOT,
+# build/start the SkyCommand Temporal worker in Docker
+npm run temporal:worker:docker:up
+
+# Inspect the Docker worker or follow its logs
+npm run temporal:worker:docker:status
+npm run temporal:worker:docker:logs
+
+# Host-worker fallback while Docker Git credentials are still being finalized
 npm run temporal:worker:dev
 
 # Check SkyCommand -> Temporal connectivity
@@ -509,7 +523,7 @@ npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
-The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, and persists the local SQLite development database in the named volume `skycommand_temporal_data`. The image is pinned to Temporal CLI `1.7.2` so the containerized service matches the currently proven local Temporal generation instead of drifting on `latest`.
+The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, and persists the local SQLite development database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `temporal-worker` service builds from `docker/temporal-worker.Dockerfile`, connects to Temporal over the Compose network, reaches host PostgreSQL through `host.docker.internal`, and mounts the host SkyEco workspace at `/workspace/SkyEco System`.
 
 Primary protected workflow API families include:
 

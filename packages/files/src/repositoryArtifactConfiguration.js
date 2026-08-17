@@ -1,5 +1,7 @@
 const path = require('path');
 
+const { translateWorkspacePath } = require('../../core/src/runtimePathResolver');
+
 const SKYCOMMAND_ROOT = path.resolve(__dirname, '../../..');
 
 // Direct CLI execution is still supported. SkyCommand-launched tools already
@@ -89,16 +91,17 @@ async function loadRepositoryArtifactConfiguration(
   }
 
   const row = result.rows[0];
+  const pathOptions = { profileCode: row.profile_code };
   return {
     profileCode: row.profile_code,
     repoId: row.repo_id,
     repoCode: row.repo_code,
     repoName: row.repo_name,
-    rootPath: row.root_path,
+    rootPath: translateWorkspacePath(row.root_path, pathOptions),
     repoMapFileName: row.repo_map_file_name,
-    repoMapOutputPath: row.repo_map_output_path,
+    repoMapOutputPath: translateWorkspacePath(row.repo_map_output_path, pathOptions),
     repoZipFileName: row.repo_zip_file_name,
-    repoZipOutputPath: row.repo_zip_output_path,
+    repoZipOutputPath: translateWorkspacePath(row.repo_zip_output_path, pathOptions),
   };
 }
 

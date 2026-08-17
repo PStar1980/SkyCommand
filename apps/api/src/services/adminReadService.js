@@ -15,9 +15,9 @@ const MAX_EXECUTION_OUTPUT_BYTES =
   Number.isFinite(configuredExecutionOutputBytes) && configuredExecutionOutputBytes > 0
     ? Math.min(configuredExecutionOutputBytes, HARD_MAX_EXECUTION_OUTPUT_BYTES)
     : DEFAULT_EXECUTION_OUTPUT_BYTES;
-const SCRIPT_EXECUTION_LOG_ROOT = path.resolve(
-  __dirname,
-  '../../../..',
+const SCRIPT_EXECUTION_REPOSITORY_ROOT = path.resolve(__dirname, '../../../..');
+const SCRIPT_EXECUTION_LOG_ROOT = path.join(
+  SCRIPT_EXECUTION_REPOSITORY_ROOT,
   'logs',
   'script-executions',
 );
@@ -363,7 +363,10 @@ function readScriptExecutionOutput(filePath) {
     return { available: false, content: '', truncated: false };
   }
 
-  const resolvedPath = path.resolve(String(filePath));
+  const storedPath = String(filePath);
+  const resolvedPath = path.isAbsolute(storedPath)
+    ? path.resolve(storedPath)
+    : path.resolve(SCRIPT_EXECUTION_REPOSITORY_ROOT, storedPath);
   const relativePath = path.relative(SCRIPT_EXECUTION_LOG_ROOT, resolvedPath);
   const withinLogRoot =
     relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);

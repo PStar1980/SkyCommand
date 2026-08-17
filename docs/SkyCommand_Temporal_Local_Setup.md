@@ -2,15 +2,16 @@
 
 ## Purpose
 
-This document is the current local development guide for SkyCommand's Temporal workflow lane. The Temporal development service now runs in Docker, while the SkyCommand Temporal worker remains a host process for the first containerization proof boundary.
+This document is the current local development guide for SkyCommand's Temporal workflow lane. The Temporal development service runs in Docker, and SkyCommand now also provides a Dockerized Temporal worker foundation. The host worker remains available as a compatibility fallback while container Git authentication is finalized.
 
-Keeping the worker on the host for this slice preserves the existing Windows repository paths and Git credentials used by repository automation. A later Docker slice will add container-specific repository paths and worker authentication before the worker itself moves into Compose.
+The Docker worker uses the `DOCKER_LOCAL` repository profile, mounts the host SkyEco workspace at `/workspace/SkyEco System`, reaches host PostgreSQL through `host.docker.internal`, and translates repository artifact paths plus localhost API calls across the container boundary. Git-changing tools are deliberately disabled in the Docker worker until credentials are configured.
 
 ## Prerequisites
 
 - Docker Desktop running with Docker Compose available.
-- SkyCommand dependencies installed for the host-run API, Admin-Web, and workers.
-- PostgreSQL available using the normal SkyCommand `.env` configuration.
+- SkyCommand dependencies installed for the host-run API/Admin-Web and fallback workers.
+- PostgreSQL available using the normal SkyCommand `.env` configuration and reachable from Docker Desktop.
+- Migration `00098__docker_local_repository_profile.sql` applied before starting the Docker worker.
 
 The host Temporal CLI is optional once the Docker service is in use. SkyCommand's npm helpers call Docker Compose directly.
 
@@ -37,6 +38,8 @@ Host ports bind to `127.0.0.1`, so the local development service is not intentio
 Add or confirm these values in the SkyCommand root `.env` file:
 
 ```env
+SKYCOMMAND_DOCKER_WORKSPACE_ROOT=C:/Users/your-user/Dropbox/Programming/SkyEco System
+SKYCOMMAND_DOCKER_GIT_ENABLED=false
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=skyserver-local
@@ -58,14 +61,14 @@ Start Temporal in Docker:
 npm run temporal:server:up
 ```
 
-Then run the remaining SkyCommand processes in their own terminals:
+Then run the remaining SkyCommand processes. Keep the API and Admin-Web on the host for this slice, and start the Temporal worker in Docker:
 
 ```bash
 # SkyCommand API
 npm run api
 
-# SkyCommand Temporal worker (host-run in this first Docker slice)
-npm run temporal:worker:dev
+# Dockerized SkyCommand Temporal worker
+npm run temporal:worker:docker:up
 
 # Admin-Web
 npm run web
@@ -73,6 +76,8 @@ npm run web
 # Optional: classic SkyCommand worker daemon for schedules/listeners
 npm run worker:dev
 ```
+
+The host worker remains available as a fallback with `npm run temporal:worker:dev`. Do not run the host and Docker SkyCommand Temporal workers against the same task queue during normal proof runs unless you intentionally want multiple pollers.
 
 The Temporal container uses `restart: unless-stopped`, so Docker Desktop can restore it after a machine/Docker restart unless you explicitly stopped the container.
 
@@ -93,6 +98,16 @@ npm run temporal:server:logs
 
 # Stop Temporal while preserving its container data volume
 npm run temporal:server:stop
+
+# Build/start the Docker worker
+npm run temporal:worker:docker:up
+
+# Worker status/logs
+npm run temporal:worker:docker:status
+npm run temporal:worker:docker:logs
+
+# Start the service + worker together
+npm run temporal:stack:up
 ```
 
 Useful SkyCommand checks:
@@ -111,6 +126,25 @@ Optional direct FRED workflow runner:
 npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
+
+## Docker worker repository profile
+
+Migration `00098__docker_local_repository_profile.sql` creates `DOCKER_LOCAL` and derives container paths from active `DEV_LOCAL` repository paths. For example:
+
+```text
+DEV_LOCAL    C:\Users\...\SkyEco System\SkyCommand System\SkyCommand
+DOCKER_LOCAL /workspace/SkyEco System/SkyCommand System/SkyCommand
+```
+
+The worker image executes SkyCommand-owned tool implementations from `/app`, so its Node dependencies are Linux-native and immutable. Repository parameters still resolve to the mounted host working trees through `DOCKER_LOCAL`, allowing Map/Zip and future Git operations to act on the real local repositories rather than a copied image workspace.
+
+Repository Map/Zip output paths are stored globally today and may still contain Windows paths. The runtime path translator maps any path beneath the SkyEco workspace into `/workspace/SkyEco System` when `DOCKER_LOCAL` is active.
+
+Tool stdout/stderr produced by the Docker worker is written into the mounted SkyCommand `logs/script-executions` directory, while the database stores portable relative paths. This keeps Tool Operations output readable from the host API even though execution occurred inside Linux.
+
+### Current Git boundary
+
+`Repository Intelligence`, `Dev Commit`, and `Main Merge` fail closed inside the Docker worker while `SKYCOMMAND_DOCKER_GIT_ENABLED=false`. This is intentional: Windows Git Credential Manager credentials are not automatically inherited by a Linux container. Keep Development Promotion on the host worker until the next slice configures explicit container Git authentication.
 
 ## Persistence behavior
 
@@ -133,7 +167,10 @@ Do not delete that volume casually: removing it intentionally resets the local T
 | `docker compose` cannot connect | Docker Desktop is not running | Start Docker Desktop and retry `npm run temporal:server:up` |
 | Port `7233` is already allocated | A manually started/headless Temporal service is still running | Stop the host Temporal process, then start the Docker service |
 | Temporal UI does not open | Host port `8600` is unavailable or container is unhealthy | Run `npm run temporal:server:status` and `npm run temporal:server:logs` |
-| Workflow starts but does not progress | Host-run Temporal worker is not running or task queue mismatch | Confirm `TEMPORAL_TASK_QUEUE=skyserver-local` and run `npm run temporal:worker:dev` |
+| Workflow starts but does not progress | Temporal worker is not running or task queue mismatch | Run `npm run temporal:worker:docker:status` / logs and confirm `TEMPORAL_TASK_QUEUE=skyserver-local` |
+| Docker worker exits during startup | `DOCKER_LOCAL` is missing or the SkyEco bind mount is wrong | Apply migration `00098`, set `SKYCOMMAND_DOCKER_WORKSPACE_ROOT`, then restart the worker |
+| Docker worker cannot reach PostgreSQL | Host PostgreSQL is not reachable through Docker Desktop | Verify `host.docker.internal:5432`, PostgreSQL listen settings, and local firewall/pg_hba configuration |
+| Development Promotion fails at a Git node | Docker Git credentials are intentionally disabled | Use the host worker for Git workflows until container Git authentication is configured |
 | Temporal log shows `unable to open database file ... (14)` | The named volume is not writable by the Temporal CLI user | Use the current Compose file; `temporal-volume-init` repairs ownership before server startup. Run `docker compose down`, then `npm run temporal:server:up`. |
 | Host Temporal worker reports `ECONNREFUSED 127.0.0.1:7233` | The Docker Temporal service did not become healthy | Fix/start the Temporal service first; the host worker will connect once `localhost:7233` is listening. |
 | Command Center shows Temporal service offline | Docker service is stopped/unhealthy or `.env` points elsewhere | Run `npm run temporal:server:status`, then `npm run temporal:health` |
@@ -148,4 +185,4 @@ Production should use an appropriate durable Temporal deployment, supervised app
 
 ## Next Docker slice
 
-The next planned containerization step is the SkyCommand Temporal worker. Before moving it into Compose, SkyCommand will add Docker-specific repository paths/volume mounts and a deliberate Git authentication strategy so repository Map/Zip/Commit/Merge workflows continue to work from inside a Linux container.
+The next focused slice is **container Git authentication**. Once GitHub credentials are available to the Linux worker without embedding secrets in the image or repository, `SKYCOMMAND_DOCKER_GIT_ENABLED` can be enabled and Development Promotion can move fully from the host worker into Docker.
