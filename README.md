@@ -40,7 +40,7 @@ SkyCommand is now a mature private operational control plane for the Sky ecosyst
 
 The ingestion and data-contract foundation is portable beyond the original macroeconomic use case while retaining the established FRED, Bank of Canada, and Statistics Canada paths. Current development is focused on reusable operational tooling, workflow templates, repository automation, diagnostics, testing, documentation, and continued UI polish rather than adding another large numbered milestone.
 
-Docker containerization now covers the **Temporal development service** and a Docker-ready **SkyCommand Temporal worker**. The worker uses a dedicated `DOCKER_LOCAL` repository profile, a mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, and container-aware path/API translation. Git-changing tools remain fail-closed in the container until Docker-specific Git credentials are configured; the host worker remains available as a compatibility fallback during that final authentication slice.
+Docker containerization now covers the **Temporal development service**, the **SkyCommand Temporal worker**, and the Docker foundation for the **scheduler/listener Node worker**. Both worker containers use the `DOCKER_LOCAL` repository profile, the mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, shared GitHub secret/commit identity, and host-readable execution logs. The Node worker deliberately claims only Node.js-backed schedules in Docker; Windows PowerShell schedules remain available to a compatible host worker until they are migrated or a cross-platform runtime is added.
 
 ## Workflow Runtime and Structured Results
 
@@ -327,7 +327,7 @@ WORKER_SCHEDULER_ENABLED=true
 WORKER_LISTENER_ENABLED=false
 WORKER_NODE_NAME=
 WORKER_HEARTBEAT_SECONDS=30
-WORKER_POLL_INTERVAL_SECONDS=15
+WORKER_SCHEDULE_POLL_SECONDS=15
 WORKER_TOOL_TIMEOUT_MS=180000
 WORKER_TOOL_MAX_OUTPUT_BYTES=250000
 WORKER_ALLOW_HIGH_RISK_TOOLS=false
@@ -381,6 +381,14 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run web:preview`         | Previews the built Admin-Web frontend.                                                      |
 | `npm run worker`              | Starts the worker daemon.                                                                   |
 | `npm run worker:dev`          | Starts the worker daemon with Nodemon.                                                      |
+| `npm run worker:docker:up`   | Builds and starts the Dockerized scheduler/listener Node worker.                            |
+| `npm run worker:docker:stop` | Stops the Dockerized Node worker.                                                           |
+| `npm run worker:docker:restart` | Rebuilds/recreates the Dockerized Node worker.                                           |
+| `npm run worker:docker:status` | Shows the Dockerized Node worker container status.                                        |
+| `npm run worker:docker:logs` | Follows Dockerized Node worker logs.                                                        |
+| `npm run worker:docker:git:check` | Reuses the Docker Git credential proof inside the Node worker container.                |
+| `npm run automation:stack:up` | Starts/builds Temporal service, Temporal worker, and Node worker together.                   |
+| `npm run automation:stack:stop` | Stops the three Docker automation services while preserving Temporal data.                |
 | `npm run temporal:server:up`      | Starts/recreates the Dockerized Temporal development service in the background.              |
 | `npm run temporal:server:stop`    | Stops the Temporal service container without deleting its persistent volume.                |
 | `npm run temporal:server:restart` | Restarts the Temporal service container.                                                     |
@@ -509,8 +517,18 @@ npm run temporal:worker:docker:up
 npm run temporal:worker:docker:status
 npm run temporal:worker:docker:logs
 
-# Host-worker fallback while Docker Git credentials are still being finalized
-npm run temporal:worker:dev
+# Start the Dockerized scheduler/listener worker after stopping any host worker:dev process
+npm run worker:docker:up
+
+# Inspect the Node worker or follow its logs
+npm run worker:docker:status
+npm run worker:docker:logs
+
+# Optional combined automation stack startup
+npm run automation:stack:up
+
+# Host worker fallback for Windows-only scheduled tools
+npm run worker:dev
 
 # Check SkyCommand -> Temporal connectivity
 npm run temporal:health
@@ -523,7 +541,7 @@ npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
-The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, and persists the local SQLite development database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `temporal-worker` service builds from `docker/temporal-worker.Dockerfile`, connects to Temporal over the Compose network, reaches host PostgreSQL through `host.docker.internal`, and mounts the host SkyEco workspace at `/workspace/SkyEco System`.
+The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, and persists the local SQLite development database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `temporal-worker` and `node-worker` services connect to Temporal over the Compose network, reach host PostgreSQL through `host.docker.internal`, and mount the host SkyEco workspace at `/workspace/SkyEco System`. The Node worker registers under the stable name `skycommand-node-worker-docker`; stop the host `npm run worker:dev` process before proving Docker scheduling so only the intended worker claims due schedules.
 
 Primary protected workflow API families include:
 

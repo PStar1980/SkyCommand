@@ -57,6 +57,7 @@ const routineSelfTests = [
   'workflow-cli-params:self-test',
   'temporal-docker:self-test',
   'temporal-worker-docker:self-test',
+  'node-worker-docker:self-test',
   'ingestion-identity:self-test',
   'ingestion-profile-guardrails:self-test',
   'ingestion-data-catalogue:self-test',

@@ -90,6 +90,50 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  node-worker:
+    build:
+      context: .
+      dockerfile: docker/node-worker.Dockerfile
+    image: skycommand-node-worker:local
+    container_name: skycommand-node-worker
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PGHOST: host.docker.internal
+      TEMPORAL_ADDRESS: temporal:7233
+      SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
+      SKYCOMMAND_RUNTIME_ENV: docker
+      SKYCOMMAND_EXECUTION_LOG_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/logs/script-executions
+      SKYCOMMAND_EXECUTION_LOG_PATH_MODE: relative
+      SKYCOMMAND_DOCKER_HOST_WORKSPACE_ROOT: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-}
+      SKYCOMMAND_DOCKER_CONTAINER_WORKSPACE_ROOT: /workspace/SkyEco System
+      SKYCOMMAND_CONTAINER_HOST_ALIAS: host.docker.internal
+      SKYCOMMAND_DOCKER_GIT_ENABLED: ${SKYCOMMAND_DOCKER_GIT_ENABLED:-false}
+      SKYCOMMAND_GITHUB_HOST: "${SKYCOMMAND_GITHUB_HOST:-github.com}"
+      SKYCOMMAND_GITHUB_USERNAME: "${SKYCOMMAND_GITHUB_USERNAME:-}"
+      SKYCOMMAND_GITHUB_TOKEN_FILE: /run/secrets/skycommand_github_token
+      GIT_AUTHOR_NAME: "${SKYCOMMAND_GIT_AUTHOR_NAME:-}"
+      GIT_AUTHOR_EMAIL: "${SKYCOMMAND_GIT_AUTHOR_EMAIL:-}"
+      GIT_COMMITTER_NAME: "${SKYCOMMAND_GIT_AUTHOR_NAME:-}"
+      GIT_COMMITTER_EMAIL: "${SKYCOMMAND_GIT_AUTHOR_EMAIL:-}"
+      WORKER_NODE_NAME: skycommand-node-worker-docker
+      WORKER_SCHEDULER_ENABLED: ${WORKER_SCHEDULER_ENABLED:-true}
+      WORKER_LISTENER_ENABLED: ${WORKER_LISTENER_ENABLED:-false}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-.}
+        target: /workspace/SkyEco System
+    secrets:
+      - source: github_token
+        target: skycommand_github_token
+    restart: unless-stopped
+    stop_grace_period: 30s
+
 volumes:
   temporal_data:
     name: skycommand_temporal_data

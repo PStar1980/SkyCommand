@@ -41,6 +41,43 @@ function normalizeOptionalString(value) {
   return text === '' ? null : text;
 }
 
+function isDockerRuntime() {
+  return String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase() === 'docker';
+}
+
+function assertDockerToolSupported(tool) {
+  if (!isDockerRuntime()) {
+    return;
+  }
+
+  const runtime = String(tool?.runtime_code || 'node').trim().toLowerCase();
+  if (runtime !== 'node') {
+    throw createHttpError(
+      409,
+      `Docker Node worker does not execute ${runtime || 'unknown'} runtime tools. Run this schedule on a compatible host worker or migrate the tool to Node.js.`,
+      {
+        toolCode: tool?.tool_code || null,
+        runtimeCode: runtime || null,
+        runtimeEnvironment: 'docker',
+      },
+    );
+  }
+
+  const gitToolCodes = new Set(['git_repo_status', 'dev_commit', 'main_merge']);
+  if (gitToolCodes.has(tool?.tool_code) && !toBoolean(process.env.SKYCOMMAND_DOCKER_GIT_ENABLED)) {
+    throw createHttpError(
+      409,
+      'Git automation is disabled in the Docker Node worker. Configure the Docker GitHub credential secret and set SKYCOMMAND_DOCKER_GIT_ENABLED=true.',
+      {
+        toolCode: tool.tool_code,
+        runtimeEnvironment: 'docker',
+        enableEnvVar: 'SKYCOMMAND_DOCKER_GIT_ENABLED',
+        credentialCheckCommand: 'npm run worker:docker:git:check',
+      },
+    );
+  }
+}
+
 function sanitizeMetadata(metadata = {}) {
   return JSON.stringify(metadata || {});
 }
@@ -197,25 +234,40 @@ function resolveScriptFile(tool) {
 }
 
 function getLogDirectory() {
-  const skyServerRoot = path.resolve(__dirname, '../../../..');
-  const logDirectory = path.join(skyServerRoot, 'logs', 'script-executions');
+  const configuredLogRoot = normalizeOptionalString(process.env.SKYCOMMAND_EXECUTION_LOG_ROOT);
+  const skyCommandRoot = path.resolve(__dirname, '../../../..');
+  const logDirectory = configuredLogRoot
+    ? path.resolve(configuredLogRoot)
+    : path.join(skyCommandRoot, 'logs', 'script-executions');
 
   fs.mkdirSync(logDirectory, { recursive: true });
 
   return logDirectory;
 }
 
+function getPersistedExecutionOutputPath(filePath) {
+  const pathMode = String(process.env.SKYCOMMAND_EXECUTION_LOG_PATH_MODE || 'absolute')
+    .trim()
+    .toLowerCase();
+
+  if (pathMode === 'relative') {
+    return path.posix.join('logs', 'script-executions', path.basename(filePath));
+  }
+
+  return filePath;
+}
+
 function writeExecutionOutputFiles({ executionId, stdout, stderr }) {
   const logDirectory = getLogDirectory();
-  const stdoutPath = path.join(logDirectory, `${executionId}.stdout.log`);
-  const stderrPath = path.join(logDirectory, `${executionId}.stderr.log`);
+  const stdoutFile = path.join(logDirectory, `${executionId}.stdout.log`);
+  const stderrFile = path.join(logDirectory, `${executionId}.stderr.log`);
 
-  fs.writeFileSync(stdoutPath, stdout || '', 'utf8');
-  fs.writeFileSync(stderrPath, stderr || '', 'utf8');
+  fs.writeFileSync(stdoutFile, stdout || '', 'utf8');
+  fs.writeFileSync(stderrFile, stderr || '', 'utf8');
 
   return {
-    stdoutPath,
-    stderrPath,
+    stdoutPath: getPersistedExecutionOutputPath(stdoutFile),
+    stderrPath: getPersistedExecutionOutputPath(stderrFile),
   };
 }
 
@@ -590,6 +642,7 @@ async function runWorkerTool({ toolCode, parameters = {}, schedule, scheduleRun,
   const tool = await loadWorkerTool(normalizedToolCode);
 
   assertWorkerToolAllowed(tool);
+  assertDockerToolSupported(tool);
   assertExecutionNotAlreadyRunning(tool);
 
   const executionLock = acquireExecutionLock(tool);

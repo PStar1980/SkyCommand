@@ -4,6 +4,11 @@ const { runClaimedSchedule } = require('../jobs/scheduledToolRunner');
 const DEFAULT_POLL_INTERVAL_SECONDS = 15;
 const DEFAULT_MAX_DUE_PER_TICK = 3;
 
+
+function isDockerRuntime() {
+  return String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase() === 'docker';
+}
+
 function getPollIntervalSeconds() {
   const configured = Number(
     process.env.WORKER_SCHEDULE_POLL_SECONDS || DEFAULT_POLL_INTERVAL_SECONDS,
@@ -70,6 +75,7 @@ function sanitizeScheduleRunRow(row) {
   };
 }
 
+// Docker Node worker only claims Node.js-backed schedules; Windows PowerShell schedules stay available to a compatible host worker.
 async function claimDueSchedules({ workerNode, limit = getMaxDuePerTick() } = {}) {
   const client = await pool.connect();
 
@@ -117,6 +123,7 @@ async function claimDueSchedules({ workerNode, limit = getMaxDuePerTick() } = {}
             WHERE tv.tool_id = s.tool_id
               AND tv.channel_code = 'worker'
           )
+          AND ($2::boolean = FALSE OR t.runtime_code = 'node')
           AND (
             SELECT COUNT(*)::int
             FROM worker.schedule_runs sr
@@ -127,7 +134,7 @@ async function claimDueSchedules({ workerNode, limit = getMaxDuePerTick() } = {}
         FOR UPDATE OF s SKIP LOCKED
         LIMIT $1
       `,
-      [limit],
+      [limit, isDockerRuntime()],
     );
 
     const claims = [];
