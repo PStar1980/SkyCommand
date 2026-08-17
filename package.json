@@ -172,7 +172,8 @@
     "ingestion-operations-surface:self-test": "node apps/admin-web/src/pages/ingestionOperationsSurfaceSelfTest.js",
     "ingestion-consumer-contracts:self-test": "node packages/ingestion/src/consumer/dataConsumerServiceSelfTest.js",
     "skycommand-identity:self-test": "node packages/core/src/skyCommandIdentitySelfTest.js",
-    "skycommand-identity:verify": "node packages/core/src/skyCommandIdentityVerification.js"
+    "skycommand-identity:verify": "node packages/core/src/skyCommandIdentityVerification.js",
+    "temporal:worker:docker:git:check": "node scripts/docker/temporalWorkerDocker.js git-check"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

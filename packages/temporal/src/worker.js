@@ -4,6 +4,7 @@ require('dotenv').config({
 
 const fs = require('fs');
 const os = require('os');
+const { spawnSync } = require('node:child_process');
 const { NativeConnection, Worker } = require('@temporalio/worker');
 
 const { query } = require('../../db/src/connection');
@@ -113,20 +114,27 @@ async function assertDockerWorkerConfiguration() {
 
   const result = await query(
     `
-      SELECT rp.root_path
+      SELECT r.repo_code, rp.root_path
       FROM core.repository_paths rp
       JOIN core.repositories r ON r.repo_id = rp.repo_id
       JOIN core.config_profiles cp ON cp.profile_id = rp.profile_id
-      WHERE r.repo_code = 'SkyCommand'
-        AND cp.profile_code = 'DOCKER_LOCAL'
+      WHERE cp.profile_code = 'DOCKER_LOCAL'
         AND r.active = TRUE
         AND rp.active = TRUE
         AND cp.active = TRUE
-      LIMIT 1
+      ORDER BY r.display_order ASC, r.repo_code ASC
     `,
   );
 
-  const rootPath = String(result.rows?.[0]?.root_path || '').trim();
+  const repositoryPaths = (result.rows || [])
+    .map((row) => ({
+      repoCode: String(row.repo_code || '').trim(),
+      rootPath: String(row.root_path || '').trim(),
+    }))
+    .filter((row) => row.repoCode && row.rootPath);
+  const skyCommandRepository = repositoryPaths.find((row) => row.repoCode === 'SkyCommand');
+  const rootPath = skyCommandRepository?.rootPath || '';
+
   if (!rootPath) {
     throw new Error(
       'Docker Temporal worker requires the DOCKER_LOCAL repository profile. Apply migration 00098__docker_local_repository_profile.sql first.',
@@ -138,10 +146,60 @@ async function assertDockerWorkerConfiguration() {
     );
   }
 
+  const mountedRepositoryPaths = repositoryPaths.filter((repository) =>
+    fs.existsSync(repository.rootPath),
+  );
+  const clearSafeDirectories = spawnSync('git', ['config', '--global', '--unset-all', 'safe.directory'], {
+    encoding: 'utf8',
+  });
+  if (![0, 5].includes(clearSafeDirectories.status ?? 1)) {
+    throw new Error(
+      `Unable to reset Docker Git safe.directory configuration: ${String(clearSafeDirectories.stderr || clearSafeDirectories.error?.message || 'unknown error').trim()}`,
+    );
+  }
+
+  for (const repository of mountedRepositoryPaths) {
+    const safeDirectoryResult = spawnSync(
+      'git',
+      ['config', '--global', '--add', 'safe.directory', repository.rootPath],
+      { encoding: 'utf8' },
+    );
+    if (safeDirectoryResult.status !== 0) {
+      throw new Error(
+        `Unable to register Docker Git safe.directory for ${repository.repoCode}: ${String(safeDirectoryResult.stderr || safeDirectoryResult.error?.message || 'unknown error').trim()}`,
+      );
+    }
+  }
+
   console.log(`[Temporal] dockerProfile=${profileCode}`);
   console.log(`[Temporal] dockerSkyCommandRoot=${rootPath}`);
-  if (String(process.env.SKYCOMMAND_DOCKER_GIT_ENABLED || '').trim().toLowerCase() !== 'true') {
+  console.log(`[Temporal] dockerGitSafeDirectories=${mountedRepositoryPaths.length}`);
+  const dockerGitEnabled =
+    String(process.env.SKYCOMMAND_DOCKER_GIT_ENABLED || '').trim().toLowerCase() === 'true';
+  if (!dockerGitEnabled) {
     console.log('[Temporal] Docker Git-changing tools are disabled until container Git credentials are configured.');
+  } else {
+    const tokenFile = String(
+      process.env.SKYCOMMAND_GITHUB_TOKEN_FILE || '/run/secrets/skycommand_github_token',
+    ).trim();
+    const githubUsername = String(process.env.SKYCOMMAND_GITHUB_USERNAME || '').trim();
+    const authorName = String(process.env.GIT_AUTHOR_NAME || '').trim();
+    const authorEmail = String(process.env.GIT_AUTHOR_EMAIL || '').trim();
+
+    if (!githubUsername || !authorName || !authorEmail) {
+      throw new Error(
+        'Docker Git automation is enabled but GitHub username/commit identity is incomplete. Configure SKYCOMMAND_GITHUB_USERNAME, SKYCOMMAND_GIT_AUTHOR_NAME, and SKYCOMMAND_GIT_AUTHOR_EMAIL.',
+      );
+    }
+    if (!fs.existsSync(tokenFile) || fs.readFileSync(tokenFile, 'utf8').trim() === '') {
+      throw new Error(
+        `Docker Git automation is enabled but the mounted GitHub token secret is missing or empty: ${tokenFile}.`,
+      );
+    }
+
+    console.log(
+      `[Temporal] dockerGit=enabled host=${process.env.SKYCOMMAND_GITHUB_HOST || 'github.com'} username=${githubUsername}`,
+    );
   }
 
   return { profileCode, rootPath };

@@ -96,11 +96,12 @@ function assertDockerToolSupported(tool) {
   if (gitToolCodes.has(tool?.tool_code) && !gitEnabled) {
     throw createHttpError(
       409,
-      'Git automation is intentionally disabled in the Docker Temporal worker until container Git credentials are configured.',
+      'Git automation is disabled in the Docker Temporal worker. Configure the Docker GitHub credential secret and commit identity, then set SKYCOMMAND_DOCKER_GIT_ENABLED=true.',
       {
         toolCode: tool.tool_code,
         runtimeEnvironment: 'docker',
         enableEnvVar: 'SKYCOMMAND_DOCKER_GIT_ENABLED',
+        credentialCheckCommand: 'npm run temporal:worker:docker:git:check',
       },
     );
   }

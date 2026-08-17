@@ -258,7 +258,11 @@ SkyCommand/
 │               ├── scheduleCalculator.js
 │               └── schedulePoller.js
 ├── docker/
-│   └── temporal-worker.Dockerfile
+│   ├── empty-github-token
+│   ├── git-credential-skycommand.js
+│   ├── git-credential-skycommand.sh
+│   ├── temporal-worker.Dockerfile
+│   └── temporal-worker.package.json
 ├── docs/
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_API_Observability.md
@@ -752,7 +756,8 @@ SkyCommand/
 │   ├── docker/
 │   │   ├── temporalDockerSelfTest.js
 │   │   ├── temporalWorkerDocker.js
-│   │   └── temporalWorkerDockerSelfTest.js
+│   │   ├── temporalWorkerDockerSelfTest.js
+│   │   └── temporalWorkerGitCheck.js
 │   ├── node/
 │   │   └── util/
 │   │       ├── bootstrap.js

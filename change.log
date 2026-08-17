@@ -1,3 +1,6 @@
+2026-08-17
+- Fixed Docker Temporal worker Git safe-directory handling for Git 2.39: register exact active DOCKER_LOCAL repository paths at worker startup and defensively register SkyCommand during the credential check instead of relying on the newer recursive `/*` safe.directory syntax.
+
 2026-08-16 - Temporal worker Docker foundation
 - Added a Linux Node Temporal worker image and Compose service that connects to the Dockerized Temporal service, host PostgreSQL through `host.docker.internal`, and the mounted SkyEco workspace.
 - Added migration 00098 and fresh-build seed support for the `DOCKER_LOCAL` repository profile, plus container-aware repository artifact path translation and localhost API-call routing.
@@ -1354,3 +1357,26 @@ SkyWeb Analytics owns:
 - Updated workflow-health/readiness operator guidance, default Temporal UI configuration, `.env.example`, README startup guidance, and the dedicated local Temporal setup document for the Dockerized service.
 - Added `temporal-docker:self-test` and routine validation coverage for the pinned image, port contract, persistent volume, Docker health/restart policy, npm commands, environment defaults, and operator guidance.
 - No database migration, workflow-definition change, tool-registration change, or Temporal worker containerization is included in this slice.
+## 2026-08-16 - Temporal worker Docker Linux lockfile reconciliation
+
+- Fixed the Temporal worker image build failing at `npm ci` when the Windows-authored root `package-lock.json` omits Linux-specific optional/peer dependency metadata.
+- The Docker build now reconciles a container-local lockfile with `npm install --package-lock-only` before running the clean production-only `npm ci --omit=dev` install.
+- The repository lockfile is not rewritten by the image build; reconciliation happens only inside the Docker build layer.
+- Switched the worker image dependency environment to `NODE_ENV=production` so frontend/dev tooling is not installed into the runtime worker image.
+
+
+## 2026-08-16 - Temporal worker Docker dependency-stage isolation
+
+- Replaced the worker image's root `package.json` / Windows-authored `package-lock.json` install with a dedicated minimal runtime manifest containing only the dependencies reachable from the Temporal worker and workflow bundle.
+- Added a Node 20 dependency-build stage as a bounded compatibility workaround for the npm/Node 22 Docker `Exit handler never called!` install failure while retaining Node 22 as the actual worker runtime image.
+- Removed the container-local root lockfile reconciliation/`npm ci` path, eliminating frontend/dev dependency resolution and the cross-platform optional-dependency seam from worker builds.
+- Kept exact versions for all direct worker runtime dependencies and preserved the existing non-root runtime, Git/OpenSSH/PostgreSQL client tooling, repository mounts, and Docker profile behavior.
+## 2026-08-16 - Temporal worker Docker GitHub authentication
+
+- Added a Docker-only HTTPS Git credential helper that reads a fine-grained GitHub personal access token from a runtime secret file and never persists the token in the image, repository, remote URL, or logs.
+- Added a Compose GitHub token secret with an empty fail-closed placeholder, plus explicit GitHub username and commit-author configuration for the Linux worker.
+- Scoped Git `safe.directory` to repositories beneath `/workspace/SkyEco System/*` so Windows bind-mounted working trees remain usable without disabling ownership checks globally.
+- Added worker/wrapper preflight checks for token-file presence, GitHub username, and Git author identity before Docker Git automation can be enabled.
+- Added `npm run temporal:worker:docker:git:check`, which proves authenticated read access and push authorization using `git ls-remote` plus `git push --dry-run` before Development Promotion is attempted.
+- Kept `SKYCOMMAND_DOCKER_GIT_ENABLED=false` as the default; Git-changing tools remain fail-closed until the operator explicitly configures and enables credentials.
+
