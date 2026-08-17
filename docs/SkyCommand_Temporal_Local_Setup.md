@@ -40,6 +40,11 @@ Add or confirm these values in the SkyCommand root `.env` file:
 ```env
 SKYCOMMAND_DOCKER_WORKSPACE_ROOT=C:/Users/your-user/Dropbox/Programming/SkyEco System
 SKYCOMMAND_DOCKER_GIT_ENABLED=false
+SKYCOMMAND_DOCKER_GITHUB_TOKEN_FILE=
+SKYCOMMAND_GITHUB_HOST=github.com
+SKYCOMMAND_GITHUB_USERNAME=
+SKYCOMMAND_GIT_AUTHOR_NAME=
+SKYCOMMAND_GIT_AUTHOR_EMAIL=
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=skyserver-local
@@ -142,9 +147,49 @@ Repository Map/Zip output paths are stored globally today and may still contain 
 
 Tool stdout/stderr produced by the Docker worker is written into the mounted SkyCommand `logs/script-executions` directory, while the database stores portable relative paths. This keeps Tool Operations output readable from the host API even though execution occurred inside Linux.
 
-### Current Git boundary
+### Docker GitHub authentication
 
-`Repository Intelligence`, `Dev Commit`, and `Main Merge` fail closed inside the Docker worker while `SKYCOMMAND_DOCKER_GIT_ENABLED=false`. This is intentional: Windows Git Credential Manager credentials are not automatically inherited by a Linux container. Keep Development Promotion on the host worker until the next slice configures explicit container Git authentication.
+`Repository Intelligence`, `Dev Commit`, and `Main Merge` continue to fail closed while `SKYCOMMAND_DOCKER_GIT_ENABLED=false`. Windows Git Credential Manager credentials are not inherited by the Linux worker, so SkyCommand uses an explicit HTTPS credential helper backed by a Docker-mounted secret instead. The token is not copied into the image, written into a repository, placed in the remote URL, or emitted to process logs.
+
+Create a fine-grained GitHub personal access token for only the repositories the worker may operate on. For Development Promotion, grant repository **Contents: Read and write**; no pull-request permission is required by the current `dev_commit` / `main_merge` scripts. Store only the token text in a file outside the repository, for example on Windows:
+
+```powershell
+$secretDir = Join-Path $HOME '.skycommand\secrets'
+New-Item -ItemType Directory -Force $secretDir | Out-Null
+notepad (Join-Path $secretDir 'github-token.txt')
+```
+
+Then copy the host Git commit identity you already use:
+
+```powershell
+git config --global user.name
+git config --global user.email
+```
+
+Configure the root `.env` file (use forward slashes for the token-file path):
+
+```env
+SKYCOMMAND_DOCKER_GITHUB_TOKEN_FILE=C:/Users/your-user/.skycommand/secrets/github-token.txt
+SKYCOMMAND_GITHUB_HOST=github.com
+SKYCOMMAND_GITHUB_USERNAME=your-github-login
+SKYCOMMAND_GIT_AUTHOR_NAME=Your Git Commit Name
+SKYCOMMAND_GIT_AUTHOR_EMAIL=your-git-email@example.com
+SKYCOMMAND_DOCKER_GIT_ENABLED=true
+```
+
+Recreate the worker so Compose mounts the token as `/run/secrets/skycommand_github_token` and injects the commit identity:
+
+```bash
+npm run temporal:worker:docker:restart
+```
+
+Before running Development Promotion, prove both read authentication and push authorization without modifying the remote:
+
+```bash
+npm run temporal:worker:docker:git:check
+```
+
+The check performs `git ls-remote` followed by `git push --dry-run` against the mounted SkyCommand repository. A successful check never creates the probe branch. The image trusts repositories under `/workspace/SkyEco System/*` through system-level `safe.directory`, which is bounded to the user-controlled workspace mount rather than globally disabling Git's ownership protection.
 
 ## Persistence behavior
 
@@ -170,7 +215,7 @@ Do not delete that volume casually: removing it intentionally resets the local T
 | Workflow starts but does not progress | Temporal worker is not running or task queue mismatch | Run `npm run temporal:worker:docker:status` / logs and confirm `TEMPORAL_TASK_QUEUE=skyserver-local` |
 | Docker worker exits during startup | `DOCKER_LOCAL` is missing or the SkyEco bind mount is wrong | Apply migration `00098`, set `SKYCOMMAND_DOCKER_WORKSPACE_ROOT`, then restart the worker |
 | Docker worker cannot reach PostgreSQL | Host PostgreSQL is not reachable through Docker Desktop | Verify `host.docker.internal:5432`, PostgreSQL listen settings, and local firewall/pg_hba configuration |
-| Development Promotion fails at a Git node | Docker Git credentials are intentionally disabled | Use the host worker for Git workflows until container Git authentication is configured |
+| Development Promotion fails at a Git node | Docker Git is disabled, the secret/identity is incomplete, or the GitHub token lacks repository write access | Configure the Docker GitHub secret + identity, enable `SKYCOMMAND_DOCKER_GIT_ENABLED`, restart the worker, then run `npm run temporal:worker:docker:git:check` |
 | Temporal log shows `unable to open database file ... (14)` | The named volume is not writable by the Temporal CLI user | Use the current Compose file; `temporal-volume-init` repairs ownership before server startup. Run `docker compose down`, then `npm run temporal:server:up`. |
 | Host Temporal worker reports `ECONNREFUSED 127.0.0.1:7233` | The Docker Temporal service did not become healthy | Fix/start the Temporal service first; the host worker will connect once `localhost:7233` is listening. |
 | Command Center shows Temporal service offline | Docker service is stopped/unhealthy or `.env` points elsewhere | Run `npm run temporal:server:status`, then `npm run temporal:health` |
@@ -185,4 +230,4 @@ Production should use an appropriate durable Temporal deployment, supervised app
 
 ## Next Docker slice
 
-The next focused slice is **container Git authentication**. Once GitHub credentials are available to the Linux worker without embedding secrets in the image or repository, `SKYCOMMAND_DOCKER_GIT_ENABLED` can be enabled and Development Promotion can move fully from the host worker into Docker.
+With Temporal service, Temporal worker, repository path translation, and Docker Git authentication in place, the next proof is a full Development Promotion run inside Docker. After that, SkyCommand can move on to broader service containerization and control-plane management without leaving the workflow engine split across host and container processes.
