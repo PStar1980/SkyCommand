@@ -110,7 +110,7 @@ async function querySummary(pool) {
     `),
     pool.query(`
       SELECT workflow_code, display_name, status, published_version_id
-      FROM worker.workflow_definitions
+      FROM worker.vw_workflow_definitions
       ORDER BY workflow_code
     `),
   ]);

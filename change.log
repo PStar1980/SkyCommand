@@ -1,3 +1,9 @@
+2026-08-17 - PostgreSQL pre-cutover workflow catalogue query correction
+- Fixed the Docker PostgreSQL parity and SkyCommand_Core candidate checks to read `published_version_id` from `worker.vw_workflow_definitions`, where publication metadata is derived from workflow versions, instead of incorrectly querying the base `worker.workflow_definitions` table.
+- Aligned the candidate Core workflow count with the actual CLI catalogue rules by requiring active, enabled, Admin-visible definitions with a published version.
+- Added regression assertions that preserve the base-table fingerprints while requiring publication-aware summary/check queries to use the workflow catalogue view.
+- The staged Docker PostgreSQL restore itself is unaffected; after applying this correction, the existing candidate can be rechecked with `npm run db:docker:parity` and `npm run core:docker-db:check` without restaging unless the Windows source database changed.
+
 2026-08-17
 - Fixed Docker Temporal worker Git safe-directory handling for Git 2.39: register exact active DOCKER_LOCAL repository paths at worker startup and defensively register SkyCommand during the credential check instead of relying on the newer recursive `/*` safe.directory syntax.
 

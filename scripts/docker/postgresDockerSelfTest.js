@@ -50,6 +50,11 @@ assert(
   'Parity must explicitly cover the PostgreSQL-authoritative tool and workflow catalogues.',
 );
 assert(
+  parity.includes('FROM worker.vw_workflow_definitions') &&
+    !parity.includes('SELECT workflow_code, display_name, status, published_version_id\n      FROM worker.workflow_definitions'),
+  'Workflow publication metadata must be read from worker.vw_workflow_definitions because published_version_id is derived from workflow_versions rather than stored on the base definition table.',
+);
+assert(
   dbBuild.includes('TEMPLATE = template0') &&
     !dbBuild.includes("process.env.DB_BUILD_LC_COLLATE || 'English_Canada.1252'") &&
     dbBuild.includes('const localeClauses = []'),
