@@ -1,3 +1,4 @@
+2026-08-18 - Fixed PostgreSQL shadow parity false negatives across Windows-to-Linux migration by canonicalizing TIMESTAMPTZ JSON rendering to UTC before row hashing; parity diagnostics now report source/candidate server time zones so restored data is compared by stored instant rather than session-local timestamp text.
 2026-08-17 - PostgreSQL pre-cutover workflow catalogue query correction
 - Fixed the Docker PostgreSQL parity and SkyCommand_Core candidate checks to read `published_version_id` from `worker.vw_workflow_definitions`, where publication metadata is derived from workflow versions, instead of incorrectly querying the base `worker.workflow_definitions` table.
 - Aligned the candidate Core workflow count with the actual CLI catalogue rules by requiring active, enabled, Admin-visible definitions with a published version.
