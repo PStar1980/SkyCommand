@@ -60,6 +60,8 @@ const routineSelfTests = [
   'node-worker-docker:self-test',
   'api-docker:self-test',
   'web-docker:self-test',
+  'postgres-docker:self-test',
+  'core-docker-db:self-test',
   'ingestion-identity:self-test',
   'ingestion-profile-guardrails:self-test',
   'ingestion-data-catalogue:self-test',
