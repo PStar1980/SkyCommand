@@ -394,6 +394,7 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run web:docker:status`   | Shows Docker Admin-Web container status/health.                                              |
 | `npm run web:docker:logs`     | Follows Docker Admin-Web/NGINX logs.                                                         |
 | `npm run skycommand:docker:up` | Starts/builds PostgreSQL, Web, API, Node worker, Temporal worker, and Temporal service together. |
+| `npm run skycommand:docker:restart` | Rebuilds and force-recreates the full six-container runtime so source/image changes are picked up while persistent volumes are preserved. |
 | `npm run skycommand:docker:stop` | Stops the six SkyCommand runtime containers while preserving PostgreSQL and Temporal volumes. |
 | `npm run skycommand:docker:status` | Shows status for the full six-container SkyCommand runtime.                              |
 | `npm run skycommand:docker:logs` | Follows logs for the full six-container SkyCommand runtime.                                |

@@ -136,10 +136,13 @@ assert(
   mainMerge.includes("const DOCKER_LOCAL_PROFILE = 'DOCKER_LOCAL'") &&
     mainMerge.includes("['remote', 'get-url', remote]") &&
     mainMerge.includes("['ls-remote', '--heads', remote, branchRef]") &&
+    mainMerge.includes("'--no-write-fetch-head'") &&
+    mainMerge.includes('Docker object transfer only') &&
+    mainMerge.includes('GIT_OPTIONAL_LOCKS') &&
     mainMerge.includes('Docker URL transport') &&
     mainMerge.includes('createDeferredLocalBranchRefState') &&
     mainMerge.includes('host-owned local branch references untouched'),
-  'DOCKER_LOCAL Main Merge must keep remote synchronization authoritative while avoiding Linux writes to host-owned local branch and remote-tracking refs after the push.',
+  'DOCKER_LOCAL Main Merge must read remote heads without mutating host tracking refs, fetch only required Git objects without FETCH_HEAD writes, and keep remote synchronization authoritative while leaving host-owned local branch refs untouched.',
 );
 assert(
   scriptExecution.includes('SKYCOMMAND_EXECUTION_LOG_ROOT') &&

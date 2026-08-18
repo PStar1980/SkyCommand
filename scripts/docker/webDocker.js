@@ -72,8 +72,24 @@ function main() {
         'web',
       ]);
       break;
+    case 'stack-restart':
+      announceWebPort();
+      console.log('[SkyCommand Docker] Rebuilding and recreating the full six-container runtime.');
+      runCompose([
+        'up',
+        '-d',
+        '--build',
+        '--force-recreate',
+        'postgres',
+        'temporal',
+        'temporal-worker',
+        'node-worker',
+        'api',
+        'web',
+      ]);
+      break;
     default:
-      fail(`Unsupported action '${action}'. Supported actions: up, restart, stack-up.`);
+      fail(`Unsupported action '${action}'. Supported actions: up, restart, stack-up, stack-restart.`);
   }
 }
 
