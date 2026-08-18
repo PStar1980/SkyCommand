@@ -1,3 +1,9 @@
+2026-08-18 - Docker Main Merge host-ref isolation
+- Fixed the Development Promotion Main Merge false failure seen after full Docker cutover: the remote main -> dev fast-forward had already succeeded, but the Linux Temporal worker then failed while force-updating `refs/heads/main` inside the Windows-hosted bind-mounted repository.
+- DOCKER_LOCAL Main Merge now pushes through the configured remote URL so Git does not opportunistically rewrite the local `refs/remotes/origin/dev` tracking ref, verifies authoritative remote heads with `git ls-remote`, and intentionally leaves host-owned local branch refs untouched.
+- When the checked-out host branch is behind the synchronized remote, the successful ToolResult now reports a local refresh requirement and preserves the existing safe `git switch dev && git pull --ff-only origin dev` follow-up instead of turning a completed remote synchronization into a failed workflow node.
+- DEV_LOCAL behavior is unchanged: host-run Main Merge may continue updating local branch references checkout-free when safe. No database migration or workflow reconfiguration is required.
+
 2026-08-18 - Fixed PostgreSQL shadow parity false negatives across Windows-to-Linux migration by canonicalizing TIMESTAMPTZ JSON rendering to UTC before row hashing; parity diagnostics now report source/candidate server time zones so restored data is compared by stored instant rather than session-local timestamp text.
 2026-08-17 - PostgreSQL pre-cutover workflow catalogue query correction
 - Fixed the Docker PostgreSQL parity and SkyCommand_Core candidate checks to read `published_version_id` from `worker.vw_workflow_definitions`, where publication metadata is derived from workflow versions, instead of incorrectly querying the base `worker.workflow_definitions` table.

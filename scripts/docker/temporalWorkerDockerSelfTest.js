@@ -20,6 +20,7 @@ const scriptExecution = read('apps/api/src/services/scriptExecutionService.js');
 const workflowExecutor = read('apps/api/src/services/workflowExecutorService.js');
 const adminRead = read('apps/api/src/services/adminReadService.js');
 const artifactConfiguration = read('packages/files/src/repositoryArtifactConfiguration.js');
+const mainMerge = read('packages/git/src/main_merge.js');
 const migration = read('packages/db_build/src/migrations/00098__docker_local_repository_profile.sql');
 const seed = read('packages/db_build/src/seeds/00019__core_config_seed.sql');
 const packageJson = JSON.parse(read('package.json'));
@@ -130,6 +131,15 @@ assert(
     workflowExecutor.includes('translateLocalApiUrlForRuntime') &&
     workflowExecutor.includes('SKYCOMMAND_CONTAINER_HOST_ALIAS'),
   'Docker runtime must translate repository artifact paths and host-local API calls across the container boundary.',
+);
+assert(
+  mainMerge.includes("const DOCKER_LOCAL_PROFILE = 'DOCKER_LOCAL'") &&
+    mainMerge.includes("['remote', 'get-url', remote]") &&
+    mainMerge.includes("['ls-remote', '--heads', remote, branchRef]") &&
+    mainMerge.includes('Docker URL transport') &&
+    mainMerge.includes('createDeferredLocalBranchRefState') &&
+    mainMerge.includes('host-owned local branch references untouched'),
+  'DOCKER_LOCAL Main Merge must keep remote synchronization authoritative while avoiding Linux writes to host-owned local branch and remote-tracking refs after the push.',
 );
 assert(
   scriptExecution.includes('SKYCOMMAND_EXECUTION_LOG_ROOT') &&
