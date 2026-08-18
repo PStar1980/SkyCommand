@@ -40,7 +40,7 @@ SkyCommand is now a mature private operational control plane for the Sky ecosyst
 
 The ingestion and data-contract foundation is portable beyond the original macroeconomic use case while retaining the established FRED, Bank of Canada, and Statistics Canada paths. Current development is focused on reusable operational tooling, workflow templates, repository automation, diagnostics, testing, documentation, and continued UI polish rather than adding another large numbered milestone.
 
-Docker containerization now covers the **Temporal development service**, **SkyCommand Temporal worker**, and the proven **scheduler/listener Node worker**, with the **SkyCommand API** added as the next containerized backend service. Dockerized application processes use the `DOCKER_LOCAL` repository profile, mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, shared GitHub secret/commit identity, and host-readable execution logs. The Node worker and Docker API deliberately execute only Node.js-backed tools; Windows PowerShell tools remain available to compatible host processes until they are migrated or a cross-platform runtime is added. Admin-Web remains host-run under Vite for fast local iteration.
+Docker containerization now covers the **Temporal development service**, **SkyCommand Temporal worker**, **scheduler/listener Node worker**, **SkyCommand API**, and an **Admin-Web deployment mode** served from an unprivileged NGINX container. Dockerized server-side processes use the `DOCKER_LOCAL` repository profile, mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, shared GitHub secret/commit identity, and host-readable execution logs. The Node worker and Docker API deliberately execute only Node.js-backed tools; Windows PowerShell tools remain available to compatible host processes until they are migrated or a cross-platform runtime is added. Admin-Web retains host-run Vite as the development/HMR lane while Docker NGINX provides a production-style same-origin web/API lane. PostgreSQL is intentionally the remaining host service and will move only through a separate stateful migration and recovery proof.
 
 ## Workflow Runtime and Structured Results
 
@@ -158,7 +158,7 @@ Structured-result files are ephemeral runtime artifacts, not source files. They 
 
 ```mermaid
 flowchart LR
-    Admin[Admin Browser] --> AdminWeb["SkyCommand Admin-Web<br/>React + Vite"]
+    Admin[Admin Browser] --> AdminWeb["SkyCommand Admin-Web<br/>React + Vite build / NGINX deploy"]
     AdminWeb --> Api["SkyCommand API<br/>Node.js + Express"]
     Core[SkyCommand Core CLI] --> Tools["Tool Catalogue<br/>core schema"]
     Core -->|workflow starts| Api
@@ -314,6 +314,7 @@ Common optional variables:
 
 ```env
 API_PORT=7171
+SKYCOMMAND_WEB_PORT=5171
 AUTH_SESSION_MINUTES=30
 AUTH_SESSION_HOURS=12
 SKYCOMMAND_CORE_APP_CODE=SKYSERVER_CORE
@@ -366,7 +367,7 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | SkyCommand API health    | `http://localhost:7171/_health`    |
 | SkyCommand DB health     | `http://localhost:7171/_db/health` |
 | Temporal Web UI         | `http://localhost:8600`            |
-| SkyCommand Admin-Web     | `http://localhost:5173`            |
+| SkyCommand Admin-Web     | `http://localhost:5171`            |
 | SkyWeb Analytics client | `http://localhost:5175`            |
 | SkyWeb.Api Swagger      | `http://localhost:7280/swagger`    |
 
@@ -387,6 +388,15 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run web`                 | Starts the Admin-Web Vite development server.                                               |
 | `npm run web:build`           | Builds the Admin-Web frontend.                                                              |
 | `npm run web:preview`         | Previews the built Admin-Web frontend.                                                      |
+| `npm run web:docker:up`       | Builds and starts the production-style Admin-Web NGINX container on host port 5171.          |
+| `npm run web:docker:stop`     | Stops Docker Admin-Web while leaving the backend containers untouched.                       |
+| `npm run web:docker:restart`  | Rebuilds/recreates Docker Admin-Web.                                                         |
+| `npm run web:docker:status`   | Shows Docker Admin-Web container status/health.                                              |
+| `npm run web:docker:logs`     | Follows Docker Admin-Web/NGINX logs.                                                         |
+| `npm run skycommand:docker:up` | Starts/builds Web, API, Node worker, Temporal worker, and Temporal service together.         |
+| `npm run skycommand:docker:stop` | Stops the five SkyCommand runtime containers while preserving Temporal data.              |
+| `npm run skycommand:docker:status` | Shows status for the full five-container SkyCommand runtime.                             |
+| `npm run skycommand:docker:logs` | Follows logs for the full five-container SkyCommand runtime.                               |
 | `npm run worker`              | Starts the worker daemon.                                                                   |
 | `npm run worker:dev`          | Starts the worker daemon with Nodemon.                                                      |
 | `npm run worker:docker:up`   | Builds and starts the Dockerized scheduler/listener Node worker.                            |
@@ -539,6 +549,15 @@ npm run api:docker:up
 npm run api:docker:status
 npm run api:docker:logs
 
+# Optional production-style Admin-Web lane: stop host `npm run web`, then start NGINX Web
+npm run web:docker:up
+npm run web:docker:status
+# Browse http://localhost:5171
+
+# Start the complete five-container application/runtime stack
+npm run skycommand:docker:up
+npm run skycommand:docker:status
+
 # Optional combined Docker backend startup
 npm run backend:stack:up
 
@@ -559,7 +578,7 @@ npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
-The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, and persists the local Temporal SQLite database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `api`, `temporal-worker`, and `node-worker` services reach host PostgreSQL through `host.docker.internal`, use the `DOCKER_LOCAL` repository profile, and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. The Node worker registers under the stable name `skycommand-node-worker-docker`. Stop the host `npm run worker:dev` process before proving Docker scheduling, and stop the host `npm run api` process before starting the Docker API so port `7171` is available. See `docs/SkyCommand_API_Docker_Local_Setup.md` for the API proof sequence.
+The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, publishes Docker Admin-Web at `localhost:5171`, and persists the local Temporal SQLite database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `api`, `temporal-worker`, and `node-worker` services reach host PostgreSQL through `host.docker.internal`, use the `DOCKER_LOCAL` repository profile, and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. Docker Admin-Web is a separate immutable Vite build served by unprivileged NGINX and proxies same-origin `/api`, `/_health`, and `/_db` traffic directly to `api:7171` over the Compose network. The Node worker registers under the stable name `skycommand-node-worker-docker`. Stop the host `npm run worker:dev`, `npm run api`, and `npm run web` processes before proving their Docker equivalents so the relevant host ports/process ownership are unambiguous. See `docs/SkyCommand_API_Docker_Local_Setup.md` and `docs/SkyCommand_Admin_Web_Docker_Local_Setup.md` for the proof sequences.
 
 Primary protected workflow API families include:
 
@@ -618,6 +637,8 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 | --- | --- |
 | [`change.log`](change.log) | Canonical implementation history and detailed engineering notes |
 | [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md) | Generated repository structure map |
+| [`docs/SkyCommand_API_Docker_Local_Setup.md`](docs/SkyCommand_API_Docker_Local_Setup.md) | Docker API local setup, runtime boundary, and proof sequence |
+| [`docs/SkyCommand_Admin_Web_Docker_Local_Setup.md`](docs/SkyCommand_Admin_Web_Docker_Local_Setup.md) | Docker Admin-Web/NGINX deployment mode, full-stack commands, and proof sequence |
 | [`docs/SkyCommand_Temporal_Local_Setup.md`](docs/SkyCommand_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
 | [`docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md`](docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |
 | [`docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md`](docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md) | Current process for adding domains, sources, assets, metrics, adapters, policies, and operations |

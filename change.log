@@ -1401,3 +1401,13 @@ SkyWeb Analytics owns:
 - Updated Tool Operations output resolution so portable `logs/script-executions/...` paths use the configured shared Docker log mount and prior Windows-host absolute paths are translated into the mounted Docker workspace.
 - Added API start/stop/restart/status/log/Git-check helpers, combined Docker backend stack helpers, localhost API health checking, dedicated API Docker setup documentation, and `api-docker:self-test` in routine validation.
 - No database migration is required; migration `00098`, the Docker repository profile, workspace mount, and Git secret already proven by the Docker workers are reused.
+
+## 2026-08-17 - SkyCommand Admin-Web Docker deployment mode
+
+- Added a dedicated `web` Compose service that builds the Vite Admin-Web bundle and serves it from a pinned unprivileged NGINX container on `localhost:5171` while retaining host Vite as the development/HMR lane.
+- Added a compact Linux-native Web build manifest instead of installing the full SkyCommand development dependency graph into the image; Docker builds explicitly use same-origin API URLs rather than baking host-specific `localhost:7171` addresses into the browser bundle.
+- Added NGINX same-origin proxying for `/api`, `/_health`, and `/_db` to the Compose API service, dynamic Docker DNS resolution, long-running tool/workflow proxy timeouts, React BrowserRouter fallback, immutable Vite asset caching, and non-cached `index.html` deployment behavior.
+- Hardened the Web runtime with an unprivileged NGINX image, localhost-only port publishing, read-only root filesystem, `/tmp` tmpfs, dropped Linux capabilities, `no-new-privileges`, security headers, and an independent `/healthz` container health check.
+- Added Web Docker start/stop/restart/status/log helpers plus `skycommand:docker:*` commands for the complete Web/API/Node-worker/Temporal-worker/Temporal-service runtime stack.
+- Added dedicated Admin-Web Docker setup documentation, `SKYCOMMAND_WEB_PORT`, a corrected `localhost:5171` README URL, and `web-docker:self-test` routine validation coverage.
+- PostgreSQL intentionally remains host-run; its future Dockerization remains a separate stateful migration/recovery exercise.

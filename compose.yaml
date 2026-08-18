@@ -195,6 +195,35 @@ services:
     restart: unless-stopped
     stop_grace_period: 20s
 
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    image: skycommand-web:local
+    container_name: skycommand-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${SKYCOMMAND_WEB_PORT:-5171}:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget -q -O /dev/null http://127.0.0.1:8080/healthz"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_grace_period: 10s
+
 volumes:
   temporal_data:
     name: skycommand_temporal_data
