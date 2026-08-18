@@ -1,3 +1,9 @@
+2026-08-18 - Docker Main Merge initial-fetch isolation and full-stack restart helper
+- Closed the remaining DOCKER_LOCAL Git ref-lock race revealed after host-ref isolation: Main Merge no longer starts with `git fetch --prune origin` inside the Linux container, because that command can still rewrite Windows-owned `refs/remotes/origin/*` before the remote-only synchronization logic runs.
+- DOCKER_LOCAL now resolves authoritative main/dev heads with `git ls-remote`, transfers only the required commit/tree objects using `git fetch --no-tags --no-write-fetch-head` (no remote-tracking ref or FETCH_HEAD update), disables optional Git locks for container-side read operations, and continues to leave host-owned local branch refs untouched.
+- Added `npm run skycommand:docker:restart`; consistent with the existing per-service restart helpers, it rebuilds and force-recreates the complete six-container SkyCommand runtime so code changes baked into Docker images are actually activated while PostgreSQL/Temporal persistent volumes remain intact.
+- Updated Docker regression guards and README command documentation. No database migration or workflow reconfiguration is required.
+
 2026-08-18 - Docker Main Merge host-ref isolation
 - Fixed the Development Promotion Main Merge false failure seen after full Docker cutover: the remote main -> dev fast-forward had already succeeded, but the Linux Temporal worker then failed while force-updating `refs/heads/main` inside the Windows-hosted bind-mounted repository.
 - DOCKER_LOCAL Main Merge now pushes through the configured remote URL so Git does not opportunistically rewrite the local `refs/remotes/origin/dev` tracking ref, verifies authoritative remote heads with `git ls-remote`, and intentionally leaves host-owned local branch refs untouched.

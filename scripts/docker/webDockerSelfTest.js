@@ -71,8 +71,10 @@ assert(
     helper.includes("'temporal-worker'") &&
     helper.includes("'node-worker'") &&
     helper.includes("'api'") &&
-    helper.includes("'web'"),
-  'The Web Docker helper must validate the host Web port and support full six-service stack startup including PostgreSQL.',
+    helper.includes("'web'") &&
+    helper.includes("case 'stack-restart':") &&
+    helper.includes("'--force-recreate'"),
+  'The Web Docker helper must validate the host Web port and support full six-service stack startup plus rebuild/recreate restart including PostgreSQL.',
 );
 
 const scripts = packageJson.scripts || {};
@@ -83,6 +85,7 @@ for (const scriptName of [
   'web:docker:status',
   'web:docker:logs',
   'skycommand:docker:up',
+  'skycommand:docker:restart',
   'skycommand:docker:stop',
   'skycommand:docker:status',
   'skycommand:docker:logs',

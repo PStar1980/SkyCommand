@@ -55,6 +55,7 @@
     "web:docker:status": "docker compose ps web",
     "web:docker:logs": "docker compose logs -f web",
     "skycommand:docker:up": "node scripts/docker/webDocker.js stack-up",
+    "skycommand:docker:restart": "node scripts/docker/webDocker.js stack-restart",
     "skycommand:docker:stop": "docker compose stop web api node-worker temporal-worker temporal postgres",
     "skycommand:docker:status": "docker compose ps web api node-worker temporal-worker temporal postgres",
     "skycommand:docker:logs": "docker compose logs -f web api node-worker temporal-worker temporal postgres",

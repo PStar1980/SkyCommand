@@ -49,13 +49,22 @@ function fail(message) {
 }
 
 function getGitEnvironment() {
-  return {
+  const env = {
     ...process.env,
     GIT_TERMINAL_PROMPT: '0',
     GCM_INTERACTIVE: 'Never',
     GIT_EDITOR: 'true',
     GIT_MERGE_AUTOEDIT: 'no',
   };
+
+  if (isDockerLocalProfile()) {
+    // Docker reads a Windows-hosted working tree through a bind mount. Disable
+    // optional index/ref refresh locks for read-oriented Git commands; required
+    // remote writes still use Git's normal locking on the remote repository.
+    env.GIT_OPTIONAL_LOCKS = '0';
+  }
+
+  return env;
 }
 
 function executeGit(args, cwd, options = {}) {
@@ -160,6 +169,28 @@ function getRemoteBranchSha(remote, branch, cwd) {
   }
 
   return sha;
+}
+
+function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd }) {
+  const branchRefs = [...new Set((branches || []).map((branch) => String(branch || '').trim()).filter(Boolean))]
+    .map((branch) => `refs/heads/${branch}`);
+
+  if (branchRefs.length === 0) {
+    fail('At least one branch is required for Git object transfer.');
+  }
+
+  if (!isDockerLocalProfile()) {
+    runGit(['fetch', '--prune', remote], cwd);
+    return;
+  }
+
+  // Fetch the commit/tree objects required for ancestry/count checks without
+  // updating refs/remotes/* or FETCH_HEAD in the Windows-owned bind-mounted
+  // repository. This closes the remaining Docker/host ref-lock race exposed by
+  // an initial `git fetch --prune origin` after full containerization.
+  const args = ['fetch', '--no-tags', '--no-write-fetch-head', remote, ...branchRefs];
+  console.log(`> git ${args.join(' ')} [Docker object transfer only]`);
+  executeGit(args, cwd, { printCommand: false });
 }
 
 function createDeferredLocalBranchRefState({ branch, targetSha, currentBranch, cwd }) {
@@ -373,12 +404,27 @@ async function executeMainMerge(args = []) {
     repo.rootPath,
   );
 
-  runGit(['fetch', '--prune', 'origin'], repo.rootPath);
+  let mainHeadSha;
+  let remoteDevHeadBeforeSha;
 
-  const remoteMainRef = `refs/remotes/origin/${repo.mainBranch}`;
-  const remoteDevRef = `refs/remotes/origin/${repo.devBranch}`;
-  const mainHeadSha = getGitOutput(['rev-parse', remoteMainRef], repo.rootPath);
-  const remoteDevHeadBeforeSha = getGitOutput(['rev-parse', remoteDevRef], repo.rootPath);
+  if (isDockerLocalProfile()) {
+    // Remote-tracking refs inside this repository belong to the Windows host.
+    // Read authoritative branch heads directly from the remote, then transfer
+    // only the referenced Git objects required for local graph calculations.
+    mainHeadSha = getRemoteBranchSha('origin', repo.mainBranch, repo.rootPath);
+    remoteDevHeadBeforeSha = getRemoteBranchSha('origin', repo.devBranch, repo.rootPath);
+    fetchRemoteBranchObjects({
+      remote: 'origin',
+      branches: [repo.mainBranch, repo.devBranch],
+      cwd: repo.rootPath,
+    });
+  } else {
+    runGit(['fetch', '--prune', 'origin'], repo.rootPath);
+    const remoteMainRef = `refs/remotes/origin/${repo.mainBranch}`;
+    const remoteDevRef = `refs/remotes/origin/${repo.devBranch}`;
+    mainHeadSha = getGitOutput(['rev-parse', remoteMainRef], repo.rootPath);
+    remoteDevHeadBeforeSha = getGitOutput(['rev-parse', remoteDevRef], repo.rootPath);
+  }
 
   if (!isGitAncestor(remoteDevHeadBeforeSha, mainHeadSha, repo.rootPath)) {
     fail(
@@ -619,6 +665,7 @@ module.exports = {
   TOOL_CODE,
   createDeferredLocalBranchRefState,
   executeMainMerge,
+  fetchRemoteBranchObjects,
   getRemoteBranchSha,
   isDockerLocalProfile,
   main,
