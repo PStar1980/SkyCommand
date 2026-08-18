@@ -1411,3 +1411,12 @@ SkyWeb Analytics owns:
 - Added Web Docker start/stop/restart/status/log helpers plus `skycommand:docker:*` commands for the complete Web/API/Node-worker/Temporal-worker/Temporal-service runtime stack.
 - Added dedicated Admin-Web Docker setup documentation, `SKYCOMMAND_WEB_PORT`, a corrected `localhost:5171` README URL, and `web-docker:self-test` routine validation coverage.
 - PostgreSQL intentionally remains host-run; its future Dockerization remains a separate stateful migration/recovery exercise.
+
+## 2026-08-17 - PostgreSQL Docker shadow migration and SkyCommand_Core pre-cutover acceptance
+
+- Added a pinned PostgreSQL 18.6 Docker candidate with a persistent `skycommand_postgres_data` volume and a non-conflicting localhost port (`55432`) so the Windows PostgreSQL source can remain authoritative during acceptance.
+- Added a blue/green staging helper that creates a durable custom-format `pg_dump` backup outside the repository, recreates/restores the Docker candidate, analyzes it, and then requires critical parity before declaring the stage successful.
+- Added content-hash parity for the PostgreSQL-authoritative tool catalogue and workflow graph tables, including repositories/profiles, runtimes, parameter metadata, visibility, workflow definitions, versions, nodes, and edges.
+- Added `core:docker-db:check` plus an interactive `core:docker-db` launcher so SkyCommand_Core can be validated against the shadow Docker database while retaining host `DEV_LOCAL` paths. Candidate-mode workflows are inline-only until Docker Temporal workers are cut over to the same database, preventing split-ledger execution.
+- Removed the Windows-only default `English_Canada.1252` database-build locale. Database builds now use `template0` and inherit the active PostgreSQL cluster locale unless explicit locale overrides are supplied.
+- Added dedicated migration documentation and routine self-tests. No application service has been switched to Docker PostgreSQL in this slice.

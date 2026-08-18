@@ -82,6 +82,11 @@ const WORKFLOW_FOLLOW_TIMEOUT_MS = Math.max(
     process.env.SKYSERVER_CORE_WORKFLOW_FOLLOW_TIMEOUT_MS) || 1800000,
 );
 const ACTIVE_WORKFLOW_STATUSES = new Set(['QUEUED', 'RUNNING']);
+const CANDIDATE_DB_MODE =
+  String(process.env.SKYCOMMAND_CORE_CANDIDATE_DB || '').trim().toLowerCase() === 'true';
+const ALLOWED_WORKFLOW_EXECUTOR_MODES = CANDIDATE_DB_MODE
+  ? new Set(['inline'])
+  : new Set(['temporal', 'inline']);
 
 // ------------------------------------------------------------
 // Colors
@@ -800,7 +805,11 @@ async function mainMenu(config) {
   printHeader(config.app.title || 'SkyCommand Core');
 
   if (config.source === 'database') {
-    console.log(gray(`Config source: PostgreSQL core schema | profile=${config.profileCode}\n`));
+    console.log(gray(`Config source: PostgreSQL core schema | profile=${config.profileCode}`));
+    if (CANDIDATE_DB_MODE) {
+      console.log(yellow('Candidate Docker PostgreSQL verification mode · workflows are inline-only before cutover.'));
+    }
+    console.log('');
   } else {
     console.log(yellow(`Config source: RECOVERY FALLBACK | profile=${config.profileCode}`));
     console.log(yellow(`Reason: ${config.loadError.message}\n`));
@@ -842,7 +851,11 @@ async function toolsCategoryMenu(config) {
   printHeader(config.app.title || 'SkyCommand Core');
 
   if (config.source === 'database') {
-    console.log(gray(`Config source: PostgreSQL core schema | profile=${config.profileCode}\n`));
+    console.log(gray(`Config source: PostgreSQL core schema | profile=${config.profileCode}`));
+    if (CANDIDATE_DB_MODE) {
+      console.log(yellow('Candidate Docker PostgreSQL verification mode · workflows are inline-only before cutover.'));
+    }
+    console.log('');
   } else {
     console.log(yellow(`Config source: RECOVERY FALLBACK | profile=${config.profileCode}`));
     console.log(yellow(`Reason: ${config.loadError.message}\n`));
@@ -1311,17 +1324,25 @@ async function collectWorkflowInput(workflow, config) {
     console.log(gray(workflow.description));
   }
 
+  const defaultExecutorMode = CANDIDATE_DB_MODE
+    ? 'inline'
+    : DEFAULT_WORKFLOW_EXECUTOR_MODE === 'inline'
+      ? 'inline'
+      : 'temporal';
+  const executorChoices = CANDIDATE_DB_MODE ? 'inline' : 'temporal/inline';
   const executorAnswer = await askQuestion(
-    yellow(
-      `Executor mode [${DEFAULT_WORKFLOW_EXECUTOR_MODE === 'inline' ? 'inline' : 'temporal'}] (temporal/inline): `,
-    ),
+    yellow(`Executor mode [${defaultExecutorMode}] (${executorChoices}): `),
   );
-  const executorMode = String(executorAnswer || DEFAULT_WORKFLOW_EXECUTOR_MODE || 'temporal')
+  const executorMode = String(executorAnswer || defaultExecutorMode)
     .trim()
     .toLowerCase();
 
-  if (!['temporal', 'inline'].includes(executorMode)) {
-    throw new Error('Executor mode must be temporal or inline.');
+  if (!ALLOWED_WORKFLOW_EXECUTOR_MODES.has(executorMode)) {
+    throw new Error(
+      CANDIDATE_DB_MODE
+        ? 'Candidate Docker-database verification allows inline workflow execution only until the Docker Temporal worker is cut over to that database.'
+        : 'Executor mode must be temporal or inline.',
+    );
   }
 
   const runtimeParameters = await collectWorkflowRuntimeParameters(workflow, config);

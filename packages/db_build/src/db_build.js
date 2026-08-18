@@ -27,9 +27,9 @@ const SQL_ROOT_LABELS = SQL_ROOTS.map((root) =>
 
 const BASE_DB = 'postgres';
 const DEFAULT_ENCODING = process.env.DB_BUILD_ENCODING || 'UTF8';
-const DEFAULT_LC_COLLATE = process.env.DB_BUILD_LC_COLLATE || 'English_Canada.1252';
-const DEFAULT_LC_CTYPE = process.env.DB_BUILD_LC_CTYPE || 'English_Canada.1252';
-const DEFAULT_LOCALE_PROVIDER = process.env.DB_BUILD_LOCALE_PROVIDER || 'libc';
+const DEFAULT_LC_COLLATE = String(process.env.DB_BUILD_LC_COLLATE || '').trim();
+const DEFAULT_LC_CTYPE = String(process.env.DB_BUILD_LC_CTYPE || '').trim();
+const DEFAULT_LOCALE_PROVIDER = String(process.env.DB_BUILD_LOCALE_PROVIDER || '').trim();
 const DEFAULT_TABLESPACE = process.env.DB_BUILD_TABLESPACE || 'pg_default';
 const DEFAULT_CONNECTION_LIMIT = process.env.DB_BUILD_CONNECTION_LIMIT || '-1';
 
@@ -204,7 +204,9 @@ function dropAndCreateDatabase(databaseName, buildResult) {
 
   normalizeIdentifier(owner, 'database owner');
   normalizeIdentifier(DEFAULT_TABLESPACE, 'tablespace');
-  normalizeIdentifier(DEFAULT_LOCALE_PROVIDER, 'locale provider');
+  if (DEFAULT_LOCALE_PROVIDER) {
+    normalizeIdentifier(DEFAULT_LOCALE_PROVIDER, 'locale provider');
+  }
 
   const quotedDatabaseName = quoteSqlIdentifier(databaseName);
   const connectionLimit = Number.parseInt(DEFAULT_CONNECTION_LIMIT, 10);
@@ -218,14 +220,23 @@ function dropAndCreateDatabase(databaseName, buildResult) {
   }
 
   const dropSql = `DROP DATABASE IF EXISTS ${quotedDatabaseName};`;
+  const localeClauses = [];
+  if (DEFAULT_LC_COLLATE) {
+    localeClauses.push(`LC_COLLATE = ${quoteSqlLiteral(DEFAULT_LC_COLLATE)}`);
+  }
+  if (DEFAULT_LC_CTYPE) {
+    localeClauses.push(`LC_CTYPE = ${quoteSqlLiteral(DEFAULT_LC_CTYPE)}`);
+  }
+  if (DEFAULT_LOCALE_PROVIDER) {
+    localeClauses.push(`LOCALE_PROVIDER = ${DEFAULT_LOCALE_PROVIDER}`);
+  }
+  const localeSql = localeClauses.length > 0 ? `\n  ${localeClauses.join('\n  ')}` : '';
   const createSql = `
 CREATE DATABASE ${quotedDatabaseName}
   WITH
+  TEMPLATE = template0
   OWNER = ${quoteSqlIdentifier(owner)}
-  ENCODING = ${quoteSqlLiteral(DEFAULT_ENCODING)}
-  LC_COLLATE = ${quoteSqlLiteral(DEFAULT_LC_COLLATE)}
-  LC_CTYPE = ${quoteSqlLiteral(DEFAULT_LC_CTYPE)}
-  LOCALE_PROVIDER = ${DEFAULT_LOCALE_PROVIDER}
+  ENCODING = ${quoteSqlLiteral(DEFAULT_ENCODING)}${localeSql}
   TABLESPACE = ${quoteSqlIdentifier(DEFAULT_TABLESPACE)}
   CONNECTION LIMIT = ${connectionLimit}
   IS_TEMPLATE = False;

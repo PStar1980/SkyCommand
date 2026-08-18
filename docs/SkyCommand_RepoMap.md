@@ -280,6 +280,7 @@ SkyCommand/
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
 │   ├── SkyCommand_Phase_16_Closure_Report.md
+│   ├── SkyCommand_PostgreSQL_Docker_Migration.md
 │   ├── SkyCommand_RepoMap.md
 │   ├── SkyCommand_Temporal_Local_Setup.md
 │   ├── SkyCommand_Temporal_Workflow_Architecture_Plan.md
@@ -766,8 +767,14 @@ SkyCommand/
 │   ├── docker/
 │   │   ├── apiDocker.js
 │   │   ├── apiDockerSelfTest.js
+│   │   ├── coreDockerCompatibilitySelfTest.js
+│   │   ├── coreDockerDb.js
+│   │   ├── coreDockerDbCheck.js
 │   │   ├── nodeWorkerDocker.js
 │   │   ├── nodeWorkerDockerSelfTest.js
+│   │   ├── postgresDocker.js
+│   │   ├── postgresDockerSelfTest.js
+│   │   ├── postgresParity.js
 │   │   ├── temporalDockerSelfTest.js
 │   │   ├── temporalWorkerDocker.js
 │   │   ├── temporalWorkerDockerSelfTest.js
