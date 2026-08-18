@@ -1427,3 +1427,15 @@ SkyWeb Analytics owns:
 - Added `core:docker-db:check` plus an interactive `core:docker-db` launcher so SkyCommand_Core can be validated against the shadow Docker database while retaining host `DEV_LOCAL` paths. Candidate-mode workflows are inline-only until Docker Temporal workers are cut over to the same database, preventing split-ledger execution.
 - Removed the Windows-only default `English_Canada.1252` database-build locale. Database builds now use `template0` and inherit the active PostgreSQL cluster locale unless explicit locale overrides are supplied.
 - Added dedicated migration documentation and routine self-tests. No application service has been switched to Docker PostgreSQL in this slice.
+
+## 2026-08-18 - PostgreSQL Docker blue/green cutover controls
+
+- Added the explicit PostgreSQL runtime switch (`SKYCOMMAND_DATABASE_HOST` / `SKYCOMMAND_DATABASE_PORT`) so Docker API/worker services can move from `host.docker.internal:5432` to the internal `postgres:5432` Compose endpoint without changing the pre-cutover topology early.
+- Added PostgreSQL health dependencies to Docker API, Node Worker, and Temporal Worker so post-cutover service startup waits for the persistent database service to be ready.
+- Added `db:docker:cutover`, which prebuilds images before the write freeze, refuses active workflow runs, stops application writers, takes a fresh final Windows PostgreSQL snapshot, restores/parity-checks the Docker candidate, rechecks SkyCommand_Core compatibility, preserves the previous `.env`, switches host tools to the candidate's published port, starts the six-service Docker runtime, and verifies API/database/Temporal connectivity.
+- Added automatic environment rollback when cutover verification fails after the switch, plus an explicit `db:docker:rollback` command for immediate blue/green recovery while the untouched Windows source is still available.
+- Added `db:docker:persistence` for a cold PostgreSQL/full-stack restart proof and `db:docker:finalize` for a final runtime check plus durable Docker-active backup before retiring Windows PostgreSQL.
+- `db:docker:backup` now backs up the Windows source before cutover and automatically backs up the active Docker database after cutover.
+- Added a cutover marker under the external PostgreSQL backup directory; it records backup/environment paths and migration state without persisting database credentials.
+- Extended the API database health contract with PostgreSQL version/server-port metadata so cutover verification can prove the API and host CLI are attached to the same Docker database.
+- Expanded `skycommand:docker:*` commands so the normal full-stack lifecycle now includes PostgreSQL.

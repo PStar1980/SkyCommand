@@ -22,13 +22,14 @@ assert(
   compose.includes('node-worker:') &&
     compose.includes('dockerfile: docker/node-worker.Dockerfile') &&
     compose.includes('TEMPORAL_ADDRESS: temporal:7233') &&
-    compose.includes('PGHOST: host.docker.internal') &&
+    compose.includes('PGHOST: ${SKYCOMMAND_DATABASE_HOST:-host.docker.internal}') &&
+    compose.includes('PGPORT: ${SKYCOMMAND_DATABASE_PORT:-5432}') &&
     compose.includes('SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL') &&
     compose.includes('WORKER_NODE_NAME: skycommand-node-worker-docker') &&
     compose.includes('target: /workspace/SkyEco System') &&
     compose.includes('source: github_token') &&
     compose.includes('condition: service_healthy'),
-  'Compose must run the scheduler/listener worker against host PostgreSQL, Docker Temporal, the mounted workspace, and the shared Git secret.',
+  'Compose must run the scheduler/listener worker against configurable host/Docker PostgreSQL, Docker Temporal, the mounted workspace, and the shared Git secret.',
 );
 assert(
   dockerfile.includes('FROM node:20-bookworm-slim AS worker-dependencies') &&

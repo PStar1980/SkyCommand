@@ -40,6 +40,8 @@ function createApp() {
         service: 'SkyCommand API',
         database: db.database,
         timestamp: db.now,
+        version: db.version,
+        serverPort: db.server_port,
       });
     } catch (error) {
       console.error('[SkyCommand DB] Health check failed:', error);

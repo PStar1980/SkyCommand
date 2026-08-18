@@ -28,7 +28,8 @@ assert(
   compose.includes('temporal-worker:') &&
     compose.includes('dockerfile: docker/temporal-worker.Dockerfile') &&
     compose.includes('TEMPORAL_ADDRESS: temporal:7233') &&
-    compose.includes('PGHOST: host.docker.internal') &&
+    compose.includes('PGHOST: ${SKYCOMMAND_DATABASE_HOST:-host.docker.internal}') &&
+    compose.includes('PGPORT: ${SKYCOMMAND_DATABASE_PORT:-5432}') &&
     compose.includes('SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL') &&
     compose.includes('SKYCOMMAND_SCRIPT_RUNTIME_ROOT: /app') &&
     compose.includes('SKYCOMMAND_EXECUTION_LOG_PATH_MODE: relative') &&
@@ -37,7 +38,7 @@ assert(
     compose.includes('target: skycommand_github_token') &&
     compose.includes('file: "${SKYCOMMAND_DOCKER_GITHUB_TOKEN_FILE:-docker/empty-github-token}"') &&
     compose.includes('condition: service_healthy'),
-  'Compose must run the SkyCommand Temporal worker against the Temporal service, host PostgreSQL, and the Docker repository profile.',
+  'Compose must run the SkyCommand Temporal worker against the Temporal service, configurable host/Docker PostgreSQL, and the Docker repository profile.',
 );
 assert(
   dockerfile.includes('FROM node:20-bookworm-slim AS worker-dependencies') &&

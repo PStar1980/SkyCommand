@@ -27,7 +27,7 @@ async function query(text, params) {
 }
 
 async function testConnection() {
-  const result = await pool.query('SELECT NOW() AS now, current_database() AS database');
+  const result = await pool.query("SELECT NOW() AS now, current_database() AS database, current_setting('server_version') AS version, inet_server_port() AS server_port");
   return result.rows[0];
 }
 
