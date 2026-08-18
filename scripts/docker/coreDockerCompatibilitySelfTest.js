@@ -30,11 +30,14 @@ assert(
 );
 assert(
   check.includes("channel_code = 'cli'") &&
+    check.includes('FROM worker.vw_workflow_definitions') &&
     check.includes("status = 'ACTIVE'") &&
+    check.includes('visible_in_admin = TRUE') &&
+    check.includes('published_version_id IS NOT NULL') &&
     check.includes("'DEV_LOCAL', 'DOCKER_LOCAL'") &&
     check.includes('temporalPublishedPort=') &&
     check.includes('Compatibility preflight passed'),
-  'The non-interactive CLI check must validate database catalogue visibility, both repository path profiles, published workflows, and the published Temporal port.',
+  'The non-interactive CLI check must validate database catalogue visibility, published workflows through the workflow catalogue view, both repository path profiles, and the published Temporal port.',
 );
 for (const scriptName of ['core:docker-db', 'core:docker-db:check', 'core-docker-db:self-test']) {
   assert(packageJson.scripts?.[scriptName], `Missing npm script: ${scriptName}`);

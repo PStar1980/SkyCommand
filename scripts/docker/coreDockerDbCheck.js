@@ -55,8 +55,11 @@ async function main() {
       `),
       pool.query(`
         SELECT COUNT(*)::INT AS count
-        FROM worker.workflow_definitions
-        WHERE status = 'ACTIVE' AND enabled = TRUE AND published_version_id IS NOT NULL
+        FROM worker.vw_workflow_definitions
+        WHERE status = 'ACTIVE'
+          AND enabled = TRUE
+          AND visible_in_admin = TRUE
+          AND published_version_id IS NOT NULL
       `),
       pool.query(`
         SELECT cp.profile_code, COUNT(*)::INT AS path_count
