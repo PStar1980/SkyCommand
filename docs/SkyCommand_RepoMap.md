@@ -267,8 +267,12 @@ SkyCommand/
 │   ├── node-worker.Dockerfile
 │   ├── node-worker.package.json
 │   ├── temporal-worker.Dockerfile
-│   └── temporal-worker.package.json
+│   ├── temporal-worker.package.json
+│   ├── web.Dockerfile
+│   ├── web.nginx.conf
+│   └── web.package.json
 ├── docs/
+│   ├── SkyCommand_Admin_Web_Docker_Local_Setup.md
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_API_Docker_Local_Setup.md
 │   ├── SkyCommand_API_Observability.md
@@ -767,7 +771,9 @@ SkyCommand/
 │   │   ├── temporalDockerSelfTest.js
 │   │   ├── temporalWorkerDocker.js
 │   │   ├── temporalWorkerDockerSelfTest.js
-│   │   └── temporalWorkerGitCheck.js
+│   │   ├── temporalWorkerGitCheck.js
+│   │   ├── webDocker.js
+│   │   └── webDockerSelfTest.js
 │   ├── node/
 │   │   └── util/
 │   │       ├── bootstrap.js
