@@ -24,7 +24,8 @@ assert(
     compose.includes('dockerfile: docker/api.Dockerfile') &&
     compose.includes('127.0.0.1:7171:7171') &&
     compose.includes('TEMPORAL_ADDRESS: temporal:7233') &&
-    compose.includes('PGHOST: host.docker.internal') &&
+    compose.includes('PGHOST: ${SKYCOMMAND_DATABASE_HOST:-host.docker.internal}') &&
+    compose.includes('PGPORT: ${SKYCOMMAND_DATABASE_PORT:-5432}') &&
     compose.includes('SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL') &&
     compose.includes('SKYCOMMAND_DOCKER_RUNTIME_LABEL: Docker API') &&
     compose.includes('SKYCOMMAND_DOCKER_GIT_CHECK_COMMAND: npm run api:docker:git:check') &&
@@ -33,7 +34,7 @@ assert(
     compose.includes('target: /workspace/SkyEco System') &&
     compose.includes('source: github_token') &&
     compose.includes("fetch('http://127.0.0.1:7171/_health')"),
-  'Compose must publish the API on localhost:7171 and connect it to host PostgreSQL, Docker Temporal, the mounted workspace, shared execution logs, and Git secret.',
+  'Compose must publish the API on localhost:7171 and connect it to configurable host/Docker PostgreSQL, Docker Temporal, the mounted workspace, shared execution logs, and Git secret.',
 );
 assert(
   dockerfile.includes('FROM node:20-bookworm-slim AS api-dependencies') &&

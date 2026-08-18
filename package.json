@@ -55,9 +55,9 @@
     "web:docker:status": "docker compose ps web",
     "web:docker:logs": "docker compose logs -f web",
     "skycommand:docker:up": "node scripts/docker/webDocker.js stack-up",
-    "skycommand:docker:stop": "docker compose stop web api node-worker temporal-worker temporal",
-    "skycommand:docker:status": "docker compose ps web api node-worker temporal-worker temporal",
-    "skycommand:docker:logs": "docker compose logs -f web api node-worker temporal-worker temporal",
+    "skycommand:docker:stop": "docker compose stop web api node-worker temporal-worker temporal postgres",
+    "skycommand:docker:status": "docker compose ps web api node-worker temporal-worker temporal postgres",
+    "skycommand:docker:logs": "docker compose logs -f web api node-worker temporal-worker temporal postgres",
     "web-docker:self-test": "node scripts/docker/webDockerSelfTest.js",
     "daemon": "nodemon --config nodemon.json apps/api/src/index.js",
     "lint": "eslint .",
@@ -213,7 +213,12 @@
     "ingestion-consumer-contracts:self-test": "node packages/ingestion/src/consumer/dataConsumerServiceSelfTest.js",
     "skycommand-identity:self-test": "node packages/core/src/skyCommandIdentitySelfTest.js",
     "skycommand-identity:verify": "node packages/core/src/skyCommandIdentityVerification.js",
-    "temporal:worker:docker:git:check": "node scripts/docker/temporalWorkerDocker.js git-check"
+    "temporal:worker:docker:git:check": "node scripts/docker/temporalWorkerDocker.js git-check",
+    "db:docker:cutover": "node scripts/docker/postgresDocker.js cutover",
+    "db:docker:cutover:check": "node scripts/docker/postgresCutoverCheck.js",
+    "db:docker:rollback": "node scripts/docker/postgresDocker.js rollback",
+    "db:docker:persistence": "node scripts/docker/postgresDocker.js persistence",
+    "db:docker:finalize": "node scripts/docker/postgresDocker.js finalize"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

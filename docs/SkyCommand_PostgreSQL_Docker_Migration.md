@@ -2,31 +2,53 @@
 
 ## Purpose
 
-PostgreSQL is the final stateful SkyCommand service moving from the Windows host into Docker. Unlike Web/API/worker relocation, the database move is handled as a blue/green migration with a shadow database, durable backup, catalogue parity, CLI acceptance, and a later explicit cutover.
+PostgreSQL is the final stateful SkyCommand service moving from the Windows host into Docker. The migration is intentionally handled as a blue/green database cutover rather than a simple container start.
 
-This document describes the **pre-cutover stage only**. Running these commands does not switch SkyCommand application services away from the existing Windows PostgreSQL server.
+The process keeps the existing Windows PostgreSQL instance available as a short-lived rollback source while the Docker candidate is staged, accepted, cut over, cold-restarted, backed up, and finalized.
 
-## Pre-cutover topology
+## Topology
+
+### Pre-cutover
 
 ```text
-Current production-like local runtime
-
 Docker Web/API/Workers/Temporal
              |
-             +----> Windows PostgreSQL :5432   (still authoritative)
-
-Shadow acceptance lane
+             +----> Windows PostgreSQL :5432   (authoritative)
 
 Host SkyCommand_Core / parity tools
              |
-             +----> Docker PostgreSQL :55432   (candidate clone)
+             +----> Docker PostgreSQL :55432   (shadow candidate)
 ```
 
-The Docker candidate uses the official PostgreSQL 18.6 Debian image and a named `skycommand_postgres_data` volume. PostgreSQL 18 uses `/var/lib/postgresql` as the image volume boundary, so the Compose mount intentionally targets that path.
+### Post-cutover
 
-## Environment
+```text
+Browser
+  |
+Docker Web :5171
+  |
+Docker API :7171
+  |
+  +----> Docker PostgreSQL postgres:5432
+  +----> Docker Temporal :7233
+             |
+             +----> Docker Temporal Worker
 
-Keep the existing source connection unchanged:
+Docker Node Worker ------> Docker PostgreSQL postgres:5432
+
+Host SkyCommand_Core / CLI / host tools
+             |
+             +----> 127.0.0.1:55432 -> Docker PostgreSQL :5432
+
+Windows PostgreSQL :5432 remains untouched during immediate acceptance/rollback,
+then can be stopped after persistence and final backup are proven.
+```
+
+The Docker candidate uses the official PostgreSQL 18.6 Debian image and the stable named volume `skycommand_postgres_data` mounted at `/var/lib/postgresql`.
+
+## Environment contract
+
+Before cutover, keep the source connection unchanged:
 
 ```env
 PGHOST=localhost
@@ -34,128 +56,194 @@ PGPORT=5432
 PGDATABASE=skyserver_dev
 PGUSER=postgres
 PGPASSWORD=<existing password>
-```
 
-Add or retain the migration-lane settings:
-
-```env
 SKYCOMMAND_POSTGRES_IMAGE=postgres:18.6-bookworm
 SKYCOMMAND_POSTGRES_HOST_PORT=55432
 SKYCOMMAND_POSTGRES_SOURCE_PORT=5432
-# Optional. When blank, backups are written under ~/.skycommand/backups/postgres.
-SKYCOMMAND_POSTGRES_BACKUP_DIR=
+SKYCOMMAND_DATABASE_HOST=host.docker.internal
+SKYCOMMAND_DATABASE_PORT=5432
 ```
 
-The candidate port intentionally differs from `5432`. This lets the Windows database and Docker database run simultaneously for acceptance and provides a clean rollback boundary.
+`SKYCOMMAND_DATABASE_HOST` / `SKYCOMMAND_DATABASE_PORT` are the Compose-side database connection switch. Before cutover they resolve API/workers to the Windows host database. The cutover command changes them to:
 
-## Stage the shadow database
+```env
+SKYCOMMAND_DATABASE_HOST=postgres
+SKYCOMMAND_DATABASE_PORT=5432
+```
 
-Run:
+At the same time, host-side clients are moved to the candidate's published port:
+
+```env
+PGHOST=127.0.0.1
+PGPORT=55432
+```
+
+This means normal host commands such as `npm run core`, `npm run db:health`, and other repository tools continue to work after cutover without requiring Windows PostgreSQL on port 5432.
+
+## Shadow staging and parity
+
+The pre-cutover staging lane remains available:
 
 ```powershell
 npm run db:docker:stage
-```
-
-The command performs the following sequence:
-
-1. Starts/health-checks the Docker PostgreSQL candidate.
-2. Uses PostgreSQL 18 `pg_dump` to take a consistent custom-format snapshot of the current Windows `PGDATABASE`.
-3. Writes the snapshot outside the repository under `~/.skycommand/backups/postgres` unless `SKYCOMMAND_POSTGRES_BACKUP_DIR` overrides it.
-4. Recreates the candidate database using the Docker cluster locale and UTF-8 encoding.
-5. Restores the exact snapshot with `pg_restore --no-owner --no-acl --exit-on-error`.
-6. Runs `ANALYZE`.
-7. Executes the critical tool/workflow parity verifier.
-
-The source database is never dropped or modified by this operation.
-
-## Tool and workflow parity
-
-Run independently at any time while both databases are online:
-
-```powershell
 npm run db:docker:parity
-```
-
-The verifier compares row counts and content hashes for the PostgreSQL-authoritative configuration needed by tools and workflows, including:
-
-- applications, configuration profiles, repositories, and repository paths;
-- runtimes, parameter types, option sources, risk levels, and visibility channels;
-- tool categories, visibility, tools, tool parameters, and static options;
-- workflow node types, definitions, versions, nodes, and edges.
-
-It also compares the ordered tool and workflow catalogue projections. Any mismatch exits non-zero and means **do not cut over**.
-
-The initial stage is a point-in-time snapshot. If tools/workflows are edited afterward, rerun `npm run db:docker:stage` before the eventual cutover so the candidate contains the latest authoritative configuration.
-
-## SkyCommand_Core pre-cutover acceptance
-
-The CLI remains intentionally host-run. This is analogous to an operator client: it can connect to containerized services through their localhost-published ports while retaining access to Windows-only tools and `DEV_LOCAL` repository paths.
-
-First run the non-interactive check:
-
-```powershell
 npm run core:docker-db:check
-```
-
-This verifies that the shadow database exposes CLI-visible tools, active published workflows, both `DEV_LOCAL` and `DOCKER_LOCAL` repository profiles, and that Temporal's published `localhost:7233` port is reachable.
-
-Then launch the actual CLI against the candidate:
-
-```powershell
 npm run core:docker-db
 ```
 
-Pre-cutover candidate mode deliberately uses:
+`db:docker:stage`:
 
-```text
-Database     127.0.0.1:55432
-Repo profile DEV_LOCAL
-Workflow     inline executor only
-Temporal     localhost:7233 is checked, but not used for candidate workflow execution yet
+1. starts/health-checks the Docker PostgreSQL candidate;
+2. takes a custom-format `pg_dump` snapshot of the Windows source;
+3. stores the dump outside the repository under `~/.skycommand/backups/postgres` unless overridden;
+4. recreates the candidate database with the Docker cluster locale and UTF-8;
+5. restores with `pg_restore --no-owner --no-acl --exit-on-error`;
+6. runs `ANALYZE`;
+7. requires critical tool/workflow parity.
+
+The parity verifier compares row counts and semantic content hashes for the authoritative repository/tool/workflow configuration. Both source and candidate sessions are canonicalized to UTC before hashing so Windows/Linux `TIMESTAMPTZ` rendering cannot create false mismatches.
+
+## Controlled cutover
+
+Run the actual cutover only when:
+
+- `db:docker:parity` is green;
+- `core:docker-db:check` is green;
+- SkyCommand_Core has been exercised against the candidate;
+- there are no intended active workflows.
+
+Then run:
+
+```powershell
+npm run db:docker:cutover
 ```
 
-Inline-only workflow execution is a safety boundary. The live Docker Temporal worker still points to the Windows database during this stage; allowing the candidate CLI to submit a Temporal run would split one execution across two PostgreSQL databases.
+The cutover command performs this sequence:
 
-Good acceptance choices are read-only or reversible Node-backed tools and a non-Git workflow such as Database Synchronization Test. Avoid Development Promotion while validating the candidate database unless you intentionally want Git changes.
+1. starts/health-checks the Docker candidate;
+2. prebuilds Web/API/worker images **before** the write freeze to reduce functional downtime;
+3. verifies that the source workflow ledger has no `QUEUED` or `RUNNING` workflow runs;
+4. stops Web, API, Node Worker, and Temporal Worker so no new application writes can reach the Windows source;
+5. verifies the source workflow ledger is still quiescent;
+6. takes a fresh final Windows PostgreSQL backup;
+7. recreates/restores the Docker candidate from that final snapshot;
+8. requires tool/workflow parity again;
+9. runs the SkyCommand_Core candidate compatibility check again;
+10. saves the current `.env` outside the repository;
+11. switches host clients to `127.0.0.1:55432` and Docker services to `postgres:5432`;
+12. starts the full six-service Docker runtime;
+13. verifies the host-published database, API health, API database health, candidate PostgreSQL version, and Temporal connectivity.
 
-After the final database cutover, normal `npm run core` can return to the Temporal executor because the CLI and Docker workers will then share the same Docker PostgreSQL database.
+If the cutover fails **after** the environment switch, the helper automatically restores the pre-cutover `.env` and restarts the application services against the Windows source.
+
+On success, Windows PostgreSQL remains running on `5432` only as a short-lived rollback fallback. Do not continue using it for application writes after the Docker cutover succeeds.
+
+## Runtime cutover check
+
+At any time after cutover:
+
+```powershell
+npm run db:docker:cutover:check
+```
+
+The check requires:
+
+- Docker services configured for `postgres:5432`;
+- host tools configured for the published candidate port;
+- direct PostgreSQL connectivity;
+- healthy `/_health` and `/_db/health` API contracts;
+- matching database/version between host-published PostgreSQL and the Docker API;
+- published Temporal port reachability.
+
+## Immediate rollback
+
+If a problem is discovered immediately after cutover and before Docker PostgreSQL has accumulated changes that must be preserved:
+
+```powershell
+npm run db:docker:rollback
+```
+
+Rollback:
+
+1. stops application writers;
+2. restores the pre-cutover `.env` backup;
+3. restarts the Docker application services against Windows PostgreSQL.
+
+**Important:** rollback does not reverse-copy post-cutover Docker writes into Windows PostgreSQL. Once the Docker database has accepted meaningful new state, use backups/recovery rather than a blind rollback.
+
+## Persistence proof
+
+After UI/CLI acceptance is green, prove that the named PostgreSQL volume survives a cold application/database restart:
+
+```powershell
+npm run db:docker:persistence
+```
+
+This command:
+
+1. verifies the active Docker database runtime;
+2. creates a Docker-active custom-format backup;
+3. stops Web, API, Node Worker, Temporal Worker, Temporal, and PostgreSQL;
+4. restarts the complete six-service stack from the persistent volumes;
+5. reruns the cutover verification.
+
+A passing persistence proof demonstrates that the database state is not tied to a disposable container instance.
+
+## Finalize
+
+After the persistence proof and final UI/CLI acceptance:
+
+```powershell
+npm run db:docker:finalize
+```
+
+Finalize performs one more runtime check and creates a fresh Docker-active backup. After it passes, the old Windows PostgreSQL service can be stopped/disabled.
+
+The final backup path and cutover state are recorded under the PostgreSQL backup directory. No passwords are written to the cutover marker.
+
+## Backup behavior
+
+Before cutover:
+
+```powershell
+npm run db:docker:backup
+```
+
+backs up the Windows source.
+
+After cutover, the same command automatically backs up the active Docker PostgreSQL database.
+
+Backups remain outside the repository by default:
+
+```text
+~/.skycommand/backups/postgres
+```
+
+## Full Docker runtime
+
+After cutover, the normal stack command includes PostgreSQL:
+
+```powershell
+npm run skycommand:docker:up
+npm run skycommand:docker:status
+npm run skycommand:docker:logs
+npm run skycommand:docker:stop
+```
+
+The resulting runtime is:
+
+```text
+skycommand
+├── postgres
+├── temporal
+├── temporal-worker
+├── node-worker
+├── api
+└── web
+```
+
+PostgreSQL remains published on `127.0.0.1:55432` for local operator tools/CLI while application containers use the internal Compose service name `postgres:5432`.
 
 ## Database build portability
 
-`db_build.js` no longer hard-codes the Windows-only `English_Canada.1252` locale. New database builds use `template0` and the PostgreSQL cluster's locale by default. Operators can still opt into explicit locale settings with `DB_BUILD_LC_COLLATE`, `DB_BUILD_LC_CTYPE`, and `DB_BUILD_LOCALE_PROVIDER` when required.
-
-This makes the database build tool usable against both Windows PostgreSQL and Linux/Docker PostgreSQL.
-
-## Useful commands
-
-```powershell
-npm run db:docker:up
-npm run db:docker:status
-npm run db:docker:logs
-npm run db:docker:backup
-npm run db:docker:stage
-npm run db:docker:parity
-npm run core:docker-db:check
-npm run core:docker-db
-```
-
-To stop only the candidate database:
-
-```powershell
-npm run db:docker:stop
-```
-
-Stopping the candidate does not affect the current SkyCommand runtime because the application containers still point to host PostgreSQL during this stage.
-
-## Cutover boundary
-
-Do not stop Windows PostgreSQL or change application `PGHOST` settings during this pre-cutover slice.
-
-The next slice will perform the actual switch only after:
-
-- a fresh final snapshot has been staged;
-- tool/workflow parity is green;
-- SkyCommand_Core acceptance is green;
-- the candidate survives restart/persistence checks.
-
-The cutover will then point Docker API/workers directly to `postgres:5432` on the Compose network, update host CLI connectivity to the published candidate port, cold-start the stack, and prove rollback/recovery before the Windows PostgreSQL service is retired.
+`db_build.js` does not hard-code the Windows-only `English_Canada.1252` locale. New databases use `template0` and the active PostgreSQL cluster locale unless explicit `DB_BUILD_LC_COLLATE`, `DB_BUILD_LC_CTYPE`, or `DB_BUILD_LOCALE_PROVIDER` values are provided.

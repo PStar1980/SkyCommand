@@ -83,13 +83,16 @@ services:
     image: skycommand-temporal-worker:local
     container_name: skycommand-temporal-worker
     depends_on:
+      postgres:
+        condition: service_healthy
       temporal:
         condition: service_healthy
     env_file:
       - .env
     environment:
       TEMPORAL_ADDRESS: temporal:7233
-      PGHOST: host.docker.internal
+      PGHOST: ${SKYCOMMAND_DATABASE_HOST:-host.docker.internal}
+      PGPORT: ${SKYCOMMAND_DATABASE_PORT:-5432}
       SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
       SKYCOMMAND_RUNTIME_ENV: docker
       SKYCOMMAND_DOCKER_RUNTIME_LABEL: Docker Temporal worker
@@ -128,12 +131,15 @@ services:
     image: skycommand-node-worker:local
     container_name: skycommand-node-worker
     depends_on:
+      postgres:
+        condition: service_healthy
       temporal:
         condition: service_healthy
     env_file:
       - .env
     environment:
-      PGHOST: host.docker.internal
+      PGHOST: ${SKYCOMMAND_DATABASE_HOST:-host.docker.internal}
+      PGPORT: ${SKYCOMMAND_DATABASE_PORT:-5432}
       TEMPORAL_ADDRESS: temporal:7233
       SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
       SKYCOMMAND_RUNTIME_ENV: docker
@@ -172,13 +178,16 @@ services:
     image: skycommand-api:local
     container_name: skycommand-api
     depends_on:
+      postgres:
+        condition: service_healthy
       temporal:
         condition: service_healthy
     env_file:
       - .env
     environment:
       API_PORT: 7171
-      PGHOST: host.docker.internal
+      PGHOST: ${SKYCOMMAND_DATABASE_HOST:-host.docker.internal}
+      PGPORT: ${SKYCOMMAND_DATABASE_PORT:-5432}
       TEMPORAL_ADDRESS: temporal:7233
       SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
       SKYCOMMAND_RUNTIME_ENV: docker

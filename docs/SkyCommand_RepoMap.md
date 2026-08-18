@@ -772,6 +772,7 @@ SkyCommand/
 │   │   ├── coreDockerDbCheck.js
 │   │   ├── nodeWorkerDocker.js
 │   │   ├── nodeWorkerDockerSelfTest.js
+│   │   ├── postgresCutoverCheck.js
 │   │   ├── postgresDocker.js
 │   │   ├── postgresDockerSelfTest.js
 │   │   ├── postgresParity.js

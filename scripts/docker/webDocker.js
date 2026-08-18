@@ -64,6 +64,7 @@ function main() {
         'up',
         '-d',
         '--build',
+        'postgres',
         'temporal',
         'temporal-worker',
         'node-worker',

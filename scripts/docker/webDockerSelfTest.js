@@ -67,11 +67,12 @@ assert(
 );
 assert(
   helper.includes("process.env.SKYCOMMAND_WEB_PORT || '5171'") &&
+    helper.includes("'postgres'") &&
     helper.includes("'temporal-worker'") &&
     helper.includes("'node-worker'") &&
     helper.includes("'api'") &&
     helper.includes("'web'"),
-  'The Web Docker helper must validate the host Web port and support full five-service stack startup.',
+  'The Web Docker helper must validate the host Web port and support full six-service stack startup including PostgreSQL.',
 );
 
 const scripts = packageJson.scripts || {};

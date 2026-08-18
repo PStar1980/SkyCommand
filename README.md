@@ -40,7 +40,7 @@ SkyCommand is now a mature private operational control plane for the Sky ecosyst
 
 The ingestion and data-contract foundation is portable beyond the original macroeconomic use case while retaining the established FRED, Bank of Canada, and Statistics Canada paths. Current development is focused on reusable operational tooling, workflow templates, repository automation, diagnostics, testing, documentation, and continued UI polish rather than adding another large numbered milestone.
 
-Docker containerization now covers the **Temporal development service**, **SkyCommand Temporal worker**, **scheduler/listener Node worker**, **SkyCommand API**, and an **Admin-Web deployment mode** served from an unprivileged NGINX container. Dockerized server-side processes use the `DOCKER_LOCAL` repository profile, mounted SkyEco workspace, host PostgreSQL through Docker Desktop networking, shared GitHub secret/commit identity, and host-readable execution logs. The Node worker and Docker API deliberately execute only Node.js-backed tools; Windows PowerShell tools remain available to compatible host processes until they are migrated or a cross-platform runtime is added. Admin-Web retains host-run Vite as the development/HMR lane while Docker NGINX provides a production-style same-origin web/API lane. PostgreSQL now has a **pre-cutover shadow migration lane**: a persistent Docker PostgreSQL 18.6 candidate can run beside the Windows source on port 55432, receive a full `pg_dump`/`pg_restore` clone, prove PostgreSQL-authoritative tool/workflow parity, and accept SkyCommand_Core CLI validation before any application service is switched. The Windows database remains authoritative until the explicit cutover/recovery slice.
+Docker containerization now covers the **Temporal development service**, **SkyCommand Temporal worker**, **scheduler/listener Node worker**, **SkyCommand API**, and an **Admin-Web deployment mode** served from an unprivileged NGINX container. Dockerized server-side processes use the `DOCKER_LOCAL` repository profile, mounted SkyEco workspace, shared GitHub secret/commit identity, and host-readable execution logs. The Node worker and Docker API deliberately execute only Node.js-backed tools; Windows PowerShell tools remain available to compatible host processes until they are migrated or a cross-platform runtime is added. Admin-Web retains host-run Vite as the development/HMR lane while Docker NGINX provides a production-style same-origin web/API lane. PostgreSQL now has a **blue/green Docker migration and cutover lane**: a persistent PostgreSQL 18.6 candidate can run beside the Windows source on port 55432, receive a full `pg_dump`/`pg_restore` clone, prove PostgreSQL-authoritative tool/workflow parity, accept SkyCommand_Core CLI validation, and then take over through a quiesced cutover with automatic environment rollback, cold-restart persistence proof, and external backups. Docker services use an explicit database host switch so pre-cutover acceptance can stay on Windows PostgreSQL and post-cutover runtime can use the internal `postgres:5432` service without changing application code.
 
 ## Workflow Runtime and Structured Results
 
@@ -393,10 +393,10 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run web:docker:restart`  | Rebuilds/recreates Docker Admin-Web.                                                         |
 | `npm run web:docker:status`   | Shows Docker Admin-Web container status/health.                                              |
 | `npm run web:docker:logs`     | Follows Docker Admin-Web/NGINX logs.                                                         |
-| `npm run skycommand:docker:up` | Starts/builds Web, API, Node worker, Temporal worker, and Temporal service together.         |
-| `npm run skycommand:docker:stop` | Stops the five SkyCommand runtime containers while preserving Temporal data.              |
-| `npm run skycommand:docker:status` | Shows status for the full five-container SkyCommand runtime.                             |
-| `npm run skycommand:docker:logs` | Follows logs for the full five-container SkyCommand runtime.                               |
+| `npm run skycommand:docker:up` | Starts/builds PostgreSQL, Web, API, Node worker, Temporal worker, and Temporal service together. |
+| `npm run skycommand:docker:stop` | Stops the six SkyCommand runtime containers while preserving PostgreSQL and Temporal volumes. |
+| `npm run skycommand:docker:status` | Shows status for the full six-container SkyCommand runtime.                              |
+| `npm run skycommand:docker:logs` | Follows logs for the full six-container SkyCommand runtime.                                |
 | `npm run worker`              | Starts the worker daemon.                                                                   |
 | `npm run worker:dev`          | Starts the worker daemon with Nodemon.                                                      |
 | `npm run worker:docker:up`   | Builds and starts the Dockerized scheduler/listener Node worker.                            |
@@ -426,6 +426,13 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run core`                | Starts the SkyCommand Core CLI with top-level Run Tools / Run Workflows menus.               |
 | `npm run db:health`           | Tests PostgreSQL connectivity.                                                              |
 | `npm run db:build`            | Rebuilds the configured PostgreSQL database from SQL files.                                 |
+| `npm run db:docker:stage`     | Refreshes the Docker PostgreSQL shadow candidate from a source backup and requires parity.   |
+| `npm run db:docker:parity`    | Verifies critical source/candidate tool and workflow configuration parity.                    |
+| `npm run db:docker:cutover`   | Performs the controlled blue/green switch to Docker PostgreSQL with automatic rollback on verification failure. |
+| `npm run db:docker:cutover:check` | Verifies host CLI, API, PostgreSQL, and Temporal connectivity after cutover.               |
+| `npm run db:docker:rollback`  | Restores the pre-cutover runtime environment for immediate recovery to Windows PostgreSQL.   |
+| `npm run db:docker:persistence` | Cold-restarts the six-service Docker stack and proves PostgreSQL named-volume persistence.  |
+| `npm run db:docker:finalize`  | Creates a verified Docker-active backup and marks the migration ready for Windows DB retirement. |
 | `npm run auth:create-admin`   | Runs the first-admin/user creation script.                                                  |
 | `npm run lint`                | Runs ESLint checks.                                                                         |
 | `npm run format:check`        | Verifies Prettier formatting.                                                               |
@@ -554,7 +561,7 @@ npm run web:docker:up
 npm run web:docker:status
 # Browse http://localhost:5171
 
-# Start the complete five-container application/runtime stack
+# Start the complete six-container application/runtime stack
 npm run skycommand:docker:up
 npm run skycommand:docker:status
 
@@ -578,7 +585,7 @@ npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
-The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, publishes Docker Admin-Web at `localhost:5171`, and persists the local Temporal SQLite database in the named volume `skycommand_temporal_data`. The Temporal image is pinned to CLI `1.7.2`. The `api`, `temporal-worker`, and `node-worker` services still reach the authoritative Windows PostgreSQL source through `host.docker.internal` during the database acceptance stage, use the `DOCKER_LOCAL` repository profile, and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. A separate PostgreSQL 18.6 candidate uses the named `skycommand_postgres_data` volume and is published on `localhost:55432`, allowing full backup/restore, tool/workflow parity, and SkyCommand_Core acceptance without changing the running application database. Docker Admin-Web is a separate immutable Vite build served by unprivileged NGINX and proxies same-origin `/api`, `/_health`, and `/_db` traffic directly to `api:7171` over the Compose network. The Node worker registers under the stable name `skycommand-node-worker-docker`. See `docs/SkyCommand_PostgreSQL_Docker_Migration.md` for the database staging/cutover boundary.
+The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, publishes Docker Admin-Web at `localhost:5171`, publishes PostgreSQL at `localhost:55432`, and persists state in the named volumes `skycommand_temporal_data` and `skycommand_postgres_data`. The Temporal image is pinned to CLI `1.7.2`; PostgreSQL is pinned to `18.6-bookworm`. Before cutover, `api`, `temporal-worker`, and `node-worker` use `host.docker.internal:5432`; after cutover they use the internal Compose endpoint `postgres:5432`, while host CLI/tools use `127.0.0.1:55432`. Docker server-side services use the `DOCKER_LOCAL` repository profile and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. Docker Admin-Web is an immutable Vite build served by unprivileged NGINX and proxies same-origin `/api`, `/_health`, and `/_db` traffic directly to `api:7171` over the Compose network. The Node worker registers under the stable name `skycommand-node-worker-docker`. See `docs/SkyCommand_PostgreSQL_Docker_Migration.md` for the staged acceptance, cutover, rollback, persistence, and finalize sequence.
 
 PostgreSQL pre-cutover acceptance commands:
 
@@ -589,7 +596,7 @@ npm run core:docker-db:check
 npm run core:docker-db
 ```
 
-These commands leave the running Docker application services on the Windows PostgreSQL source; they stage and verify the shadow database only.
+These pre-cutover commands leave the running Docker application services on the Windows PostgreSQL source; they stage and verify the shadow database only. The explicit `npm run db:docker:cutover` command performs the write freeze, final snapshot, runtime switch, and verification when acceptance is complete.
 
 Primary protected workflow API families include:
 
@@ -650,6 +657,7 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 | [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md) | Generated repository structure map |
 | [`docs/SkyCommand_API_Docker_Local_Setup.md`](docs/SkyCommand_API_Docker_Local_Setup.md) | Docker API local setup, runtime boundary, and proof sequence |
 | [`docs/SkyCommand_Admin_Web_Docker_Local_Setup.md`](docs/SkyCommand_Admin_Web_Docker_Local_Setup.md) | Docker Admin-Web/NGINX deployment mode, full-stack commands, and proof sequence |
+| [`docs/SkyCommand_PostgreSQL_Docker_Migration.md`](docs/SkyCommand_PostgreSQL_Docker_Migration.md) | PostgreSQL shadow staging, parity, blue/green cutover, rollback, persistence, backup, and finalization |
 | [`docs/SkyCommand_Temporal_Local_Setup.md`](docs/SkyCommand_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
 | [`docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md`](docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |
 | [`docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md`](docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md) | Current process for adding domains, sources, assets, metrics, adapters, policies, and operations |
