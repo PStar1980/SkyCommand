@@ -85,24 +85,39 @@ function quoteIdentifier(identifier) {
 async function fingerprintTable(pool, tableName) {
   const [schema, table] = splitTableName(tableName);
   const qualified = `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;
-  const result = await pool.query(`
-    SELECT
-      COUNT(*)::BIGINT AS row_count,
-      COALESCE(md5(string_agg(row_hash, '' ORDER BY row_hash)), md5('')) AS content_hash
-    FROM (
-      SELECT md5(to_jsonb(t)::text) AS row_hash
-      FROM ${qualified} AS t
-    ) AS rows
-  `);
-  return {
-    rowCount: Number(result.rows[0].row_count),
-    contentHash: result.rows[0].content_hash,
-  };
+  const client = await pool.connect();
+
+  try {
+    // PostgreSQL renders TIMESTAMPTZ values through the session TimeZone when a row is
+    // converted to JSON. The Windows source and Linux Docker candidate can therefore
+    // contain identical timestamp instants while producing different textual hashes.
+    // Canonicalize both sides to UTC before computing semantic row fingerprints.
+    await client.query("SET TIME ZONE 'UTC'");
+    const result = await client.query(`
+      SELECT
+        COUNT(*)::BIGINT AS row_count,
+        COALESCE(md5(string_agg(row_hash, '' ORDER BY row_hash)), md5('')) AS content_hash
+      FROM (
+        SELECT md5(to_jsonb(t)::text) AS row_hash
+        FROM ${qualified} AS t
+      ) AS rows
+    `);
+    return {
+      rowCount: Number(result.rows[0].row_count),
+      contentHash: result.rows[0].content_hash,
+    };
+  } finally {
+    client.release();
+  }
 }
 
 async function querySummary(pool) {
   const [version, tools, workflows] = await Promise.all([
-    pool.query('SELECT current_setting(\'server_version\') AS server_version'),
+    pool.query(`
+      SELECT
+        current_setting('server_version') AS server_version,
+        current_setting('TimeZone') AS time_zone
+    `),
     pool.query(`
       SELECT tool_code, label, runtime_code, enabled
       FROM core.tools
@@ -116,6 +131,7 @@ async function querySummary(pool) {
   ]);
   return {
     serverVersion: version.rows[0].server_version,
+    timeZone: version.rows[0].time_zone,
     tools: tools.rows,
     workflows: workflows.rows,
   };
@@ -131,8 +147,17 @@ async function main() {
       querySummary(source),
       querySummary(candidate),
     ]);
-    console.log(`[SkyCommand PostgreSQL parity] sourceVersion=${sourceSummary.serverVersion}`);
-    console.log(`[SkyCommand PostgreSQL parity] candidateVersion=${candidateSummary.serverVersion}`);
+    console.log(
+      `[SkyCommand PostgreSQL parity] sourceVersion=${sourceSummary.serverVersion} sourceTimeZone=${sourceSummary.timeZone}`,
+    );
+    console.log(
+      `[SkyCommand PostgreSQL parity] candidateVersion=${candidateSummary.serverVersion} candidateTimeZone=${candidateSummary.timeZone}`,
+    );
+    if (sourceSummary.timeZone !== candidateSummary.timeZone) {
+      console.log(
+        '[SkyCommand PostgreSQL parity] INFO: server time zones differ; TIMESTAMPTZ fingerprints are canonicalized to UTC before comparison.',
+      );
+    }
 
     for (const tableName of criticalTables) {
       const [sourceFingerprint, candidateFingerprint] = await Promise.all([

@@ -55,6 +55,13 @@ assert(
   'Workflow publication metadata must be read from worker.vw_workflow_definitions because published_version_id is derived from workflow_versions rather than stored on the base definition table.',
 );
 assert(
+  parity.includes("SET TIME ZONE 'UTC'") &&
+    parity.includes('sourceTimeZone=') &&
+    parity.includes('candidateTimeZone=') &&
+    parity.includes('TIMESTAMPTZ fingerprints are canonicalized to UTC'),
+  'Cross-platform parity fingerprints must canonicalize TIMESTAMPTZ rendering to UTC so Windows and Linux session time zones cannot create false data mismatches.',
+);
+assert(
   dbBuild.includes('TEMPLATE = template0') &&
     !dbBuild.includes("process.env.DB_BUILD_LC_COLLATE || 'English_Canada.1252'") &&
     dbBuild.includes('const localeClauses = []'),
