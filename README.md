@@ -78,13 +78,13 @@ The recommended repository delivery workflow is:
 ```text
 Repository Intelligence
 → Promotion Ready? condition
-   ├─ TRUE  → Repository Map → Repository ZIP → Dev Commit → Human Merge Approval → Main → Dev Synchronization → Summary
+   ├─ TRUE  → Repository Map → Repository ZIP → Dev Commit → Human Merge Approval → Main → Dev Synchronization → Local Repository Sync → Summary
    └─ FALSE → Summary (terminal branch; STOP_SUCCESS remains the no-target fallback)
 ```
 
 Repository Intelligence inspects local and remote `dev`/`main` state without switching branches or rewriting watched files. It emits `git_repository_status.v1`, and the preflight condition continues only when `nodes.repo_intel_node.output.readyForDevelopmentPromotion` is truthy. The false branch can route directly to the final Summary node and stop successfully, producing a clean blocked-preflight result without running mutation nodes. The approval checkpoint confirms that the Dev → Main pull request has been completed. The `main_merge` tool then performs the authoritative remote main → dev synchronization and emits `git_branch_sync_summary.v1`, including branch-head movement, commits applied, synchronized state, optional tag evidence, and Git-step outcomes. Under `DOCKER_LOCAL`, Windows-owned local refs are deliberately left untouched; the result reports `localHostSyncRequired` and the Development Promotion summary uses `REMOTE_PROMOTED` until host synchronization is proven.
 
-The host-side `local_repo_sync` tool is the guarded completion action. It takes the repository code, the trusted Dev Commit `currentHeadSha`, and the Remote Merge `synchronizedHeadSha`; refuses dirty, changed, divergent, moving, or conflicting worktree state; performs only fast-forward-safe ref changes; and succeeds only after local main, local dev, origin/main, and origin/dev all equal the exact approved SHA. It is intentionally CLI-only until the planned SkyCommand Host Agent/host Temporal worker can execute it as a host-targeted workflow node. Workflow Operations renders both remote and host synchronization evidence, and the workflow rollup already exposes the exact host-sync inputs/command for that future node. Suggested workflow name: **SkyCommand Development Promotion**.
+The host-side `local_repo_sync` tool is the guarded completion action. It takes the repository code, the trusted Dev Commit `currentHeadSha`, and the Remote Merge `synchronizedHeadSha`; refuses dirty, changed, divergent, moving, or conflicting worktree state; performs only fast-forward-safe ref changes; and succeeds only after local main, local dev, origin/main, and origin/dev all equal the exact approved SHA. Host CLI execution still runs the guardrails directly. Docker/API/workflow execution routes the exact same operation through a dedicated **SkyCommand Host Agent** Temporal activity queue, so the Linux containers never mutate the Windows-owned `.git` tree. Migration `00101__development_promotion_host_sync_node.sql` publishes a new immutable Development Promotion version that wires this node between Remote Merge and Summary using the exact workflow evidence from `nodes.dev_commit_node.output.currentHeadSha` and `nodes.merge_sync_node.output.synchronizedHeadSha`. Workflow Operations renders both remote and host synchronization evidence, and a completed host sync upgrades the Development Promotion rollup from `REMOTE_PROMOTED` to fully `PROMOTED`.
 
 ### Structured result consumption and summary aggregation
 
@@ -425,9 +425,13 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run temporal:worker:dev`     | Starts the host Temporal worker with Nodemon.                                                |
 | `npm run temporal:health`         | Checks connectivity to the configured Temporal service.                                     |
 | `npm run temporal:fred`       | Starts the FRED ingestion workflow pilot and waits for the result.                          |
+| `npm run host-agent`          | Starts the host-only Temporal activity worker for guarded host resource operations.        |
+| `npm run host-agent:dev`      | Starts the Host Agent with Nodemon for local development.                                  |
+| `npm run host-agent:check`    | Performs an end-to-end Temporal health probe through the Docker workflow worker to the host agent queue. |
+| `npm run development-promotion:host-sync:check` | Verifies the published Development Promotion graph, Local Repository Sync bindings, edge order, and Host Agent tool visibility. |
 | `npm run daemon`              | Starts the API daemon entry point with Nodemon.                                             |
 | `npm run core`                | Starts the SkyCommand Core CLI with top-level Run Tools / Run Workflows menus.               |
-| `npm run repository:sync:local -- <repo> <expectedDevSha> <approvedHeadSha>` | Host-only guarded fast-forward synchronization of local main/dev refs after Docker remote promotion. |
+| `npm run repository:sync:local -- <repo> <expectedDevSha> <approvedHeadSha>` | Runs guarded local synchronization directly on the host, or dispatches through the Host Agent when invoked from Docker. |
 | `npm run db:health`           | Tests PostgreSQL connectivity.                                                              |
 | `npm run db:build`            | Rebuilds the configured PostgreSQL database from SQL files.                                 |
 | `npm run db:docker:stage`     | Refreshes the Docker PostgreSQL shadow candidate from a source backup and requires parity.   |
@@ -581,6 +585,14 @@ npm run worker:dev
 # Check SkyCommand -> Temporal connectivity
 npm run temporal:health
 
+# After migration 00100, enable the host bridge in .env and start the host-only agent
+# (run this from the Windows/host repository, not inside Docker)
+# SKYCOMMAND_HOST_AGENT_ENABLED=true
+npm run host-agent
+
+# In a second terminal, prove Docker Temporal workflow -> host activity routing
+npm run host-agent:check
+
 # Optional: follow Temporal container logs
 npm run temporal:server:logs
 
@@ -590,6 +602,8 @@ npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
 The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, publishes Docker Admin-Web at `localhost:5171`, publishes PostgreSQL at `localhost:55432`, and persists state in the named volumes `skycommand_temporal_data` and `skycommand_postgres_data`. The Temporal image is pinned to CLI `1.7.2`; PostgreSQL is pinned to `18.6-bookworm`. Before cutover, `api`, `temporal-worker`, and `node-worker` use `host.docker.internal:5432`; after cutover they use the internal Compose endpoint `postgres:5432`, while host CLI/tools use `127.0.0.1:55432`. Docker server-side services use the `DOCKER_LOCAL` repository profile and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. Docker Admin-Web is an immutable Vite build served by unprivileged NGINX and proxies same-origin `/api`, `/_health`, and `/_db` traffic directly to `api:7171` over the Compose network. The Node worker registers under the stable name `skycommand-node-worker-docker`. See `docs/SkyCommand_PostgreSQL_Docker_Migration.md` for the staged acceptance, cutover, rollback, persistence, and finalize sequence.
+
+The SkyCommand Host Agent is intentionally **not** another container. It runs on the repository-owning host, connects outbound to Temporal at `localhost:7233`, and polls the dedicated `skycommand-host-local` activity queue. Docker-side `local_repo_sync` executions start a short Temporal bridge workflow on the normal SkyCommand workflow queue; that workflow schedules only the allow-listed host activity onto the Host Agent queue. No host HTTP listener or arbitrary shell endpoint is exposed. The Host Agent refuses `DOCKER_LOCAL`, validates the configured host repository profile before polling, emits Temporal worker heartbeats, and delegates Git mutation to the same guarded `local_repo_sync` implementation used by the direct host CLI. See `docs/SkyCommand_Host_Agent_Local_Setup.md` for setup and workflow bindings.
 
 PostgreSQL pre-cutover acceptance commands:
 
@@ -661,6 +675,7 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 | [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md) | Generated repository structure map |
 | [`docs/SkyCommand_API_Docker_Local_Setup.md`](docs/SkyCommand_API_Docker_Local_Setup.md) | Docker API local setup, runtime boundary, and proof sequence |
 | [`docs/SkyCommand_Admin_Web_Docker_Local_Setup.md`](docs/SkyCommand_Admin_Web_Docker_Local_Setup.md) | Docker Admin-Web/NGINX deployment mode, full-stack commands, and proof sequence |
+| [`docs/SkyCommand_Host_Agent_Local_Setup.md`](docs/SkyCommand_Host_Agent_Local_Setup.md) | Host Agent Temporal queue, guarded local repository synchronization, health proof, and Development Promotion bindings |
 | [`docs/SkyCommand_PostgreSQL_Docker_Migration.md`](docs/SkyCommand_PostgreSQL_Docker_Migration.md) | PostgreSQL shadow staging, parity, blue/green cutover, rollback, persistence, backup, and finalization |
 | [`docs/SkyCommand_Temporal_Local_Setup.md`](docs/SkyCommand_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
 | [`docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md`](docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |

@@ -277,6 +277,7 @@ SkyCommand/
 │   ├── SkyCommand_API_Docker_Local_Setup.md
 │   ├── SkyCommand_API_Observability.md
 │   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
+│   ├── SkyCommand_Host_Agent_Local_Setup.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
 │   ├── SkyCommand_Phase_16_Closure_Report.md
@@ -368,7 +369,9 @@ SkyCommand/
 │   │       │   ├── 00096__repository_artifact_tool_parameters.sql
 │   │       │   ├── 00097__repository_registry_legacy_cleanup.sql
 │   │       │   ├── 00098__docker_local_repository_profile.sql
-│   │       │   └── 00099__local_repository_sync_tool.sql
+│   │       │   ├── 00099__local_repository_sync_tool.sql
+│   │       │   ├── 00100__host_agent_local_repository_sync.sql
+│   │       │   └── 00101__development_promotion_host_sync_node.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -442,6 +445,13 @@ SkyCommand/
 │   │       ├── gitRepositoryStatusSelfTest.js
 │   │       ├── local_repo_sync.js
 │   │       └── main_merge.js
+│   ├── host-agent/
+│   │   └── src/
+│   │       ├── activities.js
+│   │       ├── config.js
+│   │       ├── health.js
+│   │       ├── hostAgentSelfTest.js
+│   │       └── worker.js
 │   ├── ingestion/
 │   │   └── src/
 │   │       ├── loadBoCMacroData.js
@@ -574,6 +584,7 @@ SkyCommand/
 │   │       │   └── skyCommandWorkflowActivities.js
 │   │       └── workflows/
 │   │           ├── fredIngestionWorkflow.js
+│   │           ├── hostAgentWorkflow.js
 │   │           ├── index.js
 │   │           └── skyCommandWorkflowExecutorWorkflow.js
 │   └── tools/
@@ -775,6 +786,7 @@ SkyCommand/
 │   │   ├── coreDockerCompatibilitySelfTest.js
 │   │   ├── coreDockerDb.js
 │   │   ├── coreDockerDbCheck.js
+│   │   ├── developmentPromotionHostSyncCheck.js
 │   │   ├── nodeWorkerDocker.js
 │   │   ├── nodeWorkerDockerSelfTest.js
 │   │   ├── postgresCutoverCheck.js

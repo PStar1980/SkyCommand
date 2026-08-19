@@ -107,7 +107,7 @@ function createGitLocalSyncToolResult(result = {}) {
     error: success ? null : normalizeError(result.error),
     metadata: {
       profileCode: nullable(result.profileCode),
-      transport: 'git_cli',
+      transport: String(result.transport || 'git_cli'),
       executionTarget: 'HOST',
     },
   });
