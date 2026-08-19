@@ -4,8 +4,9 @@
  * Safely synchronizes host-owned local main/dev Git refs after a Docker-executed
  * Development Promotion has already synchronized the authoritative remote.
  *
- * This command is intentionally host-only. It refuses to run with DOCKER_LOCAL
- * because Linux containers must not mutate refs inside a Windows-owned .git tree.
+ * Host execution mutates local refs directly. Docker execution never mutates the
+ * mounted host .git tree; it dispatches the same guarded operation to the dedicated
+ * SkyCommand Host Agent Temporal activity queue.
  *
  * Usage:
  *   node local_repo_sync.js <repoName> <expectedLocalDevSha> <expectedSynchronizedHeadSha>
@@ -15,6 +16,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { randomUUID } = require('node:crypto');
 const dotenv = require('dotenv');
 
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
@@ -22,6 +24,10 @@ const {
   createGitLocalSyncFailureToolResult,
   createGitLocalSyncToolResult,
 } = require('./gitLocalSyncResult');
+const { getTemporalConfig } = require('../../temporal/src/config');
+const {
+  DEFAULT_HOST_AGENT_TASK_QUEUE,
+} = require('../../host-agent/src/config');
 
 const SKY_COMMAND_ROOT = path.resolve(__dirname, '../../..');
 const TOOL_CODE = 'local_repo_sync';
@@ -29,6 +35,26 @@ const OUTPUT_TYPE = 'git_local_sync_summary.v1';
 const DEFAULT_GIT_COMMAND_TIMEOUT_MS = 60000;
 const DEFAULT_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
 const DOCKER_LOCAL_PROFILE = 'DOCKER_LOCAL';
+
+function toBoolean(value) {
+  return (
+    value === true ||
+    value === 1 ||
+    String(value || '').trim().toLowerCase() === 'true' ||
+    String(value || '').trim() === '1'
+  );
+}
+
+function isDockerRuntime() {
+  return String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase() === 'docker';
+}
+
+function getHostAgentTaskQueue() {
+  return (
+    String(process.env.SKYCOMMAND_HOST_AGENT_TASK_QUEUE || DEFAULT_HOST_AGENT_TASK_QUEUE).trim() ||
+    DEFAULT_HOST_AGENT_TASK_QUEUE
+  );
+}
 
 dotenv.config({ path: path.join(SKY_COMMAND_ROOT, '.env') });
 const { pool } = require('../../db/src/connection');
@@ -450,6 +476,122 @@ function updateCheckedOutBranch({ branch, targetSha, cwd }) {
   return result.status === 0;
 }
 
+async function executeLocalRepositorySyncViaHostAgent(args = []) {
+  const positional = (Array.isArray(args) ? args : [])
+    .map(String)
+    .filter((arg) => !arg.startsWith('--'));
+  const [repoName, rawExpectedLocalDevSha, rawExpectedSynchronizedHeadSha] = positional;
+  const expectedLocalDevSha = normalizeSha(rawExpectedLocalDevSha, 'expectedLocalDevSha');
+  const expectedSynchronizedHeadSha = normalizeSha(
+    rawExpectedSynchronizedHeadSha,
+    'expectedSynchronizedHeadSha',
+  );
+
+  if (!toBoolean(process.env.SKYCOMMAND_HOST_AGENT_ENABLED)) {
+    throw createSyncError(
+      'LOCAL_REPOSITORY_SYNC_BLOCKED_HOST_AGENT_DISABLED',
+      'SkyCommand Host Agent dispatch is disabled. Set SKYCOMMAND_HOST_AGENT_ENABLED=true and start npm run host-agent on the repository host.',
+      {
+        ok: false,
+        outcome: 'BLOCKED',
+        repositoryCode: repoName || null,
+        expectedLocalDevSha,
+        expectedSynchronizedHeadSha,
+        profileCode: PROFILE_CODE,
+        transport: 'temporal_host_agent',
+      },
+    );
+  }
+
+  const temporal = getTemporalConfig();
+  const hostTaskQueue = getHostAgentTaskQueue();
+  const workflowId = [
+    'skycommand-host-local-sync',
+    String(repoName || 'repository').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80),
+    expectedSynchronizedHeadSha.slice(0, 12),
+    randomUUID().slice(0, 8),
+  ].join('-');
+  const { Connection, Client } = require('@temporalio/client');
+
+  console.log('');
+  console.log(`[SkyCommand Host Agent] Dispatching ${TOOL_CODE} to host task queue ${hostTaskQueue}`);
+  console.log(`[SkyCommand Host Agent] Temporal address=${temporal.address}`);
+  console.log(`[SkyCommand Host Agent] workflowId=${workflowId}`);
+
+  let connection = null;
+  try {
+    connection = await Connection.connect({ address: temporal.address });
+    const client = new Client({
+      connection,
+      namespace: temporal.namespace,
+    });
+    const response = await client.workflow.execute('skyCommandHostAgentToolWorkflow', {
+      taskQueue: temporal.taskQueue,
+      workflowId,
+      args: [
+        {
+          toolCode: TOOL_CODE,
+          repoName,
+          expectedLocalDevSha,
+          expectedSynchronizedHeadSha,
+          hostTaskQueue,
+        },
+      ],
+    });
+
+    if (!response?.ok) {
+      const remoteError = response?.error || {};
+      const error = createSyncError(
+        remoteError.code || 'LOCAL_REPOSITORY_SYNC_HOST_AGENT_FAILED',
+        remoteError.message || 'SkyCommand Host Agent failed to synchronize the local repository.',
+        remoteError.syncResult || {
+          repositoryCode: repoName || null,
+          expectedLocalDevSha,
+          expectedSynchronizedHeadSha,
+          profileCode: PROFILE_CODE,
+          transport: 'temporal_host_agent',
+        },
+      );
+      throw error;
+    }
+
+    return {
+      ...(response.result || {}),
+      transport: 'temporal_host_agent',
+    };
+  } catch (error) {
+    if (error?.code && String(error.code).startsWith('LOCAL_REPOSITORY_SYNC_')) {
+      throw error;
+    }
+
+    throw createSyncError(
+      'LOCAL_REPOSITORY_SYNC_HOST_AGENT_UNAVAILABLE',
+      `SkyCommand Host Agent dispatch failed: ${error?.message || String(error)}`,
+      {
+        ok: false,
+        outcome: 'FAILED',
+        repositoryCode: repoName || null,
+        expectedLocalDevSha,
+        expectedSynchronizedHeadSha,
+        profileCode: PROFILE_CODE,
+        transport: 'temporal_host_agent',
+      },
+    );
+  } finally {
+    if (connection) {
+      await connection.close();
+    }
+  }
+}
+
+async function executeLocalRepositorySyncRouted(args = []) {
+  if (isDockerRuntime()) {
+    return executeLocalRepositorySyncViaHostAgent(args);
+  }
+
+  return executeLocalRepositorySync(args);
+}
+
 async function executeLocalRepositorySync(args = []) {
   const startedAt = new Date().toISOString();
   const positional = (Array.isArray(args) ? args : [])
@@ -809,7 +951,7 @@ async function main(args = process.argv.slice(2)) {
       toolCode: TOOL_CODE,
       outputType: OUTPUT_TYPE,
       args,
-      execute: executeLocalRepositorySync,
+      execute: executeLocalRepositorySyncRouted,
       createToolResult: createGitLocalSyncToolResult,
       createFailureToolResult: (error) =>
         createGitLocalSyncFailureToolResult({
@@ -830,6 +972,8 @@ module.exports = {
   OUTPUT_TYPE,
   TOOL_CODE,
   executeLocalRepositorySync,
+  executeLocalRepositorySyncRouted,
+  executeLocalRepositorySyncViaHostAgent,
   main,
   normalizeSha,
   printLocalRepositorySyncResult,
