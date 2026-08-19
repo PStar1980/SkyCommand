@@ -3,6 +3,7 @@ const REPOSITORY_PACKAGE_OUTPUT_TYPE = 'repository_package_summary.v1';
 const REPOSITORY_MAP_OUTPUT_TYPE = 'repository_map_summary.v1';
 const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
 const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
+const GIT_LOCAL_SYNC_OUTPUT_TYPE = 'git_local_sync_summary.v1';
 const GIT_REPOSITORY_STATUS_OUTPUT_TYPE = 'git_repository_status.v1';
 const DATABASE_HEALTH_OUTPUT_TYPE = 'database_health_summary.v1';
 const DATABASE_BUILD_OUTPUT_TYPE = 'database_build_summary.v1';
@@ -356,6 +357,18 @@ function compactDomainOutput(result = {}) {
     };
   }
 
+  if (isToolResultEnvelope(result) && result.outputType === GIT_LOCAL_SYNC_OUTPUT_TYPE) {
+    return {
+      outcome: safeOutput.outcome || null,
+      repositoryCode: safeOutput.repositoryCode || null,
+      expectedLocalDevSha: safeOutput.expectedLocalDevSha || null,
+      expectedSynchronizedHeadSha: safeOutput.expectedSynchronizedHeadSha || null,
+      fourWaySynchronized: Boolean(safeOutput.fourWaySynchronized),
+      workingTreeCleanAfter: Boolean(safeOutput.workingTreeCleanAfter),
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
   if (isToolResultEnvelope(result) && result.outputType === DATABASE_HEALTH_OUTPUT_TYPE) {
     return {
       checkedAt: safeOutput.checkedAt || null,
@@ -505,6 +518,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   let gitCommit = null;
   let approval = null;
   let branchSync = null;
+  let localSync = null;
 
   for (const [nodeKey, rawResult] of Object.entries(getSafeObject(nodeOutputsByKey))) {
     const result = getSafeObject(rawResult);
@@ -627,7 +641,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
       stages.push({
         nodeKey,
         stageCode: 'BRANCH_SYNC',
-        label: 'Main/development synchronization',
+        label: 'Remote main/development synchronization',
         status: result.success === false ? 'FAILED' : 'SUCCESS',
         outcome: output.outcome || null,
         summary: getResultSummary(result, output),
@@ -635,10 +649,28 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
         durationMs,
         evidence: output.synchronizedHeadSha || output.devHeadAfterSha || `${normalizeNonNegativeNumber(output.commitsApplied)} commit(s) applied`,
       });
+      continue;
+    }
+
+    if (isToolResultEnvelope(result) && result.outputType === GIT_LOCAL_SYNC_OUTPUT_TYPE) {
+      localSync = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'LOCAL_REPOSITORY_SYNC',
+        label: 'Host local repository synchronization',
+        status: result.success === false ? 'FAILED' : output.fourWaySynchronized ? 'SUCCESS' : 'WARNING',
+        outcome: output.outcome || null,
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: output.fourWaySynchronized
+          ? output.expectedSynchronizedHeadSha || 'Four-way synchronization verified'
+          : 'Four-way synchronization not verified',
+      });
     }
   }
 
-  if (!preflightCondition && !gitCommit && !branchSync) {
+  if (!preflightCondition && !gitCommit && !branchSync && !localSync) {
     return null;
   }
 
@@ -646,10 +678,12 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   const stopped = stages.some((stage) => stage.status === 'STOPPED');
   const commitOutput = getSafeObject(gitCommit?.output);
   const syncOutput = getSafeObject(branchSync?.output);
+  const localSyncOutput = getSafeObject(localSync?.output);
   const approvalOutput = getSafeObject(approval?.output);
   const repositoryStatusOutput = getSafeObject(repositoryStatus?.output);
   const preflightConditionOutput = getSafeObject(preflightCondition?.output);
   const repositoryCode =
+    localSyncOutput.repositoryCode ||
     syncOutput.repositoryCode ||
     commitOutput.repositoryCode ||
     repositoryStatusOutput.repositoryCode ||
@@ -657,6 +691,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     repositoryPackage?.output?.repositoryName ||
     null;
   const repositoryName =
+    localSyncOutput.repositoryName ||
     syncOutput.repositoryName ||
     commitOutput.repositoryName ||
     repositoryStatusOutput.repositoryName ||
@@ -665,12 +700,24 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     repositoryCode;
   const developmentBranch = commitOutput.branch || syncOutput.targetBranch || syncOutput.devBranch || null;
   const mainBranch = syncOutput.sourceBranch || syncOutput.mainBranch || null;
+  const devCommitSha = commitOutput.currentHeadSha || commitOutput.commitSha || null;
+  const synchronizedHeadSha = syncOutput.synchronizedHeadSha || syncOutput.devHeadAfterSha || null;
+  const localSyncCommand =
+    syncOutput.localHostSyncRequired && repositoryCode && devCommitSha && synchronizedHeadSha
+      ? `npm run repository:sync:local -- "${String(repositoryCode).replace(/"/g, '\\"')}" "${devCommitSha}" "${synchronizedHeadSha}"`
+      : null;
   const outcome = failed
     ? 'FAILED'
     : stopped
       ? 'STOPPED'
       : branchSync
-        ? 'PROMOTED'
+        ? localSync
+          ? localSyncOutput.fourWaySynchronized
+            ? 'PROMOTED'
+            : 'REMOTE_PROMOTED'
+          : syncOutput.localHostSyncRequired
+            ? 'REMOTE_PROMOTED'
+            : 'PROMOTED'
         : approvalOutput.decision === 'APPROVED'
           ? 'APPROVED'
           : gitCommit
@@ -689,8 +736,8 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
       developmentBranch && mainBranch ? `${developmentBranch} → ${mainBranch}` : null,
     synchronizationDirection:
       mainBranch && developmentBranch ? `${mainBranch} → ${developmentBranch}` : null,
-    devCommitSha: commitOutput.commitSha || commitOutput.currentHeadSha || null,
-    synchronizedHeadSha: syncOutput.synchronizedHeadSha || syncOutput.devHeadAfterSha || null,
+    devCommitSha,
+    synchronizedHeadSha,
     changedFiles: normalizeNonNegativeNumber(commitOutput.changedFiles),
     commitsApplied: normalizeNonNegativeNumber(syncOutput.commitsApplied),
     branchesSynchronized: Boolean(syncOutput.branchesSynchronized),
@@ -699,6 +746,32 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     localWorkspaceUpdated: Boolean(syncOutput.localWorkspaceUpdated),
     localWorkspaceRefreshRequired: Boolean(syncOutput.localWorkspaceRefreshRequired),
     localRefreshCommand: syncOutput.localRefreshCommand || null,
+    localHostSyncRequired: Boolean(syncOutput.localHostSyncRequired) && !Boolean(localSyncOutput.fourWaySynchronized),
+    deferredLocalBranches: getSafeArray(syncOutput.deferredLocalBranches).map(String),
+    localSyncCommandTemplate: syncOutput.localSyncCommandTemplate || null,
+    localSyncCommand,
+    localSyncInputs:
+      syncOutput.localHostSyncRequired && repositoryCode && devCommitSha && synchronizedHeadSha
+        ? {
+            repoName: repositoryCode,
+            expectedLocalDevSha: devCommitSha,
+            expectedSynchronizedHeadSha: synchronizedHeadSha,
+          }
+        : null,
+    localSyncCompleted: Boolean(localSyncOutput.fourWaySynchronized),
+    localSync: localSync
+      ? {
+          nodeKey: localSync.nodeKey,
+          outcome: localSyncOutput.outcome || null,
+          expectedLocalDevSha: localSyncOutput.expectedLocalDevSha || null,
+          expectedSynchronizedHeadSha: localSyncOutput.expectedSynchronizedHeadSha || null,
+          localMainAfterSha: localSyncOutput.localMainAfterSha || null,
+          localDevAfterSha: localSyncOutput.localDevAfterSha || null,
+          remoteMainAfterSha: localSyncOutput.remoteMainAfterSha || null,
+          remoteDevAfterSha: localSyncOutput.remoteDevAfterSha || null,
+          fourWaySynchronized: Boolean(localSyncOutput.fourWaySynchronized),
+        }
+      : null,
     tagName: syncOutput.tagName || null,
     tagCreated: Boolean(syncOutput.tagCreated),
     preflight: repositoryStatus
@@ -1165,6 +1238,20 @@ function buildScheduledToolResultSummary(toolResult = {}) {
     };
   }
 
+  if (result.outputType === GIT_LOCAL_SYNC_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.gitLocalSync = {
+      outcome: output.outcome || null,
+      repositoryCode: output.repositoryCode || null,
+      expectedLocalDevSha: output.expectedLocalDevSha || null,
+      expectedSynchronizedHeadSha: output.expectedSynchronizedHeadSha || null,
+      localMainAfterSha: output.localMainAfterSha || null,
+      localDevAfterSha: output.localDevAfterSha || null,
+      fourWaySynchronized: Boolean(output.fourWaySynchronized),
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   if (result.outputType === DATABASE_HEALTH_OUTPUT_TYPE) {
     const output = getSafeObject(result.output);
     summary.databaseHealth = {
@@ -1222,6 +1309,7 @@ module.exports = {
   MACRO_INGESTION_OUTPUT_TYPE,
   GIT_COMMIT_OUTPUT_TYPE,
   GIT_BRANCH_SYNC_OUTPUT_TYPE,
+  GIT_LOCAL_SYNC_OUTPUT_TYPE,
   GIT_REPOSITORY_STATUS_OUTPUT_TYPE,
   DATABASE_HEALTH_OUTPUT_TYPE,
   DATABASE_BUILD_OUTPUT_TYPE,

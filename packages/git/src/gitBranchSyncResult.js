@@ -77,6 +77,11 @@ function createGitBranchSyncToolResult(result = {}) {
       localWorkspaceUpdated: Boolean(result.localWorkspaceUpdated),
       localWorkspaceRefreshRequired: Boolean(result.localWorkspaceRefreshRequired),
       localRefreshCommand: nullable(result.localRefreshCommand),
+      localHostSyncRequired: Boolean(result.localHostSyncRequired),
+      deferredLocalBranches: Array.isArray(result.deferredLocalBranches)
+        ? result.deferredLocalBranches.map(String)
+        : [],
+      localSyncCommandTemplate: nullable(result.localSyncCommandTemplate),
       tagName: nullable(result.tagName),
       tagCreated: Boolean(result.tagCreated),
       startedAt: nullable(result.startedAt),

@@ -81,6 +81,7 @@ for (const outputType of [
   'git_repository_status.v1',
   'git_commit_summary.v1',
   'git_branch_sync_summary.v1',
+  'git_local_sync_summary.v1',
   'database_health_summary.v1',
   'database_build_summary.v1',
   'postgresql_database_comparison_summary.v1',
