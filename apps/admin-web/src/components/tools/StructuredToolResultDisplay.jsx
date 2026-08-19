@@ -190,7 +190,7 @@ function operationOutcomeClass(outcome) {
     return 'sky-pill-danger';
   }
 
-  if (['PARTIAL', 'WARNING', 'STOPPED', 'BLOCKED', 'DIFFERENT'].includes(normalized)) {
+  if (['PARTIAL', 'WARNING', 'STOPPED', 'BLOCKED', 'DIFFERENT', 'REMOTE_PROMOTED'].includes(normalized)) {
     return 'sky-pill-warning';
   }
 
@@ -1009,6 +1009,132 @@ function GitCommitOutput({ toolResult }) {
   );
 }
 
+function GitLocalSyncOutput({ toolResult }) {
+  const output = getSafeObject(toolResult?.output);
+  const safeguards = getSafeObject(output.safeguards);
+  const steps = getSafeObject(output.steps);
+  const warnings = getSafeArray(toolResult?.warnings);
+  const failedMessage = toolResult?.error?.message || null;
+
+  return (
+    <div className="sky-git-local-sync-output">
+      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <div className="sky-page-kicker">Host local repository synchronization</div>
+          <h3 className="h6 mb-1">
+            {output.repositoryCode || output.repositoryName || 'Repository'} · {output.mainBranch || 'main'} / {output.devBranch || 'dev'}
+          </h3>
+          <p className="small sky-muted mb-0">
+            {toolResult.message || 'Structured guarded host synchronization result recorded.'}
+          </p>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${operationOutcomeClass(output.outcome)}`}>
+            {output.outcome || 'UNKNOWN'}
+          </span>
+          <span className="sky-pill sky-pill-info">HOST</span>
+          <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
+        </div>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Synchronization contract</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            <tr>
+              <th>Expected local dev baseline</th>
+              <td className="sky-mono text-break">{output.expectedLocalDevSha || '—'}</td>
+              <th>Approved synchronized head</th>
+              <td className="sky-mono text-break">{output.expectedSynchronizedHeadSha || '—'}</td>
+            </tr>
+            <tr>
+              <th>Local main before</th>
+              <td className="sky-mono text-break">{output.localMainBeforeSha || '—'}</td>
+              <th>Local dev before</th>
+              <td className="sky-mono text-break">{output.localDevBeforeSha || '—'}</td>
+            </tr>
+            <tr>
+              <th>Local main after</th>
+              <td className="sky-mono text-break">{output.localMainAfterSha || '—'}</td>
+              <th>Local dev after</th>
+              <td className="sky-mono text-break">{output.localDevAfterSha || '—'}</td>
+            </tr>
+            <tr>
+              <th>Origin main after</th>
+              <td className="sky-mono text-break">{output.remoteMainAfterSha || '—'}</td>
+              <th>Origin dev after</th>
+              <td className="sky-mono text-break">{output.remoteDevAfterSha || '—'}</td>
+            </tr>
+            <tr>
+              <th>Four-way synchronized</th>
+              <td>{output.fourWaySynchronized ? 'Yes' : 'No'}</td>
+              <th>Working tree clean</th>
+              <td>{output.workingTreeCleanAfter ? 'Yes' : 'No'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Safety guardrails</div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <tbody>
+            {[
+              ['Host profile verified', 'hostProfileVerified'],
+              ['Repository lock acquired', 'repositoryLockAcquired'],
+              ['No Git operation in progress', 'gitOperationClear'],
+              ['Working tree clean', 'workingTreeClean'],
+              ['Worktree ownership safe', 'worktreeOwnershipSafe'],
+              ['Dev baseline matched', 'devBaselineMatched'],
+              ['Remote target matched', 'remoteTargetMatched'],
+              ['Local main fast-forward safe', 'localMainFastForwardSafe'],
+              ['Local dev fast-forward safe', 'localDevFastForwardSafe'],
+              ['Remote reverified before mutation', 'remoteReverifiedBeforeMutation'],
+            ].map(([label, key]) => (
+              <tr key={key}>
+                <th>{label}</th>
+                <td>{safeguards[key] ? 'Passed' : 'Not passed'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sky-page-kicker mb-2">Execution steps</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Remote inspected</th>
+              <th>Fetched</th>
+              <th>Main updated</th>
+              <th>Dev updated</th>
+              <th>Remote reverified</th>
+              <th>Post verified</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {['remoteInspected', 'fetched', 'mainRefUpdated', 'devRefUpdated', 'remoteReverified', 'postVerified'].map((key) => (
+                <td key={key}>{steps[key] ? 'Completed' : 'Not performed'}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {warnings.length > 0 || failedMessage ? (
+        <div className="alert alert-warning mt-3 mb-0 py-2">
+          {warnings.map((warning, index) => (
+            <div key={`local-sync-warning-${index}`}>{warning}</div>
+          ))}
+          {failedMessage ? <div>{failedMessage}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function GitBranchSyncOutput({ toolResult }) {
   const output = getSafeObject(toolResult?.output);
   const steps = getSafeObject(output.steps);
@@ -1073,11 +1199,27 @@ function GitBranchSyncOutput({ toolResult }) {
               <td>{output.localWorkspaceRefreshRequired ? 'Yes' : 'No'}</td>
             </tr>
             <tr>
+              <th>Host local sync required</th>
+              <td>{output.localHostSyncRequired ? 'Yes' : 'No'}</td>
+              <th>Deferred local branches</th>
+              <td className="sky-mono">
+                {getSafeArray(output.deferredLocalBranches).join(', ') || 'None'}
+              </td>
+            </tr>
+            <tr>
               <th>Synchronized head</th>
               <td colSpan="3" className="sky-mono text-break">
                 {output.synchronizedHeadSha || output.devHeadAfterSha || '—'}
               </td>
             </tr>
+            {output.localSyncCommandTemplate ? (
+              <tr>
+                <th>Host sync command template</th>
+                <td colSpan="3" className="sky-mono text-break">
+                  {output.localSyncCommandTemplate}
+                </td>
+              </tr>
+            ) : null}
             {output.localRefreshCommand ? (
               <tr>
                 <th>Local refresh command</th>
@@ -1712,6 +1854,7 @@ const STRUCTURED_TOOL_RESULT_RENDERERS = {
   'git_repository_status.v1': GitRepositoryStatusOutput,
   'git_commit_summary.v1': GitCommitOutput,
   'git_branch_sync_summary.v1': GitBranchSyncOutput,
+  'git_local_sync_summary.v1': GitLocalSyncOutput,
   'database_health_summary.v1': DatabaseHealthOutput,
   'database_build_summary.v1': DatabaseBuildOutput,
   'postgresql_database_comparison_summary.v1': DatabaseComparisonOutput,

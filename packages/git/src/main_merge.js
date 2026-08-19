@@ -202,6 +202,7 @@ function createDeferredLocalBranchRefState({ branch, targetSha, currentBranch, c
     updated: false,
     workspaceUpdated: false,
     refreshRequired: currentBranch === branch && differsFromTarget,
+    hostSyncRequired: differsFromTarget,
     differsFromTarget,
     localSha,
     reason: differsFromTarget
@@ -485,6 +486,7 @@ async function executeMainMerge(args = []) {
 
   let mainRefUpdate;
   let devRefUpdate;
+  let deferredLocalBranches = [];
 
   if (isDockerLocalProfile()) {
     // The host working copy owns refs/heads/*. Updating those refs from Linux can
@@ -504,13 +506,13 @@ async function executeMainMerge(args = []) {
       cwd: repo.rootPath,
     });
 
-    const deferredBranches = [mainRefUpdate, devRefUpdate]
-      .filter((state) => state.differsFromTarget)
+    deferredLocalBranches = [mainRefUpdate, devRefUpdate]
+      .filter((state) => state.hostSyncRequired)
       .map((state) => state.branch);
 
-    if (deferredBranches.length > 0) {
+    if (deferredLocalBranches.length > 0) {
       warnings.push(
-        `DOCKER_LOCAL synchronized the remote branches but intentionally left host-owned local branch references unchanged: ${deferredBranches.join(', ')}.`,
+        `Remote branches are synchronized, but host-owned local branch synchronization is still required for: ${deferredLocalBranches.join(', ')}. Run the guarded Local Repository Sync host action after the workflow supplies the trusted Dev Commit SHA.`,
       );
     }
   } else {
@@ -527,15 +529,20 @@ async function executeMainMerge(args = []) {
       cwd: repo.rootPath,
     });
   }
+  const localHostSyncRequired = deferredLocalBranches.length > 0;
   const localWorkspaceRefreshRequired =
     mainRefUpdate.refreshRequired || devRefUpdate.refreshRequired;
   const localWorkspaceUpdated =
     mainRefUpdate.workspaceUpdated || devRefUpdate.workspaceUpdated;
-  const localRefreshCommand = localWorkspaceRefreshRequired
-    ? createLocalRefreshCommand(repo)
+  const localRefreshCommand =
+    !isDockerLocalProfile() && localWorkspaceRefreshRequired
+      ? createLocalRefreshCommand(repo)
+      : null;
+  const localSyncCommandTemplate = localHostSyncRequired
+    ? `npm run repository:sync:local -- ${repo.repoCode} <expectedLocalDevSha> ${remoteDevHeadAfterSha}`
     : null;
 
-  if (localWorkspaceRefreshRequired) {
+  if (!isDockerLocalProfile() && localWorkspaceRefreshRequired) {
     warnings.push(
       `Remote branches are synchronized, but the checked-out workspace contains a different tree. After the workflow completes, run: ${localRefreshCommand}`,
     );
@@ -555,10 +562,13 @@ async function executeMainMerge(args = []) {
   );
   console.log(`🔖 Synchronized head: ${remoteDevHeadAfterSha}`);
   console.log(`📈 Commits applied to ${repo.devBranch}: ${commitsApplied}`);
-  if (localWorkspaceRefreshRequired) {
+  if (localHostSyncRequired) {
+    console.log(`⚠️ Host local synchronization required for: ${deferredLocalBranches.join(', ')}.`);
+    console.log(`   Template: ${localSyncCommandTemplate}`);
+  } else if (localWorkspaceRefreshRequired) {
     console.log(`⚠️ Local workspace refresh required after workflow completion: ${localRefreshCommand}`);
   } else if (isDockerLocalProfile()) {
-    console.log('✅ Remote synchronization verified; Docker left host-owned local branch references untouched.');
+    console.log('✅ Remote synchronization verified; host-owned local refs already match the synchronized head.');
   } else {
     console.log('✅ Local branch references were synchronized without rewriting watched files.');
   }
@@ -597,6 +607,9 @@ async function executeMainMerge(args = []) {
     localWorkspaceUpdated,
     localWorkspaceRefreshRequired,
     localRefreshCommand,
+    localHostSyncRequired,
+    deferredLocalBranches,
+    localSyncCommandTemplate,
     tagName: tagName || null,
     tagCreated,
     startedAt,
@@ -619,9 +632,11 @@ async function executeMainMerge(args = []) {
 
 function printMainMergeResult(result) {
   const tagSummary = result.tagCreated ? ` Tag ${result.tagName} was pushed.` : '';
-  const refreshSummary = result.localWorkspaceRefreshRequired
-    ? ` Local refresh required: ${result.localRefreshCommand}.`
-    : ' Local references were updated without a working-tree rewrite.';
+  const refreshSummary = result.localHostSyncRequired
+    ? ` Host local synchronization is still required for ${result.deferredLocalBranches?.join(', ') || 'local refs'}.`
+    : result.localWorkspaceRefreshRequired
+      ? ` Local refresh required: ${result.localRefreshCommand}.`
+      : ' Local references are synchronized with the remote head.';
   console.log(
     `📋 Structured result: ${result.repositoryCode} ${result.sourceBranch} → ${result.targetBranch} ${String(result.outcome || 'synchronized').toLowerCase()}.${tagSummary}${refreshSummary}`,
   );

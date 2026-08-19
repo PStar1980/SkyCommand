@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/git_local_sync_summary.v1.schema.json",
+  "title": "Git Local Repository Synchronization Summary v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationKind",
+    "executionTarget",
+    "outcome",
+    "repositoryCode",
+    "repositoryName",
+    "repositoryRoot",
+    "profileCode",
+    "remote",
+    "mainBranch",
+    "devBranch",
+    "currentBranch",
+    "expectedLocalDevSha",
+    "expectedSynchronizedHeadSha",
+    "localMainBeforeSha",
+    "localDevBeforeSha",
+    "remoteMainBeforeSha",
+    "remoteDevBeforeSha",
+    "localMainAfterSha",
+    "localDevAfterSha",
+    "remoteMainAfterSha",
+    "remoteDevAfterSha",
+    "stashCount",
+    "workingTreeCleanBefore",
+    "workingTreeCleanAfter",
+    "mainRefUpdated",
+    "devRefUpdated",
+    "checkedOutBranchUpdated",
+    "fourWaySynchronized",
+    "safeguards",
+    "steps",
+    "startedAt",
+    "completedAt",
+    "durationMs"
+  ],
+  "properties": {
+    "operationKind": { "const": "LOCAL_REPOSITORY_SYNC" },
+    "executionTarget": { "const": "HOST" },
+    "outcome": {
+      "type": "string",
+      "enum": ["SYNCHRONIZED", "ALREADY_SYNCHRONIZED", "BLOCKED", "FAILED"]
+    },
+    "repositoryCode": { "type": ["string", "null"], "maxLength": 200 },
+    "repositoryName": { "type": ["string", "null"], "maxLength": 240 },
+    "repositoryRoot": { "type": ["string", "null"], "maxLength": 4000 },
+    "profileCode": { "type": ["string", "null"], "maxLength": 200 },
+    "remote": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "mainBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "devBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "currentBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "expectedLocalDevSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{40,64}$"
+    },
+    "expectedSynchronizedHeadSha": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{40,64}$"
+    },
+    "localMainBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "localDevBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "remoteMainBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "remoteDevBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "localMainAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "localDevAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "remoteMainAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "remoteDevAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "stashCount": { "type": "number", "minimum": 0 },
+    "workingTreeCleanBefore": { "type": "boolean" },
+    "workingTreeCleanAfter": { "type": "boolean" },
+    "mainRefUpdated": { "type": "boolean" },
+    "devRefUpdated": { "type": "boolean" },
+    "checkedOutBranchUpdated": { "type": "boolean" },
+    "fourWaySynchronized": { "type": "boolean" },
+    "safeguards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hostProfileVerified",
+        "repositoryLockAcquired",
+        "gitOperationClear",
+        "workingTreeClean",
+        "worktreeOwnershipSafe",
+        "devBaselineMatched",
+        "remoteTargetMatched",
+        "localMainFastForwardSafe",
+        "localDevFastForwardSafe",
+        "remoteReverifiedBeforeMutation"
+      ],
+      "properties": {
+        "hostProfileVerified": { "type": "boolean" },
+        "repositoryLockAcquired": { "type": "boolean" },
+        "gitOperationClear": { "type": "boolean" },
+        "workingTreeClean": { "type": "boolean" },
+        "worktreeOwnershipSafe": { "type": "boolean" },
+        "devBaselineMatched": { "type": "boolean" },
+        "remoteTargetMatched": { "type": "boolean" },
+        "localMainFastForwardSafe": { "type": "boolean" },
+        "localDevFastForwardSafe": { "type": "boolean" },
+        "remoteReverifiedBeforeMutation": { "type": "boolean" }
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remoteInspected",
+        "fetched",
+        "mainRefUpdated",
+        "devRefUpdated",
+        "remoteReverified",
+        "postVerified"
+      ],
+      "properties": {
+        "remoteInspected": { "type": "boolean" },
+        "fetched": { "type": "boolean" },
+        "mainRefUpdated": { "type": "boolean" },
+        "devRefUpdated": { "type": "boolean" },
+        "remoteReverified": { "type": "boolean" },
+        "postVerified": { "type": "boolean" }
+      }
+    },
+    "startedAt": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "completedAt": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "durationMs": { "type": "number", "minimum": 0 }
+  }
+}

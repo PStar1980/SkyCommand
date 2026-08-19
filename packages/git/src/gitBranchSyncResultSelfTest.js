@@ -72,6 +72,36 @@ function run() {
     outputSchema,
   });
 
+  const deferredHostSync = createGitBranchSyncToolResult({
+    ok: true,
+    outcome: 'SYNCHRONIZED',
+    repositoryCode: 'SkyCommand',
+    repositoryName: 'SkyCommand',
+    repositoryRoot: '/workspace/SkyEco System/SkyCommand System/SkyCommand',
+    executionStrategy: 'CHECKOUT_FREE_REMOTE_SYNC',
+    watcherSafe: true,
+    mainBranch: 'main',
+    devBranch: 'dev',
+    sourceBranch: 'main',
+    targetBranch: 'dev',
+    synchronizedHeadSha: '2'.repeat(40),
+    branchesSynchronized: true,
+    localWorkspaceUpdated: false,
+    localWorkspaceRefreshRequired: false,
+    localHostSyncRequired: true,
+    deferredLocalBranches: ['main', 'dev'],
+    localSyncCommandTemplate:
+      'npm run repository:sync:local -- SkyCommand <expectedLocalDevSha> ' + '2'.repeat(40),
+  });
+  assert.equal(deferredHostSync.success, true);
+  assert.equal(deferredHostSync.output.localHostSyncRequired, true);
+  assert.deepEqual(deferredHostSync.output.deferredLocalBranches, ['main', 'dev']);
+  assert.match(deferredHostSync.output.localSyncCommandTemplate, /expectedLocalDevSha/);
+  validateToolResult(deferredHostSync, {
+    expectedOutputType: GIT_BRANCH_SYNC_OUTPUT_TYPE,
+    outputSchema,
+  });
+
   const tagged = createGitBranchSyncToolResult({
     ok: true,
     outcome: 'TAGGED',

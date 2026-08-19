@@ -181,6 +181,57 @@ function gitBranchSyncResult() {
   };
 }
 
+function gitLocalSyncResult() {
+  const target = '3'.repeat(40);
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'SkyCommand local main/dev refs were safely synchronized.',
+    outputType: 'git_local_sync_summary.v1',
+    output: {
+      operationKind: 'LOCAL_REPOSITORY_SYNC',
+      executionTarget: 'HOST',
+      outcome: 'SYNCHRONIZED',
+      repositoryCode: 'SkyCommand',
+      repositoryName: 'SkyCommand',
+      repositoryRoot: 'C:/Projects/SkyCommand',
+      profileCode: 'DEV_LOCAL',
+      remote: 'origin',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      currentBranch: 'dev',
+      expectedLocalDevSha: '2'.repeat(40),
+      expectedSynchronizedHeadSha: target,
+      localMainBeforeSha: '1'.repeat(40),
+      localDevBeforeSha: '2'.repeat(40),
+      remoteMainBeforeSha: target,
+      remoteDevBeforeSha: target,
+      localMainAfterSha: target,
+      localDevAfterSha: target,
+      remoteMainAfterSha: target,
+      remoteDevAfterSha: target,
+      stashCount: 0,
+      workingTreeCleanBefore: true,
+      workingTreeCleanAfter: true,
+      mainRefUpdated: true,
+      devRefUpdated: true,
+      checkedOutBranchUpdated: true,
+      fourWaySynchronized: true,
+      safeguards: {},
+      steps: {},
+      durationMs: 200,
+    },
+    warnings: [],
+    error: null,
+    metadata: {},
+    kind: 'tool_execution',
+    toolCode: 'local_repo_sync',
+    status: 'SUCCESS',
+    durationMs: 200,
+    executionId: 'local-sync-execution',
+  };
+}
+
 function gitRepositoryStatusResult() {
   const sha = '4'.repeat(40);
   return {
@@ -731,6 +782,36 @@ function run() {
   assert.equal(promotion.preflight.condition.passed, true);
   assert.equal(promotion.preflight.condition.branchLabel, 'TRUE');
   assert.equal(promotion.branchesSynchronized, true);
+
+  const remoteOnlyBranchSync = gitBranchSyncResult();
+  remoteOnlyBranchSync.output.localHostSyncRequired = true;
+  remoteOnlyBranchSync.output.deferredLocalBranches = ['main', 'dev'];
+  remoteOnlyBranchSync.output.localSyncCommandTemplate =
+    `npm run repository:sync:local -- SkyCommand <expectedLocalDevSha> ${'3'.repeat(40)}`;
+  const remoteOnlyPromotion = buildGitPromotionRollup({
+    dev_commit_node: commitResult,
+    merge_approval_node: humanApprovalResult(),
+    main_merge_node: remoteOnlyBranchSync,
+  });
+  assert.equal(remoteOnlyPromotion.outcome, 'REMOTE_PROMOTED');
+  assert.equal(remoteOnlyPromotion.localHostSyncRequired, true);
+  assert.equal(remoteOnlyPromotion.localSyncInputs.repoName, 'SkyCommand');
+  assert.equal(remoteOnlyPromotion.localSyncInputs.expectedLocalDevSha, commitResult.output.currentHeadSha);
+  assert.equal(remoteOnlyPromotion.localSyncInputs.expectedSynchronizedHeadSha, remoteOnlyBranchSync.output.synchronizedHeadSha);
+  assert.match(remoteOnlyPromotion.localSyncCommand, /repository:sync:local -- \"SkyCommand\"/);
+  assert.deepEqual(remoteOnlyPromotion.deferredLocalBranches, ['main', 'dev']);
+
+  const localSyncResult = gitLocalSyncResult();
+  const fullySynchronizedPromotion = buildGitPromotionRollup({
+    dev_commit_node: commitResult,
+    merge_approval_node: humanApprovalResult(),
+    main_merge_node: remoteOnlyBranchSync,
+    local_sync_node: localSyncResult,
+  });
+  assert.equal(fullySynchronizedPromotion.outcome, 'PROMOTED');
+  assert.equal(fullySynchronizedPromotion.localHostSyncRequired, false);
+  assert.equal(fullySynchronizedPromotion.localSyncCompleted, true);
+  assert.equal(fullySynchronizedPromotion.localSync.fourWaySynchronized, true);
 
   const blockedRepositoryStatus = gitRepositoryStatusResult();
   blockedRepositoryStatus.message = 'SkyCommand is not ready for development promotion.';

@@ -42,7 +42,10 @@
     "localDevRefUpdated",
     "localWorkspaceUpdated",
     "localWorkspaceRefreshRequired",
-    "localRefreshCommand"
+    "localRefreshCommand",
+    "localHostSyncRequired",
+    "deferredLocalBranches",
+    "localSyncCommandTemplate"
   ],
   "properties": {
     "operationKind": {
@@ -327,6 +330,24 @@
       "type": "boolean"
     },
     "localRefreshCommand": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4000
+    },
+    "localHostSyncRequired": {
+      "type": "boolean"
+    },
+    "deferredLocalBranches": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "maxItems": 20
+    },
+    "localSyncCommandTemplate": {
       "type": [
         "string",
         "null"

@@ -204,6 +204,14 @@ assert(
 );
 
 assert(
+  workflowSource.includes("structuredToolResult?.outputType === 'git_local_sync_summary.v1'") &&
+    workflowSource.includes('function GitLocalSyncOutput({ toolResult })') &&
+    workflowSource.includes('Four-way synchronized') &&
+    workflowSource.includes('Host sync command'),
+  'Workflow operation detail must render guarded host local-sync evidence and copy-ready follow-up guidance.',
+);
+
+assert(
   workflowSource.includes('id="workflowHistorySearch"') &&
     workflowSource.includes('clearHistoryFilters') &&
     workflowSource.includes('Workflow Details') &&

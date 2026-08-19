@@ -367,7 +367,8 @@ SkyCommand/
 │   │       │   ├── 00095__repository_artifact_configuration.sql
 │   │       │   ├── 00096__repository_artifact_tool_parameters.sql
 │   │       │   ├── 00097__repository_registry_legacy_cleanup.sql
-│   │       │   └── 00098__docker_local_repository_profile.sql
+│   │       │   ├── 00098__docker_local_repository_profile.sql
+│   │       │   └── 00099__local_repository_sync_tool.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -434,9 +435,12 @@ SkyCommand/
 │   │       ├── gitBranchSyncResultSelfTest.js
 │   │       ├── gitCommitResult.js
 │   │       ├── gitCommitResultSelfTest.js
+│   │       ├── gitLocalSyncResult.js
+│   │       ├── gitLocalSyncResultSelfTest.js
 │   │       ├── gitRepositoryStatusInspector.js
 │   │       ├── gitRepositoryStatusResult.js
 │   │       ├── gitRepositoryStatusSelfTest.js
+│   │       ├── local_repo_sync.js
 │   │       └── main_merge.js
 │   ├── ingestion/
 │   │   └── src/
@@ -578,6 +582,7 @@ SkyCommand/
 │       │   ├── database_health_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
+│       │   ├── git_local_sync_summary.v1.schema.json
 │       │   ├── git_repository_status.v1.schema.json
 │       │   ├── ingestion_run_summary.v1.schema.json
 │       │   ├── macro_ingestion_summary.v1.schema.json
