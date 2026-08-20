@@ -2,6 +2,10 @@ const os = require('node:os');
 
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
+const {
+  DOCKER_COMPOSE_CONTROL_TOOL_CODE,
+  executeDockerComposeControl,
+} = require('./dockerControl');
 
 const HOST_AGENT_HEALTH_TOOL_CODE = '__health';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
@@ -63,6 +67,31 @@ async function executeSkyCommandHostToolActivity(input = {}) {
     }
   }
 
+  if (toolCode === DOCKER_COMPOSE_CONTROL_TOOL_CODE) {
+    try {
+      const result = await executeDockerComposeControl({
+        projectName: input.projectName,
+        action: input.action,
+        configFiles: input.configFiles,
+      });
+
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
   if (toolCode !== LOCAL_REPOSITORY_SYNC_TOOL_CODE) {
     return {
       ok: false,
@@ -100,6 +129,7 @@ async function executeSkyCommandHostToolActivity(input = {}) {
 }
 
 module.exports = {
+  DOCKER_COMPOSE_CONTROL_TOOL_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
   LOCAL_REPOSITORY_SYNC_TOOL_CODE,

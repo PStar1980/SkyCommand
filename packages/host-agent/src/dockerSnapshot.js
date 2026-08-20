@@ -61,6 +61,16 @@ function parseLabelMap(value) {
   return labels;
 }
 
+
+function parseComposeConfigFiles(value) {
+  return [...new Set(
+    normalizeText(value)
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  )];
+}
+
 function normalizeHealth(status) {
   const normalized = normalizeText(status).toLowerCase();
   if (normalized.includes('(healthy)')) return 'HEALTHY';
@@ -122,6 +132,7 @@ function normalizeProject(record = {}, containers = []) {
     state,
     status: normalizeText(record.Status || record.status),
     configFiles: normalizeText(record.ConfigFiles || record.configFiles),
+    configFileList: parseComposeConfigFiles(record.ConfigFiles || record.configFiles),
     containerCount: projectContainers.length,
     runningCount,
     healthyCount,
@@ -308,6 +319,7 @@ module.exports = {
   executeDockerSnapshot,
   normalizeContainer,
   normalizeHealth,
+  parseComposeConfigFiles,
   parseJsonRecords,
   parseLabelMap,
   runDockerCommand,

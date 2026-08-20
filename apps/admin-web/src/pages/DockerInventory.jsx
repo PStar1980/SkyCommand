@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import useDockerOverview from '../hooks/useDockerOverview.js';
+import infrastructureService from '../services/infrastructureService.js';
 
 const VIEW_CONFIG = {
   projects: {
@@ -41,7 +44,7 @@ function EmptyRow({ colSpan, loading, noun }) {
   );
 }
 
-function ProjectTable({ loading, projects }) {
+function ProjectTable({ canControl, controlling, loading, onControl, projects }) {
   return (
     <div className="table-responsive sky-table-card border-0 rounded-0">
       <table className="table table-sm table-hover sky-table align-middle mb-0">
@@ -53,26 +56,75 @@ function ProjectTable({ loading, projects }) {
             <th className="text-end">Services</th>
             <th className="text-end">Containers</th>
             <th className="text-end">Healthy</th>
+            <th>Controls</th>
           </tr>
         </thead>
         <tbody>
           {projects.length === 0 ? (
-            <EmptyRow colSpan={6} loading={loading} noun="projects" />
+            <EmptyRow colSpan={7} loading={loading} noun="projects" />
           ) : (
-            projects.map((project) => (
-              <tr key={project.name}>
-                <td className="fw-semibold">{project.name}</td>
-                <td>
-                  <StatusPill status={project.state} />
-                </td>
-                <td>{project.status || '—'}</td>
-                <td className="text-end">{project.serviceCount ?? 0}</td>
-                <td className="text-end">
-                  {project.runningCount ?? 0}/{project.containerCount ?? 0}
-                </td>
-                <td className="text-end">{project.healthyCount ?? 0}</td>
-              </tr>
-            ))
+            projects.map((project) => {
+              const control = project.control || {};
+              const actionState = control.actions || {};
+              const selfManaged = control.mode === 'SELF_MANAGED_PROTECTED';
+              const busy = controlling?.startsWith(`${project.name}:`);
+
+              return (
+                <tr key={project.name}>
+                  <td>
+                    <div className="fw-semibold">{project.name}</div>
+                    {selfManaged && (
+                      <div className="small sky-muted">
+                        Protected control-plane project
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <StatusPill status={project.state} />
+                  </td>
+                  <td>{project.status || '—'}</td>
+                  <td className="text-end">{project.serviceCount ?? 0}</td>
+                  <td className="text-end">
+                    {project.runningCount ?? 0}/{project.containerCount ?? 0}
+                  </td>
+                  <td className="text-end">{project.healthyCount ?? 0}</td>
+                  <td>
+                    {selfManaged ? (
+                      <StatusPill label="Self-managed" status="BLOCKED" />
+                    ) : !canControl ? (
+                      <StatusPill label="Read only" status="INFO" />
+                    ) : (
+                      <div className="d-flex flex-wrap gap-1">
+                        <button
+                          className="btn btn-sm sky-btn-primary"
+                          disabled={loading || busy || !actionState.start}
+                          onClick={() => onControl(project, 'START')}
+                          type="button"
+                        >
+                          {controlling === `${project.name}:START` ? 'Starting…' : 'Start'}
+                        </button>
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={loading || busy || !actionState.stop}
+                          onClick={() => onControl(project, 'STOP')}
+                          type="button"
+                        >
+                          {controlling === `${project.name}:STOP` ? 'Stopping…' : 'Stop'}
+                        </button>
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={loading || busy || !actionState.restart}
+                          onClick={() => onControl(project, 'RESTART')}
+                          type="button"
+                        >
+                          {controlling === `${project.name}:RESTART` ? 'Restarting…' : 'Restart'}
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
@@ -239,6 +291,11 @@ function StorageTables({ loading, networks, volumes }) {
 
 function DockerInventory({ view }) {
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.containers;
+  const { hasPermission } = useAuth();
+  const canControl = hasPermission('INFRASTRUCTURE_DOCKER_CONTROL');
+  const [controlError, setControlError] = useState('');
+  const [controlNotice, setControlNotice] = useState('');
+  const [controlling, setControlling] = useState('');
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
   const projects = Array.isArray(overview?.projects) ? overview.projects : [];
@@ -246,6 +303,36 @@ function DockerInventory({ view }) {
   const images = Array.isArray(overview?.images) ? overview.images : [];
   const volumes = Array.isArray(overview?.volumes) ? overview.volumes : [];
   const networks = Array.isArray(overview?.networks) ? overview.networks : [];
+
+  async function handleProjectControl(project, action) {
+    if (!project?.name || !canControl) return;
+
+    const verb = action.charAt(0) + action.slice(1).toLowerCase();
+    const confirmed = window.confirm(
+      `${verb} Docker Compose project ${project.name}? This action runs through the host-native SkyCommand Host Agent and will be written to Docker Operations.`,
+    );
+
+    if (!confirmed) return;
+
+    setControlling(`${project.name}:${action}`);
+    setControlError('');
+    setControlNotice('');
+
+    try {
+      const result = await infrastructureService.controlDockerComposeProject(project.name, action);
+      setControlNotice(result.operation?.message || `${verb} completed for ${project.name}.`);
+      await loadOverview();
+    } catch (controlFailure) {
+      const code = controlFailure.details?.code;
+      setControlError(
+        code
+          ? `${code} · ${controlFailure.message || 'Docker lifecycle action failed.'}`
+          : controlFailure.message || 'Docker lifecycle action failed.',
+      );
+    } finally {
+      setControlling('');
+    }
+  }
 
   return (
     <>
@@ -267,6 +354,8 @@ function DockerInventory({ view }) {
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
+      {controlError && <div className="alert alert-danger">{controlError}</div>}
+      {controlNotice && <div className="alert alert-success">{controlNotice}</div>}
       {overview?.error && (
         <div className="alert alert-warning">
           <strong>{overview.error.code}</strong> · {overview.error.message}
@@ -275,7 +364,13 @@ function DockerInventory({ view }) {
 
       {view === 'projects' && (
         <Panel title="Compose Project Inventory">
-          <ProjectTable loading={loading} projects={projects} />
+          <ProjectTable
+            canControl={canControl}
+            controlling={controlling}
+            loading={loading}
+            onControl={handleProjectControl}
+            projects={projects}
+          />
         </Panel>
       )}
       {view === 'containers' && (

@@ -1,11 +1,25 @@
 import api from './api';
 
-function getDockerOverview() {
+async function getDockerOverview() {
   return api.get('/api/infrastructure/providers/docker/overview');
 }
 
-const infrastructureService = {
-  getDockerOverview,
-};
+async function controlDockerComposeProject(projectName, action) {
+  return api.post(
+    `/api/infrastructure/providers/docker/projects/${encodeURIComponent(projectName)}/actions`,
+    {
+      action,
+      confirmed: true,
+    },
+  );
+}
 
-export default infrastructureService;
+async function listDockerOperations(filters = {}) {
+  return api.get('/api/infrastructure/providers/docker/operations', { query: filters });
+}
+
+export default {
+  controlDockerComposeProject,
+  getDockerOverview,
+  listDockerOperations,
+};
