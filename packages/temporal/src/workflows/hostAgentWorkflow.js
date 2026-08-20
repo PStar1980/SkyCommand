@@ -7,10 +7,11 @@ const {
 
 async function skyCommandHostAgentToolWorkflow(input = {}) {
   const hostTaskQueue = normalizeHostAgentTaskQueue(input.hostTaskQueue);
+  const isHealthProbe = String(input.toolCode || '').trim() === '__health';
   const { executeSkyCommandHostToolActivity } = proxyActivities({
     taskQueue: hostTaskQueue,
-    scheduleToStartTimeout: '45 seconds',
-    startToCloseTimeout: '10 minutes',
+    scheduleToStartTimeout: isHealthProbe ? '3 seconds' : '45 seconds',
+    startToCloseTimeout: isHealthProbe ? '3 seconds' : '10 minutes',
     retry: {
       maximumAttempts: 1,
     },

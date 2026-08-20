@@ -1,6 +1,6 @@
 const SUCCESS_STATUSES = new Set(['SUCCESS', 'CURRENT', 'ONLINE', 'POLLING', 'COMPLETED', 'PASS', 'ACTIVE', 'READY', 'VALID']);
 const DANGER_STATUSES = new Set(['FAILED', 'FAIL', 'ERROR', 'OFFLINE', 'TERMINATED', 'CANCELED', 'BLOCKED', 'INVALID', 'REJECTED']);
-const WARNING_STATUSES = new Set(['STARTED', 'RUNNING', 'WARNING', 'STALE', 'DEGRADED', 'BUSY', 'QUEUED', 'PENDING']);
+const WARNING_STATUSES = new Set(['STARTED', 'RUNNING', 'WARNING', 'STALE', 'DEGRADED', 'BUSY', 'QUEUED', 'PENDING', 'DISABLED']);
 
 export function normalizeStatus(value) {
   if (value === true) {

@@ -134,6 +134,7 @@ function Dashboard() {
   const workflowHealth = summary.workflowHealth || null;
   const workflowRunRecords = summary.workflowRunsDetailed?.items || [];
   const workflowTaskQueue = workflowHealth?.taskQueue || {};
+  const hostAgentHealth = workflowHealth?.hostAgent || null;
 
   function changeIdentityWindow(event) {
     const nextDays = Number(event.target.value) || 7;
@@ -414,6 +415,38 @@ function Dashboard() {
             helper: workflowHealth
               ? `${workflowTaskQueue.pollerCount || 0} poller(s) · ${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'task queue'}`
               : 'Temporal worker health is unavailable to this session',
+          },
+          {
+            label: 'Host agent',
+            value: !workflowHealth
+              ? loading
+                ? 'Checking'
+                : 'Unknown'
+              : !hostAgentHealth?.enabled
+                ? 'Disabled'
+                : hostAgentHealth.online
+                  ? 'Online'
+                  : hostAgentHealth.status === 'STALE'
+                    ? 'Stale'
+                    : 'Offline',
+            status: !workflowHealth
+              ? loading
+                ? 'PENDING'
+                : 'UNKNOWN'
+              : !hostAgentHealth?.enabled
+                ? 'DISABLED'
+                : hostAgentHealth.online
+                  ? 'ONLINE'
+                  : hostAgentHealth.status || 'OFFLINE',
+            helper: !workflowHealth
+              ? 'Host Agent health is unavailable to this session'
+              : !hostAgentHealth?.enabled
+                ? 'Host execution disabled · SKYCOMMAND_HOST_AGENT_ENABLED=false'
+                : hostAgentHealth.online
+                  ? `${hostAgentHealth.recentHeartbeatCount || 0} recent heartbeat(s) · ${hostAgentHealth.taskQueue || 'host task queue'}`
+                  : hostAgentHealth.latestHeartbeat?.lastSeenAt
+                    ? `Last heartbeat ${new Date(hostAgentHealth.latestHeartbeat.lastSeenAt).toLocaleString()} · ${hostAgentHealth.taskQueue || 'host task queue'}`
+                    : `No Host Agent heartbeat · ${hostAgentHealth.taskQueue || 'host task queue'}`,
           },
         ]}
       />

@@ -235,6 +235,8 @@ SkyCommand/
 │   │       │   ├── workflowCloneParitySelfTest.js
 │   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowConditionService.js
+│   │       │   ├── workflowExecutionPreflightSelfTest.js
+│   │       │   ├── workflowExecutionPreflightService.js
 │   │       │   ├── workflowExecutorService.js
 │   │       │   ├── workflowHealthService.js
 │   │       │   ├── workflowParameterUtils.js
@@ -806,6 +808,9 @@ SkyCommand/
 │   ├── powershell/
 │   │   ├── Build-SkyOne-Bootloader.ps1
 │   │   ├── Clean-BackendCache.ps1
-│   │   └── Clean-FrontendCache.ps1
+│   │   ├── Clean-FrontendCache.ps1
+│   │   ├── hostAgentTaskSelfTest.js
+│   │   ├── SkyCommand-HostAgentTask.ps1
+│   │   └── Start-SkyCommandHostAgent.ps1
 │   └── python/
 └── tests/

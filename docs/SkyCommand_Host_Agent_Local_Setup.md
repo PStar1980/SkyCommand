@@ -43,6 +43,7 @@ SKYCOMMAND_HOST_AGENT_ENABLED=true
 SKYCOMMAND_HOST_AGENT_TASK_QUEUE=skycommand-host-local
 SKYCOMMAND_HOST_AGENT_PROFILE=DEV_LOCAL
 SKYCOMMAND_HOST_AGENT_HEARTBEAT_INTERVAL_MS=15000
+SKYCOMMAND_HOST_AGENT_HEARTBEAT_DB_CONNECT_TIMEOUT_MS=3000
 ```
 
 `SKYCOMMAND_HOST_AGENT_ENABLED` is intentionally opt-in. Docker-side `local_repo_sync` fails closed when it is false or missing.
@@ -56,6 +57,15 @@ npm run host-agent
 ```
 
 Expected startup evidence includes the Temporal address, namespace, dedicated task queue, host repository profile, available repository count, and Host Agent identity.
+
+For normal Windows use, install the host-native automatic-start task after the first manual proof:
+
+```powershell
+npm run host-agent:auto-start:install
+npm run host-agent:auto-start:status
+```
+
+Before installing the task, stop any manually running `npm run host-agent` process; the installer refuses to create a second host agent. The task starts after the current Windows user logs on, runs with limited privileges, prevents duplicate task instances, and retries startup for up to an hour if Docker/Temporal is still coming online. Runtime output is retained under `logs/host-agent/scheduled-task.log` with a small rollover guard. The Windows runner deliberately allows native Node stderr while the worker is active because Temporal writes normal lifecycle diagnostics to stderr; the native process exit code remains authoritative. `npm run host-agent:auto-start:status` reports both Task Scheduler state and the detected host-agent process state and exits non-zero when the automatic worker is not actually running. The task deliberately remains outside Docker so host-owned Git worktrees are never writable by Linux containers. Remove it with `npm run host-agent:auto-start:uninstall`; manual `start` and `stop` helpers are also available.
 
 In a second host terminal, run the end-to-end health proof:
 
@@ -103,7 +113,7 @@ Repository Map
 → Development Promotion Summary
 ```
 
-When Local Repository Sync succeeds, the workflow summary reports full `PROMOTED` state and four-way synchronization evidence instead of stopping at `REMOTE_PROMOTED`. After applying the migration, run `npm run development-promotion:host-sync:check` before the first live promotion proof.
+When Local Repository Sync succeeds, the workflow summary reports full `PROMOTED` state and four-way synchronization evidence instead of stopping at `REMOTE_PROMOTED`. `PROMOTED` is therefore reserved for proven host convergence; remote-only success remains `REMOTE_PROMOTED`. Before SkyCommand queues any workflow containing a host-execution node, the API verifies that Host Agent dispatch is enabled and first uses the recent heartbeat ledger as its fast readiness signal. If that heartbeat is stale or temporarily unavailable, the API performs a bounded live Temporal Host Agent probe before blocking the workflow. A disabled Host Agent or a failed heartbeat-plus-live-probe check blocks the workflow before a run record is queued, while a live Host Agent is not falsely rejected solely because telemetry is recovering. After applying the migration, run `npm run development-promotion:host-sync:check` before the first live promotion proof.
 
 ## Guardrails retained
 
@@ -124,6 +134,26 @@ Any mismatch fails closed and no blind reset, clean, forced checkout, or arbitra
 
 ## Operational notes
 
-The Host Agent is deliberately outside `docker compose`. Restarting or rebuilding the Docker stack does not install a host process. Start the Host Agent after the Docker Temporal service is available. If Temporal is unavailable for a prolonged period or the Host Agent exits, restart it with `npm run host-agent` and re-run `npm run host-agent:check` before Development Promotion.
+The Host Agent is deliberately outside `docker compose`. Restarting or rebuilding the Docker stack does not install a host process. After automatic startup has been installed, use `npm run host-agent:auto-start:start` to request a host-native restart and `npm run host-agent:auto-start:status` to confirm `Operational state: RUNNING`. If the status reports `FAILED` or `STOPPED`, inspect `logs/host-agent/scheduled-task.log` before Development Promotion. Manual `npm run host-agent` remains the direct diagnostic path, but do not run manual and scheduled-task instances together. Re-run `npm run host-agent:check` after any restart to prove the complete Docker Temporal → host activity bridge.
 
-The Host Agent writes its liveness into `worker.temporal_worker_heartbeats` with role metadata `HOST_AGENT`, so the control plane can distinguish it from the Docker Temporal worker while retaining one worker-health model.
+The Host Agent writes its liveness into `worker.temporal_worker_heartbeats` with role metadata `HOST_AGENT`, so the control plane can distinguish it from the Docker Temporal worker while retaining one worker-health model. Heartbeats use a short-lived PostgreSQL connection with a bounded connection/query timeout so a Docker PostgreSQL restart cannot permanently strand the telemetry path; failures are retried on the normal heartbeat cadence and recovery is logged once connectivity returns. Command Center surfaces the persisted state as its own **Host Agent** availability card, including disabled, online, stale, and offline states. Workflow launch safety is slightly stronger than the dashboard signal: stale/missing heartbeat telemetry falls back to the live Temporal probe before host execution is declared unavailable.
+
+
+### Docker restart resilience proof
+
+After changing Host Agent or preflight code, rebuild/restart the Docker stack and restart the host-native agent so both halves are on the same code version:
+
+```powershell
+npm run skycommand:docker:restart
+npm run host-agent:auto-start:stop
+npm run host-agent:auto-start:start
+npm run host-agent:check
+```
+
+To prove recovery rather than ideal startup order, leave the Host Agent running and restart Docker again:
+
+```powershell
+npm run skycommand:docker:restart
+```
+
+Do **not** restart the Host Agent after this second Docker restart. Within the configured heartbeat cadence, `worker.vw_temporal_worker_heartbeats` should show the same Host Agent process returning to a recent `ONLINE` heartbeat. During the short database restart window, workflow preflight may use the bounded live Temporal probe; after PostgreSQL returns, the heartbeat ledger should recover automatically. This proves that a temporary Docker/PostgreSQL outage does not require manual Host Agent intervention.
