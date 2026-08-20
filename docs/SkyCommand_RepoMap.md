@@ -53,6 +53,7 @@ SkyCommand/
 │   │       │   └── sky-net-background.svg
 │   │       ├── components/
 │   │       │   ├── ConditionParameterEditor.jsx
+│   │       │   ├── DockerContainerDetailsModal.jsx
 │   │       │   ├── HumanApprovalParameterEditor.jsx
 │   │       │   ├── IngestionProfileEditor.jsx
 │   │       │   ├── Navbar.jsx
@@ -385,7 +386,8 @@ SkyCommand/
 │   │       │   ├── 00100__host_agent_local_repository_sync.sql
 │   │       │   ├── 00101__development_promotion_host_sync_node.sql
 │   │       │   ├── 00102__docker_infrastructure_read_foundation.sql
-│   │       │   └── 00103__docker_compose_lifecycle_controls.sql
+│   │       │   ├── 00103__docker_compose_lifecycle_controls.sql
+│   │       │   └── 00104__docker_container_operations.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -463,6 +465,8 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── activities.js
 │   │       ├── config.js
+│   │       ├── dockerContainer.js
+│   │       ├── dockerContainerSelfTest.js
 │   │       ├── dockerControl.js
 │   │       ├── dockerControlSelfTest.js
 │   │       ├── dockerSnapshot.js

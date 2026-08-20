@@ -19,6 +19,18 @@ router.get(
   infrastructureController.listDockerOperations,
 );
 
+router.get(
+  '/providers/docker/containers/:containerId',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.getDockerContainerDetail,
+);
+
+router.post(
+  '/providers/docker/containers/:containerId/actions',
+  requirePermission('INFRASTRUCTURE_DOCKER_CONTROL'),
+  infrastructureController.controlDockerContainer,
+);
+
 router.post(
   '/providers/docker/projects/:projectName/actions',
   requirePermission('INFRASTRUCTURE_DOCKER_CONTROL'),

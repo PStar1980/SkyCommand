@@ -12,6 +12,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 const compose = read('compose.yaml');
 const dockerfile = read('docker/web.Dockerfile');
 const nginx = read('docker/web.nginx.conf');
+const viteConfig = read('apps/admin-web/vite.config.js');
 const webPackage = JSON.parse(read('docker/web.package.json'));
 const helper = read('scripts/docker/webDocker.js');
 const packageJson = JSON.parse(read('package.json'));
@@ -20,7 +21,7 @@ const validate = read('scripts/validate.js');
 assert(
   compose.includes('web:') &&
     compose.includes('dockerfile: docker/web.Dockerfile') &&
-    compose.includes('127.0.0.1:${SKYCOMMAND_WEB_PORT:-5171}:8080') &&
+    compose.includes('127.0.0.1:${SKYCOMMAND_WEB_PORT:-15171}:8080') &&
     compose.includes('condition: service_healthy') &&
     compose.includes("wget -q -O /dev/null http://127.0.0.1:8080/healthz") &&
     compose.includes('read_only: true') &&
@@ -66,7 +67,16 @@ assert(
   'NGINX must use Docker DNS for API proxying, preserve the same-origin API routes, support SPA routing, and separate immutable asset caching from the HTML shell.',
 );
 assert(
-  helper.includes("process.env.SKYCOMMAND_WEB_PORT || '5171'") &&
+  viteConfig.includes("process.env.SKYCOMMAND_WEB_PORT || env.SKYCOMMAND_WEB_PORT || '15171'") &&
+    viteConfig.includes('port: resolveWebPort(mode)') &&
+    viteConfig.includes('strictPort: true'),
+  'Host Vite must use the same configurable canonical Admin-Web port as Docker.',
+);
+assert(
+  helper.includes("process.env.SKYCOMMAND_WEB_PORT || '15171'") &&
+    helper.includes("'netsh'") &&
+    helper.includes("'excludedportrange'") &&
+    helper.includes('assertWebPortIsBindable(port)') &&
     helper.includes("'postgres'") &&
     helper.includes("'temporal-worker'") &&
     helper.includes("'node-worker'") &&

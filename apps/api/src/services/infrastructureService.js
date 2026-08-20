@@ -9,9 +9,15 @@ const { getHostAgentAvailability } = require('./workflowExecutionPreflightServic
 const DOCKER_PROVIDER_CODE = 'DOCKER';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 const DOCKER_COMPOSE_CONTROL_TOOL_CODE = '__docker_compose_control';
+const DOCKER_CONTAINER_DETAIL_TOOL_CODE = '__docker_container_detail';
+const DOCKER_CONTAINER_CONTROL_TOOL_CODE = '__docker_container_control';
 const DOCKER_CONTROL_ACTIONS = new Set(['START', 'STOP', 'RESTART']);
+const DOCKER_CONTAINER_CONTROL_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'PAUSE', 'UNPAUSE']);
 const DOCKER_OPERATION_EVENT_TYPE = 'DOCKER_COMPOSE_CONTROL';
+const DOCKER_CONTAINER_OPERATION_EVENT_TYPE = 'DOCKER_CONTAINER_CONTROL';
+const DOCKER_OPERATION_EVENT_TYPES = [DOCKER_OPERATION_EVENT_TYPE, DOCKER_CONTAINER_OPERATION_EVENT_TYPE];
 const activeDockerProjectControls = new Set();
+const activeDockerContainerControls = new Set();
 
 async function defaultAuditRecorder(event) {
   const authService = require('./authService');
@@ -80,6 +86,26 @@ function buildProjectControl(project = {}) {
   };
 }
 
+function buildContainerControl(container = {}) {
+  const projectName = normalizeText(container.project);
+  const state = normalizeText(container.state, 'UNKNOWN').toUpperCase();
+  const selfManaged = Boolean(projectName) && projectName.toLowerCase() === getSelfDockerProjectName();
+  const allowed = !selfManaged;
+
+  return {
+    mode: selfManaged ? 'SELF_MANAGED_PROTECTED' : 'HOST_AGENT',
+    allowed,
+    reasonCode: selfManaged ? 'SKYCOMMAND_DOCKER_SELF_CONTROL_BLOCKED' : null,
+    actions: {
+      start: allowed && ['EXITED', 'CREATED', 'DEAD'].includes(state),
+      stop: allowed && ['RUNNING', 'RESTARTING'].includes(state),
+      restart: allowed && state === 'RUNNING',
+      pause: allowed && state === 'RUNNING',
+      unpause: allowed && state === 'PAUSED',
+    },
+  };
+}
+
 function decorateDockerOverview(snapshot = {}) {
   return {
     ...snapshot,
@@ -87,6 +113,10 @@ function decorateDockerOverview(snapshot = {}) {
       ...project,
       configFileList: parseConfigFiles(project),
       control: buildProjectControl(project),
+    })),
+    containers: (Array.isArray(snapshot.containers) ? snapshot.containers : []).map((container) => ({
+      ...container,
+      control: buildContainerControl(container),
     })),
   };
 }
@@ -241,6 +271,36 @@ async function dispatchDockerComposeControl({ projectName, action, configFiles }
       ...options,
       workflowIdPrefix: `skycommand-docker-${action.toLowerCase()}`,
       workflowExecutionTimeout: '4 minutes',
+    },
+  );
+}
+
+async function dispatchDockerContainerDetail({ containerId, tail = 200 }, options = {}) {
+  return executeHostAgentWorkflow(
+    {
+      toolCode: DOCKER_CONTAINER_DETAIL_TOOL_CODE,
+      containerId,
+      tail,
+    },
+    {
+      ...options,
+      workflowIdPrefix: 'skycommand-docker-container-detail',
+      workflowExecutionTimeout: '30 seconds',
+    },
+  );
+}
+
+async function dispatchDockerContainerControl({ containerId, action }, options = {}) {
+  return executeHostAgentWorkflow(
+    {
+      toolCode: DOCKER_CONTAINER_CONTROL_TOOL_CODE,
+      containerId,
+      action,
+    },
+    {
+      ...options,
+      workflowIdPrefix: `skycommand-docker-container-${action.toLowerCase()}`,
+      workflowExecutionTimeout: '3 minutes',
     },
   );
 }
@@ -533,6 +593,326 @@ async function controlDockerComposeProject({
   }
 }
 
+function findDockerContainer(overview = {}, containerReference = '') {
+  const requested = normalizeText(containerReference).toLowerCase();
+  if (!requested) return null;
+
+  return (overview.containers || []).find((container) => {
+    const id = normalizeText(container.id).toLowerCase();
+    const name = normalizeText(container.name).toLowerCase();
+    const idMatch =
+      id.length >= 12 &&
+      requested.length >= 12 &&
+      (id === requested || id.startsWith(requested) || requested.startsWith(id));
+    return idMatch || name === requested;
+  }) || null;
+}
+
+function normalizeLogTail(value, fallback = 200) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.trunc(parsed), 1), 1000);
+}
+
+async function getDockerContainerDetail({
+  containerId,
+  tail = 200,
+  overviewLoader = getDockerOverview,
+  dispatcher = dispatchDockerContainerDetail,
+} = {}) {
+  const overview = await overviewLoader();
+  if (overview?.error || overview?.target?.status !== 'ONLINE') {
+    throw createControlError(
+      503,
+      overview?.error?.code || 'SKYCOMMAND_DOCKER_UNAVAILABLE',
+      overview?.error?.message || 'Docker provider is unavailable.',
+      overview?.error?.details || {},
+    );
+  }
+
+  const inventoryContainer = findDockerContainer(overview, containerId);
+  if (!inventoryContainer) {
+    throw createControlError(
+      404,
+      'SKYCOMMAND_DOCKER_CONTAINER_NOT_FOUND',
+      'Docker container was not discovered on the target.',
+    );
+  }
+
+  const response = await dispatcher({
+    containerId: inventoryContainer.id,
+    tail: normalizeLogTail(tail),
+  });
+
+  if (!response?.ok) {
+    throw createControlError(
+      502,
+      response?.error?.code || 'SKYCOMMAND_DOCKER_CONTAINER_DETAIL_FAILED',
+      response?.error?.message || 'Docker container inspection failed on the Host Agent.',
+      response?.error?.details || {},
+    );
+  }
+
+  const detail = response.result || {};
+  const detailContainer = detail.container || {};
+  return {
+    providerCode: DOCKER_PROVIDER_CODE,
+    targetCode: overview.target?.targetCode || null,
+    container: {
+      ...inventoryContainer,
+      ...detailContainer,
+      id: detailContainer.id || inventoryContainer.id,
+      inventoryId: inventoryContainer.id,
+      name: detailContainer.name || inventoryContainer.name,
+      project: detailContainer.project || inventoryContainer.project,
+      service: detailContainer.service || inventoryContainer.service,
+      inventoryState: inventoryContainer.state,
+      control: buildContainerControl(inventoryContainer),
+    },
+    logs: detail.logs || {
+      stdout: '',
+      stderr: '',
+      available: false,
+      truncated: false,
+      tail: normalizeLogTail(tail),
+    },
+    capturedAt: detail.capturedAt || new Date().toISOString(),
+    transport: detail.transport || 'HOST_AGENT',
+  };
+}
+
+async function recordDockerContainerOperation({
+  auditRecorder = defaultAuditRecorder,
+  actor = {},
+  session = {},
+  requestContext = {},
+  operationId,
+  container = {},
+  action,
+  success,
+  message,
+  metadata = {},
+}) {
+  await auditRecorder({
+    appCode: session?.appCode,
+    userId: actor?.userId || null,
+    eventType: DOCKER_CONTAINER_OPERATION_EVENT_TYPE,
+    resourceType: 'docker_container',
+    resourceId: container.name || container.id || 'unknown',
+    action: action.toLowerCase(),
+    success,
+    message,
+    metadata: {
+      operationId,
+      providerCode: DOCKER_PROVIDER_CODE,
+      containerId: container.id || null,
+      containerName: container.name || null,
+      projectName: container.project || null,
+      serviceName: container.service || null,
+      requestedAction: action,
+      ...metadata,
+    },
+    ipAddress: requestContext?.ipAddress || null,
+    userAgent: requestContext?.userAgent || null,
+  });
+}
+
+function normalizeContainerAction(value) {
+  const action = normalizeText(value).toUpperCase();
+  if (!DOCKER_CONTAINER_CONTROL_ACTIONS.has(action)) {
+    throw createControlError(
+      400,
+      'SKYCOMMAND_DOCKER_CONTAINER_ACTION_NOT_ALLOWED',
+      `Docker container action '${action || 'blank'}' is not allowed.`,
+      { allowedActions: [...DOCKER_CONTAINER_CONTROL_ACTIONS] },
+    );
+  }
+  return action;
+}
+
+async function controlDockerContainer({
+  containerId,
+  action,
+  confirmed = false,
+  actor = {},
+  session = {},
+  requestContext = {},
+  overviewLoader = getDockerOverview,
+  dispatcher = dispatchDockerContainerControl,
+  auditRecorder = defaultAuditRecorder,
+} = {}) {
+  const normalizedAction = normalizeContainerAction(action);
+  const requestedContainerId = normalizeText(containerId);
+  const operationId = randomUUID();
+  let container = { id: requestedContainerId, name: requestedContainerId };
+  let previousState = 'UNKNOWN';
+  let targetCode = normalizeText(process.env.SKYCOMMAND_DOCKER_TARGET_CODE, 'LOCAL_DOCKER');
+
+  try {
+    if (!confirmed) {
+      throw createControlError(
+        400,
+        'SKYCOMMAND_DOCKER_CONFIRMATION_REQUIRED',
+        'Docker container lifecycle actions require explicit confirmation.',
+      );
+    }
+
+    const before = await overviewLoader();
+    if (before?.error || before?.target?.status !== 'ONLINE') {
+      throw createControlError(
+        503,
+        before?.error?.code || 'SKYCOMMAND_DOCKER_UNAVAILABLE',
+        before?.error?.message || 'Docker provider is unavailable.',
+        before?.error?.details || {},
+      );
+    }
+
+    targetCode = normalizeText(before?.target?.targetCode, targetCode);
+    const discovered = findDockerContainer(before, requestedContainerId);
+    if (!discovered) {
+      throw createControlError(
+        404,
+        'SKYCOMMAND_DOCKER_CONTAINER_NOT_FOUND',
+        'Docker container was not discovered on the target.',
+      );
+    }
+
+    container = discovered;
+    previousState = normalizeText(discovered.state, 'UNKNOWN').toUpperCase();
+    const control = buildContainerControl(discovered);
+
+    if (!control.allowed) {
+      throw createControlError(
+        409,
+        control.reasonCode || 'SKYCOMMAND_DOCKER_CONTAINER_CONTROL_BLOCKED',
+        'SkyCommand protects containers in its own Compose project from synchronous lifecycle controls so the control plane cannot terminate itself mid-operation.',
+        { containerId: discovered.id, containerName: discovered.name, projectName: discovered.project },
+      );
+    }
+
+    const actionKey = normalizedAction.toLowerCase();
+    if (!control.actions[actionKey]) {
+      throw createControlError(
+        409,
+        'SKYCOMMAND_DOCKER_CONTAINER_ACTION_STATE_CONFLICT',
+        `${normalizedAction} is not available while container '${discovered.name || discovered.id}' is ${previousState}.`,
+        { containerId: discovered.id, state: previousState, action: normalizedAction },
+      );
+    }
+
+    const lockKey = `${targetCode}:${discovered.id}`.toLowerCase();
+    if (activeDockerContainerControls.has(lockKey)) {
+      throw createControlError(
+        409,
+        'SKYCOMMAND_DOCKER_CONTAINER_BUSY',
+        `Docker container '${discovered.name || discovered.id}' already has a lifecycle action in progress.`,
+        { containerId: discovered.id },
+      );
+    }
+
+    activeDockerContainerControls.add(lockKey);
+    const startedAt = Date.now();
+    let response;
+    try {
+      response = await dispatcher({
+        containerId: discovered.id,
+        action: normalizedAction,
+      });
+    } finally {
+      activeDockerContainerControls.delete(lockKey);
+    }
+
+    if (!response?.ok) {
+      throw createControlError(
+        502,
+        response?.error?.code || 'SKYCOMMAND_DOCKER_CONTAINER_CONTROL_FAILED',
+        response?.error?.message || 'Docker container lifecycle action failed on the Host Agent.',
+        response?.error?.details || {},
+      );
+    }
+
+    const after = await overviewLoader();
+    const resultingContainer = findDockerContainer(after, discovered.id);
+    const resultingState = normalizeText(resultingContainer?.state, previousState).toUpperCase();
+    const durationMs = Math.max(Date.now() - startedAt, 0);
+    const message = `${normalizedAction} completed for Docker container '${discovered.name || discovered.id}'.`;
+
+    let auditPersisted = true;
+    try {
+      await recordDockerContainerOperation({
+        auditRecorder,
+        actor,
+        session,
+        requestContext,
+        operationId,
+        container: discovered,
+        action: normalizedAction,
+        success: true,
+        message,
+        metadata: {
+          targetCode,
+          previousState,
+          resultingState,
+          durationMs,
+          transport: 'HOST_AGENT',
+        },
+      });
+    } catch (auditError) {
+      auditPersisted = false;
+      console.warn('[SkyCommand Infrastructure] Successful Docker container operation audit failed:', auditError.message);
+    }
+
+    return {
+      operation: {
+        operationId,
+        providerCode: DOCKER_PROVIDER_CODE,
+        targetCode,
+        resourceType: 'CONTAINER',
+        containerId: discovered.id,
+        containerName: discovered.name,
+        projectName: discovered.project || null,
+        serviceName: discovered.service || null,
+        action: normalizedAction,
+        status: 'SUCCESS',
+        previousState,
+        resultingState,
+        durationMs,
+        auditPersisted,
+        message,
+        completedAt: new Date().toISOString(),
+      },
+      overview: after,
+    };
+  } catch (error) {
+    const message = error?.message || 'Docker container lifecycle action failed.';
+
+    try {
+      await recordDockerContainerOperation({
+        auditRecorder,
+        actor,
+        session,
+        requestContext,
+        operationId,
+        container,
+        action: normalizedAction,
+        success: false,
+        message,
+        metadata: {
+          targetCode,
+          previousState,
+          errorCode: error?.code || error?.details?.code || 'SKYCOMMAND_DOCKER_CONTAINER_CONTROL_FAILED',
+          statusCode: error?.statusCode || 500,
+          transport: 'HOST_AGENT',
+        },
+      });
+    } catch (auditError) {
+      console.warn('[SkyCommand Infrastructure] Docker container operation audit failed:', auditError.message);
+    }
+
+    throw error;
+  }
+}
+
 function normalizeLimit(value, fallback = 20) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -556,17 +936,26 @@ function parseOptionalBoolean(value) {
 async function listDockerOperations(filters = {}, { queryExecutor = defaultQueryExecutor } = {}) {
   const limit = normalizeLimit(filters.limit, 20);
   const offset = normalizeOffset(filters.offset);
-  const conditions = ['event_type = $1'];
-  const params = [DOCKER_OPERATION_EVENT_TYPE];
+  const scope = normalizeText(filters.scope).toUpperCase();
+  const eventTypes = scope === 'COMPOSE'
+    ? [DOCKER_OPERATION_EVENT_TYPE]
+    : scope === 'CONTAINER'
+      ? [DOCKER_CONTAINER_OPERATION_EVENT_TYPE]
+      : DOCKER_OPERATION_EVENT_TYPES;
+  const conditions = ['event_type = ANY($1::text[])'];
+  const params = [eventTypes];
 
   const projectName = normalizeText(filters.projectName || filters.project);
   if (projectName) {
     params.push(projectName);
-    conditions.push(`LOWER(resource_id) = LOWER($${params.length})`);
+    conditions.push(
+      `LOWER(COALESCE(metadata->>'projectName', CASE WHEN event_type = '${DOCKER_OPERATION_EVENT_TYPE}' THEN resource_id END, '')) = LOWER($${params.length})`,
+    );
   }
 
   const action = normalizeText(filters.action).toLowerCase();
-  if (action && DOCKER_CONTROL_ACTIONS.has(action.toUpperCase())) {
+  const allowedActions = new Set([...DOCKER_CONTROL_ACTIONS, ...DOCKER_CONTAINER_CONTROL_ACTIONS]);
+  if (action && allowedActions.has(action.toUpperCase())) {
     params.push(action);
     conditions.push(`LOWER(action) = LOWER($${params.length})`);
   }
@@ -592,6 +981,8 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
         email,
         username,
         display_name,
+        event_type,
+        resource_type,
         resource_id,
         action,
         success,
@@ -608,23 +999,33 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
   );
 
   return {
-    items: (result.rows || []).map((row) => ({
-      operationId: row.metadata?.operationId || row.audit_event_id,
-      auditEventId: row.audit_event_id,
-      projectName: row.resource_id,
-      action: normalizeText(row.action).toUpperCase(),
-      status: row.success ? 'SUCCESS' : 'FAILED',
-      success: Boolean(row.success),
-      message: row.message,
-      actor: row.display_name || row.username || row.email || 'System',
-      userId: row.user_id,
-      targetCode: row.metadata?.targetCode || null,
-      previousState: row.metadata?.previousState || null,
-      resultingState: row.metadata?.resultingState || null,
-      durationMs: row.metadata?.durationMs ?? null,
-      errorCode: row.metadata?.errorCode || null,
-      createdAt: row.created_at,
-    })),
+    items: (result.rows || []).map((row) => {
+      const containerOperation = row.event_type === DOCKER_CONTAINER_OPERATION_EVENT_TYPE;
+      return {
+        operationId: row.metadata?.operationId || row.audit_event_id,
+        auditEventId: row.audit_event_id,
+        resourceType: containerOperation ? 'CONTAINER' : 'COMPOSE_PROJECT',
+        resourceName: containerOperation
+          ? row.metadata?.containerName || row.resource_id
+          : row.resource_id,
+        projectName: row.metadata?.projectName || (containerOperation ? null : row.resource_id),
+        containerId: row.metadata?.containerId || null,
+        containerName: row.metadata?.containerName || null,
+        serviceName: row.metadata?.serviceName || null,
+        action: normalizeText(row.action).toUpperCase(),
+        status: row.success ? 'SUCCESS' : 'FAILED',
+        success: Boolean(row.success),
+        message: row.message,
+        actor: row.display_name || row.username || row.email || 'System',
+        userId: row.user_id,
+        targetCode: row.metadata?.targetCode || null,
+        previousState: row.metadata?.previousState || null,
+        resultingState: row.metadata?.resultingState || null,
+        durationMs: row.metadata?.durationMs ?? null,
+        errorCode: row.metadata?.errorCode || null,
+        createdAt: row.created_at,
+      };
+    }),
     total: Number(countResult.rows?.[0]?.total || 0),
     limit,
     offset,
@@ -633,17 +1034,27 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
 
 module.exports = {
   DOCKER_COMPOSE_CONTROL_TOOL_CODE,
+  DOCKER_CONTAINER_CONTROL_ACTIONS,
+  DOCKER_CONTAINER_CONTROL_TOOL_CODE,
+  DOCKER_CONTAINER_DETAIL_TOOL_CODE,
+  DOCKER_CONTAINER_OPERATION_EVENT_TYPE,
   DOCKER_CONTROL_ACTIONS,
   DOCKER_OPERATION_EVENT_TYPE,
   DOCKER_PROVIDER_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
+  buildContainerControl,
   buildDockerTarget,
   buildProjectControl,
   buildUnavailableDockerOverview,
   controlDockerComposeProject,
+  controlDockerContainer,
   decorateDockerOverview,
   dispatchDockerComposeControl,
+  dispatchDockerContainerControl,
+  dispatchDockerContainerDetail,
   dispatchDockerSnapshot,
+  findDockerContainer,
+  getDockerContainerDetail,
   getDockerOverview,
   listDockerOperations,
   parseConfigFiles,

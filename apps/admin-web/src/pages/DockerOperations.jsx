@@ -8,6 +8,7 @@ import infrastructureService from '../services/infrastructureService.js';
 const PAGE_SIZE = 10;
 const DEFAULT_FILTERS = {
   projectName: '',
+  scope: '',
   action: '',
   success: '',
 };
@@ -111,7 +112,7 @@ function DockerOperations() {
           </button>
         }
         kicker="Docker · Governance"
-        subtitle="Review SkyCommand-issued Docker Compose lifecycle actions separately from native Docker Engine telemetry."
+        subtitle="Review SkyCommand-issued Compose and container lifecycle actions separately from native Docker Engine telemetry."
         title="Docker Operations"
       />
 
@@ -119,7 +120,7 @@ function DockerOperations() {
 
       <Panel
         kicker="Control Plane Guardrail"
-        subtitle="Compose lifecycle writes require a dedicated permission, explicit browser confirmation, a project already discovered from Docker, and the host-native Host Agent. SkyCommand protects its own Compose project from synchronous self-termination."
+        subtitle="Docker lifecycle writes require a dedicated permission, explicit browser confirmation, resources already discovered from Docker, and the host-native Host Agent. SkyCommand protects its own Compose project and containers from synchronous self-termination."
         title="Lifecycle Control Policy"
       >
         <div className="sky-card-body">
@@ -129,7 +130,7 @@ function DockerOperations() {
               label={canControl ? 'Lifecycle controls enabled' : 'Lifecycle controls read only'}
               status={canControl ? 'READY' : 'INFO'}
             />
-            <StatusPill label="Self-project protected" status="BLOCKED" />
+            <StatusPill label="Control-plane protected" status="BLOCKED" />
           </div>
         </div>
       </Panel>
@@ -137,7 +138,7 @@ function DockerOperations() {
       <Panel title="Operation Filters">
         <form className="sky-card-body" onSubmit={applyFilters}>
           <div className="row g-3 align-items-end">
-            <div className="col-12 col-lg-5">
+            <div className="col-12 col-lg-4">
               <label className="form-label" htmlFor="docker-operation-project">
                 Project
               </label>
@@ -151,6 +152,24 @@ function DockerOperations() {
                 placeholder="Exact Compose project name"
                 value={filters.projectName}
               />
+            </div>
+            <div className="col-6 col-lg-2">
+              <label className="form-label" htmlFor="docker-operation-scope">
+                Scope
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="docker-operation-scope"
+                onChange={(event) => setFilters((current) => ({
+                  ...current,
+                  scope: event.target.value,
+                }))}
+                value={filters.scope}
+              >
+                <option value="">All</option>
+                <option value="COMPOSE">Compose project</option>
+                <option value="CONTAINER">Container</option>
+              </select>
             </div>
             <div className="col-6 col-lg-2">
               <label className="form-label" htmlFor="docker-operation-action">
@@ -169,6 +188,8 @@ function DockerOperations() {
                 <option value="START">Start</option>
                 <option value="STOP">Stop</option>
                 <option value="RESTART">Restart</option>
+                <option value="PAUSE">Pause</option>
+                <option value="UNPAUSE">Unpause</option>
               </select>
             </div>
             <div className="col-6 col-lg-2">
@@ -189,7 +210,7 @@ function DockerOperations() {
                 <option value="false">Failed</option>
               </select>
             </div>
-            <div className="col-12 col-lg-3 d-flex gap-2">
+            <div className="col-6 col-lg-2 d-flex gap-2">
               <button className="btn sky-btn-primary" disabled={loading} type="submit">
                 Apply
               </button>
@@ -212,6 +233,8 @@ function DockerOperations() {
             <thead>
               <tr>
                 <th>Requested</th>
+                <th>Scope</th>
+                <th>Resource</th>
                 <th>Project</th>
                 <th>Action</th>
                 <th>Result</th>
@@ -224,7 +247,7 @@ function DockerOperations() {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td className="sky-muted text-center py-4" colSpan={8}>
+                  <td className="sky-muted text-center py-4" colSpan={10}>
                     {loading ? 'Loading Docker operations…' : 'No Docker operations recorded.'}
                   </td>
                 </tr>
@@ -232,7 +255,17 @@ function DockerOperations() {
                 items.map((item) => (
                   <tr key={item.auditEventId || item.operationId}>
                     <td>{formatDate(item.createdAt)}</td>
-                    <td className="fw-semibold">{item.projectName || '—'}</td>
+                    <td>
+                      <StatusPill
+                        label={item.resourceType === 'CONTAINER' ? 'Container' : 'Compose'}
+                        status={item.resourceType === 'CONTAINER' ? 'INFO' : 'READY'}
+                      />
+                    </td>
+                    <td>
+                      <div className="fw-semibold">{item.resourceName || '—'}</div>
+                      {item.serviceName && <div className="small sky-muted">{item.serviceName}</div>}
+                    </td>
+                    <td>{item.projectName || '—'}</td>
                     <td>{item.action || '—'}</td>
                     <td>
                       <StatusPill status={item.status} />

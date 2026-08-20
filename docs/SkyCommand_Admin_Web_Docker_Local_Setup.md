@@ -4,11 +4,11 @@ SkyCommand supports two intentional Admin-Web modes:
 
 ```text
 Development mode
-  Windows host Vite       localhost:5171
+  Windows host Vite       localhost:15171
   Docker API              localhost:7171
 
 Docker/deployment mode
-  Docker NGINX Web        localhost:5171
+  Docker NGINX Web        localhost:15171
         -> Compose API    api:7171
 ```
 
@@ -21,7 +21,7 @@ Windows host
   PostgreSQL                         localhost:5432
 
 Docker Compose
-  Admin-Web / NGINX   127.0.0.1:5171 -> container:8080
+  Admin-Web / NGINX   127.0.0.1:15171 -> container:8080
           |
           +----------> API            api:7171
                         |
@@ -62,7 +62,7 @@ Before starting Docker Web:
 
 1. Docker Desktop is running.
 2. The Docker API is healthy, or it can be started as a dependency by Compose.
-3. Stop the host `npm run web` Vite process so host port `5171` is available.
+3. Stop the host `npm run web` Vite process so host port `15171` is available.
 4. If a different host port is desired, set `SKYCOMMAND_WEB_PORT` in `.env`.
 
 No database migration, workspace mount, or additional secret is required for this Web slice.
@@ -78,13 +78,13 @@ npm run web:docker:logs
 Open:
 
 ```text
-http://localhost:5171
+http://localhost:15171
 ```
 
 The Web container health endpoint is available at:
 
 ```text
-http://localhost:5171/healthz
+http://localhost:15171/healthz
 ```
 
 The API remains reachable directly for diagnostics at:
@@ -96,7 +96,7 @@ http://localhost:7171/_db/health
 
 ## Application proof
 
-With the host Vite process stopped and Docker Web running, prove the following through `http://localhost:5171`:
+With the host Vite process stopped and Docker Web running, prove the following through `http://localhost:15171`:
 
 1. the login page and session flow;
 2. direct navigation/refresh on a nested React route such as `/workflows/history`;
@@ -150,4 +150,4 @@ npm run web:docker:stop
 npm run web
 ```
 
-Both modes use the same browser URL by default (`http://localhost:5171`) and the same relative API route contract, so switching between host Vite and Docker NGINX does not require application-code changes.
+Both modes use the same browser URL by default (`http://localhost:15171`) and the same relative API route contract, so switching between host Vite and Docker NGINX does not require application-code changes.
