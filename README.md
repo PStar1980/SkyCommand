@@ -721,6 +721,7 @@ docs/SkyCommand_Workflow_Builder_Foundation.md
 | Phase 14 | ✅ Complete | Establish structured tool results, workflow output contracts, typed bindings, and repository automation evidence. |
 | Phase 15 | ✅ Complete | Add managed tool onboarding, contract validation, controlled execution, and regression/recovery proof. |
 | Phase 16 | ✅ Complete | Build portable ingestion/data contracts with quality policies, freshness, recovery, generic operations, and consumer contracts. |
+| Phase 17 | ⏳ Pending | Harden and operationalize the Dockerized SkyCommand stack. The current foundation includes containerized PostgreSQL, Temporal server/worker, Node worker, API, Admin-Web, persistent data, guarded host-side execution, and hardened Git promotion/synchronization; next add Docker controls and observability directly into SkyCommand. |
 | Continuous | 🔄 Ongoing | Expand reusable tools, workflow templates, diagnostics, tests, documentation, and UI polish. |
 
 Client-facing analytical product work—including the Python application, data-mart/warehouse evolution, advanced chart storyboards, BI modeling, and public analytical experiences—moves to the separate **SkyData Studio** repository roadmap. Those items are intentionally no longer numbered as SkyCommand phases.
