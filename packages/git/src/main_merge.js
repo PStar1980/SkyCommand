@@ -184,12 +184,15 @@ function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd }) {
     return;
   }
 
-  // Fetch the commit/tree objects required for ancestry/count checks without
-  // updating refs/remotes/* or FETCH_HEAD in the Windows-owned bind-mounted
-  // repository. This closes the remaining Docker/host ref-lock race exposed by
-  // an initial `git fetch --prune origin` after full containerization.
-  const args = ['fetch', '--no-tags', '--no-write-fetch-head', remote, ...branchRefs];
-  console.log(`> git ${args.join(' ')} [Docker object transfer only]`);
+  // A named remote still applies remote.<name>.fetch ref mappings even when
+  // --no-write-fetch-head is present. That can update refs/remotes/origin/* and
+  // collide with Windows Git/VS Code in the bind-mounted host repository. Use
+  // the configured remote URL as the transport source so Git transfers only the
+  // requested objects and does not apply the named remote's tracking refspecs.
+  const remoteUrl = getRemoteUrl(remote, cwd);
+  const args = ['fetch', '--no-tags', '--no-write-fetch-head', remoteUrl, ...branchRefs];
+  const displayArgs = ['fetch', '--no-tags', '--no-write-fetch-head', remote, ...branchRefs];
+  console.log(`> git ${displayArgs.join(' ')} [Docker URL object transfer only]`);
   executeGit(args, cwd, { printCommand: false });
 }
 
