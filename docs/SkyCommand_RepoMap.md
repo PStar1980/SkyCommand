@@ -107,6 +107,7 @@ SkyCommand/
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── hooks/
+│   │       │   ├── useDockerOverview.js
 │   │       │   └── useSmartPolling.js
 │   │       ├── pages/
 │   │       │   ├── AddRepository.jsx
@@ -124,6 +125,10 @@ SkyCommand/
 │   │       │   ├── AutomationListeners.jsx
 │   │       │   ├── Dashboard.jsx
 │   │       │   ├── DataStatus.jsx
+│   │       │   ├── dockerInfrastructureSurfaceSelfTest.js
+│   │       │   ├── DockerInventory.jsx
+│   │       │   ├── DockerOperations.jsx
+│   │       │   ├── DockerOverview.jsx
 │   │       │   ├── Home.jsx
 │   │       │   ├── IngestionOperations.jsx
 │   │       │   ├── ingestionOperationsSurfaceSelfTest.js
@@ -159,6 +164,7 @@ SkyCommand/
 │   │           ├── api.js
 │   │           ├── authExpiryRefreshSelfTest.js
 │   │           ├── authService.js
+│   │           ├── infrastructureService.js
 │   │           ├── ingestionService.js
 │   │           ├── temporalService.js
 │   │           ├── toolService.js
@@ -171,6 +177,7 @@ SkyCommand/
 │   │       ├── controllers/
 │   │       │   ├── adminController.js
 │   │       │   ├── authController.js
+│   │       │   ├── infrastructureController.js
 │   │       │   ├── ingestionController.js
 │   │       │   ├── macroController.js
 │   │       │   ├── publicMacroController.js
@@ -186,6 +193,7 @@ SkyCommand/
 │   │       ├── routes/
 │   │       │   ├── admin.routes.js
 │   │       │   ├── auth.routes.js
+│   │       │   ├── infrastructure.routes.js
 │   │       │   ├── ingestion.routes.js
 │   │       │   ├── macro.routes.js
 │   │       │   ├── public.routes.js
@@ -203,6 +211,8 @@ SkyCommand/
 │   │       │   ├── apiTelemetryPolicySelfTest.js
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
+│   │       │   ├── infrastructureService.js
+│   │       │   ├── infrastructureServiceSelfTest.js
 │   │       │   ├── ingestionStatusService.js
 │   │       │   ├── legacyMacroFreshnessAdapter.js
 │   │       │   ├── legacyMacroFreshnessAdapterSelfTest.js
@@ -373,7 +383,8 @@ SkyCommand/
 │   │       │   ├── 00098__docker_local_repository_profile.sql
 │   │       │   ├── 00099__local_repository_sync_tool.sql
 │   │       │   ├── 00100__host_agent_local_repository_sync.sql
-│   │       │   └── 00101__development_promotion_host_sync_node.sql
+│   │       │   ├── 00101__development_promotion_host_sync_node.sql
+│   │       │   └── 00102__docker_infrastructure_read_foundation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -451,6 +462,8 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── activities.js
 │   │       ├── config.js
+│   │       ├── dockerSnapshot.js
+│   │       ├── dockerSnapshotSelfTest.js
 │   │       ├── health.js
 │   │       ├── hostAgentSelfTest.js
 │   │       └── worker.js

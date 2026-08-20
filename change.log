@@ -1,3 +1,10 @@
+2026-08-20 - Phase 17 Docker infrastructure observability foundation
+- Added a Kubernetes-ready infrastructure provider/target seam and the first read-only Docker provider, with the Admin-Web/API receiving normalized infrastructure snapshots instead of direct Docker daemon access.
+- Extended the host-native SkyCommand Host Agent with an allow-listed `__docker_snapshot` operation that gathers Docker Engine, Compose project, container, image, volume, and network inventory through argument-safe Docker CLI calls; no arbitrary shell or `docker exec` surface is exposed.
+- Added permission-protected `/api/infrastructure/providers/docker/overview` delivery through the existing Temporal Host Agent bridge, including bounded probe timeouts and graceful offline diagnostics when the Host Agent or Docker Engine is unavailable.
+- Added the Docker sidebar domain with Docker Overview, Compose Projects, Containers, Images, Storage & Networks, and a deliberately locked Docker Operations page reserved for audited lifecycle controls.
+- Added migration `00102__docker_infrastructure_read_foundation.sql`, Docker environment configuration, normalized health/status presentation, targeted Host Agent/API/Admin-Web regression coverage, and validation wiring. Write controls, streamed telemetry, and Kubernetes providers remain future Phase 17 slices.
+
 2026-08-20 - Host Agent heartbeat recovery and live-preflight fallback
 - Hardened Host Agent heartbeat persistence against Docker PostgreSQL restarts by using bounded, short-lived PostgreSQL heartbeat connections instead of allowing a stale long-lived telemetry connection to strand the heartbeat loop. Failed heartbeat persistence is rate-limited to one outage warning, automatically retried on the normal heartbeat cadence, and emits a recovery message when PostgreSQL becomes reachable again.
 - Added `SKYCOMMAND_HOST_AGENT_HEARTBEAT_DB_CONNECT_TIMEOUT_MS` with a 3000 ms default so host-side heartbeat recovery fails fast while Docker PostgreSQL is restarting instead of hanging the Host Agent telemetry loop.
