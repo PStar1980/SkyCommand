@@ -813,6 +813,19 @@ function run() {
   assert.equal(fullySynchronizedPromotion.localSyncCompleted, true);
   assert.equal(fullySynchronizedPromotion.localSync.fourWaySynchronized, true);
 
+  const incompleteLocalSyncResult = gitLocalSyncResult();
+  incompleteLocalSyncResult.output.fourWaySynchronized = false;
+  incompleteLocalSyncResult.output.outcome = 'PARTIAL';
+  const incompletelySynchronizedPromotion = buildGitPromotionRollup({
+    dev_commit_node: commitResult,
+    merge_approval_node: humanApprovalResult(),
+    main_merge_node: remoteOnlyBranchSync,
+    local_sync_node: incompleteLocalSyncResult,
+  });
+  assert.equal(incompletelySynchronizedPromotion.outcome, 'REMOTE_PROMOTED');
+  assert.equal(incompletelySynchronizedPromotion.localHostSyncRequired, true);
+  assert.equal(incompletelySynchronizedPromotion.localSyncCompleted, false);
+
   const blockedRepositoryStatus = gitRepositoryStatusResult();
   blockedRepositoryStatus.message = 'SkyCommand is not ready for development promotion.';
   blockedRepositoryStatus.output.outcome = 'BLOCKED';

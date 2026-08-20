@@ -3,6 +3,7 @@ const os = require('os');
 const { query } = require('../../../../packages/db/src/connection');
 const { getTemporalConfig } = require('../../../../packages/temporal/src/config');
 const temporalService = require('./temporalService');
+const { getHostAgentAvailability } = require('./workflowExecutionPreflightService');
 
 const RECENT_HEARTBEAT_SECONDS = 60;
 
@@ -203,12 +204,13 @@ function buildCliCommands(config) {
 
 async function getWorkflowWorkerHealth() {
   const config = getTemporalConfig();
-  const [heartbeats, runs, approvals, definitions, schedules] = await Promise.all([
+  const [heartbeats, runs, approvals, definitions, schedules, hostAgent] = await Promise.all([
     getLatestHeartbeats({ namespace: config.namespace, taskQueue: config.taskQueue }),
     getRunSummary(),
     getPendingApprovalSummary(),
     getDefinitionSummary(),
     getScheduledWorkflowSummary(),
+    getHostAgentAvailability(),
   ]);
 
   let temporal = {
@@ -297,6 +299,7 @@ async function getWorkflowWorkerHealth() {
       latestHeartbeat,
       heartbeats,
     },
+    hostAgent,
     runs,
     approvals,
     definitions,

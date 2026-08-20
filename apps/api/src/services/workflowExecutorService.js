@@ -20,6 +20,7 @@ const {
   resolveConditionBranchIndex,
 } = require('./workflowConditionService');
 const { WorkflowServiceError } = require('./workflowServiceError');
+const { assertWorkflowExecutionTargetsAvailable } = require('./workflowExecutionPreflightService');
 const { isBlankValue } = require('./workflowParameterUtils');
 
 const DEFAULT_LIMIT = 25;
@@ -5405,6 +5406,8 @@ async function createChildWorkflowRun({
     action: 'start_child_workflow',
   });
 
+  await assertWorkflowExecutionTargetsAvailable(definition);
+
   const childInput = {
     ...getSafeObject(input),
     runSource: 'child_workflow',
@@ -5852,6 +5855,8 @@ async function startWorkflowWithTemporal({
     });
   }
 
+  await assertWorkflowExecutionTargetsAvailable(definition);
+
   const normalizedInput = await validateWorkflowRuntimeInput(definition, input);
 
   const run = await insertWorkflowRun({
@@ -6000,6 +6005,8 @@ async function executeWorkflow({
       workflowCode: definition.workflowCode,
     });
   }
+
+  await assertWorkflowExecutionTargetsAvailable(definition);
 
   const normalizedInput = await validateWorkflowRuntimeInput(definition, input);
 

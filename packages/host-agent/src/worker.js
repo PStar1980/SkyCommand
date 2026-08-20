@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { NativeConnection, Worker } = require('@temporalio/worker');
+const { Client: PgClient } = require('pg');
 
 const {
   DEFAULT_HOST_AGENT_TASK_QUEUE,
@@ -37,6 +38,55 @@ const HEARTBEAT_INTERVAL_MS = Math.max(
   5000,
   Number(process.env.SKYCOMMAND_HOST_AGENT_HEARTBEAT_INTERVAL_MS || 15000),
 );
+const HEARTBEAT_DB_CONNECT_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.SKYCOMMAND_HOST_AGENT_HEARTBEAT_DB_CONNECT_TIMEOUT_MS || 3000),
+);
+
+let heartbeatPersistenceState = 'UNKNOWN';
+
+function getHeartbeatDbConfig() {
+  return {
+    host: process.env.PGHOST,
+    port: Number(process.env.PGPORT || 5432),
+    database: process.env.PGDATABASE,
+    user: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+    connectionTimeoutMillis: HEARTBEAT_DB_CONNECT_TIMEOUT_MS,
+    query_timeout: HEARTBEAT_DB_CONNECT_TIMEOUT_MS,
+    application_name: 'skycommand-host-agent-heartbeat',
+  };
+}
+
+async function heartbeatQuery(text, params) {
+  const client = new PgClient(getHeartbeatDbConfig());
+
+  try {
+    await client.connect();
+    return await client.query(text, params);
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+function reportHeartbeatPersistenceFailure(error) {
+  if (heartbeatPersistenceState !== 'OFFLINE') {
+    console.warn(
+      '[SkyCommand Host Agent] Heartbeat persistence unavailable; Host Agent execution remains active and PostgreSQL will be retried automatically:',
+      error?.message || error,
+    );
+  }
+
+  heartbeatPersistenceState = 'OFFLINE';
+}
+
+function reportHeartbeatPersistenceSuccess() {
+  if (heartbeatPersistenceState === 'OFFLINE') {
+    console.log('[SkyCommand Host Agent] Heartbeat persistence recovered.');
+  }
+
+  heartbeatPersistenceState = 'ONLINE';
+}
 
 function getProfileCode() {
   return HOST_AGENT_PROFILE_CODE;
@@ -108,7 +158,7 @@ async function verifyHostRepositoryProfile(profileCode) {
 
 async function recordHeartbeat({ identity, namespace, taskQueue, status, profileCode, error }) {
   try {
-    await query(
+    await heartbeatQuery(
       `
         INSERT INTO worker.temporal_worker_heartbeats (
           worker_identity,
@@ -165,21 +215,30 @@ async function recordHeartbeat({ identity, namespace, taskQueue, status, profile
         }),
       ],
     );
+    reportHeartbeatPersistenceSuccess();
+    return true;
   } catch (heartbeatError) {
-    console.warn(
-      '[SkyCommand Host Agent] Failed to record heartbeat:',
-      heartbeatError.message || heartbeatError,
-    );
+    reportHeartbeatPersistenceFailure(heartbeatError);
+    return false;
   }
 }
 
 function startHeartbeatLoop(context) {
   let stopped = false;
+  let activeHeartbeat = null;
+
   const tick = () => {
-    if (!stopped) {
-      recordHeartbeat({ ...context, status: 'ONLINE' });
-    }
+    if (stopped || activeHeartbeat) return;
+
+    activeHeartbeat = recordHeartbeat({ ...context, status: 'ONLINE' })
+      .catch((error) => {
+        reportHeartbeatPersistenceFailure(error);
+      })
+      .finally(() => {
+        activeHeartbeat = null;
+      });
   };
+
   const interval = setInterval(tick, HEARTBEAT_INTERVAL_MS);
   interval.unref?.();
   tick();
@@ -188,6 +247,11 @@ function startHeartbeatLoop(context) {
     if (stopped) return;
     stopped = true;
     clearInterval(interval);
+
+    if (activeHeartbeat) {
+      await activeHeartbeat.catch(() => {});
+    }
+
     await recordHeartbeat({ ...context, status, error });
   };
 }
