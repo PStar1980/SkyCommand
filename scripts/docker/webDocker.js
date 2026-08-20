@@ -13,13 +13,63 @@ function fail(message) {
 }
 
 function getWebPort() {
-  const raw = String(process.env.SKYCOMMAND_WEB_PORT || '5171').trim();
+  const raw = String(process.env.SKYCOMMAND_WEB_PORT || '15171').trim();
   const port = Number.parseInt(raw, 10);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     fail(`SKYCOMMAND_WEB_PORT must be a valid TCP port. Received: ${raw}`);
   }
   process.env.SKYCOMMAND_WEB_PORT = String(port);
   return port;
+}
+
+function findWindowsExcludedTcpRange(port) {
+  if (process.platform !== 'win32') {
+    return null;
+  }
+
+  const result = spawnSync(
+    'netsh',
+    ['interface', 'ipv4', 'show', 'excludedportrange', 'protocol=tcp'],
+    {
+      cwd: repositoryRoot,
+      env: process.env,
+      encoding: 'utf8',
+      windowsHide: true,
+      shell: false,
+    },
+  );
+
+  if (result.error || result.status !== 0) {
+    return null;
+  }
+
+  const lines = String(result.stdout || '').split(/\r?\n/);
+  for (const line of lines) {
+    const match = line.match(/^\s*(\d+)\s+(\d+)(?:\s+\*)?\s*$/);
+    if (!match) {
+      continue;
+    }
+
+    const start = Number.parseInt(match[1], 10);
+    const end = Number.parseInt(match[2], 10);
+    if (port >= start && port <= end) {
+      return { start, end };
+    }
+  }
+
+  return null;
+}
+
+function assertWebPortIsBindable(port) {
+  const excludedRange = findWindowsExcludedTcpRange(port);
+  if (!excludedRange) {
+    return;
+  }
+
+  fail(
+    `Host port ${port} is inside Windows excluded TCP range ${excludedRange.start}-${excludedRange.end}. ` +
+      'Set SKYCOMMAND_WEB_PORT to a non-excluded port in the root .env file and retry.',
+  );
 }
 
 function runCompose(args) {
@@ -40,6 +90,7 @@ function runCompose(args) {
 
 function announceWebPort() {
   const port = getWebPort();
+  assertWebPortIsBindable(port);
   console.log(`[SkyCommand Docker] web=http://localhost:${port}`);
   console.log(
     `[SkyCommand Docker] Stop the host Vite process before Docker Web startup if it is already using port ${port}.`,

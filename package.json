@@ -55,6 +55,7 @@
     "host-agent:self-test": "node packages/host-agent/src/hostAgentSelfTest.js",
     "docker-snapshot:self-test": "node packages/host-agent/src/dockerSnapshotSelfTest.js",
     "docker-control:self-test": "node packages/host-agent/src/dockerControlSelfTest.js",
+    "docker-container:self-test": "node packages/host-agent/src/dockerContainerSelfTest.js",
     "infrastructure-service:self-test": "node apps/api/src/services/infrastructureServiceSelfTest.js",
     "docker-infrastructure-ui:self-test": "node apps/admin-web/src/pages/dockerInfrastructureSurfaceSelfTest.js",
     "temporal-docker:self-test": "node scripts/docker/temporalDockerSelfTest.js",

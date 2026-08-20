@@ -243,7 +243,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${SKYCOMMAND_WEB_PORT:-5171}:8080"
+      - "127.0.0.1:${SKYCOMMAND_WEB_PORT:-15171}:8080"
     healthcheck:
       test:
         - CMD-SHELL

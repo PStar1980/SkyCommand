@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DockerContainerDetailsModal from '../components/DockerContainerDetailsModal.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
@@ -18,7 +19,7 @@ const VIEW_CONFIG = {
     kicker: 'Docker · Runtime',
     title: 'Containers',
     subtitle:
-      'Inspect the full read-only container inventory before lifecycle controls are introduced in a later Phase 17 slice.',
+      'Inspect Docker containers, review bounded logs and runtime metadata, and operate eligible external containers through the Host Agent.',
   },
   images: {
     kicker: 'Docker · Registry',
@@ -132,7 +133,7 @@ function ProjectTable({ canControl, controlling, loading, onControl, projects })
   );
 }
 
-function ContainerTable({ containers, loading }) {
+function ContainerTable({ containers, loading, onDetails }) {
   return (
     <div className="table-responsive sky-table-card border-0 rounded-0">
       <table className="table table-sm table-hover sky-table align-middle mb-0">
@@ -145,33 +146,55 @@ function ContainerTable({ containers, loading }) {
             <th>State</th>
             <th>Health</th>
             <th>Ports</th>
+            <th>Control</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {containers.length === 0 ? (
-            <EmptyRow colSpan={7} loading={loading} noun="containers" />
+            <EmptyRow colSpan={9} loading={loading} noun="containers" />
           ) : (
-            containers.map((container) => (
-              <tr key={container.id || container.name}>
-                <td>
-                  <div className="fw-semibold">{container.name || '—'}</div>
-                  <div className="small sky-muted">{container.id || '—'}</div>
-                </td>
-                <td>{container.project || '—'}</td>
-                <td>{container.service || '—'}</td>
-                <td>{container.image || '—'}</td>
-                <td>
-                  <StatusPill status={container.state} />
-                </td>
-                <td>
-                  <StatusPill
-                    label={container.health === 'NONE' ? '—' : container.health}
-                    status={container.health === 'NONE' ? 'INFO' : container.health}
-                  />
-                </td>
-                <td>{container.ports || '—'}</td>
-              </tr>
-            ))
+            containers.map((container) => {
+              const selfManaged = container.control?.mode === 'SELF_MANAGED_PROTECTED';
+
+              return (
+                <tr key={container.id || container.name}>
+                  <td>
+                    <div className="fw-semibold">{container.name || '—'}</div>
+                    <div className="small sky-muted">{container.id || '—'}</div>
+                  </td>
+                  <td>{container.project || '—'}</td>
+                  <td>{container.service || '—'}</td>
+                  <td>{container.image || '—'}</td>
+                  <td>
+                    <StatusPill status={container.state} />
+                  </td>
+                  <td>
+                    <StatusPill
+                      label={container.health === 'NONE' ? '—' : container.health}
+                      status={container.health === 'NONE' ? 'INFO' : container.health}
+                    />
+                  </td>
+                  <td>{container.ports || '—'}</td>
+                  <td>
+                    <StatusPill
+                      label={selfManaged ? 'Protected' : 'Host Agent'}
+                      status={selfManaged ? 'BLOCKED' : 'READY'}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-sm sky-btn-ghost"
+                      disabled={loading}
+                      onClick={() => onDetails(container)}
+                      type="button"
+                    >
+                      Container Details
+                    </button>
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
@@ -296,6 +319,11 @@ function DockerInventory({ view }) {
   const [controlError, setControlError] = useState('');
   const [controlNotice, setControlNotice] = useState('');
   const [controlling, setControlling] = useState('');
+  const [selectedContainerId, setSelectedContainerId] = useState('');
+  const [containerDetail, setContainerDetail] = useState(null);
+  const [containerDetailError, setContainerDetailError] = useState('');
+  const [containerDetailLoading, setContainerDetailLoading] = useState(false);
+  const [containerControlling, setContainerControlling] = useState('');
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
   const projects = Array.isArray(overview?.projects) ? overview.projects : [];
@@ -331,6 +359,76 @@ function DockerInventory({ view }) {
       );
     } finally {
       setControlling('');
+    }
+  }
+
+
+  async function loadContainerDetail(containerId = selectedContainerId) {
+    if (!containerId) return;
+
+    setContainerDetailLoading(true);
+    setContainerDetailError('');
+
+    try {
+      const result = await infrastructureService.getDockerContainerDetail(containerId, { tail: 200 });
+      setContainerDetail(result.detail || null);
+    } catch (detailFailure) {
+      const code = detailFailure.details?.code;
+      setContainerDetailError(
+        code
+          ? `${code} · ${detailFailure.message || 'Docker container inspection failed.'}`
+          : detailFailure.message || 'Docker container inspection failed.',
+      );
+    } finally {
+      setContainerDetailLoading(false);
+    }
+  }
+
+  function openContainerDetails(container) {
+    if (!container?.id) return;
+    setSelectedContainerId(container.id);
+    setContainerDetail(null);
+    setContainerDetailError('');
+    loadContainerDetail(container.id);
+  }
+
+  function closeContainerDetails() {
+    setSelectedContainerId('');
+    setContainerDetail(null);
+    setContainerDetailError('');
+    setContainerControlling('');
+  }
+
+  async function handleContainerControl(container, action) {
+    if (!container?.id || !canControl) return;
+
+    const label = action.charAt(0) + action.slice(1).toLowerCase();
+    const confirmed = window.confirm(
+      `${label} Docker container ${container.name || container.id}? This operation is allow-listed through the SkyCommand Host Agent and will be written to Docker Operations.`,
+    );
+
+    if (!confirmed) return;
+
+    setContainerControlling(action);
+    setControlError('');
+    setControlNotice('');
+
+    try {
+      const result = await infrastructureService.controlDockerContainer(container.id, action);
+      setControlNotice(
+        result.operation?.message || `${label} completed for ${container.name || container.id}.`,
+      );
+      await loadOverview();
+      await loadContainerDetail(container.id);
+    } catch (controlFailure) {
+      const code = controlFailure.details?.code;
+      const message = code
+        ? `${code} · ${controlFailure.message || 'Docker container lifecycle action failed.'}`
+        : controlFailure.message || 'Docker container lifecycle action failed.';
+      setControlError(message);
+      setContainerDetailError(message);
+    } finally {
+      setContainerControlling('');
     }
   }
 
@@ -375,7 +473,11 @@ function DockerInventory({ view }) {
       )}
       {view === 'containers' && (
         <Panel title="Container Inventory">
-          <ContainerTable containers={containers} loading={loading} />
+          <ContainerTable
+            containers={containers}
+            loading={loading}
+            onDetails={openContainerDetails}
+          />
         </Panel>
       )}
       {view === 'images' && (
@@ -385,6 +487,19 @@ function DockerInventory({ view }) {
       )}
       {view === 'storage' && (
         <StorageTables loading={loading} networks={networks} volumes={volumes} />
+      )}
+
+      {selectedContainerId && (
+        <DockerContainerDetailsModal
+          canControl={canControl}
+          controlling={containerControlling}
+          detail={containerDetail}
+          error={containerDetailError}
+          loading={containerDetailLoading}
+          onClose={closeContainerDetails}
+          onControl={handleContainerControl}
+          onRefresh={() => loadContainerDetail(selectedContainerId)}
+        />
       )}
     </>
   );

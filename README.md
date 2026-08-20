@@ -316,7 +316,7 @@ Common optional variables:
 
 ```env
 API_PORT=7171
-SKYCOMMAND_WEB_PORT=5171
+SKYCOMMAND_WEB_PORT=15171
 AUTH_SESSION_MINUTES=30
 AUTH_SESSION_HOURS=12
 SKYCOMMAND_CORE_APP_CODE=SKYSERVER_CORE
@@ -369,7 +369,7 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | SkyCommand API health    | `http://localhost:7171/_health`    |
 | SkyCommand DB health     | `http://localhost:7171/_db/health` |
 | Temporal Web UI         | `http://localhost:8600`            |
-| SkyCommand Admin-Web     | `http://localhost:5171`            |
+| SkyCommand Admin-Web     | `http://localhost:15171`            |
 | SkyWeb Analytics client | `http://localhost:5175`            |
 | SkyWeb.Api Swagger      | `http://localhost:7280/swagger`    |
 
@@ -390,7 +390,7 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 | `npm run web`                 | Starts the Admin-Web Vite development server.                                               |
 | `npm run web:build`           | Builds the Admin-Web frontend.                                                              |
 | `npm run web:preview`         | Previews the built Admin-Web frontend.                                                      |
-| `npm run web:docker:up`       | Builds and starts the production-style Admin-Web NGINX container on host port 5171.          |
+| `npm run web:docker:up`       | Builds and starts the production-style Admin-Web NGINX container on host port 15171.          |
 | `npm run web:docker:stop`     | Stops Docker Admin-Web while leaving the backend containers untouched.                       |
 | `npm run web:docker:restart`  | Rebuilds/recreates Docker Admin-Web.                                                         |
 | `npm run web:docker:status`   | Shows Docker Admin-Web container status/health.                                              |
@@ -570,7 +570,7 @@ npm run api:docker:logs
 # Optional production-style Admin-Web lane: stop host `npm run web`, then start NGINX Web
 npm run web:docker:up
 npm run web:docker:status
-# Browse http://localhost:5171
+# Browse http://localhost:15171
 
 # Start the complete six-container application/runtime stack
 npm run skycommand:docker:up
@@ -608,7 +608,7 @@ npm run temporal:fred
 npm run temporal:fred -- --indicators=GDP,UNRATE,DGS10 --concurrency=2
 ```
 
-The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, publishes Docker Admin-Web at `localhost:5171`, publishes PostgreSQL at `localhost:55432`, and persists state in the named volumes `skycommand_temporal_data` and `skycommand_postgres_data`. The Temporal image is pinned to CLI `1.7.2`; PostgreSQL is pinned to `18.6-bookworm`. Before cutover, `api`, `temporal-worker`, and `node-worker` use `host.docker.internal:5432`; after cutover they use the internal Compose endpoint `postgres:5432`, while host CLI/tools use `127.0.0.1:55432`. Docker server-side services use the `DOCKER_LOCAL` repository profile and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. Docker Admin-Web is an immutable Vite build served by unprivileged NGINX and proxies same-origin `/api`, `/_health`, and `/_db` traffic directly to `api:7171` over the Compose network. The Node worker registers under the stable name `skycommand-node-worker-docker`. See `docs/SkyCommand_PostgreSQL_Docker_Migration.md` for the staged acceptance, cutover, rollback, persistence, and finalize sequence.
+The root `compose.yaml` publishes Temporal gRPC at `localhost:7233`, maps the container Web UI port `8233` to host port `8600`, publishes the Docker API at `localhost:7171`, publishes Docker Admin-Web at `localhost:15171`, publishes PostgreSQL at `localhost:55432`, and persists state in the named volumes `skycommand_temporal_data` and `skycommand_postgres_data`. The Temporal image is pinned to CLI `1.7.2`; PostgreSQL is pinned to `18.6-bookworm`. Before cutover, `api`, `temporal-worker`, and `node-worker` use `host.docker.internal:5432`; after cutover they use the internal Compose endpoint `postgres:5432`, while host CLI/tools use `127.0.0.1:55432`. Docker server-side services use the `DOCKER_LOCAL` repository profile and mount the host SkyEco workspace at `/workspace/SkyEco System`; application workers use the Compose Temporal address `temporal:7233`. Docker Admin-Web is an immutable Vite build served by unprivileged NGINX and proxies same-origin `/api`, `/_health`, and `/_db` traffic directly to `api:7171` over the Compose network. The Node worker registers under the stable name `skycommand-node-worker-docker`. See `docs/SkyCommand_PostgreSQL_Docker_Migration.md` for the staged acceptance, cutover, rollback, persistence, and finalize sequence.
 
 The SkyCommand Host Agent is intentionally **not** another container. It runs on the repository-owning host, connects outbound to Temporal at `localhost:7233`, and polls the dedicated `skycommand-host-local` activity queue. Docker-side `local_repo_sync` executions start a short Temporal bridge workflow on the normal SkyCommand workflow queue; that workflow schedules only the allow-listed host activity onto the Host Agent queue. No host HTTP listener or arbitrary shell endpoint is exposed. The Host Agent refuses `DOCKER_LOCAL`, validates the configured host repository profile before polling, emits Temporal worker heartbeats, and delegates Git mutation to the same guarded `local_repo_sync` implementation used by the direct host CLI. Command Center shows Host Agent availability separately from the Docker Temporal worker, and workflow start preflight blocks host-targeted workflows before queueing when dispatch is disabled or the Host Agent heartbeat is stale/offline. On Windows, the optional `host-agent:auto-start:*` helpers install a limited-privilege per-user Scheduled Task so the agent comes back automatically after logon without moving host mutation rights into Docker. See `docs/SkyCommand_Host_Agent_Local_Setup.md` for setup and workflow bindings.
 
@@ -721,7 +721,7 @@ docs/SkyCommand_Workflow_Builder_Foundation.md
 | Phase 14 | ✅ Complete | Establish structured tool results, workflow output contracts, typed bindings, and repository automation evidence. |
 | Phase 15 | ✅ Complete | Add managed tool onboarding, contract validation, controlled execution, and regression/recovery proof. |
 | Phase 16 | ✅ Complete | Build portable ingestion/data contracts with quality policies, freshness, recovery, generic operations, and consumer contracts. |
-| Phase 17 | 🔄 In progress | Harden and operationalize the Dockerized SkyCommand stack. Inventory now routes through the Host Agent, Compose project Start/Stop/Restart controls are permission-separated and audited, the SkyCommand self-project is protected, and the provider seam remains Kubernetes-ready; container-level inspection/logs and streamed telemetry remain next. |
+| Phase 17 | 🔄 In progress | Harden and operationalize the Dockerized SkyCommand stack. Inventory and bounded container inspection/logs route through the Host Agent; Compose and external-container lifecycle controls are permission-separated, state-aware, self-protected, and audited; streamed telemetry remains next behind the Kubernetes-ready provider seam. |
 | Continuous | 🔄 Ongoing | Expand reusable tools, workflow templates, diagnostics, tests, documentation, and UI polish. |
 
 Client-facing analytical product work—including the Python application, data-mart/warehouse evolution, advanced chart storyboards, BI modeling, and public analytical experiences—moves to the separate **SkyData Studio** repository roadmap. Those items are intentionally no longer numbered as SkyCommand phases.

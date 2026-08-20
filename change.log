@@ -1,3 +1,17 @@
+2026-08-20 - Phase 17 Docker Admin-Web port hardening
+- Moved the canonical SkyCommand Admin-Web host port from 5171 to 15171 after Windows reassigned 5171 into an excluded TCP range following a reboot.
+- Kept host Vite and Docker NGINX on the same configurable SKYCOMMAND_WEB_PORT contract and updated current setup documentation/defaults.
+- Added a Windows excluded-TCP-range preflight to the Docker Web helper so a reserved host port fails with an actionable SkyCommand message before Docker Compose startup.
+- Extended the Web Docker self-test to cover the shared Vite/Docker port contract and Windows exclusion guardrail.
+
+2026-08-20 - Phase 17 Docker container inspection and lifecycle controls
+- Added deep, bounded container inspection through the Host Agent, including runtime state, health history, restart policy/count, ports, networks, mounts, Compose identity, and the latest 200 log lines by default. Raw Docker inspect payloads and container environment variables are deliberately withheld from Admin-Web.
+- Added allow-listed container `START`, `STOP`, `RESTART`, `PAUSE`, and `UNPAUSE` operations. The API resolves every target against the live Docker inventory before dispatch; the Host Agent accepts only validated container IDs and the five explicit actions, with no shell, attach, exec, remove, prune, or arbitrary argument surface.
+- Extended SkyCommand self-protection from the Compose project to every container belonging to the `skycommand` project so the control plane cannot synchronously terminate or pause its own API, Web, Temporal, worker, or PostgreSQL runtime.
+- Added a row-level Container Details overlay with state/health metrics, lifecycle controls, runtime identity, ports/networks, mounts, recent health checks, and separated stdout/stderr logs. Container controls require the existing `INFRASTRUCTURE_DOCKER_CONTROL` permission and explicit confirmation; read-only inspection/logs use `INFRASTRUCTURE_DOCKER_READ`.
+- Expanded Docker Operations to unify Compose-project and container lifecycle audit evidence, including scope/resource/project filters, Pause/Unpause actions, actor, state transition, duration, and failed-attempt visibility.
+- Added migration `00104__docker_container_operations.sql` to update deployed Docker permission descriptions, `SKYCOMMAND_DOCKER_CONTAINER_TIMEOUT_MS`, dedicated Host Agent container regression coverage, expanded API/UI self-tests, and routine validation registration.
+
 2026-08-20 - Phase 17 Docker Compose lifecycle controls
 - Added permission-separated Docker Compose `START`, `STOP`, and `RESTART` actions for externally managed projects already discovered by the Docker inventory provider. Admin-Web never submits a Compose path or raw CLI arguments; the API re-resolves the project from the live provider snapshot and the Host Agent accepts only the three allow-listed lifecycle actions.
 - Added migration `00103__docker_compose_lifecycle_controls.sql` with `INFRASTRUCTURE_DOCKER_CONTROL`, granted to SkyCommand ADMIN and SUPER_ADMIN roles independently from read-only infrastructure access.
@@ -1503,3 +1517,4 @@ SkyWeb Analytics owns:
 - Added a cutover marker under the external PostgreSQL backup directory; it records backup/environment paths and migration state without persisting database credentials.
 - Extended the API database health contract with PostgreSQL version/server-port metadata so cutover verification can prove the API and host CLI are attached to the same Docker database.
 - Expanded `skycommand:docker:*` commands so the normal full-stack lifecycle now includes PostgreSQL.
+

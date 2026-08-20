@@ -1,11 +1,15 @@
 const assert = require('node:assert/strict');
 
 const {
+  buildContainerControl,
   buildDockerTarget,
   buildProjectControl,
   buildUnavailableDockerOverview,
   controlDockerComposeProject,
+  controlDockerContainer,
+  getDockerContainerDetail,
   getDockerOverview,
+  listDockerOperations,
 } = require('./infrastructureService');
 
 const target = buildDockerTarget({
@@ -49,6 +53,26 @@ const selfControl = buildProjectControl({
 });
 assert.equal(selfControl.allowed, false);
 assert.equal(selfControl.mode, 'SELF_MANAGED_PROTECTED');
+
+const externalContainerControl = buildContainerControl({
+  id: 'abcdef123456',
+  name: 'skydata-api-1',
+  project: 'infra',
+  state: 'RUNNING',
+});
+assert.equal(externalContainerControl.allowed, true);
+assert.equal(externalContainerControl.actions.stop, true);
+assert.equal(externalContainerControl.actions.pause, true);
+assert.equal(externalContainerControl.actions.start, false);
+
+const selfContainerControl = buildContainerControl({
+  id: '123456abcdef',
+  name: 'skycommand-api-1',
+  project: 'skycommand',
+  state: 'RUNNING',
+});
+assert.equal(selfContainerControl.allowed, false);
+assert.equal(selfContainerControl.mode, 'SELF_MANAGED_PROTECTED');
 
 (async () => {
   const overview = await getDockerOverview({
@@ -164,6 +188,175 @@ assert.equal(selfControl.mode, 'SELF_MANAGED_PROTECTED');
   );
   assert.equal(blockedAudits.length, 1);
   assert.equal(blockedAudits[0].success, false);
+
+  const containerOverview = {
+    target: { targetCode: 'LOCAL_DOCKER', status: 'ONLINE' },
+    error: null,
+    containers: [
+      {
+        id: 'abcdef123456',
+        name: 'skydata-api-1',
+        project: 'infra',
+        service: 'api',
+        state: 'RUNNING',
+        health: 'HEALTHY',
+      },
+    ],
+  };
+  const detailResult = await getDockerContainerDetail({
+    containerId: 'abcdef123456',
+    tail: 75,
+    overviewLoader: async () => containerOverview,
+    dispatcher: async (input) => {
+      assert.equal(input.containerId, 'abcdef123456');
+      assert.equal(input.tail, 75);
+      return {
+        ok: true,
+        result: {
+          container: {
+            id: 'abcdef1234567890',
+            name: 'skydata-api-1',
+            project: 'infra',
+            service: 'api',
+            state: { status: 'RUNNING', health: 'HEALTHY' },
+            security: { environmentRedacted: true },
+          },
+          logs: { stdout: 'hello', stderr: '', tail: 75, available: true },
+          capturedAt: new Date().toISOString(),
+        },
+      };
+    },
+  });
+  assert.equal(detailResult.container.name, 'skydata-api-1');
+  assert.equal(detailResult.container.control.actions.pause, true);
+  assert.equal(detailResult.logs.stdout, 'hello');
+  assert.equal(detailResult.container.security.environmentRedacted, true);
+
+  const containerAudits = [];
+  const containerSnapshots = [
+    {
+      target: { targetCode: 'LOCAL_DOCKER', status: 'ONLINE' },
+      error: null,
+      containers: [
+        {
+          id: 'abcdef123456',
+          name: 'skydata-api-1',
+          project: 'infra',
+          service: 'api',
+          state: 'RUNNING',
+        },
+      ],
+    },
+    {
+      target: { targetCode: 'LOCAL_DOCKER', status: 'ONLINE' },
+      error: null,
+      containers: [
+        {
+          id: 'abcdef123456',
+          name: 'skydata-api-1',
+          project: 'infra',
+          service: 'api',
+          state: 'PAUSED',
+        },
+      ],
+    },
+  ];
+  let containerOverviewIndex = 0;
+  const containerControlResult = await controlDockerContainer({
+    containerId: 'abcdef123456',
+    action: 'PAUSE',
+    confirmed: true,
+    actor: { userId: '11111111-1111-1111-1111-111111111111' },
+    session: { appCode: 'SKYSERVER_ADMIN' },
+    overviewLoader: async () => containerSnapshots[
+      Math.min(containerOverviewIndex++, containerSnapshots.length - 1)
+    ],
+    dispatcher: async (input) => {
+      assert.equal(input.containerId, 'abcdef123456');
+      assert.equal(input.action, 'PAUSE');
+      return { ok: true, result: { status: 'SUCCESS' } };
+    },
+    auditRecorder: async (event) => containerAudits.push(event),
+  });
+  assert.equal(containerControlResult.operation.status, 'SUCCESS');
+  assert.equal(containerControlResult.operation.previousState, 'RUNNING');
+  assert.equal(containerControlResult.operation.resultingState, 'PAUSED');
+  assert.equal(containerAudits.length, 1);
+  assert.equal(containerAudits[0].eventType, 'DOCKER_CONTAINER_CONTROL');
+  assert.equal(containerAudits[0].metadata.projectName, 'infra');
+
+  const blockedContainerAudits = [];
+  await assert.rejects(
+    () => controlDockerContainer({
+      containerId: '123456abcdef',
+      action: 'STOP',
+      confirmed: true,
+      overviewLoader: async () => ({
+        target: { targetCode: 'LOCAL_DOCKER', status: 'ONLINE' },
+        error: null,
+        containers: [
+          {
+            id: '123456abcdef',
+            name: 'skycommand-api-1',
+            project: 'skycommand',
+            service: 'api',
+            state: 'RUNNING',
+          },
+        ],
+      }),
+      dispatcher: async () => {
+        throw new Error('dispatcher should not run for protected SkyCommand container');
+      },
+      auditRecorder: async (event) => blockedContainerAudits.push(event),
+    }),
+    (error) => error.details?.code === 'SKYCOMMAND_DOCKER_SELF_CONTROL_BLOCKED',
+  );
+  assert.equal(blockedContainerAudits.length, 1);
+  assert.equal(blockedContainerAudits[0].success, false);
+
+  const operationQueries = [];
+  const operationList = await listDockerOperations(
+    { scope: 'CONTAINER', projectName: 'infra', action: 'PAUSE', success: 'true', limit: 10 },
+    {
+      queryExecutor: async (text, params) => {
+        operationQueries.push({ text, params });
+        if (/COUNT\(\*\)/.test(text)) return { rows: [{ total: 1 }] };
+        return {
+          rows: [
+            {
+              audit_event_id: 'audit-1',
+              user_id: 'user-1',
+              display_name: 'Paul-SuperAdmin',
+              event_type: 'DOCKER_CONTAINER_CONTROL',
+              resource_type: 'docker_container',
+              resource_id: 'skydata-api-1',
+              action: 'pause',
+              success: true,
+              message: 'PAUSE completed.',
+              metadata: {
+                operationId: 'op-1',
+                projectName: 'infra',
+                containerId: 'abcdef123456',
+                containerName: 'skydata-api-1',
+                serviceName: 'api',
+                previousState: 'RUNNING',
+                resultingState: 'PAUSED',
+                durationMs: 123,
+              },
+              created_at: new Date().toISOString(),
+            },
+          ],
+        };
+      },
+    },
+  );
+  assert.equal(operationList.total, 1);
+  assert.equal(operationList.items[0].resourceType, 'CONTAINER');
+  assert.equal(operationList.items[0].resourceName, 'skydata-api-1');
+  assert.equal(operationList.items[0].projectName, 'infra');
+  assert.equal(operationList.items[0].action, 'PAUSE');
+  assert.deepEqual(operationQueries[0].params[0], ['DOCKER_CONTAINER_CONTROL']);
+  assert.equal(operationQueries[0].params[1], 'infra');
 
   console.log('✅ SkyCommand infrastructure service self-test passed.');
 })().catch((error) => {

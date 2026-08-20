@@ -6,7 +6,7 @@ The SkyCommand API can run in Docker while Admin-Web remains on the Windows host
 
 ```text
 Windows host
-  Admin-Web / Vite        localhost:5171
+  Admin-Web / Vite        localhost:15171
   PostgreSQL              localhost:5432
 
 Docker Compose
