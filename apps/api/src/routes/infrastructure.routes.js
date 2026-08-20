@@ -5,7 +5,19 @@ const { requirePermission } = require('../middleware/permissionMiddleware');
 
 const router = express.Router();
 
+router.post(
+  '/providers/docker/events/ingest',
+  requireAuth,
+  infrastructureController.ingestDockerEvent,
+);
+
 router.use(requireAuth);
+
+router.get(
+  '/providers/docker/events/stream',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.streamDockerEvents,
+);
 
 router.get(
   '/providers/docker/overview',

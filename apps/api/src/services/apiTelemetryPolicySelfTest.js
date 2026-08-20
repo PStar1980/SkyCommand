@@ -27,6 +27,14 @@ assert.strictEqual(
 );
 assert.strictEqual(shouldTrackApiRequest({ path: '/api/admin/users' }), true);
 assert.strictEqual(shouldTrackApiRequest({ path: '/assets/index.js' }), false);
+assert.strictEqual(
+  shouldTrackApiRequest({ path: '/api/infrastructure/providers/docker/events/ingest' }),
+  false,
+);
+assert.strictEqual(
+  shouldTrackApiRequest({ path: '/api/infrastructure/providers/docker/events/stream' }),
+  false,
+);
 assert.strictEqual(resolveAuthMode({ sessionToken: 'token' }), 'BEARER_SESSION');
 assert.strictEqual(
   resolveAuthMode({ session: { authMode: 'internal_service_token' } }),

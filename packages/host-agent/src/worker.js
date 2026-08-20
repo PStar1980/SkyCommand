@@ -33,6 +33,7 @@ process.env.SKYCOMMAND_LOCAL_SYNC_PROFILE = HOST_AGENT_PROFILE_CODE;
 const { pool, query } = require('../../db/src/connection');
 const { getTemporalConfig } = require('../../temporal/src/config');
 const activities = require('./activities');
+const { startDockerEventBridge } = require('./dockerEventBridge');
 
 const HEARTBEAT_INTERVAL_MS = Math.max(
   5000,
@@ -293,8 +294,10 @@ async function main() {
     taskQueue,
     profileCode,
   });
+  const dockerEventBridge = startDockerEventBridge();
 
   const shutdown = async () => {
+    await dockerEventBridge.stop();
     await stopHeartbeat('STOPPING');
     worker.shutdown();
   };
@@ -308,6 +311,7 @@ async function main() {
     await stopHeartbeat('ERROR', error);
     throw error;
   } finally {
+    await dockerEventBridge.stop();
     await connection.close();
     await pool.end();
   }

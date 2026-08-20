@@ -58,6 +58,8 @@ assert(
   nginx.includes('resolver 127.0.0.11 valid=10s ipv6=off;') &&
     nginx.includes('set $skycommand_api api:7171;') &&
     nginx.includes('location ^~ /api/') &&
+    nginx.includes('location = /api/infrastructure/providers/docker/events/stream') &&
+    nginx.includes('proxy_buffering off;') &&
     nginx.includes('location = /_health') &&
     nginx.includes('location ^~ /_db/') &&
     nginx.includes('proxy_pass http://$skycommand_api;') &&

@@ -1,3 +1,13 @@
+## 2026-08-20 - Phase 17.6 live Docker event observability
+
+- Added a host-native Docker container-event observer to the SkyCommand Host Agent using `docker events`, with a strict lifecycle/health action allow-list that excludes noisy `exec_*` health-check activity and never exposes raw Docker event attributes to the browser.
+- Added an outbound-only Host Agent event relay to the localhost-published SkyCommand API using the existing internal-service token; the Host Agent still exposes no HTTP listener, shell, attach, or arbitrary Docker command surface.
+- Added an in-memory bounded API event hub with Host Agent source heartbeats, reconnect-safe stream instance IDs, a 100-event buffer, and authenticated Server-Sent Events delivery for Admin-Web.
+- Added an NGINX no-buffer SSE route so Docker events pass through the production Admin-Web deployment immediately while ordinary API proxy behavior remains unchanged.
+- Added a live Docker Event Stream panel to Docker Overview with independent browser/API connection state, Host Agent source status, heartbeat/event timestamps, and the newest 25 normalized container lifecycle events.
+- Excluded Docker event ingress and long-lived SSE requests from persistent API request telemetry so 15-second heartbeats and hour-long streams do not distort route volume or latency reporting.
+- Added Docker event bridge/API stream self-tests and expanded Host Agent/Docker UI validation coverage. Temporal remains the durable command lane; live Docker events now use a separate lightweight observability lane that can later carry provider metrics without bloating workflow history.
+
 2026-08-20 - Phase 17 Docker Admin-Web port hardening
 - Moved the canonical SkyCommand Admin-Web host port from 5171 to 15171 after Windows reassigned 5171 into an excluded TCP range following a reboot.
 - Kept host Vite and Docker NGINX on the same configurable SKYCOMMAND_WEB_PORT contract and updated current setup documentation/defaults.

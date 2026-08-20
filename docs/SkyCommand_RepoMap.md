@@ -108,6 +108,7 @@ SkyCommand/
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── hooks/
+│   │       │   ├── useDockerEventStream.js
 │   │       │   ├── useDockerOverview.js
 │   │       │   └── useSmartPolling.js
 │   │       ├── pages/
@@ -212,6 +213,8 @@ SkyCommand/
 │   │       │   ├── apiTelemetryPolicySelfTest.js
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
+│   │       │   ├── dockerEventStreamService.js
+│   │       │   ├── dockerEventStreamServiceSelfTest.js
 │   │       │   ├── infrastructureService.js
 │   │       │   ├── infrastructureServiceSelfTest.js
 │   │       │   ├── ingestionStatusService.js
@@ -469,6 +472,8 @@ SkyCommand/
 │   │       ├── dockerContainerSelfTest.js
 │   │       ├── dockerControl.js
 │   │       ├── dockerControlSelfTest.js
+│   │       ├── dockerEventBridge.js
+│   │       ├── dockerEventBridgeSelfTest.js
 │   │       ├── dockerSnapshot.js
 │   │       ├── dockerSnapshotSelfTest.js
 │   │       ├── health.js

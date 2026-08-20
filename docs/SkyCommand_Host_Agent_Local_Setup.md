@@ -1,6 +1,6 @@
 # SkyCommand Host Agent — Local Setup
 
-The SkyCommand Host Agent is the narrow host-execution bridge for operations that must touch resources owned by the local machine rather than by Docker. Its first supported operation is guarded local Git synchronization after a Dockerized Development Promotion has already synchronized the authoritative remote branches.
+The SkyCommand Host Agent is the narrow host-execution bridge for operations that must touch resources owned by the local machine rather than by Docker. It owns tightly allow-listed host operations such as guarded local Git synchronization and Docker provider access, and it also carries SkyCommand's lightweight live Docker event observer.
 
 ## Boundary
 
@@ -25,7 +25,7 @@ Guarded local_repo_sync implementation
 local main = local dev = origin/main = origin/dev
 ```
 
-The Host Agent is not an HTTP server and does not expose a host shell. It is an activity-only Temporal worker that polls a dedicated task queue. The allow-list currently contains `local_repo_sync` plus an internal health probe.
+The Host Agent is not an HTTP server and does not expose a host shell. Durable host operations poll a dedicated Temporal activity queue; Docker inventory/control activities remain explicitly allow-listed. Phase 17.6 adds a separate outbound-only observability lane: the Host Agent watches Docker container lifecycle events, strips the raw event down to approved metadata, and posts that normalized payload to the localhost-only SkyCommand API. The browser receives those events through an authenticated Server-Sent Events stream, so event traffic does not inflate Temporal workflow history.
 
 ## Prerequisites
 
@@ -44,7 +44,11 @@ SKYCOMMAND_HOST_AGENT_TASK_QUEUE=skycommand-host-local
 SKYCOMMAND_HOST_AGENT_PROFILE=DEV_LOCAL
 SKYCOMMAND_HOST_AGENT_HEARTBEAT_INTERVAL_MS=15000
 SKYCOMMAND_HOST_AGENT_HEARTBEAT_DB_CONNECT_TIMEOUT_MS=3000
+SKYCOMMAND_DOCKER_EVENT_STREAM_ENABLED=true
+SKYCOMMAND_DOCKER_EVENT_HEARTBEAT_MS=15000
 ```
+
+The live Docker event lane reuses `SKYCOMMAND_INTERNAL_API_TOKEN`, which must match the token used by the Docker API service. `SKYCOMMAND_DOCKER_EVENT_INGEST_URL` is optional and normally stays blank; the Host Agent defaults to the localhost-only API endpoint on `API_PORT` (7171). `SKYCOMMAND_DOCKER_EVENT_STREAM_ENABLED=false` disables only live events; Docker inventory and lifecycle controls remain available through the durable Temporal/Host Agent path.
 
 `SKYCOMMAND_HOST_AGENT_ENABLED` is intentionally opt-in. Docker-side `local_repo_sync` fails closed when it is false or missing.
 
@@ -137,6 +141,8 @@ Any mismatch fails closed and no blind reset, clean, forced checkout, or arbitra
 The Host Agent is deliberately outside `docker compose`. Restarting or rebuilding the Docker stack does not install a host process. After automatic startup has been installed, use `npm run host-agent:auto-start:start` to request a host-native restart and `npm run host-agent:auto-start:status` to confirm `Operational state: RUNNING`. If the status reports `FAILED` or `STOPPED`, inspect `logs/host-agent/scheduled-task.log` before Development Promotion. Manual `npm run host-agent` remains the direct diagnostic path, but do not run manual and scheduled-task instances together. Re-run `npm run host-agent:check` after any restart to prove the complete Docker Temporal → host activity bridge.
 
 The Host Agent writes its liveness into `worker.temporal_worker_heartbeats` with role metadata `HOST_AGENT`, so the control plane can distinguish it from the Docker Temporal worker while retaining one worker-health model. Heartbeats use a short-lived PostgreSQL connection with a bounded connection/query timeout so a Docker PostgreSQL restart cannot permanently strand the telemetry path; failures are retried on the normal heartbeat cadence and recovery is logged once connectivity returns. Command Center surfaces the persisted state as its own **Host Agent** availability card, including disabled, online, stale, and offline states. Workflow launch safety is slightly stronger than the dashboard signal: stale/missing heartbeat telemetry falls back to the live Temporal probe before host execution is declared unavailable.
+
+The Docker event bridge has its own lightweight heartbeat to the API and automatically restarts the `docker events` observer if Docker Desktop restarts underneath it. Relay failures do not terminate the Temporal Host Agent worker; future events and bridge heartbeats retry automatically. Only lifecycle/health actions such as create/start/stop/restart/pause/unpause/die/OOM/health transitions are relayed; noisy `exec_*` events from container health checks are intentionally discarded.
 
 
 ### Docker restart resilience proof

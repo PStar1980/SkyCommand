@@ -3,6 +3,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
+import useDockerEventStream from '../hooks/useDockerEventStream.js';
 import useDockerOverview from '../hooks/useDockerOverview.js';
 
 function formatBytes(value) {
@@ -21,6 +22,33 @@ function formatBytes(value) {
   return `${amount >= 10 || unitIndex === 0 ? amount.toFixed(0) : amount.toFixed(1)} ${units[unitIndex]}`;
 }
 
+
+function formatEventTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}
+
+function formatEventAction(value) {
+  return String(value || 'UNKNOWN')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+
+function getEventStatus(action) {
+  const normalized = String(action || '').toUpperCase();
+  if (['HEALTH_STATUS_UNHEALTHY', 'DIE', 'KILL', 'OOM', 'DESTROY'].includes(normalized)) {
+    return 'ERROR';
+  }
+  if (['START', 'UNPAUSE', 'HEALTH_STATUS_HEALTHY'].includes(normalized)) return 'ONLINE';
+  if (['STOP', 'PAUSE', 'RESTART', 'HEALTH_STATUS_STARTING'].includes(normalized)) {
+    return 'WARNING';
+  }
+  return 'INFO';
+}
+
 function getProjectHealth(project = {}) {
   if (Number(project.unhealthyCount || 0) > 0) return 'UNHEALTHY';
   if (project.state === 'RUNNING' && Number(project.healthyCount || 0) > 0) return 'HEALTHY';
@@ -30,6 +58,7 @@ function getProjectHealth(project = {}) {
 function DockerOverview() {
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
+  const eventStream = useDockerEventStream();
   const counts = overview?.counts || {};
   const provider = overview?.provider || {};
   const target = overview?.target || {};
@@ -51,7 +80,7 @@ function DockerOverview() {
           />
         }
         kicker="Docker · Infrastructure"
-        subtitle="Observe the local Docker Engine through the host-native SkyCommand Host Agent. Phase 17 begins read-only so control actions can be added behind explicit policy and audit boundaries."
+        subtitle="Observe the local Docker Engine through the host-native SkyCommand Host Agent, with guarded lifecycle controls and a separate live event lane for immediate runtime activity."
         title="Docker Overview"
       />
 
@@ -207,6 +236,82 @@ function DockerOverview() {
           </Panel>
         </div>
       </div>
+
+      <Panel
+        className="mb-3"
+        kicker="Live Observability"
+        subtitle="Container lifecycle events flow directly from Docker through the host-native Host Agent and API SSE lane without creating Temporal workflow history."
+        title="Docker Event Stream"
+      >
+        <div className="sky-card-body border-bottom">
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            <StatusPill
+              label={`Browser ${eventStream.connectionStatus}`}
+              status={eventStream.connectionStatus === 'CONNECTED' ? 'ONLINE' : 'WARNING'}
+            />
+            <StatusPill
+              label={`Host Agent ${eventStream.sourceStatus}`}
+              status={eventStream.sourceStatus}
+            />
+            <span className="small sky-muted">
+              {eventStream.sourceHostname || target.hostname || 'Host source pending'}
+            </span>
+            <span className="small sky-muted ms-auto">
+              Heartbeat {formatEventTime(eventStream.lastHeartbeatAt)} · Last event{' '}
+              {formatEventTime(eventStream.lastEventAt)}
+            </span>
+          </div>
+          {eventStream.error && (
+            <div className="small text-warning mt-2">{eventStream.error}</div>
+          )}
+        </div>
+        <div className="table-responsive sky-table-card border-0 rounded-0">
+          <table className="table table-sm table-hover sky-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Container</th>
+                <th>Project</th>
+                <th>Service</th>
+                <th>Image</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eventStream.events.length === 0 ? (
+                <tr>
+                  <td className="sky-muted text-center py-4" colSpan="6">
+                    {eventStream.sourceStatus === 'ONLINE'
+                      ? 'Live Docker event bridge is online. Waiting for container activity…'
+                      : 'Waiting for the Host Agent Docker event bridge. Restart the Host Agent after deploying this Phase 17.6 slice.'}
+                  </td>
+                </tr>
+              ) : (
+                eventStream.events.map((event) => (
+                  <tr key={event.eventId || event.sequence}>
+                    <td className="text-nowrap">{formatEventTime(event.occurredAt)}</td>
+                    <td>
+                      <StatusPill
+                        label={formatEventAction(event.action)}
+                        status={getEventStatus(event.action)}
+                      />
+                    </td>
+                    <td>
+                      <div className="fw-semibold">{event.containerName || event.containerId || '—'}</div>
+                      {event.containerId && (
+                        <div className="small sky-muted">{event.containerId.slice(0, 12)}</div>
+                      )}
+                    </td>
+                    <td>{event.project || '—'}</td>
+                    <td>{event.service || '—'}</td>
+                    <td>{event.image || '—'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
 
       <Panel
         kicker="Runtime Inventory"
