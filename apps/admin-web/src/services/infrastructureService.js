@@ -31,6 +31,11 @@ async function controlDockerComposeProject(projectName, action) {
   );
 }
 
+
+async function streamDockerEvents(options = {}) {
+  return api.stream('/api/infrastructure/providers/docker/events/stream', options);
+}
+
 async function listDockerOperations(filters = {}) {
   return api.get('/api/infrastructure/providers/docker/operations', { query: filters });
 }
@@ -41,4 +46,5 @@ export default {
   getDockerContainerDetail,
   getDockerOverview,
   listDockerOperations,
+  streamDockerEvents,
 };

@@ -40,6 +40,8 @@ const routineSelfTests = [
   'docker-snapshot:self-test',
   'docker-control:self-test',
   'docker-container:self-test',
+  'docker-events:self-test',
+  'docker-event-stream:self-test',
   'infrastructure-service:self-test',
   'docker-infrastructure-ui:self-test',
   'host-agent:auto-start:self-test',
