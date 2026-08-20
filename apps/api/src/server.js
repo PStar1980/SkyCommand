@@ -8,6 +8,7 @@ const toolsRoutes = require('./routes/tools.routes');
 const adminRoutes = require('./routes/admin.routes');
 const macroRoutes = require('./routes/macro.routes');
 const ingestionRoutes = require('./routes/ingestion.routes');
+const infrastructureRoutes = require('./routes/infrastructure.routes');
 const workerRoutes = require('./routes/worker.routes');
 const temporalRoutes = require('./routes/temporal.routes');
 const workflowRoutes = require('./routes/workflow.routes');
@@ -61,6 +62,7 @@ function createApp() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/macro', macroRoutes);
   app.use('/api/ingestion', ingestionRoutes);
+  app.use('/api/infrastructure', infrastructureRoutes);
   app.use('/api/worker', workerRoutes);
   app.use('/api/temporal', temporalRoutes);
   app.use('/api/workflows', workflowRoutes);

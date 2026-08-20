@@ -60,6 +60,16 @@ const COMMAND_SEARCH_ALIASES = {
   'git repositories': '/git-repositories/manage',
   'manage repositories': '/git-repositories/manage',
   'add repository': '/git-repositories/add',
+  docker: '/docker/overview',
+  'docker overview': '/docker/overview',
+  compose: '/docker/projects',
+  'compose projects': '/docker/projects',
+  containers: '/docker/containers',
+  images: '/docker/images',
+  volumes: '/docker/storage',
+  networks: '/docker/storage',
+  'storage and networks': '/docker/storage',
+  'docker operations': '/docker/operations',
   users: '/admin/users',
   sessions: '/admin/sessions',
   roles: '/admin/roles',
@@ -134,6 +144,7 @@ function createNavGroups(hasPermission, hasRole) {
   const canViewData = hasPermission('INGESTION_VIEW_STATUS');
   const canViewRepositories =
     hasPermission('ADMIN_REPOSITORY_READ') || hasPermission('ADMIN_REPOSITORY_WRITE');
+  const canViewDocker = hasPermission('INFRASTRUCTURE_DOCKER_READ');
   const canViewReadiness = hasRole('SUPER_ADMIN');
   const canViewAccessControl =
     hasPermission('ADMIN_USER_READ') ||
@@ -349,6 +360,55 @@ function createNavGroups(hasPermission, hasRole) {
           icon: '+',
           visible: hasPermission('ADMIN_REPOSITORY_WRITE'),
           description: 'Repository registration',
+        },
+      ],
+    },
+    {
+      label: 'Docker',
+      icon: '⬡',
+      visible: canViewDocker,
+      items: [
+        {
+          label: 'Docker Overview',
+          to: '/docker/overview',
+          icon: '◈',
+          visible: canViewDocker,
+          description: 'Engine and workload pulse',
+        },
+        {
+          label: 'Compose Projects',
+          to: '/docker/projects',
+          icon: '▦',
+          visible: canViewDocker,
+          description: 'Application stacks',
+        },
+        {
+          label: 'Containers',
+          to: '/docker/containers',
+          icon: '▣',
+          visible: canViewDocker,
+          description: 'Runtime inventory',
+        },
+        {
+          label: 'Images',
+          to: '/docker/images',
+          icon: '◇',
+          visible: canViewDocker,
+          description: 'Image inventory',
+        },
+        {
+          label: 'Storage & Networks',
+          to: '/docker/storage',
+          icon: '⌘',
+          visible: canViewDocker,
+          description: 'Volumes and networks',
+        },
+        {
+          label: 'Docker Operations',
+          to: '/docker/operations',
+          icon: '↺',
+          visible: canViewDocker,
+          description: 'Control audit ledger',
         },
       ],
     },

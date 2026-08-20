@@ -18,6 +18,9 @@ import ApiDashboard from './pages/ApiDashboard.jsx';
 import AutomationDashboard from './pages/AutomationDashboard.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import DataStatus from './pages/DataStatus.jsx';
+import DockerInventory from './pages/DockerInventory.jsx';
+import DockerOperations from './pages/DockerOperations.jsx';
+import DockerOverview from './pages/DockerOverview.jsx';
 import Home from './pages/Home.jsx';
 import IngestionStatus from './pages/IngestionStatus.jsx';
 import IngestionOperations from './pages/IngestionOperations.jsx';
@@ -144,6 +147,56 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="SCRIPT_EXECUTION_READ">
                   <ScriptExecutions />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="docker" element={<Navigate replace to="/docker/overview" />} />
+            <Route
+              path="docker/overview"
+              element={
+                <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
+                  <DockerOverview />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="docker/projects"
+              element={
+                <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
+                  <DockerInventory view="projects" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="docker/containers"
+              element={
+                <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
+                  <DockerInventory view="containers" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="docker/images"
+              element={
+                <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
+                  <DockerInventory view="images" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="docker/storage"
+              element={
+                <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
+                  <DockerInventory view="storage" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="docker/operations"
+              element={
+                <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
+                  <DockerOperations />
                 </ProtectedRoute>
               }
             />

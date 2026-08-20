@@ -1,9 +1,11 @@
 const os = require('node:os');
 
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
+const { executeDockerSnapshot } = require('./dockerSnapshot');
 
 const HOST_AGENT_HEALTH_TOOL_CODE = '__health';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
+const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 
 function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
@@ -14,6 +16,7 @@ function serializeError(error) {
     code: normalizeText(error?.code) || 'SKYCOMMAND_HOST_AGENT_TOOL_FAILED',
     message: normalizeText(error?.message || error) || 'Host Agent tool execution failed.',
     syncResult: error?.syncResult || null,
+    details: error?.details || null,
   };
 }
 
@@ -38,6 +41,26 @@ async function executeSkyCommandHostToolActivity(input = {}) {
         checkedAt: new Date().toISOString(),
       },
     };
+  }
+
+  if (toolCode === DOCKER_SNAPSHOT_TOOL_CODE) {
+    try {
+      const result = await executeDockerSnapshot();
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
   }
 
   if (toolCode !== LOCAL_REPOSITORY_SYNC_TOOL_CODE) {
@@ -77,6 +100,7 @@ async function executeSkyCommandHostToolActivity(input = {}) {
 }
 
 module.exports = {
+  DOCKER_SNAPSHOT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
   LOCAL_REPOSITORY_SYNC_TOOL_CODE,
   executeSkyCommandHostToolActivity,
