@@ -1,3 +1,12 @@
+2026-08-20 - Phase 17 Docker Compose lifecycle controls
+- Added permission-separated Docker Compose `START`, `STOP`, and `RESTART` actions for externally managed projects already discovered by the Docker inventory provider. Admin-Web never submits a Compose path or raw CLI arguments; the API re-resolves the project from the live provider snapshot and the Host Agent accepts only the three allow-listed lifecycle actions.
+- Added migration `00103__docker_compose_lifecycle_controls.sql` with `INFRASTRUCTURE_DOCKER_CONTROL`, granted to SkyCommand ADMIN and SUPER_ADMIN roles independently from read-only infrastructure access.
+- Added Host Agent `__docker_compose_control` execution with strict project-name/config-file validation, bounded command timeout, no shell execution, no `docker exec`, and no destructive `down`, remove, prune, or volume operations.
+- Protected the `skycommand` Compose project from synchronous self-stop/restart because terminating the API, Temporal server/worker, and Web stack mid-request would break completion and audit semantics. External stacks such as SkyData Studio remain eligible for lifecycle control.
+- Upgraded Compose Projects with state-aware Start/Stop/Restart buttons, explicit confirmation, write-permission awareness, busy-state protection, and success/failure feedback.
+- Activated Docker Operations as the dedicated SkyCommand-issued control audit surface, backed by `auth.audit_events`, with project/action/result filters, pagination, actor/state/duration evidence, and failed-attempt visibility.
+- Added Docker control timeout/self-project environment settings plus regression coverage for Host Agent argument allow-listing, self-project protection, API control semantics, UI contracts, and audit behavior.
+
 2026-08-20 - Phase 17 Docker infrastructure observability foundation
 - Added a Kubernetes-ready infrastructure provider/target seam and the first read-only Docker provider, with the Admin-Web/API receiving normalized infrastructure snapshots instead of direct Docker daemon access.
 - Extended the host-native SkyCommand Host Agent with an allow-listed `__docker_snapshot` operation that gathers Docker Engine, Compose project, container, image, volume, and network inventory through argument-safe Docker CLI calls; no arbitrary shell or `docker exec` surface is exposed.

@@ -17,7 +17,7 @@ const envExample = read('.env.example');
 assert.match(localSync, /skyCommandHostAgentToolWorkflow/);
 assert.match(localSync, /SKYCOMMAND_HOST_AGENT_ENABLED/);
 assert.match(localSync, /temporal_host_agent/);
-assert.match(workflow, /isFastProbe \? '5 seconds' : '45 seconds'/);
+assert.match(workflow, /isDockerControl \? '15 seconds' : '45 seconds'/);
 assert.match(workflow, /taskQueue:\s*hostTaskQueue/);
 assert.match(workflowIndex, /hostAgentWorkflow/);
 assert.match(worker, /SkyCommand Host Agent refuses Docker execution/);
@@ -27,7 +27,9 @@ assert.match(worker, /Heartbeat persistence recovered/);
 assert.match(worker, /PostgreSQL will be retried automatically/);
 assert.match(activities, /LOCAL_REPOSITORY_SYNC_TOOL_CODE/);
 assert.match(activities, /DOCKER_SNAPSHOT_TOOL_CODE/);
+assert.match(activities, /DOCKER_COMPOSE_CONTROL_TOOL_CODE/);
 assert.match(activities, /executeDockerSnapshot/);
+assert.match(activities, /executeDockerComposeControl/);
 assert.match(activities, /SKYCOMMAND_HOST_AGENT_TOOL_NOT_ALLOWED/);
 assert.match(migration, /'admin-web'/);
 assert.match(migration, /'api'/);
@@ -40,5 +42,7 @@ assert.match(envExample, /SKYCOMMAND_HOST_AGENT_TASK_QUEUE=skycommand-host-local
 assert.match(envExample, /SKYCOMMAND_HOST_AGENT_HEARTBEAT_DB_CONNECT_TIMEOUT_MS=3000/);
 assert.match(envExample, /SKYCOMMAND_DOCKER_TARGET_CODE=LOCAL_DOCKER/);
 assert.match(envExample, /SKYCOMMAND_DOCKER_COMMAND_TIMEOUT_MS=10000/);
+assert.match(envExample, /SKYCOMMAND_DOCKER_CONTROL_TIMEOUT_MS=120000/);
+assert.match(envExample, /SKYCOMMAND_DOCKER_SELF_PROJECT_NAME=skycommand/);
 
 console.log('✅ SkyCommand Host Agent self-test passed.');

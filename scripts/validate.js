@@ -38,6 +38,7 @@ const routineSelfTests = [
   'git-local-sync:self-test',
   'host-agent:self-test',
   'docker-snapshot:self-test',
+  'docker-control:self-test',
   'infrastructure-service:self-test',
   'docker-infrastructure-ui:self-test',
   'host-agent:auto-start:self-test',

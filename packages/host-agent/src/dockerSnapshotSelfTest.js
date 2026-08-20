@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   buildDockerSnapshot,
   normalizeContainer,
+  parseComposeConfigFiles,
   parseJsonRecords,
   parseLabelMap,
 } = require('./dockerSnapshot');
@@ -14,6 +15,10 @@ assert.deepEqual(parseJsonRecords('{"Name":"one"}\n{"Name":"two"}'), [
 assert.deepEqual(parseJsonRecords('[{"Name":"one"},{"Name":"two"}]'), [
   { Name: 'one' },
   { Name: 'two' },
+]);
+assert.deepEqual(parseComposeConfigFiles('C:\\one\\compose.yaml,C:\\two\\override.yaml'), [
+  'C:\\one\\compose.yaml',
+  'C:\\two\\override.yaml',
 ]);
 assert.deepEqual(parseLabelMap('com.docker.compose.project=skycommand,com.docker.compose.service=api'), {
   'com.docker.compose.project': 'skycommand',
@@ -78,5 +83,6 @@ assert.equal(snapshot.counts.unhealthy, 0);
 assert.equal(snapshot.counts.images, 1);
 assert.equal(snapshot.projects[0].state, 'RUNNING');
 assert.equal(snapshot.projects[0].serviceCount, 2);
+assert.deepEqual(snapshot.projects[0].configFileList, ['compose.yaml']);
 
 console.log('✅ SkyCommand Docker snapshot self-test passed.');

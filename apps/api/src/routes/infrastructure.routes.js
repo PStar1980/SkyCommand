@@ -13,4 +13,16 @@ router.get(
   infrastructureController.getDockerOverview,
 );
 
+router.get(
+  '/providers/docker/operations',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.listDockerOperations,
+);
+
+router.post(
+  '/providers/docker/projects/:projectName/actions',
+  requirePermission('INFRASTRUCTURE_DOCKER_CONTROL'),
+  infrastructureController.controlDockerComposeProject,
+);
+
 module.exports = router;
