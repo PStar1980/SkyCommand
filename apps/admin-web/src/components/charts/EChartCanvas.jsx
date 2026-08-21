@@ -26,40 +26,47 @@ function EChartCanvas({ className = '', height = 260, onChartClick, option, vari
     [option, variant],
   );
 
+  // Initialize the canvas once. Data refreshes deliberately update the existing
+  // ECharts instance instead of disposing/recreating it so hover state, tooltip
+  // interaction, and chart identity survive live telemetry and dashboard polls.
   useEffect(() => {
-    if (!chartRef.current) {
-      return undefined;
-    }
+    if (!chartRef.current) return undefined;
 
     const instance = echarts.init(chartRef.current, null, {
       renderer: 'canvas',
     });
-
     instanceRef.current = instance;
-    instance.setOption(normalizedOption, true);
 
-    if (typeof onChartClick === 'function') {
-      instance.on('click', onChartClick);
-    }
-
-    const resizeChart = () => {
-      instance.resize();
-    };
-
+    const resizeChart = () => instance.resize();
     const resizeObserver = new ResizeObserver(resizeChart);
     resizeObserver.observe(chartRef.current);
-
     requestAnimationFrame(resizeChart);
 
     return () => {
       resizeObserver.disconnect();
-      if (typeof onChartClick === 'function') {
-        instance.off('click', onChartClick);
-      }
       instance.dispose();
       instanceRef.current = null;
     };
-  }, [normalizedOption, onChartClick]);
+  }, []);
+
+  useEffect(() => {
+    const instance = instanceRef.current;
+    if (!instance || !normalizedOption) return;
+
+    instance.setOption(normalizedOption, {
+      lazyUpdate: true,
+      notMerge: false,
+      replaceMerge: ['series'],
+    });
+  }, [normalizedOption]);
+
+  useEffect(() => {
+    const instance = instanceRef.current;
+    if (!instance || typeof onChartClick !== 'function') return undefined;
+
+    instance.on('click', onChartClick);
+    return () => instance.off('click', onChartClick);
+  }, [onChartClick]);
 
   return <div className={`sky-chart-body ${className}`.trim()} ref={chartRef} style={chartStyle} />;
 }

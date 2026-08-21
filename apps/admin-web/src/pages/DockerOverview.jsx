@@ -1,9 +1,11 @@
+import DockerTelemetryVisuals from '../components/charts/DockerTelemetryVisuals.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import useDockerEventStream from '../hooks/useDockerEventStream.js';
+import useDockerTelemetryStream from '../hooks/useDockerTelemetryStream.js';
 import useDockerOverview from '../hooks/useDockerOverview.js';
 
 function formatBytes(value) {
@@ -59,6 +61,7 @@ function DockerOverview() {
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
   const eventStream = useDockerEventStream();
+  const telemetryStream = useDockerTelemetryStream();
   const counts = overview?.counts || {};
   const provider = overview?.provider || {};
   const target = overview?.target || {};
@@ -80,7 +83,7 @@ function DockerOverview() {
           />
         }
         kicker="Docker · Infrastructure"
-        subtitle="Observe the local Docker Engine through the host-native SkyCommand Host Agent, with guarded lifecycle controls and a separate live event lane for immediate runtime activity."
+        subtitle="Observe the local Docker Engine through the host-native SkyCommand Host Agent, with guarded lifecycle controls plus live event and resource-telemetry lanes."
         title="Docker Overview"
       />
 
@@ -312,6 +315,8 @@ function DockerOverview() {
           </table>
         </div>
       </Panel>
+
+      <DockerTelemetryVisuals telemetry={telemetryStream} />
 
       <Panel
         kicker="Runtime Inventory"

@@ -46,9 +46,11 @@ SKYCOMMAND_HOST_AGENT_HEARTBEAT_INTERVAL_MS=15000
 SKYCOMMAND_HOST_AGENT_HEARTBEAT_DB_CONNECT_TIMEOUT_MS=3000
 SKYCOMMAND_DOCKER_EVENT_STREAM_ENABLED=true
 SKYCOMMAND_DOCKER_EVENT_HEARTBEAT_MS=15000
+SKYCOMMAND_DOCKER_TELEMETRY_ENABLED=true
+SKYCOMMAND_DOCKER_TELEMETRY_INTERVAL_MS=5000
 ```
 
-The live Docker event lane reuses `SKYCOMMAND_INTERNAL_API_TOKEN`, which must match the token used by the Docker API service. `SKYCOMMAND_DOCKER_EVENT_INGEST_URL` is optional and normally stays blank; the Host Agent defaults to the localhost-only API endpoint on `API_PORT` (7171). `SKYCOMMAND_DOCKER_EVENT_STREAM_ENABLED=false` disables only live events; Docker inventory and lifecycle controls remain available through the durable Temporal/Host Agent path.
+The live Docker observability lanes reuse `SKYCOMMAND_INTERNAL_API_TOKEN`, which must match the token used by the Docker API service. Event and telemetry ingress URL overrides are optional and normally stay blank; the Host Agent defaults to localhost-only API endpoints on `API_PORT` (7171). `SKYCOMMAND_DOCKER_EVENT_STREAM_ENABLED=false` disables only lifecycle events, while `SKYCOMMAND_DOCKER_TELEMETRY_ENABLED=false` disables only resource sampling. Docker inventory and lifecycle controls remain available through the durable Temporal/Host Agent path. Telemetry defaults to a 5-second sample interval and relays only normalized CPU, memory, I/O, PID, and Compose identity fields; raw Docker inspect/environment data is not sent to Admin-Web.
 
 `SKYCOMMAND_HOST_AGENT_ENABLED` is intentionally opt-in. Docker-side `local_repo_sync` fails closed when it is false or missing.
 

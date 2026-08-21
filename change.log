@@ -1,3 +1,11 @@
+## 2026-08-20 - Phase 17.6.2 live Docker resource telemetry
+
+- Added a host-native Docker telemetry sampler using bounded `docker stats --no-stream` snapshots every 5 seconds by default, with a single batched `docker inspect` metadata lookup used only to attach normalized Compose/project/service/image identity. Raw inspect payloads, environment variables, labels, and secrets are never relayed to Admin-Web.
+- Added an outbound-only telemetry relay over the existing internal-service authentication boundary plus a dedicated API ingress/SSE stream. The API keeps only a bounded in-memory sample window, derives per-second network/block-I/O rates from cumulative Docker counters, and aggregates current container/project CPU, memory, I/O, and PID pressure without creating Temporal workflow history or database telemetry rows.
+- Added Docker Overview live resource cards, rolling CPU/memory/I-O charts, and a current hot-container table. The browser replays the recent in-memory sample window on connect and then receives live updates independently from the 30-second inventory polling lane.
+- Changed the shared ECharts canvas lifecycle so charts initialize once and update the existing ECharts instance with merged `setOption` calls instead of disposing/recreating the canvas whenever data changes. This preserves chart identity and substantially reduces disruptive tooltip/hover resets during dashboard polling and live telemetry updates.
+- Added a second no-buffer NGINX SSE route, API-request telemetry exclusions for high-frequency resource ingress/streams, Host Agent/API/UI regression coverage, configurable telemetry interval/timeouts, and routine validation wiring. No database migration is required.
+
 ## 2026-08-20 - Phase 17.6 live Docker event observability
 
 - Added a host-native Docker container-event observer to the SkyCommand Host Agent using `docker events`, with a strict lifecycle/health action allow-list that excludes noisy `exec_*` health-check activity and never exposes raw Docker event attributes to the browser.

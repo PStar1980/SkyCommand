@@ -154,12 +154,12 @@ async function postDockerEventPayload(
   } = {},
 ) {
   if (typeof fetchImpl !== 'function') {
-    throw new Error('SkyCommand Host Agent requires a fetch-capable Node.js runtime for Docker event relay.');
+    throw new Error('SkyCommand Host Agent requires a fetch-capable Node.js runtime for Docker live-observability relay.');
   }
 
   if (!internalToken) {
     const error = new Error(
-      'SKYCOMMAND_INTERNAL_API_TOKEN is required for Host Agent Docker event relay.',
+      'SKYCOMMAND_INTERNAL_API_TOKEN is required for Host Agent Docker live-observability relay.',
     );
     error.code = 'SKYCOMMAND_DOCKER_EVENT_TOKEN_MISSING';
     throw error;
@@ -184,7 +184,7 @@ async function postDockerEventPayload(
     if (!response.ok) {
       const responseText = normalizeText(await response.text().catch(() => ''), 512);
       const error = new Error(
-        `Docker event relay endpoint returned HTTP ${response.status}${responseText ? `: ${responseText}` : ''}`,
+        `Docker live-observability relay endpoint returned HTTP ${response.status}${responseText ? `: ${responseText}` : ''}`,
       );
       error.code = 'SKYCOMMAND_DOCKER_EVENT_RELAY_REJECTED';
       error.status = response.status;
