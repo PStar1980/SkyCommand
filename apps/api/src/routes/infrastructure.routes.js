@@ -11,12 +11,24 @@ router.post(
   infrastructureController.ingestDockerEvent,
 );
 
+router.post(
+  '/providers/docker/telemetry/ingest',
+  requireAuth,
+  infrastructureController.ingestDockerTelemetry,
+);
+
 router.use(requireAuth);
 
 router.get(
   '/providers/docker/events/stream',
   requirePermission('INFRASTRUCTURE_DOCKER_READ'),
   infrastructureController.streamDockerEvents,
+);
+
+router.get(
+  '/providers/docker/telemetry/stream',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.streamDockerTelemetry,
 );
 
 router.get(

@@ -75,12 +75,14 @@ SkyCommand/
 │   │       │   │   ├── chartTheme.js
 │   │       │   │   ├── chartTypographySelfTest.js
 │   │       │   │   ├── DashboardVisuals.jsx
+│   │       │   │   ├── DockerTelemetryVisuals.jsx
 │   │       │   │   ├── DurationTrendChart.jsx
 │   │       │   │   ├── EChartCanvas.jsx
 │   │       │   │   ├── EChartCard.jsx
 │   │       │   │   ├── EmptyChartState.jsx
 │   │       │   │   ├── IdentityHorizontalBarChart.jsx
 │   │       │   │   ├── IngestionStatusVisuals.jsx
+│   │       │   │   ├── liveChartUpdateSelfTest.js
 │   │       │   │   ├── OutcomeBarChart.jsx
 │   │       │   │   ├── ProductionReadinessVisuals.jsx
 │   │       │   │   ├── StatusDonut.jsx
@@ -110,6 +112,7 @@ SkyCommand/
 │   │       ├── hooks/
 │   │       │   ├── useDockerEventStream.js
 │   │       │   ├── useDockerOverview.js
+│   │       │   ├── useDockerTelemetryStream.js
 │   │       │   └── useSmartPolling.js
 │   │       ├── pages/
 │   │       │   ├── AddRepository.jsx
@@ -215,6 +218,8 @@ SkyCommand/
 │   │       │   ├── authService.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerEventStreamServiceSelfTest.js
+│   │       │   ├── dockerTelemetryStreamService.js
+│   │       │   ├── dockerTelemetryStreamServiceSelfTest.js
 │   │       │   ├── infrastructureService.js
 │   │       │   ├── infrastructureServiceSelfTest.js
 │   │       │   ├── ingestionStatusService.js
@@ -476,6 +481,8 @@ SkyCommand/
 │   │       ├── dockerEventBridgeSelfTest.js
 │   │       ├── dockerSnapshot.js
 │   │       ├── dockerSnapshotSelfTest.js
+│   │       ├── dockerTelemetryBridge.js
+│   │       ├── dockerTelemetryBridgeSelfTest.js
 │   │       ├── health.js
 │   │       ├── hostAgentSelfTest.js
 │   │       └── worker.js

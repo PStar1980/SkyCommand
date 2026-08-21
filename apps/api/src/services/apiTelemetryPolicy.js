@@ -126,13 +126,15 @@ function shouldTrackApiRequest(req = {}) {
   const requestPath = String(req.path || req.originalUrl || req.url || '').split('?')[0];
   const normalizedPath = requestPath.replace(/\/$/, '');
 
-  // Docker live-event ingress/stream traffic is intentionally excluded from the
-  // durable request telemetry table. Heartbeats arrive frequently and SSE
+  // Docker live-observability ingress/stream traffic is intentionally excluded from the
+  // durable request telemetry table. Heartbeats/samples arrive frequently and SSE
   // connections can remain open for hours; recording either would distort API
   // latency/activity reporting without adding useful operational evidence.
   if (
     normalizedPath === '/api/infrastructure/providers/docker/events/ingest' ||
-    normalizedPath === '/api/infrastructure/providers/docker/events/stream'
+    normalizedPath === '/api/infrastructure/providers/docker/events/stream' ||
+    normalizedPath === '/api/infrastructure/providers/docker/telemetry/ingest' ||
+    normalizedPath === '/api/infrastructure/providers/docker/telemetry/stream'
   ) {
     return false;
   }

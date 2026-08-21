@@ -36,6 +36,10 @@ async function streamDockerEvents(options = {}) {
   return api.stream('/api/infrastructure/providers/docker/events/stream', options);
 }
 
+async function streamDockerTelemetry(options = {}) {
+  return api.stream('/api/infrastructure/providers/docker/telemetry/stream', options);
+}
+
 async function listDockerOperations(filters = {}) {
   return api.get('/api/infrastructure/providers/docker/operations', { query: filters });
 }
@@ -47,4 +51,5 @@ export default {
   getDockerOverview,
   listDockerOperations,
   streamDockerEvents,
+  streamDockerTelemetry,
 };

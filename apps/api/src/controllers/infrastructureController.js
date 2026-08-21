@@ -1,12 +1,13 @@
 const infrastructureService = require('../services/infrastructureService');
 const authService = require('../services/authService');
 const dockerEventStreamService = require('../services/dockerEventStreamService');
+const dockerTelemetryStreamService = require('../services/dockerTelemetryStreamService');
 
 
 function assertInternalServiceRequest(req) {
   if (req.session?.authMode === 'INTERNAL_SERVICE_TOKEN') return;
 
-  const error = new Error('Docker event ingestion is restricted to the SkyCommand internal service identity.');
+  const error = new Error('Docker live-observability ingestion is restricted to the SkyCommand internal service identity.');
   error.statusCode = 403;
   throw error;
 }
@@ -24,6 +25,25 @@ async function ingestDockerEvent(req, res, next) {
 function streamDockerEvents(req, res, next) {
   try {
     dockerEventStreamService.streamDockerEvents(req, res);
+  } catch (error) {
+    next(error);
+  }
+}
+
+
+async function ingestDockerTelemetry(req, res, next) {
+  try {
+    assertInternalServiceRequest(req);
+    const result = dockerTelemetryStreamService.ingestDockerTelemetryPayload(req.body || {});
+    res.status(202).json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function streamDockerTelemetry(req, res, next) {
+  try {
+    dockerTelemetryStreamService.streamDockerTelemetry(req, res);
   } catch (error) {
     next(error);
   }
@@ -111,7 +131,9 @@ async function listDockerOperations(req, res, next) {
 
 module.exports = {
   ingestDockerEvent,
+  ingestDockerTelemetry,
   streamDockerEvents,
+  streamDockerTelemetry,
   controlDockerComposeProject,
   controlDockerContainer,
   getDockerContainerDetail,

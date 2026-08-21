@@ -34,6 +34,7 @@ const { pool, query } = require('../../db/src/connection');
 const { getTemporalConfig } = require('../../temporal/src/config');
 const activities = require('./activities');
 const { startDockerEventBridge } = require('./dockerEventBridge');
+const { startDockerTelemetryBridge } = require('./dockerTelemetryBridge');
 
 const HEARTBEAT_INTERVAL_MS = Math.max(
   5000,
@@ -295,8 +296,10 @@ async function main() {
     profileCode,
   });
   const dockerEventBridge = startDockerEventBridge();
+  const dockerTelemetryBridge = startDockerTelemetryBridge();
 
   const shutdown = async () => {
+    await dockerTelemetryBridge.stop();
     await dockerEventBridge.stop();
     await stopHeartbeat('STOPPING');
     worker.shutdown();
@@ -311,6 +314,7 @@ async function main() {
     await stopHeartbeat('ERROR', error);
     throw error;
   } finally {
+    await dockerTelemetryBridge.stop();
     await dockerEventBridge.stop();
     await connection.close();
     await pool.end();
