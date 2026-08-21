@@ -63,6 +63,7 @@
     "docker-telemetry-stream:self-test": "node apps/api/src/services/dockerTelemetryStreamServiceSelfTest.js",
     "infrastructure-service:self-test": "node apps/api/src/services/infrastructureServiceSelfTest.js",
     "docker-infrastructure-ui:self-test": "node apps/admin-web/src/pages/dockerInfrastructureSurfaceSelfTest.js",
+    "docker-integration:self-test": "node scripts/docker/dockerIntegrationSelfTest.js",
     "temporal-docker:self-test": "node scripts/docker/temporalDockerSelfTest.js",
     "temporal-worker-docker:self-test": "node scripts/docker/temporalWorkerDockerSelfTest.js",
     "node-worker-docker:self-test": "node scripts/docker/nodeWorkerDockerSelfTest.js",

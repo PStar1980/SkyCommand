@@ -566,6 +566,18 @@ function DockerInventory({ view }) {
       {overview?.error && (
         <div className="alert alert-warning">
           <strong>{overview.error.code}</strong> · {overview.error.message}
+          {overview.error.details?.component && (
+            <div className="small mt-1">
+              Failure domain: {overview.error.details.component.replace(/_/g, ' ')} · Host Agent{' '}
+              {overview.error.details.hostAgentStatus ||
+                overview?.target?.status ||
+                'UNKNOWN'}{' '}
+              · Docker provider{' '}
+              {overview.error.details.dockerProviderStatus ||
+                overview?.provider?.status ||
+                'UNKNOWN'}
+            </div>
+          )}
         </div>
       )}
 

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 
 const {
+  DOCKER_OPERATION_EVENT_TYPES,
   buildContainerControl,
   buildDockerTarget,
   buildProjectControl,
@@ -11,6 +12,7 @@ const {
   getDockerContainerDetail,
   getDockerOverview,
   getDockerResourceDetail,
+  getUnavailableDockerStatuses,
   listDockerOperations,
 } = require('./infrastructureService');
 
@@ -38,6 +40,36 @@ const unavailable = buildUnavailableDockerOverview({
 });
 assert.equal(unavailable.provider.status, 'DISABLED');
 assert.equal(unavailable.error.code, 'SKYCOMMAND_HOST_AGENT_DISABLED');
+
+const dockerEngineUnavailable = buildUnavailableDockerOverview(
+  {
+    enabled: true,
+    online: true,
+    status: 'ONLINE',
+    taskQueue: 'skycommand-host-local',
+    availabilitySource: 'TEMPORAL_PROBE',
+    liveProbe: { hostname: 'dev-host', profileCode: 'DEV_LOCAL' },
+  },
+  {
+    code: 'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
+    message: 'Docker Engine is unavailable on the SkyCommand Host Agent machine.',
+  },
+);
+assert.equal(dockerEngineUnavailable.target.status, 'ONLINE');
+assert.equal(dockerEngineUnavailable.provider.status, 'OFFLINE');
+assert.equal(dockerEngineUnavailable.error.details.component, 'DOCKER_ENGINE');
+assert.deepEqual(
+  getUnavailableDockerStatuses(
+    { enabled: true, online: true, status: 'ONLINE' },
+    { code: 'SKYCOMMAND_DOCKER_DISPATCH_FAILED' },
+  ),
+  { targetStatus: 'DEGRADED', providerStatus: 'OFFLINE' },
+);
+assert.deepEqual(DOCKER_OPERATION_EVENT_TYPES, [
+  'DOCKER_COMPOSE_CONTROL',
+  'DOCKER_CONTAINER_CONTROL',
+  'DOCKER_RESOURCE_CONTROL',
+]);
 
 const externalControl = buildProjectControl({
   name: 'skydata',
@@ -114,6 +146,22 @@ assert.equal(selfContainerControl.mode, 'SELF_MANAGED_PROTECTED');
   assert.equal(overview.counts.projects, 1);
   assert.equal(overview.projects[0].control.mode, 'SELF_MANAGED_PROTECTED');
   assert.equal(overview.error, null);
+
+  const providerFailureWithoutPayload = await getDockerOverview({
+    availabilityLoader: async () => ({
+      enabled: true,
+      online: true,
+      status: 'ONLINE',
+      taskQueue: 'skycommand-host-local',
+      availabilitySource: 'TEMPORAL_PROBE',
+      liveProbe: { hostname: 'dev-host', profileCode: 'DEV_LOCAL' },
+    }),
+    dispatcher: async () => ({ ok: false }),
+  });
+  assert.equal(providerFailureWithoutPayload.target.status, 'ONLINE');
+  assert.equal(providerFailureWithoutPayload.provider.status, 'OFFLINE');
+  assert.equal(providerFailureWithoutPayload.error.code, 'SKYCOMMAND_DOCKER_UNAVAILABLE');
+  assert.equal(providerFailureWithoutPayload.error.details.component, 'DOCKER_ENGINE');
 
   const audits = [];
   const snapshots = [
@@ -441,6 +489,23 @@ assert.equal(selfContainerControl.mode, 'SELF_MANAGED_PROTECTED');
   assert.equal(operationList.items[0].action, 'PAUSE');
   assert.deepEqual(operationQueries[0].params[0], ['DOCKER_CONTAINER_CONTROL']);
   assert.equal(operationQueries[0].params[1], 'infra');
+
+  const allScopeQueries = [];
+  await listDockerOperations(
+    { limit: 10 },
+    {
+      queryExecutor: async (text, params) => {
+        allScopeQueries.push({ text, params });
+        if (/COUNT\(\*\)/.test(text)) return { rows: [{ total: 0 }] };
+        return { rows: [] };
+      },
+    },
+  );
+  assert.deepEqual(allScopeQueries[0].params[0], [
+    'DOCKER_COMPOSE_CONTROL',
+    'DOCKER_CONTAINER_CONTROL',
+    'DOCKER_RESOURCE_CONTROL',
+  ]);
 
   const resourceOperationList = await listDockerOperations(
     { scope: 'RESOURCE', action: 'REMOVE', success: 'true', limit: 10 },

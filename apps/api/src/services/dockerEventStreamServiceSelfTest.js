@@ -36,8 +36,32 @@ ingestDockerEventPayload({
   occurredAt: new Date().toISOString(),
   source: { hostname: 'TEST-HOST', transport: 'HOST_AGENT' },
   observerStatus: 'RETRYING',
+  errorCode: 'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
 });
 assert.equal(getDockerEventStreamStatus().status, 'DEGRADED');
+assert.equal(
+  getDockerEventStreamStatus().sourceErrorCode,
+  'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
+);
+
+ingestDockerEventPayload({
+  kind: 'BRIDGE_HEARTBEAT',
+  providerCode: 'DOCKER',
+  occurredAt: new Date().toISOString(),
+  source: { hostname: 'TEST-HOST', transport: 'HOST_AGENT' },
+  observerStatus: 'ONLINE',
+});
+assert.equal(getDockerEventStreamStatus().status, 'ONLINE');
+assert.equal(getDockerEventStreamStatus().sourceErrorCode, '');
+
+ingestDockerEventPayload({
+  kind: 'BRIDGE_HEARTBEAT',
+  providerCode: 'DOCKER',
+  occurredAt: new Date().toISOString(),
+  source: { hostname: 'TEST-HOST', transport: 'HOST_AGENT' },
+  observerStatus: 'STOPPED',
+});
+assert.equal(getDockerEventStreamStatus().status, 'OFFLINE');
 
 ingestDockerEventPayload({
   kind: 'BRIDGE_HEARTBEAT',

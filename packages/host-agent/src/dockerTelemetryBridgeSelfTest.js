@@ -3,6 +3,7 @@ const {
   buildMetadataMap,
   buildTelemetryHeartbeat,
   captureDockerTelemetrySnapshot,
+  getDockerTelemetryCaptureErrorCode,
   getDockerTelemetryConfig,
   normalizeDockerTelemetryStat,
   parseBytePair,
@@ -18,6 +19,10 @@ assert.deepEqual(parseBytePair('12.5MiB / 2GiB'), {
   second: 2147483648,
 });
 assert.equal(parsePercent('4.93%'), 4.93);
+assert.equal(
+  getDockerTelemetryCaptureErrorCode({ message: 'Cannot connect to the Docker daemon.' }),
+  'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
+);
 
 const metadata = buildMetadataMap([
   {
@@ -135,6 +140,7 @@ const executor = async (_command, args) => {
   });
   assert.equal(heartbeat.kind, 'DOCKER_TELEMETRY_HEARTBEAT');
   assert.equal(heartbeat.observerStatus, 'ERROR');
+  assert.equal(heartbeat.errorCode, 'TEST_ERROR');
 
   const previousInterval = process.env.SKYCOMMAND_DOCKER_TELEMETRY_INTERVAL_MS;
   process.env.SKYCOMMAND_DOCKER_TELEMETRY_INTERVAL_MS = '1000';

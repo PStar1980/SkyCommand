@@ -121,6 +121,17 @@ function normalizeDockerTelemetryStat(record = {}, metadataMap = new Map()) {
   };
 }
 
+function getDockerTelemetryCaptureErrorCode(error = null) {
+  const message = normalizeText(`${error?.message || ''} ${error?.stderr || ''}`, 2048);
+  if (error?.code === 'ENOENT' || /not recognized|not found/i.test(message)) {
+    return 'SKYCOMMAND_DOCKER_CLI_UNAVAILABLE';
+  }
+  if (/daemon|docker desktop|pipe|connection refused|cannot connect/i.test(message)) {
+    return 'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE';
+  }
+  return 'SKYCOMMAND_DOCKER_TELEMETRY_CAPTURE_FAILED';
+}
+
 function getDockerTelemetryIngressUrl() {
   const configured = normalizeText(process.env.SKYCOMMAND_DOCKER_TELEMETRY_INGEST_URL, 2048);
   if (configured) return configured;
@@ -324,7 +335,7 @@ function startDockerTelemetryBridge({
       await relay(buildTelemetryHeartbeat({
         hostname,
         observerStatus: sourceState,
-        errorCode: error?.code || 'SKYCOMMAND_DOCKER_TELEMETRY_CAPTURE_FAILED',
+        errorCode: getDockerTelemetryCaptureErrorCode(error),
       }));
     } finally {
       if (!stopped) {
@@ -363,6 +374,7 @@ module.exports = {
   buildMetadataMap,
   buildTelemetryHeartbeat,
   captureDockerTelemetrySnapshot,
+  getDockerTelemetryCaptureErrorCode,
   getDockerTelemetryConfig,
   getDockerTelemetryIngressUrl,
   normalizeDockerTelemetryStat,

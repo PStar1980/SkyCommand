@@ -166,17 +166,19 @@ SkyCommand/
 │   │       │   ├── WorkflowsDashboard.jsx
 │   │       │   ├── workflowStartCatalogueSelfTest.js
 │   │       │   └── WorkflowWorkerHealth.jsx
-│   │       └── services/
-│   │           ├── adminService.js
-│   │           ├── api.js
-│   │           ├── authExpiryRefreshSelfTest.js
-│   │           ├── authService.js
-│   │           ├── infrastructureService.js
-│   │           ├── ingestionService.js
-│   │           ├── temporalService.js
-│   │           ├── toolService.js
-│   │           ├── workerService.js
-│   │           └── workflowService.js
+│   │       ├── services/
+│   │       │   ├── adminService.js
+│   │       │   ├── api.js
+│   │       │   ├── authExpiryRefreshSelfTest.js
+│   │       │   ├── authService.js
+│   │       │   ├── infrastructureService.js
+│   │       │   ├── ingestionService.js
+│   │       │   ├── temporalService.js
+│   │       │   ├── toolService.js
+│   │       │   ├── workerService.js
+│   │       │   └── workflowService.js
+│   │       └── utils/
+│   │           └── dockerLiveStatus.js
 │   ├── api/
 │   │   └── src/
 │   │       ├── index.js
@@ -300,6 +302,7 @@ SkyCommand/
 │   ├── SkyCommand_API_Docker_Local_Setup.md
 │   ├── SkyCommand_API_Observability.md
 │   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
+│   ├── SkyCommand_Docker_Infrastructure_Control_Plane.md
 │   ├── SkyCommand_Host_Agent_Local_Setup.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
 │   ├── SkyCommand_Phase_15_Tool_Catalogue_Administration.md
@@ -826,6 +829,8 @@ SkyCommand/
 │   │   ├── coreDockerDb.js
 │   │   ├── coreDockerDbCheck.js
 │   │   ├── developmentPromotionHostSyncCheck.js
+│   │   ├── dockerIntegrationClosureSelfTest.js
+│   │   ├── dockerIntegrationSelfTest.js
 │   │   ├── nodeWorkerDocker.js
 │   │   ├── nodeWorkerDockerSelfTest.js
 │   │   ├── postgresCutoverCheck.js

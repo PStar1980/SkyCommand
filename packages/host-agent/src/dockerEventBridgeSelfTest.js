@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   buildBridgeHeartbeat,
   getDockerEventIngressUrl,
+  getDockerEventObserverErrorCode,
   normalizeDockerEvent,
   postDockerEventPayload,
 } = require('./dockerEventBridge');
@@ -54,6 +55,16 @@ async function main() {
   assert.equal(heartbeat.kind, 'BRIDGE_HEARTBEAT');
   assert.equal(heartbeat.source.hostname, 'TEST-HOST');
   assert.equal(heartbeat.observerStatus, 'ONLINE');
+  assert.equal(
+    getDockerEventObserverErrorCode(null, 'Cannot connect to the Docker daemon.'),
+    'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
+  );
+  const retryHeartbeat = buildBridgeHeartbeat({
+    hostname: 'TEST-HOST',
+    observerStatus: 'RETRYING',
+    errorCode: 'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
+  });
+  assert.equal(retryHeartbeat.errorCode, 'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE');
 
   let capturedRequest = null;
   await postDockerEventPayload(normalized, {

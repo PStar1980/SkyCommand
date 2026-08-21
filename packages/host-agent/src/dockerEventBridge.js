@@ -128,7 +128,22 @@ function normalizeDockerEvent(rawEvent = {}, { hostname = os.hostname() } = {}) 
   };
 }
 
-function buildBridgeHeartbeat({ hostname = os.hostname(), observerStatus = 'UNKNOWN' } = {}) {
+function getDockerEventObserverErrorCode(error = null, stderr = '') {
+  const message = normalizeText(`${error?.message || ''} ${error?.stderr || ''} ${stderr}`, 2048);
+  if (error?.code === 'ENOENT' || /not recognized|not found/i.test(message)) {
+    return 'SKYCOMMAND_DOCKER_CLI_UNAVAILABLE';
+  }
+  if (/daemon|docker desktop|pipe|connection refused|cannot connect/i.test(message)) {
+    return 'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE';
+  }
+  return 'SKYCOMMAND_DOCKER_EVENT_OBSERVER_UNAVAILABLE';
+}
+
+function buildBridgeHeartbeat({
+  hostname = os.hostname(),
+  observerStatus = 'UNKNOWN',
+  errorCode = '',
+} = {}) {
   return {
     kind: 'BRIDGE_HEARTBEAT',
     providerCode: 'DOCKER',
@@ -137,6 +152,7 @@ function buildBridgeHeartbeat({ hostname = os.hostname(), observerStatus = 'UNKN
       transport: 'HOST_AGENT',
     },
     observerStatus: normalizeText(observerStatus, 64).toUpperCase() || 'UNKNOWN',
+    errorCode: normalizeText(errorCode, 128),
     occurredAt: new Date().toISOString(),
   };
 }
@@ -315,7 +331,13 @@ function startDockerEventBridge({
     nextChild.once('error', (error) => {
       if (child === nextChild) child = null;
       observerStatus = stopped ? 'STOPPED' : 'RETRYING';
-      if (!stopped) enqueuePayload(buildBridgeHeartbeat({ hostname, observerStatus }));
+      if (!stopped) {
+        enqueuePayload(buildBridgeHeartbeat({
+          hostname,
+          observerStatus,
+          errorCode: getDockerEventObserverErrorCode(error, lastStderr),
+        }));
+      }
       lines.close();
       if (!stopped) {
         const now = Date.now();
@@ -333,7 +355,13 @@ function startDockerEventBridge({
     nextChild.once('close', (code) => {
       if (child === nextChild) child = null;
       observerStatus = stopped ? 'STOPPED' : 'RETRYING';
-      if (!stopped) enqueuePayload(buildBridgeHeartbeat({ hostname, observerStatus }));
+      if (!stopped) {
+        enqueuePayload(buildBridgeHeartbeat({
+          hostname,
+          observerStatus,
+          errorCode: getDockerEventObserverErrorCode(null, lastStderr),
+        }));
+      }
       lines.close();
       if (!stopped) {
         const now = Date.now();
@@ -374,6 +402,7 @@ function startDockerEventBridge({
         activeChild.kill();
       }
 
+      enqueuePayload(buildBridgeHeartbeat({ hostname, observerStatus }));
       await postChain.catch(() => {});
     },
   };
@@ -386,6 +415,7 @@ module.exports = {
   DEFAULT_DOCKER_EVENT_RESTART_MS,
   buildBridgeHeartbeat,
   getDockerEventIngressUrl,
+  getDockerEventObserverErrorCode,
   getDockerEventStreamConfig,
   normalizeAction,
   normalizeDockerEvent,

@@ -4,6 +4,7 @@ import useDockerTelemetryStream from '../hooks/useDockerTelemetryStream.js';
 import TrendAreaChart from './charts/TrendAreaChart.jsx';
 import { CHART_COLORS } from './charts/chartTheme.js';
 import StatusPill from './ui/StatusPill.jsx';
+import { buildDockerStaleDataMessage, getDockerLiveLaneState } from '../utils/dockerLiveStatus.js';
 
 function formatBytes(value) {
   const bytes = Number(value || 0);
@@ -222,10 +223,24 @@ function DockerProjectDetailsModal({
     () => projectSamples.map((sample) => formatTime(sample.capturedAt)),
     [projectSamples],
   );
-  const eventOnline =
-    eventStream.connectionStatus === 'CONNECTED' && eventStream.sourceStatus === 'ONLINE';
-  const telemetryOnline =
-    telemetryStream.connectionStatus === 'CONNECTED' && telemetryStream.sourceStatus === 'ONLINE';
+  const eventLane = getDockerLiveLaneState(eventStream);
+  const telemetryLane = getDockerLiveLaneState(telemetryStream);
+  const liveLaneWarning = [
+    !eventLane.live
+      ? buildDockerStaleDataMessage({
+          noun: 'Docker events',
+          sourceErrorCode: eventStream.sourceErrorCode,
+          sourceStatus: eventStream.sourceStatus,
+        })
+      : '',
+    !telemetryLane.live
+      ? buildDockerStaleDataMessage({
+          noun: 'Docker telemetry',
+          sourceErrorCode: telemetryStream.sourceErrorCode,
+          sourceStatus: telemetryStream.sourceStatus,
+        })
+      : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <div
@@ -298,17 +313,19 @@ function DockerProjectDetailsModal({
                 </div>
               </div>
               <div className="d-flex flex-wrap gap-2">
+                <StatusPill label={`Events ${eventLane.label}`} status={eventLane.status} />
                 <StatusPill
-                  label={`Events ${eventOnline ? 'LIVE' : eventStream.connectionStatus}`}
-                  status={eventOnline ? 'ONLINE' : 'WARNING'}
-                />
-                <StatusPill
-                  label={`Telemetry ${telemetryOnline ? 'LIVE' : telemetryStream.connectionStatus}`}
-                  status={telemetryOnline ? 'ONLINE' : 'WARNING'}
+                  label={`Telemetry ${telemetryLane.label}`}
+                  status={telemetryLane.status}
                 />
               </div>
             </div>
             <div className="sky-card-body">
+              {liveLaneWarning && (
+                <div className="alert alert-warning py-2 mb-3">
+                  <strong>Live signal degraded.</strong> {liveLaneWarning}
+                </div>
+              )}
               <ProjectControls
                 canControl={canControl}
                 controlling={controlling}

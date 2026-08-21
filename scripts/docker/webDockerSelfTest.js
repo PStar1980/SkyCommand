@@ -17,6 +17,7 @@ const webPackage = JSON.parse(read('docker/web.package.json'));
 const helper = read('scripts/docker/webDocker.js');
 const packageJson = JSON.parse(read('package.json'));
 const validate = read('scripts/validate.js');
+const dockerIntegration = read('scripts/docker/dockerIntegrationSelfTest.js');
 
 assert(
   compose.includes('web:') &&
@@ -106,6 +107,10 @@ for (const scriptName of [
 ]) {
   assert(scripts[scriptName], `Missing npm script: ${scriptName}`);
 }
-assert(validate.includes("'web-docker:self-test'"), 'Routine validation must include the Web Docker self-test.');
+assert(
+  validate.includes("'docker-integration:self-test'") &&
+    dockerIntegration.includes('scripts/docker/webDockerSelfTest.js'),
+  'Routine validation must include the Web Docker proof through the consolidated Docker integration suite.',
+);
 
 console.log('[SkyCommand] Web Docker foundation self-test passed.');
