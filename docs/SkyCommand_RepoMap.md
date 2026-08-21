@@ -54,6 +54,7 @@ SkyCommand/
 │   │       ├── components/
 │   │       │   ├── ConditionParameterEditor.jsx
 │   │       │   ├── DockerContainerDetailsModal.jsx
+│   │       │   ├── DockerProjectDetailsModal.jsx
 │   │       │   ├── HumanApprovalParameterEditor.jsx
 │   │       │   ├── IngestionProfileEditor.jsx
 │   │       │   ├── Navbar.jsx

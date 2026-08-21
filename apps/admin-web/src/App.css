@@ -6959,3 +6959,21 @@ select.sky-form-control optgroup {
     grid-column: auto;
   }
 }
+
+/* Phase 17.7 — Docker application-stack observability */
+.sky-docker-project-details-modal {
+  width: min(96vw, 92rem);
+  max-height: min(92vh, 64rem);
+}
+
+.sky-docker-project-metric-compact {
+  font-size: clamp(0.92rem, 1vw, 1.08rem);
+  line-height: 1.25;
+}
+
+@media (max-width: 760px) {
+  .sky-docker-project-details-modal {
+    width: 100%;
+    max-height: calc(100vh - 1.5rem);
+  }
+}

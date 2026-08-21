@@ -1,3 +1,12 @@
+## 2026-08-20 - Phase 17.7 Docker application-stack observability
+
+- Added a row-level **Project Details** workspace to Compose Projects so each Docker Compose workload can be operated and observed as an application stack rather than only as a project inventory row.
+- Correlated the existing provider inventory, live Docker event stream, and live resource telemetry stream entirely in Admin-Web; no duplicate Docker endpoint, Temporal workflow history, database telemetry table, or new Host Agent command surface is introduced.
+- Added project-level CPU and memory trends, current aggregate network/block-I/O/PID pressure, running/health/service status, and a live container-members table that joins inventory state with the newest telemetry sample.
+- Added project-scoped native Docker event correlation with latest lifecycle/health signals plus the recent event buffer, while preserving the distinction between ephemeral provider events and durable SkyCommand-issued Docker Operations audit records.
+- Kept Compose Start/Stop/Restart controls inside the workload workspace with the existing `INFRASTRUCTURE_DOCKER_CONTROL` permission, explicit confirmation, Host Agent routing, and SkyCommand self-project protection.
+- Expanded the Docker Admin-Web regression contract and added responsive project-workspace styling. No database migration or environment change is required.
+
 ## 2026-08-20 - Phase 17.6.2 live Docker resource telemetry
 
 - Added a host-native Docker telemetry sampler using bounded `docker stats --no-stream` snapshots every 5 seconds by default, with a single batched `docker inspect` metadata lookup used only to attach normalized Compose/project/service/image identity. Raw inspect payloads, environment variables, labels, and secrets are never relayed to Admin-Web.
