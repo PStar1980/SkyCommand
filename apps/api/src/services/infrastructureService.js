@@ -11,13 +11,26 @@ const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 const DOCKER_COMPOSE_CONTROL_TOOL_CODE = '__docker_compose_control';
 const DOCKER_CONTAINER_DETAIL_TOOL_CODE = '__docker_container_detail';
 const DOCKER_CONTAINER_CONTROL_TOOL_CODE = '__docker_container_control';
+const DOCKER_RESOURCE_DETAIL_TOOL_CODE = '__docker_resource_detail';
+const DOCKER_RESOURCE_CONTROL_TOOL_CODE = '__docker_resource_control';
 const DOCKER_CONTROL_ACTIONS = new Set(['START', 'STOP', 'RESTART']);
 const DOCKER_CONTAINER_CONTROL_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'PAUSE', 'UNPAUSE']);
+const DOCKER_RESOURCE_CONTROL_ACTIONS = new Set(['REMOVE']);
 const DOCKER_OPERATION_EVENT_TYPE = 'DOCKER_COMPOSE_CONTROL';
 const DOCKER_CONTAINER_OPERATION_EVENT_TYPE = 'DOCKER_CONTAINER_CONTROL';
-const DOCKER_OPERATION_EVENT_TYPES = [DOCKER_OPERATION_EVENT_TYPE, DOCKER_CONTAINER_OPERATION_EVENT_TYPE];
+const DOCKER_RESOURCE_OPERATION_EVENT_TYPE = 'DOCKER_RESOURCE_CONTROL';
+const DOCKER_OPERATION_EVENT_TYPES = [
+  DOCKER_OPERATION_EVENT_TYPE,
+  DOCKER_CONTAINER_OPERATION_EVENT_TYPE,
+  DOCKER_RESOURCE_CONTROL_ACTIONS,
+  DOCKER_RESOURCE_CONTROL_TOOL_CODE,
+  DOCKER_RESOURCE_DETAIL_TOOL_CODE,
+  DOCKER_RESOURCE_OPERATION_EVENT_TYPE,
+  DOCKER_RESOURCE_OPERATION_EVENT_TYPE,
+];
 const activeDockerProjectControls = new Set();
 const activeDockerContainerControls = new Set();
+const activeDockerResourceControls = new Set();
 
 async function defaultAuditRecorder(event) {
   const authService = require('./authService');
@@ -106,7 +119,92 @@ function buildContainerControl(container = {}) {
   };
 }
 
+function normalizeDockerImageReference(image = {}) {
+  const explicit = normalizeText(image.reference);
+  if (explicit) return explicit;
+  const repository = normalizeText(image.repository);
+  const tag = normalizeText(image.tag);
+  if (repository && repository !== '<none>' && tag && tag !== '<none>') return `${repository}:${tag}`;
+  return normalizeText(image.id);
+}
+
+function getImageUsageContainers(image = {}, containers = []) {
+  const reference = normalizeDockerImageReference(image).toLowerCase();
+  const id = normalizeText(image.id).toLowerCase().replace(/^sha256:/, '');
+  return containers.filter((container) => {
+    const containerImage = normalizeText(container.image).toLowerCase();
+    if (reference && containerImage === reference) return true;
+    if (!id || id.length < 12) return false;
+    const normalizedContainerImage = containerImage.replace(/^sha256:/, '');
+    return normalizedContainerImage === id || normalizedContainerImage.startsWith(id) || id.startsWith(normalizedContainerImage);
+  });
+}
+
+function getVolumeUsageContainers(volume = {}, containers = []) {
+  const name = normalizeText(volume.name).toLowerCase();
+  if (!name) return [];
+  return containers.filter((container) =>
+    normalizeText(container.mounts)
+      .split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean)
+      .includes(name),
+  );
+}
+
+function getNetworkUsageContainers(network = {}, containers = []) {
+  const name = normalizeText(network.name).toLowerCase();
+  if (!name) return [];
+  return containers.filter((container) =>
+    normalizeText(container.networks)
+      .split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean)
+      .includes(name),
+  );
+}
+
+function buildImageCleanup(image = {}, containers = []) {
+  const usageContainers = getImageUsageContainers(image, containers);
+  return {
+    mode: 'GUARDED_REMOVE',
+    eligible: usageContainers.length === 0,
+    reasonCode: usageContainers.length === 0 ? null : 'SKYCOMMAND_DOCKER_IMAGE_IN_USE',
+    usageCount: usageContainers.length,
+  };
+}
+
+function buildVolumeCleanup(volume = {}, containers = []) {
+  return {
+    mode: 'DATA_PROTECTED',
+    eligible: false,
+    reasonCode: 'SKYCOMMAND_DOCKER_VOLUME_DATA_PROTECTED',
+    usageCount: getVolumeUsageContainers(volume, containers).length,
+  };
+}
+
+function buildNetworkCleanup(network = {}, containers = []) {
+  const usageContainers = getNetworkUsageContainers(network, containers);
+  const name = normalizeText(network.name).toLowerCase();
+  const systemProtected = ['bridge', 'host', 'none'].includes(name);
+  return {
+    mode: systemProtected ? 'SYSTEM_PROTECTED' : 'GUARDED_REMOVE',
+    eligible: !systemProtected && usageContainers.length === 0,
+    reasonCode: systemProtected
+      ? 'SKYCOMMAND_DOCKER_NETWORK_SYSTEM_PROTECTED'
+      : usageContainers.length > 0
+        ? 'SKYCOMMAND_DOCKER_NETWORK_IN_USE'
+        : null,
+    usageCount: usageContainers.length,
+  };
+}
+
 function decorateDockerOverview(snapshot = {}) {
+  const containers = (Array.isArray(snapshot.containers) ? snapshot.containers : []).map((container) => ({
+    ...container,
+    control: buildContainerControl(container),
+  }));
+
   return {
     ...snapshot,
     projects: (Array.isArray(snapshot.projects) ? snapshot.projects : []).map((project) => ({
@@ -114,9 +212,19 @@ function decorateDockerOverview(snapshot = {}) {
       configFileList: parseConfigFiles(project),
       control: buildProjectControl(project),
     })),
-    containers: (Array.isArray(snapshot.containers) ? snapshot.containers : []).map((container) => ({
-      ...container,
-      control: buildContainerControl(container),
+    containers,
+    images: (Array.isArray(snapshot.images) ? snapshot.images : []).map((image) => ({
+      ...image,
+      reference: normalizeDockerImageReference(image),
+      cleanup: buildImageCleanup(image, containers),
+    })),
+    volumes: (Array.isArray(snapshot.volumes) ? snapshot.volumes : []).map((volume) => ({
+      ...volume,
+      cleanup: buildVolumeCleanup(volume, containers),
+    })),
+    networks: (Array.isArray(snapshot.networks) ? snapshot.networks : []).map((network) => ({
+      ...network,
+      cleanup: buildNetworkCleanup(network, containers),
     })),
   };
 }
@@ -300,6 +408,37 @@ async function dispatchDockerContainerControl({ containerId, action }, options =
     {
       ...options,
       workflowIdPrefix: `skycommand-docker-container-${action.toLowerCase()}`,
+      workflowExecutionTimeout: '3 minutes',
+    },
+  );
+}
+
+async function dispatchDockerResourceDetail({ resourceType, reference }, options = {}) {
+  return executeHostAgentWorkflow(
+    {
+      toolCode: DOCKER_RESOURCE_DETAIL_TOOL_CODE,
+      resourceType,
+      reference,
+    },
+    {
+      ...options,
+      workflowIdPrefix: `skycommand-docker-${resourceType.toLowerCase()}-detail`,
+      workflowExecutionTimeout: '45 seconds',
+    },
+  );
+}
+
+async function dispatchDockerResourceControl({ resourceType, reference, action }, options = {}) {
+  return executeHostAgentWorkflow(
+    {
+      toolCode: DOCKER_RESOURCE_CONTROL_TOOL_CODE,
+      resourceType,
+      reference,
+      action,
+    },
+    {
+      ...options,
+      workflowIdPrefix: `skycommand-docker-${resourceType.toLowerCase()}-${action.toLowerCase()}`,
       workflowExecutionTimeout: '3 minutes',
     },
   );
@@ -913,6 +1052,332 @@ async function controlDockerContainer({
   }
 }
 
+
+function normalizeDockerResourceType(value) {
+  const resourceType = normalizeText(value).toUpperCase();
+  if (!['IMAGE', 'VOLUME', 'NETWORK'].includes(resourceType)) {
+    throw createControlError(
+      400,
+      'SKYCOMMAND_DOCKER_RESOURCE_TYPE_NOT_ALLOWED',
+      `Docker resource type '${resourceType || 'blank'}' is not allowed.`,
+      { allowedResourceTypes: ['IMAGE', 'VOLUME', 'NETWORK'] },
+    );
+  }
+  return resourceType;
+}
+
+function findDockerImage(overview = {}, reference = '') {
+  const requested = normalizeText(reference).toLowerCase();
+  if (!requested) return null;
+  return (overview.images || []).find((image) => {
+    const candidates = [
+      normalizeDockerImageReference(image),
+      image.id,
+      image.repository && image.tag ? `${image.repository}:${image.tag}` : '',
+    ].map((item) => normalizeText(item).toLowerCase()).filter(Boolean);
+    return candidates.some((candidate) => candidate === requested || candidate.startsWith(requested) || requested.startsWith(candidate));
+  }) || null;
+}
+
+function findDockerVolume(overview = {}, reference = '') {
+  const requested = normalizeText(reference).toLowerCase();
+  return (overview.volumes || []).find(
+    (volume) => normalizeText(volume.name).toLowerCase() === requested,
+  ) || null;
+}
+
+function findDockerNetwork(overview = {}, reference = '') {
+  const requested = normalizeText(reference).toLowerCase();
+  return (overview.networks || []).find((network) => {
+    const id = normalizeText(network.id).toLowerCase();
+    const name = normalizeText(network.name).toLowerCase();
+    return name === requested || id === requested || (id && (id.startsWith(requested) || requested.startsWith(id)));
+  }) || null;
+}
+
+function findDockerResource(overview = {}, resourceType, reference = '') {
+  if (resourceType === 'IMAGE') return findDockerImage(overview, reference);
+  if (resourceType === 'VOLUME') return findDockerVolume(overview, reference);
+  return findDockerNetwork(overview, reference);
+}
+
+function getDockerResourceReference(resourceType, resource = {}) {
+  if (resourceType === 'IMAGE') return normalizeDockerImageReference(resource);
+  if (resourceType === 'VOLUME') return normalizeText(resource.name);
+  return normalizeText(resource.name || resource.id);
+}
+
+async function getDockerResourceDetail({
+  resourceType,
+  reference,
+  overviewLoader = getDockerOverview,
+  dispatcher = dispatchDockerResourceDetail,
+} = {}) {
+  const normalizedType = normalizeDockerResourceType(resourceType);
+  const overview = await overviewLoader();
+  if (overview?.error || overview?.target?.status !== 'ONLINE') {
+    throw createControlError(
+      503,
+      overview?.error?.code || 'SKYCOMMAND_DOCKER_UNAVAILABLE',
+      overview?.error?.message || 'Docker provider is unavailable.',
+      overview?.error?.details || {},
+    );
+  }
+
+  const inventoryResource = findDockerResource(overview, normalizedType, reference);
+  if (!inventoryResource) {
+    throw createControlError(
+      404,
+      'SKYCOMMAND_DOCKER_RESOURCE_NOT_FOUND',
+      `Docker ${normalizedType.toLowerCase()} was not discovered on the target.`,
+    );
+  }
+
+  const canonicalReference = getDockerResourceReference(normalizedType, inventoryResource);
+  const response = await dispatcher({ resourceType: normalizedType, reference: canonicalReference });
+  if (!response?.ok) {
+    throw createControlError(
+      502,
+      response?.error?.code || 'SKYCOMMAND_DOCKER_RESOURCE_DETAIL_FAILED',
+      response?.error?.message || 'Docker resource inspection failed on the Host Agent.',
+      response?.error?.details || {},
+    );
+  }
+
+  return {
+    providerCode: DOCKER_PROVIDER_CODE,
+    targetCode: overview.target?.targetCode || null,
+    resourceType: normalizedType,
+    resource: {
+      ...inventoryResource,
+      ...(response.result?.resource || {}),
+      inventoryCleanup: inventoryResource.cleanup || null,
+    },
+    capturedAt: response.result?.capturedAt || new Date().toISOString(),
+    transport: response.result?.transport || 'HOST_AGENT',
+  };
+}
+
+async function recordDockerResourceOperation({
+  auditRecorder = defaultAuditRecorder,
+  actor = {},
+  session = {},
+  requestContext = {},
+  operationId,
+  resourceType,
+  reference,
+  projectName = null,
+  action,
+  success,
+  message,
+  metadata = {},
+}) {
+  await auditRecorder({
+    appCode: session?.appCode,
+    userId: actor?.userId || null,
+    eventType: DOCKER_RESOURCE_OPERATION_EVENT_TYPE,
+    resourceType: `docker_${resourceType.toLowerCase()}`,
+    resourceId: reference,
+    action: action.toLowerCase(),
+    success,
+    message,
+    metadata: {
+      operationId,
+      providerCode: DOCKER_PROVIDER_CODE,
+      dockerResourceType: resourceType,
+      resourceReference: reference,
+      projectName,
+      requestedAction: action,
+      ...metadata,
+    },
+    ipAddress: requestContext?.ipAddress || null,
+    userAgent: requestContext?.userAgent || null,
+  });
+}
+
+async function controlDockerResource({
+  resourceType,
+  reference,
+  action,
+  confirmed = false,
+  actor = {},
+  session = {},
+  requestContext = {},
+  overviewLoader = getDockerOverview,
+  dispatcher = dispatchDockerResourceControl,
+  auditRecorder = defaultAuditRecorder,
+} = {}) {
+  const normalizedType = normalizeDockerResourceType(resourceType);
+  const normalizedAction = normalizeText(action).toUpperCase();
+  if (!DOCKER_RESOURCE_CONTROL_ACTIONS.has(normalizedAction)) {
+    throw createControlError(
+      400,
+      'SKYCOMMAND_DOCKER_RESOURCE_ACTION_NOT_ALLOWED',
+      `Docker resource action '${normalizedAction || 'blank'}' is not allowed.`,
+      { allowedActions: [...DOCKER_RESOURCE_CONTROL_ACTIONS] },
+    );
+  }
+  if (normalizedType === 'VOLUME') {
+    throw createControlError(
+      409,
+      'SKYCOMMAND_DOCKER_VOLUME_DATA_PROTECTED',
+      'SkyCommand does not expose Docker volume deletion because detached volumes may contain persistent application data.',
+    );
+  }
+
+  const operationId = randomUUID();
+  let canonicalReference = normalizeText(reference);
+  let projectName = null;
+  let targetCode = normalizeText(process.env.SKYCOMMAND_DOCKER_TARGET_CODE, 'LOCAL_DOCKER');
+
+  try {
+    if (!confirmed) {
+      throw createControlError(
+        400,
+        'SKYCOMMAND_DOCKER_CONFIRMATION_REQUIRED',
+        'Docker cleanup actions require explicit confirmation.',
+      );
+    }
+
+    const before = await overviewLoader();
+    if (before?.error || before?.target?.status !== 'ONLINE') {
+      throw createControlError(
+        503,
+        before?.error?.code || 'SKYCOMMAND_DOCKER_UNAVAILABLE',
+        before?.error?.message || 'Docker provider is unavailable.',
+        before?.error?.details || {},
+      );
+    }
+
+    targetCode = normalizeText(before?.target?.targetCode, targetCode);
+    const resource = findDockerResource(before, normalizedType, canonicalReference);
+    if (!resource) {
+      throw createControlError(
+        404,
+        'SKYCOMMAND_DOCKER_RESOURCE_NOT_FOUND',
+        `Docker ${normalizedType.toLowerCase()} was not discovered on the target.`,
+      );
+    }
+
+    canonicalReference = getDockerResourceReference(normalizedType, resource);
+    projectName = normalizeText(resource.project) || null;
+    const cleanup = resource.cleanup || {};
+    if (!cleanup.eligible) {
+      const protectedVolume = normalizedType === 'VOLUME';
+      throw createControlError(
+        409,
+        cleanup.reasonCode || 'SKYCOMMAND_DOCKER_RESOURCE_REMOVE_BLOCKED',
+        protectedVolume
+          ? 'Docker volume deletion is data-protected in SkyCommand.'
+          : `Docker ${normalizedType.toLowerCase()} cannot be removed while it is protected or in use.`,
+        { resourceType: normalizedType, reference: canonicalReference, usageCount: cleanup.usageCount || 0 },
+      );
+    }
+
+    const lockKey = `${targetCode}:${normalizedType}:${canonicalReference}`.toLowerCase();
+    if (activeDockerResourceControls.has(lockKey)) {
+      throw createControlError(
+        409,
+        'SKYCOMMAND_DOCKER_RESOURCE_BUSY',
+        `Docker ${normalizedType.toLowerCase()} '${canonicalReference}' already has a cleanup action in progress.`,
+      );
+    }
+
+    activeDockerResourceControls.add(lockKey);
+    const startedAt = Date.now();
+    let response;
+    try {
+      response = await dispatcher({
+        resourceType: normalizedType,
+        reference: canonicalReference,
+        action: normalizedAction,
+      });
+    } finally {
+      activeDockerResourceControls.delete(lockKey);
+    }
+
+    if (!response?.ok) {
+      throw createControlError(
+        502,
+        response?.error?.code || 'SKYCOMMAND_DOCKER_RESOURCE_CONTROL_FAILED',
+        response?.error?.message || 'Docker resource cleanup failed on the Host Agent.',
+        response?.error?.details || {},
+      );
+    }
+
+    const durationMs = Math.max(Date.now() - startedAt, 0);
+    const message = `${normalizedAction} completed for Docker ${normalizedType.toLowerCase()} '${canonicalReference}'.`;
+    let auditPersisted = true;
+    try {
+      await recordDockerResourceOperation({
+        auditRecorder,
+        actor,
+        session,
+        requestContext,
+        operationId,
+        resourceType: normalizedType,
+        reference: canonicalReference,
+        projectName,
+        action: normalizedAction,
+        success: true,
+        message,
+        metadata: { targetCode, previousState: 'AVAILABLE', resultingState: 'REMOVED', durationMs, transport: 'HOST_AGENT' },
+      });
+    } catch (auditError) {
+      auditPersisted = false;
+      console.warn('[SkyCommand Infrastructure] Successful Docker resource operation audit failed:', auditError.message);
+    }
+
+    const after = await overviewLoader();
+    return {
+      operation: {
+        operationId,
+        providerCode: DOCKER_PROVIDER_CODE,
+        targetCode,
+        resourceType: normalizedType,
+        resourceName: canonicalReference,
+        projectName,
+        action: normalizedAction,
+        status: 'SUCCESS',
+        previousState: 'AVAILABLE',
+        resultingState: 'REMOVED',
+        durationMs,
+        auditPersisted,
+        message,
+        completedAt: new Date().toISOString(),
+      },
+      overview: after,
+    };
+  } catch (error) {
+    const message = error?.message || 'Docker resource cleanup failed.';
+    try {
+      await recordDockerResourceOperation({
+        auditRecorder,
+        actor,
+        session,
+        requestContext,
+        operationId,
+        resourceType: normalizedType,
+        reference: canonicalReference || normalizeText(reference) || 'unknown',
+        projectName,
+        action: normalizedAction,
+        success: false,
+        message,
+        metadata: {
+          targetCode,
+          previousState: 'AVAILABLE',
+          errorCode: error?.code || error?.details?.code || 'SKYCOMMAND_DOCKER_RESOURCE_CONTROL_FAILED',
+          statusCode: error?.statusCode || 500,
+          transport: 'HOST_AGENT',
+        },
+      });
+    } catch (auditError) {
+      console.warn('[SkyCommand Infrastructure] Docker resource operation audit failed:', auditError.message);
+    }
+    throw error;
+  }
+}
+
 function normalizeLimit(value, fallback = 20) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -941,7 +1406,9 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
     ? [DOCKER_OPERATION_EVENT_TYPE]
     : scope === 'CONTAINER'
       ? [DOCKER_CONTAINER_OPERATION_EVENT_TYPE]
-      : DOCKER_OPERATION_EVENT_TYPES;
+      : scope === 'RESOURCE'
+        ? [DOCKER_RESOURCE_OPERATION_EVENT_TYPE]
+        : DOCKER_OPERATION_EVENT_TYPES;
   const conditions = ['event_type = ANY($1::text[])'];
   const params = [eventTypes];
 
@@ -954,7 +1421,11 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
   }
 
   const action = normalizeText(filters.action).toLowerCase();
-  const allowedActions = new Set([...DOCKER_CONTROL_ACTIONS, ...DOCKER_CONTAINER_CONTROL_ACTIONS]);
+  const allowedActions = new Set([
+    ...DOCKER_CONTROL_ACTIONS,
+    ...DOCKER_CONTAINER_CONTROL_ACTIONS,
+    ...DOCKER_RESOURCE_CONTROL_ACTIONS,
+  ]);
   if (action && allowedActions.has(action.toUpperCase())) {
     params.push(action);
     conditions.push(`LOWER(action) = LOWER($${params.length})`);
@@ -1001,14 +1472,22 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
   return {
     items: (result.rows || []).map((row) => {
       const containerOperation = row.event_type === DOCKER_CONTAINER_OPERATION_EVENT_TYPE;
+      const resourceOperation = row.event_type === DOCKER_RESOURCE_OPERATION_EVENT_TYPE;
+      const resourceType = resourceOperation
+        ? normalizeText(row.metadata?.dockerResourceType, 'RESOURCE')
+        : containerOperation
+          ? 'CONTAINER'
+          : 'COMPOSE_PROJECT';
       return {
         operationId: row.metadata?.operationId || row.audit_event_id,
         auditEventId: row.audit_event_id,
-        resourceType: containerOperation ? 'CONTAINER' : 'COMPOSE_PROJECT',
-        resourceName: containerOperation
-          ? row.metadata?.containerName || row.resource_id
-          : row.resource_id,
-        projectName: row.metadata?.projectName || (containerOperation ? null : row.resource_id),
+        resourceType,
+        resourceName: resourceOperation
+          ? row.metadata?.resourceReference || row.resource_id
+          : containerOperation
+            ? row.metadata?.containerName || row.resource_id
+            : row.resource_id,
+        projectName: row.metadata?.projectName || (containerOperation || resourceOperation ? null : row.resource_id),
         containerId: row.metadata?.containerId || null,
         containerName: row.metadata?.containerName || null,
         serviceName: row.metadata?.serviceName || null,
@@ -1038,6 +1517,10 @@ module.exports = {
   DOCKER_CONTAINER_CONTROL_TOOL_CODE,
   DOCKER_CONTAINER_DETAIL_TOOL_CODE,
   DOCKER_CONTAINER_OPERATION_EVENT_TYPE,
+  DOCKER_RESOURCE_CONTROL_ACTIONS,
+  DOCKER_RESOURCE_CONTROL_TOOL_CODE,
+  DOCKER_RESOURCE_DETAIL_TOOL_CODE,
+  DOCKER_RESOURCE_OPERATION_EVENT_TYPE,
   DOCKER_CONTROL_ACTIONS,
   DOCKER_OPERATION_EVENT_TYPE,
   DOCKER_PROVIDER_CODE,
@@ -1048,13 +1531,21 @@ module.exports = {
   buildUnavailableDockerOverview,
   controlDockerComposeProject,
   controlDockerContainer,
+  controlDockerResource,
   decorateDockerOverview,
   dispatchDockerComposeControl,
   dispatchDockerContainerControl,
   dispatchDockerContainerDetail,
+  dispatchDockerResourceControl,
+  dispatchDockerResourceDetail,
   dispatchDockerSnapshot,
   findDockerContainer,
+  findDockerImage,
+  findDockerNetwork,
+  findDockerResource,
+  findDockerVolume,
   getDockerContainerDetail,
+  getDockerResourceDetail,
   getDockerOverview,
   listDockerOperations,
   parseConfigFiles,

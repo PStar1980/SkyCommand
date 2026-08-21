@@ -44,6 +44,36 @@ router.get(
 );
 
 router.get(
+  '/providers/docker/images/:resourceReference',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.getDockerImageDetail,
+);
+
+router.post(
+  '/providers/docker/images/:resourceReference/actions',
+  requirePermission('INFRASTRUCTURE_DOCKER_CLEANUP'),
+  infrastructureController.controlDockerImage,
+);
+
+router.get(
+  '/providers/docker/volumes/:resourceReference',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.getDockerVolumeDetail,
+);
+
+router.get(
+  '/providers/docker/networks/:resourceReference',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.getDockerNetworkDetail,
+);
+
+router.post(
+  '/providers/docker/networks/:resourceReference/actions',
+  requirePermission('INFRASTRUCTURE_DOCKER_CLEANUP'),
+  infrastructureController.controlDockerNetwork,
+);
+
+router.get(
   '/providers/docker/containers/:containerId',
   requirePermission('INFRASTRUCTURE_DOCKER_READ'),
   infrastructureController.getDockerContainerDetail,

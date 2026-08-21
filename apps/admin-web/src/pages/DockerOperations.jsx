@@ -32,6 +32,7 @@ function formatDuration(value) {
 function DockerOperations() {
   const { hasPermission } = useAuth();
   const canControl = hasPermission('INFRASTRUCTURE_DOCKER_CONTROL');
+  const canCleanup = hasPermission('INFRASTRUCTURE_DOCKER_CLEANUP');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [items, setItems] = useState([]);
@@ -112,7 +113,7 @@ function DockerOperations() {
           </button>
         }
         kicker="Docker · Governance"
-        subtitle="Review SkyCommand-issued Compose and container lifecycle actions separately from native Docker Engine telemetry."
+        subtitle="Review SkyCommand-issued Compose, container, and guarded resource-cleanup actions separately from native Docker Engine telemetry."
         title="Docker Operations"
       />
 
@@ -120,7 +121,7 @@ function DockerOperations() {
 
       <Panel
         kicker="Control Plane Guardrail"
-        subtitle="Docker lifecycle writes require a dedicated permission, explicit browser confirmation, resources already discovered from Docker, and the host-native Host Agent. SkyCommand protects its own Compose project and containers from synchronous self-termination."
+        subtitle="Docker writes require explicit permissions, browser confirmation, resources already discovered from Docker, and the host-native Host Agent. Cleanup uses a separate permission; persistent volumes and system networks remain protected."
         title="Lifecycle Control Policy"
       >
         <div className="sky-card-body">
@@ -131,6 +132,11 @@ function DockerOperations() {
               status={canControl ? 'READY' : 'INFO'}
             />
             <StatusPill label="Control-plane protected" status="BLOCKED" />
+            <StatusPill
+              label={canCleanup ? 'Guarded cleanup enabled' : 'Guarded cleanup read only'}
+              status={canCleanup ? 'READY' : 'INFO'}
+            />
+            <StatusPill label="Persistent volumes protected" status="BLOCKED" />
           </div>
         </div>
       </Panel>
@@ -169,6 +175,7 @@ function DockerOperations() {
                 <option value="">All</option>
                 <option value="COMPOSE">Compose project</option>
                 <option value="CONTAINER">Container</option>
+                <option value="RESOURCE">Image / network cleanup</option>
               </select>
             </div>
             <div className="col-6 col-lg-2">
@@ -190,6 +197,7 @@ function DockerOperations() {
                 <option value="RESTART">Restart</option>
                 <option value="PAUSE">Pause</option>
                 <option value="UNPAUSE">Unpause</option>
+                <option value="REMOVE">Remove</option>
               </select>
             </div>
             <div className="col-6 col-lg-2">
@@ -257,8 +265,16 @@ function DockerOperations() {
                     <td>{formatDate(item.createdAt)}</td>
                     <td>
                       <StatusPill
-                        label={item.resourceType === 'CONTAINER' ? 'Container' : 'Compose'}
-                        status={item.resourceType === 'CONTAINER' ? 'INFO' : 'READY'}
+                        label={item.resourceType === 'CONTAINER'
+                          ? 'Container'
+                          : item.resourceType === 'COMPOSE_PROJECT'
+                            ? 'Compose'
+                            : item.resourceType === 'IMAGE'
+                              ? 'Image'
+                              : item.resourceType === 'NETWORK'
+                                ? 'Network'
+                                : item.resourceType}
+                        status={item.resourceType === 'COMPOSE_PROJECT' ? 'READY' : 'INFO'}
                       />
                     </td>
                     <td>

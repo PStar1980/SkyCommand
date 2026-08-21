@@ -55,6 +55,7 @@ SkyCommand/
 │   │       │   ├── ConditionParameterEditor.jsx
 │   │       │   ├── DockerContainerDetailsModal.jsx
 │   │       │   ├── DockerProjectDetailsModal.jsx
+│   │       │   ├── DockerResourceDetailsModal.jsx
 │   │       │   ├── HumanApprovalParameterEditor.jsx
 │   │       │   ├── IngestionProfileEditor.jsx
 │   │       │   ├── Navbar.jsx
@@ -396,7 +397,8 @@ SkyCommand/
 │   │       │   ├── 00101__development_promotion_host_sync_node.sql
 │   │       │   ├── 00102__docker_infrastructure_read_foundation.sql
 │   │       │   ├── 00103__docker_compose_lifecycle_controls.sql
-│   │       │   └── 00104__docker_container_operations.sql
+│   │       │   ├── 00104__docker_container_operations.sql
+│   │       │   └── 00105__docker_resource_cleanup.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -480,6 +482,8 @@ SkyCommand/
 │   │       ├── dockerControlSelfTest.js
 │   │       ├── dockerEventBridge.js
 │   │       ├── dockerEventBridgeSelfTest.js
+│   │       ├── dockerResource.js
+│   │       ├── dockerResourceSelfTest.js
 │   │       ├── dockerSnapshot.js
 │   │       ├── dockerSnapshotSelfTest.js
 │   │       ├── dockerTelemetryBridge.js

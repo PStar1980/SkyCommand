@@ -1,3 +1,12 @@
+## 2026-08-20 - Phase 17.8 Docker image, storage, and network operations
+
+- Added deep Host Agent inspection for Docker images, volumes, and networks with normalized identity, labels, project ownership, attachment/container usage, network IPAM/endpoints, and resource-specific cleanup policy; raw Docker resource payloads are not exposed to Admin-Web.
+- Added `INFRASTRUCTURE_DOCKER_CLEANUP` as a separate permission from lifecycle control and grant it only to `SUPER_ADMIN` by default. Cleanup requires explicit confirmation, live inventory resolution, a second Host Agent usage check, and Docker Operations audit evidence.
+- Added guarded `REMOVE` for unused image references and unused non-system Docker networks without force flags or prune-all behavior. Built-in `bridge`, `host`, and `none` networks remain system-protected.
+- Kept Docker volumes permanently data-protected in SkyCommand: volume details and container attachments are visible, but no delete action is exposed even when a volume is detached.
+- Upgraded Images and Storage & Networks with usage/cleanup status, row-level Image/Volume/Network Details workspaces, attachment tables, and cleanup policy messaging. Docker Operations now includes resource-cleanup scope and `REMOVE` audit rows.
+- Added migration `00105__docker_resource_cleanup.sql`, `SKYCOMMAND_DOCKER_RESOURCE_TIMEOUT_MS`, dedicated Host Agent resource self-tests, expanded infrastructure/API/Admin-Web regression coverage, and routine validation wiring.
+
 ## 2026-08-20 - Phase 17.7 Docker application-stack observability
 
 - Added a row-level **Project Details** workspace to Compose Projects so each Docker Compose workload can be operated and observed as an application stack rather than only as a project inventory row.
