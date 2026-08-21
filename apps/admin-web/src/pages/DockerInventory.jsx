@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import DockerContainerDetailsModal from '../components/DockerContainerDetailsModal.jsx';
+import DockerProjectDetailsModal from '../components/DockerProjectDetailsModal.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
@@ -45,7 +46,7 @@ function EmptyRow({ colSpan, loading, noun }) {
   );
 }
 
-function ProjectTable({ canControl, controlling, loading, onControl, projects }) {
+function ProjectTable({ canControl, controlling, loading, onControl, onDetails, projects }) {
   return (
     <div className="table-responsive sky-table-card border-0 rounded-0">
       <table className="table table-sm table-hover sky-table align-middle mb-0">
@@ -58,11 +59,12 @@ function ProjectTable({ canControl, controlling, loading, onControl, projects })
             <th className="text-end">Containers</th>
             <th className="text-end">Healthy</th>
             <th>Controls</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {projects.length === 0 ? (
-            <EmptyRow colSpan={7} loading={loading} noun="projects" />
+            <EmptyRow colSpan={8} loading={loading} noun="projects" />
           ) : (
             projects.map((project) => {
               const control = project.control || {};
@@ -122,6 +124,16 @@ function ProjectTable({ canControl, controlling, loading, onControl, projects })
                         </button>
                       </div>
                     )}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-sm sky-btn-ghost"
+                      disabled={loading}
+                      onClick={() => onDetails(project)}
+                      type="button"
+                    >
+                      Project Details
+                    </button>
                   </td>
                 </tr>
               );
@@ -319,6 +331,7 @@ function DockerInventory({ view }) {
   const [controlError, setControlError] = useState('');
   const [controlNotice, setControlNotice] = useState('');
   const [controlling, setControlling] = useState('');
+  const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedContainerId, setSelectedContainerId] = useState('');
   const [containerDetail, setContainerDetail] = useState(null);
   const [containerDetailError, setContainerDetailError] = useState('');
@@ -362,6 +375,18 @@ function DockerInventory({ view }) {
     }
   }
 
+
+
+  function openProjectDetails(project) {
+    if (!project?.name) return;
+    setSelectedProjectName(project.name);
+    setControlError('');
+    setControlNotice('');
+  }
+
+  function closeProjectDetails() {
+    setSelectedProjectName('');
+  }
 
   async function loadContainerDetail(containerId = selectedContainerId) {
     if (!containerId) return;
@@ -467,6 +492,7 @@ function DockerInventory({ view }) {
             controlling={controlling}
             loading={loading}
             onControl={handleProjectControl}
+            onDetails={openProjectDetails}
             projects={projects}
           />
         </Panel>
@@ -487,6 +513,21 @@ function DockerInventory({ view }) {
       )}
       {view === 'storage' && (
         <StorageTables loading={loading} networks={networks} volumes={volumes} />
+      )}
+
+
+      {selectedProjectName && (
+        <DockerProjectDetailsModal
+          canControl={canControl}
+          containers={containers}
+          controlError={controlError}
+          controlNotice={controlNotice}
+          controlling={controlling}
+          onClose={closeProjectDetails}
+          onControl={handleProjectControl}
+          onRefresh={() => loadOverview()}
+          project={projects.find((project) => project.name === selectedProjectName) || { name: selectedProjectName }}
+        />
       )}
 
       {selectedContainerId && (
