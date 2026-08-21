@@ -62,6 +62,56 @@ async function getDockerOverview(req, res, next) {
 }
 
 
+
+async function getDockerResourceDetail(req, res, next, resourceType) {
+  try {
+    const detail = await infrastructureService.getDockerResourceDetail({
+      resourceType,
+      reference: req.params.resourceReference,
+    });
+    res.json({ ok: true, detail });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function getDockerImageDetail(req, res, next) {
+  return getDockerResourceDetail(req, res, next, 'IMAGE');
+}
+
+function getDockerVolumeDetail(req, res, next) {
+  return getDockerResourceDetail(req, res, next, 'VOLUME');
+}
+
+function getDockerNetworkDetail(req, res, next) {
+  return getDockerResourceDetail(req, res, next, 'NETWORK');
+}
+
+async function controlDockerResource(req, res, next, resourceType) {
+  try {
+    const result = await infrastructureService.controlDockerResource({
+      resourceType,
+      reference: req.params.resourceReference,
+      action: req.body?.action,
+      confirmed: req.body?.confirmed === true,
+      actor: req.user,
+      session: req.session,
+      requestContext: authService.getRequestContext(req),
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function controlDockerImage(req, res, next) {
+  return controlDockerResource(req, res, next, 'IMAGE');
+}
+
+function controlDockerNetwork(req, res, next) {
+  return controlDockerResource(req, res, next, 'NETWORK');
+}
+
 async function getDockerContainerDetail(req, res, next) {
   try {
     const detail = await infrastructureService.getDockerContainerDetail({
@@ -135,8 +185,13 @@ module.exports = {
   streamDockerEvents,
   streamDockerTelemetry,
   controlDockerComposeProject,
+  controlDockerImage,
+  controlDockerNetwork,
   controlDockerContainer,
   getDockerContainerDetail,
+  getDockerImageDetail,
+  getDockerNetworkDetail,
+  getDockerVolumeDetail,
   getDockerOverview,
   listDockerOperations,
 };

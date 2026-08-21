@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import DockerContainerDetailsModal from '../components/DockerContainerDetailsModal.jsx';
 import DockerProjectDetailsModal from '../components/DockerProjectDetailsModal.jsx';
+import DockerResourceDetailsModal from '../components/DockerResourceDetailsModal.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
@@ -26,13 +27,13 @@ const VIEW_CONFIG = {
     kicker: 'Docker · Registry',
     title: 'Images',
     subtitle:
-      'Inspect Docker image inventory and usage metadata without exposing destructive image operations.',
+      'Inspect Docker image identity, usage relationships, and guarded cleanup eligibility through the Host Agent.',
   },
   storage: {
     kicker: 'Docker · Resources',
     title: 'Storage & Networks',
     subtitle:
-      'Inspect Docker volumes and networks as infrastructure resources shared by Compose workloads.',
+      'Inspect Docker volume/network ownership and attachments; persistent data stays protected while unused non-system networks can be cleaned up safely.',
   },
 };
 
@@ -214,7 +215,14 @@ function ContainerTable({ containers, loading, onDetails }) {
   );
 }
 
-function ImageTable({ images, loading }) {
+function CleanupPill({ cleanup }) {
+  if (cleanup?.mode === 'DATA_PROTECTED') return <StatusPill label="Data protected" status="BLOCKED" />;
+  if (cleanup?.mode === 'SYSTEM_PROTECTED') return <StatusPill label="System protected" status="BLOCKED" />;
+  if (cleanup?.eligible) return <StatusPill label="Unused" status="READY" />;
+  return <StatusPill label={`${cleanup?.usageCount || 0} attachment(s)`} status="WARNING" />;
+}
+
+function ImageTable({ images, loading, onDetails }) {
   return (
     <div className="table-responsive sky-table-card border-0 rounded-0">
       <table className="table table-sm table-hover sky-table align-middle mb-0">
@@ -225,12 +233,14 @@ function ImageTable({ images, loading }) {
             <th>Image ID</th>
             <th>Size</th>
             <th>Created</th>
-            <th className="text-end">Containers</th>
+            <th>Usage</th>
+            <th>Cleanup</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {images.length === 0 ? (
-            <EmptyRow colSpan={6} loading={loading} noun="images" />
+            <EmptyRow colSpan={8} loading={loading} noun="images" />
           ) : (
             images.map((image) => (
               <tr key={`${image.id}-${image.repository}-${image.tag}`}>
@@ -239,7 +249,13 @@ function ImageTable({ images, loading }) {
                 <td>{image.id || '—'}</td>
                 <td>{image.size || '—'}</td>
                 <td>{image.createdSince || '—'}</td>
-                <td className="text-end">{image.containers || '—'}</td>
+                <td>{image.cleanup?.usageCount ?? image.containers ?? '—'}</td>
+                <td><CleanupPill cleanup={image.cleanup} /></td>
+                <td>
+                  <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={() => onDetails('IMAGE', image)} type="button">
+                    Image Details
+                  </button>
+                </td>
               </tr>
             ))
           )}
@@ -249,34 +265,35 @@ function ImageTable({ images, loading }) {
   );
 }
 
-function StorageTables({ loading, networks, volumes }) {
+function StorageTables({ loading, networks, onDetails, volumes }) {
   return (
     <div className="row g-3">
       <div className="col-12 col-xl-6">
         <Panel
-          subtitle="Persistent Docker storage resources discovered from the host Engine."
+          subtitle="Persistent Docker storage resources with attachment intelligence. Volume deletion remains intentionally unavailable."
           title="Volumes"
         >
           <div className="table-responsive sky-table-card border-0 rounded-0">
             <table className="table table-sm table-hover sky-table align-middle mb-0">
               <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Driver</th>
-                  <th>Scope</th>
-                  <th>Mountpoint</th>
-                </tr>
+                <tr><th>Name</th><th>Driver</th><th>Scope</th><th>Usage</th><th>Policy</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {volumes.length === 0 ? (
-                  <EmptyRow colSpan={4} loading={loading} noun="volumes" />
+                  <EmptyRow colSpan={6} loading={loading} noun="volumes" />
                 ) : (
                   volumes.map((volume) => (
                     <tr key={volume.name}>
                       <td className="fw-semibold">{volume.name}</td>
                       <td>{volume.driver || '—'}</td>
                       <td>{volume.scope || '—'}</td>
-                      <td>{volume.mountpoint || '—'}</td>
+                      <td>{volume.cleanup?.usageCount ?? '—'}</td>
+                      <td><CleanupPill cleanup={volume.cleanup} /></td>
+                      <td>
+                        <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={() => onDetails('VOLUME', volume)} type="button">
+                          Volume Details
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -287,31 +304,30 @@ function StorageTables({ loading, networks, volumes }) {
       </div>
       <div className="col-12 col-xl-6">
         <Panel
-          subtitle="Docker network resources and the drivers that back workload connectivity."
+          subtitle="Docker network resources with endpoint relationships and guarded cleanup for unused non-system networks."
           title="Networks"
         >
           <div className="table-responsive sky-table-card border-0 rounded-0">
             <table className="table table-sm table-hover sky-table align-middle mb-0">
               <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Driver</th>
-                  <th>Scope</th>
-                  <th>IPv6</th>
-                  <th>Internal</th>
-                </tr>
+                <tr><th>Name</th><th>Driver</th><th>Scope</th><th>Usage</th><th>Cleanup</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {networks.length === 0 ? (
-                  <EmptyRow colSpan={5} loading={loading} noun="networks" />
+                  <EmptyRow colSpan={6} loading={loading} noun="networks" />
                 ) : (
                   networks.map((network) => (
                     <tr key={network.id || network.name}>
                       <td className="fw-semibold">{network.name}</td>
                       <td>{network.driver || '—'}</td>
                       <td>{network.scope || '—'}</td>
-                      <td>{network.ipv6 || '—'}</td>
-                      <td>{network.internal || '—'}</td>
+                      <td>{network.cleanup?.usageCount ?? '—'}</td>
+                      <td><CleanupPill cleanup={network.cleanup} /></td>
+                      <td>
+                        <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={() => onDetails('NETWORK', network)} type="button">
+                          Network Details
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -328,6 +344,7 @@ function DockerInventory({ view }) {
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.containers;
   const { hasPermission } = useAuth();
   const canControl = hasPermission('INFRASTRUCTURE_DOCKER_CONTROL');
+  const canCleanup = hasPermission('INFRASTRUCTURE_DOCKER_CLEANUP');
   const [controlError, setControlError] = useState('');
   const [controlNotice, setControlNotice] = useState('');
   const [controlling, setControlling] = useState('');
@@ -337,6 +354,11 @@ function DockerInventory({ view }) {
   const [containerDetailError, setContainerDetailError] = useState('');
   const [containerDetailLoading, setContainerDetailLoading] = useState(false);
   const [containerControlling, setContainerControlling] = useState('');
+  const [selectedResource, setSelectedResource] = useState(null);
+  const [resourceDetail, setResourceDetail] = useState(null);
+  const [resourceDetailError, setResourceDetailError] = useState('');
+  const [resourceDetailLoading, setResourceDetailLoading] = useState(false);
+  const [resourceControlling, setResourceControlling] = useState('');
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
   const projects = Array.isArray(overview?.projects) ? overview.projects : [];
@@ -457,6 +479,68 @@ function DockerInventory({ view }) {
     }
   }
 
+  function getResourceReference(resourceType, resource) {
+    if (resourceType === 'IMAGE') return resource?.reference || resource?.id;
+    return resource?.name || resource?.id;
+  }
+
+  async function loadResourceDetail(resourceType = selectedResource?.resourceType, resource = selectedResource?.resource) {
+    const reference = getResourceReference(resourceType, resource);
+    if (!resourceType || !reference) return;
+    setResourceDetailLoading(true);
+    setResourceDetailError('');
+    try {
+      const result = await infrastructureService.getDockerResourceDetail(resourceType, reference);
+      setResourceDetail(result.detail || null);
+    } catch (detailFailure) {
+      const code = detailFailure.details?.code;
+      setResourceDetailError(code ? `${code} · ${detailFailure.message}` : detailFailure.message || 'Docker resource inspection failed.');
+    } finally {
+      setResourceDetailLoading(false);
+    }
+  }
+
+  function openResourceDetails(resourceType, resource) {
+    const selected = { resourceType, resource };
+    setSelectedResource(selected);
+    setResourceDetail(null);
+    setResourceDetailError('');
+    loadResourceDetail(resourceType, resource);
+  }
+
+  function closeResourceDetails() {
+    setSelectedResource(null);
+    setResourceDetail(null);
+    setResourceDetailError('');
+    setResourceControlling('');
+  }
+
+  async function handleResourceControl(resource, action) {
+    const resourceType = selectedResource?.resourceType;
+    const reference = getResourceReference(resourceType, resource);
+    if (!resourceType || !reference || !canCleanup) return;
+    const confirmed = window.confirm(
+      `Remove unused Docker ${resourceType.toLowerCase()} ${reference}? SkyCommand will re-check live attachments through the Host Agent before removal and record the result in Docker Operations.`,
+    );
+    if (!confirmed) return;
+    setResourceControlling(action);
+    setControlError('');
+    setControlNotice('');
+    try {
+      const result = await infrastructureService.controlDockerResource(resourceType, reference, action);
+      setControlNotice(result.operation?.message || `${action} completed for ${reference}.`);
+      await loadOverview();
+      closeResourceDetails();
+    } catch (controlFailure) {
+      const code = controlFailure.details?.code;
+      const message = code ? `${code} · ${controlFailure.message}` : controlFailure.message || 'Docker cleanup failed.';
+      setControlError(message);
+      setResourceDetailError(message);
+    } finally {
+      setResourceControlling('');
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -508,11 +592,11 @@ function DockerInventory({ view }) {
       )}
       {view === 'images' && (
         <Panel title="Image Inventory">
-          <ImageTable images={images} loading={loading} />
+          <ImageTable images={images} loading={loading} onDetails={openResourceDetails} />
         </Panel>
       )}
       {view === 'storage' && (
-        <StorageTables loading={loading} networks={networks} volumes={volumes} />
+        <StorageTables loading={loading} networks={networks} onDetails={openResourceDetails} volumes={volumes} />
       )}
 
 
@@ -540,6 +624,19 @@ function DockerInventory({ view }) {
           onClose={closeContainerDetails}
           onControl={handleContainerControl}
           onRefresh={() => loadContainerDetail(selectedContainerId)}
+        />
+      )}
+
+      {selectedResource && (
+        <DockerResourceDetailsModal
+          canCleanup={canCleanup}
+          controlling={resourceControlling}
+          detail={resourceDetail}
+          error={resourceDetailError}
+          loading={resourceDetailLoading}
+          onClose={closeResourceDetails}
+          onControl={handleResourceControl}
+          onRefresh={() => loadResourceDetail()}
         />
       )}
     </>

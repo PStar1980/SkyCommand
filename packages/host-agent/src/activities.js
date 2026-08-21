@@ -12,6 +12,12 @@ const {
   executeDockerContainerControl,
   executeDockerContainerDetail,
 } = require('./dockerContainer');
+const {
+  DOCKER_RESOURCE_CONTROL_TOOL_CODE,
+  DOCKER_RESOURCE_DETAIL_TOOL_CODE,
+  executeDockerResourceControl,
+  executeDockerResourceDetail,
+} = require('./dockerResource');
 
 const HOST_AGENT_HEALTH_TOOL_CODE = '__health';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
@@ -122,6 +128,55 @@ async function executeSkyCommandHostToolActivity(input = {}) {
     }
   }
 
+  if (toolCode === DOCKER_RESOURCE_DETAIL_TOOL_CODE) {
+    try {
+      const result = await executeDockerResourceDetail({
+        resourceType: input.resourceType,
+        reference: input.reference,
+      });
+
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
+  if (toolCode === DOCKER_RESOURCE_CONTROL_TOOL_CODE) {
+    try {
+      const result = await executeDockerResourceControl({
+        resourceType: input.resourceType,
+        reference: input.reference,
+        action: input.action,
+      });
+
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
   if (toolCode === DOCKER_CONTAINER_CONTROL_TOOL_CODE) {
     try {
       const result = await executeDockerContainerControl({
@@ -186,6 +241,8 @@ module.exports = {
   DOCKER_COMPOSE_CONTROL_TOOL_CODE,
   DOCKER_CONTAINER_CONTROL_TOOL_CODE,
   DOCKER_CONTAINER_DETAIL_TOOL_CODE,
+  DOCKER_RESOURCE_CONTROL_TOOL_CODE,
+  DOCKER_RESOURCE_DETAIL_TOOL_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
   LOCAL_REPOSITORY_SYNC_TOOL_CODE,

@@ -40,6 +40,7 @@ const routineSelfTests = [
   'docker-snapshot:self-test',
   'docker-control:self-test',
   'docker-container:self-test',
+  'docker-resource:self-test',
   'docker-events:self-test',
   'docker-event-stream:self-test',
   'docker-telemetry:self-test',

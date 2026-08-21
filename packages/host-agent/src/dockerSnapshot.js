@@ -142,10 +142,15 @@ function normalizeProject(record = {}, containers = []) {
 }
 
 function normalizeImage(record = {}) {
+  const id = normalizeText(record.ID);
+  const repository = normalizeText(record.Repository);
+  const tag = normalizeText(record.Tag);
+  const tagged = repository && repository !== '<none>' && tag && tag !== '<none>';
   return {
-    id: normalizeText(record.ID),
-    repository: normalizeText(record.Repository),
-    tag: normalizeText(record.Tag),
+    id,
+    repository,
+    tag,
+    reference: tagged ? `${repository}:${tag}` : id,
     size: normalizeText(record.Size),
     createdSince: normalizeText(record.CreatedSince),
     containers: normalizeText(record.Containers),

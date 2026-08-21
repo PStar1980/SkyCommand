@@ -9,9 +9,12 @@ async function skyCommandHostAgentToolWorkflow(input = {}) {
   const hostTaskQueue = normalizeHostAgentTaskQueue(input.hostTaskQueue);
   const toolCode = String(input.toolCode || '').trim();
   const isFastProbe = toolCode === '__health' || toolCode === '__docker_snapshot';
-  const isDockerDetail = toolCode === '__docker_container_detail';
+  const isDockerDetail =
+    toolCode === '__docker_container_detail' || toolCode === '__docker_resource_detail';
   const isDockerControl =
-    toolCode === '__docker_compose_control' || toolCode === '__docker_container_control';
+    toolCode === '__docker_compose_control' ||
+    toolCode === '__docker_container_control' ||
+    toolCode === '__docker_resource_control';
   const { executeSkyCommandHostToolActivity } = proxyActivities({
     taskQueue: hostTaskQueue,
     scheduleToStartTimeout: isFastProbe || isDockerDetail

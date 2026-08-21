@@ -56,6 +56,7 @@
     "docker-snapshot:self-test": "node packages/host-agent/src/dockerSnapshotSelfTest.js",
     "docker-control:self-test": "node packages/host-agent/src/dockerControlSelfTest.js",
     "docker-container:self-test": "node packages/host-agent/src/dockerContainerSelfTest.js",
+    "docker-resource:self-test": "node packages/host-agent/src/dockerResourceSelfTest.js",
     "docker-events:self-test": "node packages/host-agent/src/dockerEventBridgeSelfTest.js",
     "docker-event-stream:self-test": "node apps/api/src/services/dockerEventStreamServiceSelfTest.js",
     "docker-telemetry:self-test": "node packages/host-agent/src/dockerTelemetryBridgeSelfTest.js",

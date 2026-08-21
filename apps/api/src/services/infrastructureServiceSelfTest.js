@@ -7,8 +7,10 @@ const {
   buildUnavailableDockerOverview,
   controlDockerComposeProject,
   controlDockerContainer,
+  controlDockerResource,
   getDockerContainerDetail,
   getDockerOverview,
+  getDockerResourceDetail,
   listDockerOperations,
 } = require('./infrastructureService');
 
@@ -314,6 +316,88 @@ assert.equal(selfContainerControl.mode, 'SELF_MANAGED_PROTECTED');
   assert.equal(blockedContainerAudits.length, 1);
   assert.equal(blockedContainerAudits[0].success, false);
 
+  const resourceOverview = {
+    target: { targetCode: 'LOCAL_DOCKER', status: 'ONLINE' },
+    error: null,
+    images: [
+      {
+        id: 'abc123def456',
+        repository: 'demo',
+        tag: 'test',
+        reference: 'demo:test',
+        cleanup: { mode: 'GUARDED_REMOVE', eligible: true, usageCount: 0 },
+      },
+    ],
+    volumes: [
+      {
+        name: 'demo_data',
+        cleanup: { mode: 'DATA_PROTECTED', eligible: false, usageCount: 0 },
+      },
+    ],
+    networks: [
+      {
+        id: 'network123456',
+        name: 'demo_default',
+        cleanup: { mode: 'GUARDED_REMOVE', eligible: true, usageCount: 0 },
+      },
+    ],
+  };
+  const imageDetail = await getDockerResourceDetail({
+    resourceType: 'IMAGE',
+    reference: 'demo:test',
+    overviewLoader: async () => resourceOverview,
+    dispatcher: async (input) => {
+      assert.equal(input.resourceType, 'IMAGE');
+      assert.equal(input.reference, 'demo:test');
+      return {
+        ok: true,
+        result: {
+          resource: {
+            resourceType: 'IMAGE',
+            reference: 'demo:test',
+            id: 'sha256:abc123def456',
+            usageCount: 0,
+            cleanup: { mode: 'GUARDED_REMOVE', eligible: true },
+          },
+        },
+      };
+    },
+  });
+  assert.equal(imageDetail.resource.reference, 'demo:test');
+  assert.equal(imageDetail.resource.cleanup.eligible, true);
+
+  const resourceAudits = [];
+  const resourceControlResult = await controlDockerResource({
+    resourceType: 'NETWORK',
+    reference: 'demo_default',
+    action: 'REMOVE',
+    confirmed: true,
+    actor: { userId: '11111111-1111-1111-1111-111111111111' },
+    session: { appCode: 'SKYSERVER_ADMIN' },
+    overviewLoader: async () => resourceOverview,
+    dispatcher: async (input) => {
+      assert.equal(input.resourceType, 'NETWORK');
+      assert.equal(input.reference, 'demo_default');
+      assert.equal(input.action, 'REMOVE');
+      return { ok: true, result: { status: 'SUCCESS' } };
+    },
+    auditRecorder: async (event) => resourceAudits.push(event),
+  });
+  assert.equal(resourceControlResult.operation.status, 'SUCCESS');
+  assert.equal(resourceControlResult.operation.resourceType, 'NETWORK');
+  assert.equal(resourceAudits[0].eventType, 'DOCKER_RESOURCE_CONTROL');
+
+  await assert.rejects(
+    () => controlDockerResource({
+      resourceType: 'VOLUME',
+      reference: 'demo_data',
+      action: 'REMOVE',
+      confirmed: true,
+      overviewLoader: async () => resourceOverview,
+    }),
+    (error) => error.details?.code === 'SKYCOMMAND_DOCKER_VOLUME_DATA_PROTECTED',
+  );
+
   const operationQueries = [];
   const operationList = await listDockerOperations(
     { scope: 'CONTAINER', projectName: 'infra', action: 'PAUSE', success: 'true', limit: 10 },
@@ -357,6 +441,42 @@ assert.equal(selfContainerControl.mode, 'SELF_MANAGED_PROTECTED');
   assert.equal(operationList.items[0].action, 'PAUSE');
   assert.deepEqual(operationQueries[0].params[0], ['DOCKER_CONTAINER_CONTROL']);
   assert.equal(operationQueries[0].params[1], 'infra');
+
+  const resourceOperationList = await listDockerOperations(
+    { scope: 'RESOURCE', action: 'REMOVE', success: 'true', limit: 10 },
+    {
+      queryExecutor: async (text, params) => {
+        if (/COUNT\(\*\)/.test(text)) return { rows: [{ total: 1 }] };
+        assert.deepEqual(params[0], ['DOCKER_RESOURCE_CONTROL']);
+        return {
+          rows: [
+            {
+              audit_event_id: 'audit-resource-1',
+              user_id: 'user-1',
+              display_name: 'Paul-SuperAdmin',
+              event_type: 'DOCKER_RESOURCE_CONTROL',
+              resource_type: 'docker_network',
+              resource_id: 'demo_default',
+              action: 'remove',
+              success: true,
+              message: 'REMOVE completed.',
+              metadata: {
+                operationId: 'op-resource-1',
+                dockerResourceType: 'NETWORK',
+                resourceReference: 'demo_default',
+                previousState: 'AVAILABLE',
+                resultingState: 'REMOVED',
+              },
+              created_at: new Date().toISOString(),
+            },
+          ],
+        };
+      },
+    },
+  );
+  assert.equal(resourceOperationList.items[0].resourceType, 'NETWORK');
+  assert.equal(resourceOperationList.items[0].resourceName, 'demo_default');
+  assert.equal(resourceOperationList.items[0].action, 'REMOVE');
 
   console.log('✅ SkyCommand infrastructure service self-test passed.');
 })().catch((error) => {
