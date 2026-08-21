@@ -7,6 +7,7 @@ import StatusPill from '../components/ui/StatusPill.jsx';
 import useDockerEventStream from '../hooks/useDockerEventStream.js';
 import useDockerTelemetryStream from '../hooks/useDockerTelemetryStream.js';
 import useDockerOverview from '../hooks/useDockerOverview.js';
+import { buildDockerStaleDataMessage, getDockerLiveLaneState } from '../utils/dockerLiveStatus.js';
 
 function formatBytes(value) {
   const bytes = Number(value || 0);
@@ -67,6 +68,15 @@ function DockerOverview() {
   const target = overview?.target || {};
   const projects = Array.isArray(overview?.projects) ? overview.projects : [];
   const containers = Array.isArray(overview?.containers) ? overview.containers : [];
+  const providerStatus = provider.status || 'UNKNOWN';
+  const providerOnline = providerStatus === 'ONLINE';
+  const inventoryCardStatus = providerOnline ? 'INFO' : providerStatus;
+  const eventLane = getDockerLiveLaneState(eventStream);
+  const eventSourceWarning = buildDockerStaleDataMessage({
+    noun: 'Docker event source',
+    sourceErrorCode: eventStream.sourceErrorCode,
+    sourceStatus: eventStream.sourceStatus,
+  });
 
   return (
     <>
@@ -91,6 +101,13 @@ function DockerOverview() {
       {overview?.error && (
         <div className="alert alert-warning mb-3">
           <strong>{overview.error.code}</strong> · {overview.error.message}
+          {overview.error.details?.component && (
+            <div className="small mt-1">
+              Failure domain: {overview.error.details.component.replace(/_/g, ' ')} · Host Agent{' '}
+              {overview.error.details.hostAgentStatus || target.status || 'UNKNOWN'} · Docker provider{' '}
+              {overview.error.details.dockerProviderStatus || provider.status || 'UNKNOWN'}
+            </div>
+          )}
         </div>
       )}
 
@@ -111,21 +128,27 @@ function DockerOverview() {
                 : 'Engine version unavailable'
             }
             label="Docker Engine"
-            status={provider.status || 'UNKNOWN'}
-            value={provider.status || 'UNKNOWN'}
+            status={providerStatus}
+            value={providerStatus}
           />
         </div>
         <div className="col-6 col-md-4 col-xl-2">
-          <StatCard label="Compose Projects" status="INFO" value={counts.projects ?? 0} />
+          <StatCard label="Compose Projects" status={inventoryCardStatus} value={counts.projects ?? 0} />
         </div>
         <div className="col-6 col-md-4 col-xl-2">
-          <StatCard label="Containers" status="INFO" value={counts.containers ?? 0} />
+          <StatCard label="Containers" status={inventoryCardStatus} value={counts.containers ?? 0} />
         </div>
         <div className="col-6 col-md-4 col-xl-2">
           <StatCard
             helper={`${counts.stopped ?? 0} not running`}
             label="Running"
-            status={Number(counts.running || 0) > 0 ? 'ONLINE' : 'INFO'}
+            status={
+              providerOnline
+                ? Number(counts.running || 0) > 0
+                  ? 'ONLINE'
+                  : 'INFO'
+                : providerStatus
+            }
             value={counts.running ?? 0}
           />
         </div>
@@ -133,23 +156,33 @@ function DockerOverview() {
 
       <div className="row g-3 mb-3">
         <div className="col-6 col-md-3">
-          <StatCard label="Healthy" status="HEALTHY" value={counts.healthy ?? 0} />
+          <StatCard
+            label="Healthy"
+            status={providerOnline ? 'HEALTHY' : providerStatus}
+            value={counts.healthy ?? 0}
+          />
         </div>
         <div className="col-6 col-md-3">
           <StatCard
             label="Unhealthy"
-            status={Number(counts.unhealthy || 0) > 0 ? 'UNHEALTHY' : 'HEALTHY'}
+            status={
+              providerOnline
+                ? Number(counts.unhealthy || 0) > 0
+                  ? 'UNHEALTHY'
+                  : 'HEALTHY'
+                : providerStatus
+            }
             value={counts.unhealthy ?? 0}
           />
         </div>
         <div className="col-6 col-md-2">
-          <StatCard label="Images" status="INFO" value={counts.images ?? 0} />
+          <StatCard label="Images" status={inventoryCardStatus} value={counts.images ?? 0} />
         </div>
         <div className="col-6 col-md-2">
-          <StatCard label="Volumes" status="INFO" value={counts.volumes ?? 0} />
+          <StatCard label="Volumes" status={inventoryCardStatus} value={counts.volumes ?? 0} />
         </div>
         <div className="col-6 col-md-2">
-          <StatCard label="Networks" status="INFO" value={counts.networks ?? 0} />
+          <StatCard label="Networks" status={inventoryCardStatus} value={counts.networks ?? 0} />
         </div>
       </div>
 
@@ -208,7 +241,9 @@ function DockerOverview() {
                       <td className="sky-muted text-center py-4" colSpan="5">
                         {loading
                           ? 'Loading Docker projects…'
-                          : 'No Docker Compose projects detected.'}
+                          : overview?.error
+                            ? 'Docker project inventory is unavailable while the provider is offline.'
+                            : 'No Docker Compose projects detected.'}
                       </td>
                     </tr>
                   ) : (
@@ -253,8 +288,8 @@ function DockerOverview() {
               status={eventStream.connectionStatus === 'CONNECTED' ? 'ONLINE' : 'WARNING'}
             />
             <StatusPill
-              label={`Host Agent ${eventStream.sourceStatus}`}
-              status={eventStream.sourceStatus}
+              label={`Docker source ${eventLane.label}`}
+              status={eventLane.status}
             />
             <span className="small sky-muted">
               {eventStream.sourceHostname || target.hostname || 'Host source pending'}
@@ -266,6 +301,9 @@ function DockerOverview() {
           </div>
           {eventStream.error && (
             <div className="small text-warning mt-2">{eventStream.error}</div>
+          )}
+          {!eventLane.live && eventSourceWarning && (
+            <div className="small text-warning mt-2">{eventSourceWarning}</div>
           )}
         </div>
         <div className="table-responsive sky-table-card border-0 rounded-0">
@@ -284,9 +322,9 @@ function DockerOverview() {
               {eventStream.events.length === 0 ? (
                 <tr>
                   <td className="sky-muted text-center py-4" colSpan="6">
-                    {eventStream.sourceStatus === 'ONLINE'
+                    {eventLane.live
                       ? 'Live Docker event bridge is online. Waiting for container activity…'
-                      : 'Waiting for the Host Agent Docker event bridge. Restart the Host Agent after deploying this Phase 17.6 slice.'}
+                      : 'Docker event history is waiting for a healthy Host Agent source. SkyCommand will reconnect automatically.'}
                   </td>
                 </tr>
               ) : (

@@ -22,10 +22,6 @@ const DOCKER_RESOURCE_OPERATION_EVENT_TYPE = 'DOCKER_RESOURCE_CONTROL';
 const DOCKER_OPERATION_EVENT_TYPES = [
   DOCKER_OPERATION_EVENT_TYPE,
   DOCKER_CONTAINER_OPERATION_EVENT_TYPE,
-  DOCKER_RESOURCE_CONTROL_ACTIONS,
-  DOCKER_RESOURCE_CONTROL_TOOL_CODE,
-  DOCKER_RESOURCE_DETAIL_TOOL_CODE,
-  DOCKER_RESOURCE_OPERATION_EVENT_TYPE,
   DOCKER_RESOURCE_OPERATION_EVENT_TYPE,
 ];
 const activeDockerProjectControls = new Set();
@@ -255,18 +251,41 @@ function buildDockerTarget(availability = {}) {
   };
 }
 
+function getUnavailableDockerStatuses(availability = {}, error = null) {
+  const target = buildDockerTarget(availability);
+  const errorCode = normalizeText(error?.code).toUpperCase();
+
+  if (!availability.enabled) {
+    return { targetStatus: 'DISABLED', providerStatus: 'DISABLED' };
+  }
+
+  if (!availability.online) {
+    const targetStatus = target.status || 'OFFLINE';
+    return {
+      targetStatus,
+      providerStatus: targetStatus === 'UNKNOWN' ? 'UNKNOWN' : targetStatus,
+    };
+  }
+
+  if (errorCode === 'SKYCOMMAND_DOCKER_DISPATCH_FAILED') {
+    return { targetStatus: 'DEGRADED', providerStatus: 'OFFLINE' };
+  }
+
+  return { targetStatus: 'ONLINE', providerStatus: 'OFFLINE' };
+}
+
 function buildUnavailableDockerOverview(availability = {}, error = null) {
   const target = buildDockerTarget(availability);
-  const status = target.status === 'ONLINE' ? 'OFFLINE' : target.status;
+  const { targetStatus, providerStatus } = getUnavailableDockerStatuses(availability, error);
 
   return {
     target: {
       ...target,
-      status,
+      status: targetStatus,
     },
     provider: {
       code: DOCKER_PROVIDER_CODE,
-      status,
+      status: providerStatus,
       engineVersion: '',
       engineName: '',
       operatingSystem: '',
@@ -301,7 +320,12 @@ function buildUnavailableDockerOverview(availability = {}, error = null) {
       ? {
           code: normalizeText(error.code, 'SKYCOMMAND_DOCKER_UNAVAILABLE'),
           message: normalizeText(error.message, 'Docker provider is unavailable.'),
-          details: error.details || null,
+          details: {
+            ...(error.details || {}),
+            component: targetStatus === 'ONLINE' ? 'DOCKER_ENGINE' : 'HOST_AGENT_TRANSPORT',
+            hostAgentStatus: targetStatus,
+            dockerProviderStatus: providerStatus,
+          },
         }
       : availability.enabled
         ? {
@@ -310,6 +334,9 @@ function buildUnavailableDockerOverview(availability = {}, error = null) {
             details: {
               taskQueue: target.taskQueue,
               availabilitySource: target.availabilitySource,
+              component: 'HOST_AGENT',
+              hostAgentStatus: targetStatus,
+              dockerProviderStatus: providerStatus,
             },
           }
         : {
@@ -317,6 +344,9 @@ function buildUnavailableDockerOverview(availability = {}, error = null) {
             message: 'SkyCommand Host Agent is disabled. Docker inventory requires host execution.',
             details: {
               taskQueue: target.taskQueue,
+              component: 'HOST_AGENT',
+              hostAgentStatus: targetStatus,
+              dockerProviderStatus: providerStatus,
             },
           },
     capturedAt: new Date().toISOString(),
@@ -474,7 +504,13 @@ async function getDockerOverview({ availabilityLoader = getHostAgentAvailability
     const response = await dispatcher();
 
     if (!response?.ok) {
-      return buildUnavailableDockerOverview(availability, response?.error || null);
+      return buildUnavailableDockerOverview(
+        availability,
+        response?.error || {
+          code: 'SKYCOMMAND_DOCKER_UNAVAILABLE',
+          message: 'Docker provider did not return a successful inventory response.',
+        },
+      );
     }
 
     const snapshot = decorateDockerOverview(response.result || {});
@@ -1523,6 +1559,7 @@ module.exports = {
   DOCKER_RESOURCE_OPERATION_EVENT_TYPE,
   DOCKER_CONTROL_ACTIONS,
   DOCKER_OPERATION_EVENT_TYPE,
+  DOCKER_OPERATION_EVENT_TYPES,
   DOCKER_PROVIDER_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
   buildContainerControl,
@@ -1546,6 +1583,7 @@ module.exports = {
   findDockerVolume,
   getDockerContainerDetail,
   getDockerResourceDetail,
+  getUnavailableDockerStatuses,
   getDockerOverview,
   listDockerOperations,
   parseConfigFiles,

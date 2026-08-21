@@ -9,6 +9,7 @@ function useDockerEventStream() {
   const [connectionStatus, setConnectionStatus] = useState('CONNECTING');
   const [sourceStatus, setSourceStatus] = useState('WAITING');
   const [sourceHostname, setSourceHostname] = useState('');
+  const [sourceErrorCode, setSourceErrorCode] = useState('');
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState(null);
   const [lastEventAt, setLastEventAt] = useState(null);
   const [error, setError] = useState('');
@@ -49,6 +50,7 @@ function useDockerEventStream() {
             if (event === 'stream-status') {
               setSourceStatus(data.status || 'WAITING');
               setSourceHostname(data.sourceHostname || '');
+              setSourceErrorCode(data.sourceErrorCode || '');
               setLastHeartbeatAt(data.lastHeartbeatAt || null);
               return;
             }
@@ -97,6 +99,7 @@ function useDockerEventStream() {
     events,
     lastEventAt,
     lastHeartbeatAt,
+    sourceErrorCode,
     sourceHostname,
     sourceStatus,
   };

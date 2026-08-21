@@ -15,6 +15,7 @@ let lastSampleAt = null;
 let sourceHostname = null;
 let sourceTransport = null;
 let sourceObserverStatus = 'UNKNOWN';
+let sourceErrorCode = '';
 let totalSamplesReceived = 0;
 let sourceSampleIntervalMs = 5000;
 const subscribers = new Set();
@@ -221,6 +222,7 @@ function getSourceStatus(now = Date.now()) {
   if (sourceObserverStatus === 'ONLINE') return 'ONLINE';
   if (['STARTING', 'CONNECTING', 'RETRYING'].includes(sourceObserverStatus)) return 'DEGRADED';
   if (sourceObserverStatus === 'ERROR') return 'ERROR';
+  if (['OFFLINE', 'STOPPED'].includes(sourceObserverStatus)) return 'OFFLINE';
   return 'WAITING';
 }
 
@@ -231,6 +233,7 @@ function getDockerTelemetryStreamStatus() {
     sourceHostname,
     sourceTransport,
     sourceObserverStatus,
+    sourceErrorCode,
     lastHeartbeatAt,
     lastSampleAt,
     bufferedSamples: recentSamples.length,
@@ -249,12 +252,14 @@ function ingestDockerTelemetryPayload(payload = {}) {
 
   if (normalized.kind === 'DOCKER_TELEMETRY_HEARTBEAT') {
     sourceObserverStatus = normalized.observerStatus || 'UNKNOWN';
+    sourceErrorCode = normalized.errorCode || '';
     const status = getDockerTelemetryStreamStatus();
     publish({ type: 'telemetry-status', data: status });
     return { accepted: true, kind: normalized.kind, status };
   }
 
   sourceObserverStatus = 'ONLINE';
+  sourceErrorCode = '';
   sourceSampleIntervalMs = normalized.sampleIntervalMs || sourceSampleIntervalMs;
   nextSequence += 1;
   totalSamplesReceived += 1;
@@ -345,6 +350,7 @@ function resetDockerTelemetryStreamForTest() {
   sourceHostname = null;
   sourceTransport = null;
   sourceObserverStatus = 'UNKNOWN';
+  sourceErrorCode = '';
   totalSamplesReceived = 0;
   sourceSampleIntervalMs = 5000;
   subscribers.clear();

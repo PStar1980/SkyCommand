@@ -12,6 +12,7 @@ let lastHeartbeatAt = null;
 let sourceHostname = null;
 let sourceTransport = null;
 let sourceObserverStatus = 'UNKNOWN';
+let sourceErrorCode = '';
 let totalEventsReceived = 0;
 const subscribers = new Set();
 
@@ -50,6 +51,8 @@ function getSourceStatus(now = Date.now()) {
   if (!Number.isFinite(ageMs) || ageMs > DOCKER_EVENT_SOURCE_STALE_MS) return 'STALE';
   if (sourceObserverStatus === 'ONLINE') return 'ONLINE';
   if (['CONNECTING', 'RETRYING', 'STARTING'].includes(sourceObserverStatus)) return 'DEGRADED';
+  if (sourceObserverStatus === 'ERROR') return 'ERROR';
+  if (['OFFLINE', 'STOPPED'].includes(sourceObserverStatus)) return 'OFFLINE';
   return 'WAITING';
 }
 
@@ -60,6 +63,7 @@ function getDockerEventStreamStatus() {
     sourceHostname,
     sourceTransport,
     sourceObserverStatus,
+    sourceErrorCode,
     lastHeartbeatAt,
     lastEventAt: recentEvents[recentEvents.length - 1]?.receivedAt || null,
     bufferedEvents: recentEvents.length,
@@ -81,6 +85,7 @@ function normalizeDockerEventPayload(payload = {}) {
         transport: normalizeText(payload.source?.transport, 64) || 'HOST_AGENT',
       },
       observerStatus: normalizeText(payload.observerStatus, 64).toUpperCase() || 'UNKNOWN',
+      errorCode: normalizeText(payload.errorCode, 128),
     };
   }
 
@@ -138,6 +143,7 @@ function ingestDockerEventPayload(payload = {}) {
     sourceHostname = normalized.source.hostname || sourceHostname;
     sourceTransport = normalized.source.transport || sourceTransport;
     sourceObserverStatus = normalized.observerStatus || 'UNKNOWN';
+    sourceErrorCode = normalized.errorCode || '';
 
     const status = getDockerEventStreamStatus();
     publish({ type: 'stream-status', data: status });
@@ -254,6 +260,7 @@ function resetDockerEventStreamForTest() {
   sourceHostname = null;
   sourceTransport = null;
   sourceObserverStatus = 'UNKNOWN';
+  sourceErrorCode = '';
   totalEventsReceived = 0;
   subscribers.clear();
 }

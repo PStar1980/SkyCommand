@@ -9,6 +9,7 @@ function useDockerTelemetryStream() {
   const [connectionStatus, setConnectionStatus] = useState('CONNECTING');
   const [sourceStatus, setSourceStatus] = useState('WAITING');
   const [sourceHostname, setSourceHostname] = useState('');
+  const [sourceErrorCode, setSourceErrorCode] = useState('');
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState(null);
   const [lastSampleAt, setLastSampleAt] = useState(null);
   const [error, setError] = useState('');
@@ -49,6 +50,7 @@ function useDockerTelemetryStream() {
             if (event === 'telemetry-status') {
               setSourceStatus(data.status || 'WAITING');
               setSourceHostname(data.sourceHostname || '');
+              setSourceErrorCode(data.sourceErrorCode || '');
               setLastHeartbeatAt(data.lastHeartbeatAt || null);
               setLastSampleAt(data.lastSampleAt || null);
               return;
@@ -112,6 +114,7 @@ function useDockerTelemetryStream() {
     latestSample,
     sampleIntervalMs,
     samples,
+    sourceErrorCode,
     sourceHostname,
     sourceStatus,
   };

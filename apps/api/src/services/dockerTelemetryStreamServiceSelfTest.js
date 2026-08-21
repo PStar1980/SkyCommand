@@ -74,9 +74,21 @@ assert.equal(telemetry.parseDockerTelemetryStreamSequence('other-instance:999'),
 telemetry.ingestDockerTelemetryPayload({
   kind: 'DOCKER_TELEMETRY_HEARTBEAT',
   observerStatus: 'ERROR',
+  errorCode: 'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
   source: { hostname: 'Entity007', transport: 'HOST_AGENT' },
 });
 assert.equal(telemetry.getDockerTelemetryStreamStatus().status, 'ERROR');
+assert.equal(
+  telemetry.getDockerTelemetryStreamStatus().sourceErrorCode,
+  'SKYCOMMAND_DOCKER_ENGINE_UNAVAILABLE',
+);
+
+telemetry.ingestDockerTelemetryPayload({
+  kind: 'DOCKER_TELEMETRY_HEARTBEAT',
+  observerStatus: 'STOPPED',
+  source: { hostname: 'Entity007', transport: 'HOST_AGENT' },
+});
+assert.equal(telemetry.getDockerTelemetryStreamStatus().status, 'OFFLINE');
 
 assert.throws(
   () => telemetry.ingestDockerTelemetryPayload({ kind: 'RAW_DOCKER_STATS', containers: [] }),

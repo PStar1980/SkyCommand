@@ -3,6 +3,7 @@ import StatCard from '../ui/StatCard.jsx';
 import StatusPill from '../ui/StatusPill.jsx';
 import TrendAreaChart from './TrendAreaChart.jsx';
 import { CHART_COLORS } from './chartTheme.js';
+import { buildDockerStaleDataMessage, getDockerLiveLaneState } from '../../utils/dockerLiveStatus.js';
 
 function formatBytes(value) {
   const bytes = Number(value || 0);
@@ -56,7 +57,13 @@ function DockerTelemetryVisuals({ telemetry }) {
   const sampleSeconds = telemetry?.sampleIntervalMs
     ? Math.max(1, Math.round(telemetry.sampleIntervalMs / 1000))
     : 5;
-  const online = telemetry?.connectionStatus === 'CONNECTED' && telemetry?.sourceStatus === 'ONLINE';
+  const lane = getDockerLiveLaneState(telemetry);
+  const online = lane.live;
+  const staleNotice = buildDockerStaleDataMessage({
+    noun: 'Docker resource telemetry',
+    sourceErrorCode: telemetry?.sourceErrorCode,
+    sourceStatus: telemetry?.sourceStatus,
+  });
 
   return (
     <section className="sky-dashboard-visuals mb-3">
@@ -74,8 +81,8 @@ function DockerTelemetryVisuals({ telemetry }) {
             status={telemetry?.connectionStatus === 'CONNECTED' ? 'ONLINE' : 'WARNING'}
           />
           <StatusPill
-            label={`Host Agent ${telemetry?.sourceStatus || 'WAITING'}`}
-            status={telemetry?.sourceStatus || 'WAITING'}
+            label={`Docker source ${lane.label}`}
+            status={lane.status}
           />
           <span className="small sky-muted">
             Last sample {formatTime(telemetry?.lastSampleAt)}
@@ -83,7 +90,12 @@ function DockerTelemetryVisuals({ telemetry }) {
         </div>
       </div>
 
-      {telemetry?.error && <div className="small text-warning mb-3">{telemetry.error}</div>}
+      {telemetry?.error && <div className="small text-warning mb-2">{telemetry.error}</div>}
+      {!online && staleNotice && samples.length > 0 && (
+        <div className="alert alert-warning py-2 mb-3">
+          <strong>Historical sample retained.</strong> {staleNotice}
+        </div>
+      )}
 
       <div className="row g-3 mb-3">
         <div className="col-6 col-xl">
@@ -197,7 +209,9 @@ function DockerTelemetryVisuals({ telemetry }) {
               {topContainers.length === 0 ? (
                 <tr>
                   <td className="sky-muted text-center py-4" colSpan="7">
-                    Waiting for the first Docker telemetry sample…
+                    {online
+                      ? 'Waiting for the first Docker telemetry sample…'
+                      : 'Waiting for a healthy Docker telemetry source…'}
                   </td>
                 </tr>
               ) : (
