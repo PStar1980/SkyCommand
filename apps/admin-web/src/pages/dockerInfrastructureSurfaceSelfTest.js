@@ -34,7 +34,7 @@ const containerMigration = read('packages/db_build/src/migrations/00104__docker_
 const resourceMigration = read('packages/db_build/src/migrations/00105__docker_resource_cleanup.sql');
 
 assert.match(navbar, /label: 'Docker'/);
-assert.match(navbar, /label: 'Docker Overview'/);
+assert.doesNotMatch(navbar, /label: 'Docker Overview'/);
 assert.match(navbar, /label: 'Projects'/);
 assert.match(navbar, /projects: '\/docker\/projects'/);
 assert.match(navbar, /label: 'Containers'/);
@@ -43,6 +43,19 @@ assert.match(navbar, /label: 'Storage'/);
 assert.match(navbar, /label: 'Networks'/);
 assert.match(navbar, /networks: '\/docker\/networks'/);
 assert.match(navbar, /label: 'Docker Operations'/);
+const dashboardGroup = navbar.slice(
+  navbar.indexOf("label: 'Dashboards'"),
+  navbar.indexOf("label: 'Tools',\n      icon: '◧'"),
+);
+assert.match(dashboardGroup, /label: 'Docker'[\s\S]*?to: '\/docker\/overview'/);
+const dockerGroup = navbar.slice(
+  navbar.indexOf("label: 'Docker',\n      icon: '⬡'"),
+  navbar.indexOf("label: 'Access Control'"),
+);
+assert.ok(
+  dockerGroup.indexOf("label: 'Docker Operations'") < dockerGroup.indexOf("label: 'Projects'"),
+  'Docker Operations should be the first item in the Docker menu category.',
+);
 assert.match(navbar, /INFRASTRUCTURE_DOCKER_READ/);
 assert.match(router, /path="docker\/overview"/);
 assert.match(router, /path="docker\/projects"/);

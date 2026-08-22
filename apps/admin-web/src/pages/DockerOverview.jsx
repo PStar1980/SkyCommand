@@ -92,9 +92,9 @@ function DockerOverview() {
             pollingState={pollingState}
           />
         }
-        kicker="Docker · Infrastructure"
+        kicker="Dashboards · Docker"
         subtitle="Observe the local Docker Engine through the host-native SkyCommand Host Agent, with guarded lifecycle controls plus live event and resource-telemetry lanes."
-        title="Docker Overview"
+        title="Docker"
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
