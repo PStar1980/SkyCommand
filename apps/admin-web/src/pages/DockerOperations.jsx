@@ -29,6 +29,14 @@ function formatDuration(value) {
   return `${(durationMs / 1000).toFixed(durationMs >= 10000 ? 0 : 1)} s`;
 }
 
+function formatResourceType(resourceType) {
+  if (resourceType === 'COMPOSE_PROJECT') return 'Project';
+  if (resourceType === 'CONTAINER') return 'Container';
+  if (resourceType === 'IMAGE') return 'Image';
+  if (resourceType === 'NETWORK') return 'Network';
+  return resourceType || '—';
+}
+
 function DockerOperations() {
   const { hasPermission } = useAuth();
   const canControl = hasPermission('INFRASTRUCTURE_DOCKER_CONTROL');
@@ -240,10 +248,10 @@ function DockerOperations() {
           <table className="table table-sm table-hover sky-table align-middle mb-0">
             <thead>
               <tr>
-                <th>Requested</th>
-                <th>Scope</th>
                 <th>Resource</th>
+                <th>Requested</th>
                 <th>Project</th>
+                <th>Type</th>
                 <th>Action</th>
                 <th>Result</th>
                 <th>Actor</th>
@@ -266,26 +274,13 @@ function DockerOperations() {
               ) : (
                 items.map((item) => (
                   <tr key={item.auditEventId || item.operationId}>
-                    <td>{formatDate(item.createdAt)}</td>
-                    <td>
-                      <StatusPill
-                        label={item.resourceType === 'CONTAINER'
-                          ? 'Container'
-                          : item.resourceType === 'COMPOSE_PROJECT'
-                            ? 'Compose'
-                            : item.resourceType === 'IMAGE'
-                              ? 'Image'
-                              : item.resourceType === 'NETWORK'
-                                ? 'Network'
-                                : item.resourceType}
-                        status={item.resourceType === 'COMPOSE_PROJECT' ? 'READY' : 'INFO'}
-                      />
-                    </td>
                     <td>
                       <div className="fw-semibold">{item.resourceName || '—'}</div>
                       {item.serviceName && <div className="small sky-muted">{item.serviceName}</div>}
                     </td>
+                    <td>{formatDate(item.createdAt)}</td>
                     <td>{item.projectName || '—'}</td>
+                    <td>{formatResourceType(item.resourceType)}</td>
                     <td>{item.action || '—'}</td>
                     <td>
                       <StatusPill status={item.status} />
