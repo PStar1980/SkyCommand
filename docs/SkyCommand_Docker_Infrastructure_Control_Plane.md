@@ -93,13 +93,20 @@ Provides:
 - Guarded removal of an unused image reference only after both API-side and Host Agent live-usage checks.
 - No force removal and no global prune operation.
 
-### Storage & Networks
+### Storage
 
 Provides:
 
+- A dedicated searchable/filterable volume inventory with 10-row pagination and selected-row detail workspace.
 - Volume identity, Compose ownership, mount metadata, and container attachment intelligence.
-- Network driver/scope/IPAM metadata, project ownership, and endpoint relationships.
 - Persistent volumes are permanently **data protected** in the SkyCommand UI; volume deletion is intentionally not exposed.
+
+### Networks
+
+Provides:
+
+- A dedicated searchable/filterable network inventory with 10-row pagination and selected-row detail workspace.
+- Network driver/scope/IPAM metadata, project ownership, and endpoint relationships.
 - Docker built-in `bridge`, `host`, and `none` networks are system protected.
 - Only unused non-system networks are eligible for guarded removal.
 

@@ -122,6 +122,20 @@ function DockerResourceDetailsModal({
   const title = resourceType === 'IMAGE'
     ? resource?.reference || resource?.repoTags?.[0] || resource?.id
     : resource?.name || resource?.id;
+  const embeddedKicker = resourceType === 'IMAGE'
+    ? 'Selected image workspace'
+    : resourceType === 'VOLUME'
+      ? 'Selected storage workspace'
+      : resourceType === 'NETWORK'
+        ? 'Selected network workspace'
+        : 'Selected resource workspace';
+  const embeddedTitle = resourceType === 'IMAGE'
+    ? 'Image Details'
+    : resourceType === 'VOLUME'
+      ? 'Storage Details'
+      : resourceType === 'NETWORK'
+        ? 'Network Details'
+        : 'Resource Details';
   const usageContainers = Array.isArray(resource?.usageContainers) ? resource.usageContainers : [];
   const labels = Array.isArray(resource?.labels) ? resource.labels : [];
 
@@ -137,14 +151,14 @@ function DockerResourceDetailsModal({
         <div className={embedded ? 'sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3' : 'sky-chart-modal-header'}>
           <div>
             <div className={`sky-page-kicker${embedded ? '' : ' sky-chart-modal-kicker'}`}>
-              {embedded && resourceType === 'IMAGE' ? 'Selected image workspace' : `Docker ${resourceType.toLowerCase()} details`}
+              {embedded ? embeddedKicker : `Docker ${resourceType.toLowerCase()} details`}
             </div>
             <h2 className={embedded ? 'h5 mb-1' : undefined}>
-              {embedded && resourceType === 'IMAGE' ? 'Image Details' : title || 'Resource details'}
+              {embedded ? embeddedTitle : title || 'Resource details'}
             </h2>
             <p className={embedded ? 'small sky-muted mb-0' : undefined}>
-              {embedded && resourceType === 'IMAGE'
-                ? `${title || 'Selected image'} · Deep host-native inspection with attachment-aware cleanup policy.`
+              {embedded
+                ? `${title || 'Selected resource'} · Deep host-native inspection with attachment-aware cleanup policy.`
                 : 'Deep host-native inspection with attachment-aware cleanup policy.'}
             </p>
           </div>
