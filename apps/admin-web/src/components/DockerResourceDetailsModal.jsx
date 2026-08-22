@@ -100,6 +100,7 @@ function UsageTable({ containers = [] }) {
 
 function DockerResourceDetailsModal({
   canCleanup,
+  embedded = false,
   controlling,
   detail,
   error,
@@ -107,15 +108,17 @@ function DockerResourceDetailsModal({
   onClose,
   onControl,
   onRefresh,
+  resourceTypeHint = '',
 }) {
   useEffect(() => {
+    if (embedded) return undefined;
     const handleKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [embedded, onClose]);
 
   const resource = detail?.resource || null;
-  const resourceType = String(detail?.resourceType || resource?.resourceType || '').toUpperCase();
+  const resourceType = String(detail?.resourceType || resource?.resourceType || resourceTypeHint || '').toUpperCase();
   const title = resourceType === 'IMAGE'
     ? resource?.reference || resource?.repoTags?.[0] || resource?.id
     : resource?.name || resource?.id;
@@ -125,29 +128,39 @@ function DockerResourceDetailsModal({
   return (
     <div
       aria-label="Docker resource details"
-      aria-modal="true"
-      className="sky-chart-modal-backdrop sky-tool-details-modal-backdrop"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-      role="dialog"
+      aria-modal={embedded ? undefined : 'true'}
+      className={embedded ? 'sky-card mb-4 sky-docker-inline-detail-workspace' : 'sky-chart-modal-backdrop sky-tool-details-modal-backdrop'}
+      onMouseDown={(event) => { if (!embedded && event.target === event.currentTarget) onClose(); }}
+      role={embedded ? undefined : 'dialog'}
     >
-      <section className="sky-chart-modal sky-tool-details-modal">
-        <div className="sky-chart-modal-header">
+      <section className={embedded ? '' : 'sky-chart-modal sky-tool-details-modal'}>
+        <div className={embedded ? 'sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3' : 'sky-chart-modal-header'}>
           <div>
-            <div className="sky-page-kicker sky-chart-modal-kicker">Docker {resourceType.toLowerCase()} details</div>
-            <h2>{title || 'Resource details'}</h2>
-            <p>Deep host-native inspection with attachment-aware cleanup policy.</p>
+            <div className={`sky-page-kicker${embedded ? '' : ' sky-chart-modal-kicker'}`}>
+              {embedded && resourceType === 'IMAGE' ? 'Selected image workspace' : `Docker ${resourceType.toLowerCase()} details`}
+            </div>
+            <h2 className={embedded ? 'h5 mb-1' : undefined}>
+              {embedded && resourceType === 'IMAGE' ? 'Image Details' : title || 'Resource details'}
+            </h2>
+            <p className={embedded ? 'small sky-muted mb-0' : undefined}>
+              {embedded && resourceType === 'IMAGE'
+                ? `${title || 'Selected image'} · Deep host-native inspection with attachment-aware cleanup policy.`
+                : 'Deep host-native inspection with attachment-aware cleanup policy.'}
+            </p>
           </div>
           <div className="d-flex align-items-center gap-2">
             <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={onRefresh} type="button">
               {loading ? 'Refreshing…' : 'Refresh'}
             </button>
-            <button aria-label="Close Docker resource details" className="sky-chart-modal-close" onClick={onClose} type="button">
-              <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
-            </button>
+            {!embedded && (
+              <button aria-label="Close Docker resource details" className="sky-chart-modal-close" onClick={onClose} type="button">
+                <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="sky-tool-details-modal-body">
+        <div className={embedded ? 'sky-card-body' : 'sky-tool-details-modal-body'}>
           {error && <div className="alert alert-danger">{error}</div>}
           {loading && !resource ? (
             <div className="sky-empty-state py-5"><div className="spinner-border text-info" role="status" aria-label="Loading" /></div>

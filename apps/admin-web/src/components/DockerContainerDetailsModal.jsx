@@ -76,6 +76,7 @@ function ContainerControls({ canControl, container, controlling, onControl }) {
 
 function DockerContainerDetailsModal({
   canControl,
+  embedded = false,
   controlling,
   detail,
   error,
@@ -85,13 +86,15 @@ function DockerContainerDetailsModal({
   onRefresh,
 }) {
   useEffect(() => {
+    if (embedded) return undefined;
+
     function handleKeyDown(event) {
       if (event.key === 'Escape') onClose();
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [embedded, onClose]);
 
   const container = detail?.container || null;
   const state = container?.state || {};
@@ -104,21 +107,27 @@ function DockerContainerDetailsModal({
   return (
     <div
       aria-label="Docker container details"
-      aria-modal="true"
-      className="sky-chart-modal-backdrop sky-tool-details-modal-backdrop"
+      aria-modal={embedded ? undefined : 'true'}
+      className={embedded ? 'sky-card mb-4 sky-docker-inline-detail-workspace' : 'sky-chart-modal-backdrop sky-tool-details-modal-backdrop'}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (!embedded && event.target === event.currentTarget) onClose();
       }}
-      role="dialog"
+      role={embedded ? undefined : 'dialog'}
     >
-      <section className="sky-chart-modal sky-tool-details-modal">
-        <div className="sky-chart-modal-header">
+      <section className={embedded ? '' : 'sky-chart-modal sky-tool-details-modal'}>
+        <div className={embedded ? 'sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3' : 'sky-chart-modal-header'}>
           <div>
-            <div className="sky-page-kicker sky-chart-modal-kicker">Docker container details</div>
-            <h2>{container?.name || 'Container details'}</h2>
-            <p>
+            <div className={`sky-page-kicker${embedded ? '' : ' sky-chart-modal-kicker'}`}>
+              {embedded ? 'Selected container workspace' : 'Docker container details'}
+            </div>
+            <h2 className={embedded ? 'h5 mb-1' : undefined}>
+              {embedded ? 'Container Details' : container?.name || 'Container details'}
+            </h2>
+            <p className={embedded ? 'small sky-muted mb-0' : undefined}>
               {container
-                ? `${container.project || 'Standalone'} · ${container.service || 'No Compose service'}`
+                ? embedded
+                  ? `${container.name || container.id} · ${container.project || 'Standalone'} · ${container.service || 'No Compose service'}`
+                  : `${container.project || 'Standalone'} · ${container.service || 'No Compose service'}`
                 : 'Loading selected container…'}
             </p>
           </div>
@@ -131,20 +140,22 @@ function DockerContainerDetailsModal({
             >
               {loading ? 'Refreshing…' : 'Refresh'}
             </button>
-            <button
-              aria-label="Close Docker container details"
-              className="sky-chart-modal-close"
-              onClick={onClose}
-              type="button"
-            >
-              <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
+            {!embedded && (
+              <button
+                aria-label="Close Docker container details"
+                className="sky-chart-modal-close"
+                onClick={onClose}
+                type="button"
+              >
+                <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="sky-tool-details-modal-body">
+        <div className={embedded ? 'sky-card-body' : 'sky-tool-details-modal-body'}>
           {error && <div className="alert alert-danger">{error}</div>}
 
           {loading && !container ? (

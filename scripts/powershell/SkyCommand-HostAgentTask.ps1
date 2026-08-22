@@ -214,6 +214,11 @@ switch ($Action) {
             $statusExitCode = 0
         } elseif ($processCount -gt 0) {
             $operationalState = 'RUNNING OUTSIDE SCHEDULED TASK'
+        } elseif ($task.State -eq 'Ready' -and $info.LastTaskResult -eq 267014) {
+            # 0x00041306 / 267014 is SCHED_S_TASK_TERMINATED. This is the normal
+            # result after an explicit Stop-ScheduledTask request, so report the
+            # Host Agent as intentionally stopped rather than failed.
+            $operationalState = 'STOPPED (TASK SCHEDULER READY)'
         } elseif ($info.LastTaskResult -ne 0) {
             $operationalState = 'FAILED'
         }
@@ -234,8 +239,10 @@ switch ($Action) {
 
         if ($taskIsRunning -and $processCount -eq 0) {
             Write-Host "[SkyCommand Host Agent] Node process discovery is advisory on Windows; Task Scheduler still reports the registered runner as active. Use the health proof for end-to-end confirmation."
+        } elseif ($operationalState -like 'STOPPED*') {
+            Write-Host "[SkyCommand Host Agent] Automatic Host Agent is intentionally stopped. Start it before launching host-dependent workflows."
         } elseif ($statusExitCode -ne 0) {
-            Write-Host "[SkyCommand Host Agent] Automatic Host Agent is not currently running. Review the task log before launching host-dependent workflows."
+            Write-Host "[SkyCommand Host Agent] Automatic Host Agent is not currently running because the last task run failed. Review the task log before launching host-dependent workflows."
         }
         exit $statusExitCode
     }

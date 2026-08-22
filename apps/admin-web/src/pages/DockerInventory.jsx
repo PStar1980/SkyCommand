@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import DockerContainerDetailsModal from '../components/DockerContainerDetailsModal.jsx';
 import DockerProjectDetailsModal from '../components/DockerProjectDetailsModal.jsx';
 import DockerResourceDetailsModal from '../components/DockerResourceDetailsModal.jsx';
@@ -36,6 +36,105 @@ const VIEW_CONFIG = {
       'Inspect Docker volume/network ownership and attachments; persistent data stays protected while unused non-system networks can be cleaned up safely.',
   },
 };
+
+const DOCKER_BROWSER_PAGE_SIZE = 10;
+
+const DEFAULT_CONTAINER_FILTERS = {
+  q: '',
+  project: '',
+  state: '',
+};
+
+const DEFAULT_IMAGE_FILTERS = {
+  q: '',
+  repository: '',
+  usage: '',
+};
+
+function uniqueSorted(values) {
+  return [...new Set(values.filter(Boolean))].sort((left, right) =>
+    String(left).localeCompare(String(right)),
+  );
+}
+
+function getImageSelectionKey(image) {
+  if (!image) return '';
+  return image.reference || `${image.id || ''}:${image.repository || ''}:${image.tag || ''}`;
+}
+
+function getResourceReference(resourceType, resource) {
+  if (resourceType === 'IMAGE') return resource?.reference || resource?.id;
+  return resource?.name || resource?.id;
+}
+
+function DockerBrowserPagination({
+  ariaLabel,
+  filteredCount,
+  onPageChange,
+  page,
+  pageCount,
+  rangeEnd,
+  rangeStart,
+  selectId,
+}) {
+  return (
+    <div className="sky-pagination-row">
+      <div className="small sky-muted">
+        Showing {rangeStart}-{rangeEnd} of {filteredCount} record(s)
+      </div>
+      <div className="sky-pagination-controls" aria-label={ariaLabel}>
+        <button
+          className="btn btn-sm sky-btn-ghost"
+          disabled={page <= 1}
+          onClick={() => onPageChange(1)}
+          type="button"
+        >
+          First
+        </button>
+        <button
+          className="btn btn-sm sky-btn-ghost"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          type="button"
+        >
+          Back
+        </button>
+        <label className="sky-pagination-select-label" htmlFor={selectId}>
+          Page
+        </label>
+        <select
+          className="form-select form-select-sm sky-form-control sky-pagination-select"
+          id={selectId}
+          onChange={(event) => onPageChange(Number(event.target.value) || 1)}
+          value={page}
+        >
+          {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
+            <option key={pageNumber} value={pageNumber}>
+              {pageNumber}
+            </option>
+          ))}
+        </select>
+        <span className="small sky-muted">of {pageCount}</span>
+        <button
+          className="btn btn-sm sky-btn-ghost"
+          disabled={page >= pageCount}
+          onClick={() => onPageChange(page + 1)}
+          type="button"
+        >
+          Next
+        </button>
+        <button
+          className="btn btn-sm sky-btn-ghost"
+          disabled={page >= pageCount}
+          onClick={() => onPageChange(pageCount)}
+          type="button"
+        >
+          Last
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function EmptyRow({ colSpan, loading, noun }) {
   return (
@@ -146,9 +245,9 @@ function ProjectTable({ canControl, controlling, loading, onControl, onDetails, 
   );
 }
 
-function ContainerTable({ containers, loading, onDetails }) {
+function ContainerTable({ containers, loading, onSelect, selectedContainerId }) {
   return (
-    <div className="table-responsive sky-table-card border-0 rounded-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card">
       <table className="table table-sm table-hover sky-table align-middle mb-0">
         <thead>
           <tr>
@@ -160,18 +259,22 @@ function ContainerTable({ containers, loading, onDetails }) {
             <th>Health</th>
             <th>Ports</th>
             <th>Control</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {containers.length === 0 ? (
-            <EmptyRow colSpan={9} loading={loading} noun="containers" />
+            <EmptyRow colSpan={8} loading={loading} noun="containers" />
           ) : (
             containers.map((container) => {
               const selfManaged = container.control?.mode === 'SELF_MANAGED_PROTECTED';
+              const selected = selectedContainerId === container.id;
 
               return (
-                <tr key={container.id || container.name}>
+                <tr
+                  className={`sky-clickable-row ${selected ? 'sky-selected-row' : ''}`}
+                  key={container.id || container.name}
+                  onClick={() => onSelect(container)}
+                >
                   <td>
                     <div className="fw-semibold">{container.name || '—'}</div>
                     <div className="small sky-muted">{container.id || '—'}</div>
@@ -195,16 +298,6 @@ function ContainerTable({ containers, loading, onDetails }) {
                       status={selfManaged ? 'BLOCKED' : 'READY'}
                     />
                   </td>
-                  <td>
-                    <button
-                      className="btn btn-sm sky-btn-ghost"
-                      disabled={loading}
-                      onClick={() => onDetails(container)}
-                      type="button"
-                    >
-                      Container Details
-                    </button>
-                  </td>
                 </tr>
               );
             })
@@ -222,9 +315,9 @@ function CleanupPill({ cleanup }) {
   return <StatusPill label={`${cleanup?.usageCount || 0} attachment(s)`} status="WARNING" />;
 }
 
-function ImageTable({ images, loading, onDetails }) {
+function ImageTable({ images, loading, onSelect, selectedImageKey }) {
   return (
-    <div className="table-responsive sky-table-card border-0 rounded-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card">
       <table className="table table-sm table-hover sky-table align-middle mb-0">
         <thead>
           <tr>
@@ -235,29 +328,30 @@ function ImageTable({ images, loading, onDetails }) {
             <th>Created</th>
             <th>Usage</th>
             <th>Cleanup</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {images.length === 0 ? (
-            <EmptyRow colSpan={8} loading={loading} noun="images" />
+            <EmptyRow colSpan={7} loading={loading} noun="images" />
           ) : (
-            images.map((image) => (
-              <tr key={`${image.id}-${image.repository}-${image.tag}`}>
-                <td className="fw-semibold">{image.repository || '—'}</td>
-                <td>{image.tag || '—'}</td>
-                <td>{image.id || '—'}</td>
-                <td>{image.size || '—'}</td>
-                <td>{image.createdSince || '—'}</td>
-                <td>{image.cleanup?.usageCount ?? image.containers ?? '—'}</td>
-                <td><CleanupPill cleanup={image.cleanup} /></td>
-                <td>
-                  <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={() => onDetails('IMAGE', image)} type="button">
-                    Image Details
-                  </button>
-                </td>
-              </tr>
-            ))
+            images.map((image) => {
+              const selected = selectedImageKey === getImageSelectionKey(image);
+              return (
+                <tr
+                  className={`sky-clickable-row ${selected ? 'sky-selected-row' : ''}`}
+                  key={`${image.id}-${image.repository}-${image.tag}`}
+                  onClick={() => onSelect(image)}
+                >
+                  <td className="fw-semibold">{image.repository || '—'}</td>
+                  <td>{image.tag || '—'}</td>
+                  <td>{image.id || '—'}</td>
+                  <td>{image.size || '—'}</td>
+                  <td>{image.createdSince || '—'}</td>
+                  <td>{image.cleanup?.usageCount ?? image.containers ?? '—'}</td>
+                  <td><CleanupPill cleanup={image.cleanup} /></td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
@@ -354,11 +448,15 @@ function DockerInventory({ view }) {
   const [containerDetailError, setContainerDetailError] = useState('');
   const [containerDetailLoading, setContainerDetailLoading] = useState(false);
   const [containerControlling, setContainerControlling] = useState('');
+  const [containerFilters, setContainerFilters] = useState(DEFAULT_CONTAINER_FILTERS);
+  const [containerPage, setContainerPage] = useState(1);
   const [selectedResource, setSelectedResource] = useState(null);
   const [resourceDetail, setResourceDetail] = useState(null);
   const [resourceDetailError, setResourceDetailError] = useState('');
   const [resourceDetailLoading, setResourceDetailLoading] = useState(false);
   const [resourceControlling, setResourceControlling] = useState('');
+  const [imageFilters, setImageFilters] = useState(DEFAULT_IMAGE_FILTERS);
+  const [imagePage, setImagePage] = useState(1);
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
   const projects = Array.isArray(overview?.projects) ? overview.projects : [];
@@ -367,20 +465,207 @@ function DockerInventory({ view }) {
   const volumes = Array.isArray(overview?.volumes) ? overview.volumes : [];
   const networks = Array.isArray(overview?.networks) ? overview.networks : [];
 
+  const containerProjectOptions = useMemo(
+    () => uniqueSorted(containers.map((container) => container.project || 'Standalone')),
+    [containers],
+  );
+  const containerStateOptions = useMemo(
+    () => uniqueSorted(containers.map((container) => container.state)),
+    [containers],
+  );
+  const imageRepositoryOptions = useMemo(
+    () => uniqueSorted(images.map((image) => image.repository || '<none>')),
+    [images],
+  );
+
+  const filteredContainers = useMemo(() => {
+    const query = containerFilters.q.trim().toLowerCase();
+    return containers.filter((container) => {
+      const project = container.project || 'Standalone';
+      const health = container.health || 'NONE';
+      if (containerFilters.project && project !== containerFilters.project) return false;
+      if (containerFilters.state && container.state !== containerFilters.state) return false;
+      if (!query) return true;
+      return [
+        container.name,
+        container.id,
+        project,
+        container.service,
+        container.image,
+        container.ports,
+        container.state,
+        health,
+      ].some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  }, [containerFilters, containers]);
+
+  const filteredImages = useMemo(() => {
+    const query = imageFilters.q.trim().toLowerCase();
+    return images.filter((image) => {
+      const repository = image.repository || '<none>';
+      const usageCount = image.cleanup?.usageCount ?? image.containers ?? 0;
+      if (imageFilters.repository && repository !== imageFilters.repository) return false;
+      if (imageFilters.usage === 'USED' && Number(usageCount) <= 0) return false;
+      if (imageFilters.usage === 'UNUSED' && Number(usageCount) > 0) return false;
+      if (!query) return true;
+      return [image.repository, image.tag, image.id, image.reference, image.createdSince, image.size]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  }, [imageFilters, images]);
+
+  const containerPageCount = Math.max(
+    1,
+    Math.ceil(filteredContainers.length / DOCKER_BROWSER_PAGE_SIZE),
+  );
+  const currentContainerPage = Math.min(containerPage, containerPageCount);
+  const pagedContainers = useMemo(() => {
+    const offset = (currentContainerPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
+    return filteredContainers.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentContainerPage, filteredContainers]);
+  const containerRangeStart = filteredContainers.length === 0
+    ? 0
+    : (currentContainerPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+  const containerRangeEnd = filteredContainers.length === 0
+    ? 0
+    : Math.min(currentContainerPage * DOCKER_BROWSER_PAGE_SIZE, filteredContainers.length);
+
+  const imagePageCount = Math.max(1, Math.ceil(filteredImages.length / DOCKER_BROWSER_PAGE_SIZE));
+  const currentImagePage = Math.min(imagePage, imagePageCount);
+  const pagedImages = useMemo(() => {
+    const offset = (currentImagePage - 1) * DOCKER_BROWSER_PAGE_SIZE;
+    return filteredImages.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentImagePage, filteredImages]);
+  const imageRangeStart = filteredImages.length === 0
+    ? 0
+    : (currentImagePage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+  const imageRangeEnd = filteredImages.length === 0
+    ? 0
+    : Math.min(currentImagePage * DOCKER_BROWSER_PAGE_SIZE, filteredImages.length);
+  const selectedImageKey = selectedResource?.resourceType === 'IMAGE'
+    ? getImageSelectionKey(selectedResource.resource)
+    : '';
+
+  useEffect(() => {
+    if (containerPage > containerPageCount) setContainerPage(containerPageCount);
+  }, [containerPage, containerPageCount]);
+
+  useEffect(() => {
+    if (imagePage > imagePageCount) setImagePage(imagePageCount);
+  }, [imagePage, imagePageCount]);
+
+  const loadContainerDetail = useCallback(async (containerId) => {
+    if (!containerId) return;
+    setContainerDetailLoading(true);
+    setContainerDetailError('');
+    try {
+      const result = await infrastructureService.getDockerContainerDetail(containerId, { tail: 200 });
+      setContainerDetail(result.detail || null);
+    } catch (detailFailure) {
+      const code = detailFailure.details?.code;
+      setContainerDetailError(
+        code
+          ? `${code} · ${detailFailure.message || 'Docker container inspection failed.'}`
+          : detailFailure.message || 'Docker container inspection failed.',
+      );
+    } finally {
+      setContainerDetailLoading(false);
+    }
+  }, []);
+
+  const selectContainer = useCallback((container) => {
+    if (!container?.id) return;
+    setSelectedContainerId(container.id);
+    setContainerDetail(null);
+    setContainerDetailError('');
+    setContainerControlling('');
+    loadContainerDetail(container.id);
+  }, [loadContainerDetail]);
+
+  const loadResourceDetail = useCallback(async (resourceType, resource) => {
+    const reference = getResourceReference(resourceType, resource);
+    if (!resourceType || !reference) return;
+    setResourceDetailLoading(true);
+    setResourceDetailError('');
+    try {
+      const result = await infrastructureService.getDockerResourceDetail(resourceType, reference);
+      setResourceDetail(result.detail || null);
+    } catch (detailFailure) {
+      const code = detailFailure.details?.code;
+      setResourceDetailError(
+        code
+          ? `${code} · ${detailFailure.message || 'Docker resource inspection failed.'}`
+          : detailFailure.message || 'Docker resource inspection failed.',
+      );
+    } finally {
+      setResourceDetailLoading(false);
+    }
+  }, []);
+
+  const selectImage = useCallback((image) => {
+    if (!getResourceReference('IMAGE', image)) return;
+    setSelectedResource({ resourceType: 'IMAGE', resource: image });
+    setResourceDetail(null);
+    setResourceDetailError('');
+    setResourceControlling('');
+    loadResourceDetail('IMAGE', image);
+  }, [loadResourceDetail]);
+
+  useEffect(() => {
+    if (view !== 'containers' || loading) return;
+    if (pagedContainers.some((container) => container.id === selectedContainerId)) return;
+    const firstContainer = pagedContainers[0];
+    if (firstContainer?.id) {
+      selectContainer(firstContainer);
+      return;
+    }
+    setSelectedContainerId('');
+    setContainerDetail(null);
+    setContainerDetailError('');
+  }, [loading, pagedContainers, selectContainer, selectedContainerId, view]);
+
+  useEffect(() => {
+    if (view !== 'images' || loading) return;
+    if (pagedImages.some((image) => getImageSelectionKey(image) === selectedImageKey)) return;
+    const firstImage = pagedImages[0];
+    if (firstImage) {
+      selectImage(firstImage);
+      return;
+    }
+    setSelectedResource(null);
+    setResourceDetail(null);
+    setResourceDetailError('');
+  }, [loading, pagedImages, selectImage, selectedImageKey, view]);
+
+  function updateContainerFilter(name, value) {
+    setContainerFilters((current) => ({ ...current, [name]: value }));
+    setContainerPage(1);
+  }
+
+  function clearContainerFilters() {
+    setContainerFilters(DEFAULT_CONTAINER_FILTERS);
+    setContainerPage(1);
+  }
+
+  function updateImageFilter(name, value) {
+    setImageFilters((current) => ({ ...current, [name]: value }));
+    setImagePage(1);
+  }
+
+  function clearImageFilters() {
+    setImageFilters(DEFAULT_IMAGE_FILTERS);
+    setImagePage(1);
+  }
+
   async function handleProjectControl(project, action) {
     if (!project?.name || !canControl) return;
-
     const verb = action.charAt(0) + action.slice(1).toLowerCase();
     const confirmed = window.confirm(
       `${verb} Docker Compose project ${project.name}? This action runs through the host-native SkyCommand Host Agent and will be written to Docker Operations.`,
     );
-
     if (!confirmed) return;
-
     setControlling(`${project.name}:${action}`);
     setControlError('');
     setControlNotice('');
-
     try {
       const result = await infrastructureService.controlDockerComposeProject(project.name, action);
       setControlNotice(result.operation?.message || `${verb} completed for ${project.name}.`);
@@ -397,8 +682,6 @@ function DockerInventory({ view }) {
     }
   }
 
-
-
   function openProjectDetails(project) {
     if (!project?.name) return;
     setSelectedProjectName(project.name);
@@ -410,56 +693,16 @@ function DockerInventory({ view }) {
     setSelectedProjectName('');
   }
 
-  async function loadContainerDetail(containerId = selectedContainerId) {
-    if (!containerId) return;
-
-    setContainerDetailLoading(true);
-    setContainerDetailError('');
-
-    try {
-      const result = await infrastructureService.getDockerContainerDetail(containerId, { tail: 200 });
-      setContainerDetail(result.detail || null);
-    } catch (detailFailure) {
-      const code = detailFailure.details?.code;
-      setContainerDetailError(
-        code
-          ? `${code} · ${detailFailure.message || 'Docker container inspection failed.'}`
-          : detailFailure.message || 'Docker container inspection failed.',
-      );
-    } finally {
-      setContainerDetailLoading(false);
-    }
-  }
-
-  function openContainerDetails(container) {
-    if (!container?.id) return;
-    setSelectedContainerId(container.id);
-    setContainerDetail(null);
-    setContainerDetailError('');
-    loadContainerDetail(container.id);
-  }
-
-  function closeContainerDetails() {
-    setSelectedContainerId('');
-    setContainerDetail(null);
-    setContainerDetailError('');
-    setContainerControlling('');
-  }
-
   async function handleContainerControl(container, action) {
     if (!container?.id || !canControl) return;
-
     const label = action.charAt(0) + action.slice(1).toLowerCase();
     const confirmed = window.confirm(
       `${label} Docker container ${container.name || container.id}? This operation is allow-listed through the SkyCommand Host Agent and will be written to Docker Operations.`,
     );
-
     if (!confirmed) return;
-
     setContainerControlling(action);
     setControlError('');
     setControlNotice('');
-
     try {
       const result = await infrastructureService.controlDockerContainer(container.id, action);
       setControlNotice(
@@ -476,27 +719,6 @@ function DockerInventory({ view }) {
       setContainerDetailError(message);
     } finally {
       setContainerControlling('');
-    }
-  }
-
-  function getResourceReference(resourceType, resource) {
-    if (resourceType === 'IMAGE') return resource?.reference || resource?.id;
-    return resource?.name || resource?.id;
-  }
-
-  async function loadResourceDetail(resourceType = selectedResource?.resourceType, resource = selectedResource?.resource) {
-    const reference = getResourceReference(resourceType, resource);
-    if (!resourceType || !reference) return;
-    setResourceDetailLoading(true);
-    setResourceDetailError('');
-    try {
-      const result = await infrastructureService.getDockerResourceDetail(resourceType, reference);
-      setResourceDetail(result.detail || null);
-    } catch (detailFailure) {
-      const code = detailFailure.details?.code;
-      setResourceDetailError(code ? `${code} · ${detailFailure.message}` : detailFailure.message || 'Docker resource inspection failed.');
-    } finally {
-      setResourceDetailLoading(false);
     }
   }
 
@@ -530,10 +752,18 @@ function DockerInventory({ view }) {
       const result = await infrastructureService.controlDockerResource(resourceType, reference, action);
       setControlNotice(result.operation?.message || `${action} completed for ${reference}.`);
       await loadOverview();
-      closeResourceDetails();
+      if (resourceType === 'IMAGE' && view === 'images') {
+        setSelectedResource(null);
+        setResourceDetail(null);
+        setResourceDetailError('');
+      } else {
+        closeResourceDetails();
+      }
     } catch (controlFailure) {
       const code = controlFailure.details?.code;
-      const message = code ? `${code} · ${controlFailure.message}` : controlFailure.message || 'Docker cleanup failed.';
+      const message = code
+        ? `${code} · ${controlFailure.message || 'Docker cleanup failed.'}`
+        : controlFailure.message || 'Docker cleanup failed.';
       setControlError(message);
       setResourceDetailError(message);
     } finally {
@@ -569,13 +799,9 @@ function DockerInventory({ view }) {
           {overview.error.details?.component && (
             <div className="small mt-1">
               Failure domain: {overview.error.details.component.replace(/_/g, ' ')} · Host Agent{' '}
-              {overview.error.details.hostAgentStatus ||
-                overview?.target?.status ||
-                'UNKNOWN'}{' '}
+              {overview.error.details.hostAgentStatus || overview?.target?.status || 'UNKNOWN'}{' '}
               · Docker provider{' '}
-              {overview.error.details.dockerProviderStatus ||
-                overview?.provider?.status ||
-                'UNKNOWN'}
+              {overview.error.details.dockerProviderStatus || overview?.provider?.status || 'UNKNOWN'}
             </div>
           )}
         </div>
@@ -593,24 +819,193 @@ function DockerInventory({ view }) {
           />
         </Panel>
       )}
+
       {view === 'containers' && (
-        <Panel title="Container Inventory">
-          <ContainerTable
-            containers={containers}
-            loading={loading}
-            onDetails={openContainerDetails}
-          />
-        </Panel>
-      )}
-      {view === 'images' && (
-        <Panel title="Image Inventory">
-          <ImageTable images={images} loading={loading} onDetails={openResourceDetails} />
-        </Panel>
-      )}
-      {view === 'storage' && (
-        <StorageTables loading={loading} networks={networks} onDetails={openResourceDetails} volumes={volumes} />
+        <>
+          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+            <div className="sky-card-header">
+              <div>
+                <div className="sky-page-kicker">Container browser</div>
+                <h2 className="h5 mb-0">Container inventory</h2>
+                <p className="sky-muted small mb-0">
+                  Search and filter the runtime inventory, then inspect the selected container in the detail workspace below.
+                </p>
+              </div>
+              <div className="sky-history-browser-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="dockerContainerSearch">Search</label>
+                  <input
+                    className="form-control sky-form-control"
+                    id="dockerContainerSearch"
+                    onChange={(event) => updateContainerFilter('q', event.target.value)}
+                    placeholder="Container, project, service, image..."
+                    type="search"
+                    value={containerFilters.q}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerContainerProjectFilter">Project</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerContainerProjectFilter"
+                    onChange={(event) => updateContainerFilter('project', event.target.value)}
+                    value={containerFilters.project}
+                  >
+                    <option value="">All projects</option>
+                    {containerProjectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerContainerStateFilter">State</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerContainerStateFilter"
+                    onChange={(event) => updateContainerFilter('state', event.target.value)}
+                    value={containerFilters.state}
+                  >
+                    <option value="">All states</option>
+                    {containerStateOptions.map((state) => <option key={state} value={state}>{state}</option>)}
+                  </select>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button className="btn btn-sm sky-btn-ghost" onClick={clearContainerFilters} type="button">
+                    Clear filters
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ContainerTable
+              containers={pagedContainers}
+              loading={loading}
+              onSelect={selectContainer}
+              selectedContainerId={selectedContainerId}
+            />
+            <DockerBrowserPagination
+              ariaLabel="Docker container pagination"
+              filteredCount={filteredContainers.length}
+              onPageChange={setContainerPage}
+              page={currentContainerPage}
+              pageCount={containerPageCount}
+              rangeEnd={containerRangeEnd}
+              rangeStart={containerRangeStart}
+              selectId="dockerContainerPageSelect"
+            />
+          </section>
+
+          {selectedContainerId && (
+            <DockerContainerDetailsModal
+              canControl={canControl}
+              controlling={containerControlling}
+              detail={containerDetail}
+              embedded
+              error={containerDetailError}
+              loading={containerDetailLoading}
+              onControl={handleContainerControl}
+              onRefresh={() => loadContainerDetail(selectedContainerId)}
+            />
+          )}
+        </>
       )}
 
+      {view === 'images' && (
+        <>
+          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+            <div className="sky-card-header">
+              <div>
+                <div className="sky-page-kicker">Image browser</div>
+                <h2 className="h5 mb-0">Image inventory</h2>
+                <p className="sky-muted small mb-0">
+                  Search and filter image references, then inspect usage and cleanup policy in the selected-image workspace below.
+                </p>
+              </div>
+              <div className="sky-history-browser-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="dockerImageSearch">Search</label>
+                  <input
+                    className="form-control sky-form-control"
+                    id="dockerImageSearch"
+                    onChange={(event) => updateImageFilter('q', event.target.value)}
+                    placeholder="Repository, tag, image ID..."
+                    type="search"
+                    value={imageFilters.q}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerImageRepositoryFilter">Repository</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerImageRepositoryFilter"
+                    onChange={(event) => updateImageFilter('repository', event.target.value)}
+                    value={imageFilters.repository}
+                  >
+                    <option value="">All repositories</option>
+                    {imageRepositoryOptions.map((repository) => (
+                      <option key={repository} value={repository}>{repository}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerImageUsageFilter">Usage</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerImageUsageFilter"
+                    onChange={(event) => updateImageFilter('usage', event.target.value)}
+                    value={imageFilters.usage}
+                  >
+                    <option value="">All usage</option>
+                    <option value="USED">Attached</option>
+                    <option value="UNUSED">Unused</option>
+                  </select>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button className="btn btn-sm sky-btn-ghost" onClick={clearImageFilters} type="button">
+                    Clear filters
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ImageTable
+              images={pagedImages}
+              loading={loading}
+              onSelect={selectImage}
+              selectedImageKey={selectedImageKey}
+            />
+            <DockerBrowserPagination
+              ariaLabel="Docker image pagination"
+              filteredCount={filteredImages.length}
+              onPageChange={setImagePage}
+              page={currentImagePage}
+              pageCount={imagePageCount}
+              rangeEnd={imageRangeEnd}
+              rangeStart={imageRangeStart}
+              selectId="dockerImagePageSelect"
+            />
+          </section>
+
+          {selectedResource?.resourceType === 'IMAGE' && (
+            <DockerResourceDetailsModal
+              canCleanup={canCleanup}
+              controlling={resourceControlling}
+              detail={resourceDetail}
+              embedded
+              error={resourceDetailError}
+              loading={resourceDetailLoading}
+              onControl={handleResourceControl}
+              onRefresh={() => loadResourceDetail('IMAGE', selectedResource.resource)}
+              resourceTypeHint="IMAGE"
+            />
+          )}
+        </>
+      )}
+
+      {view === 'storage' && (
+        <StorageTables
+          loading={loading}
+          networks={networks}
+          onDetails={openResourceDetails}
+          volumes={volumes}
+        />
+      )}
 
       {selectedProjectName && (
         <DockerProjectDetailsModal
@@ -626,20 +1021,7 @@ function DockerInventory({ view }) {
         />
       )}
 
-      {selectedContainerId && (
-        <DockerContainerDetailsModal
-          canControl={canControl}
-          controlling={containerControlling}
-          detail={containerDetail}
-          error={containerDetailError}
-          loading={containerDetailLoading}
-          onClose={closeContainerDetails}
-          onControl={handleContainerControl}
-          onRefresh={() => loadContainerDetail(selectedContainerId)}
-        />
-      )}
-
-      {selectedResource && (
+      {selectedResource && selectedResource.resourceType !== 'IMAGE' && (
         <DockerResourceDetailsModal
           canCleanup={canCleanup}
           controlling={resourceControlling}
@@ -648,7 +1030,7 @@ function DockerInventory({ view }) {
           loading={resourceDetailLoading}
           onClose={closeResourceDetails}
           onControl={handleResourceControl}
-          onRefresh={() => loadResourceDetail()}
+          onRefresh={() => loadResourceDetail(selectedResource.resourceType, selectedResource.resource)}
         />
       )}
     </>
