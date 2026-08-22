@@ -162,6 +162,16 @@ assert.match(operations, /dockerOperationScope/);
 assert.match(operations, /dockerOperationAction/);
 assert.match(operations, /dockerOperationResult/);
 assert.match(operations, /dockerOperationsPageSelect/);
+const operationsTableSource = operations.slice(
+  operations.indexOf('<thead>'),
+  operations.indexOf('</table>') + '</table>'.length,
+);
+assert.match(operationsTableSource, /<th>Resource<\/th>[\s\S]*?<th>Requested<\/th>[\s\S]*?<th>Project<\/th>[\s\S]*?<th>Type<\/th>/);
+assert.doesNotMatch(operationsTableSource, /<th>Scope<\/th>/);
+assert.match(operations, /function formatResourceType\(resourceType\)/);
+assert.match(operations, /COMPOSE_PROJECT'\) return 'Project'/);
+assert.match(operationsTableSource, /formatResourceType\(item\.resourceType\)/);
+assert.doesNotMatch(operationsTableSource, /label=\{item\.resourceType/);
 assert.match(operations, /First/);
 assert.match(operations, /Back/);
 assert.match(operations, /Next/);

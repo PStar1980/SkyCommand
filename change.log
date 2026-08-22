@@ -1,3 +1,9 @@
+## 2026-08-22 - Post-Phase 17 Docker Operations column refinement
+
+- Reordered the Docker Operations browser columns to **Resource, Requested, Project, Type, Action, Result, Actor, State, Duration, Message** so resource identity leads the audit row and request time sits immediately beside it.
+- Renamed the table-only **Scope** column to **Type**, moved it after Project, removed resource-type pill styling, and normalized the Compose display label from **Compose** to **Project** while preserving the existing internal audit/resource-type contract and Scope filter semantics.
+- Extended Docker Admin-Web regression coverage to lock the new table order, Type label, plain-text rendering, and Project display mapping. No API, database, Host Agent, route, or environment change is required.
+
 ## 2026-08-22 - Post-Phase 17 Docker Operations table refinement
 
 - Reworked **Docker Operations** into the same Workflow Operations-style browser contract used across the refined Docker pages: broad search, Scope/Action/Result filters, Clear filters, and an integrated browser header rather than a separate Operational Filters card.
