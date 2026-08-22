@@ -193,6 +193,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
             <Route
+              path="docker/networks"
+              element={
+                <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
+                  <DockerInventory view="networks" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="docker/operations"
               element={
                 <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">

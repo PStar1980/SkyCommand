@@ -39,7 +39,9 @@ assert.match(navbar, /label: 'Projects'/);
 assert.match(navbar, /projects: '\/docker\/projects'/);
 assert.match(navbar, /label: 'Containers'/);
 assert.match(navbar, /label: 'Images'/);
-assert.match(navbar, /label: 'Storage & Networks'/);
+assert.match(navbar, /label: 'Storage'/);
+assert.match(navbar, /label: 'Networks'/);
+assert.match(navbar, /networks: '\/docker\/networks'/);
 assert.match(navbar, /label: 'Docker Operations'/);
 assert.match(navbar, /INFRASTRUCTURE_DOCKER_READ/);
 assert.match(router, /path="docker\/overview"/);
@@ -47,6 +49,7 @@ assert.match(router, /path="docker\/projects"/);
 assert.match(router, /path="docker\/containers"/);
 assert.match(router, /path="docker\/images"/);
 assert.match(router, /path="docker\/storage"/);
+assert.match(router, /path="docker\/networks"/);
 assert.match(router, /path="docker\/operations"/);
 assert.match(overview, /SkyCommand Host Agent/);
 assert.match(overview, /Compose Projects/);
@@ -106,10 +109,36 @@ assert.match(projectTableSource, /sky-selected-row/);
 assert.doesNotMatch(projectTableSource, /<th>Controls<\/th>/);
 assert.doesNotMatch(projectTableSource, /<th>Actions<\/th>/);
 assert.doesNotMatch(projectTableSource, /Project Details/);
+const storageTableSource = inventory.slice(
+  inventory.indexOf('function StorageTable'),
+  inventory.indexOf('function NetworkTable'),
+);
+assert.match(storageTableSource, /sky-selected-row/);
+assert.doesNotMatch(storageTableSource, /<th>Actions<\/th>/);
+assert.doesNotMatch(storageTableSource, /Volume Details/);
+const networkTableSource = inventory.slice(
+  inventory.indexOf('function NetworkTable'),
+  inventory.indexOf('function DockerInventory'),
+);
+assert.match(networkTableSource, /sky-selected-row/);
+assert.doesNotMatch(networkTableSource, /<th>Actions<\/th>/);
+assert.doesNotMatch(networkTableSource, /Network Details/);
 assert.match(inventory, /controlDockerContainer/);
 assert.match(inventory, /INFRASTRUCTURE_DOCKER_CLEANUP/);
-assert.match(inventory, /Volume Details/);
-assert.match(inventory, /Network Details/);
+assert.match(inventory, /dockerStorageSearch/);
+assert.match(inventory, /dockerStorageDriverFilter/);
+assert.match(inventory, /dockerStorageScopeFilter/);
+assert.match(inventory, /dockerStoragePageSelect/);
+assert.match(inventory, /pagedVolumes\[0\]/);
+assert.match(inventory, /dockerNetworkSearch/);
+assert.match(inventory, /dockerNetworkDriverFilter/);
+assert.match(inventory, /dockerNetworkCleanupFilter/);
+assert.match(inventory, /dockerNetworkPageSelect/);
+assert.match(inventory, /pagedNetworks\[0\]/);
+assert.match(resourceDetails, /Storage Details/);
+assert.match(resourceDetails, /Network Details/);
+assert.match(resourceDetails, /Selected storage workspace/);
+assert.match(resourceDetails, /Selected network workspace/);
 assert.match(inventory, /Data protected/);
 assert.match(inventory, /System protected/);
 assert.match(inventory, /Failure domain/);

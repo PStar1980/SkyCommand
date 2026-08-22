@@ -4,7 +4,6 @@ import DockerProjectDetailsModal from '../components/DockerProjectDetailsModal.j
 import DockerResourceDetailsModal from '../components/DockerResourceDetailsModal.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useDockerOverview from '../hooks/useDockerOverview.js';
@@ -30,10 +29,16 @@ const VIEW_CONFIG = {
       'Inspect Docker image identity, usage relationships, and guarded cleanup eligibility through the Host Agent.',
   },
   storage: {
-    kicker: 'Docker · Resources',
-    title: 'Storage & Networks',
+    kicker: 'Docker · Storage',
+    title: 'Storage',
     subtitle:
-      'Inspect Docker volume/network ownership and attachments; persistent data stays protected while unused non-system networks can be cleaned up safely.',
+      'Inspect Docker volume ownership and attachments while persistent application data remains protected from deletion.',
+  },
+  networks: {
+    kicker: 'Docker · Networking',
+    title: 'Networks',
+    subtitle:
+      'Inspect Docker network topology, endpoint relationships, and guarded cleanup eligibility for unused non-system networks.',
   },
 };
 
@@ -55,6 +60,18 @@ const DEFAULT_IMAGE_FILTERS = {
   q: '',
   repository: '',
   usage: '',
+};
+
+const DEFAULT_STORAGE_FILTERS = {
+  q: '',
+  driver: '',
+  scope: '',
+};
+
+const DEFAULT_NETWORK_FILTERS = {
+  q: '',
+  driver: '',
+  cleanup: '',
 };
 
 function uniqueSorted(values) {
@@ -317,77 +334,82 @@ function ImageTable({ images, loading, onSelect, selectedImageKey }) {
   );
 }
 
-function StorageTables({ loading, networks, onDetails, volumes }) {
+function StorageTable({ loading, onSelect, selectedVolumeName, volumes }) {
   return (
-    <div className="row g-3">
-      <div className="col-12 col-xl-6">
-        <Panel
-          subtitle="Persistent Docker storage resources with attachment intelligence. Volume deletion remains intentionally unavailable."
-          title="Volumes"
-        >
-          <div className="table-responsive sky-table-card border-0 rounded-0">
-            <table className="table table-sm table-hover sky-table align-middle mb-0">
-              <thead>
-                <tr><th>Name</th><th>Driver</th><th>Scope</th><th>Usage</th><th>Policy</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {volumes.length === 0 ? (
-                  <EmptyRow colSpan={6} loading={loading} noun="volumes" />
-                ) : (
-                  volumes.map((volume) => (
-                    <tr key={volume.name}>
-                      <td className="fw-semibold">{volume.name}</td>
-                      <td>{volume.driver || '—'}</td>
-                      <td>{volume.scope || '—'}</td>
-                      <td>{volume.cleanup?.usageCount ?? '—'}</td>
-                      <td><CleanupPill cleanup={volume.cleanup} /></td>
-                      <td>
-                        <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={() => onDetails('VOLUME', volume)} type="button">
-                          Volume Details
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      </div>
-      <div className="col-12 col-xl-6">
-        <Panel
-          subtitle="Docker network resources with endpoint relationships and guarded cleanup for unused non-system networks."
-          title="Networks"
-        >
-          <div className="table-responsive sky-table-card border-0 rounded-0">
-            <table className="table table-sm table-hover sky-table align-middle mb-0">
-              <thead>
-                <tr><th>Name</th><th>Driver</th><th>Scope</th><th>Usage</th><th>Cleanup</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {networks.length === 0 ? (
-                  <EmptyRow colSpan={6} loading={loading} noun="networks" />
-                ) : (
-                  networks.map((network) => (
-                    <tr key={network.id || network.name}>
-                      <td className="fw-semibold">{network.name}</td>
-                      <td>{network.driver || '—'}</td>
-                      <td>{network.scope || '—'}</td>
-                      <td>{network.cleanup?.usageCount ?? '—'}</td>
-                      <td><CleanupPill cleanup={network.cleanup} /></td>
-                      <td>
-                        <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={() => onDetails('NETWORK', network)} type="button">
-                          Network Details
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      </div>
+    <div className="table-responsive sky-table-card sky-functional-history-table-card">
+      <table className="table table-sm table-hover sky-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Driver</th>
+            <th>Scope</th>
+            <th>Usage</th>
+            <th>Policy</th>
+          </tr>
+        </thead>
+        <tbody>
+          {volumes.length === 0 ? (
+            <EmptyRow colSpan={5} loading={loading} noun="volumes" />
+          ) : (
+            volumes.map((volume) => {
+              const selected = selectedVolumeName === volume.name;
+              return (
+                <tr
+                  className={`sky-clickable-row ${selected ? 'sky-selected-row' : ''}`}
+                  key={volume.name}
+                  onClick={() => onSelect(volume)}
+                >
+                  <td className="fw-semibold">{volume.name}</td>
+                  <td>{volume.driver || '—'}</td>
+                  <td>{volume.scope || '—'}</td>
+                  <td>{volume.cleanup?.usageCount ?? '—'}</td>
+                  <td><CleanupPill cleanup={volume.cleanup} /></td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function NetworkTable({ loading, networks, onSelect, selectedNetworkName }) {
+  return (
+    <div className="table-responsive sky-table-card sky-functional-history-table-card">
+      <table className="table table-sm table-hover sky-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Driver</th>
+            <th>Scope</th>
+            <th>Usage</th>
+            <th>Cleanup</th>
+          </tr>
+        </thead>
+        <tbody>
+          {networks.length === 0 ? (
+            <EmptyRow colSpan={5} loading={loading} noun="networks" />
+          ) : (
+            networks.map((network) => {
+              const selected = selectedNetworkName === network.name;
+              return (
+                <tr
+                  className={`sky-clickable-row ${selected ? 'sky-selected-row' : ''}`}
+                  key={network.id || network.name}
+                  onClick={() => onSelect(network)}
+                >
+                  <td className="fw-semibold">{network.name}</td>
+                  <td>{network.driver || '—'}</td>
+                  <td>{network.scope || '—'}</td>
+                  <td>{network.cleanup?.usageCount ?? '—'}</td>
+                  <td><CleanupPill cleanup={network.cleanup} /></td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -417,6 +439,10 @@ function DockerInventory({ view }) {
   const [resourceControlling, setResourceControlling] = useState('');
   const [imageFilters, setImageFilters] = useState(DEFAULT_IMAGE_FILTERS);
   const [imagePage, setImagePage] = useState(1);
+  const [storageFilters, setStorageFilters] = useState(DEFAULT_STORAGE_FILTERS);
+  const [storagePage, setStoragePage] = useState(1);
+  const [networkFilters, setNetworkFilters] = useState(DEFAULT_NETWORK_FILTERS);
+  const [networkPage, setNetworkPage] = useState(1);
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
   const projects = Array.isArray(overview?.projects) ? overview.projects : [];
@@ -445,6 +471,18 @@ function DockerInventory({ view }) {
   const imageRepositoryOptions = useMemo(
     () => uniqueSorted(images.map((image) => image.repository || '<none>')),
     [images],
+  );
+  const storageDriverOptions = useMemo(
+    () => uniqueSorted(volumes.map((volume) => volume.driver)),
+    [volumes],
+  );
+  const storageScopeOptions = useMemo(
+    () => uniqueSorted(volumes.map((volume) => volume.scope)),
+    [volumes],
+  );
+  const networkDriverOptions = useMemo(
+    () => uniqueSorted(networks.map((network) => network.driver)),
+    [networks],
   );
 
   const filteredProjects = useMemo(() => {
@@ -493,6 +531,38 @@ function DockerInventory({ view }) {
     });
   }, [imageFilters, images]);
 
+
+  const filteredVolumes = useMemo(() => {
+    const query = storageFilters.q.trim().toLowerCase();
+    return volumes.filter((volume) => {
+      if (storageFilters.driver && volume.driver !== storageFilters.driver) return false;
+      if (storageFilters.scope && volume.scope !== storageFilters.scope) return false;
+      if (!query) return true;
+      return [volume.name, volume.driver, volume.scope, volume.project]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  }, [storageFilters, volumes]);
+
+  const filteredNetworks = useMemo(() => {
+    const query = networkFilters.q.trim().toLowerCase();
+    return networks.filter((network) => {
+      const cleanup = network.cleanup || {};
+      const usageCount = Number(cleanup.usageCount ?? 0);
+      const cleanupState = cleanup.mode === 'SYSTEM_PROTECTED'
+        ? 'SYSTEM_PROTECTED'
+        : cleanup.eligible
+          ? 'UNUSED'
+          : usageCount > 0
+            ? 'ATTACHED'
+            : 'PROTECTED';
+      if (networkFilters.driver && network.driver !== networkFilters.driver) return false;
+      if (networkFilters.cleanup && cleanupState !== networkFilters.cleanup) return false;
+      if (!query) return true;
+      return [network.name, network.id, network.driver, network.scope, network.project]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  }, [networkFilters, networks]);
+
   const projectPageCount = Math.max(
     1,
     Math.ceil(filteredProjects.length / DOCKER_BROWSER_PAGE_SIZE),
@@ -537,8 +607,41 @@ function DockerInventory({ view }) {
   const imageRangeEnd = filteredImages.length === 0
     ? 0
     : Math.min(currentImagePage * DOCKER_BROWSER_PAGE_SIZE, filteredImages.length);
+
+
+  const storagePageCount = Math.max(1, Math.ceil(filteredVolumes.length / DOCKER_BROWSER_PAGE_SIZE));
+  const currentStoragePage = Math.min(storagePage, storagePageCount);
+  const pagedVolumes = useMemo(() => {
+    const offset = (currentStoragePage - 1) * DOCKER_BROWSER_PAGE_SIZE;
+    return filteredVolumes.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentStoragePage, filteredVolumes]);
+  const storageRangeStart = filteredVolumes.length === 0
+    ? 0
+    : (currentStoragePage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+  const storageRangeEnd = filteredVolumes.length === 0
+    ? 0
+    : Math.min(currentStoragePage * DOCKER_BROWSER_PAGE_SIZE, filteredVolumes.length);
+
+  const networkPageCount = Math.max(1, Math.ceil(filteredNetworks.length / DOCKER_BROWSER_PAGE_SIZE));
+  const currentNetworkPage = Math.min(networkPage, networkPageCount);
+  const pagedNetworks = useMemo(() => {
+    const offset = (currentNetworkPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
+    return filteredNetworks.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentNetworkPage, filteredNetworks]);
+  const networkRangeStart = filteredNetworks.length === 0
+    ? 0
+    : (currentNetworkPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+  const networkRangeEnd = filteredNetworks.length === 0
+    ? 0
+    : Math.min(currentNetworkPage * DOCKER_BROWSER_PAGE_SIZE, filteredNetworks.length);
   const selectedImageKey = selectedResource?.resourceType === 'IMAGE'
     ? getImageSelectionKey(selectedResource.resource)
+    : '';
+  const selectedVolumeName = selectedResource?.resourceType === 'VOLUME'
+    ? selectedResource.resource?.name || ''
+    : '';
+  const selectedNetworkName = selectedResource?.resourceType === 'NETWORK'
+    ? selectedResource.resource?.name || ''
     : '';
 
   useEffect(() => {
@@ -552,6 +655,14 @@ function DockerInventory({ view }) {
   useEffect(() => {
     if (imagePage > imagePageCount) setImagePage(imagePageCount);
   }, [imagePage, imagePageCount]);
+
+  useEffect(() => {
+    if (storagePage > storagePageCount) setStoragePage(storagePageCount);
+  }, [storagePage, storagePageCount]);
+
+  useEffect(() => {
+    if (networkPage > networkPageCount) setNetworkPage(networkPageCount);
+  }, [networkPage, networkPageCount]);
 
   const loadContainerDetail = useCallback(async (containerId) => {
     if (!containerId) return;
@@ -601,14 +712,18 @@ function DockerInventory({ view }) {
     }
   }, []);
 
-  const selectImage = useCallback((image) => {
-    if (!getResourceReference('IMAGE', image)) return;
-    setSelectedResource({ resourceType: 'IMAGE', resource: image });
+  const selectResource = useCallback((resourceType, resource) => {
+    if (!getResourceReference(resourceType, resource)) return;
+    setSelectedResource({ resourceType, resource });
     setResourceDetail(null);
     setResourceDetailError('');
     setResourceControlling('');
-    loadResourceDetail('IMAGE', image);
+    loadResourceDetail(resourceType, resource);
   }, [loadResourceDetail]);
+
+  const selectImage = useCallback((image) => {
+    selectResource('IMAGE', image);
+  }, [selectResource]);
 
   const selectProject = useCallback((project) => {
     if (!project?.name) return;
@@ -654,6 +769,33 @@ function DockerInventory({ view }) {
     setResourceDetailError('');
   }, [loading, pagedImages, selectImage, selectedImageKey, view]);
 
+
+  useEffect(() => {
+    if (view !== 'storage' || loading) return;
+    if (pagedVolumes.some((volume) => volume.name === selectedVolumeName)) return;
+    const firstVolume = pagedVolumes[0];
+    if (firstVolume) {
+      selectResource('VOLUME', firstVolume);
+      return;
+    }
+    setSelectedResource(null);
+    setResourceDetail(null);
+    setResourceDetailError('');
+  }, [loading, pagedVolumes, selectResource, selectedVolumeName, view]);
+
+  useEffect(() => {
+    if (view !== 'networks' || loading) return;
+    if (pagedNetworks.some((network) => network.name === selectedNetworkName)) return;
+    const firstNetwork = pagedNetworks[0];
+    if (firstNetwork) {
+      selectResource('NETWORK', firstNetwork);
+      return;
+    }
+    setSelectedResource(null);
+    setResourceDetail(null);
+    setResourceDetailError('');
+  }, [loading, pagedNetworks, selectResource, selectedNetworkName, view]);
+
   function updateProjectFilter(name, value) {
     setProjectFilters((current) => ({ ...current, [name]: value }));
     setProjectPage(1);
@@ -682,6 +824,27 @@ function DockerInventory({ view }) {
   function clearImageFilters() {
     setImageFilters(DEFAULT_IMAGE_FILTERS);
     setImagePage(1);
+  }
+
+
+  function updateStorageFilter(name, value) {
+    setStorageFilters((current) => ({ ...current, [name]: value }));
+    setStoragePage(1);
+  }
+
+  function clearStorageFilters() {
+    setStorageFilters(DEFAULT_STORAGE_FILTERS);
+    setStoragePage(1);
+  }
+
+  function updateNetworkFilter(name, value) {
+    setNetworkFilters((current) => ({ ...current, [name]: value }));
+    setNetworkPage(1);
+  }
+
+  function clearNetworkFilters() {
+    setNetworkFilters(DEFAULT_NETWORK_FILTERS);
+    setNetworkPage(1);
   }
 
   async function handleProjectControl(project, action) {
@@ -737,14 +900,6 @@ function DockerInventory({ view }) {
     } finally {
       setContainerControlling('');
     }
-  }
-
-  function openResourceDetails(resourceType, resource) {
-    const selected = { resourceType, resource };
-    setSelectedResource(selected);
-    setResourceDetail(null);
-    setResourceDetailError('');
-    loadResourceDetail(resourceType, resource);
   }
 
   function closeResourceDetails() {
@@ -1103,25 +1258,181 @@ function DockerInventory({ view }) {
       )}
 
       {view === 'storage' && (
-        <StorageTables
-          loading={loading}
-          networks={networks}
-          onDetails={openResourceDetails}
-          volumes={volumes}
-        />
+        <>
+          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+            <div className="sky-card-header">
+              <div>
+                <div className="sky-page-kicker">Storage browser</div>
+                <h2 className="h5 mb-0">Volume inventory</h2>
+                <p className="sky-muted small mb-0">
+                  Search and filter persistent Docker volumes, then inspect the selected storage resource in the detail workspace below.
+                </p>
+              </div>
+              <div className="sky-history-browser-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="dockerStorageSearch">Search</label>
+                  <input
+                    className="form-control sky-form-control"
+                    id="dockerStorageSearch"
+                    onChange={(event) => updateStorageFilter('q', event.target.value)}
+                    placeholder="Volume, driver, scope, project..."
+                    type="search"
+                    value={storageFilters.q}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerStorageDriverFilter">Driver</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerStorageDriverFilter"
+                    onChange={(event) => updateStorageFilter('driver', event.target.value)}
+                    value={storageFilters.driver}
+                  >
+                    <option value="">All drivers</option>
+                    {storageDriverOptions.map((driver) => <option key={driver} value={driver}>{driver}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerStorageScopeFilter">Scope</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerStorageScopeFilter"
+                    onChange={(event) => updateStorageFilter('scope', event.target.value)}
+                    value={storageFilters.scope}
+                  >
+                    <option value="">All scopes</option>
+                    {storageScopeOptions.map((scope) => <option key={scope} value={scope}>{scope}</option>)}
+                  </select>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button className="btn btn-sm sky-btn-ghost" onClick={clearStorageFilters} type="button">
+                    Clear filters
+                  </button>
+                </div>
+              </div>
+            </div>
+            <StorageTable
+              loading={loading}
+              onSelect={(volume) => selectResource('VOLUME', volume)}
+              selectedVolumeName={selectedVolumeName}
+              volumes={pagedVolumes}
+            />
+            <DockerBrowserPagination
+              ariaLabel="Docker storage pagination"
+              filteredCount={filteredVolumes.length}
+              onPageChange={setStoragePage}
+              page={currentStoragePage}
+              pageCount={storagePageCount}
+              rangeEnd={storageRangeEnd}
+              rangeStart={storageRangeStart}
+              selectId="dockerStoragePageSelect"
+            />
+          </section>
+
+          {selectedResource?.resourceType === 'VOLUME' && (
+            <DockerResourceDetailsModal
+              canCleanup={canCleanup}
+              controlling={resourceControlling}
+              detail={resourceDetail}
+              embedded
+              error={resourceDetailError}
+              loading={resourceDetailLoading}
+              onControl={handleResourceControl}
+              onRefresh={() => loadResourceDetail('VOLUME', selectedResource.resource)}
+              resourceTypeHint="VOLUME"
+            />
+          )}
+        </>
       )}
 
-      {selectedResource && selectedResource.resourceType !== 'IMAGE' && (
-        <DockerResourceDetailsModal
-          canCleanup={canCleanup}
-          controlling={resourceControlling}
-          detail={resourceDetail}
-          error={resourceDetailError}
-          loading={resourceDetailLoading}
-          onClose={closeResourceDetails}
-          onControl={handleResourceControl}
-          onRefresh={() => loadResourceDetail(selectedResource.resourceType, selectedResource.resource)}
-        />
+      {view === 'networks' && (
+        <>
+          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+            <div className="sky-card-header">
+              <div>
+                <div className="sky-page-kicker">Network browser</div>
+                <h2 className="h5 mb-0">Network inventory</h2>
+                <p className="sky-muted small mb-0">
+                  Search and filter Docker networks, then inspect topology and cleanup policy in the selected-network workspace below.
+                </p>
+              </div>
+              <div className="sky-history-browser-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="dockerNetworkSearch">Search</label>
+                  <input
+                    className="form-control sky-form-control"
+                    id="dockerNetworkSearch"
+                    onChange={(event) => updateNetworkFilter('q', event.target.value)}
+                    placeholder="Network, driver, scope, project..."
+                    type="search"
+                    value={networkFilters.q}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerNetworkDriverFilter">Driver</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerNetworkDriverFilter"
+                    onChange={(event) => updateNetworkFilter('driver', event.target.value)}
+                    value={networkFilters.driver}
+                  >
+                    <option value="">All drivers</option>
+                    {networkDriverOptions.map((driver) => <option key={driver} value={driver}>{driver}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerNetworkCleanupFilter">Cleanup</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerNetworkCleanupFilter"
+                    onChange={(event) => updateNetworkFilter('cleanup', event.target.value)}
+                    value={networkFilters.cleanup}
+                  >
+                    <option value="">All cleanup states</option>
+                    <option value="SYSTEM_PROTECTED">System protected</option>
+                    <option value="ATTACHED">Attached</option>
+                    <option value="UNUSED">Unused</option>
+                  </select>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button className="btn btn-sm sky-btn-ghost" onClick={clearNetworkFilters} type="button">
+                    Clear filters
+                  </button>
+                </div>
+              </div>
+            </div>
+            <NetworkTable
+              loading={loading}
+              networks={pagedNetworks}
+              onSelect={(network) => selectResource('NETWORK', network)}
+              selectedNetworkName={selectedNetworkName}
+            />
+            <DockerBrowserPagination
+              ariaLabel="Docker network pagination"
+              filteredCount={filteredNetworks.length}
+              onPageChange={setNetworkPage}
+              page={currentNetworkPage}
+              pageCount={networkPageCount}
+              rangeEnd={networkRangeEnd}
+              rangeStart={networkRangeStart}
+              selectId="dockerNetworkPageSelect"
+            />
+          </section>
+
+          {selectedResource?.resourceType === 'NETWORK' && (
+            <DockerResourceDetailsModal
+              canCleanup={canCleanup}
+              controlling={resourceControlling}
+              detail={resourceDetail}
+              embedded
+              error={resourceDetailError}
+              loading={resourceDetailLoading}
+              onControl={handleResourceControl}
+              onRefresh={() => loadResourceDetail('NETWORK', selectedResource.resource)}
+              resourceTypeHint="NETWORK"
+            />
+          )}
+        </>
       )}
     </>
   );

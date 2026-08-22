@@ -1,3 +1,11 @@
+## 2026-08-22 - Post-Phase 17 Docker storage and network browser refinement
+
+- Split Docker **Storage & Networks** into separate **Storage** and **Networks** sidebar/pages while preserving the existing `/docker/storage` route for volumes and adding `/docker/networks` for network topology.
+- Reworked both pages into the same Workflow Operations-style record-browser contract used by Projects, Containers, and Images: search, resource-specific filters, Clear filters, selectable rows, 10-row pagination with First/Back/Page/Next/Last controls, and automatic first-row selection on initial load/filter/page transitions.
+- Removed Volume Details and Network Details row actions. The selected volume now drives an inline **Storage Details** workspace below the table, and the selected network drives an inline **Network Details** workspace below its table.
+- Preserved existing volume data-protection policy, network cleanup guardrails, attachment/IPAM intelligence, and resource refresh/cleanup behavior; no API, Host Agent, database migration, or environment change is required.
+- Extended Docker Admin-Web regression coverage for the split routes/navigation, browser filters/pagination/selection, inline resource-detail mode, and deliberate absence of Actions columns on Storage and Networks tables.
+
 ## 2026-08-22 - Post-Phase 17 Docker project browser refinement
 
 - Renamed Docker **Compose Projects** navigation/page labeling to **Projects** while retaining Docker Compose terminology in the workload description and provider contracts.
