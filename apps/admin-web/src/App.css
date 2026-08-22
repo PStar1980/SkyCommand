@@ -4552,6 +4552,11 @@ select.sky-form-control optgroup {
   margin-bottom: 0.35rem;
 }
 
+.sky-docker-operations-filter-grid {
+  grid-template-columns: minmax(16rem, 1.45fr) repeat(3, minmax(9rem, 0.7fr)) auto;
+  min-width: min(100%, 88rem);
+}
+
 .sky-tool-history-filter-grid {
   min-width: min(100%, 88rem);
 }

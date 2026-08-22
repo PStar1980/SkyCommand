@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
@@ -7,7 +7,7 @@ import infrastructureService from '../services/infrastructureService.js';
 
 const PAGE_SIZE = 10;
 const DEFAULT_FILTERS = {
-  projectName: '',
+  q: '',
   scope: '',
   action: '',
   success: '',
@@ -40,6 +40,7 @@ function DockerOperations() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const requestSequence = useRef(0);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -47,6 +48,8 @@ function DockerOperations() {
   const rangeEnd = Math.min(safePage * PAGE_SIZE, total);
 
   async function loadOperations(nextPage = page, nextFilters = appliedFilters) {
+    const requestId = requestSequence.current + 1;
+    requestSequence.current = requestId;
     setLoading(true);
     setError('');
 
@@ -56,6 +59,8 @@ function DockerOperations() {
         limit: PAGE_SIZE,
         offset: (nextPage - 1) * PAGE_SIZE,
       });
+      if (requestId !== requestSequence.current) return;
+
       const resultTotal = Number(result.total || 0);
       const resultPageCount = Math.max(1, Math.ceil(resultTotal / PAGE_SIZE));
 
@@ -69,29 +74,32 @@ function DockerOperations() {
       setTotal(resultTotal);
       setPage(nextPage);
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load Docker operations.');
+      if (requestId === requestSequence.current) {
+        setError(loadError.message || 'Failed to load Docker operations.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadOperations(1, DEFAULT_FILTERS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const delay = filters.q ? 250 : 0;
+    const timer = window.setTimeout(() => {
+      setAppliedFilters(filters);
+      setPage(1);
+      loadOperations(1, filters);
+    }, delay);
 
-  function applyFilters(event) {
-    event.preventDefault();
-    setAppliedFilters(filters);
-    setPage(1);
-    loadOperations(1, filters);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  function updateFilter(name, value) {
+    setFilters((current) => ({ ...current, [name]: value }));
   }
 
   function clearFilters() {
     setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-    loadOperations(1, DEFAULT_FILTERS);
   }
 
   function goToPage(nextPage) {
@@ -141,57 +149,57 @@ function DockerOperations() {
         </div>
       </Panel>
 
-      <Panel title="Operation Filters">
-        <form className="sky-card-body" onSubmit={applyFilters}>
-          <div className="row g-3 align-items-end">
-            <div className="col-12 col-lg-4">
-              <label className="form-label" htmlFor="docker-operation-project">
-                Project
+      <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-operations-browser">
+        <div className="sky-card-header">
+          <div>
+            <div className="sky-page-kicker">Operation browser</div>
+            <h2 className="h5 mb-0">Docker operation history</h2>
+            <p className="sky-muted small mb-0">
+              Search and filter audited SkyCommand-issued Docker actions across Compose projects,
+              containers, images, and networks.
+            </p>
+          </div>
+          <div className="sky-history-browser-filter-grid sky-docker-operations-filter-grid">
+            <div className="sky-run-tools-search-filter">
+              <label className="form-label" htmlFor="dockerOperationSearch">
+                Search
               </label>
               <input
                 className="form-control sky-form-control"
-                id="docker-operation-project"
-                onChange={(event) => setFilters((current) => ({
-                  ...current,
-                  projectName: event.target.value,
-                }))}
-                placeholder="Exact Compose project name"
-                value={filters.projectName}
+                id="dockerOperationSearch"
+                onChange={(event) => updateFilter('q', event.target.value)}
+                placeholder="Resource, project, actor, action, message..."
+                type="search"
+                value={filters.q}
               />
             </div>
-            <div className="col-6 col-lg-2">
-              <label className="form-label" htmlFor="docker-operation-scope">
+            <div>
+              <label className="form-label" htmlFor="dockerOperationScope">
                 Scope
               </label>
               <select
                 className="form-select sky-form-control"
-                id="docker-operation-scope"
-                onChange={(event) => setFilters((current) => ({
-                  ...current,
-                  scope: event.target.value,
-                }))}
+                id="dockerOperationScope"
+                onChange={(event) => updateFilter('scope', event.target.value)}
                 value={filters.scope}
               >
-                <option value="">All</option>
+                <option value="">All scopes</option>
                 <option value="COMPOSE">Compose project</option>
                 <option value="CONTAINER">Container</option>
                 <option value="RESOURCE">Image / network cleanup</option>
               </select>
             </div>
-            <div className="col-6 col-lg-2">
-              <label className="form-label" htmlFor="docker-operation-action">
+            <div>
+              <label className="form-label" htmlFor="dockerOperationAction">
                 Action
               </label>
               <select
                 className="form-select sky-form-control"
-                id="docker-operation-action"
-                onChange={(event) => setFilters((current) => ({
-                  ...current,
-                  action: event.target.value,
-                }))}
+                id="dockerOperationAction"
+                onChange={(event) => updateFilter('action', event.target.value)}
                 value={filters.action}
               >
-                <option value="">All</option>
+                <option value="">All actions</option>
                 <option value="START">Start</option>
                 <option value="STOP">Stop</option>
                 <option value="RESTART">Restart</option>
@@ -200,31 +208,25 @@ function DockerOperations() {
                 <option value="REMOVE">Remove</option>
               </select>
             </div>
-            <div className="col-6 col-lg-2">
-              <label className="form-label" htmlFor="docker-operation-status">
+            <div>
+              <label className="form-label" htmlFor="dockerOperationResult">
                 Result
               </label>
               <select
                 className="form-select sky-form-control"
-                id="docker-operation-status"
-                onChange={(event) => setFilters((current) => ({
-                  ...current,
-                  success: event.target.value,
-                }))}
+                id="dockerOperationResult"
+                onChange={(event) => updateFilter('success', event.target.value)}
                 value={filters.success}
               >
-                <option value="">All</option>
+                <option value="">All results</option>
                 <option value="true">Success</option>
                 <option value="false">Failed</option>
               </select>
             </div>
-            <div className="col-6 col-lg-2 d-flex gap-2">
-              <button className="btn sky-btn-primary" disabled={loading} type="submit">
-                Apply
-              </button>
+            <div className="sky-run-tools-filter-actions">
               <button
-                className="btn sky-btn-ghost"
-                disabled={loading}
+                className="btn btn-sm sky-btn-ghost"
+                disabled={loading && total === 0}
                 onClick={clearFilters}
                 type="button"
               >
@@ -232,11 +234,9 @@ function DockerOperations() {
               </button>
             </div>
           </div>
-        </form>
-      </Panel>
+        </div>
 
-      <Panel title="Docker Operation History">
-        <div className="table-responsive sky-table-card border-0 rounded-0">
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-docker-operations-table-card">
           <table className="table table-sm table-hover sky-table align-middle mb-0">
             <thead>
               <tr>
@@ -255,8 +255,12 @@ function DockerOperations() {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td className="sky-muted text-center py-4" colSpan={10}>
-                    {loading ? 'Loading Docker operations…' : 'No Docker operations recorded.'}
+                  <td colSpan={10}>
+                    <div className="sky-empty-state">
+                      {loading
+                        ? 'Loading Docker operations…'
+                        : 'No Docker operations match the current filters.'}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -304,11 +308,20 @@ function DockerOperations() {
             </tbody>
           </table>
         </div>
-        <div className="sky-card-body d-flex flex-wrap justify-content-between align-items-center gap-2 border-top">
+
+        <div className="sky-pagination-row">
           <div className="small sky-muted">
-            Showing {rangeStart}-{rangeEnd} of {total} operation(s)
+            Showing {rangeStart}-{rangeEnd} of {total} Docker operation(s)
           </div>
-          <div className="d-flex align-items-center gap-2">
+          <div className="sky-pagination-controls" aria-label="Docker operations pagination">
+            <button
+              className="btn btn-sm sky-btn-ghost"
+              disabled={safePage <= 1 || loading}
+              onClick={() => goToPage(1)}
+              type="button"
+            >
+              First
+            </button>
             <button
               className="btn btn-sm sky-btn-ghost"
               disabled={safePage <= 1 || loading}
@@ -317,9 +330,23 @@ function DockerOperations() {
             >
               Back
             </button>
-            <span className="small sky-muted">
-              Page {safePage} of {pageCount}
-            </span>
+            <label className="sky-pagination-select-label" htmlFor="dockerOperationsPageSelect">
+              Page
+            </label>
+            <select
+              className="form-select form-select-sm sky-form-control sky-pagination-select"
+              disabled={loading}
+              id="dockerOperationsPageSelect"
+              onChange={(event) => goToPage(event.target.value)}
+              value={safePage}
+            >
+              {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
+                <option key={pageNumber} value={pageNumber}>
+                  {pageNumber}
+                </option>
+              ))}
+            </select>
+            <span className="small sky-muted">of {pageCount}</span>
             <button
               className="btn btn-sm sky-btn-ghost"
               disabled={safePage >= pageCount || loading}
@@ -328,9 +355,17 @@ function DockerOperations() {
             >
               Next
             </button>
+            <button
+              className="btn btn-sm sky-btn-ghost"
+              disabled={safePage >= pageCount || loading}
+              onClick={() => goToPage(pageCount)}
+              type="button"
+            >
+              Last
+            </button>
           </div>
         </div>
-      </Panel>
+      </section>
     </>
   );
 }
