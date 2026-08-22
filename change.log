@@ -1,3 +1,10 @@
+## 2026-08-22 - Post-Phase 17 Docker project browser refinement
+
+- Renamed Docker **Compose Projects** navigation/page labeling to **Projects** while retaining Docker Compose terminology in the workload description and provider contracts.
+- Reworked Docker **Projects** into the same Workflow Operations-style record browser used by the refined Containers and Images pages: search, state/status filters, Clear filters, selectable rows, 10-row pagination with First/Back/Page/Next/Last controls, and automatic first-row selection on initial load/filter/page transitions.
+- Removed project lifecycle controls and the Project Details row action from the browser table. The selected project now drives an inline **Project Details** workspace below the table, where the existing Start/Stop/Restart controls, self-managed protection, live telemetry, charts, runtime members, and correlated Docker events remain available.
+- Extended the Docker Admin-Web regression contract for the Projects navigation label, project browser filters/pagination/selection, inline project-detail mode, and the deliberate absence of Controls/Actions columns in the project table. No database migration or environment change is required.
+
 ## 2026-08-21 - Post-Phase 17 Docker inventory browser refinements
 
 - Refined Host Agent scheduled-task status reporting so an explicit `host-agent:auto-start:stop` result (`0x00041306` / `267014`) is presented as `STOPPED (TASK SCHEDULER READY)` with intentional-stop guidance instead of being mislabeled as `FAILED`; genuine failed task results still retain the failure path.
