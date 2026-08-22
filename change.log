@@ -1,3 +1,11 @@
+## 2026-08-21 - Post-Phase 17 Docker inventory browser refinements
+
+- Refined Host Agent scheduled-task status reporting so an explicit `host-agent:auto-start:stop` result (`0x00041306` / `267014`) is presented as `STOPPED (TASK SCHEDULER READY)` with intentional-stop guidance instead of being mislabeled as `FAILED`; genuine failed task results still retain the failure path.
+- Reworked Docker **Containers** into the same record-browser pattern used by Workflow Operations: search, project/state filters, Clear filters, selectable rows, 10-row pagination with First/Back/Page/Next/Last controls, and automatic first-row selection on initial load/filter/page transitions.
+- Reworked Docker **Images** with the same browser contract using search, repository/usage filters, Clear filters, 10-row pagination, selectable rows, and automatic first-row selection.
+- Removed Container Details and Image Details row-action overlays from those two pages. The selected record now drives an inline **Container Details** or **Image Details** workspace immediately below the browser card while preserving existing lifecycle/cleanup controls, inspection data, logs, attachment intelligence, and refresh behavior.
+- Extended Host Agent automatic-start and Docker Admin-Web regression contracts for the intentional-stop state, inline detail mode, browser filters, selected-row behavior, and pagination. No database migration or environment change is required.
+
 ## 2026-08-21 - Phase 17.9 Docker integration hardening and completion
 
 - Closed Phase 17 with explicit Host Agent-vs-Docker-provider failure classification: provider command failures can keep the host target `ONLINE` while marking Docker `OFFLINE`, and Host Agent transport/dispatch failures report a separate degraded failure domain instead of collapsing all infrastructure faults into one generic unavailable state.
