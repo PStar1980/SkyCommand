@@ -1,3 +1,10 @@
+## 2026-08-22 - Post-Phase 17 Docker navigation refinement
+
+- Renamed the Docker infrastructure overview page from **Docker Overview** to **Docker** and moved its navigation entry into the **Dashboards** category while preserving the existing `/docker/overview` route and provider contracts.
+- Reordered Dashboard navigation to **Command Center, Tools, Workflows, Automation, Data, API, Docker** so infrastructure observability sits alongside the other top-level operational dashboards.
+- Moved **Docker Operations** to the first position inside the remaining Docker menu category, ahead of Projects, Containers, Images, Storage, and Networks.
+- Updated dashboard/Docker navigation regression coverage and current Docker architecture documentation for the new human-facing menu structure; no API, Host Agent, database migration, route migration, or environment change is required.
+
 ## 2026-08-22 - Post-Phase 17 Docker storage and network browser refinement
 
 - Split Docker **Storage & Networks** into separate **Storage** and **Networks** sidebar/pages while preserving the existing `/docker/storage` route for volumes and adding `/docker/networks` for network topology.

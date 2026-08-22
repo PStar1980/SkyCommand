@@ -10,6 +10,7 @@ const dashboardPages = [
   'pages/ToolsDashboard.jsx',
   'pages/WorkflowsDashboard.jsx',
   'pages/AutomationDashboard.jsx',
+  'pages/DockerOverview.jsx',
 ];
 
 for (const relativePath of dashboardPages) {
@@ -58,11 +59,12 @@ const dashboardGroupSource = navbarSource.slice(
 );
 const expectedDashboardLabels = [
   'Command Center',
-  'API',
-  'Data',
   'Tools',
   'Workflows',
   'Automation',
+  'Data',
+  'API',
+  'Docker',
 ];
 let priorLabelIndex = -1;
 

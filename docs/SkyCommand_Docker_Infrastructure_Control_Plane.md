@@ -55,7 +55,7 @@ Admin-Web consumes normalized provider contracts rather than raw Docker payloads
 
 ## Docker surfaces
 
-### Docker Overview
+### Docker dashboard
 
 Provides:
 
