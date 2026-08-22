@@ -13,7 +13,7 @@ import infrastructureService from '../services/infrastructureService.js';
 const VIEW_CONFIG = {
   projects: {
     kicker: 'Docker · Compose',
-    title: 'Compose Projects',
+    title: 'Projects',
     subtitle:
       'Inspect application-level Docker Compose workloads discovered through the SkyCommand Host Agent.',
   },
@@ -38,6 +38,12 @@ const VIEW_CONFIG = {
 };
 
 const DOCKER_BROWSER_PAGE_SIZE = 10;
+
+const DEFAULT_PROJECT_FILTERS = {
+  q: '',
+  state: '',
+  status: '',
+};
 
 const DEFAULT_CONTAINER_FILTERS = {
   q: '',
@@ -146,9 +152,9 @@ function EmptyRow({ colSpan, loading, noun }) {
   );
 }
 
-function ProjectTable({ canControl, controlling, loading, onControl, onDetails, projects }) {
+function ProjectTable({ loading, onSelect, projects, selectedProjectName }) {
   return (
-    <div className="table-responsive sky-table-card border-0 rounded-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card">
       <table className="table table-sm table-hover sky-table align-middle mb-0">
         <thead>
           <tr>
@@ -158,83 +164,35 @@ function ProjectTable({ canControl, controlling, loading, onControl, onDetails, 
             <th className="text-end">Services</th>
             <th className="text-end">Containers</th>
             <th className="text-end">Healthy</th>
-            <th>Controls</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {projects.length === 0 ? (
-            <EmptyRow colSpan={8} loading={loading} noun="projects" />
+            <EmptyRow colSpan={6} loading={loading} noun="projects" />
           ) : (
             projects.map((project) => {
-              const control = project.control || {};
-              const actionState = control.actions || {};
-              const selfManaged = control.mode === 'SELF_MANAGED_PROTECTED';
-              const busy = controlling?.startsWith(`${project.name}:`);
+              const selfManaged = project.control?.mode === 'SELF_MANAGED_PROTECTED';
+              const selected = selectedProjectName === project.name;
 
               return (
-                <tr key={project.name}>
+                <tr
+                  className={`sky-clickable-row ${selected ? 'sky-selected-row' : ''}`}
+                  key={project.name}
+                  onClick={() => onSelect(project)}
+                >
                   <td>
                     <div className="fw-semibold">{project.name}</div>
                     {selfManaged && (
-                      <div className="small sky-muted">
-                        Protected control-plane project
-                      </div>
+                      <div className="small sky-muted">Protected control-plane project</div>
                     )}
                   </td>
-                  <td>
-                    <StatusPill status={project.state} />
-                  </td>
+                  <td><StatusPill status={project.state} /></td>
                   <td>{project.status || '—'}</td>
                   <td className="text-end">{project.serviceCount ?? 0}</td>
                   <td className="text-end">
                     {project.runningCount ?? 0}/{project.containerCount ?? 0}
                   </td>
                   <td className="text-end">{project.healthyCount ?? 0}</td>
-                  <td>
-                    {selfManaged ? (
-                      <StatusPill label="Self-managed" status="BLOCKED" />
-                    ) : !canControl ? (
-                      <StatusPill label="Read only" status="INFO" />
-                    ) : (
-                      <div className="d-flex flex-wrap gap-1">
-                        <button
-                          className="btn btn-sm sky-btn-primary"
-                          disabled={loading || busy || !actionState.start}
-                          onClick={() => onControl(project, 'START')}
-                          type="button"
-                        >
-                          {controlling === `${project.name}:START` ? 'Starting…' : 'Start'}
-                        </button>
-                        <button
-                          className="btn btn-sm sky-btn-ghost"
-                          disabled={loading || busy || !actionState.stop}
-                          onClick={() => onControl(project, 'STOP')}
-                          type="button"
-                        >
-                          {controlling === `${project.name}:STOP` ? 'Stopping…' : 'Stop'}
-                        </button>
-                        <button
-                          className="btn btn-sm sky-btn-ghost"
-                          disabled={loading || busy || !actionState.restart}
-                          onClick={() => onControl(project, 'RESTART')}
-                          type="button"
-                        >
-                          {controlling === `${project.name}:RESTART` ? 'Restarting…' : 'Restart'}
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-sm sky-btn-ghost"
-                      disabled={loading}
-                      onClick={() => onDetails(project)}
-                      type="button"
-                    >
-                      Project Details
-                    </button>
-                  </td>
                 </tr>
               );
             })
@@ -443,6 +401,8 @@ function DockerInventory({ view }) {
   const [controlNotice, setControlNotice] = useState('');
   const [controlling, setControlling] = useState('');
   const [selectedProjectName, setSelectedProjectName] = useState('');
+  const [projectFilters, setProjectFilters] = useState(DEFAULT_PROJECT_FILTERS);
+  const [projectPage, setProjectPage] = useState(1);
   const [selectedContainerId, setSelectedContainerId] = useState('');
   const [containerDetail, setContainerDetail] = useState(null);
   const [containerDetailError, setContainerDetailError] = useState('');
@@ -465,6 +425,15 @@ function DockerInventory({ view }) {
   const volumes = Array.isArray(overview?.volumes) ? overview.volumes : [];
   const networks = Array.isArray(overview?.networks) ? overview.networks : [];
 
+  const projectStateOptions = useMemo(
+    () => uniqueSorted(projects.map((project) => project.state)),
+    [projects],
+  );
+  const projectStatusOptions = useMemo(
+    () => uniqueSorted(projects.map((project) => project.status)),
+    [projects],
+  );
+
   const containerProjectOptions = useMemo(
     () => uniqueSorted(containers.map((container) => container.project || 'Standalone')),
     [containers],
@@ -477,6 +446,17 @@ function DockerInventory({ view }) {
     () => uniqueSorted(images.map((image) => image.repository || '<none>')),
     [images],
   );
+
+  const filteredProjects = useMemo(() => {
+    const query = projectFilters.q.trim().toLowerCase();
+    return projects.filter((project) => {
+      if (projectFilters.state && project.state !== projectFilters.state) return false;
+      if (projectFilters.status && project.status !== projectFilters.status) return false;
+      if (!query) return true;
+      return [project.name, project.state, project.status, project.configFiles]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  }, [projectFilters, projects]);
 
   const filteredContainers = useMemo(() => {
     const query = containerFilters.q.trim().toLowerCase();
@@ -513,6 +493,22 @@ function DockerInventory({ view }) {
     });
   }, [imageFilters, images]);
 
+  const projectPageCount = Math.max(
+    1,
+    Math.ceil(filteredProjects.length / DOCKER_BROWSER_PAGE_SIZE),
+  );
+  const currentProjectPage = Math.min(projectPage, projectPageCount);
+  const pagedProjects = useMemo(() => {
+    const offset = (currentProjectPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
+    return filteredProjects.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentProjectPage, filteredProjects]);
+  const projectRangeStart = filteredProjects.length === 0
+    ? 0
+    : (currentProjectPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+  const projectRangeEnd = filteredProjects.length === 0
+    ? 0
+    : Math.min(currentProjectPage * DOCKER_BROWSER_PAGE_SIZE, filteredProjects.length);
+
   const containerPageCount = Math.max(
     1,
     Math.ceil(filteredContainers.length / DOCKER_BROWSER_PAGE_SIZE),
@@ -544,6 +540,10 @@ function DockerInventory({ view }) {
   const selectedImageKey = selectedResource?.resourceType === 'IMAGE'
     ? getImageSelectionKey(selectedResource.resource)
     : '';
+
+  useEffect(() => {
+    if (projectPage > projectPageCount) setProjectPage(projectPageCount);
+  }, [projectPage, projectPageCount]);
 
   useEffect(() => {
     if (containerPage > containerPageCount) setContainerPage(containerPageCount);
@@ -610,6 +610,24 @@ function DockerInventory({ view }) {
     loadResourceDetail('IMAGE', image);
   }, [loadResourceDetail]);
 
+  const selectProject = useCallback((project) => {
+    if (!project?.name) return;
+    setSelectedProjectName(project.name);
+    setControlError('');
+    setControlNotice('');
+  }, []);
+
+  useEffect(() => {
+    if (view !== 'projects' || loading) return;
+    if (pagedProjects.some((project) => project.name === selectedProjectName)) return;
+    const firstProject = pagedProjects[0];
+    if (firstProject?.name) {
+      selectProject(firstProject);
+      return;
+    }
+    setSelectedProjectName('');
+  }, [loading, pagedProjects, selectProject, selectedProjectName, view]);
+
   useEffect(() => {
     if (view !== 'containers' || loading) return;
     if (pagedContainers.some((container) => container.id === selectedContainerId)) return;
@@ -635,6 +653,16 @@ function DockerInventory({ view }) {
     setResourceDetail(null);
     setResourceDetailError('');
   }, [loading, pagedImages, selectImage, selectedImageKey, view]);
+
+  function updateProjectFilter(name, value) {
+    setProjectFilters((current) => ({ ...current, [name]: value }));
+    setProjectPage(1);
+  }
+
+  function clearProjectFilters() {
+    setProjectFilters(DEFAULT_PROJECT_FILTERS);
+    setProjectPage(1);
+  }
 
   function updateContainerFilter(name, value) {
     setContainerFilters((current) => ({ ...current, [name]: value }));
@@ -680,17 +708,6 @@ function DockerInventory({ view }) {
     } finally {
       setControlling('');
     }
-  }
-
-  function openProjectDetails(project) {
-    if (!project?.name) return;
-    setSelectedProjectName(project.name);
-    setControlError('');
-    setControlNotice('');
-  }
-
-  function closeProjectDetails() {
-    setSelectedProjectName('');
   }
 
   async function handleContainerControl(container, action) {
@@ -808,16 +825,103 @@ function DockerInventory({ view }) {
       )}
 
       {view === 'projects' && (
-        <Panel title="Compose Project Inventory">
-          <ProjectTable
-            canControl={canControl}
-            controlling={controlling}
-            loading={loading}
-            onControl={handleProjectControl}
-            onDetails={openProjectDetails}
-            projects={projects}
-          />
-        </Panel>
+        <>
+          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+            <div className="sky-card-header">
+              <div>
+                <div className="sky-page-kicker">Project browser</div>
+                <h2 className="h5 mb-0">Project inventory</h2>
+                <p className="sky-muted small mb-0">
+                  Search and filter Docker Compose workloads, then inspect and operate the selected
+                  project in the detail workspace below.
+                </p>
+              </div>
+              <div className="sky-history-browser-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="dockerProjectSearch">Search</label>
+                  <input
+                    className="form-control sky-form-control"
+                    id="dockerProjectSearch"
+                    onChange={(event) => updateProjectFilter('q', event.target.value)}
+                    placeholder="Project, state, status, Compose file..."
+                    type="search"
+                    value={projectFilters.q}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerProjectStateFilter">State</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerProjectStateFilter"
+                    onChange={(event) => updateProjectFilter('state', event.target.value)}
+                    value={projectFilters.state}
+                  >
+                    <option value="">All states</option>
+                    {projectStateOptions.map((state) => (
+                      <option key={state} value={state}>{state}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="dockerProjectStatusFilter">Status</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="dockerProjectStatusFilter"
+                    onChange={(event) => updateProjectFilter('status', event.target.value)}
+                    value={projectFilters.status}
+                  >
+                    <option value="">All statuses</option>
+                    {projectStatusOptions.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    onClick={clearProjectFilters}
+                    type="button"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ProjectTable
+              loading={loading}
+              onSelect={selectProject}
+              projects={pagedProjects}
+              selectedProjectName={selectedProjectName}
+            />
+            <DockerBrowserPagination
+              ariaLabel="Docker project pagination"
+              filteredCount={filteredProjects.length}
+              onPageChange={setProjectPage}
+              page={currentProjectPage}
+              pageCount={projectPageCount}
+              rangeEnd={projectRangeEnd}
+              rangeStart={projectRangeStart}
+              selectId="dockerProjectPageSelect"
+            />
+          </section>
+
+          {selectedProjectName && (
+            <DockerProjectDetailsModal
+              canControl={canControl}
+              containers={containers}
+              controlError={controlError}
+              controlNotice={controlNotice}
+              controlling={controlling}
+              embedded
+              onControl={handleProjectControl}
+              onRefresh={() => loadOverview()}
+              project={
+                projects.find((project) => project.name === selectedProjectName) ||
+                { name: selectedProjectName }
+              }
+            />
+          )}
+        </>
       )}
 
       {view === 'containers' && (
@@ -1004,20 +1108,6 @@ function DockerInventory({ view }) {
           networks={networks}
           onDetails={openResourceDetails}
           volumes={volumes}
-        />
-      )}
-
-      {selectedProjectName && (
-        <DockerProjectDetailsModal
-          canControl={canControl}
-          containers={containers}
-          controlError={controlError}
-          controlNotice={controlNotice}
-          controlling={controlling}
-          onClose={closeProjectDetails}
-          onControl={handleProjectControl}
-          onRefresh={() => loadOverview()}
-          project={projects.find((project) => project.name === selectedProjectName) || { name: selectedProjectName }}
         />
       )}
 

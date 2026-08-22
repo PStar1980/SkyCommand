@@ -153,6 +153,7 @@ function DockerProjectDetailsModal({
   controlError,
   controlNotice,
   controlling,
+  embedded = false,
   onClose,
   onControl,
   onRefresh,
@@ -162,13 +163,15 @@ function DockerProjectDetailsModal({
   const telemetryStream = useDockerTelemetryStream();
 
   useEffect(() => {
+    if (embedded) return undefined;
+
     function handleKeyDown(event) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onClose?.();
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [embedded, onClose]);
 
   const projectName = project?.name || '';
   const projectContainers = useMemo(
@@ -245,40 +248,64 @@ function DockerProjectDetailsModal({
   return (
     <div
       aria-label="Docker Compose project details"
-      aria-modal="true"
-      className="sky-chart-modal-backdrop sky-tool-details-modal-backdrop"
+      aria-modal={embedded ? undefined : 'true'}
+      className={
+        embedded
+          ? 'sky-card mb-4 sky-docker-inline-detail-workspace'
+          : 'sky-chart-modal-backdrop sky-tool-details-modal-backdrop'
+      }
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (!embedded && event.target === event.currentTarget) onClose?.();
       }}
-      role="dialog"
+      role={embedded ? undefined : 'dialog'}
     >
-      <section className="sky-chart-modal sky-tool-details-modal sky-docker-project-details-modal">
-        <div className="sky-chart-modal-header">
+      <section
+        className={
+          embedded
+            ? ''
+            : 'sky-chart-modal sky-tool-details-modal sky-docker-project-details-modal'
+        }
+      >
+        <div
+          className={
+            embedded
+              ? 'sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3'
+              : 'sky-chart-modal-header'
+          }
+        >
           <div>
-            <div className="sky-page-kicker sky-chart-modal-kicker">Docker workload details</div>
-            <h2>{projectName || 'Compose project'}</h2>
-            <p>
-              Application-stack observability combines inventory, live telemetry, and native Docker events without creating another provider data path.
+            <div className={`sky-page-kicker${embedded ? '' : ' sky-chart-modal-kicker'}`}>
+              {embedded ? 'Selected project workspace' : 'Docker workload details'}
+            </div>
+            <h2 className={embedded ? 'h5 mb-1' : undefined}>
+              {embedded ? 'Project Details' : projectName || 'Compose project'}
+            </h2>
+            <p className={embedded ? 'small sky-muted mb-0' : undefined}>
+              {embedded
+                ? `${projectName || 'Selected project'} · Docker Compose workload observability and lifecycle controls.`
+                : 'Application-stack observability combines inventory, live telemetry, and native Docker events without creating another provider data path.'}
             </p>
           </div>
           <div className="d-flex align-items-center gap-2">
             <button className="btn btn-sm sky-btn-ghost" onClick={onRefresh} type="button">
               Refresh inventory
             </button>
-            <button
-              aria-label="Close Docker project details"
-              className="sky-chart-modal-close"
-              onClick={onClose}
-              type="button"
-            >
-              <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
+            {!embedded && (
+              <button
+                aria-label="Close Docker project details"
+                className="sky-chart-modal-close"
+                onClick={onClose}
+                type="button"
+              >
+                <svg aria-hidden="true" className="sky-chart-modal-close-icon" viewBox="0 0 24 24">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="sky-tool-details-modal-body">
+        <div className={embedded ? 'sky-card-body' : 'sky-tool-details-modal-body'}>
           {controlError && <div className="alert alert-danger">{controlError}</div>}
           {controlNotice && <div className="alert alert-success">{controlNotice}</div>}
 

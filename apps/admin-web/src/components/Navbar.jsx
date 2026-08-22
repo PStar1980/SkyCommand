@@ -63,6 +63,7 @@ const COMMAND_SEARCH_ALIASES = {
   docker: '/docker/overview',
   'docker overview': '/docker/overview',
   compose: '/docker/projects',
+  projects: '/docker/projects',
   'compose projects': '/docker/projects',
   containers: '/docker/containers',
   images: '/docker/images',
@@ -376,7 +377,7 @@ function createNavGroups(hasPermission, hasRole) {
           description: 'Engine and workload pulse',
         },
         {
-          label: 'Compose Projects',
+          label: 'Projects',
           to: '/docker/projects',
           icon: '▦',
           visible: canViewDocker,
