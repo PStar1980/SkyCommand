@@ -507,6 +507,23 @@ assert.equal(selfContainerControl.mode, 'SELF_MANAGED_PROTECTED');
     'DOCKER_RESOURCE_CONTROL',
   ]);
 
+  const searchOperationQueries = [];
+  await listDockerOperations(
+    { q: 'airflow', limit: 10 },
+    {
+      queryExecutor: async (text, params) => {
+        searchOperationQueries.push({ text, params });
+        if (/COUNT\(\*\)/.test(text)) return { rows: [{ total: 0 }] };
+        return { rows: [] };
+      },
+    },
+  );
+  assert.equal(searchOperationQueries[0].params[1], '%airflow%');
+  assert.match(searchOperationQueries[0].text, /metadata->>'containerName'/);
+  assert.match(searchOperationQueries[0].text, /metadata->>'resourceReference'/);
+  assert.match(searchOperationQueries[0].text, /display_name/);
+  assert.match(searchOperationQueries[0].text, /message/);
+
   const resourceOperationList = await listDockerOperations(
     { scope: 'RESOURCE', action: 'REMOVE', success: 'true', limit: 10 },
     {

@@ -1,3 +1,10 @@
+## 2026-08-22 - Post-Phase 17 Docker Operations table refinement
+
+- Reworked **Docker Operations** into the same Workflow Operations-style browser contract used across the refined Docker pages: broad search, Scope/Action/Result filters, Clear filters, and an integrated browser header rather than a separate Operational Filters card.
+- Added server-side Docker operation search across resource/project/container/service identity, actor, action, message, and error-code fields while preserving the existing scope/action/result audit filters and 10-row server-side paging.
+- Standardized pagination to **First / Back / Page selector / Next / Last** with 10 operations per page and Workflow Operations-style range text; removed the redundant Apply button so filter changes apply directly, with a short search debounce and stale-request protection.
+- Extended Docker Admin-Web and infrastructure-service regression coverage for the new search/filter/pagination contract. No database migration, Host Agent change, route change, or environment change is required.
+
 ## 2026-08-22 - Post-Phase 17 Docker navigation refinement
 
 - Renamed the Docker infrastructure overview page from **Docker Overview** to **Docker** and moved its navigation entry into the **Dashboards** category while preserving the existing `/docker/overview` route and provider contracts.

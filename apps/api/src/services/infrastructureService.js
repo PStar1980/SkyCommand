@@ -1448,6 +1448,25 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
   const conditions = ['event_type = ANY($1::text[])'];
   const params = [eventTypes];
 
+  const search = normalizeText(filters.q || filters.search);
+  if (search) {
+    params.push(`%${search}%`);
+    const searchParam = `$${params.length}`;
+    conditions.push(`(
+      LOWER(COALESCE(resource_id, '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(action, '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(message, '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(display_name, '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(username, '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(email, '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(metadata->>'projectName', '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(metadata->>'containerName', '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(metadata->>'serviceName', '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(metadata->>'resourceReference', '')) LIKE LOWER(${searchParam})
+      OR LOWER(COALESCE(metadata->>'errorCode', '')) LIKE LOWER(${searchParam})
+    )`);
+  }
+
   const projectName = normalizeText(filters.projectName || filters.project);
   if (projectName) {
     params.push(projectName);
