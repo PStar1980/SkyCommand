@@ -56,6 +56,7 @@ const routineSelfTests = [
   'sidebar-accordion:self-test',
   'repository-page-split:self-test',
   'brand-theme:self-test',
+  'command-search:self-test',
   'skycommand-identity:self-test',
   'api-dashboard:self-test',
   'workflow-cli-params:self-test',
