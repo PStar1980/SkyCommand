@@ -1,3 +1,13 @@
+## 2026-08-23 - In-app notification foundation
+
+- Removed the static/fake notification and message counters from the Admin-Web top bar. The notification bell now renders a badge only when the authenticated user has durable unread notifications; Messages remains counter-free with a bounded empty inbox placeholder until a messaging domain is introduced.
+- Added durable per-user `auth.user_notifications` state and migration `00106__user_notification_foundation.sql` with idempotent source identity, read/unread lifecycle, and source-specific navigation targets.
+- Added approval-required notifications for active users assigned the approval node's required role, with `SUPER_ADMIN` retaining its existing approval-authority wildcard. Existing pending approvals are reconciled when notifications are loaded so deployment does not miss already-waiting checkpoints.
+- Added failure notifications for directly launched tool runs and user-started workflow runs. Tool executions occurring inside a workflow suppress their own failure notification so the user receives one workflow-level failure signal rather than duplicate Tool + Workflow noise.
+- Added authenticated notification list/read/read-all API routes and a 15-second lightweight Navbar poll; the read-only notification poll is excluded from durable API request telemetry so it does not distort observability dashboards.
+- Replaced the old notification popover shell with a full-screen dimmed overlay and centered Midnight Gold notification card with All/Unread views, persisted read state, Mark all read, and direct navigation to the exact approval/tool/workflow record.
+- Added notification destination bootstrapping to Approval History, Tool Operations, and Workflow Operations via query-seeded search filters, plus dedicated notification-foundation regression coverage in routine validation.
+
 ## 2026-08-22 - Global command search visual and interaction refinement
 
 - Updated the authenticated command-search chrome to use the Midnight Gold palette: the default outline now matches the previous hover gold border, the search icon inherits the shared gold accent, and the slash shortcut badge uses gold border/surface/text styling instead of the older blue-gray treatment.

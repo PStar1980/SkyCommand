@@ -213,7 +213,7 @@ SkyCommand should not duplicate SkyWeb product surfaces. SkyWeb should not dupli
 
 ## SkyCommand UI and Visualization Direction
 
-**SkyCommand** uses a branded Admin-Web shell. The design keeps the dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar carries page context, command search, notification/message shells, and the authenticated operator icon.
+**SkyCommand** uses a branded Admin-Web shell. The design keeps the dark operational console identity while moving navigation into a permission-aware left sidebar with grouped sections for command, tools, workflows, automation, data, configuration, and access control. The top bar carries page context, command search, a durable in-app notification center, a reserved message inbox shell, and the authenticated operator icon. Notifications currently surface role-assigned workflow approvals plus user-owned failed tool and workflow runs, with persisted read/unread state and direct navigation back to the source record.
 
 The UI modernization changed the app shell, sidebar, topbar, spacing, dashboard command center, workflow workbench behavior, login experience, brand mark, and shared UI primitives without changing workflow execution or database semantics. Reusable SkyCommand components now cover status pills, stat cards, panels, page headers, sidebar navigation, and the inline SVG brand mark.
 

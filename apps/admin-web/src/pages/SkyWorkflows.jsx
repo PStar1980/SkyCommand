@@ -4897,7 +4897,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [runs, setRuns] = useState([]);
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
   const [filters, setFilters] = useState(() => ({
-    q: '',
+    q: (searchParams.get('runId') || '').trim(),
     status: '',
     runtime: normalizeRuntimeFilter(searchParams.get('runtime')),
   }));
@@ -4940,6 +4940,16 @@ function SkyWorkflows({ mode = 'start' }) {
     approvalRequestId: null,
     runId: null,
   });
+  const requestedRunId = (searchParams.get('runId') || '').trim();
+
+  useEffect(() => {
+    if (!requestedRunId) return;
+    setFilters((current) =>
+      current.q === requestedRunId ? current : { ...current, q: requestedRunId },
+    );
+    setHistoryPage(1);
+    setSelectedRunDetail(null);
+  }, [requestedRunId]);
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
@@ -5537,6 +5547,12 @@ function SkyWorkflows({ mode = 'start' }) {
     setSelectedRunDetail(null);
 
     if (name === 'runtime' || name === 'q') {
+      if (name === 'q' && searchParams.has('runId')) {
+        const nextSearchParams = new URLSearchParams(searchParams);
+        nextSearchParams.delete('runId');
+        setSearchParams(nextSearchParams, { replace: true });
+      }
+
       if (name === 'runtime') {
         const nextSearchParams = new URLSearchParams(searchParams);
 
@@ -5558,6 +5574,7 @@ function SkyWorkflows({ mode = 'start' }) {
     const nextFilters = { q: '', status: '', runtime: 'skycommand' };
     const nextSearchParams = new URLSearchParams(searchParams);
     nextSearchParams.delete('runtime');
+    nextSearchParams.delete('runId');
     setSearchParams(nextSearchParams, { replace: true });
     setFilters(nextFilters);
     setHistoryPage(1);

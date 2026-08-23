@@ -938,7 +938,7 @@ async function listScriptExecutions(filters = {}) {
   addSearchFilter({
     clauses,
     values,
-    columns: ['email', 'username', 'display_name', 'script_name', 'category', 'status', 'summary'],
+    columns: ['execution_id::text', 'email', 'username', 'display_name', 'script_name', 'category', 'status', 'summary'],
     searchText: filters.q,
   });
 

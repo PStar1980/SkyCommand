@@ -6498,7 +6498,9 @@ async function listWorkflowApprovalRequests(filters = {}) {
   if (searchText) {
     values.push(`%${searchText}%`);
     clauses.push(`(
-      COALESCE(workflow_display_name, '') ILIKE $${values.length}
+      approval_request_id::text ILIKE $${values.length}
+      OR workflow_run_record_id::text ILIKE $${values.length}
+      OR COALESCE(workflow_display_name, '') ILIKE $${values.length}
       OR COALESCE(workflow_code, '') ILIKE $${values.length}
       OR COALESCE(approval_title, '') ILIKE $${values.length}
       OR COALESCE(approval_key, '') ILIKE $${values.length}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import workflowService from '../services/workflowService.js';
 
 const PAGE_SIZE = 10;
@@ -121,7 +122,11 @@ function ApprovalDetailField({ label, value, mono = false }) {
 }
 
 function WorkflowApprovals() {
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState(() => ({
+    ...DEFAULT_FILTERS,
+    q: (searchParams.get('approvalRequestId') || '').trim(),
+  }));
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
   const [total, setTotal] = useState(0);
@@ -135,6 +140,16 @@ function WorkflowApprovals() {
   const [selectedApprovalId, setSelectedApprovalId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const requestedApprovalId = (searchParams.get('approvalRequestId') || '').trim();
+
+  useEffect(() => {
+    if (!requestedApprovalId) return;
+    setFilters((current) =>
+      current.q === requestedApprovalId ? current : { ...current, q: requestedApprovalId },
+    );
+    setPage(1);
+    setSelectedApprovalId('');
+  }, [requestedApprovalId]);
 
   const selectedApproval = useMemo(
     () => approvals.find((approval) => approval.approvalRequestId === selectedApprovalId) || null,
@@ -207,11 +222,23 @@ function WorkflowApprovals() {
   }, [filters, page]);
 
   function updateFilter(name, value) {
+    if (name === 'q' && searchParams.has('approvalRequestId')) {
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('approvalRequestId');
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+
     setFilters((current) => ({ ...current, [name]: value }));
     setPage(1);
   }
 
   function clearFilters() {
+    if (searchParams.has('approvalRequestId')) {
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('approvalRequestId');
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+
     setFilters(DEFAULT_FILTERS);
     setPage(1);
   }
