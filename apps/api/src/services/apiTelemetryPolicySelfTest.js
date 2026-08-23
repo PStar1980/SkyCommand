@@ -28,6 +28,14 @@ assert.strictEqual(
 assert.strictEqual(shouldTrackApiRequest({ path: '/api/admin/users' }), true);
 assert.strictEqual(shouldTrackApiRequest({ path: '/assets/index.js' }), false);
 assert.strictEqual(
+  shouldTrackApiRequest({ path: '/api/auth/notifications', method: 'GET' }),
+  false,
+);
+assert.strictEqual(
+  shouldTrackApiRequest({ path: '/api/auth/notifications/read-all', method: 'POST' }),
+  true,
+);
+assert.strictEqual(
   shouldTrackApiRequest({ path: '/api/infrastructure/providers/docker/events/ingest' }),
   false,
 );

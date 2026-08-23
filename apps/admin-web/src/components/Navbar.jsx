@@ -4,6 +4,7 @@ import SidebarNav from './ui/SidebarNav.jsx';
 import SkyCommandMark from './ui/SkyCommandMark.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import authService from '../services/authService';
+import notificationService from '../services/notificationService.js';
 
 const DEFAULT_PASSWORD_FORM = {
   currentPassword: '',
@@ -111,6 +112,30 @@ function formatTopbarCount(count) {
   }
 
   return String(count);
+}
+
+function formatNotificationTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const deltaMs = Date.now() - date.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (deltaMs < minute) return 'Now';
+  if (deltaMs < hour) return `${Math.max(1, Math.floor(deltaMs / minute))}m`;
+  if (deltaMs < day) return `${Math.floor(deltaMs / hour)}h`;
+  if (deltaMs < 7 * day) return `${Math.floor(deltaMs / day)}d`;
+
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
+}
+
+function getNotificationTypeLabel(item = {}) {
+  if (item.notificationType === 'APPROVAL_REQUIRED') return 'Approval';
+  if (item.notificationType === 'TOOL_RUN_FAILED') return 'Tool';
+  if (item.notificationType === 'WORKFLOW_RUN_FAILED') return 'Workflow';
+  return 'Notification';
 }
 
 function isEditableElement(element) {
@@ -522,7 +547,13 @@ function Navbar() {
   const [commandQuery, setCommandQuery] = useState('');
   const [topbarPanel, setTopbarPanel] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [notificationItems, setNotificationItems] = useState([]);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const [notificationFilter, setNotificationFilter] = useState('ALL');
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
   const topbarControlsRef = useRef(null);
+  const notificationOverlayRef = useRef(null);
   const commandSearchInputRef = useRef(null);
 
   const navGroups = useMemo(
@@ -548,10 +579,6 @@ function Navbar() {
       ),
     [navGroups],
   );
-  const permittedRoutes = useMemo(
-    () => new Set(commandSearchTargets.map((target) => target.to)),
-    [commandSearchTargets],
-  );
   const commandSearchMatches = useMemo(() => {
     const normalizedQuery = commandQuery.trim().toLowerCase();
 
@@ -567,48 +594,31 @@ function Navbar() {
       })
       .slice(0, 5);
   }, [commandQuery, commandSearchTargets]);
+  async function loadNotifications(status = notificationFilter, { quiet = false } = {}) {
+    if (!isAuthenticated) {
+      setNotificationItems([]);
+      setNotificationUnreadCount(0);
+      return;
+    }
 
-  const notificationItems = [
-    permittedRoutes.has('/dashboard/automation') && {
-      label: 'Worker health pulse',
-      meta: 'Temporal pollers, worker heartbeat, and task queue status.',
-      status: 'Live',
-      to: '/dashboard/automation',
-    },
-    permittedRoutes.has('/workflows/approvals') && {
-      label: 'Approval history',
-      meta: 'Review recorded human approval checkpoints and decisions.',
-      status: 'Ready',
-      to: '/workflows/approvals',
-    },
-    permittedRoutes.has('/dashboard/data-pipeline') && {
-      label: 'Pipeline freshness',
-      meta: 'Inspect stale indicators and macro ingestion health.',
-      status: 'Watch',
-      to: '/dashboard/data-pipeline',
-    },
-  ].filter(Boolean);
+    if (!quiet) {
+      setNotificationLoading(true);
+      setNotificationError('');
+    }
 
-  const messageItems = [
-    permittedRoutes.has('/workflows/approvals') && {
-      label: 'Approval records',
-      meta: 'Inspect approval requests, decision makers, roles, and outcomes.',
-      status: 'Open',
-      to: '/workflows/approvals',
-    },
-    permittedRoutes.has('/workflows/history') && {
-      label: 'Workflow run notes',
-      meta: 'Inspect completed, failed, and terminated workflow runs.',
-      status: 'Runs',
-      to: '/workflows/history',
-    },
-    permittedRoutes.has('/access-control/user-history') && {
-      label: 'Review user activity',
-      meta: 'Open the audit trail while the message center is being wired in.',
-      status: 'Audit',
-      to: '/access-control/user-history',
-    },
-  ].filter(Boolean);
+    try {
+      const result = await notificationService.listNotifications({ status, limit: 50 });
+      setNotificationItems(result.items || []);
+      setNotificationUnreadCount(Number(result.unreadCount || 0));
+    } catch (error) {
+      if (!quiet) {
+        setNotificationError(error.message || 'Failed to load notifications.');
+      }
+    } finally {
+      if (!quiet) setNotificationLoading(false);
+    }
+  }
+
 
   useEffect(() => {
     setActiveSearchIndex(0);
@@ -619,12 +629,41 @@ function Navbar() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
+    loadNotifications('ALL', { quiet: true });
+    const intervalId = window.setInterval(() => {
+      loadNotifications(topbarPanel === 'notifications' ? notificationFilter : 'ALL', { quiet: true });
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, notificationFilter, topbarPanel]);
+
+  useEffect(() => {
+    if (topbarPanel !== 'notifications') return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    loadNotifications(notificationFilter);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topbarPanel, notificationFilter]);
+
+  useEffect(() => {
     function handlePointerDown(event) {
       if (!topbarPanel) {
         return;
       }
 
       if (topbarControlsRef.current?.contains(event.target)) {
+        return;
+      }
+
+      if (topbarPanel === 'notifications' && notificationOverlayRef.current?.contains(event.target)) {
         return;
       }
 
@@ -691,6 +730,42 @@ function Navbar() {
 
   function toggleTopbarPanel(panel) {
     setTopbarPanel((current) => (current === panel ? '' : panel));
+  }
+
+  async function openNotification(item) {
+    if (!item) return;
+
+    try {
+      if (item.status === 'UNREAD') {
+        await notificationService.markRead(item.notificationId);
+        setNotificationUnreadCount((current) => Math.max(0, current - 1));
+        setNotificationItems((current) =>
+          current.map((candidate) =>
+            candidate.notificationId === item.notificationId
+              ? { ...candidate, status: 'READ', readAt: new Date().toISOString() }
+              : candidate,
+          ),
+        );
+      }
+    } catch (error) {
+      console.warn('[SkyCommand Notifications] Failed to mark notification read:', error);
+    }
+
+    setTopbarPanel('');
+    if (item.targetPath) navigate(item.targetPath);
+  }
+
+  async function markAllNotificationsRead() {
+    try {
+      await notificationService.markAllRead();
+      await loadNotifications(notificationFilter);
+    } catch (error) {
+      setNotificationError(error.message || 'Failed to mark notifications read.');
+    }
+  }
+
+  function changeNotificationFilter(nextFilter) {
+    setNotificationFilter(nextFilter === 'UNREAD' ? 'UNREAD' : 'ALL');
   }
 
   function handleCommandSearch(event) {
@@ -911,40 +986,16 @@ function Navbar() {
               aria-label="Open notifications"
               className="sky-topbar-icon-button sky-topbar-icon-button-alert"
               onClick={() => toggleTopbarPanel('notifications')}
-              title="Workflow and worker notifications"
+              title="Notifications"
               type="button"
             >
               <NavIcon name="bell" />
-              {notificationItems.length > 0 && (
+              {notificationUnreadCount > 0 && (
                 <span className="sky-topbar-count-badge">
-                  {formatTopbarCount(notificationItems.length)}
+                  {formatTopbarCount(notificationUnreadCount)}
                 </span>
               )}
             </button>
-            {topbarPanel === 'notifications' && (
-              <div className="sky-topbar-popover sky-action-popover" role="dialog">
-                <div className="sky-topbar-popover-header">
-                  <span>Notifications</span>
-                  <span>{notificationItems.length} watch items</span>
-                </div>
-                <div className="sky-topbar-popover-list">
-                  {notificationItems.map((item) => (
-                    <button
-                      className="sky-topbar-popover-item"
-                      key={item.label}
-                      onClick={() => navigateToCommandTarget(item.to)}
-                      type="button"
-                    >
-                      <span>
-                        <strong>{item.label}</strong>
-                        <small>{item.meta}</small>
-                      </span>
-                      <span className="sky-topbar-popover-badge">{item.status}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="sky-topbar-action-wrap">
@@ -953,38 +1004,18 @@ function Navbar() {
               aria-label="Open messages"
               className="sky-topbar-icon-button sky-topbar-icon-button-message"
               onClick={() => toggleTopbarPanel('messages')}
-              title="Messages and activity inbox"
+              title="Messages"
               type="button"
             >
               <NavIcon name="mail" />
-              {messageItems.length > 0 && (
-                <span className="sky-topbar-count-badge sky-topbar-count-badge-muted">
-                  {formatTopbarCount(messageItems.length)}
-                </span>
-              )}
             </button>
             {topbarPanel === 'messages' && (
               <div className="sky-topbar-popover sky-action-popover" role="dialog">
                 <div className="sky-topbar-popover-header">
                   <span>Messages</span>
-                  <span>Preview</span>
+                  <span>Inbox</span>
                 </div>
-                <div className="sky-topbar-popover-list">
-                  {messageItems.map((item) => (
-                    <button
-                      className="sky-topbar-popover-item"
-                      key={item.label}
-                      onClick={() => navigateToCommandTarget(item.to)}
-                      type="button"
-                    >
-                      <span>
-                        <strong>{item.label}</strong>
-                        <small>{item.meta}</small>
-                      </span>
-                      <span className="sky-topbar-popover-badge">{item.status}</span>
-                    </button>
-                  ))}
-                </div>
+                <div className="sky-command-search-empty">No messages yet.</div>
               </div>
             )}
           </div>
@@ -1026,6 +1057,100 @@ function Navbar() {
           </div>
         </div>
       </header>
+
+      {topbarPanel === 'notifications' && (
+        <div
+          className="sky-notification-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setTopbarPanel('');
+          }}
+          role="presentation"
+        >
+          <section
+            aria-label="Notifications"
+            aria-modal="true"
+            className="sky-notification-center"
+            ref={notificationOverlayRef}
+            role="dialog"
+          >
+            <div className="sky-notification-center-heading">
+              <div>
+                <div className="sky-page-kicker">User inbox</div>
+                <h2>Notifications</h2>
+              </div>
+              <button
+                aria-label="Close notifications"
+                className="btn btn-sm sky-btn-ghost"
+                onClick={() => setTopbarPanel('')}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="sky-notification-toolbar">
+              <div className="sky-notification-tabs" role="tablist" aria-label="Notification filters">
+                <button
+                  aria-selected={notificationFilter === 'ALL'}
+                  className={notificationFilter === 'ALL' ? 'is-active' : ''}
+                  onClick={() => changeNotificationFilter('ALL')}
+                  role="tab"
+                  type="button"
+                >
+                  All
+                </button>
+                <button
+                  aria-selected={notificationFilter === 'UNREAD'}
+                  className={notificationFilter === 'UNREAD' ? 'is-active' : ''}
+                  onClick={() => changeNotificationFilter('UNREAD')}
+                  role="tab"
+                  type="button"
+                >
+                  Unread{notificationUnreadCount > 0 ? ` (${notificationUnreadCount})` : ''}
+                </button>
+              </div>
+              {notificationUnreadCount > 0 && (
+                <button className="btn btn-sm sky-btn-ghost" onClick={markAllNotificationsRead} type="button">
+                  Mark all read
+                </button>
+              )}
+            </div>
+
+            <div className="sky-notification-list">
+              {notificationError && <div className="alert alert-danger m-3">{notificationError}</div>}
+              {notificationLoading ? (
+                <div className="sky-notification-empty">Loading notifications…</div>
+              ) : notificationItems.length > 0 ? (
+                notificationItems.map((item) => (
+                  <button
+                    className={`sky-notification-item${item.status === 'UNREAD' ? ' is-unread' : ''}`}
+                    key={item.notificationId}
+                    onClick={() => openNotification(item)}
+                    type="button"
+                  >
+                    <span className={`sky-notification-kind sky-notification-kind-${String(item.severity || 'INFO').toLowerCase()}`}>
+                      {item.notificationType === 'APPROVAL_REQUIRED' ? '✓' : '!'}
+                    </span>
+                    <span className="sky-notification-copy">
+                      <span className="sky-notification-item-meta">
+                        <span>{getNotificationTypeLabel(item)}</span>
+                        <time dateTime={item.eventAt || undefined}>{formatNotificationTime(item.eventAt)}</time>
+                      </span>
+                      <strong>{item.title}</strong>
+                      <small>{item.message || 'Open the related SkyCommand record for details.'}</small>
+                    </span>
+                    <span className="sky-notification-open">Open</span>
+                  </button>
+                ))
+              ) : (
+                <div className="sky-notification-empty">
+                  {notificationFilter === 'UNREAD' ? 'No unread notifications.' : 'No notifications yet.'}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {passwordModalOpen && (
         <div className="sky-modal-backdrop" role="presentation">

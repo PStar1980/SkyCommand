@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ToolExecutionOutputPanels from '../components/tools/ToolExecutionOutputPanels.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -140,6 +141,8 @@ function getDurationLabel(item) {
 }
 
 function ScriptExecutions() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedExecutionId = (searchParams.get('executionId') || '').trim();
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedDetail, setSelectedDetail] = useState(null);
@@ -147,13 +150,29 @@ function ScriptExecutions() {
   const [detailError, setDetailError] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailRequestId = useRef(0);
-  const [filters, setFilters] = useState({ q: '', category: '', scriptName: '', status: '' });
+  const [filters, setFilters] = useState(() => ({
+    q: requestedExecutionId,
+    category: '',
+    scriptName: '',
+    status: '',
+  }));
   const [filterOptions, setFilterOptions] = useState({ categories: [], tools: [] });
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
+
+  useEffect(() => {
+    if (!requestedExecutionId) return;
+    setFilters((current) =>
+      current.q === requestedExecutionId ? current : { ...current, q: requestedExecutionId },
+    );
+    setCurrentPage(1);
+    setSelectedItem(null);
+    setSelectedDetail(null);
+    setDetailsOpen(false);
+  }, [requestedExecutionId]);
 
   const pageCount = Math.max(1, Math.ceil(total / TOOL_HISTORY_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
@@ -342,6 +361,12 @@ function ScriptExecutions() {
   });
 
   function updateFilter(name, value) {
+    if (name === 'q' && searchParams.has('executionId')) {
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('executionId');
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+
     const nextFilters = {
       ...filters,
       [name]: value,
@@ -363,6 +388,12 @@ function ScriptExecutions() {
   }
 
   function clearFilters() {
+    if (searchParams.has('executionId')) {
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('executionId');
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+
     const nextFilters = { q: '', category: '', scriptName: '', status: '' };
     setFilters(nextFilters);
     loadExecutions(nextFilters, 1, { keepSelection: false });

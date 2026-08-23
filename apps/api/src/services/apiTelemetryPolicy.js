@@ -131,6 +131,7 @@ function shouldTrackApiRequest(req = {}) {
   // connections can remain open for hours; recording either would distort API
   // latency/activity reporting without adding useful operational evidence.
   if (
+    (normalizedPath === '/api/auth/notifications' && String(req.method || 'GET').toUpperCase() === 'GET') ||
     normalizedPath === '/api/infrastructure/providers/docker/events/ingest' ||
     normalizedPath === '/api/infrastructure/providers/docker/events/stream' ||
     normalizedPath === '/api/infrastructure/providers/docker/telemetry/ingest' ||
