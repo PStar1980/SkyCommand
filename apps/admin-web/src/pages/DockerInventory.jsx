@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DockerContainerDetailsModal from '../components/DockerContainerDetailsModal.jsx';
 import DockerProjectDetailsModal from '../components/DockerProjectDetailsModal.jsx';
 import DockerResourceDetailsModal from '../components/DockerResourceDetailsModal.jsx';
@@ -416,6 +417,9 @@ function NetworkTable({ loading, networks, onSelect, selectedNetworkName }) {
 
 function DockerInventory({ view }) {
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.containers;
+  const [searchParams] = useSearchParams();
+  const initialQuery = (searchParams.get('q') || '').trim();
+  const initialProjectFilter = (searchParams.get('project') || '').trim();
   const { hasPermission } = useAuth();
   const canControl = hasPermission('INFRASTRUCTURE_DOCKER_CONTROL');
   const canCleanup = hasPermission('INFRASTRUCTURE_DOCKER_CLEANUP');
@@ -423,25 +427,41 @@ function DockerInventory({ view }) {
   const [controlNotice, setControlNotice] = useState('');
   const [controlling, setControlling] = useState('');
   const [selectedProjectName, setSelectedProjectName] = useState('');
-  const [projectFilters, setProjectFilters] = useState(DEFAULT_PROJECT_FILTERS);
+  const [projectFilters, setProjectFilters] = useState(() =>
+    view === 'projects' && initialQuery
+      ? { ...DEFAULT_PROJECT_FILTERS, q: initialQuery }
+      : DEFAULT_PROJECT_FILTERS,
+  );
   const [projectPage, setProjectPage] = useState(1);
   const [selectedContainerId, setSelectedContainerId] = useState('');
   const [containerDetail, setContainerDetail] = useState(null);
   const [containerDetailError, setContainerDetailError] = useState('');
   const [containerDetailLoading, setContainerDetailLoading] = useState(false);
   const [containerControlling, setContainerControlling] = useState('');
-  const [containerFilters, setContainerFilters] = useState(DEFAULT_CONTAINER_FILTERS);
+  const [containerFilters, setContainerFilters] = useState(() =>
+    view === 'containers'
+      ? { ...DEFAULT_CONTAINER_FILTERS, q: initialQuery, project: initialProjectFilter }
+      : DEFAULT_CONTAINER_FILTERS,
+  );
   const [containerPage, setContainerPage] = useState(1);
   const [selectedResource, setSelectedResource] = useState(null);
   const [resourceDetail, setResourceDetail] = useState(null);
   const [resourceDetailError, setResourceDetailError] = useState('');
   const [resourceDetailLoading, setResourceDetailLoading] = useState(false);
   const [resourceControlling, setResourceControlling] = useState('');
-  const [imageFilters, setImageFilters] = useState(DEFAULT_IMAGE_FILTERS);
+  const [imageFilters, setImageFilters] = useState(() =>
+    view === 'images' && initialQuery
+      ? { ...DEFAULT_IMAGE_FILTERS, q: initialQuery }
+      : DEFAULT_IMAGE_FILTERS,
+  );
   const [imagePage, setImagePage] = useState(1);
   const [storageFilters, setStorageFilters] = useState(DEFAULT_STORAGE_FILTERS);
   const [storagePage, setStoragePage] = useState(1);
-  const [networkFilters, setNetworkFilters] = useState(DEFAULT_NETWORK_FILTERS);
+  const [networkFilters, setNetworkFilters] = useState(() =>
+    view === 'networks' && initialQuery
+      ? { ...DEFAULT_NETWORK_FILTERS, q: initialQuery }
+      : DEFAULT_NETWORK_FILTERS,
+  );
   const [networkPage, setNetworkPage] = useState(1);
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();

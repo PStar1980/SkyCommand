@@ -1,3 +1,10 @@
+## 2026-08-22 - Post-Phase 17 Docker Operations drill-down refinement
+
+- Removed the Docker Operations **Control Plane Guardrail** card so the page focuses on the audited operation browser and its resource history.
+- Turned each Docker Operations resource name into a contextual drill-down link for Project, Container, Image, and Network operations. Links navigate to the corresponding Docker inventory page and seed that page's browser filters so the referenced object is isolated and its inline details workspace is selected automatically.
+- Added URL-seeded Docker inventory filtering (`q`, plus `project` for container drill-downs) without changing Docker provider/API contracts or introducing object-specific detail routes.
+- Extended Docker Admin-Web regression coverage for guardrail-card removal, resource drill-down routes, URL-seeded filters, and link rendering. No database, Host Agent, API, or environment change is required.
+
 ## 2026-08-22 - Post-Phase 17 Docker Operations column refinement
 
 - Reordered the Docker Operations browser columns to **Resource, Requested, Project, Type, Action, Result, Actor, State, Duration, Message** so resource identity leads the audit row and request time sits immediately beside it.
