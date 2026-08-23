@@ -8,6 +8,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import ingestionService from '../services/ingestionService.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const PAGE_SIZE = 10;
 
 const DEFAULT_FILTERS = {
@@ -317,7 +318,7 @@ function IngestionOperations() {
         title="Ingestion Operations"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <div className="sky-functional-history-shell sky-ingestion-operations-shell">
         <section className="sky-card mb-4 sky-functional-history-browser">

@@ -101,6 +101,7 @@ SkyCommand/
 │   │       │       ├── DashboardFilterCard.jsx
 │   │       │       ├── DashboardRefreshActions.jsx
 │   │       │       ├── dashboardUiConsistencySelfTest.js
+│   │       │       ├── DismissibleAlert.jsx
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
 │   │       │       ├── ServerStatusPanel.jsx
@@ -109,7 +110,8 @@ SkyCommand/
 │   │       │       ├── SkyCommandMark.jsx
 │   │       │       ├── SmartPollingStatus.jsx
 │   │       │       ├── StatCard.jsx
-│   │       │       └── StatusPill.jsx
+│   │       │       ├── StatusPill.jsx
+│   │       │       └── transientAlertSelfTest.js
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── hooks/

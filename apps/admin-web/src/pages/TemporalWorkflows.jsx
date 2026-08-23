@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import temporalService from '../services/temporalService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_WORKFLOW_CODE = 'fred-ingestion';
 
 const DEFAULT_START_FORM = {
@@ -472,7 +473,7 @@ function TemporalWorkflows({ mode = 'history' }) {
         </button>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <section className="sky-worker-hero mb-4">
         <div>
@@ -572,11 +573,11 @@ function TemporalWorkflows({ mode = 'history' }) {
             </div>
             <form className="sky-card-body" onSubmit={handleStartSubmit}>
               {startMessage && (
-                <div
-                  className={`alert ${startMessage.toLowerCase().includes('failed') ? 'alert-danger' : 'alert-success'}`}
+                <DismissibleAlert
+                  tone={startMessage.toLowerCase().includes('failed') ? 'danger' : 'success'}
                 >
                   {startMessage}
-                </div>
+                </DismissibleAlert>
               )}
 
               <div className="mb-3">
@@ -660,11 +661,11 @@ function TemporalWorkflows({ mode = 'history' }) {
               ) : (
                 <>
                   {actionMessage && (
-                    <div
-                      className={`alert ${actionMessage.toLowerCase().includes('failed') ? 'alert-danger' : 'alert-success'}`}
+                    <DismissibleAlert
+                      tone={actionMessage.toLowerCase().includes('failed') ? 'danger' : 'success'}
                     >
                       {actionMessage}
-                    </div>
+                    </DismissibleAlert>
                   )}
                   <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
                     <span className={`sky-pill ${statusClass(selectedWorkflow.status)}`}>

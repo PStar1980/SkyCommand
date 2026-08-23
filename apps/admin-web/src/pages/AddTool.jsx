@@ -5,6 +5,7 @@ import StatusPill from '../components/ui/StatusPill.jsx';
 import IngestionProfileEditor from '../components/IngestionProfileEditor.jsx';
 import adminService from '../services/adminService.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const EMPTY_FILES = { script: null, descriptor: null, schema: null };
 
 function getCategoryKind(options = {}, categoryId) {
@@ -431,7 +432,7 @@ function AddTool() {
           </div>
         </Panel>
 
-        {error && <div className="alert alert-danger mb-0">{error}</div>}
+        {error && <DismissibleAlert className="alert alert-danger mb-0">{error}</DismissibleAlert>}
 
         <Panel
           subtitle="The designated repository and active profile path must be ready before onboarding files can be staged or promoted."
@@ -1149,10 +1150,10 @@ function AddTool() {
             title="Tool registered disabled"
           >
             <div className="sky-card-body">
-              <div className="alert alert-success">
+              <DismissibleAlert tone="success">
                 <strong>{registration.tool?.label}</strong> was registered successfully as{' '}
                 <span className="font-monospace">{registration.tool?.toolCode}</span>.
-              </div>
+              </DismissibleAlert>
               <div className="row g-3">
                 <div className="col-md-4">
                   <div className="small sky-muted">Status</div>
@@ -1167,7 +1168,7 @@ function AddTool() {
                   <div className="text-break">{registration.paths?.packageRelativePath}</div>
                 </div>
               </div>
-              <div className="alert alert-info mt-3 mb-0">{registration.nextStep}</div>
+              <DismissibleAlert className="alert alert-info mt-3 mb-0">{registration.nextStep}</DismissibleAlert>
             </div>
           </Panel>
         )}

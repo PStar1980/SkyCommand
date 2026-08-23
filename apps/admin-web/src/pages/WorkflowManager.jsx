@@ -38,6 +38,7 @@ import SummaryParameterEditor, {
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_API_PARAMETERS = {
   method: 'GET',
   url: '',
@@ -1833,15 +1834,15 @@ function WorkflowManager() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
       {message && (
-        <div className="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <DismissibleAlert className="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
           <span>{message}</span>
           <span className="d-flex flex-wrap gap-2">
             <Link className="btn btn-sm sky-btn-ghost" to="/workflows/start">Start workflow</Link>
             <Link className="btn btn-sm sky-btn-ghost" to="/workflows/history">Workflow history</Link>
           </span>
-        </div>
+        </DismissibleAlert>
       )}
 
       <section className="sky-card mb-4 sky-functional-history-browser sky-workflow-start-browser">

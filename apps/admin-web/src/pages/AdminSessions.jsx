@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SESSION_AGE_OPTIONS = [
   { value: '', label: 'All session ages' },
   { value: 'UNDER_15_MIN', label: 'Under 15 min' },
@@ -301,13 +302,13 @@ function AdminSessions() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
       {observedDate ? (
-        <div className="alert alert-info">
+        <DismissibleAlert tone="info">
           The Command Center chart point for {observedDate} opened this application filter. This
           page shows sessions active now; the chart preserves the historical daily footprint.
-        </div>
+        </DismissibleAlert>
       ) : null}
       {initialFilters.ageRange ? (
         <div className="alert alert-info">

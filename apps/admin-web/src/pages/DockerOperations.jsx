@@ -4,6 +4,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import infrastructureService from '../services/infrastructureService.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const PAGE_SIZE = 10;
 const DEFAULT_FILTERS = {
   q: '',
@@ -163,7 +164,7 @@ function DockerOperations() {
         title="Docker Operations"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
 
       <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-operations-browser">

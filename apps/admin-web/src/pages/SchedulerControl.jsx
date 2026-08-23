@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SCHEDULE_TARGET_TYPE_OPTIONS = [
   { value: 'TOOL', label: 'Tool' },
   { value: 'WORKFLOW', label: 'Workflow' },
@@ -1474,8 +1475,8 @@ function SchedulerControl({ view = 'manage' }) {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {notice && <div className="alert alert-success">{notice}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {notice && <DismissibleAlert tone="success">{notice}</DismissibleAlert>}
 
       {view === 'worker' && (
         <>

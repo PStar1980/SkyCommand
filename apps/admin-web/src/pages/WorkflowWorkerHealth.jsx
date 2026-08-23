@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import workflowService from '../services/workflowService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 function formatDate(value) {
   if (!value) {
     return '—';
@@ -205,7 +206,7 @@ function WorkflowWorkerHealth() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <section className="sky-worker-hero mb-3">
         <div>

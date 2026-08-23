@@ -9,6 +9,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const TOOL_HISTORY_PAGE_SIZE = 10;
 
 function isActiveExecution(item) {
@@ -483,7 +484,7 @@ function ScriptExecutions() {
         title="Tool Operations"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <div className="sky-functional-history-shell sky-tool-history-shell">
         <section className="sky-card mb-4 sky-functional-history-browser">
@@ -682,7 +683,7 @@ function ScriptExecutions() {
                   </div>
                 </div>
 
-                {detailError && <div className="alert alert-danger">{detailError}</div>}
+                {detailError && <DismissibleAlert tone="danger">{detailError}</DismissibleAlert>}
 
                 <ToolExecutionOutputPanels
                   loading={detailLoading}

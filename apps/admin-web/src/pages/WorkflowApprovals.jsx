@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import workflowService from '../services/workflowService.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const PAGE_SIZE = 10;
 const DEFAULT_FILTERS = {
   q: '',
@@ -329,7 +330,7 @@ function WorkflowApprovals() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <section className="sky-card mb-4 sky-functional-history-browser">
         <div className="sky-card-header">

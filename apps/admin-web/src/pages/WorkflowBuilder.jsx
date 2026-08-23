@@ -36,6 +36,7 @@ import SummaryParameterEditor, {
 } from '../components/SummaryParameterEditor.jsx';
 import workflowService from '../services/workflowService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_API_PARAMETERS = {
   method: 'GET',
   url: '',
@@ -1266,9 +1267,9 @@ function WorkflowBuilder() {
         </button>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
       {message && (
-        <div className="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <DismissibleAlert className="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
           <span>{message}</span>
           {createdDefinition?.workflowCode && (
             <span className="d-flex flex-wrap gap-2">
@@ -1276,7 +1277,7 @@ function WorkflowBuilder() {
               <Link className="btn btn-sm sky-btn-ghost" to="/workflows/history">Workflow history</Link>
             </span>
           )}
-        </div>
+        </DismissibleAlert>
       )}
 
       <form onSubmit={handleSubmit}>

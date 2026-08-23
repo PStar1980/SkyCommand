@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import SkyCommandMark from '../components/ui/SkyCommandMark.jsx';
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 
 const LOGIN_REDIRECT_PATH = '/dashboard';
 const REMEMBERED_EMAIL_KEY = 'skycommand.rememberedEmail';
@@ -82,16 +83,25 @@ function Login() {
         </div>
 
         <div className="sky-card-body sky-login-card-body">
-          {authNotice && !error && (
-            <div className="sky-auth-alert sky-auth-alert-danger" role="alert">
-              {authNotice}
-            </div>
-          )}
-          {error && (
-            <div className="sky-auth-alert sky-auth-alert-danger" role="alert">
-              {error}
-            </div>
-          )}
+          <div className="sky-login-alert-slot" aria-live="polite">
+            {error ? (
+              <DismissibleAlert
+                className="sky-auth-alert sky-auth-alert-danger"
+                dismissLabel="Dismiss login error"
+                onDismiss={() => setError('')}
+              >
+                {error}
+              </DismissibleAlert>
+            ) : authNotice ? (
+              <DismissibleAlert
+                className="sky-auth-alert sky-auth-alert-danger"
+                dismissLabel="Dismiss session message"
+                onDismiss={clearAuthNotice}
+              >
+                {authNotice}
+              </DismissibleAlert>
+            ) : null}
+          </div>
 
           <form className="sky-login-form" onSubmit={handleSubmit}>
             <div className="mb-3 text-start">

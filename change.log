@@ -1,3 +1,10 @@
+## 2026-08-23 - Stable Login feedback and dismissible transient messages
+
+- Reserved a fixed-height feedback slot inside the Login card so invalid-session/login errors no longer change the card height or shift the form when they appear or disappear.
+- Added a shared accessible `DismissibleAlert` surface with a compact close control and applied it to transient Admin-Web error, success, and informational feedback across authentication, administration, Docker controls, workflow/tool operations, scheduler/worker actions, dashboards, and related operator surfaces.
+- Kept persistent operational evidence and guardrails non-dismissible (for example Docker source-health warnings, readiness findings, runtime-result warnings, and permission boundaries) so closing transient feedback cannot hide the current system state.
+- Added routine regression coverage for the reserved Login message slot, shared dismiss control, and representative transient-feedback surfaces. No API, database, Host Agent, route, or environment change is required.
+
 ## 2026-08-23 - In-app notification foundation
 
 - Removed the static/fake notification and message counters from the Admin-Web top bar. The notification bell now renders a badge only when the authenticated user has durable unread notifications; Messages remains counter-free with a bounded empty inbox placeholder until a messaging domain is introduced.

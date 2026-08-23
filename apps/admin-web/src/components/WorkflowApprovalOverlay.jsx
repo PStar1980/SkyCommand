@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import workflowService from '../services/workflowService.js';
 
+import DismissibleAlert from './ui/DismissibleAlert.jsx';
 function formatDate(value) {
   if (!value) {
     return '—';
@@ -196,7 +197,9 @@ function WorkflowApprovalOverlay({
             </div>
           </div>
 
-          {error ? <div className="alert alert-danger mt-3 mb-0">{error}</div> : null}
+          {error ? (
+            <DismissibleAlert className="alert alert-danger mt-3 mb-0">{error}</DismissibleAlert>
+          ) : null}
 
           {!pending ? (
             <div className="alert alert-secondary mt-3 mb-0">
