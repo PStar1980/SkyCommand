@@ -814,14 +814,14 @@
   min-width: 0;
   max-width: 50.7rem;
   margin: 0 auto;
-  border: 1px solid rgba(178, 145, 63, 0.34);
+  border: 1px solid rgba(220, 177, 63, 0.62);
   border-radius: 0.92rem;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 72%), rgba(4, 8, 16, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 12px 34px rgba(0, 0, 0, 0.34);
-  color: #9ad7ff;
+  color: #dcb13f;
   padding: 0.1rem 0.72rem 0.1rem 0.95rem;
   transition:
     border-color 150ms ease,
@@ -871,10 +871,10 @@
   min-width: 1.7rem;
   height: 1.7rem;
   place-items: center;
-  border: 1px solid rgba(124, 144, 177, 0.24);
+  border: 1px solid rgba(220, 177, 63, 0.52);
   border-radius: 0.46rem;
-  background: rgba(255, 255, 255, 0.045);
-  color: #9fb0cc;
+  background: rgba(220, 177, 63, 0.1);
+  color: #ffe59a;
   font-size: 0.96rem;
   font-weight: 820;
   line-height: 1;

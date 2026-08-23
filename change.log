@@ -1,3 +1,10 @@
+## 2026-08-22 - Global command search visual and interaction refinement
+
+- Updated the authenticated command-search chrome to use the Midnight Gold palette: the default outline now matches the previous hover gold border, the search icon inherits the shared gold accent, and the slash shortcut badge uses gold border/surface/text styling instead of the older blue-gray treatment.
+- Removed focus-driven/default command suggestions. Clicking or focusing the search bar (including the `/` keyboard shortcut) now leaves the suggestion panel closed until the user types a non-blank query.
+- Empty queries now return no command matches; typed queries continue to filter the permitted navigation targets and display the existing contextual result list, including the no-match state when appropriate.
+- Added a dedicated command-search regression self-test and routine validation wiring for the visual palette and typed-query-only expansion contract. No API, database, Host Agent, route, or environment change is required.
+
 ## 2026-08-22 - Post-Phase 17 Docker Operations drill-down refinement
 
 - Removed the Docker Operations **Control Plane Guardrail** card so the page focuses on the audited operation browser and its resource history.

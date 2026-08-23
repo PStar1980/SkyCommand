@@ -97,6 +97,7 @@ SkyCommand/
 │   │       │   │   └── ToolExecutionOutputPanels.jsx
 │   │       │   └── ui/
 │   │       │       ├── brandThemeSelfTest.js
+│   │       │       ├── commandSearchSelfTest.js
 │   │       │       ├── DashboardFilterCard.jsx
 │   │       │       ├── DashboardRefreshActions.jsx
 │   │       │       ├── dashboardUiConsistencySelfTest.js

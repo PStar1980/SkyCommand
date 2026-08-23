@@ -556,7 +556,7 @@ function Navbar() {
     const normalizedQuery = commandQuery.trim().toLowerCase();
 
     if (!normalizedQuery) {
-      return commandSearchTargets.slice(0, 4);
+      return [];
     }
 
     return commandSearchTargets
@@ -647,7 +647,6 @@ function Navbar() {
       ) {
         event.preventDefault();
         commandSearchInputRef.current?.focus();
-        setTopbarPanel('search');
       }
     }
 
@@ -718,6 +717,10 @@ function Navbar() {
 
   function handleCommandSearchKeyDown(event) {
     if (event.key === 'ArrowDown') {
+      if (!commandQuery.trim()) {
+        return;
+      }
+
       event.preventDefault();
       setTopbarPanel('search');
       setActiveSearchIndex((current) =>
@@ -729,6 +732,10 @@ function Navbar() {
     }
 
     if (event.key === 'ArrowUp') {
+      if (!commandQuery.trim()) {
+        return;
+      }
+
       event.preventDefault();
       setTopbarPanel('search');
       setActiveSearchIndex((current) => Math.max(current - 1, 0));
@@ -841,13 +848,13 @@ function Navbar() {
               }
               aria-autocomplete="list"
               aria-controls="sky-command-search-results"
-              aria-expanded={topbarPanel === 'search'}
+              aria-expanded={topbarPanel === 'search' && Boolean(commandQuery.trim())}
               aria-label="Search SkyCommand commands"
               onChange={(event) => {
-                setCommandQuery(event.target.value);
-                setTopbarPanel('search');
+                const nextQuery = event.target.value;
+                setCommandQuery(nextQuery);
+                setTopbarPanel(nextQuery.trim() ? 'search' : '');
               }}
-              onFocus={() => setTopbarPanel('search')}
               placeholder="Search tools, workflows, executions..."
               ref={commandSearchInputRef}
               role="combobox"
@@ -855,7 +862,7 @@ function Navbar() {
               value={commandQuery}
             />
             <span className="sky-command-search-key">/</span>
-            {topbarPanel === 'search' && (
+            {topbarPanel === 'search' && Boolean(commandQuery.trim()) && (
               <div className="sky-topbar-popover sky-command-search-popover">
                 <div className="sky-topbar-popover-header">
                   <span>Command search</span>
