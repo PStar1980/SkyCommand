@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '../context/AuthContext.jsx';
+import { Link } from 'react-router-dom';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import infrastructureService from '../services/infrastructureService.js';
 
@@ -37,10 +36,41 @@ function formatResourceType(resourceType) {
   return resourceType || '—';
 }
 
+function getResourceDrilldown(item) {
+  if (!item?.resourceType) return '';
+
+  const params = new URLSearchParams();
+  const resourceName = item.resourceName || '';
+
+  if (item.resourceType === 'COMPOSE_PROJECT') {
+    if (!resourceName) return '';
+    params.set('q', resourceName);
+    return `/docker/projects?${params.toString()}`;
+  }
+
+  if (item.resourceType === 'CONTAINER') {
+    if (!resourceName) return '';
+    params.set('q', resourceName);
+    if (item.projectName) params.set('project', item.projectName);
+    return `/docker/containers?${params.toString()}`;
+  }
+
+  if (item.resourceType === 'IMAGE') {
+    if (!resourceName) return '';
+    params.set('q', resourceName);
+    return `/docker/images?${params.toString()}`;
+  }
+
+  if (item.resourceType === 'NETWORK') {
+    if (!resourceName) return '';
+    params.set('q', resourceName);
+    return `/docker/networks?${params.toString()}`;
+  }
+
+  return '';
+}
+
 function DockerOperations() {
-  const { hasPermission } = useAuth();
-  const canControl = hasPermission('INFRASTRUCTURE_DOCKER_CONTROL');
-  const canCleanup = hasPermission('INFRASTRUCTURE_DOCKER_CLEANUP');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [items, setItems] = useState([]);
@@ -135,27 +165,6 @@ function DockerOperations() {
 
       {error && <div className="alert alert-danger">{error}</div>}
 
-      <Panel
-        kicker="Control Plane Guardrail"
-        subtitle="Docker writes require explicit permissions, browser confirmation, resources already discovered from Docker, and the host-native Host Agent. Cleanup uses a separate permission; persistent volumes and system networks remain protected."
-        title="Lifecycle Control Policy"
-      >
-        <div className="sky-card-body">
-          <div className="d-flex flex-wrap align-items-center gap-2">
-            <StatusPill label="Read inventory active" status="READY" />
-            <StatusPill
-              label={canControl ? 'Lifecycle controls enabled' : 'Lifecycle controls read only'}
-              status={canControl ? 'READY' : 'INFO'}
-            />
-            <StatusPill label="Control-plane protected" status="BLOCKED" />
-            <StatusPill
-              label={canCleanup ? 'Guarded cleanup enabled' : 'Guarded cleanup read only'}
-              status={canCleanup ? 'READY' : 'INFO'}
-            />
-            <StatusPill label="Persistent volumes protected" status="BLOCKED" />
-          </div>
-        </div>
-      </Panel>
 
       <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-operations-browser">
         <div className="sky-card-header">
@@ -272,12 +281,25 @@ function DockerOperations() {
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
-                  <tr key={item.auditEventId || item.operationId}>
-                    <td>
-                      <div className="fw-semibold">{item.resourceName || '—'}</div>
-                      {item.serviceName && <div className="small sky-muted">{item.serviceName}</div>}
-                    </td>
+                items.map((item) => {
+                  const resourceDrilldown = getResourceDrilldown(item);
+                  return (
+                    <tr key={item.auditEventId || item.operationId}>
+                      <td>
+                        {resourceDrilldown ? (
+                          <Link
+                            aria-label={`Open ${formatResourceType(item.resourceType)} ${item.resourceName || ''}`}
+                            className="fw-semibold text-decoration-underline"
+                            title={`Open ${formatResourceType(item.resourceType)} in Docker inventory`}
+                            to={resourceDrilldown}
+                          >
+                            {item.resourceName || '—'}
+                          </Link>
+                        ) : (
+                          <div className="fw-semibold">{item.resourceName || '—'}</div>
+                        )}
+                        {item.serviceName && <div className="small sky-muted">{item.serviceName}</div>}
+                      </td>
                     <td>{formatDate(item.createdAt)}</td>
                     <td>{item.projectName || '—'}</td>
                     <td>{formatResourceType(item.resourceType)}</td>
@@ -291,14 +313,15 @@ function DockerOperations() {
                       {item.resultingState ? ` → ${item.resultingState}` : ''}
                     </td>
                     <td>{formatDuration(item.durationMs)}</td>
-                    <td>
-                      <div>{item.message || '—'}</div>
-                      {item.errorCode && (
-                        <div className="small sky-muted">{item.errorCode}</div>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      <td>
+                        <div>{item.message || '—'}</div>
+                        {item.errorCode && (
+                          <div className="small sky-muted">{item.errorCode}</div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
