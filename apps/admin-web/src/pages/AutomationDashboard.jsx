@@ -9,6 +9,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import workflowService from '../services/workflowService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const RUN_STATUS_OPTIONS = [
   { value: '', label: 'All run statuses' },
   { value: 'COMPLETED', label: 'Completed' },
@@ -142,7 +143,7 @@ function AutomationDashboard() {
         title="Automation Dashboard"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <form onSubmit={applyFilters}>
         <DashboardFilterCard

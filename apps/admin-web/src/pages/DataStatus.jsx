@@ -7,6 +7,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import ingestionService from '../services/ingestionService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DATA_INTELLIGENCE_PAGE_SIZE = 10;
 
 const DEFAULT_SOURCE_OPTIONS = [{ value: '', label: 'All sources' }];
@@ -330,7 +331,7 @@ function DataStatus() {
         title="Data Intelligence"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <div className="sky-functional-history-shell sky-data-status-shell">
         <section className="sky-card mb-4 sky-functional-history-browser">

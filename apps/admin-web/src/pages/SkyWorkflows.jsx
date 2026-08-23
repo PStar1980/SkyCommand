@@ -8,6 +8,7 @@ import WorkflowApprovalOverlay from '../components/WorkflowApprovalOverlay.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'RUNNING', label: 'Running' },
@@ -6508,8 +6509,8 @@ function SkyWorkflows({ mode = 'start' }) {
         title={pageTitle}
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {message && <div className="alert alert-success">{message}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {message && <DismissibleAlert tone="success">{message}</DismissibleAlert>}
 
       {isHistoryMode ? (
         renderHistoryView()
@@ -6832,7 +6833,9 @@ function SkyWorkflows({ mode = 'start' }) {
                   )}
 
                   {runtimeParameterError && (
-                    <div className="alert alert-danger py-2">{runtimeParameterError}</div>
+                    <DismissibleAlert className="alert alert-danger py-2">
+                      {runtimeParameterError}
+                    </DismissibleAlert>
                   )}
 
                   <button

@@ -6,6 +6,7 @@ import { CHART_COLORS } from './charts/chartTheme.js';
 import StatusPill from './ui/StatusPill.jsx';
 import { buildDockerStaleDataMessage, getDockerLiveLaneState } from '../utils/dockerLiveStatus.js';
 
+import DismissibleAlert from './ui/DismissibleAlert.jsx';
 function formatBytes(value) {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -306,8 +307,8 @@ function DockerProjectDetailsModal({
         </div>
 
         <div className={embedded ? 'sky-card-body' : 'sky-tool-details-modal-body'}>
-          {controlError && <div className="alert alert-danger">{controlError}</div>}
-          {controlNotice && <div className="alert alert-success">{controlNotice}</div>}
+          {controlError && <DismissibleAlert tone="danger">{controlError}</DismissibleAlert>}
+          {controlNotice && <DismissibleAlert tone="success">{controlNotice}</DismissibleAlert>}
 
           <div className="sky-execution-metric-grid mb-3">
             <div className="sky-mini-metric">

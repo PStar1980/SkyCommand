@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_FILTERS = {
   q: '',
   appCode: 'ALL',
@@ -346,8 +347,8 @@ function AdminPrivileges() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
 
       {createOpen && canWritePermissions && (
         <section className="sky-card mb-3">

@@ -14,6 +14,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_FILTERS = {
   days: '7',
   appCode: '',
@@ -198,7 +199,7 @@ function ApiDashboard() {
         title="API Dashboard"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <form onSubmit={applyFilters}>
         <DashboardFilterCard

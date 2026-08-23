@@ -9,6 +9,7 @@ import useDockerTelemetryStream from '../hooks/useDockerTelemetryStream.js';
 import useDockerOverview from '../hooks/useDockerOverview.js';
 import { buildDockerStaleDataMessage, getDockerLiveLaneState } from '../utils/dockerLiveStatus.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 function formatBytes(value) {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return '—';
@@ -97,7 +98,7 @@ function DockerOverview() {
         title="Docker"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
       {overview?.error && (
         <div className="alert alert-warning mb-3">
           <strong>{overview.error.code}</strong> · {overview.error.message}

@@ -9,6 +9,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import ingestionService from '../services/ingestionService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SOURCE_OPTIONS = [
   { value: '', label: 'All sources' },
   { value: 'FRED', label: 'FRED' },
@@ -230,7 +231,7 @@ function IngestionStatus() {
         title="Data Dashboard"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <form onSubmit={applyDashboardFilters}>
         <DashboardFilterCard

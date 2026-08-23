@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const LISTENER_TYPE_OPTIONS = [
   { value: '', label: 'All listener types' },
   { value: 'FILE_DROP', label: 'File drop' },
@@ -252,8 +253,8 @@ function AutomationListeners() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {notice && <div className="alert alert-success">{notice}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {notice && <DismissibleAlert tone="success">{notice}</DismissibleAlert>}
 
       <section className="sky-worker-hero mb-3">
         <div>

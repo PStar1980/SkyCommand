@@ -6,6 +6,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import useSmartPolling, { SMART_POLLING_INTERVALS } from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'PASS', label: 'Pass' },
@@ -126,7 +127,7 @@ function ReadinessDashboard() {
         title="Readiness Dashboard"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <DashboardFilterCard
         actions={

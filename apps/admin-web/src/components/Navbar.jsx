@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import authService from '../services/authService';
 import notificationService from '../services/notificationService.js';
 
+import DismissibleAlert from './ui/DismissibleAlert.jsx';
 const DEFAULT_PASSWORD_FORM = {
   currentPassword: '',
   newPassword: '',
@@ -1117,7 +1118,14 @@ function Navbar() {
             </div>
 
             <div className="sky-notification-list">
-              {notificationError && <div className="alert alert-danger m-3">{notificationError}</div>}
+              {notificationError && (
+                <DismissibleAlert
+                  className="alert alert-danger m-3"
+                  onDismiss={() => setNotificationError('')}
+                >
+                  {notificationError}
+                </DismissibleAlert>
+              )}
               {notificationLoading ? (
                 <div className="sky-notification-empty">Loading notifications…</div>
               ) : notificationItems.length > 0 ? (
@@ -1179,8 +1187,16 @@ function Navbar() {
             </div>
 
             <form className="sky-card-body" onSubmit={handlePasswordSubmit}>
-              {passwordError && <div className="alert alert-danger">{passwordError}</div>}
-              {passwordSuccess && <div className="alert alert-success">{passwordSuccess}</div>}
+              {passwordError && (
+                <DismissibleAlert tone="danger" onDismiss={() => setPasswordError('')}>
+                  {passwordError}
+                </DismissibleAlert>
+              )}
+              {passwordSuccess && (
+                <DismissibleAlert tone="success" onDismiss={() => setPasswordSuccess('')}>
+                  {passwordSuccess}
+                </DismissibleAlert>
+              )}
 
               <div className="mb-3">
                 <label className="form-label sky-form-label" htmlFor="currentPassword">

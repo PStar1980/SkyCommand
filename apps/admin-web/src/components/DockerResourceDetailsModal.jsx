@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import StatusPill from './ui/StatusPill.jsx';
 
+import DismissibleAlert from './ui/DismissibleAlert.jsx';
 function formatDate(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -175,7 +176,7 @@ function DockerResourceDetailsModal({
         </div>
 
         <div className={embedded ? 'sky-card-body' : 'sky-tool-details-modal-body'}>
-          {error && <div className="alert alert-danger">{error}</div>}
+          {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
           {loading && !resource ? (
             <div className="sky-empty-state py-5"><div className="spinner-border text-info" role="status" aria-label="Loading" /></div>
           ) : !resource ? (

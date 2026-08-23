@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const USER_HISTORY_PAGE_SIZE = 20;
 const DEFAULT_FILTERS = {
   success: '',
@@ -309,7 +310,7 @@ function AuditEvents() {
         </button>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <section className="sky-card mb-3">
         <div className="sky-card-body">

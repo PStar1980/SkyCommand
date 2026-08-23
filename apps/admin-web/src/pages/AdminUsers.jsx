@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const USER_STATUSES = ['ACTIVE', 'PENDING', 'LOCKED', 'DISABLED'];
 const DEFAULT_ADMIN_APP_CODE = 'SKYSERVER_ADMIN';
 const DEFAULT_CREATE_FORM = {
@@ -565,8 +566,8 @@ function AdminUsers() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
 
       {createOpen && canWriteUsers && (
         <section className="sky-card mb-3">

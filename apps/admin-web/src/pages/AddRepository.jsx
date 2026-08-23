@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 import { createRepositoryForm, sanitizeRepositoryPayload } from './repositoryAdminUtils.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 function AddRepository() {
   const { hasPermission } = useAuth();
   const canRead = hasPermission('ADMIN_REPOSITORY_READ');
@@ -122,8 +123,8 @@ function AddRepository() {
         )}
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
 
       <section className="sky-card">
         <div className="sky-card-header">

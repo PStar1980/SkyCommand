@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import RepositoryForm from '../components/RepositoryForm.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import {
   createRepositoryForm,
   DEFAULT_REPOSITORY_FILTERS,
@@ -487,8 +488,8 @@ function ManageRepositories() {
         </button>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
 
       <section className="sky-card mb-3 sky-functional-history-browser sky-manage-repositories-browser">
         <div className="sky-card-header">

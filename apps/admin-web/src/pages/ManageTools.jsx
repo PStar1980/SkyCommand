@@ -6,6 +6,7 @@ import IngestionProfileEditor from '../components/IngestionProfileEditor.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const MANAGE_TOOLS_PAGE_SIZE = 10;
 
 const DEFAULT_FILTERS = {
@@ -340,7 +341,7 @@ function ManagedToolVerificationPanel({ canWrite, onToolUpdated, tool }) {
       title="Managed tool verification"
     >
       <div className="sky-card-body">
-        {error && <div className="alert alert-danger">{error}</div>}
+        {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
         {loading && !verification ? (
           <div className="sky-muted">Loading managed-tool verification…</div>
         ) : (
@@ -1045,8 +1046,8 @@ function ManageTools() {
         </button>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
 
       <section className="sky-card mb-3 sky-functional-history-browser sky-manage-tools-browser">
         <div className="sky-card-header">

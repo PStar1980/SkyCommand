@@ -15,6 +15,7 @@ import api from '../services/api';
 import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DASHBOARD_RECENT_LIMIT = 60;
 const DASHBOARD_ACTIVITY_PAGE_SIZE = 200;
 const DASHBOARD_ACTIVITY_DAYS = 7;
@@ -312,7 +313,7 @@ function Dashboard() {
         title="Command Center"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <ServerStatusPanel
         items={[

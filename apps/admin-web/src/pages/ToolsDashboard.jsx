@@ -9,6 +9,7 @@ import useSmartPolling, {
 } from '../hooks/useSmartPolling.js';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'SUCCESS', label: 'Success' },
@@ -126,7 +127,7 @@ function ToolsDashboard() {
         title="Tools Dashboard"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <form onSubmit={applyFilters}>
         <DashboardFilterCard

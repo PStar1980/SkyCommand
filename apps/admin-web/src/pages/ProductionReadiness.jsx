@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import adminService from '../services/adminService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 function formatDate(value) {
   if (!value) {
     return '—';
@@ -173,7 +174,7 @@ function ProductionReadiness() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <section className="sky-worker-hero mb-3">
         <div>

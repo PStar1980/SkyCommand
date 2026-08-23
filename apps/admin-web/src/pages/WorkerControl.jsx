@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SCHEDULE_TYPE_OPTIONS = [
   { value: 'ONCE', label: 'One-time run' },
   { value: 'INTERVAL', label: 'Recurring interval' },
@@ -879,8 +880,8 @@ function WorkerControl() {
         </div>
       </header>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {notice && <div className="alert alert-success">{notice}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {notice && <DismissibleAlert tone="success">{notice}</DismissibleAlert>}
 
       <section className="sky-worker-hero mb-3">
         <div>

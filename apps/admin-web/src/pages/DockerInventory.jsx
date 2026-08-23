@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import useDockerOverview from '../hooks/useDockerOverview.js';
 import infrastructureService from '../services/infrastructureService.js';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const VIEW_CONFIG = {
   projects: {
     kicker: 'Docker · Compose',
@@ -982,9 +983,9 @@ function DockerInventory({ view }) {
         title={config.title}
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {controlError && <div className="alert alert-danger">{controlError}</div>}
-      {controlNotice && <div className="alert alert-success">{controlNotice}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
+      {controlError && <DismissibleAlert tone="danger">{controlError}</DismissibleAlert>}
+      {controlNotice && <DismissibleAlert tone="success">{controlNotice}</DismissibleAlert>}
       {overview?.error && (
         <div className="alert alert-warning">
           <strong>{overview.error.code}</strong> · {overview.error.message}

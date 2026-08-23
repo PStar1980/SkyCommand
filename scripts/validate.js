@@ -57,6 +57,7 @@ const routineSelfTests = [
   'repository-page-split:self-test',
   'brand-theme:self-test',
   'command-search:self-test',
+  'transient-alert:self-test',
   'notification-foundation:self-test',
   'skycommand-identity:self-test',
   'api-dashboard:self-test',

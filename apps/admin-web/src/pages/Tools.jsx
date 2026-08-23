@@ -5,6 +5,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import toolService from '../services/toolService';
 
+import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const HIGH_RISK_CONFIRMATION_PHRASE = 'RUN HIGH RISK';
 const RUN_TOOLS_PAGE_SIZE = 10;
 
@@ -725,7 +726,7 @@ function Tools() {
         title="Run Tools"
       />
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       {loading ? (
         <div className="sky-empty-state">
