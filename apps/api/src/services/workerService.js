@@ -19,6 +19,7 @@ const MAX_RUN_LIMIT = 500;
 const INTERVAL_UNITS = new Set(['MINUTE', 'HOUR', 'DAY', 'WEEK']);
 const SCHEDULE_TYPES = new Set(['ONCE', 'INTERVAL']);
 const LISTENER_TYPES = new Set(['FILE_DROP', 'DB_POLL', 'WEBHOOK']);
+const SKYCOMMAND_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
 
 const UNIT_TO_MILLISECONDS = {
   MINUTE: 60 * 1000,
@@ -652,6 +653,46 @@ async function validateToolParameters({ toolCode, parameters }) {
   }
 }
 
+function parseScheduleJsonObject(value, label) {
+  if (value === undefined || value === null || value === '') {
+    return {};
+  }
+
+  if (!Array.isArray(value) && typeof value === 'object') {
+    return value;
+  }
+
+  try {
+    const parsed = JSON.parse(String(value));
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      throw new Error(`${label} must be a JSON object.`);
+    }
+    return parsed;
+  } catch (error) {
+    throw createHttpError(400, `${label} must be valid JSON object text.`, {
+      cause: error.message,
+    });
+  }
+}
+
+async function validateScheduleParameters({ toolCode, parameters }) {
+  await validateToolParameters({ toolCode, parameters });
+
+  if (toolCode !== SKYCOMMAND_WORKFLOW_START_TOOL_CODE) {
+    return;
+  }
+
+  const workflowCode = normalizeOptionalString(parameters?.workflowCode);
+  if (!workflowCode) {
+    throw createHttpError(400, 'workflowCode is required for workflow schedules.');
+  }
+
+  const workflowInput = parseScheduleJsonObject(parameters?.inputJson, 'inputJson');
+  const workflowExecutorService = require('./workflowExecutorService');
+  const definition = await workflowExecutorService.getWorkflowDefinition(workflowCode);
+  await workflowExecutorService.validateWorkflowRuntimeInput(definition, workflowInput);
+}
+
 function buildSchedulePayload(body, existing = null) {
   const scheduleType = normalizeScheduleType(
     body.scheduleType ?? body.schedule_type ?? existing?.scheduleType,
@@ -741,6 +782,7 @@ async function listSchedules(filters = {}) {
       schedule_type = 'ONCE'
       AND last_run_at IS NOT NULL
       AND last_status IN ('SUCCESS', 'FAILED', 'SKIPPED', 'CANCELLED')
+      AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP)
     )`);
   }
 
@@ -837,7 +879,7 @@ async function createSchedule({ body = {}, actor = null, context = {} } = {}) {
   const profile = await getCurrentProfile();
   const payload = buildSchedulePayload(body);
 
-  await validateToolParameters({ toolCode: tool.tool_code, parameters: payload.parameters });
+  await validateScheduleParameters({ toolCode: tool.tool_code, parameters: payload.parameters });
 
   const nextRunAt = calculateInitialNextRun(payload);
 
@@ -925,7 +967,7 @@ async function updateSchedule({ scheduleId, body = {}, actor = null, context = {
   }
 
   const payload = buildSchedulePayload(body, existing);
-  await validateToolParameters({ toolCode: tool.tool_code, parameters: payload.parameters });
+  await validateScheduleParameters({ toolCode: tool.tool_code, parameters: payload.parameters });
 
   const nextRunAt = calculateInitialNextRun({
     ...payload,
@@ -1319,6 +1361,7 @@ async function getWorkerHealth() {
             schedule_type = 'ONCE'
             AND last_run_at IS NOT NULL
             AND last_status IN ('SUCCESS', 'FAILED', 'SKIPPED', 'CANCELLED')
+            AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP)
           )
       `,
     ),

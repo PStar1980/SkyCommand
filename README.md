@@ -244,6 +244,7 @@ The workflow surfaces can:
 - render workflow graphs visually with node inspection, drag reorder, branch labels, and runtime status overlays;
 - start active published workflows manually from Admin-Web, SkyCommand Core CLI, Admin tool bridge, or schedules;
 - define runtime parameter schemas for reusable workflows and capture submitted launch values as durable `params` context;
+- reuse those workflow-level runtime parameter schemas when creating or editing schedules, with typed/defaulted values carried into scheduled launches as the same durable `params` / `runtimeParameters` context;
 - resolve node input templates from runtime params, workflow context, previous outputs, and named node outputs;
 - store workflow-level and node-level run records in PostgreSQL while Temporal owns durable execution state;
 - approve/reject human approval gates through Admin-Web signals back to Temporal;
