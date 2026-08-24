@@ -146,6 +146,7 @@
     "chart-typography:self-test": "node apps/admin-web/src/components/charts/chartTypographySelfTest.js",
     "chart-live-update:self-test": "node apps/admin-web/src/components/charts/liveChartUpdateSelfTest.js",
     "dashboard-ui-consistency:self-test": "node apps/admin-web/src/components/ui/dashboardUiConsistencySelfTest.js",
+    "surface-rhythm:self-test": "node apps/admin-web/src/components/ui/surfaceRhythmSelfTest.js",
     "sidebar-accordion:self-test": "node apps/admin-web/src/components/ui/sidebarAccordionSelfTest.js",
     "repository-page-split:self-test": "node apps/admin-web/src/pages/repositoryPageSplitSelfTest.js",
     "api-telemetry:self-test": "node apps/api/src/services/apiTelemetryPolicySelfTest.js",

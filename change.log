@@ -1,3 +1,11 @@
+## 2026-08-23 - Global card spacing and near-square surface geometry
+
+- Added shared authenticated layout tokens for the page-edge gutter, top-level card gap, and card corner radius so core pages no longer rely on a mixture of individual Bootstrap margins for their primary vertical rhythm.
+- Standardized authenticated main-content padding to the same gutter on the top, left, right, and bottom (with the fixed topbar offset preserved), and applied the same gap between top-level page surfaces. Existing Bootstrap row gutter math is deliberately left intact.
+- Extended the shared rhythm into established page-shell/history-shell wrappers so fragment-based pages and wrapped browser/detail pages follow the same surface spacing contract.
+- Reduced primary and nested card-like surface corners to a restrained `0.38rem` radius, giving page headers, cards, dashboard panels, server tiles, source/metric cards, and similar operator surfaces an almost-square profile while leaving pills, circular controls, and dedicated overlay geometry alone.
+- Added routine `surface-rhythm:self-test` coverage and validation wiring for the global gutter/gap/radius contract. No API, database, Host Agent, route, or environment change is required.
+
 ## 2026-08-23 - Scheduler workflow parameters and future one-time schedule management
 
 - Added workflow-level runtime parameter inputs to **Automation > Create Schedules** and **Automation > Manage Schedules**, reusing the published workflow definition's existing runtime-parameter schema, defaults, required flags, types, option lists, and repository catalogue choices.
