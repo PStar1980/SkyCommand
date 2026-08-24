@@ -62,6 +62,7 @@ const routineSelfTests = [
   'skycommand-identity:self-test',
   'api-dashboard:self-test',
   'workflow-cli-params:self-test',
+  'scheduler-workflow-params:self-test',
   'temporal-docker:self-test',
   'temporal-worker-docker:self-test',
   'node-worker-docker:self-test',

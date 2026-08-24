@@ -128,6 +128,7 @@
     "workflow-approval-branch:self-test": "node apps/api/src/services/workflowApprovalBranchSelfTest.js",
     "workflow-node-parameters:self-test": "node apps/api/src/services/workflowParameterUtilsSelfTest.js",
     "workflow-cli-params:self-test": "node packages/core/src/workflowCliRuntimeParametersSelfTest.js",
+    "scheduler-workflow-params:self-test": "node apps/api/src/services/schedulerWorkflowParametersSelfTest.js",
     "tool-template:self-test": "node packages/tools/custom/_template/src/tool.js SkyCommand",
     "skycommand-repository:self-test": "node apps/api/src/services/skycommandRepositorySelfTest.js",
     "tool-onboarding:self-test": "node apps/api/src/services/toolOnboardingSelfTest.js",

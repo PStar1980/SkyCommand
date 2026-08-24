@@ -7208,4 +7208,5 @@ module.exports = {
   saveWorkflowDraftGraph,
   startWorkflowWithTemporal,
   updateWorkflowDefinition,
+  validateWorkflowRuntimeInput,
 };

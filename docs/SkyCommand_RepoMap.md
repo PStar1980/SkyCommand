@@ -240,6 +240,7 @@ SkyCommand/
 │   │       │   ├── phase15ClosureReadinessSelfTest.js
 │   │       │   ├── productionReadinessService.js
 │   │       │   ├── publicMacroService.js
+│   │       │   ├── schedulerWorkflowParametersSelfTest.js
 │   │       │   ├── scriptExecutionService.js
 │   │       │   ├── skycommandRepositorySelfTest.js
 │   │       │   ├── skycommandRepositoryService.js

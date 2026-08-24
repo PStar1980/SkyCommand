@@ -291,6 +291,136 @@ function getScheduleTargetType(scheduleOrForm) {
   return scheduleOrForm?.toolCode === SKY_SERVER_WORKFLOW_START_TOOL_CODE ? 'WORKFLOW' : 'TOOL';
 }
 
+function getSafeObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function getWorkflowRuntimeParameters(workflow = null) {
+  return Array.isArray(workflow?.runtimeParameters) ? workflow.runtimeParameters : [];
+}
+
+function getInitialWorkflowParameterValues(workflow = null, existingValues = {}) {
+  return getWorkflowRuntimeParameters(workflow).reduce((accumulator, parameter) => {
+    const parameterName = parameter.key || parameter.parameterName;
+
+    if (Object.prototype.hasOwnProperty.call(existingValues || {}, parameterName)) {
+      const existingValue = existingValues[parameterName];
+      accumulator[parameterName] =
+        parameter.type === 'json' && existingValue && typeof existingValue === 'object'
+          ? JSON.stringify(existingValue, null, 2)
+          : existingValue;
+      return accumulator;
+    }
+
+    if (parameter.type === 'boolean') {
+      accumulator[parameterName] =
+        parameter.defaultValue === true || parameter.defaultValue === 'true';
+    } else if (parameter.type === 'json') {
+      accumulator[parameterName] =
+        parameter.defaultValue && typeof parameter.defaultValue === 'object'
+          ? JSON.stringify(parameter.defaultValue, null, 2)
+          : String(parameter.defaultValue || '');
+    } else {
+      accumulator[parameterName] = parameter.defaultValue ?? '';
+    }
+
+    return accumulator;
+  }, {});
+}
+
+function parseWorkflowParameterValues(workflow = null, values = {}) {
+  return getWorkflowRuntimeParameters(workflow).reduce((accumulator, parameter) => {
+    const parameterName = parameter.key || parameter.parameterName;
+    const rawValue = values?.[parameterName];
+    const empty = rawValue === undefined || rawValue === null || rawValue === '';
+
+    if (
+      parameter.required &&
+      empty &&
+      (parameter.defaultValue === undefined ||
+        parameter.defaultValue === null ||
+        parameter.defaultValue === '')
+    ) {
+      throw new Error(`${parameter.label || parameterName} is required.`);
+    }
+
+    if (empty) {
+      if (parameter.type === 'boolean') {
+        accumulator[parameterName] = false;
+      }
+      return accumulator;
+    }
+
+    if (parameter.type === 'number') {
+      const numericValue = Number(rawValue);
+      if (!Number.isFinite(numericValue)) {
+        throw new Error(`${parameter.label || parameterName} must be a number.`);
+      }
+      accumulator[parameterName] = numericValue;
+      return accumulator;
+    }
+
+    if (parameter.type === 'boolean') {
+      accumulator[parameterName] = Boolean(rawValue);
+      return accumulator;
+    }
+
+    if (parameter.type === 'json') {
+      try {
+        accumulator[parameterName] =
+          typeof rawValue === 'object' ? rawValue : JSON.parse(String(rawValue));
+      } catch {
+        throw new Error(`${parameter.label || parameterName} must be valid JSON.`);
+      }
+      return accumulator;
+    }
+
+    const stringValue = String(rawValue);
+    if (parameter.maxLength && stringValue.length > Number(parameter.maxLength)) {
+      throw new Error(
+        `${parameter.label || parameterName} must be ${parameter.maxLength} characters or less.`,
+      );
+    }
+
+    accumulator[parameterName] = stringValue;
+    return accumulator;
+  }, {});
+}
+
+function parseWorkflowScheduleInput(parameters = {}) {
+  const rawInput = parameters?.inputJson ?? parameters?.input_json;
+  if (rawInput === undefined || rawInput === null || rawInput === '') {
+    return { baseInput: {}, runtimeValues: {} };
+  }
+
+  try {
+    const parsed = typeof rawInput === 'object' ? rawInput : JSON.parse(String(rawInput));
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      return { baseInput: {}, runtimeValues: {} };
+    }
+
+    const runtimeValues = getSafeObject(
+      parsed.params || parsed.runtimeParameters || parsed.workflowParameters || parsed.parameters,
+    );
+    const baseInput = { ...parsed };
+    delete baseInput.params;
+    delete baseInput.runtimeParameters;
+    delete baseInput.workflowParameters;
+    delete baseInput.parameters;
+
+    return { baseInput, runtimeValues };
+  } catch {
+    return { baseInput: {}, runtimeValues: {} };
+  }
+}
+
+function getWorkflowParameterOptions(parameter = {}, repositoryOptions = []) {
+  if (parameter.type === 'repo' || parameter.optionSourceCode === 'repositories') {
+    return Array.isArray(repositoryOptions) ? repositoryOptions : [];
+  }
+
+  return Array.isArray(parameter.options) ? parameter.options : [];
+}
 
 function getInitialParameterValues(tool) {
   return (tool?.parameters || []).reduce((accumulator, parameter) => {
@@ -353,12 +483,20 @@ function createBlankScheduleForm({ targetType = 'TOOL', tool = null, workflow = 
     maxConcurrentRuns: '1',
     misfirePolicy: 'RUN_ONCE',
     parameters,
+    workflowRuntimeValues: getInitialWorkflowParameterValues(workflow),
+    workflowInput: {},
   };
 }
 
-function createScheduleFormFromRecord(schedule, tools = []) {
+function createScheduleFormFromRecord(schedule, tools = [], workflows = []) {
   const tool = tools.find((item) => item.toolCode === schedule.toolCode) || null;
   const targetType = getScheduleTargetType(schedule);
+  const workflowCode =
+    targetType === 'WORKFLOW'
+      ? schedule.parameters?.workflowCode || schedule.parameters?.workflow_code || ''
+      : '';
+  const workflow = getSelectedWorkflow(workflows, workflowCode);
+  const workflowInput = parseWorkflowScheduleInput(schedule.parameters || {});
 
   return {
     scheduleId: schedule.scheduleId || '',
@@ -379,6 +517,11 @@ function createScheduleFormFromRecord(schedule, tools = []) {
       ...getInitialParameterValues(tool),
       ...(schedule.parameters || {}),
     },
+    workflowRuntimeValues: getInitialWorkflowParameterValues(
+      workflow,
+      workflowInput.runtimeValues,
+    ),
+    workflowInput: workflowInput.baseInput,
   };
 }
 
@@ -392,7 +535,8 @@ function getSelectedWorkflow(workflows = [], workflowCode = '') {
 
 function getScheduleTargetLabel(schedule, workflows = []) {
   if (getScheduleTargetType(schedule) === 'WORKFLOW') {
-    const workflowCode = schedule.parameters?.workflowCode || '';
+    const workflowCode =
+      schedule.parameters?.workflowCode || schedule.parameters?.workflow_code || '';
     const workflow = getSelectedWorkflow(workflows, workflowCode);
     return workflow ? getWorkflowDisplayName(workflow) : workflowCode || 'SkyCommand workflow';
   }
@@ -402,7 +546,11 @@ function getScheduleTargetLabel(schedule, workflows = []) {
 
 function getScheduleTargetCode(schedule) {
   if (getScheduleTargetType(schedule) === 'WORKFLOW') {
-    return schedule.parameters?.workflowCode || schedule.toolCode;
+    return (
+      schedule.parameters?.workflowCode ||
+      schedule.parameters?.workflow_code ||
+      schedule.toolCode
+    );
   }
 
   return schedule.toolCode;
@@ -415,10 +563,6 @@ function getJsonPreview(value) {
   } catch {
     return '{}';
   }
-}
-
-function getSafeObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function getStructuredResultEvidence(run) {
@@ -651,6 +795,7 @@ function SchedulerControl({ view = 'manage' }) {
   const [health, setHealth] = useState(null);
   const [tools, setTools] = useState([]);
   const [activeWorkflows, setActiveWorkflows] = useState([]);
+  const [repositoryOptions, setRepositoryOptions] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [scheduleTotal, setScheduleTotal] = useState(0);
   const [runs, setRuns] = useState([]);
@@ -740,13 +885,17 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   async function loadActiveWorkflows() {
-    const result = await workflowService.listDefinitions({
-      activeOnly: true,
-      enabledOnly: true,
-      visibleOnly: true,
-      publishedOnly: true,
-    });
-    setActiveWorkflows(result.items || []);
+    const [definitionsResult, catalogResult] = await Promise.all([
+      workflowService.listDefinitions({
+        activeOnly: true,
+        enabledOnly: true,
+        visibleOnly: true,
+        publishedOnly: true,
+      }),
+      workflowService.getBuilderCatalog().catch(() => ({ repositoryOptions: [] })),
+    ]);
+    setActiveWorkflows(definitionsResult.items || []);
+    setRepositoryOptions(catalogResult.repositoryOptions || []);
   }
 
   async function loadHealth() {
@@ -1022,7 +1171,7 @@ function SchedulerControl({ view = 'manage' }) {
 
   function editSchedule(schedule) {
     setFormMode('edit');
-    setScheduleForm(createScheduleFormFromRecord(schedule, tools));
+    setScheduleForm(createScheduleFormFromRecord(schedule, tools, activeWorkflows));
     setSelectedSchedule(schedule);
     setNotice('');
     setError('');
@@ -1042,6 +1191,16 @@ function SchedulerControl({ view = 'manage' }) {
       ...currentForm,
       parameters: {
         ...(currentForm.parameters || {}),
+        [parameterName]: value,
+      },
+    }));
+  }
+
+  function updateWorkflowParameter(parameterName, value) {
+    setScheduleForm((currentForm) => ({
+      ...currentForm,
+      workflowRuntimeValues: {
+        ...(currentForm.workflowRuntimeValues || {}),
         [parameterName]: value,
       },
     }));
@@ -1068,6 +1227,8 @@ function SchedulerControl({ view = 'manage' }) {
         scheduleName:
           formMode === 'create' ? buildWorkflowScheduleName(workflow) : currentForm.scheduleName,
         parameters,
+        workflowRuntimeValues: getInitialWorkflowParameterValues(workflow),
+        workflowInput: {},
       }));
       return;
     }
@@ -1083,6 +1244,8 @@ function SchedulerControl({ view = 'manage' }) {
       scheduleName:
         formMode === 'create' && nextTool ? `${nextTool.label} schedule` : currentForm.scheduleName,
       parameters: getInitialParameterValues(nextTool),
+      workflowRuntimeValues: {},
+      workflowInput: {},
     }));
   }
 
@@ -1097,6 +1260,8 @@ function SchedulerControl({ view = 'manage' }) {
       scheduleName:
         formMode === 'create' && nextTool ? `${nextTool.label} schedule` : currentForm.scheduleName,
       parameters: getInitialParameterValues(nextTool),
+      workflowRuntimeValues: {},
+      workflowInput: {},
     }));
   }
 
@@ -1116,10 +1281,33 @@ function SchedulerControl({ view = 'manage' }) {
       scheduleName:
         formMode === 'create' ? buildWorkflowScheduleName(workflow) : currentForm.scheduleName,
       parameters,
+      workflowRuntimeValues: getInitialWorkflowParameterValues(workflow),
+      workflowInput: {},
     }));
   }
 
   function buildSchedulePayload() {
+    let parameters = cleanParameterValues(scheduleForm.parameters, selectedTool);
+
+    if (scheduleForm.targetType === 'WORKFLOW') {
+      const runtimeParameters = parseWorkflowParameterValues(
+        selectedWorkflow,
+        scheduleForm.workflowRuntimeValues || {},
+      );
+      const workflowInput = {
+        ...getSafeObject(scheduleForm.workflowInput),
+        params: runtimeParameters,
+        runtimeParameters,
+      };
+      parameters = cleanParameterValues(
+        {
+          ...scheduleForm.parameters,
+          inputJson: JSON.stringify(workflowInput),
+        },
+        selectedTool,
+      );
+    }
+
     const payload = {
       scheduleCode: scheduleForm.scheduleCode.trim(),
       scheduleName: scheduleForm.scheduleName.trim(),
@@ -1128,7 +1316,7 @@ function SchedulerControl({ view = 'manage' }) {
       scheduleType: scheduleForm.scheduleType,
       timezone: scheduleForm.timezone || DEFAULT_TIMEZONE,
       runAt: toIsoDateTime(scheduleForm.runAt),
-      parameters: cleanParameterValues(scheduleForm.parameters, selectedTool),
+      parameters,
       enabled: getBooleanValue(scheduleForm.enabled),
       maxConcurrentRuns: Number.parseInt(scheduleForm.maxConcurrentRuns, 10) || 1,
       misfirePolicy: scheduleForm.misfirePolicy || 'RUN_ONCE',
@@ -1194,7 +1382,9 @@ function SchedulerControl({ view = 'manage' }) {
           : `Created schedule ${payload.scheduleCode}.`,
       );
       setFormMode('edit');
-      setScheduleForm(createScheduleFormFromRecord(result.schedule || payload, tools));
+      setScheduleForm(
+        createScheduleFormFromRecord(result.schedule || payload, tools, activeWorkflows),
+      );
       await Promise.all([loadHealth(), loadSchedules(), loadRuns()]);
     } catch (saveError) {
       setError(saveError.message || 'Failed to save schedule.');
@@ -1362,6 +1552,82 @@ function SchedulerControl({ view = 'manage' }) {
         placeholder={parameter.prompt || parameterName}
         required={parameter.required}
         type={getInputType(parameter)}
+        value={String(value)}
+      />
+    );
+  }
+
+  function renderWorkflowParameterInput(parameter) {
+    const parameterName = parameter.key || parameter.parameterName;
+    const value = scheduleForm.workflowRuntimeValues?.[parameterName] ?? '';
+    const options = getWorkflowParameterOptions(parameter, repositoryOptions);
+    const inputId = `workflowScheduleParam-${parameterName}`;
+
+    if (parameter.type === 'boolean') {
+      return (
+        <div className="form-check form-switch">
+          <input
+            checked={Boolean(value)}
+            className="form-check-input"
+            disabled={!canWriteSchedules || saving}
+            id={inputId}
+            onChange={(event) => updateWorkflowParameter(parameterName, event.target.checked)}
+            type="checkbox"
+          />
+          <label className="form-check-label sky-muted" htmlFor={inputId}>
+            {parameter.prompt || parameter.label}
+          </label>
+        </div>
+      );
+    }
+
+    if (parameter.type === 'select' || parameter.type === 'repo') {
+      return (
+        <select
+          className="form-select sky-form-control"
+          disabled={!canWriteSchedules || saving}
+          id={inputId}
+          onChange={(event) => updateWorkflowParameter(parameterName, event.target.value)}
+          required={parameter.required}
+          value={String(value)}
+        >
+          <option value="">{parameter.prompt || `Select ${parameter.label}`}</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (parameter.type === 'json') {
+      return (
+        <textarea
+          className="form-control sky-form-control sky-mono"
+          disabled={!canWriteSchedules || saving}
+          id={inputId}
+          onChange={(event) => updateWorkflowParameter(parameterName, event.target.value)}
+          placeholder={parameter.prompt || '{ }'}
+          required={parameter.required}
+          rows={4}
+          value={String(value)}
+        />
+      );
+    }
+
+    return (
+      <input
+        className="form-control sky-form-control sky-mono"
+        disabled={!canWriteSchedules || saving}
+        id={inputId}
+        maxLength={parameter.maxLength || undefined}
+        onChange={(event) => updateWorkflowParameter(parameterName, event.target.value)}
+        placeholder={parameter.prompt || parameterName}
+        required={parameter.required}
+        type={
+          parameter.type === 'number' ? 'number' : parameter.type === 'date' ? 'date' : 'text'
+        }
         value={String(value)}
       />
     );
@@ -1836,6 +2102,39 @@ function SchedulerControl({ view = 'manage' }) {
                     Enabled
                   </label>
                 </div>
+
+                {scheduleForm.targetType === 'WORKFLOW' &&
+                  selectedWorkflow &&
+                  getWorkflowRuntimeParameters(selectedWorkflow).length > 0 && (
+                    <div className="mt-4">
+                      <div className="sky-page-kicker">Workflow parameters</div>
+                      <div className="small sky-muted mb-2">
+                        Runtime values are validated against the selected workflow schema and passed as
+                        <span className="sky-mono"> params.*</span> when the schedule runs.
+                      </div>
+                      <div className="sky-worker-param-grid">
+                        {getWorkflowRuntimeParameters(selectedWorkflow).map((parameter) => {
+                          const parameterName = parameter.key || parameter.parameterName;
+                          return (
+                            <div key={parameterName}>
+                              <label
+                                className="form-label"
+                                htmlFor={`workflowScheduleParam-${parameterName}`}
+                              >
+                                {parameter.label || parameterName}{' '}
+                                {parameter.required && <span className="text-danger">*</span>}
+                              </label>
+                              {renderWorkflowParameterInput(parameter)}
+                              <div className="form-text sky-muted">
+                                {parameter.description ||
+                                  `${parameter.type || 'string'} parameter · params.${parameterName}`}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                 {scheduleForm.targetType !== 'WORKFLOW' && selectedTool?.parameters?.length > 0 && (
                   <div className="mt-4">

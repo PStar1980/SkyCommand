@@ -1,3 +1,11 @@
+## 2026-08-23 - Scheduler workflow parameters and future one-time schedule management
+
+- Added workflow-level runtime parameter inputs to **Automation > Create Schedules** and **Automation > Manage Schedules**, reusing the published workflow definition's existing runtime-parameter schema, defaults, required flags, types, option lists, and repository catalogue choices.
+- Scheduled workflow values are serialized into the existing `skyserver_workflow_start` bridge `inputJson` as both `params` and `runtimeParameters`, preserving any other workflow input fields and requiring no scheduler schema migration.
+- Added API-side save validation that reuses the workflow executor's canonical runtime-parameter validation before a workflow schedule is created or updated, including repository-parameter validation.
+- Fixed Manage Schedules and worker-health counts so a future `next_run_at` keeps a one-time schedule manageable even when that definition has historical terminal-run metadata; completed one-time definitions are hidden only when no future run remains.
+- Added routine regression coverage for scheduler workflow-parameter serialization/validation, scheduled-run input preservation, repository choices, and future-dated one-time schedule visibility. No database migration or environment change is required.
+
 ## 2026-08-23 - Stable Login feedback and dismissible transient messages
 
 - Reserved a fixed-height feedback slot inside the Login card so invalid-session/login errors no longer change the card height or shift the form when they appear or disappear.
