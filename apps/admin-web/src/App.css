@@ -7272,3 +7272,23 @@ select.sky-form-control optgroup {
   width: 1.7rem;
   height: 1.7rem;
 }
+
+/* Automation browser refinement — align schedule management with Workflow Operations. */
+.sky-schedule-browser-filter-grid {
+  grid-template-columns: minmax(16rem, 1.45fr) repeat(3, minmax(9rem, 0.7fr)) auto;
+  min-width: min(100%, 88rem);
+}
+
+@media (max-width: 1100px) {
+  .sky-schedule-browser-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .sky-schedule-browser-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
