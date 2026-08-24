@@ -7398,13 +7398,58 @@ select.sky-form-control optgroup {
   padding-inline: 1rem;
 }
 
+.sky-tool-operations-table {
+  --sky-tool-table-grid: rgba(220, 177, 63, 0.27);
+  --sky-tool-table-row-outline: rgba(255, 217, 120, 0.88);
+  border: 1px solid var(--sky-tool-table-grid);
+  border-collapse: collapse;
+}
+
 .sky-tool-operations-table thead th {
   padding-top: 0.78rem;
   padding-bottom: 0.78rem;
-  font-size: 1.08rem;
+  border: 1px solid var(--sky-tool-table-grid);
+  font-size: 0.82rem;
   font-weight: 800;
   line-height: 1.15;
-  letter-spacing: 0.045em;
+  letter-spacing: 0.055em;
+}
+
+.sky-tool-operations-table tbody td {
+  border: 1px solid var(--sky-tool-table-grid);
+}
+
+.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td {
+  background: transparent;
+  border-top-color: var(--sky-tool-table-row-outline);
+  border-bottom-color: var(--sky-tool-table-row-outline);
+}
+
+.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:first-child {
+  border-left-color: var(--sky-tool-table-row-outline);
+}
+
+.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:last-child {
+  border-right-color: var(--sky-tool-table-row-outline);
+}
+
+.sky-tool-operations-table tbody tr.sky-selected-row td,
+.sky-tool-operations-table tbody tr.sky-selected-row:hover td {
+  background: rgba(220, 177, 63, 0.105);
+  border-top-color: var(--sky-tool-table-row-outline);
+  border-bottom-color: var(--sky-tool-table-row-outline);
+  box-shadow: none;
+}
+
+.sky-tool-operations-table tbody tr.sky-selected-row td:first-child,
+.sky-tool-operations-table tbody tr.sky-selected-row:hover td:first-child {
+  border-left-color: var(--sky-tool-table-row-outline);
+  box-shadow: none;
+}
+
+.sky-tool-operations-table tbody tr.sky-selected-row td:last-child,
+.sky-tool-operations-table tbody tr.sky-selected-row:hover td:last-child {
+  border-right-color: var(--sky-tool-table-row-outline);
 }
 
 .sky-tool-operations-pagination-row {

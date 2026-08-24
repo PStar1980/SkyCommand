@@ -21,8 +21,24 @@ assert(
   pageSource.includes('sky-tool-operations-table')
     && cssSource.includes('.sky-tool-operations-table thead th')
     && cssSource.includes('padding-top: 0.78rem;')
-    && cssSource.includes('font-size: 1.08rem;'),
-  'Tool Operations must expose the enlarged canonical prototype header row.',
+    && cssSource.includes('font-size: 0.82rem;'),
+  'Tool Operations must keep the taller prototype header row while sizing labels below the browser kicker hierarchy.',
+);
+
+assert(
+  cssSource.includes('--sky-tool-table-grid: rgba(220, 177, 63, 0.27);')
+    && cssSource.includes('border: 1px solid var(--sky-tool-table-grid);')
+    && cssSource.includes('.sky-tool-operations-table tbody td'),
+  'Tool Operations must expose a crisp table perimeter plus row and column grid lines using the card-outline gold.',
+);
+
+assert(
+  cssSource.includes('tr.sky-clickable-row:hover:not(.sky-selected-row) td')
+    && cssSource.includes('background: transparent;')
+    && cssSource.includes('tr.sky-selected-row td,')
+    && cssSource.includes('background: rgba(220, 177, 63, 0.105);')
+    && cssSource.includes('--sky-tool-table-row-outline: rgba(255, 217, 120, 0.88);'),
+  'Tool Operations must distinguish transparent outlined hover rows from solid-gold selected rows with a gold perimeter.',
 );
 
 assert(
