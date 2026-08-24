@@ -53,6 +53,7 @@ const routineSelfTests = [
   'tool-execution-output-workspace:self-test',
   'chart-typography:self-test',
   'dashboard-ui-consistency:self-test',
+  'surface-rhythm:self-test',
   'sidebar-accordion:self-test',
   'repository-page-split:self-test',
   'brand-theme:self-test',

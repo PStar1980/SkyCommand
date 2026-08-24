@@ -111,6 +111,7 @@ SkyCommand/
 │   │       │       ├── SmartPollingStatus.jsx
 │   │       │       ├── StatCard.jsx
 │   │       │       ├── StatusPill.jsx
+│   │       │       ├── surfaceRhythmSelfTest.js
 │   │       │       └── transientAlertSelfTest.js
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx

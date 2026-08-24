@@ -6392,6 +6392,9 @@ select.sky-form-control optgroup {
   --sky-success: #42d69b;
   --sky-warning: #e0ad43;
   --sky-danger: #ff6178;
+  --sky-page-gutter: 1rem;
+  --sky-surface-gap: 1rem;
+  --sky-card-radius: 0.38rem;
   color: var(--sky-text);
 }
 
@@ -7292,3 +7295,93 @@ select.sky-form-control optgroup {
     grid-template-columns: 1fr;
   }
 }
+
+/* Global page rhythm and card geometry — August 2026 human refinement. */
+.sky-app-shell-authenticated .sky-main {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  gap: var(--sky-surface-gap);
+  padding:
+    calc(var(--sky-topbar-height) + var(--sky-page-gutter))
+    var(--sky-page-gutter)
+    var(--sky-page-gutter);
+}
+
+/* Top-level page surfaces use the shared flex gap instead of local Bootstrap margins.
+   Bootstrap rows are deliberately excluded so their internal gutter math remains intact. */
+.sky-app-shell-authenticated .sky-main
+  > :is(
+    .sky-page-header,
+    .sky-card,
+    .sky-dashboard-visuals,
+    .sky-dashboard-command-hero,
+    .sky-dashboard-shortcuts,
+    .sky-worker-hero,
+    .sky-confirm-panel,
+    .sky-dismissible-alert
+  ) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.sky-app-shell-authenticated
+  :is(.sky-page-shell, .sky-workflow-history-shell, .sky-functional-history-shell) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sky-surface-gap);
+}
+
+.sky-app-shell-authenticated
+  :is(.sky-page-shell, .sky-workflow-history-shell, .sky-functional-history-shell)
+  > :is(
+    .sky-page-header,
+    .sky-card,
+    .sky-dashboard-visuals,
+    .sky-dashboard-command-hero,
+    .sky-dashboard-shortcuts,
+    .sky-worker-hero,
+    .sky-confirm-panel,
+    .sky-dismissible-alert
+  ) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Primary page/card surfaces are intentionally almost square with only a restrained corner softening. */
+.sky-app-shell-authenticated :is(
+    .sky-page-header,
+    .sky-card,
+    .sky-table-card,
+    .sky-dashboard-visuals,
+    .sky-dashboard-command-hero,
+    .sky-dashboard-shortcuts,
+    .sky-worker-hero,
+    .sky-source-card,
+    .sky-server-status-card,
+    .sky-api-metric-card,
+    .sky-api-route-card,
+    .sky-app-access-card,
+    .sky-mini-stat-grid > div,
+    .sky-mini-metric,
+    .sky-session-item,
+    .sky-worker-command-card,
+    .sky-temporal-id-card,
+    .sky-temporal-command-card,
+    .sky-tool-item,
+    .sky-tool-category,
+    .sky-output-box,
+    .sky-confirm-panel,
+    .sky-node-parameter-preview
+  ) {
+  border-radius: var(--sky-card-radius);
+}
+
+@media (max-width: 768px) {
+  .sky-app-shell-authenticated .sky-main {
+    --sky-page-gutter: 0.85rem;
+    --sky-surface-gap: 0.85rem;
+  }
+}
+
