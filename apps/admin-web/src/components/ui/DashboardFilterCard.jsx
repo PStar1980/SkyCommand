@@ -1,6 +1,6 @@
 function DashboardFilterCard({ actions, children, meta, title = 'Chart filters' }) {
   return (
-    <section className="sky-card sky-dashboard-filter-card mb-3">
+    <section className="sky-card sky-dashboard-filter-card">
       <div className="sky-card-body">
         <div className="d-flex flex-wrap align-items-end justify-content-between gap-3">
           <div>

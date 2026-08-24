@@ -112,7 +112,7 @@ function DockerOverview() {
         </div>
       )}
 
-      <div className="row g-3 mb-3">
+      <div className="row g-3 sky-dashboard-surface-row">
         <div className="col-12 col-md-6 col-xl-3">
           <StatCard
             helper={`${target.displayName || 'Local Docker'} · ${target.transport || 'HOST_AGENT'}`}
@@ -155,7 +155,7 @@ function DockerOverview() {
         </div>
       </div>
 
-      <div className="row g-3 mb-3">
+      <div className="row g-3 sky-dashboard-surface-row">
         <div className="col-6 col-md-3">
           <StatCard
             label="Healthy"
@@ -187,7 +187,7 @@ function DockerOverview() {
         </div>
       </div>
 
-      <div className="row g-3 mb-3">
+      <div className="row g-3 sky-dashboard-surface-row">
         <div className="col-12 col-xl-5">
           <Panel
             className="h-100"

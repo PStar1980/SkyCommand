@@ -47,7 +47,7 @@ const dashboardGroup = navbar.slice(
   navbar.indexOf("label: 'Dashboards'"),
   navbar.indexOf("label: 'Tools',\n      icon: '◧'"),
 );
-assert.match(dashboardGroup, /label: 'Docker'[\s\S]*?to: '\/docker\/overview'/);
+assert.match(dashboardGroup, /label: 'Docker'[\s\S]*?to: '\/dashboard\/docker'/);
 const dockerGroup = navbar.slice(
   navbar.indexOf("label: 'Docker',\n      icon: '⬡'"),
   navbar.indexOf("label: 'Access Control'"),
@@ -57,7 +57,8 @@ assert.ok(
   'Docker Operations should be the first item in the Docker menu category.',
 );
 assert.match(navbar, /INFRASTRUCTURE_DOCKER_READ/);
-assert.match(router, /path="docker\/overview"/);
+assert.match(router, /path="dashboard\/docker"/);
+assert.match(router, /path="docker\/overview" element=\{<Navigate replace to="\/dashboard\/docker" \/>\}/);
 assert.match(router, /path="docker\/projects"/);
 assert.match(router, /path="docker\/containers"/);
 assert.match(router, /path="docker\/images"/);

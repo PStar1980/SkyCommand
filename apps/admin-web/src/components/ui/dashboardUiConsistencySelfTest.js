@@ -74,6 +74,7 @@ for (const label of expectedDashboardLabels) {
   priorLabelIndex = labelIndex;
 }
 
+assert.match(dashboardGroupSource, /label: 'Docker'[\s\S]*?to: '\/dashboard\/docker'/);
 assert.doesNotMatch(dashboardGroupSource, /label: 'Readiness'/);
 assert.doesNotMatch(navbarSource, /'readiness dashboard': '\/dashboard\/readiness'/);
 assert.match(navbarSource, /readiness: '\/configuration\/production-readiness'/);
@@ -108,6 +109,11 @@ assert.match(dataGroupSource, /to: '\/data\/intelligence'/);
 assert.doesNotMatch(navbarSource, /label: 'Configuration'/);
 
 const routerSource = fs.readFileSync(path.join(sourceRoot, 'main.jsx'), 'utf8');
+assert.match(routerSource, /path="dashboard\/docker"/);
+assert.match(
+  routerSource,
+  /path="docker\/overview" element=\{<Navigate replace to="\/dashboard\/docker" \/>\}/,
+);
 assert.match(routerSource, /path="data\/intelligence"/);
 assert.match(routerSource, /path="data\/status" element=\{<Navigate replace to="\/data\/intelligence" \/>\}/);
 assert.match(routerSource, /<DataStatus \/>/);
