@@ -407,26 +407,33 @@ function ScriptExecutions() {
 
   function renderPagination() {
     return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
+      <div className="sky-pagination-row sky-tool-operations-pagination-row">
+        <div className="small sky-muted sky-tool-operations-pagination-summary">
           Showing {rangeStart}-{rangeEnd} of {total} tool execution(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Tool history pagination">
+        <div
+          className="sky-pagination-controls sky-tool-operations-pagination-controls"
+          aria-label="Tool operations pagination"
+        >
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="First page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || loading}
             onClick={() => goToPage(1)}
+            title="First page"
             type="button"
           >
-            First
+            «
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Previous page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || loading}
             onClick={() => goToPage(safeCurrentPage - 1)}
+            title="Previous page"
             type="button"
           >
-            Back
+            ‹
           </button>
           <label className="sky-pagination-select-label" htmlFor="toolHistoryPageSelect">
             Page
@@ -446,22 +453,27 @@ function ScriptExecutions() {
           </select>
           <span className="small sky-muted">of {pageCount}</span>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Next page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || loading}
             onClick={() => goToPage(safeCurrentPage + 1)}
+            title="Next page"
             type="button"
           >
-            Next
+            ›
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Last page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || loading}
             onClick={() => goToPage(pageCount)}
+            title="Last page"
             type="button"
           >
-            Last
+            »
           </button>
         </div>
+        <div className="sky-tool-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
@@ -576,8 +588,8 @@ function ScriptExecutions() {
             </div>
           </div>
 
-          <div className="table-responsive sky-table-card sky-functional-history-table-card">
-            <table className="table table-sm table-hover sky-table align-middle">
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-tool-operations-table-frame">
+            <table className="table table-sm table-hover sky-table sky-tool-operations-table align-middle">
               <thead>
                 <tr>
                   <th>Tool</th>

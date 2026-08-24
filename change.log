@@ -1,3 +1,10 @@
+## 2026-08-24 - Tool Operations canonical table prototype
+
+- Refined **Tools > Tool Operations > Execution Browser** as the prototype for the next SkyCommand table standard: the table is inset by the same `1rem` horizontal rhythm as the browser copy/filter content instead of running flush against the card edges.
+- Increased the Tool Operations table-header height and typography so column labels have stronger visual hierarchy without increasing the compact body-row density.
+- Centered pagination beneath the table using a balanced three-column footer and replaced First/Back/Next/Last text buttons with compact gold `« / ‹ / › / »` navigation controls while preserving the page selector and range summary.
+- Added routine `tool-operations-table:self-test` regression coverage for the inset table frame, enlarged header, centered pagination, and gold icon controls. No API, database, Host Agent, route, or environment change is required.
+
 ## 2026-08-24 - Dashboard surface rhythm and Docker route normalization
 
 - Standardized the remaining dashboard card spacing by removing legacy DashboardFilterCard and Docker dashboard row bottom margins that stacked on top of the global `1rem` surface gap.
