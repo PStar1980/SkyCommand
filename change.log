@@ -1,3 +1,10 @@
+## 2026-08-24 - Tool Operations table grid and row-state refinement
+
+- Refined the **Tools > Tool Operations > Execution Browser** prototype header typography so the taller header row remains visually strong while its label text sits slightly below the browser-kicker hierarchy.
+- Added a crisp Midnight Gold grid around the table perimeter, rows, and columns using the same outline family as the surrounding card.
+- Replaced the legacy selected-row gradient/fade with a uniform translucent-gold selection surface and bright gold perimeter; non-selected hover rows now keep a transparent background and use only the gold perimeter so hover and selection remain distinct.
+- Extended the Tool Operations table regression proof for header hierarchy, grid geometry, and selected/hover row-state styling. No API, database, Host Agent, route, or environment change is required.
+
 ## 2026-08-24 - Tool Operations canonical table prototype
 
 - Refined **Tools > Tool Operations > Execution Browser** as the prototype for the next SkyCommand table standard: the table is inset by the same `1rem` horizontal rhythm as the browser copy/filter content instead of running flush against the card edges.
