@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
@@ -834,6 +834,10 @@ function SchedulerControl({ view = 'manage' }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
+  const scheduleFilterTimerRef = useRef(null);
+  const runFilterTimerRef = useRef(null);
+  const scheduleRequestIdRef = useRef(0);
+  const runRequestIdRef = useRef(0);
 
   const workflowBridgeTool = useMemo(
     () => tools.find((tool) => isWorkflowBridgeTool(tool)) || null,
@@ -904,7 +908,14 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   async function loadSchedules(nextFilters = scheduleFilters) {
+    const requestId = scheduleRequestIdRef.current + 1;
+    scheduleRequestIdRef.current = requestId;
     const result = await workerService.listSchedules(nextFilters);
+
+    if (requestId !== scheduleRequestIdRef.current) {
+      return;
+    }
+
     const nextItems = result.items || [];
     setSchedules(nextItems);
     setScheduleTotal(result.total || 0);
@@ -923,7 +934,14 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   async function loadRuns(nextFilters = runFilters) {
+    const requestId = runRequestIdRef.current + 1;
+    runRequestIdRef.current = requestId;
     const result = await workerService.listRuns(nextFilters);
+
+    if (requestId !== runRequestIdRef.current) {
+      return;
+    }
+
     const nextItems = result.items || [];
     setRuns(nextItems);
     setRunTotal(result.total || 0);
@@ -1034,6 +1052,17 @@ function SchedulerControl({ view = 'manage' }) {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (scheduleFilterTimerRef.current) {
+        window.clearTimeout(scheduleFilterTimerRef.current);
+      }
+      if (runFilterTimerRef.current) {
+        window.clearTimeout(runFilterTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (view !== 'history' && view !== 'worker') {
       return undefined;
     }
@@ -1069,20 +1098,54 @@ function SchedulerControl({ view = 'manage' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, hasActiveScheduleRuns, runFilters, nodeFilters]);
 
+  function queueScheduleFilterLoad(nextFilters, delayMs = 0) {
+    if (scheduleFilterTimerRef.current) {
+      window.clearTimeout(scheduleFilterTimerRef.current);
+    }
+
+    scheduleFilterTimerRef.current = window.setTimeout(async () => {
+      setError('');
+      try {
+        await loadSchedules(nextFilters);
+      } catch (loadError) {
+        setError(loadError.message || 'Failed to load schedules.');
+      }
+    }, delayMs);
+  }
+
+  function queueRunFilterLoad(nextFilters, delayMs = 0) {
+    if (runFilterTimerRef.current) {
+      window.clearTimeout(runFilterTimerRef.current);
+    }
+
+    runFilterTimerRef.current = window.setTimeout(async () => {
+      setError('');
+      try {
+        await loadRuns(nextFilters);
+      } catch (loadError) {
+        setError(loadError.message || 'Failed to load schedule runs.');
+      }
+    }, delayMs);
+  }
+
   function updateScheduleFilter(name, value) {
-    setScheduleFilters((currentFilters) => ({
-      ...currentFilters,
+    const nextFilters = {
+      ...scheduleFilters,
       [name]: value,
       offset: 0,
-    }));
+    };
+    setScheduleFilters(nextFilters);
+    queueScheduleFilterLoad(nextFilters, name === 'q' ? 250 : 0);
   }
 
   function updateRunFilter(name, value) {
-    setRunFilters((currentFilters) => ({
-      ...currentFilters,
+    const nextFilters = {
+      ...runFilters,
       [name]: value,
       offset: 0,
-    }));
+    };
+    setRunFilters(nextFilters);
+    queueRunFilterLoad(nextFilters, name === 'q' ? 250 : 0);
   }
 
   function updateNodeFilter(name, value) {
@@ -1091,28 +1154,6 @@ function SchedulerControl({ view = 'manage' }) {
       [name]: value,
       offset: 0,
     }));
-  }
-
-  async function applyScheduleFilters(event) {
-    event.preventDefault();
-    setError('');
-
-    try {
-      await loadSchedules(scheduleFilters);
-    } catch (loadError) {
-      setError(loadError.message || 'Failed to load schedules.');
-    }
-  }
-
-  async function applyRunFilters(event) {
-    event.preventDefault();
-    setError('');
-
-    try {
-      await loadRuns(runFilters);
-    } catch (loadError) {
-      setError(loadError.message || 'Failed to load schedule runs.');
-    }
   }
 
   async function applyNodeFilters(event) {
@@ -1127,6 +1168,9 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   async function clearScheduleFilters() {
+    if (scheduleFilterTimerRef.current) {
+      window.clearTimeout(scheduleFilterTimerRef.current);
+    }
     const nextFilters = {
       enabled: '',
       scheduleType: '',
@@ -1140,6 +1184,9 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   async function clearRunFilters() {
+    if (runFilterTimerRef.current) {
+      window.clearTimeout(runFilterTimerRef.current);
+    }
     const nextFilters = {
       status: '',
       toolCode: '',
@@ -1634,6 +1681,9 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   function goToSchedulePage(page) {
+    if (scheduleFilterTimerRef.current) {
+      window.clearTimeout(scheduleFilterTimerRef.current);
+    }
     const nextPage = Math.min(Math.max(1, Number(page) || 1), schedulePageCount);
     const nextFilters = { ...scheduleFilters, offset: (nextPage - 1) * scheduleFilters.limit };
     setScheduleFilters(nextFilters);
@@ -1641,6 +1691,9 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   function goToRunPage(page) {
+    if (runFilterTimerRef.current) {
+      window.clearTimeout(runFilterTimerRef.current);
+    }
     const nextPage = Math.min(Math.max(1, Number(page) || 1), runPageCount);
     const nextFilters = { ...runFilters, offset: (nextPage - 1) * runFilters.limit };
     setRunFilters(nextFilters);
@@ -2188,26 +2241,37 @@ function SchedulerControl({ view = 'manage' }) {
 
         {view === 'manage' && (
           <div className="col-12">
-          <section className="sky-card sky-table-card h-100">
+          <section className="sky-card h-100 sky-scheduler-browser">
             <div className="sky-card-header">
-              <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div>
-                  <h2 className="h5 mb-1">Active Schedules</h2>
-                  <div className="small sky-muted">
-                    Showing {schedules.length} of {scheduleTotal} active schedule definition
-                    {scheduleTotal === 1 ? '' : 's'}.
-                  </div>
-                </div>
-                <form className="sky-inline-filter-form" onSubmit={applyScheduleFilters}>
+              <div>
+                <div className="sky-page-kicker">Schedule browser</div>
+                <h2 className="h5 mb-0">Schedule definitions</h2>
+                <p className="sky-muted small mb-0">
+                  Search and filter active or future schedule definitions, then inspect and manage the
+                  selected schedule below.
+                </p>
+              </div>
+              <div className="sky-history-browser-filter-grid sky-schedule-browser-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="manageScheduleSearch">
+                    Search
+                  </label>
                   <input
-                    className="form-control form-control-sm sky-form-control"
+                    className="form-control sky-form-control"
+                    id="manageScheduleSearch"
                     onChange={(event) => updateScheduleFilter('q', event.target.value)}
-                    placeholder="Search schedules"
+                    placeholder="Schedule, code, target..."
                     type="search"
                     value={scheduleFilters.q}
                   />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="manageScheduleState">
+                    State
+                  </label>
                   <select
-                    className="form-select form-select-sm sky-form-control"
+                    className="form-select sky-form-control"
+                    id="manageScheduleState"
                     onChange={(event) => updateScheduleFilter('enabled', event.target.value)}
                     value={scheduleFilters.enabled}
                   >
@@ -2215,27 +2279,48 @@ function SchedulerControl({ view = 'manage' }) {
                     <option value="true">Enabled</option>
                     <option value="false">Disabled</option>
                   </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="manageScheduleType">
+                    Type
+                  </label>
                   <select
-                    className="form-select form-select-sm sky-form-control"
+                    className="form-select sky-form-control"
+                    id="manageScheduleType"
                     onChange={(event) => updateScheduleFilter('scheduleType', event.target.value)}
                     value={scheduleFilters.scheduleType}
                   >
                     <option value="">All types</option>
-                    <option value="ONCE">ONCE</option>
-                    <option value="INTERVAL">INTERVAL</option>
+                    <option value="ONCE">One-time</option>
+                    <option value="INTERVAL">Recurring</option>
                   </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="manageScheduleStatus">
+                    Status
+                  </label>
                   <select
-                    className="form-select form-select-sm sky-form-control"
+                    className="form-select sky-form-control"
+                    id="manageScheduleStatus"
                     onChange={(event) => updateScheduleFilter('status', event.target.value)}
                     value={scheduleFilters.status}
                   >
                     {STATUS_OPTIONS.map((option) => (
-                      <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                      <option key={option.value || 'all'} value={option.value}>
+                        {option.label}
+                      </option>
                     ))}
                   </select>
-                  <button className="btn btn-sm sky-btn-primary" type="submit">Apply filters</button>
-                  <button className="btn btn-sm sky-btn-ghost" onClick={clearScheduleFilters} type="button">Clear filters</button>
-                </form>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    onClick={clearScheduleFilters}
+                    type="button"
+                  >
+                    Clear filters
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2245,9 +2330,9 @@ function SchedulerControl({ view = 'manage' }) {
                 <div className="mt-3">Loading worker schedules...</div>
               </div>
             ) : schedules.length === 0 ? (
-              <div className="sky-empty-state">No active schedules found.</div>
+              <div className="sky-empty-state">No schedule definitions found for these filters.</div>
             ) : (
-              <div className="table-responsive">
+              <div className="table-responsive sky-table-card">
                 <table className="table table-hover sky-table">
                   <thead>
                     <tr>
@@ -2533,26 +2618,37 @@ function SchedulerControl({ view = 'manage' }) {
 
         {view === 'history' && (
           <div className="col-12">
-          <section className="sky-card sky-table-card h-100">
+          <section className="sky-card h-100 sky-scheduler-browser">
             <div className="sky-card-header">
-              <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div>
-                  <h2 className="h5 mb-1">Schedule runs</h2>
-                  <div className="small sky-muted">
-                    Showing {runs.length} of {runTotal} worker run record{runTotal === 1 ? '' : 's'}
-                    .
-                  </div>
-                </div>
-                <form className="sky-inline-filter-form" onSubmit={applyRunFilters}>
+              <div>
+                <div className="sky-page-kicker">Run browser</div>
+                <h2 className="h5 mb-0">Scheduler operations data</h2>
+                <p className="sky-muted small mb-0">
+                  Search scheduled executions by status or target, then inspect the selected run in
+                  the detail workspace below.
+                </p>
+              </div>
+              <div className="sky-history-browser-filter-grid">
+                <div className="sky-run-tools-search-filter">
+                  <label className="form-label" htmlFor="schedulerRunSearch">
+                    Search
+                  </label>
                   <input
-                    className="form-control form-control-sm sky-form-control"
+                    className="form-control sky-form-control"
+                    id="schedulerRunSearch"
                     onChange={(event) => updateRunFilter('q', event.target.value)}
-                    placeholder="Search runs"
+                    placeholder="Schedule, code, target, node..."
                     type="search"
                     value={runFilters.q}
                   />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="schedulerRunStatus">
+                    Status
+                  </label>
                   <select
-                    className="form-select form-select-sm sky-form-control"
+                    className="form-select sky-form-control"
+                    id="schedulerRunStatus"
                     onChange={(event) => updateRunFilter('status', event.target.value)}
                     value={runFilters.status}
                   >
@@ -2562,8 +2658,14 @@ function SchedulerControl({ view = 'manage' }) {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="schedulerRunTarget">
+                    Target
+                  </label>
                   <select
-                    className="form-select form-select-sm sky-form-control"
+                    className="form-select sky-form-control"
+                    id="schedulerRunTarget"
                     onChange={(event) => updateRunFilter('toolCode', event.target.value)}
                     value={runFilters.toolCode}
                   >
@@ -2574,18 +2676,25 @@ function SchedulerControl({ view = 'manage' }) {
                       </option>
                     ))}
                   </select>
-                  <button className="btn btn-sm sky-btn-primary" type="submit">Apply filters</button>
-                  <button className="btn btn-sm sky-btn-ghost" onClick={clearRunFilters} type="button">Clear filters</button>
-                </form>
+                </div>
+                <div className="sky-run-tools-filter-actions">
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    onClick={clearRunFilters}
+                    type="button"
+                  >
+                    Clear filters
+                  </button>
+                </div>
               </div>
             </div>
 
             {loading ? (
               <div className="sky-empty-state">Loading worker run history...</div>
             ) : runs.length === 0 ? (
-              <div className="sky-empty-state">No worker runs found yet.</div>
+              <div className="sky-empty-state">No scheduled runs found for these filters.</div>
             ) : (
-              <div className="table-responsive">
+              <div className="table-responsive sky-table-card">
                 <table className="table table-hover sky-table">
                   <thead>
                     <tr>

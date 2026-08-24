@@ -1645,3 +1645,11 @@ SkyWeb Analytics owns:
 - Extended the API database health contract with PostgreSQL version/server-port metadata so cutover verification can prove the API and host CLI are attached to the same Docker database.
 - Expanded `skycommand:docker:*` commands so the normal full-stack lifecycle now includes PostgreSQL.
 
+
+## 2026-08-23 — Automation scheduler browser refinement
+
+- Restyled Automation > Scheduler Operations and Automation > Manage Schedules browser headers to match the Workflow Operations pattern, including browser kickers, descriptive copy, labeled Midnight Gold search/filter controls, and standardized Clear filters placement.
+- Removed the manual Apply filters actions from both schedule browsers. Select filters now apply immediately and text search auto-applies with a short debounce.
+- Added stale-response protection for scheduler definition/run queries so rapid filter changes cannot allow an older response to overwrite newer results.
+- Kept 10-row pagination, selection/detail workspaces, smart polling, scheduling behavior, and scheduler API contracts unchanged.
+- Registered the scheduler browser regression proof in routine validation.
