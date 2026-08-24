@@ -151,9 +151,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
-            <Route path="docker" element={<Navigate replace to="/docker/overview" />} />
+            <Route path="docker" element={<Navigate replace to="/dashboard/docker" />} />
+            <Route path="docker/overview" element={<Navigate replace to="/dashboard/docker" />} />
             <Route
-              path="docker/overview"
+              path="dashboard/docker"
               element={
                 <ProtectedRoute permissionCode="INFRASTRUCTURE_DOCKER_READ">
                   <DockerOverview />

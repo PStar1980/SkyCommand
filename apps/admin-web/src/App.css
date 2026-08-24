@@ -7309,6 +7309,12 @@ select.sky-form-control optgroup {
     var(--sky-page-gutter);
 }
 
+/* Dashboard-local outer spacing must not stack on top of the shared page rhythm.
+   Bootstrap row gutter math remains intact; only the row's outer bottom margin is normalized. */
+.sky-app-shell-authenticated :is(.sky-dashboard-filter-card, .sky-dashboard-surface-row) {
+  margin-bottom: 0 !important;
+}
+
 /* Top-level page surfaces use the shared flex gap instead of local Bootstrap margins.
    Bootstrap rows are deliberately excluded so their internal gutter math remains intact. */
 .sky-app-shell-authenticated .sky-main

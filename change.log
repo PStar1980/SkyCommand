@@ -1,3 +1,9 @@
+## 2026-08-24 - Dashboard surface rhythm and Docker route normalization
+
+- Standardized the remaining dashboard card spacing by removing legacy DashboardFilterCard and Docker dashboard row bottom margins that stacked on top of the global `1rem` surface gap.
+- Changed the canonical Docker dashboard route to `/dashboard/docker` so it follows the other dashboard URL conventions while retaining `/docker/overview` and `/docker` as compatibility redirects.
+- Updated command-search/navigation aliases and regression coverage for the canonical Docker dashboard route and dashboard spacing contract. No API, database, Host Agent, or environment change is required.
+
 ## 2026-08-23 - Global card spacing and near-square surface geometry
 
 - Added shared authenticated layout tokens for the page-edge gutter, top-level card gap, and card corner radius so core pages no longer rely on a mixture of individual Bootstrap margins for their primary vertical rhythm.

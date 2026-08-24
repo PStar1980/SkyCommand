@@ -9,6 +9,11 @@ function assert(condition, message) {
 
 const cssPath = path.join(__dirname, '..', '..', 'App.css');
 const cssSource = fs.readFileSync(cssPath, 'utf8');
+const dashboardFilterSource = fs.readFileSync(path.join(__dirname, 'DashboardFilterCard.jsx'), 'utf8');
+const dockerOverviewSource = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'pages', 'DockerOverview.jsx'),
+  'utf8',
+);
 
 assert(
   cssSource.includes('--sky-page-gutter: 1rem;') &&
@@ -46,6 +51,20 @@ assert(
     cssSource.includes('padding-right: var(--sky-page-gutter);') &&
     !cssSource.includes('.sky-app-shell-authenticated .sky-main.sky-main-workbench {\n  max-width: none;\n  padding-right: 2rem;'),
   'Legacy workbench routes must use the canonical authenticated right-side page gutter instead of retaining the older 2rem exception.',
+);
+
+assert(
+  cssSource.includes('Dashboard-local outer spacing must not stack on top of the shared page rhythm.') &&
+    cssSource.includes(':is(.sky-dashboard-filter-card, .sky-dashboard-surface-row)') &&
+    cssSource.includes('margin-bottom: 0 !important;'),
+  'Dashboard filter cards and dashboard surface rows must not stack legacy bottom margins on top of the canonical page gap.',
+);
+
+assert(
+  !dashboardFilterSource.includes('sky-dashboard-filter-card mb-3') &&
+    !dockerOverviewSource.includes('row g-3 mb-3') &&
+    (dockerOverviewSource.match(/sky-dashboard-surface-row/g) || []).length >= 3,
+  'Dashboard pages must not carry local bottom margins that double the canonical surface gap.',
 );
 
 assert(

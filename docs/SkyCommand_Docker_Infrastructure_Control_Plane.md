@@ -57,6 +57,8 @@ Admin-Web consumes normalized provider contracts rather than raw Docker payloads
 
 ### Docker dashboard
 
+Canonical Admin-Web route: `/dashboard/docker` (`/docker/overview` remains a compatibility redirect).
+
 Provides:
 
 - Host Agent target status and Docker Engine/provider status.
