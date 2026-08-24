@@ -3427,7 +3427,8 @@ select.sky-form-control optgroup {
 
 .sky-app-shell-authenticated .sky-main.sky-main-workbench {
   max-width: none;
-  padding-right: 2rem;
+  /* Legacy workbench pages must share the same authenticated page-edge gutter as newer surfaces. */
+  padding-right: var(--sky-page-gutter);
 }
 
 .sky-workflow-visual-map {

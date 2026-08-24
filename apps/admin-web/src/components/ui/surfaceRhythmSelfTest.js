@@ -42,6 +42,13 @@ assert(
 );
 
 assert(
+  cssSource.includes('.sky-app-shell-authenticated .sky-main.sky-main-workbench {') &&
+    cssSource.includes('padding-right: var(--sky-page-gutter);') &&
+    !cssSource.includes('.sky-app-shell-authenticated .sky-main.sky-main-workbench {\n  max-width: none;\n  padding-right: 2rem;'),
+  'Legacy workbench routes must use the canonical authenticated right-side page gutter instead of retaining the older 2rem exception.',
+);
+
+assert(
   cssSource.includes('Primary page/card surfaces are intentionally almost square') &&
     cssSource.includes('.sky-server-status-card,') &&
     cssSource.includes('.sky-source-card,') &&
