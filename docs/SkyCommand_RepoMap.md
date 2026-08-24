@@ -159,6 +159,7 @@ SkyCommand/
 │   │       │   ├── SkyWorkflows.jsx
 │   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── toolHistoryCatalogueSelfTest.js
+│   │       │   ├── toolOperationsTableRefinementSelfTest.js
 │   │       │   ├── Tools.jsx
 │   │       │   ├── ToolsDashboard.jsx
 │   │       │   ├── WorkerControl.jsx

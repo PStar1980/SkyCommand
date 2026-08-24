@@ -152,6 +152,7 @@
     "api-telemetry:self-test": "node apps/api/src/services/apiTelemetryPolicySelfTest.js",
     "api-dashboard:self-test": "node apps/admin-web/src/pages/apiDashboardSelfTest.js",
     "tool-execution-output-workspace:self-test": "node apps/api/src/services/toolExecutionOutputWorkspaceSelfTest.js",
+    "tool-operations-table:self-test": "node apps/admin-web/src/pages/toolOperationsTableRefinementSelfTest.js",
     "workflow-start-catalogue:self-test": "node apps/admin-web/src/pages/workflowStartCatalogueSelfTest.js",
     "workflow-clone-parity:self-test": "node apps/api/src/services/workflowCloneParitySelfTest.js",
     "workflow-host-agent-preflight:self-test": "node apps/api/src/services/workflowExecutionPreflightSelfTest.js",
