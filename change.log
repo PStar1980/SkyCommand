@@ -1661,3 +1661,9 @@ SkyWeb Analytics owns:
 - Added stale-response protection for scheduler definition/run queries so rapid filter changes cannot allow an older response to overwrite newer results.
 - Kept 10-row pagination, selection/detail workspaces, smart polling, scheduling behavior, and scheduler API contracts unchanged.
 - Registered the scheduler browser regression proof in routine validation.
+
+## 2026-08-24 — Legacy workbench page-gutter normalization
+
+- Removed the legacy 2rem right-side padding exception from authenticated workbench routes so Dashboards, Tools, Workflows, Automation, Access Control, Readiness, and other established workbench surfaces use the same canonical page gutter as newer Git Repositories and Docker pages.
+- Kept the shared 1rem desktop / 0.85rem mobile surface-rhythm tokens and internal card gaps unchanged; this refinement only removes the extra legacy right-side whitespace.
+- Extended the global surface-rhythm regression proof to prevent the higher-specificity workbench rule from overriding the canonical right gutter again.
