@@ -272,7 +272,7 @@ function AutomationListeners() {
         </div>
       </section>
 
-      <div className="row g-3">
+      <div className="row g-3 sky-automation-surface-row">
         {statCards.map((card) => (
           <div className="col-md-6 col-xl-3" key={card.label}>
             <section className="sky-card sky-stat-card sky-worker-stat-card">
@@ -291,7 +291,7 @@ function AutomationListeners() {
         ))}
       </div>
 
-      <div className="row g-3 mt-1">
+      <div className="row g-3 sky-automation-surface-row">
         <div className="col-xl-8">
           <section className="sky-card sky-table-card h-100">
             <div className="sky-card-header">

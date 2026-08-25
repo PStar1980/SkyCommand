@@ -7315,6 +7315,13 @@ select.sky-form-control optgroup {
   margin-bottom: 0 !important;
 }
 
+/* Automation pages use Bootstrap rows for responsive card groups. Keep the row's native
+   negative top gutter so the shared page-shell gap remains the only outer card spacing. */
+.sky-app-shell-authenticated .sky-main > .sky-automation-surface-row {
+  margin-top: calc(-1 * var(--bs-gutter-y)) !important;
+  margin-bottom: 0 !important;
+}
+
 /* Top-level page surfaces use the shared flex gap instead of local Bootstrap margins.
    Bootstrap rows are deliberately excluded so their internal gutter math remains intact. */
 .sky-app-shell-authenticated .sky-main

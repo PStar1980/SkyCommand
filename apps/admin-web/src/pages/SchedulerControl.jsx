@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
-import { getNextSortState, serializeSorts } from '../utils/tableSorting.js';
+import { getNextSortState, serializeSorts, sortItemsBySorts } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SCHEDULE_TARGET_TYPE_OPTIONS = [
@@ -35,9 +35,11 @@ const STATUS_OPTIONS = [
 
 const DEFAULT_TIMEZONE = 'America/Toronto';
 const SCHEDULER_PAGE_SIZE = 10;
+const SCHEDULE_FETCH_LIMIT = 500;
 const SCHEDULER_HISTORY_POLL_FAST_MS = 2500;
 const SCHEDULER_HISTORY_POLL_IDLE_MS = 15000;
 const WORKER_HISTORY_POLL_MS = 10000;
+const SCHEDULE_DEFAULT_SORTS = [{ field: 'schedule', direction: 'asc' }];
 const SCHEDULER_RUN_DEFAULT_SORTS = [{ field: 'queuedAt', direction: 'desc' }];
 const WORKER_NODE_DEFAULT_SORTS = [
   { field: 'status', direction: 'asc' },
@@ -562,6 +564,37 @@ function getScheduleTargetCode(schedule) {
   return schedule.toolCode;
 }
 
+function getScheduleSortValue(schedule, field, workflows = []) {
+  if (field === 'schedule') {
+    return `${schedule?.scheduleName || ''} ${schedule?.scheduleCode || ''}`.trim();
+  }
+
+  if (field === 'type') {
+    return getScheduleTargetType(schedule);
+  }
+
+  if (field === 'target') {
+    return `${getScheduleTargetLabel(schedule, workflows)} ${getScheduleTargetCode(schedule)}`.trim();
+  }
+
+  if (field === 'timing') {
+    return schedule?.scheduleType || '';
+  }
+
+  if (field === 'latestRun') {
+    return normalizeStatus(schedule?.lastStatus) || null;
+  }
+
+  if (field === 'nextRun') {
+    return schedule?.nextRunAt || null;
+  }
+
+  if (field === 'status') {
+    return schedule?.enabled ? 1 : 0;
+  }
+
+  return schedule?.[field] ?? '';
+}
 
 function getJsonPreview(value) {
   try {
@@ -803,7 +836,6 @@ function SchedulerControl({ view = 'manage' }) {
   const [activeWorkflows, setActiveWorkflows] = useState([]);
   const [repositoryOptions, setRepositoryOptions] = useState([]);
   const [schedules, setSchedules] = useState([]);
-  const [scheduleTotal, setScheduleTotal] = useState(0);
   const [runs, setRuns] = useState([]);
   const [runTotal, setRunTotal] = useState(0);
   const [nodes, setNodes] = useState([]);
@@ -834,6 +866,8 @@ function SchedulerControl({ view = 'manage' }) {
     limit: SCHEDULER_PAGE_SIZE,
     offset: 0,
   });
+  const [scheduleSorts, setScheduleSorts] = useState(() => SCHEDULE_DEFAULT_SORTS);
+  const [scheduleSortingCustomized, setScheduleSortingCustomized] = useState(false);
   const [runSorts, setRunSorts] = useState(() => SCHEDULER_RUN_DEFAULT_SORTS);
   const [runSortingCustomized, setRunSortingCustomized] = useState(false);
   const [nodeSorts, setNodeSorts] = useState(() => WORKER_NODE_DEFAULT_SORTS);
@@ -869,10 +903,25 @@ function SchedulerControl({ view = 'manage' }) {
     [activeWorkflows, selectedWorkflowCode],
   );
   const statCards = useMemo(() => buildStatCards(health, tools), [health, tools]);
-  const schedulePageCount = Math.max(1, Math.ceil(scheduleTotal / scheduleFilters.limit));
+  const sortedSchedules = useMemo(
+    () => sortItemsBySorts(
+      schedules,
+      scheduleSorts,
+      (schedule, field) => getScheduleSortValue(schedule, field, activeWorkflows),
+    ),
+    [activeWorkflows, scheduleSorts, schedules],
+  );
+  const schedulePageCount = Math.max(1, Math.ceil(sortedSchedules.length / scheduleFilters.limit));
   const currentSchedulePage = Math.min(
     Math.floor(scheduleFilters.offset / scheduleFilters.limit) + 1,
     schedulePageCount,
+  );
+  const visibleSchedules = useMemo(
+    () => sortedSchedules.slice(
+      (currentSchedulePage - 1) * scheduleFilters.limit,
+      currentSchedulePage * scheduleFilters.limit,
+    ),
+    [currentSchedulePage, scheduleFilters.limit, sortedSchedules],
   );
   const runPageCount = Math.max(1, Math.ceil(runTotal / runFilters.limit));
   const currentRunPage = Math.min(
@@ -922,24 +971,51 @@ function SchedulerControl({ view = 'manage' }) {
   async function loadSchedules(nextFilters = scheduleFilters) {
     const requestId = scheduleRequestIdRef.current + 1;
     scheduleRequestIdRef.current = requestId;
-    const result = await workerService.listSchedules(nextFilters);
+    const baseFilters = {
+      ...nextFilters,
+      limit: SCHEDULE_FETCH_LIMIT,
+      offset: 0,
+    };
+    const nextItems = [];
+    let total = 0;
+    let offset = 0;
 
-    if (requestId !== scheduleRequestIdRef.current) {
-      return;
-    }
+    do {
+      const result = await workerService.listSchedules({
+        ...baseFilters,
+        offset,
+      });
 
-    const nextItems = result.items || [];
+      if (requestId !== scheduleRequestIdRef.current) {
+        return;
+      }
+
+      const batch = result.items || [];
+      total = Number(result.total || 0);
+      nextItems.push(...batch);
+      offset += batch.length;
+
+      if (batch.length === 0) {
+        break;
+      }
+    } while (nextItems.length < total);
+
+    const sortedNextItems = sortItemsBySorts(
+      nextItems,
+      scheduleSorts,
+      (schedule, field) => getScheduleSortValue(schedule, field, activeWorkflows),
+    );
+
     setSchedules(nextItems);
-    setScheduleTotal(result.total || 0);
 
     setSelectedSchedule((currentSelected) => {
       if (!currentSelected) {
-        return nextItems[0] || null;
+        return sortedNextItems[0] || null;
       }
 
       return (
         nextItems.find((schedule) => schedule.scheduleId === currentSelected.scheduleId) ||
-        nextItems[0] ||
+        sortedNextItems[0] ||
         null
       );
     });
@@ -1716,9 +1792,10 @@ function SchedulerControl({ view = 'manage' }) {
       window.clearTimeout(scheduleFilterTimerRef.current);
     }
     const nextPage = Math.min(Math.max(1, Number(page) || 1), schedulePageCount);
-    const nextFilters = { ...scheduleFilters, offset: (nextPage - 1) * scheduleFilters.limit };
-    setScheduleFilters(nextFilters);
-    loadSchedules(nextFilters);
+    setScheduleFilters((current) => ({
+      ...current,
+      offset: (nextPage - 1) * current.limit,
+    }));
   }
 
   function goToRunPage(page) {
@@ -1738,32 +1815,6 @@ function SchedulerControl({ view = 'manage' }) {
     loadNodes(nextFilters, nodeSorts);
   }
 
-  function renderPagination({ currentPage, pageCount, total, label, onPageChange }) {
-    const rangeStart = total === 0 ? 0 : (currentPage - 1) * SCHEDULER_PAGE_SIZE + 1;
-    const rangeEnd = Math.min(currentPage * SCHEDULER_PAGE_SIZE, total);
-    const selectId = `${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-page-select`;
-
-    return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
-          Showing {rangeStart}-{rangeEnd} of {total} {label}
-        </div>
-        <div className="sky-pagination-controls" aria-label={`${label} pagination`}>
-          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage <= 1} onClick={() => onPageChange(1)} type="button">First</button>
-          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} type="button">Back</button>
-          <label className="sky-pagination-select-label" htmlFor={selectId}>Page</label>
-          <select className="form-select form-select-sm sky-form-control sky-pagination-select" id={selectId} onChange={(event) => onPageChange(event.target.value)} value={currentPage}>
-            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
-              <option key={page} value={page}>{page}</option>
-            ))}
-          </select>
-          <span className="small sky-muted">of {pageCount}</span>
-          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage >= pageCount} onClick={() => onPageChange(currentPage + 1)} type="button">Next</button>
-          <button className="btn btn-sm sky-btn-ghost" disabled={currentPage >= pageCount} onClick={() => onPageChange(pageCount)} type="button">Last</button>
-        </div>
-      </div>
-    );
-  }
 
   function applyRunSorting(nextSorts, customized) {
     const nextFilters = { ...runFilters, offset: 0 };
@@ -1779,6 +1830,38 @@ function SchedulerControl({ view = 'manage' }) {
     setNodeSortingCustomized(customized);
     setNodeFilters(nextFilters);
     loadNodes(nextFilters, nextSorts);
+  }
+
+  function applyScheduleSorting(nextSorts, customized) {
+    const sortedItems = sortItemsBySorts(
+      schedules,
+      nextSorts,
+      (schedule, field) => getScheduleSortValue(schedule, field, activeWorkflows),
+    );
+    const selectedIndex = selectedSchedule?.scheduleId
+      ? sortedItems.findIndex((schedule) => schedule.scheduleId === selectedSchedule.scheduleId)
+      : -1;
+    const nextPage = selectedIndex >= 0
+      ? Math.floor(selectedIndex / scheduleFilters.limit) + 1
+      : 1;
+
+    setScheduleSorts(nextSorts);
+    setScheduleSortingCustomized(customized);
+    setScheduleFilters((current) => ({
+      ...current,
+      offset: (nextPage - 1) * current.limit,
+    }));
+  }
+
+  function updateScheduleSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts: scheduleSorts,
+      defaultSorts: SCHEDULE_DEFAULT_SORTS,
+      sortingCustomized: scheduleSortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applyScheduleSorting(nextState.sorts, nextState.customized);
   }
 
   function updateRunSorting(field, event) {
@@ -1952,7 +2035,7 @@ function SchedulerControl({ view = 'manage' }) {
         </div>
       </section>
 
-      <div className="row g-3">
+      <div className="row g-3 sky-automation-surface-row">
         {statCards.map((card) => (
           <div className="col-md-6 col-xl-2" key={card.label}>
             <section className="sky-card sky-stat-card sky-worker-stat-card">
@@ -1975,7 +2058,7 @@ function SchedulerControl({ view = 'manage' }) {
       )}
 
       {(view === 'create' || view === 'manage') && (
-      <div className="row g-3 mt-1">
+      <div className="row g-3 sky-automation-surface-row">
         {(view === 'create' || (view === 'manage' && formMode === 'edit')) && (
           <div className="col-12">
           <section className="sky-card h-100">
@@ -2402,7 +2485,7 @@ function SchedulerControl({ view = 'manage' }) {
                 </div>
                 <div>
                   <label className="form-label" htmlFor="manageScheduleType">
-                    Type
+                    Timing
                   </label>
                   <select
                     className="form-select sky-form-control"
@@ -2410,7 +2493,7 @@ function SchedulerControl({ view = 'manage' }) {
                     onChange={(event) => updateScheduleFilter('scheduleType', event.target.value)}
                     value={scheduleFilters.scheduleType}
                   >
-                    <option value="">All types</option>
+                    <option value="">All timings</option>
                     <option value="ONCE">One-time</option>
                     <option value="INTERVAL">Recurring</option>
                   </select>
@@ -2433,6 +2516,15 @@ function SchedulerControl({ view = 'manage' }) {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {scheduleSortingCustomized && (
+                    <button
+                      className="btn btn-sm sky-btn-ghost"
+                      onClick={() => applyScheduleSorting(SCHEDULE_DEFAULT_SORTS, false)}
+                      type="button"
+                    >
+                      Clear sorting
+                    </button>
+                  )}
                   <button
                     className="btn btn-sm sky-btn-ghost"
                     onClick={clearScheduleFilters}
@@ -2449,23 +2541,24 @@ function SchedulerControl({ view = 'manage' }) {
                 <div className="spinner-border text-info" role="status" aria-label="Loading" />
                 <div className="mt-3">Loading worker schedules...</div>
               </div>
-            ) : schedules.length === 0 ? (
+            ) : visibleSchedules.length === 0 ? (
               <div className="sky-empty-state">No schedule definitions found for these filters.</div>
             ) : (
-              <div className="table-responsive sky-table-card">
-                <table className="table table-hover sky-table">
+              <div className="table-responsive sky-table-card sky-canonical-operations-table-frame">
+                <table className="table table-hover sky-table sky-canonical-operations-table">
                   <thead>
                     <tr>
-                      <th>Schedule</th>
-                      <th>Target</th>
-                      <th>Type</th>
-                      <th>Next Run</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      {renderSortableHeader('Schedule', 'schedule', scheduleSorts, updateScheduleSorting)}
+                      {renderSortableHeader('Type', 'type', scheduleSorts, updateScheduleSorting)}
+                      {renderSortableHeader('Target', 'target', scheduleSorts, updateScheduleSorting)}
+                      {renderSortableHeader('Timing', 'timing', scheduleSorts, updateScheduleSorting)}
+                      {renderSortableHeader('Latest Run', 'latestRun', scheduleSorts, updateScheduleSorting)}
+                      {renderSortableHeader('Next Run', 'nextRun', scheduleSorts, updateScheduleSorting)}
+                      {renderSortableHeader('Status', 'status', scheduleSorts, updateScheduleSorting)}
                     </tr>
                   </thead>
                   <tbody>
-                    {schedules.map((schedule) => (
+                    {visibleSchedules.map((schedule) => (
                       <tr
                         className={`sky-clickable-row ${
                           selectedSchedule?.scheduleId === schedule.scheduleId
@@ -2480,89 +2573,41 @@ function SchedulerControl({ view = 'manage' }) {
                           <div className="small sky-muted sky-mono">{schedule.scheduleCode}</div>
                         </td>
                         <td>
-                          <div className="d-flex flex-column gap-1 align-items-start">
-                            <span
-                              className={`sky-pill ${
-                                getScheduleTargetType(schedule) === 'WORKFLOW'
-                                  ? 'sky-pill-success'
-                                  : 'sky-pill-info'
-                              }`}
-                            >
-                              {getScheduleTargetType(schedule)}
-                            </span>
-                            <div className="fw-bold sky-detail-value">
-                              {getScheduleTargetLabel(schedule, activeWorkflows)}
-                            </div>
-                            <div className="small sky-muted sky-mono">
-                              {getScheduleTargetCode(schedule)}
-                            </div>
+                          <span
+                            className={`sky-pill ${
+                              getScheduleTargetType(schedule) === 'WORKFLOW'
+                                ? 'sky-pill-success'
+                                : 'sky-pill-info'
+                            }`}
+                          >
+                            {getScheduleTargetType(schedule)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="fw-bold sky-detail-value">
+                            {getScheduleTargetLabel(schedule, activeWorkflows)}
+                          </div>
+                          <div className="small sky-muted sky-mono">
+                            {getScheduleTargetCode(schedule)}
                           </div>
                         </td>
                         <td>{schedule.scheduleType}</td>
+                        <td>
+                          {schedule.lastStatus ? (
+                            <span className={`sky-pill ${statusClass(schedule.lastStatus)}`}>
+                              {getStatusLabel(schedule.lastStatus)}
+                            </span>
+                          ) : (
+                            <span className="sky-muted">—</span>
+                          )}
+                        </td>
                         <td>{formatDate(schedule.nextRunAt)}</td>
                         <td>
-                          <div className="d-flex flex-column gap-1 align-items-start">
-                            <span
-                              className={`sky-pill ${schedule.enabled ? 'sky-pill-success' : 'sky-pill-info'}`}
-                            >
-                              {schedule.enabled ? 'ENABLED' : 'DISABLED'}
-                            </span>
-                            {schedule.lastStatus && (
-                              <span className={`sky-pill ${statusClass(schedule.lastStatus)}`}>
-                                {getStatusLabel(schedule.lastStatus)}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          <div
-                            className="d-flex flex-wrap gap-2"
-                            onClick={(event) => event.stopPropagation()}
+                          <span
+                            className={`sky-pill ${schedule.enabled ? 'sky-pill-success' : 'sky-pill-info'}`}
                           >
-                            <button
-                              className="btn btn-sm sky-btn-ghost"
-                              disabled={!canChangeSchedules || actionLoading}
-                              onClick={() => editSchedule(schedule)}
-                              type="button"
-                            >
-                              Edit
-                            </button>
-                            {schedule.isQueued ? (
-                              <button
-                                className="btn btn-sm sky-btn-ghost"
-                                disabled={!canChangeSchedules || actionLoading}
-                                onClick={() => handleUnqueueSchedule(schedule)}
-                                type="button"
-                              >
-                                Unqueue
-                              </button>
-                            ) : (
-                              <button
-                                className="btn btn-sm sky-btn-ghost"
-                                disabled={!canRunSchedules || actionLoading || !schedule.enabled}
-                                onClick={() => handleQueueNow(schedule)}
-                                type="button"
-                              >
-                                Queue now
-                              </button>
-                            )}
-                            <button
-                              className="btn btn-sm sky-btn-ghost"
-                              disabled={!canChangeSchedules || actionLoading}
-                              onClick={() => handleScheduleStatus(schedule, !schedule.enabled)}
-                              type="button"
-                            >
-                              {schedule.enabled ? 'Disable' : 'Enable'}
-                            </button>
-                            <button
-                              className="btn btn-sm sky-btn-ghost text-danger"
-                              disabled={!canChangeSchedules || actionLoading}
-                              onClick={() => handleDeleteSchedule(schedule)}
-                              type="button"
-                            >
-                              Delete
-                            </button>
-                          </div>
+                            {schedule.enabled ? 'ENABLED' : 'DISABLED'}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -2570,12 +2615,13 @@ function SchedulerControl({ view = 'manage' }) {
                 </table>
               </div>
             )}
-            {renderPagination({
+            {renderCanonicalPagination({
               currentPage: currentSchedulePage,
               pageCount: schedulePageCount,
-              total: scheduleTotal,
+              total: sortedSchedules.length,
               label: 'schedule definition(s)',
               onPageChange: goToSchedulePage,
+              idPrefix: 'manage-schedules',
             })}
           </section>
           </div>
@@ -2585,10 +2631,10 @@ function SchedulerControl({ view = 'manage' }) {
       )}
 
       {(view === 'manage' || view === 'history') && (
-      <div className="row g-3 mt-1">
+      <div className="row g-3 sky-automation-surface-row">
         {view === 'manage' && (
           <div className="col-12">
-          <section className="sky-card sky-sticky-detail-card">
+          <section className="sky-card sky-scheduler-detail-card">
             <div className="sky-card-header d-flex align-items-center justify-content-between gap-2">
               <div>
                 <h2 className="h5 mb-1">Schedule detail</h2>
@@ -2873,7 +2919,7 @@ function SchedulerControl({ view = 'manage' }) {
       )}
 
       {(view === 'history' || view === 'worker') && (
-      <div className="row g-3 mt-1">
+      <div className="row g-3 sky-automation-surface-row">
         {view === 'history' && (
           <div className="col-12">
           <section className="sky-card h-100">
