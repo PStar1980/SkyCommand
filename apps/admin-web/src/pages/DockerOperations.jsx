@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import infrastructureService from '../services/infrastructureService.js';
+import { getNextSortState, serializeSorts } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const PAGE_SIZE = 10;
+const DOCKER_OPERATIONS_DEFAULT_SORTS = [{ field: 'requestedAt', direction: 'desc' }];
 const DEFAULT_FILTERS = {
   q: '',
   scope: '',
@@ -79,6 +81,8 @@ function DockerOperations() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sorts, setSorts] = useState(() => DOCKER_OPERATIONS_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const requestSequence = useRef(0);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -86,7 +90,7 @@ function DockerOperations() {
   const rangeStart = total === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(safePage * PAGE_SIZE, total);
 
-  async function loadOperations(nextPage = page, nextFilters = appliedFilters) {
+  async function loadOperations(nextPage = page, nextFilters = appliedFilters, nextSorts = sorts) {
     const requestId = requestSequence.current + 1;
     requestSequence.current = requestId;
     setLoading(true);
@@ -97,6 +101,7 @@ function DockerOperations() {
         ...nextFilters,
         limit: PAGE_SIZE,
         offset: (nextPage - 1) * PAGE_SIZE,
+        sort: serializeSorts(nextSorts),
       });
       if (requestId !== requestSequence.current) return;
 
@@ -105,7 +110,7 @@ function DockerOperations() {
 
       if (resultTotal > 0 && nextPage > resultPageCount) {
         setPage(resultPageCount);
-        await loadOperations(resultPageCount, nextFilters);
+        await loadOperations(resultPageCount, nextFilters, nextSorts);
         return;
       }
 
@@ -126,12 +131,12 @@ function DockerOperations() {
     const timer = window.setTimeout(() => {
       setAppliedFilters(filters);
       setPage(1);
-      loadOperations(1, filters);
+      loadOperations(1, filters, sorts);
     }, delay);
 
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, sorts]);
 
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }));
@@ -143,7 +148,59 @@ function DockerOperations() {
 
   function goToPage(nextPage) {
     const normalized = Math.min(Math.max(Number(nextPage) || 1, 1), pageCount);
-    loadOperations(normalized, appliedFilters);
+    loadOperations(normalized, appliedFilters, sorts);
+  }
+
+  function applySorting(nextSorts, customized) {
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setPage(1);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: DOCKER_OPERATIONS_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(DOCKER_OPERATIONS_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
   }
 
   return (
@@ -242,6 +299,11 @@ function DockerOperations() {
               </select>
             </div>
             <div className="sky-run-tools-filter-actions">
+              {sortingCustomized && (
+                <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                  Clear sorting
+                </button>
+              )}
               <button
                 className="btn btn-sm sky-btn-ghost"
                 disabled={loading && total === 0}
@@ -254,19 +316,19 @@ function DockerOperations() {
           </div>
         </div>
 
-        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-docker-operations-table-card">
-          <table className="table table-sm table-hover sky-table align-middle mb-0">
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-docker-operations-table-card sky-canonical-operations-table-frame">
+          <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
             <thead>
               <tr>
-                <th>Resource</th>
-                <th>Requested</th>
-                <th>Project</th>
-                <th>Type</th>
-                <th>Action</th>
-                <th>Result</th>
-                <th>Actor</th>
-                <th>State</th>
-                <th>Duration</th>
+                {renderSortableHeader('Resource', 'resource')}
+                {renderSortableHeader('Requested', 'requestedAt')}
+                {renderSortableHeader('Project', 'project')}
+                {renderSortableHeader('Type', 'type')}
+                {renderSortableHeader('Action', 'action')}
+                {renderSortableHeader('Result', 'result')}
+                {renderSortableHeader('Actor', 'actor')}
+                {renderSortableHeader('State', 'state')}
+                {renderSortableHeader('Duration', 'durationMs')}
                 <th>Message</th>
               </tr>
             </thead>
@@ -285,7 +347,7 @@ function DockerOperations() {
                 items.map((item) => {
                   const resourceDrilldown = getResourceDrilldown(item);
                   return (
-                    <tr key={item.auditEventId || item.operationId}>
+                    <tr className="sky-canonical-hover-row" key={item.auditEventId || item.operationId}>
                       <td>
                         {resourceDrilldown ? (
                           <Link
@@ -328,61 +390,27 @@ function DockerOperations() {
           </table>
         </div>
 
-        <div className="sky-pagination-row">
-          <div className="small sky-muted">
+        <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+          <div className="small sky-muted sky-canonical-operations-pagination-summary">
             Showing {rangeStart}-{rangeEnd} of {total} Docker operation(s)
           </div>
-          <div className="sky-pagination-controls" aria-label="Docker operations pagination">
-            <button
-              className="btn btn-sm sky-btn-ghost"
-              disabled={safePage <= 1 || loading}
-              onClick={() => goToPage(1)}
-              type="button"
-            >
-              First
-            </button>
-            <button
-              className="btn btn-sm sky-btn-ghost"
-              disabled={safePage <= 1 || loading}
-              onClick={() => goToPage(safePage - 1)}
-              type="button"
-            >
-              Back
-            </button>
-            <label className="sky-pagination-select-label" htmlFor="dockerOperationsPageSelect">
-              Page
-            </label>
-            <select
-              className="form-select form-select-sm sky-form-control sky-pagination-select"
-              disabled={loading}
-              id="dockerOperationsPageSelect"
-              onChange={(event) => goToPage(event.target.value)}
-              value={safePage}
-            >
+          <div
+            className="sky-pagination-controls sky-canonical-operations-pagination-controls"
+            aria-label="Docker operations pagination"
+          >
+            <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={safePage <= 1 || loading} onClick={() => goToPage(1)} title="First page" type="button">«</button>
+            <button aria-label="Previous page" className="btn btn-sm sky-pagination-nav-button" disabled={safePage <= 1 || loading} onClick={() => goToPage(safePage - 1)} title="Previous page" type="button">‹</button>
+            <label className="sky-pagination-select-label" htmlFor="dockerOperationsPageSelect">Page</label>
+            <select className="form-select form-select-sm sky-form-control sky-pagination-select" disabled={loading} id="dockerOperationsPageSelect" onChange={(event) => goToPage(event.target.value)} value={safePage}>
               {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
-                <option key={pageNumber} value={pageNumber}>
-                  {pageNumber}
-                </option>
+                <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
               ))}
             </select>
             <span className="small sky-muted">of {pageCount}</span>
-            <button
-              className="btn btn-sm sky-btn-ghost"
-              disabled={safePage >= pageCount || loading}
-              onClick={() => goToPage(safePage + 1)}
-              type="button"
-            >
-              Next
-            </button>
-            <button
-              className="btn btn-sm sky-btn-ghost"
-              disabled={safePage >= pageCount || loading}
-              onClick={() => goToPage(pageCount)}
-              type="button"
-            >
-              Last
-            </button>
+            <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={safePage >= pageCount || loading} onClick={() => goToPage(safePage + 1)} title="Next page" type="button">›</button>
+            <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={safePage >= pageCount || loading} onClick={() => goToPage(pageCount)} title="Last page" type="button">»</button>
           </div>
+          <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
         </div>
       </section>
     </>

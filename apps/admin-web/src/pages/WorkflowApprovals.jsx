@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import workflowService from '../services/workflowService.js';
+import { getNextSortState, serializeSorts } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const PAGE_SIZE = 10;
+const APPROVAL_HISTORY_DEFAULT_SORTS = [{ field: 'requestedAt', direction: 'desc' }];
 const DEFAULT_FILTERS = {
   q: '',
   status: 'ALL',
@@ -141,6 +143,8 @@ function WorkflowApprovals() {
   const [selectedApprovalId, setSelectedApprovalId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sorts, setSorts] = useState(() => APPROVAL_HISTORY_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const requestedApprovalId = (searchParams.get('approvalRequestId') || '').trim();
 
   useEffect(() => {
@@ -174,7 +178,7 @@ function WorkflowApprovals() {
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * PAGE_SIZE, total);
 
-  async function loadApprovals({ preserveSelection = true } = {}) {
+  async function loadApprovals({ preserveSelection = true, nextSorts = sorts } = {}) {
     setLoading(true);
     setError('');
 
@@ -183,6 +187,7 @@ function WorkflowApprovals() {
         ...filters,
         page,
         limit: PAGE_SIZE,
+        sort: serializeSorts(nextSorts),
       });
       const items = result.items || [];
       const resolvedPageCount = Math.max(1, Number(result.pageCount || 1));
@@ -220,7 +225,7 @@ function WorkflowApprovals() {
   useEffect(() => {
     loadApprovals({ preserveSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, page]);
+  }, [filters, page, sorts]);
 
   function updateFilter(name, value) {
     if (name === 'q' && searchParams.has('approvalRequestId')) {
@@ -244,66 +249,76 @@ function WorkflowApprovals() {
     setPage(1);
   }
 
+  function applySorting(nextSorts, customized) {
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setPage(1);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: APPROVAL_HISTORY_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(APPROVAL_HISTORY_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">{activeSort ? directionIcon : '↕'}</span>
+          {activeSort && <span className="sky-table-sort-priority" aria-hidden="true">{activeIndex + 1}</span>}
+        </button>
+      </th>
+    );
+  }
+
   function goToPage(nextPage) {
     setPage(Math.min(Math.max(1, Number(nextPage) || 1), pageCount));
   }
 
   function renderPagination() {
     return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
+      <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">
           Showing {rangeStart}-{rangeEnd} of {total} approval record(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Approval history pagination">
-          <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={page <= 1}
-            onClick={() => goToPage(1)}
-            type="button"
-          >
-            First
-          </button>
-          <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={page <= 1}
-            onClick={() => goToPage(page - 1)}
-            type="button"
-          >
-            Back
-          </button>
-          <label className="sky-pagination-select-label" htmlFor="approvalHistoryPageSelect">
-            Page
-          </label>
-          <select
-            className="form-select form-select-sm sky-form-control sky-pagination-select"
-            id="approvalHistoryPageSelect"
-            onChange={(event) => goToPage(event.target.value)}
-            value={page}
-          >
+        <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label="Approval history pagination">
+          <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={page <= 1} onClick={() => goToPage(1)} title="First page" type="button">«</button>
+          <button aria-label="Previous page" className="btn btn-sm sky-pagination-nav-button" disabled={page <= 1} onClick={() => goToPage(page - 1)} title="Previous page" type="button">‹</button>
+          <label className="sky-pagination-select-label" htmlFor="approvalHistoryPageSelect">Page</label>
+          <select className="form-select form-select-sm sky-form-control sky-pagination-select" id="approvalHistoryPageSelect" onChange={(event) => goToPage(event.target.value)} value={page}>
             {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
-              <option key={pageNumber} value={pageNumber}>
-                {pageNumber}
-              </option>
+              <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
             ))}
           </select>
           <span className="small sky-muted">of {pageCount}</span>
-          <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={page >= pageCount}
-            onClick={() => goToPage(page + 1)}
-            type="button"
-          >
-            Next
-          </button>
-          <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={page >= pageCount}
-            onClick={() => goToPage(pageCount)}
-            type="button"
-          >
-            Last
-          </button>
+          <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={page >= pageCount} onClick={() => goToPage(page + 1)} title="Next page" type="button">›</button>
+          <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={page >= pageCount} onClick={() => goToPage(pageCount)} title="Last page" type="button">»</button>
         </div>
+        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
@@ -433,6 +448,9 @@ function WorkflowApprovals() {
               </select>
             </div>
             <div className="sky-run-tools-filter-actions">
+              {sortingCustomized && (
+                <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">Clear sorting</button>
+              )}
               <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
                 Clear filters
               </button>
@@ -440,18 +458,18 @@ function WorkflowApprovals() {
           </div>
         </div>
 
-        <div className="table-responsive sky-table-card sky-functional-history-table-card">
-          <table className="table table-sm table-hover sky-table align-middle mb-0">
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+          <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
             <thead>
               <tr>
-                <th>Workflow</th>
-                <th>Approval</th>
-                <th>Status</th>
-                <th>Required role</th>
-                <th>Requested by</th>
-                <th>Requested</th>
-                <th>Decided by</th>
-                <th>Decided</th>
+                {renderSortableHeader('Workflow', 'workflow')}
+                {renderSortableHeader('Approval', 'approval')}
+                {renderSortableHeader('Status', 'status')}
+                {renderSortableHeader('Required role', 'requiredRole')}
+                {renderSortableHeader('Requested by', 'requestedBy')}
+                {renderSortableHeader('Requested', 'requestedAt')}
+                {renderSortableHeader('Decided by', 'decidedBy')}
+                {renderSortableHeader('Decided', 'decidedAt')}
                 <th className="text-end">Actions</th>
               </tr>
             </thead>

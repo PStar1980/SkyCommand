@@ -148,6 +148,7 @@ SkyCommand/
 │   │       │   ├── ManageRepositories.jsx
 │   │       │   ├── ManageTools.jsx
 │   │       │   ├── manageToolsVerificationNavigationSelfTest.js
+│   │       │   ├── operationsTableBatchRefinementSelfTest.js
 │   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── ReadinessDashboard.jsx
 │   │       │   ├── repositoryAdminUtils.js
@@ -186,7 +187,8 @@ SkyCommand/
 │   │       │   ├── workerService.js
 │   │       │   └── workflowService.js
 │   │       └── utils/
-│   │           └── dockerLiveStatus.js
+│   │           ├── dockerLiveStatus.js
+│   │           └── tableSorting.js
 │   ├── api/
 │   │   └── src/
 │   │       ├── index.js

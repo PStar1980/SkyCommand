@@ -1712,3 +1712,12 @@ SkyWeb Analytics owns:
 - Preserved Workflow Operations search/runtime/status filters, 10-row browser pagination, selected-run detail workspace, notification drill-down behavior, and smart polling while carrying the active sort stack through refresh/poll queries.
 - Added a Workflow Operations canonical-table regression proof and registered it in routine validation.
 
+
+## 2026-08-24 — Operations table canonical batch rollout
+
+- Rolled the canonical SkyCommand operations-table treatment from Tool/Workflow Operations into Scheduler Operations, Worker Operations, Docker Operations, and Approval History.
+- Added the shared inset Midnight Gold grid, stronger table headers, complete selected/hover row outlines where selection applies, and centered gold `« / ‹ / › / »` pagination controls.
+- Added server-side priority-aware multi-column sorting to scheduler runs, worker nodes, Docker audit operations, and approval history using the existing whitelist-based ORDER BY utility with deterministic tie breakers.
+- Preserved each page's existing filters, selected-record workspaces, Docker resource drill-down links, read-only approval semantics, and smart polling; active sort stacks now survive scheduler/worker polling refreshes.
+- Modernized Worker Operations filtering to auto-apply status changes and debounce search, removing its legacy Apply filters submission.
+- Added a shared Admin-Web table-sort state utility plus a focused operations-table batch regression proof, and updated Docker UI regression coverage for sortable headers/icon pagination.

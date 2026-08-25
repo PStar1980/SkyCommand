@@ -1,5 +1,6 @@
 const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
+const { buildWhitelistedOrderBy } = require('./tableSortUtils');
 const {
   getScheduledToolResultEvidence,
 } = require('../../../../packages/tools/src/workflowResultContext');
@@ -1308,6 +1309,18 @@ async function listScheduleRuns(filters = {}) {
   });
 
   const whereClause = buildWhereClause(clauses);
+  const orderBy = buildWhitelistedOrderBy({
+    sortValue: filters.sort,
+    sortFields: {
+      schedule: "LOWER(COALESCE(NULLIF(BTRIM(schedule_name), ''), schedule_code))",
+      status: 'status',
+      node: "LOWER(COALESCE(node_name, ''))",
+      queuedAt: 'queued_at',
+      durationMs: 'duration_ms',
+    },
+    defaultSorts: [{ field: 'queuedAt', direction: 'desc' }],
+    tieBreakers: ['schedule_run_id DESC'],
+  });
 
   const [countResult, rowsResult] = await Promise.all([
     query(
@@ -1319,7 +1332,7 @@ async function listScheduleRuns(filters = {}) {
         SELECT *
         FROM worker.vw_schedule_runs_recent
         ${whereClause}
-        ORDER BY queued_at DESC
+        ${orderBy}
         LIMIT $${values.length + 1}
         OFFSET $${values.length + 2}
       `,
@@ -1432,6 +1445,22 @@ async function listWorkerNodes(filters = {}) {
   });
 
   const whereClause = buildWhereClause(clauses);
+  const orderBy = buildWhitelistedOrderBy({
+    sortValue: filters.sort,
+    sortFields: {
+      node: "LOWER(COALESCE(node_name, ''))",
+      status: 'status',
+      lastHeartbeatAt: 'last_heartbeat_at',
+      processId: 'process_id',
+      version: "LOWER(COALESCE(app_version, ''))",
+      startedAt: 'started_at',
+    },
+    defaultSorts: [
+      { field: 'status', direction: 'asc' },
+      { field: 'lastHeartbeatAt', direction: 'desc' },
+    ],
+    tieBreakers: ['worker_node_id ASC'],
+  });
 
   const [countResult, rowsResult] = await Promise.all([
     query(`SELECT COUNT(*)::int AS total FROM worker.vw_worker_nodes ${whereClause}`, values),
@@ -1440,7 +1469,7 @@ async function listWorkerNodes(filters = {}) {
         SELECT *
         FROM worker.vw_worker_nodes
         ${whereClause}
-        ORDER BY status, last_heartbeat_at DESC
+        ${orderBy}
         LIMIT $${values.length + 1}
         OFFSET $${values.length + 2}
       `,
