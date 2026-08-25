@@ -60,8 +60,36 @@ const checks = [
   [
     !manageToolsSource.includes('Apply filters')
       && manageToolsSource.includes('initialLoadCompleteRef')
-      && manageToolsSource.includes('<th>Category</th>'),
+      && manageToolsSource.includes("renderSortableHeader('Category', 'category')"),
     'Manage Tools filters must auto-apply and the catalogue must expose a dedicated Category column.',
+  ],
+  [
+    manageToolsSource.includes("renderSortableHeader('Tool', 'tool')")
+      && manageToolsSource.includes("renderSortableHeader('Category', 'category')")
+      && manageToolsSource.includes("renderSortableHeader('Runtime', 'runtime')")
+      && manageToolsSource.includes("renderSortableHeader('Risk', 'risk')")
+      && manageToolsSource.includes("renderSortableHeader('Parameters', 'parameters')")
+      && manageToolsSource.includes("renderSortableHeader('Visibility', 'visibility')")
+      && manageToolsSource.includes("renderSortableHeader('Output contract', 'outputContract')")
+      && manageToolsSource.includes("renderSortableHeader('Status', 'status')")
+      && manageToolsSource.includes('Shift+click to add to multi-column sorting')
+      && manageToolsSource.includes('Clear sorting'),
+    'Manage Tools catalogue headers must use canonical multi-column sorting controls.',
+  ],
+  [
+    manageToolsSource.includes('sky-canonical-operations-table-frame')
+      && manageToolsSource.includes('sky-canonical-operations-table align-middle mb-0')
+      && manageToolsSource.includes('sky-canonical-operations-pagination-row')
+      && manageToolsSource.includes('sky-canonical-operations-pagination-balance')
+      && manageToolsSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
+    'Manage Tools catalogue must use the canonical table frame and centered gold pagination.',
+  ],
+  [
+    manageToolsSource.includes('const MANAGE_TOOLS_FETCH_LIMIT = 500;')
+      && manageToolsSource.includes('async function listAllManagedTools')
+      && manageToolsSource.includes('offset += batch.length;')
+      && manageToolsSource.includes('listAllManagedTools(DEFAULT_FILTERS)'),
+    'Manage Tools must respect the API maximum page size while assembling the full filtered catalogue for client-side sorting.',
   ],
   [
     !manageToolsSource.includes('<th className="text-end">Actions</th>')

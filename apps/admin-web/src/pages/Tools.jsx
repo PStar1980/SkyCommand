@@ -6,8 +6,10 @@ import StatusPill from '../components/ui/StatusPill.jsx';
 import toolService from '../services/toolService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
+import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 const HIGH_RISK_CONFIRMATION_PHRASE = 'RUN HIGH RISK';
 const RUN_TOOLS_PAGE_SIZE = 10;
+const RUN_TOOLS_DEFAULT_SORTS = [{ field: 'tool', direction: 'asc' }];
 
 const DEFAULT_TOOL_FILTERS = {
   q: '',
@@ -174,6 +176,38 @@ function getCategoryLabel(tool) {
   );
 }
 
+function getRunToolSortValue(tool, field) {
+  if (field === 'tool') {
+    return `${tool?.label || ''} ${tool?.toolCode || ''}`.trim();
+  }
+
+  if (field === 'category') {
+    return getCategoryLabel(tool);
+  }
+
+  if (field === 'runtime') {
+    return tool?.runtimeCode || tool?.runtimeName || '';
+  }
+
+  if (field === 'risk') {
+    const riskRank = { low: 1, medium: 2, high: 3 };
+    return riskRank[String(tool?.riskCode || '').toLowerCase()] ?? 99;
+  }
+
+  if (field === 'parameters') {
+    return Array.isArray(tool?.parameters) ? tool.parameters.length : 0;
+  }
+
+  if (field === 'outputContract') {
+    return tool?.outputType || null;
+  }
+
+  if (field === 'status') {
+    return tool?.enabled ? 1 : 0;
+  }
+
+  return tool?.[field] ?? '';
+}
 
 function Tools() {
   const [searchParams] = useSearchParams();
@@ -181,6 +215,8 @@ function Tools() {
   const [selectedToolCode, setSelectedToolCode] = useState('');
   const [filters, setFilters] = useState(DEFAULT_TOOL_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sorts, setSorts] = useState(() => RUN_TOOLS_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const [parameterValues, setParameterValues] = useState({});
   const [runResult, setRunResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -244,18 +280,22 @@ function Tools() {
       ].some((value) => String(value || '').toLowerCase().includes(searchText));
     });
   }, [filters, tools]);
-  const pageCount = Math.max(1, Math.ceil(filteredTools.length / RUN_TOOLS_PAGE_SIZE));
+  const sortedTools = useMemo(
+    () => sortItemsBySorts(filteredTools, sorts, getRunToolSortValue),
+    [filteredTools, sorts],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedTools.length / RUN_TOOLS_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
   const rangeStart =
-    filteredTools.length === 0 ? 0 : (safeCurrentPage - 1) * RUN_TOOLS_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * RUN_TOOLS_PAGE_SIZE, filteredTools.length);
+    sortedTools.length === 0 ? 0 : (safeCurrentPage - 1) * RUN_TOOLS_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * RUN_TOOLS_PAGE_SIZE, sortedTools.length);
   const visibleTools = useMemo(
     () =>
-      filteredTools.slice(
+      sortedTools.slice(
         (safeCurrentPage - 1) * RUN_TOOLS_PAGE_SIZE,
         safeCurrentPage * RUN_TOOLS_PAGE_SIZE,
       ),
-    [filteredTools, safeCurrentPage],
+    [safeCurrentPage, sortedTools],
   );
 
   const selectedTool = useMemo(
@@ -273,6 +313,19 @@ function Tools() {
 
     const requestedToolCode = searchParams.get('toolCode');
     if (!requestedToolCode) {
+      const defaultTool = sortItemsBySorts(
+        tools,
+        RUN_TOOLS_DEFAULT_SORTS,
+        getRunToolSortValue,
+      )[0] || null;
+
+      setFilters(DEFAULT_TOOL_FILTERS);
+      setCurrentPage(1);
+      setSelectedToolCode(defaultTool?.toolCode || '');
+      setParameterValues(defaultTool ? getInitialParameterValues(defaultTool) : {});
+      setRunResult(null);
+      setPendingConfirmation(false);
+      setConfirmationPhrase('');
       setQueryBootstrapApplied(true);
       return;
     }
@@ -295,7 +348,11 @@ function Tools() {
         parameter.paramTypeCode === 'boolean' ? getBooleanValue(queryValue) : queryValue;
     });
 
-    const requestedIndex = tools.findIndex((tool) => tool.toolCode === requestedToolCode);
+    const requestedIndex = sortItemsBySorts(
+      tools,
+      RUN_TOOLS_DEFAULT_SORTS,
+      getRunToolSortValue,
+    ).findIndex((tool) => tool.toolCode === requestedToolCode);
     setFilters(DEFAULT_TOOL_FILTERS);
     setCurrentPage(Math.max(1, Math.floor(requestedIndex / RUN_TOOLS_PAGE_SIZE) + 1));
     setSelectedToolCode(requestedToolCode);
@@ -399,28 +456,95 @@ function Tools() {
     setCurrentPage(Math.min(Math.max(1, Number(page) || 1), pageCount));
   }
 
+  function applySorting(nextSorts, customized) {
+    const sortedItems = sortItemsBySorts(filteredTools, nextSorts, getRunToolSortValue);
+    const selectedIndex = selectedToolCode
+      ? sortedItems.findIndex((tool) => tool.toolCode === selectedToolCode)
+      : -1;
+    const nextPage = selectedIndex >= 0
+      ? Math.floor(selectedIndex / RUN_TOOLS_PAGE_SIZE) + 1
+      : 1;
+
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setCurrentPage(nextPage);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: RUN_TOOLS_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(RUN_TOOLS_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
+  }
+
   function renderPagination() {
     return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
-          Showing {rangeStart}-{rangeEnd} of {filteredTools.length} available tool(s)
+      <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">
+          Showing {rangeStart}-{rangeEnd} of {sortedTools.length} available tool(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Run tools pagination">
+        <div
+          className="sky-pagination-controls sky-canonical-operations-pagination-controls"
+          aria-label="Run tools pagination"
+        >
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="First page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || interactionLocked}
             onClick={() => goToPage(1)}
+            title="First page"
             type="button"
           >
-            First
+            «
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Previous page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || interactionLocked}
             onClick={() => goToPage(safeCurrentPage - 1)}
+            title="Previous page"
             type="button"
           >
-            Back
+            ‹
           </button>
           <label className="sky-pagination-select-label" htmlFor="runToolsPageSelect">
             Page
@@ -440,22 +564,27 @@ function Tools() {
           </select>
           <span className="small sky-muted">of {pageCount}</span>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Next page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || interactionLocked}
             onClick={() => goToPage(safeCurrentPage + 1)}
+            title="Next page"
             type="button"
           >
-            Next
+            ›
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Last page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || interactionLocked}
             onClick={() => goToPage(pageCount)}
+            title="Last page"
             type="button"
           >
-            Last
+            »
           </button>
         </div>
+        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
@@ -818,6 +947,16 @@ function Tools() {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {sortingCustomized && (
+                    <button
+                      className="btn btn-sm sky-btn-ghost"
+                      disabled={interactionLocked}
+                      onClick={clearSorting}
+                      type="button"
+                    >
+                      Clear sorting
+                    </button>
+                  )}
                   <button
                     className="btn btn-sm sky-btn-ghost"
                     disabled={interactionLocked}
@@ -830,17 +969,17 @@ function Tools() {
               </div>
             </div>
 
-            <div className="table-responsive sky-table-card sky-functional-history-table-card">
-              <table className="table table-sm table-hover sky-table align-middle mb-0">
+            <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+              <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
                 <thead>
                   <tr>
-                    <th>Tool</th>
-                    <th>Category</th>
-                    <th>Runtime</th>
-                    <th>Risk</th>
-                    <th>Parameters</th>
-                    <th>Output contract</th>
-                    <th>Status</th>
+                    {renderSortableHeader('Tool', 'tool')}
+                    {renderSortableHeader('Category', 'category')}
+                    {renderSortableHeader('Runtime', 'runtime')}
+                    {renderSortableHeader('Risk', 'risk')}
+                    {renderSortableHeader('Parameters', 'parameters')}
+                    {renderSortableHeader('Output contract', 'outputContract')}
+                    {renderSortableHeader('Status', 'status')}
                   </tr>
                 </thead>
                 <tbody>
