@@ -9,6 +9,7 @@ import StatusPill from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useDockerOverview from '../hooks/useDockerOverview.js';
 import infrastructureService from '../services/infrastructureService.js';
+import { getNextSortState } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const VIEW_CONFIG = {
@@ -46,6 +47,17 @@ const VIEW_CONFIG = {
 
 const DOCKER_BROWSER_PAGE_SIZE = 10;
 
+const DOCKER_INVENTORY_DEFAULT_SORTS = {
+  projects: [{ field: 'name', direction: 'asc' }],
+  containers: [{ field: 'name', direction: 'asc' }],
+  images: [
+    { field: 'repository', direction: 'asc' },
+    { field: 'tag', direction: 'asc' },
+  ],
+  storage: [{ field: 'name', direction: 'asc' }],
+  networks: [{ field: 'name', direction: 'asc' }],
+};
+
 const DEFAULT_PROJECT_FILTERS = {
   q: '',
   state: '',
@@ -82,6 +94,144 @@ function uniqueSorted(values) {
   );
 }
 
+function getCleanupSortValue(cleanup = {}) {
+  if (cleanup.mode === 'DATA_PROTECTED') return 'DATA_PROTECTED';
+  if (cleanup.mode === 'SYSTEM_PROTECTED') return 'SYSTEM_PROTECTED';
+  if (cleanup.eligible) return 'UNUSED';
+  if (Number(cleanup.usageCount || 0) > 0) return 'ATTACHED';
+  return 'PROTECTED';
+}
+
+function parseDockerSize(value) {
+  const source = String(value || '').trim().toLowerCase();
+  const match = source.match(/^([0-9]+(?:\.[0-9]+)?)\s*([kmgtp]?b)$/i);
+  if (!match) return source;
+
+  const units = { b: 1, kb: 1e3, mb: 1e6, gb: 1e9, tb: 1e12, pb: 1e15 };
+  return Number(match[1]) * (units[match[2].toLowerCase()] || 1);
+}
+
+function parseDockerAge(value) {
+  const source = String(value || '').trim().toLowerCase();
+  if (!source) return '';
+  if (source.includes('less than a second')) return 0;
+  if (source.includes('about a minute') || source.includes('about one minute')) return 60;
+  if (source.includes('about an hour') || source.includes('about one hour')) return 3600;
+
+  const match = source.match(/([0-9]+(?:\.[0-9]+)?)\s*(second|minute|hour|day|week|month|year)s?/);
+  if (!match) return source;
+
+  const units = {
+    second: 1,
+    minute: 60,
+    hour: 3600,
+    day: 86400,
+    week: 604800,
+    month: 2629800,
+    year: 31557600,
+  };
+  return Number(match[1]) * units[match[2]];
+}
+
+function getInventorySortValue(view, item, field) {
+  if (view === 'projects') {
+    if (field === 'containerCount') return Number(item.containerCount || 0);
+    if (field === 'serviceCount') return Number(item.serviceCount || 0);
+    if (field === 'healthyCount') return Number(item.healthyCount || 0);
+    return item[field] || '';
+  }
+
+  if (view === 'containers') {
+    if (field === 'control') return item.control?.mode || '';
+    return item[field] || '';
+  }
+
+  if (view === 'images') {
+    if (field === 'size') return parseDockerSize(item.size);
+    if (field === 'createdSince') return parseDockerAge(item.createdSince);
+    if (field === 'usage') return Number(item.cleanup?.usageCount ?? item.containers ?? 0);
+    if (field === 'cleanup') return getCleanupSortValue(item.cleanup);
+    return item[field] || '';
+  }
+
+  if (view === 'storage') {
+    if (field === 'usage') return Number(item.cleanup?.usageCount ?? 0);
+    if (field === 'policy') return getCleanupSortValue(item.cleanup);
+    return item[field] || '';
+  }
+
+  if (view === 'networks') {
+    if (field === 'usage') return Number(item.cleanup?.usageCount ?? 0);
+    if (field === 'cleanup') return getCleanupSortValue(item.cleanup);
+    return item[field] || '';
+  }
+
+  return item[field] || '';
+}
+
+function compareInventoryValues(leftValue, rightValue) {
+  const leftEmpty = leftValue === '' || leftValue === null || leftValue === undefined;
+  const rightEmpty = rightValue === '' || rightValue === null || rightValue === undefined;
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+
+  if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+    return leftValue - rightValue;
+  }
+
+  return String(leftValue).localeCompare(String(rightValue), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+}
+
+function sortInventoryItems(items, sorts, view) {
+  if (!Array.isArray(sorts) || sorts.length === 0) return items;
+
+  return [...items].sort((left, right) => {
+    for (const sort of sorts) {
+      const comparison = compareInventoryValues(
+        getInventorySortValue(view, left, sort.field),
+        getInventorySortValue(view, right, sort.field),
+      );
+      if (comparison !== 0) return sort.direction === 'desc' ? -comparison : comparison;
+    }
+    return 0;
+  });
+}
+
+function DockerSortableHeader({ align = 'start', field, label, onSort, sorts }) {
+  const activeIndex = sorts.findIndex((sort) => sort.field === field);
+  const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+  const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+  const sortDescription = activeSort
+    ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+    : 'not currently sorted';
+
+  return (
+    <th className={align === 'end' ? 'text-end' : undefined}>
+      <button
+        aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+        className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+        onClick={(event) => onSort(field, event)}
+        title="Click to sort · Shift+click to add sort"
+        type="button"
+      >
+        <span>{label}</span>
+        <span className="sky-table-sort-indicator" aria-hidden="true">
+          {activeSort ? directionIcon : '↕'}
+        </span>
+        {activeSort && (
+          <span className="sky-table-sort-priority" aria-hidden="true">
+            {activeIndex + 1}
+          </span>
+        )}
+      </button>
+    </th>
+  );
+}
+
 function getImageSelectionKey(image) {
   if (!image) return '';
   return image.reference || `${image.id || ''}:${image.repository || ''}:${image.tag || ''}`;
@@ -103,26 +253,30 @@ function DockerBrowserPagination({
   selectId,
 }) {
   return (
-    <div className="sky-pagination-row">
-      <div className="small sky-muted">
+    <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+      <div className="small sky-muted sky-canonical-operations-pagination-summary">
         Showing {rangeStart}-{rangeEnd} of {filteredCount} record(s)
       </div>
-      <div className="sky-pagination-controls" aria-label={ariaLabel}>
+      <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label={ariaLabel}>
         <button
-          className="btn btn-sm sky-btn-ghost"
+          aria-label="First page"
+          className="btn btn-sm sky-btn-ghost sky-pagination-nav-button"
           disabled={page <= 1}
           onClick={() => onPageChange(1)}
+          title="First page"
           type="button"
         >
-          First
+          «
         </button>
         <button
-          className="btn btn-sm sky-btn-ghost"
+          aria-label="Previous page"
+          className="btn btn-sm sky-btn-ghost sky-pagination-nav-button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
+          title="Previous page"
           type="button"
         >
-          Back
+          ‹
         </button>
         <label className="sky-pagination-select-label" htmlFor={selectId}>
           Page
@@ -141,22 +295,27 @@ function DockerBrowserPagination({
         </select>
         <span className="small sky-muted">of {pageCount}</span>
         <button
-          className="btn btn-sm sky-btn-ghost"
+          aria-label="Next page"
+          className="btn btn-sm sky-btn-ghost sky-pagination-nav-button"
           disabled={page >= pageCount}
           onClick={() => onPageChange(page + 1)}
+          title="Next page"
           type="button"
         >
-          Next
+          ›
         </button>
         <button
-          className="btn btn-sm sky-btn-ghost"
+          aria-label="Last page"
+          className="btn btn-sm sky-btn-ghost sky-pagination-nav-button"
           disabled={page >= pageCount}
           onClick={() => onPageChange(pageCount)}
+          title="Last page"
           type="button"
         >
-          Last
+          »
         </button>
       </div>
+      <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
     </div>
   );
 }
@@ -171,18 +330,18 @@ function EmptyRow({ colSpan, loading, noun }) {
   );
 }
 
-function ProjectTable({ loading, onSelect, projects, selectedProjectName }) {
+function ProjectTable({ loading, onSelect, onSort, projects, selectedProjectName, sorts }) {
   return (
-    <div className="table-responsive sky-table-card sky-functional-history-table-card">
-      <table className="table table-sm table-hover sky-table align-middle mb-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+      <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
         <thead>
           <tr>
-            <th>Project</th>
-            <th>State</th>
-            <th>Status</th>
-            <th className="text-end">Services</th>
-            <th className="text-end">Containers</th>
-            <th className="text-end">Healthy</th>
+            <DockerSortableHeader field="name" label="Project" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="state" label="State" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="status" label="Status" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader align="end" field="serviceCount" label="Services" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader align="end" field="containerCount" label="Containers" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader align="end" field="healthyCount" label="Healthy" onSort={onSort} sorts={sorts} />
           </tr>
         </thead>
         <tbody>
@@ -222,20 +381,20 @@ function ProjectTable({ loading, onSelect, projects, selectedProjectName }) {
   );
 }
 
-function ContainerTable({ containers, loading, onSelect, selectedContainerId }) {
+function ContainerTable({ containers, loading, onSelect, onSort, selectedContainerId, sorts }) {
   return (
-    <div className="table-responsive sky-table-card sky-functional-history-table-card">
-      <table className="table table-sm table-hover sky-table align-middle mb-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+      <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
         <thead>
           <tr>
-            <th>Container</th>
-            <th>Project</th>
-            <th>Service</th>
-            <th>Image</th>
-            <th>State</th>
-            <th>Health</th>
-            <th>Ports</th>
-            <th>Control</th>
+            <DockerSortableHeader field="name" label="Container" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="project" label="Project" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="service" label="Service" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="image" label="Image" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="state" label="State" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="health" label="Health" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="ports" label="Ports" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="control" label="Control" onSort={onSort} sorts={sorts} />
           </tr>
         </thead>
         <tbody>
@@ -292,19 +451,19 @@ function CleanupPill({ cleanup }) {
   return <StatusPill label={`${cleanup?.usageCount || 0} attachment(s)`} status="WARNING" />;
 }
 
-function ImageTable({ images, loading, onSelect, selectedImageKey }) {
+function ImageTable({ images, loading, onSelect, onSort, selectedImageKey, sorts }) {
   return (
-    <div className="table-responsive sky-table-card sky-functional-history-table-card">
-      <table className="table table-sm table-hover sky-table align-middle mb-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+      <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
         <thead>
           <tr>
-            <th>Repository</th>
-            <th>Tag</th>
-            <th>Image ID</th>
-            <th>Size</th>
-            <th>Created</th>
-            <th>Usage</th>
-            <th>Cleanup</th>
+            <DockerSortableHeader field="repository" label="Repository" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="tag" label="Tag" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="id" label="Image ID" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="size" label="Size" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="createdSince" label="Created" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="usage" label="Usage" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="cleanup" label="Cleanup" onSort={onSort} sorts={sorts} />
           </tr>
         </thead>
         <tbody>
@@ -336,17 +495,17 @@ function ImageTable({ images, loading, onSelect, selectedImageKey }) {
   );
 }
 
-function StorageTable({ loading, onSelect, selectedVolumeName, volumes }) {
+function StorageTable({ loading, onSelect, onSort, selectedVolumeName, sorts, volumes }) {
   return (
-    <div className="table-responsive sky-table-card sky-functional-history-table-card">
-      <table className="table table-sm table-hover sky-table align-middle mb-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+      <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Driver</th>
-            <th>Scope</th>
-            <th>Usage</th>
-            <th>Policy</th>
+            <DockerSortableHeader field="name" label="Name" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="driver" label="Driver" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="scope" label="Scope" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="usage" label="Usage" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="policy" label="Policy" onSort={onSort} sorts={sorts} />
           </tr>
         </thead>
         <tbody>
@@ -376,17 +535,17 @@ function StorageTable({ loading, onSelect, selectedVolumeName, volumes }) {
   );
 }
 
-function NetworkTable({ loading, networks, onSelect, selectedNetworkName }) {
+function NetworkTable({ loading, networks, onSelect, onSort, selectedNetworkName, sorts }) {
   return (
-    <div className="table-responsive sky-table-card sky-functional-history-table-card">
-      <table className="table table-sm table-hover sky-table align-middle mb-0">
+    <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+      <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Driver</th>
-            <th>Scope</th>
-            <th>Usage</th>
-            <th>Cleanup</th>
+            <DockerSortableHeader field="name" label="Name" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="driver" label="Driver" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="scope" label="Scope" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="usage" label="Usage" onSort={onSort} sorts={sorts} />
+            <DockerSortableHeader field="cleanup" label="Cleanup" onSort={onSort} sorts={sorts} />
           </tr>
         </thead>
         <tbody>
@@ -418,6 +577,7 @@ function NetworkTable({ loading, networks, onSelect, selectedNetworkName }) {
 
 function DockerInventory({ view }) {
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.containers;
+  const inventoryDefaultSorts = DOCKER_INVENTORY_DEFAULT_SORTS[view] || [];
   const [searchParams] = useSearchParams();
   const initialQuery = (searchParams.get('q') || '').trim();
   const initialProjectFilter = (searchParams.get('project') || '').trim();
@@ -425,6 +585,8 @@ function DockerInventory({ view }) {
   const canControl = hasPermission('INFRASTRUCTURE_DOCKER_CONTROL');
   const canCleanup = hasPermission('INFRASTRUCTURE_DOCKER_CLEANUP');
   const [controlError, setControlError] = useState('');
+  const [sorts, setSorts] = useState(() => inventoryDefaultSorts);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const [controlNotice, setControlNotice] = useState('');
   const [controlling, setControlling] = useState('');
   const [selectedProjectName, setSelectedProjectName] = useState('');
@@ -584,6 +746,27 @@ function DockerInventory({ view }) {
     });
   }, [networkFilters, networks]);
 
+  const sortedProjects = useMemo(
+    () => (view === 'projects' ? sortInventoryItems(filteredProjects, sorts, 'projects') : filteredProjects),
+    [filteredProjects, sorts, view],
+  );
+  const sortedContainers = useMemo(
+    () => (view === 'containers' ? sortInventoryItems(filteredContainers, sorts, 'containers') : filteredContainers),
+    [filteredContainers, sorts, view],
+  );
+  const sortedImages = useMemo(
+    () => (view === 'images' ? sortInventoryItems(filteredImages, sorts, 'images') : filteredImages),
+    [filteredImages, sorts, view],
+  );
+  const sortedVolumes = useMemo(
+    () => (view === 'storage' ? sortInventoryItems(filteredVolumes, sorts, 'storage') : filteredVolumes),
+    [filteredVolumes, sorts, view],
+  );
+  const sortedNetworks = useMemo(
+    () => (view === 'networks' ? sortInventoryItems(filteredNetworks, sorts, 'networks') : filteredNetworks),
+    [filteredNetworks, sorts, view],
+  );
+
   const projectPageCount = Math.max(
     1,
     Math.ceil(filteredProjects.length / DOCKER_BROWSER_PAGE_SIZE),
@@ -591,8 +774,8 @@ function DockerInventory({ view }) {
   const currentProjectPage = Math.min(projectPage, projectPageCount);
   const pagedProjects = useMemo(() => {
     const offset = (currentProjectPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return filteredProjects.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentProjectPage, filteredProjects]);
+    return sortedProjects.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentProjectPage, sortedProjects]);
   const projectRangeStart = filteredProjects.length === 0
     ? 0
     : (currentProjectPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
@@ -607,8 +790,8 @@ function DockerInventory({ view }) {
   const currentContainerPage = Math.min(containerPage, containerPageCount);
   const pagedContainers = useMemo(() => {
     const offset = (currentContainerPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return filteredContainers.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentContainerPage, filteredContainers]);
+    return sortedContainers.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentContainerPage, sortedContainers]);
   const containerRangeStart = filteredContainers.length === 0
     ? 0
     : (currentContainerPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
@@ -620,8 +803,8 @@ function DockerInventory({ view }) {
   const currentImagePage = Math.min(imagePage, imagePageCount);
   const pagedImages = useMemo(() => {
     const offset = (currentImagePage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return filteredImages.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentImagePage, filteredImages]);
+    return sortedImages.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentImagePage, sortedImages]);
   const imageRangeStart = filteredImages.length === 0
     ? 0
     : (currentImagePage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
@@ -634,8 +817,8 @@ function DockerInventory({ view }) {
   const currentStoragePage = Math.min(storagePage, storagePageCount);
   const pagedVolumes = useMemo(() => {
     const offset = (currentStoragePage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return filteredVolumes.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentStoragePage, filteredVolumes]);
+    return sortedVolumes.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentStoragePage, sortedVolumes]);
   const storageRangeStart = filteredVolumes.length === 0
     ? 0
     : (currentStoragePage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
@@ -647,8 +830,8 @@ function DockerInventory({ view }) {
   const currentNetworkPage = Math.min(networkPage, networkPageCount);
   const pagedNetworks = useMemo(() => {
     const offset = (currentNetworkPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return filteredNetworks.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentNetworkPage, filteredNetworks]);
+    return sortedNetworks.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
+  }, [currentNetworkPage, sortedNetworks]);
   const networkRangeStart = filteredNetworks.length === 0
     ? 0
     : (currentNetworkPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
@@ -816,6 +999,35 @@ function DockerInventory({ view }) {
     setResourceDetail(null);
     setResourceDetailError('');
   }, [loading, pagedNetworks, selectResource, selectedNetworkName, view]);
+
+  function resetCurrentPage() {
+    if (view === 'projects') setProjectPage(1);
+    else if (view === 'containers') setContainerPage(1);
+    else if (view === 'images') setImagePage(1);
+    else if (view === 'storage') setStoragePage(1);
+    else if (view === 'networks') setNetworkPage(1);
+  }
+
+  function applySorting(nextSorts, customized) {
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    resetCurrentPage();
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: inventoryDefaultSorts,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(inventoryDefaultSorts, false);
+  }
 
   function updateProjectFilter(name, value) {
     setProjectFilters((current) => ({ ...current, [name]: value }));
@@ -1053,6 +1265,11 @@ function DockerInventory({ view }) {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {sortingCustomized && (
+                    <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                      Clear sorting
+                    </button>
+                  )}
                   <button
                     className="btn btn-sm sky-btn-ghost"
                     onClick={clearProjectFilters}
@@ -1066,8 +1283,10 @@ function DockerInventory({ view }) {
             <ProjectTable
               loading={loading}
               onSelect={selectProject}
+              onSort={updateSorting}
               projects={pagedProjects}
               selectedProjectName={selectedProjectName}
+              sorts={sorts}
             />
             <DockerBrowserPagination
               ariaLabel="Docker project pagination"
@@ -1148,6 +1367,11 @@ function DockerInventory({ view }) {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {sortingCustomized && (
+                    <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                      Clear sorting
+                    </button>
+                  )}
                   <button className="btn btn-sm sky-btn-ghost" onClick={clearContainerFilters} type="button">
                     Clear filters
                   </button>
@@ -1158,7 +1382,9 @@ function DockerInventory({ view }) {
               containers={pagedContainers}
               loading={loading}
               onSelect={selectContainer}
+              onSort={updateSorting}
               selectedContainerId={selectedContainerId}
+              sorts={sorts}
             />
             <DockerBrowserPagination
               ariaLabel="Docker container pagination"
@@ -1238,6 +1464,11 @@ function DockerInventory({ view }) {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {sortingCustomized && (
+                    <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                      Clear sorting
+                    </button>
+                  )}
                   <button className="btn btn-sm sky-btn-ghost" onClick={clearImageFilters} type="button">
                     Clear filters
                   </button>
@@ -1248,7 +1479,9 @@ function DockerInventory({ view }) {
               images={pagedImages}
               loading={loading}
               onSelect={selectImage}
+              onSort={updateSorting}
               selectedImageKey={selectedImageKey}
+              sorts={sorts}
             />
             <DockerBrowserPagination
               ariaLabel="Docker image pagination"
@@ -1326,6 +1559,11 @@ function DockerInventory({ view }) {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {sortingCustomized && (
+                    <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                      Clear sorting
+                    </button>
+                  )}
                   <button className="btn btn-sm sky-btn-ghost" onClick={clearStorageFilters} type="button">
                     Clear filters
                   </button>
@@ -1335,7 +1573,9 @@ function DockerInventory({ view }) {
             <StorageTable
               loading={loading}
               onSelect={(volume) => selectResource('VOLUME', volume)}
+              onSort={updateSorting}
               selectedVolumeName={selectedVolumeName}
+              sorts={sorts}
               volumes={pagedVolumes}
             />
             <DockerBrowserPagination
@@ -1416,6 +1656,11 @@ function DockerInventory({ view }) {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {sortingCustomized && (
+                    <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                      Clear sorting
+                    </button>
+                  )}
                   <button className="btn btn-sm sky-btn-ghost" onClick={clearNetworkFilters} type="button">
                     Clear filters
                   </button>
@@ -1426,7 +1671,9 @@ function DockerInventory({ view }) {
               loading={loading}
               networks={pagedNetworks}
               onSelect={(network) => selectResource('NETWORK', network)}
+              onSort={updateSorting}
               selectedNetworkName={selectedNetworkName}
+              sorts={sorts}
             />
             <DockerBrowserPagination
               ariaLabel="Docker network pagination"

@@ -7653,6 +7653,11 @@ select.sky-form-control optgroup {
   text-transform: inherit;
 }
 
+.sky-canonical-operations-table th.text-end .sky-table-sort-button {
+  justify-content: flex-end;
+  text-align: right;
+}
+
 .sky-canonical-operations-table .sky-table-sort-button:hover,
 .sky-canonical-operations-table .sky-table-sort-button:focus-visible {
   color: #ffe08a;
