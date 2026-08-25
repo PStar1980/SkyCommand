@@ -30,6 +30,26 @@ const checks = [
     'Manage Workflows filters must keep the Clear filters action on the main filter row.',
   ],
   [
+    managerSource.includes("renderManageWorkflowSortableHeader('Workflow', 'workflow')")
+      && managerSource.includes("renderManageWorkflowSortableHeader('Structure', 'structure')")
+      && managerSource.includes("renderManageWorkflowSortableHeader('Nodes', 'nodes')")
+      && managerSource.includes("renderManageWorkflowSortableHeader('Edges', 'edges')")
+      && managerSource.includes("renderManageWorkflowSortableHeader('Runtime parameters', 'runtimeParameters')")
+      && managerSource.includes("renderManageWorkflowSortableHeader('Published version', 'publishedVersion')")
+      && managerSource.includes("renderManageWorkflowSortableHeader('Status', 'status')")
+      && managerSource.includes('Shift+click to add to multi-column sorting')
+      && managerSource.includes('Clear sorting'),
+    'Manage Workflows catalogue headers must use canonical multi-column sorting controls.',
+  ],
+  [
+    managerSource.includes('sky-canonical-operations-table-frame')
+      && managerSource.includes('sky-canonical-operations-table align-middle mb-0')
+      && managerSource.includes('sky-canonical-operations-pagination-row')
+      && managerSource.includes('sky-canonical-operations-pagination-balance')
+      && managerSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
+    'Manage Workflows catalogue must use the canonical table frame and centered gold pagination.',
+  ],
+  [
     /\.sky-workflow-start-detail-stack\s*\{[^}]*display:\s*grid;[^}]*gap:\s*1rem;/s.test(cssSource),
     'Start Workflow graph and node-detail cards must use the standard one-rem vertical gap.',
   ],

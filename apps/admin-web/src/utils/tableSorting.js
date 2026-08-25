@@ -68,3 +68,50 @@ export function getNextSortState({
 
   return { sorts: defaultSorts, customized: false };
 }
+
+
+export function compareTableValues(leftValue, rightValue) {
+  const leftEmpty = leftValue === '' || leftValue === null || leftValue === undefined;
+  const rightEmpty = rightValue === '' || rightValue === null || rightValue === undefined;
+
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+
+  if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+    return leftValue - rightValue;
+  }
+
+  return String(leftValue).localeCompare(String(rightValue), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+}
+
+export function sortItemsBySorts(items = [], sorts = [], getSortValue = (item, field) => item?.[field]) {
+  if (!Array.isArray(sorts) || sorts.length === 0) {
+    return items;
+  }
+
+  return [...items].sort((left, right) => {
+    for (const sort of sorts) {
+      const leftValue = getSortValue(left, sort.field);
+      const rightValue = getSortValue(right, sort.field);
+      const leftEmpty = leftValue === '' || leftValue === null || leftValue === undefined;
+      const rightEmpty = rightValue === '' || rightValue === null || rightValue === undefined;
+
+      if (leftEmpty || rightEmpty) {
+        if (leftEmpty && rightEmpty) continue;
+        return leftEmpty ? 1 : -1;
+      }
+
+      const comparison = compareTableValues(leftValue, rightValue);
+
+      if (comparison !== 0) {
+        return sort.direction === 'desc' ? -comparison : comparison;
+      }
+    }
+
+    return 0;
+  });
+}
