@@ -154,6 +154,7 @@
     "tool-execution-output-workspace:self-test": "node apps/api/src/services/toolExecutionOutputWorkspaceSelfTest.js",
     "tool-operations-table:self-test": "node apps/admin-web/src/pages/toolOperationsTableRefinementSelfTest.js",
     "tool-operations-sorting:self-test": "node apps/admin-web/src/pages/toolOperationsSortingSelfTest.js",
+    "workflow-operations-table:self-test": "node apps/admin-web/src/pages/workflowOperationsTableRefinementSelfTest.js",
     "table-sort-utils:self-test": "node apps/api/src/services/tableSortUtilsSelfTest.js",
     "workflow-start-catalogue:self-test": "node apps/admin-web/src/pages/workflowStartCatalogueSelfTest.js",
     "workflow-clone-parity:self-test": "node apps/api/src/services/workflowCloneParitySelfTest.js",

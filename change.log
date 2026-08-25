@@ -1704,3 +1704,11 @@ SkyWeb Analytics owns:
 - Removed the legacy 2rem right-side padding exception from authenticated workbench routes so Dashboards, Tools, Workflows, Automation, Access Control, Readiness, and other established workbench surfaces use the same canonical page gutter as newer Git Repositories and Docker pages.
 - Kept the shared 1rem desktop / 0.85rem mobile surface-rhythm tokens and internal card gaps unchanged; this refinement only removes the extra legacy right-side whitespace.
 - Extended the global surface-rhythm regression proof to prevent the higher-specificity workbench rule from overriding the canonical right gutter again.
+## 2026-08-24 — Workflow Operations canonical table rollout
+
+- Promoted the perfected Tool Operations visual table treatment into Workflow Operations, including the 1rem inset grid, taller balanced header, full row/column gold grid, translucent selected-row box, transparent hover box, and centered gold icon paginator.
+- Added priority-aware multi-column sorting for Workflow, Status, Started, Duration, Completed, and Runtime while keeping Actions non-sortable and preserving Started descending as the default order.
+- Routed Workflow Operations sorting through the shared whitelist-based server ORDER BY utility with deterministic created/run-ID tie breakers; arbitrary sort fields and directions remain rejected by the shared contract.
+- Preserved Workflow Operations search/runtime/status filters, 10-row browser pagination, selected-run detail workspace, notification drill-down behavior, and smart polling while carrying the active sort stack through refresh/poll queries.
+- Added a Workflow Operations canonical-table regression proof and registered it in routine validation.
+
