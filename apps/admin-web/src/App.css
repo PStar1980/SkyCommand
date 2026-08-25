@@ -7393,19 +7393,22 @@ select.sky-form-control optgroup {
 }
 
 
-/* Tool Operations table prototype — canonical browser table exploration. */
-.sky-tool-operations-table-frame {
+/* Canonical SkyCommand operations table — proven on Tool and Workflow Operations. */
+.sky-tool-operations-table-frame,
+.sky-workflow-operations-table-frame {
   padding-inline: 1rem;
 }
 
-.sky-tool-operations-table {
+.sky-tool-operations-table,
+.sky-workflow-operations-table {
   --sky-tool-table-grid: rgba(220, 177, 63, 0.27);
   --sky-tool-table-row-outline: rgba(255, 217, 120, 0.88);
   border: 1px solid var(--sky-tool-table-grid);
   border-collapse: collapse;
 }
 
-.sky-tool-operations-table thead th {
+.sky-tool-operations-table thead th,
+.sky-workflow-operations-table thead th {
   padding-top: 0.78rem;
   padding-bottom: 0.78rem;
   border: 1px solid var(--sky-tool-table-grid);
@@ -7415,7 +7418,8 @@ select.sky-form-control optgroup {
   letter-spacing: 0.055em;
 }
 
-.sky-tool-operations-table .sky-table-sort-button {
+.sky-tool-operations-table .sky-table-sort-button,
+.sky-workflow-operations-table .sky-table-sort-button {
   display: inline-flex;
   width: 100%;
   align-items: center;
@@ -7434,23 +7438,28 @@ select.sky-form-control optgroup {
 }
 
 .sky-tool-operations-table .sky-table-sort-button:hover,
-.sky-tool-operations-table .sky-table-sort-button:focus-visible {
+.sky-tool-operations-table .sky-table-sort-button:focus-visible,
+.sky-workflow-operations-table .sky-table-sort-button:hover,
+.sky-workflow-operations-table .sky-table-sort-button:focus-visible {
   color: #ffe08a;
   outline: none;
 }
 
-.sky-tool-operations-table .sky-table-sort-indicator {
+.sky-tool-operations-table .sky-table-sort-indicator,
+.sky-workflow-operations-table .sky-table-sort-indicator {
   color: rgba(220, 177, 63, 0.64);
   font-size: 0.92rem;
   font-weight: 900;
   line-height: 1;
 }
 
-.sky-tool-operations-table .sky-table-sort-button.is-active .sky-table-sort-indicator {
+.sky-tool-operations-table .sky-table-sort-button.is-active .sky-table-sort-indicator,
+.sky-workflow-operations-table .sky-table-sort-button.is-active .sky-table-sort-indicator {
   color: #f4c95d;
 }
 
-.sky-tool-operations-table .sky-table-sort-priority {
+.sky-tool-operations-table .sky-table-sort-priority,
+.sky-workflow-operations-table .sky-table-sort-priority {
   display: inline-flex;
   min-width: 1.05rem;
   height: 1.05rem;
@@ -7465,28 +7474,34 @@ select.sky-form-control optgroup {
   line-height: 1;
 }
 
-.sky-tool-operations-table tbody td {
+.sky-tool-operations-table tbody td,
+.sky-workflow-operations-table tbody td {
   border: 1px solid var(--sky-tool-table-grid);
 }
 
-.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td {
+.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td,
+.sky-workflow-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td {
   background: transparent;
   border-top-color: var(--sky-tool-table-row-outline);
   border-bottom-color: var(--sky-tool-table-row-outline);
   box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);
 }
 
-.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:first-child {
+.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:first-child,
+.sky-workflow-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:first-child {
   border-left-color: var(--sky-tool-table-row-outline);
   box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);
 }
 
-.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:last-child {
+.sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:last-child,
+.sky-workflow-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:last-child {
   border-right-color: var(--sky-tool-table-row-outline);
 }
 
 .sky-tool-operations-table tbody tr.sky-selected-row td,
-.sky-tool-operations-table tbody tr.sky-selected-row:hover td {
+.sky-tool-operations-table tbody tr.sky-selected-row:hover td,
+.sky-workflow-operations-table tbody tr.sky-selected-row td,
+.sky-workflow-operations-table tbody tr.sky-selected-row:hover td {
   background: rgba(220, 177, 63, 0.105);
   border-top-color: var(--sky-tool-table-row-outline);
   border-bottom-color: var(--sky-tool-table-row-outline);
@@ -7494,31 +7509,39 @@ select.sky-form-control optgroup {
 }
 
 .sky-tool-operations-table tbody tr.sky-selected-row td:first-child,
-.sky-tool-operations-table tbody tr.sky-selected-row:hover td:first-child {
+.sky-tool-operations-table tbody tr.sky-selected-row:hover td:first-child,
+.sky-workflow-operations-table tbody tr.sky-selected-row td:first-child,
+.sky-workflow-operations-table tbody tr.sky-selected-row:hover td:first-child {
   border-left-color: var(--sky-tool-table-row-outline);
   box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);
 }
 
 .sky-tool-operations-table tbody tr.sky-selected-row td:last-child,
-.sky-tool-operations-table tbody tr.sky-selected-row:hover td:last-child {
+.sky-tool-operations-table tbody tr.sky-selected-row:hover td:last-child,
+.sky-workflow-operations-table tbody tr.sky-selected-row td:last-child,
+.sky-workflow-operations-table tbody tr.sky-selected-row:hover td:last-child {
   border-right-color: var(--sky-tool-table-row-outline);
 }
 
-.sky-tool-operations-pagination-row {
+.sky-tool-operations-pagination-row,
+.sky-workflow-operations-pagination-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
 }
 
-.sky-tool-operations-pagination-summary {
+.sky-tool-operations-pagination-summary,
+.sky-workflow-operations-pagination-summary {
   justify-self: start;
 }
 
-.sky-tool-operations-pagination-controls {
+.sky-tool-operations-pagination-controls,
+.sky-workflow-operations-pagination-controls {
   justify-self: center;
 }
 
-.sky-tool-operations-pagination-balance {
+.sky-tool-operations-pagination-balance,
+.sky-workflow-operations-pagination-balance {
   min-width: 0;
 }
 
@@ -7561,26 +7584,31 @@ select.sky-form-control optgroup {
 }
 
 @media (max-width: 768px) {
-  .sky-tool-operations-table-frame {
+  .sky-tool-operations-table-frame,
+  .sky-workflow-operations-table-frame {
     padding-inline: 0.75rem;
   }
 
-  .sky-tool-operations-table thead th {
+  .sky-tool-operations-table thead th,
+  .sky-workflow-operations-table thead th {
     padding-top: 0.66rem;
     padding-bottom: 0.66rem;
     font-size: 0.94rem;
   }
 
-  .sky-tool-operations-pagination-row {
+  .sky-tool-operations-pagination-row,
+  .sky-workflow-operations-pagination-row {
     display: flex;
     align-items: center;
   }
 
-  .sky-tool-operations-pagination-summary {
+  .sky-tool-operations-pagination-summary,
+  .sky-workflow-operations-pagination-summary {
     align-self: flex-start;
   }
 
-  .sky-tool-operations-pagination-balance {
+  .sky-tool-operations-pagination-balance,
+  .sky-workflow-operations-pagination-balance {
     display: none;
   }
 }

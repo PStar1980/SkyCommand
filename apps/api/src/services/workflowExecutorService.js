@@ -22,6 +22,7 @@ const {
 const { WorkflowServiceError } = require('./workflowServiceError');
 const { assertWorkflowExecutionTargetsAvailable } = require('./workflowExecutionPreflightService');
 const { isBlankValue } = require('./workflowParameterUtils');
+const { buildWhitelistedOrderBy } = require('./tableSortUtils');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -6242,6 +6243,19 @@ async function listWorkflowRuns(filters = {}) {
   }
 
   const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const orderBy = buildWhitelistedOrderBy({
+    sortValue: filters.sort,
+    sortFields: {
+      workflow: "LOWER(COALESCE(NULLIF(BTRIM(workflow_display_name), ''), workflow_code))",
+      status: 'status',
+      startedAt: 'COALESCE(started_at, created_at)',
+      durationMs: 'EXTRACT(EPOCH FROM (COALESCE(completed_at, NOW()) - COALESCE(started_at, created_at))) * 1000',
+      completedAt: 'completed_at',
+      runtime: "CASE WHEN temporal_workflow_id IS NOT NULL THEN 'temporal' ELSE 'inline' END",
+    },
+    defaultSorts: [{ field: 'startedAt', direction: 'desc' }],
+    tieBreakers: ['created_at DESC', 'workflow_run_record_id DESC'],
+  });
   values.push(limit);
 
   const result = await query(
@@ -6249,7 +6263,7 @@ async function listWorkflowRuns(filters = {}) {
       SELECT *
       FROM worker.vw_workflow_run_records
       ${whereClause}
-      ORDER BY COALESCE(started_at, created_at) DESC, created_at DESC
+      ${orderBy}
       LIMIT $${values.length}
     `,
     values,

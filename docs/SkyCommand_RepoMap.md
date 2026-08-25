@@ -169,6 +169,7 @@ SkyCommand/
 │   │       │   ├── workflowDatabaseOutputSelfTest.js
 │   │       │   ├── workflowEditorGraphParitySelfTest.js
 │   │       │   ├── WorkflowManager.jsx
+│   │       │   ├── workflowOperationsTableRefinementSelfTest.js
 │   │       │   ├── WorkflowsDashboard.jsx
 │   │       │   ├── workflowStartCatalogueSelfTest.js
 │   │       │   └── WorkflowWorkerHealth.jsx

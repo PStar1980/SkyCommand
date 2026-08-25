@@ -19,7 +19,16 @@ const STATUS_OPTIONS = [
 ];
 
 const HISTORY_PAGE_SIZE = 10;
+const WORKFLOW_HISTORY_DEFAULT_SORTS = [{ field: 'startedAt', direction: 'desc' }];
 const START_WORKFLOW_PAGE_SIZE = 10;
+
+function serializeSorts(sorts = []) {
+  return sorts.map((sort) => `${sort.field}:${sort.direction}`).join(',');
+}
+
+function sortStacksMatch(left = [], right = []) {
+  return serializeSorts(left) === serializeSorts(right);
+}
 const HISTORY_LOAD_LIMIT = 200;
 const HISTORY_POLL_IDLE_MS = 8000;
 const HISTORY_POLL_ACTIVE_MS = 2000;
@@ -4903,6 +4912,8 @@ function SkyWorkflows({ mode = 'start' }) {
     runtime: normalizeRuntimeFilter(searchParams.get('runtime')),
   }));
   const [historyPage, setHistoryPage] = useState(1);
+  const [historySorts, setHistorySorts] = useState(() => WORKFLOW_HISTORY_DEFAULT_SORTS);
+  const [historySortingCustomized, setHistorySortingCustomized] = useState(false);
   const [startWorkflowFilters, setStartWorkflowFilters] = useState(
     DEFAULT_START_WORKFLOW_FILTERS,
   );
@@ -5174,10 +5185,14 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
-  async function loadRuns(nextFilters = filters, { keepSelection = true } = {}) {
+  async function loadRuns(
+    nextFilters = filters,
+    { keepSelection = true, nextSorts = historySorts } = {},
+  ) {
     const query = {
       limit: HISTORY_LOAD_LIMIT,
       status: nextFilters.status,
+      sort: serializeSorts(nextSorts),
     };
     const result = await workflowService.listRuns(query);
     const items = result.items || [];
@@ -5308,6 +5323,7 @@ function SkyWorkflows({ mode = 'start' }) {
       const result = await workflowService.listRuns({
         limit: HISTORY_LOAD_LIMIT,
         status: filters.status,
+        sort: serializeSorts(historySorts),
       });
       const items = result.items || [];
       const activeRunCount = items.filter(isActiveRun).length;
@@ -5569,6 +5585,117 @@ function SkyWorkflows({ mode = 'start' }) {
     }
 
     loadRuns(nextFilters, { keepSelection: false });
+  }
+
+  function applyHistorySorting(nextSorts, customized) {
+    setHistorySorts(nextSorts);
+    setHistorySortingCustomized(customized);
+    setHistoryPage(1);
+    setSelectedRunDetail(null);
+    loadRuns(filters, { keepSelection: false, nextSorts });
+  }
+
+  function updateHistorySorting(field, event) {
+    const currentSorts = historySorts.length > 0
+      ? historySorts
+      : WORKFLOW_HISTORY_DEFAULT_SORTS;
+    const activeIndex = currentSorts.findIndex((sort) => sort.field === field);
+    const shiftPressed = Boolean(event?.shiftKey);
+
+    if (shiftPressed) {
+      if (activeIndex < 0) {
+        applyHistorySorting([...currentSorts, { field, direction: 'asc' }], true);
+        return;
+      }
+
+      const activeSort = currentSorts[activeIndex];
+
+      if (!historySortingCustomized && sortStacksMatch(currentSorts, WORKFLOW_HISTORY_DEFAULT_SORTS)) {
+        const nextSorts = [...currentSorts];
+        nextSorts[activeIndex] = { field, direction: 'asc' };
+        applyHistorySorting(nextSorts, true);
+        return;
+      }
+
+      if (activeSort.direction === 'asc') {
+        const nextSorts = [...currentSorts];
+        nextSorts[activeIndex] = { ...activeSort, direction: 'desc' };
+        applyHistorySorting(nextSorts, true);
+        return;
+      }
+
+      const nextSorts = currentSorts.filter((_, index) => index !== activeIndex);
+      const normalizedSorts = nextSorts.length > 0
+        ? nextSorts
+        : WORKFLOW_HISTORY_DEFAULT_SORTS;
+      applyHistorySorting(
+        normalizedSorts,
+        !sortStacksMatch(normalizedSorts, WORKFLOW_HISTORY_DEFAULT_SORTS),
+      );
+      return;
+    }
+
+    if (currentSorts.length > 1) {
+      const nextPrimarySort = activeIndex >= 0
+        ? { ...currentSorts[activeIndex] }
+        : { field, direction: 'asc' };
+      applyHistorySorting([nextPrimarySort], true);
+      return;
+    }
+
+    if (activeIndex < 0) {
+      applyHistorySorting([{ field, direction: 'asc' }], true);
+      return;
+    }
+
+    const activeSort = currentSorts[0];
+
+    if (!historySortingCustomized && sortStacksMatch(currentSorts, WORKFLOW_HISTORY_DEFAULT_SORTS)) {
+      applyHistorySorting([{ field, direction: 'asc' }], true);
+      return;
+    }
+
+    if (activeSort.direction === 'asc') {
+      applyHistorySorting([{ field, direction: 'desc' }], true);
+      return;
+    }
+
+    applyHistorySorting(WORKFLOW_HISTORY_DEFAULT_SORTS, false);
+  }
+
+  function clearHistorySorting() {
+    applyHistorySorting(WORKFLOW_HISTORY_DEFAULT_SORTS, false);
+  }
+
+  function renderHistorySortableHeader(label, field) {
+    const activeIndex = historySorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? historySorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateHistorySorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
   }
 
   function clearHistoryFilters() {
@@ -5834,6 +5961,7 @@ function SkyWorkflows({ mode = 'start' }) {
     filters.q,
     filters.status,
     filters.runtime,
+    serializeSorts(historySorts),
     selectedRun?.workflowRunRecordId,
     selectedRun?.status,
     approvalResumePollingUntil,
@@ -6175,36 +6303,49 @@ function SkyWorkflows({ mode = 'start' }) {
     );
   }
 
+  function goToHistoryPage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), historyPageCount);
+    setHistoryPage(nextPage);
+  }
+
   function renderHistoryPagination() {
     return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
+      <div className="sky-pagination-row sky-workflow-operations-pagination-row">
+        <div className="small sky-muted sky-workflow-operations-pagination-summary">
           Showing {historyRangeStart}-{historyRangeEnd} of {historyRuns.length} workflow run(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Workflow history pagination">
+        <div
+          className="sky-pagination-controls sky-workflow-operations-pagination-controls"
+          aria-label="Workflow operations pagination"
+        >
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={currentHistoryPage <= 1}
-            onClick={() => setHistoryPage(1)}
+            aria-label="First page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={currentHistoryPage <= 1 || loading}
+            onClick={() => goToHistoryPage(1)}
+            title="First page"
             type="button"
           >
-            First
+            «
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={currentHistoryPage <= 1}
-            onClick={() => setHistoryPage((page) => Math.max(1, page - 1))}
+            aria-label="Previous page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={currentHistoryPage <= 1 || loading}
+            onClick={() => goToHistoryPage(currentHistoryPage - 1)}
+            title="Previous page"
             type="button"
           >
-            Back
+            ‹
           </button>
           <label className="sky-pagination-select-label" htmlFor="workflowHistoryPageSelect">
             Page
           </label>
           <select
             className="form-select form-select-sm sky-form-control sky-pagination-select"
+            disabled={loading}
             id="workflowHistoryPageSelect"
-            onChange={(event) => setHistoryPage(Number(event.target.value) || 1)}
+            onChange={(event) => goToHistoryPage(event.target.value)}
             value={currentHistoryPage}
           >
             {Array.from({ length: historyPageCount }, (_, index) => index + 1).map((page) => (
@@ -6215,22 +6356,27 @@ function SkyWorkflows({ mode = 'start' }) {
           </select>
           <span className="small sky-muted">of {historyPageCount}</span>
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={currentHistoryPage >= historyPageCount}
-            onClick={() => setHistoryPage((page) => Math.min(historyPageCount, page + 1))}
+            aria-label="Next page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={currentHistoryPage >= historyPageCount || loading}
+            onClick={() => goToHistoryPage(currentHistoryPage + 1)}
+            title="Next page"
             type="button"
           >
-            Next
+            ›
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={currentHistoryPage >= historyPageCount}
-            onClick={() => setHistoryPage(historyPageCount)}
+            aria-label="Last page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={currentHistoryPage >= historyPageCount || loading}
+            onClick={() => goToHistoryPage(historyPageCount)}
+            title="Last page"
             type="button"
           >
-            Last
+            »
           </button>
         </div>
+        <div className="sky-workflow-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
@@ -6305,6 +6451,15 @@ function SkyWorkflows({ mode = 'start' }) {
                 </select>
               </div>
               <div className="sky-run-tools-filter-actions">
+                {historySortingCustomized && (
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    onClick={clearHistorySorting}
+                    type="button"
+                  >
+                    Clear sorting
+                  </button>
+                )}
                 <button
                   className="btn btn-sm sky-btn-ghost"
                   onClick={clearHistoryFilters}
@@ -6315,16 +6470,16 @@ function SkyWorkflows({ mode = 'start' }) {
               </div>
             </div>
           </div>
-          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-workflow-history-table-card">
-            <table className="table table-sm table-hover sky-table align-middle">
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-workflow-history-table-card sky-workflow-operations-table-frame">
+            <table className="table table-sm table-hover sky-table sky-workflow-operations-table align-middle">
               <thead>
                 <tr>
-                  <th>Workflow</th>
-                  <th>Status</th>
-                  <th>Started</th>
-                  <th>Duration</th>
-                  <th>Completed</th>
-                  <th>Runtime</th>
+                  {renderHistorySortableHeader('Workflow', 'workflow')}
+                  {renderHistorySortableHeader('Status', 'status')}
+                  {renderHistorySortableHeader('Started', 'startedAt')}
+                  {renderHistorySortableHeader('Duration', 'durationMs')}
+                  {renderHistorySortableHeader('Completed', 'completedAt')}
+                  {renderHistorySortableHeader('Runtime', 'runtime')}
                   <th className="text-end">Actions</th>
                 </tr>
               </thead>
