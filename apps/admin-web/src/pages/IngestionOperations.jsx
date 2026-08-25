@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -9,7 +9,10 @@ import useSmartPolling, {
 import ingestionService from '../services/ingestionService.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
+import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 const PAGE_SIZE = 10;
+const INGESTION_RUN_FETCH_LIMIT = 250;
+const INGESTION_RUN_DEFAULT_SORTS = [{ field: 'started', direction: 'desc' }];
 
 const DEFAULT_FILTERS = {
   domainCode: '',
@@ -73,6 +76,32 @@ function isActiveRun(run) {
   return ['QUEUED', 'RUNNING', 'STARTED'].includes(normalizeStatus(run?.statusCode));
 }
 
+function getRunSortValue(run, field) {
+  if (field === 'started') {
+    const timestamp = run?.startedAt ? new Date(run.startedAt).getTime() : Number.NaN;
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+  if (field === 'domainSource') {
+    return `${run?.domainCode || ''} ${run?.sourceCode || ''}`.trim();
+  }
+  if (field === 'tool') {
+    return `${run?.toolLabel || ''} ${run?.toolCode || ''}`.trim();
+  }
+  if (field === 'trigger') return run?.triggerCode || null;
+  if (field === 'status') return normalizeStatus(run?.statusCode);
+  if (field === 'assets') {
+    const value = Number(run?.totals?.itemsRequested);
+    return Number.isFinite(value) ? value : null;
+  }
+  if (field === 'quality') return normalizeStatus(run?.totals?.qualityStatusCode || 'PASS');
+  if (field === 'rows') {
+    const inserted = Number(run?.totals?.rowsInserted || 0);
+    const updated = Number(run?.totals?.rowsUpdated || 0);
+    return inserted + updated;
+  }
+  return run?.[field] ?? '';
+}
+
 function getFinalItemAttempts(items = []) {
   const latestByAsset = new Map();
   items.forEach((item) => {
@@ -98,16 +127,28 @@ function IngestionOperations() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftSearch, setDraftSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sorts, setSorts] = useState(() => INGESTION_RUN_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
+  const runRequestIdRef = useRef(0);
 
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const sortedRuns = useMemo(
+    () => sortItemsBySorts(runs, sorts, getRunSortValue),
+    [runs, sorts],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedRuns.length / PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * PAGE_SIZE, total);
+  const pageStart = (safeCurrentPage - 1) * PAGE_SIZE;
+  const visibleRuns = useMemo(
+    () => sortedRuns.slice(pageStart, pageStart + PAGE_SIZE),
+    [pageStart, sortedRuns],
+  );
+  const rangeStart = sortedRuns.length === 0 ? 0 : pageStart + 1;
+  const rangeEnd = Math.min(pageStart + PAGE_SIZE, sortedRuns.length);
 
   const filteredSources = useMemo(
     () =>
@@ -179,38 +220,63 @@ function IngestionOperations() {
   async function loadRuns(
     nextFilters = filters,
     nextPage = currentPage,
-    { keepSelection = true, quiet = false } = {},
+    { keepSelection = true, quiet = false, nextSorts = sorts } = {},
   ) {
+    const requestId = runRequestIdRef.current + 1;
+    runRequestIdRef.current = requestId;
+
     if (!quiet) {
       setLoading(true);
       setError('');
     }
 
-    const safePage = Math.max(1, Number(nextPage) || 1);
+    const requestedPage = Math.max(1, Number(nextPage) || 1);
 
     try {
-      const result = await ingestionService.listIngestionRuns({
-        ...nextFilters,
-        limit: PAGE_SIZE,
-        offset: (safePage - 1) * PAGE_SIZE,
-      });
-      const nextRuns = result.items || [];
-      const nextTotal = Number(result.total || 0);
-      const nextPageCount = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
+      const nextRuns = [];
+      let nextTotal = 0;
+      let offset = 0;
 
-      if (nextTotal > 0 && safePage > nextPageCount) {
-        setCurrentPage(nextPageCount);
-        return loadRuns(nextFilters, nextPageCount, { keepSelection: false, quiet });
-      }
+      do {
+        const result = await ingestionService.listIngestionRuns({
+          ...nextFilters,
+          limit: INGESTION_RUN_FETCH_LIMIT,
+          offset,
+        });
 
-      setRuns(nextRuns);
-      setTotal(nextTotal);
-      setCurrentPage(safePage);
-      setRefreshingAt(new Date());
+        if (requestId !== runRequestIdRef.current) {
+          return { activeCount: 0 };
+        }
 
+        const batch = result.items || [];
+        nextTotal = Number(result.total || 0);
+        nextRuns.push(...batch);
+        offset += batch.length;
+
+        if (batch.length === 0) {
+          break;
+        }
+      } while (nextRuns.length < nextTotal);
+
+      const sortedNextRuns = sortItemsBySorts(nextRuns, nextSorts, getRunSortValue);
       const currentId = keepSelection ? selectedRun?.ingestionRunId : null;
       const nextSelected =
-        nextRuns.find((run) => run.ingestionRunId === currentId) || nextRuns[0] || null;
+        sortedNextRuns.find((run) => run.ingestionRunId === currentId) ||
+        sortedNextRuns[0] ||
+        null;
+      const selectedIndex = nextSelected
+        ? sortedNextRuns.findIndex((run) => run.ingestionRunId === nextSelected.ingestionRunId)
+        : -1;
+      const selectedPage = selectedIndex >= 0 ? Math.floor(selectedIndex / PAGE_SIZE) + 1 : 1;
+      const nextPageCount = Math.max(1, Math.ceil(sortedNextRuns.length / PAGE_SIZE));
+      const resolvedPage = keepSelection && selectedIndex >= 0
+        ? selectedPage
+        : Math.min(requestedPage, nextPageCount);
+
+      setRuns(nextRuns);
+      setTotal(nextRuns.length);
+      setCurrentPage(resolvedPage);
+      setRefreshingAt(new Date());
       setSelectedRun(nextSelected);
 
       if (!quiet || nextSelected?.ingestionRunId !== selectedDetail?.run?.ingestionRunId) {
@@ -222,7 +288,7 @@ function IngestionOperations() {
       if (!quiet) setError(loadError.message || 'Failed to load ingestion history.');
       throw loadError;
     } finally {
-      if (!quiet) setLoading(false);
+      if (!quiet && requestId === runRequestIdRef.current) setLoading(false);
     }
   }
 
@@ -276,9 +342,72 @@ function IngestionOperations() {
     loadRuns(DEFAULT_FILTERS, 1, { keepSelection: false });
   }
 
+  function applySorting(nextSorts, customized) {
+    const sorted = sortItemsBySorts(runs, nextSorts, getRunSortValue);
+    const selectedIndex = selectedRun?.ingestionRunId
+      ? sorted.findIndex((run) => run.ingestionRunId === selectedRun.ingestionRunId)
+      : -1;
+    const nextPage = selectedIndex >= 0 ? Math.floor(selectedIndex / PAGE_SIZE) + 1 : 1;
+
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setCurrentPage(nextPage);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: INGESTION_RUN_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(INGESTION_RUN_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
+  }
+
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    loadRuns(filters, nextPage, { keepSelection: false });
+    setCurrentPage(nextPage);
+
+    const firstVisible = sortedRuns[(nextPage - 1) * PAGE_SIZE];
+    if (firstVisible && firstVisible.ingestionRunId !== selectedRun?.ingestionRunId) {
+      selectRun(firstVisible);
+    }
   }
 
   function selectRun(run) {
@@ -407,36 +536,41 @@ function IngestionOperations() {
                     value={draftSearch}
                   />
                   <button className="btn sky-btn-primary" disabled={loading} type="submit">Apply</button>
+                  {sortingCustomized && (
+                    <button className="btn sky-btn-ghost" disabled={loading} onClick={clearSorting} type="button">
+                      Clear sorting
+                    </button>
+                  )}
                   <button className="btn sky-btn-ghost" disabled={loading} onClick={resetFilters} type="button">
-                    Reset
+                    Clear filters
                   </button>
                 </div>
               </form>
             </div>
           </div>
 
-          <div className="table-responsive sky-table-card sky-functional-history-table-card">
-            <table className="table table-sm table-hover sky-table align-middle mb-0">
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+            <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Started</th>
-                  <th>Domain / source</th>
-                  <th>Tool</th>
-                  <th>Trigger</th>
-                  <th>Status</th>
-                  <th>Assets</th>
-                  <th>Quality</th>
-                  <th>Rows</th>
+                  {renderSortableHeader('Started', 'started')}
+                  {renderSortableHeader('Domain / source', 'domainSource')}
+                  {renderSortableHeader('Tool', 'tool')}
+                  {renderSortableHeader('Trigger', 'trigger')}
+                  {renderSortableHeader('Status', 'status')}
+                  {renderSortableHeader('Assets', 'assets')}
+                  {renderSortableHeader('Quality', 'quality')}
+                  {renderSortableHeader('Rows', 'rows')}
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr><td colSpan="8"><div className="sky-empty-state">Loading ingestion runs...</div></td></tr>
                 )}
-                {!loading && runs.length === 0 && (
+                {!loading && visibleRuns.length === 0 && (
                   <tr><td colSpan="8"><div className="sky-empty-state">No ingestion runs matched these filters.</div></td></tr>
                 )}
-                {!loading && runs.map((run) => (
+                {!loading && visibleRuns.map((run) => (
                   <tr
                     className={`sky-clickable-row ${selectedRun?.ingestionRunId === run.ingestionRunId ? 'sky-selected-row' : ''}`}
                     key={run.ingestionRunId}
@@ -465,19 +599,69 @@ function IngestionOperations() {
             </table>
           </div>
 
-          <div className="sky-pagination-row">
-            <div className="small sky-muted">Showing {rangeStart}-{rangeEnd} of {total} ingestion run(s)</div>
-            <div className="sky-pagination-controls" aria-label="Ingestion operations pagination">
-              <button className="btn btn-sm sky-btn-ghost" disabled={safeCurrentPage <= 1 || loading} onClick={() => goToPage(1)} type="button">First</button>
-              <button className="btn btn-sm sky-btn-ghost" disabled={safeCurrentPage <= 1 || loading} onClick={() => goToPage(safeCurrentPage - 1)} type="button">Back</button>
+          <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+            <div className="small sky-muted sky-canonical-operations-pagination-summary">
+              Showing {rangeStart}-{rangeEnd} of {total} ingestion run(s)
+            </div>
+            <div
+              className="sky-pagination-controls sky-canonical-operations-pagination-controls"
+              aria-label="Ingestion operations pagination"
+            >
+              <button
+                aria-label="First page"
+                className="btn btn-sm sky-pagination-nav-button"
+                disabled={safeCurrentPage <= 1 || loading}
+                onClick={() => goToPage(1)}
+                title="First page"
+                type="button"
+              >
+                «
+              </button>
+              <button
+                aria-label="Previous page"
+                className="btn btn-sm sky-pagination-nav-button"
+                disabled={safeCurrentPage <= 1 || loading}
+                onClick={() => goToPage(safeCurrentPage - 1)}
+                title="Previous page"
+                type="button"
+              >
+                ‹
+              </button>
               <label className="sky-pagination-select-label" htmlFor="ingestionOperationsPage">Page</label>
-              <select className="form-select form-select-sm sky-form-control sky-pagination-select" id="ingestionOperationsPage" onChange={(event) => goToPage(event.target.value)} value={safeCurrentPage}>
-                {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => <option key={page} value={page}>{page}</option>)}
+              <select
+                className="form-select form-select-sm sky-form-control sky-pagination-select"
+                disabled={loading}
+                id="ingestionOperationsPage"
+                onChange={(event) => goToPage(event.target.value)}
+                value={safeCurrentPage}
+              >
+                {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
+                  <option key={page} value={page}>{page}</option>
+                ))}
               </select>
               <span className="small sky-muted">of {pageCount}</span>
-              <button className="btn btn-sm sky-btn-ghost" disabled={safeCurrentPage >= pageCount || loading} onClick={() => goToPage(safeCurrentPage + 1)} type="button">Next</button>
-              <button className="btn btn-sm sky-btn-ghost" disabled={safeCurrentPage >= pageCount || loading} onClick={() => goToPage(pageCount)} type="button">Last</button>
+              <button
+                aria-label="Next page"
+                className="btn btn-sm sky-pagination-nav-button"
+                disabled={safeCurrentPage >= pageCount || loading}
+                onClick={() => goToPage(safeCurrentPage + 1)}
+                title="Next page"
+                type="button"
+              >
+                ›
+              </button>
+              <button
+                aria-label="Last page"
+                className="btn btn-sm sky-pagination-nav-button"
+                disabled={safeCurrentPage >= pageCount || loading}
+                onClick={() => goToPage(pageCount)}
+                title="Last page"
+                type="button"
+              >
+                »
+              </button>
             </div>
+            <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
           </div>
         </section>
 
