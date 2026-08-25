@@ -59,6 +59,31 @@ const checks = [
     'Manage Repositories pagination is required.',
   ],
   [
+    manageSource.includes("renderSortableHeader('Repository', 'repository')") &&
+      manageSource.includes("renderSortableHeader('Branches', 'branches')") &&
+      manageSource.includes("renderSortableHeader('Remote', 'remote')") &&
+      manageSource.includes("renderSortableHeader('Role', 'role')") &&
+      manageSource.includes("renderSortableHeader('Status', 'status')") &&
+      manageSource.includes("renderSortableHeader('Updated', 'updated')") &&
+      manageSource.includes('Shift+click to add to multi-column sorting') &&
+      manageSource.includes('Clear sorting'),
+    'Manage Repositories data columns must use canonical multi-column sorting controls.',
+  ],
+  [
+    manageSource.includes('REPOSITORY_FETCH_LIMIT = 200') &&
+      manageSource.includes('limit: REPOSITORY_FETCH_LIMIT') &&
+      manageSource.includes('while (items.length < expectedTotal)'),
+    'Manage Repositories must fetch the complete filtered catalogue in API-safe batches before sorting.',
+  ],
+  [
+    manageSource.includes('sky-canonical-operations-table-frame') &&
+      manageSource.includes('sky-canonical-operations-table align-middle mb-0') &&
+      manageSource.includes('sky-canonical-operations-pagination-row') &&
+      manageSource.includes('sky-canonical-operations-pagination-balance') &&
+      manageSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
+    'Manage Repositories must use the canonical table frame and centered gold pagination.',
+  ],
+  [
     manageSource.includes('<th className="text-end">Actions</th>') &&
       manageSource.includes('Repository Details') &&
       manageSource.includes('aria-label="Repository details"'),
