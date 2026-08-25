@@ -23,6 +23,14 @@ assert.match(pageSource, /Recovery history/);
 assert.match(pageSource, /Recover failed assets/);
 assert.match(pageSource, /listRecoveryRequests/);
 assert.match(pageSource, /resumeRunId/);
+assert.match(pageSource, /INGESTION_RUN_FETCH_LIMIT = 250/);
+assert.match(pageSource, /renderSortableHeader\('Started', 'started'\)/);
+assert.match(pageSource, /renderSortableHeader\('Domain \/ source', 'domainSource'\)/);
+assert.match(pageSource, /renderSortableHeader\('Quality', 'quality'\)/);
+assert.match(pageSource, /Shift\+click to add to multi-column sorting/);
+assert.match(pageSource, /Clear sorting/);
+assert.match(pageSource, /sky-canonical-operations-table-frame/);
+assert.match(pageSource, /sky-canonical-operations-pagination-row/);
 assert.doesNotMatch(pageSource, /\['FRED',\s*'BOC',\s*'STATCAN'\]/);
 
 assert.match(mainSource, /path="data\/operations"/);

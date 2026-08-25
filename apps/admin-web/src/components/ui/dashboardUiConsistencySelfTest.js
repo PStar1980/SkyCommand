@@ -96,7 +96,13 @@ const dataStatusSource = fs.readFileSync(path.join(sourceRoot, 'pages/DataStatus
 assert.match(dataStatusSource, /title="Data Intelligence"/);
 assert.match(dataStatusSource, />Indicator freshness</);
 assert.match(dataStatusSource, /DATA_INTELLIGENCE_PAGE_SIZE = 10/);
-assert.match(dataStatusSource, /offset: \(safePage - 1\) \* DATA_INTELLIGENCE_PAGE_SIZE/);
+assert.match(dataStatusSource, /DATA_INTELLIGENCE_FETCH_LIMIT = 500/);
+assert.match(dataStatusSource, /renderSortableHeader\('Indicator', 'indicator'\)/);
+assert.match(dataStatusSource, /renderSortableHeader\('Latest data', 'latestData'\)/);
+assert.match(dataStatusSource, /Shift\+click to add to multi-column sorting/);
+assert.match(dataStatusSource, /Clear sorting/);
+assert.match(dataStatusSource, /sky-canonical-operations-table-frame/);
+assert.match(dataStatusSource, /sky-canonical-operations-pagination-row/);
 assert.match(dataStatusSource, /dataStatusPageSelect/);
 assert.match(dataStatusSource, /Showing \{rangeStart\}-\{rangeEnd\} of \{total\}/);
 
