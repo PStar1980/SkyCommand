@@ -7423,10 +7423,12 @@ select.sky-form-control optgroup {
   background: transparent;
   border-top-color: var(--sky-tool-table-row-outline);
   border-bottom-color: var(--sky-tool-table-row-outline);
+  box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);
 }
 
 .sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:first-child {
   border-left-color: var(--sky-tool-table-row-outline);
+  box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);
 }
 
 .sky-tool-operations-table tbody tr.sky-clickable-row:hover:not(.sky-selected-row) td:last-child {
@@ -7438,13 +7440,13 @@ select.sky-form-control optgroup {
   background: rgba(220, 177, 63, 0.105);
   border-top-color: var(--sky-tool-table-row-outline);
   border-bottom-color: var(--sky-tool-table-row-outline);
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);
 }
 
 .sky-tool-operations-table tbody tr.sky-selected-row td:first-child,
 .sky-tool-operations-table tbody tr.sky-selected-row:hover td:first-child {
   border-left-color: var(--sky-tool-table-row-outline);
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);
 }
 
 .sky-tool-operations-table tbody tr.sky-selected-row td:last-child,

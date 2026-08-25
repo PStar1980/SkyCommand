@@ -1,3 +1,13 @@
+2026-08-24 - Tool Operations first-cell top-edge completion
+- Completed the final selected/hover row outline seam by explicitly painting the gold top inset on the first cell, overriding the legacy global selected-row first-cell shadow.
+- Preserves the canonical Tool Operations grid, uniform selected fill, transparent hover treatment, and centered gold paginator without changing table geometry.
+- Extended the Tool Operations table regression proof to protect the first-cell top edge.
+
+2026-08-24 - Tool Operations table selection outline completion
+- Completed the Tool Operations prototype selected/hover row perimeter by painting an explicit inset gold top edge across every cell.
+- Avoids collapsed-table border conflict with the preceding row while preserving the existing grid, selected fill, hover transparency, and paginator treatment.
+- Extended the Tool Operations table regression proof to require the complete top-edge treatment.
+
 ## 2026-08-24 - Tool Operations table grid and row-state refinement
 
 - Refined the **Tools > Tool Operations > Execution Browser** prototype header typography so the taller header row remains visually strong while its label text sits slightly below the browser-kicker hierarchy.

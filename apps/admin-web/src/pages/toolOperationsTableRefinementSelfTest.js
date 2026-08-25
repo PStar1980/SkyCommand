@@ -37,8 +37,11 @@ assert(
     && cssSource.includes('background: transparent;')
     && cssSource.includes('tr.sky-selected-row td,')
     && cssSource.includes('background: rgba(220, 177, 63, 0.105);')
-    && cssSource.includes('--sky-tool-table-row-outline: rgba(255, 217, 120, 0.88);'),
-  'Tool Operations must distinguish transparent outlined hover rows from solid-gold selected rows with a gold perimeter.',
+    && cssSource.includes('--sky-tool-table-row-outline: rgba(255, 217, 120, 0.88);')
+    && cssSource.includes('box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);')
+    && cssSource.includes('tr.sky-selected-row td:first-child,')
+    && cssSource.includes('tr.sky-clickable-row:hover:not(.sky-selected-row) td:first-child {\n  border-left-color: var(--sky-tool-table-row-outline);\n  box-shadow: inset 0 1px 0 var(--sky-tool-table-row-outline);'),
+  'Tool Operations must distinguish transparent outlined hover rows from solid-gold selected rows with a complete gold perimeter, including the first-cell top edge.',
 );
 
 assert(
