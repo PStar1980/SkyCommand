@@ -3,6 +3,7 @@ import RepositoryForm from '../components/RepositoryForm.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
+import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 import {
   createRepositoryForm,
   DEFAULT_REPOSITORY_FILTERS,
@@ -13,6 +14,38 @@ import {
   repositoryStatusLabel,
   sanitizeRepositoryPayload,
 } from './repositoryAdminUtils.js';
+
+const REPOSITORY_FETCH_LIMIT = 200;
+const MANAGE_REPOSITORY_DEFAULT_SORTS = [{ field: 'repository', direction: 'asc' }];
+
+function getRepositorySortValue(repository, field) {
+  if (field === 'repository') {
+    return `${repository?.repoName || ''} ${repository?.repoCode || ''}`.trim();
+  }
+
+  if (field === 'branches') {
+    return `${repository?.mainBranch || ''} ${repository?.devBranch || ''}`.trim();
+  }
+
+  if (field === 'remote') {
+    return repository?.remoteUrl || null;
+  }
+
+  if (field === 'role') {
+    return repository?.isSkycommandRepository ? 'SkyCommand' : 'Standard';
+  }
+
+  if (field === 'status') {
+    return repositoryStatusLabel(repository?.active);
+  }
+
+  if (field === 'updated') {
+    const timestamp = repository?.updatedAt ? new Date(repository.updatedAt).getTime() : Number.NaN;
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  return repository?.[field] ?? '';
+}
 
 function ManageRepositories() {
   const { hasPermission } = useAuth();
@@ -26,7 +59,8 @@ function ManageRepositories() {
   const [form, setForm] = useState(createRepositoryForm());
   const [filters, setFilters] = useState(DEFAULT_REPOSITORY_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [sorts, setSorts] = useState(() => MANAGE_REPOSITORY_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,10 +71,19 @@ function ManageRepositories() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const filterAutoApplyReadyRef = useRef(false);
 
-  const pageCount = Math.max(1, Math.ceil(total / REPOSITORY_PAGE_SIZE));
+  const sortedRepositories = useMemo(
+    () => sortItemsBySorts(repositories, sorts, getRepositorySortValue),
+    [repositories, sorts],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedRepositories.length / REPOSITORY_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * REPOSITORY_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * REPOSITORY_PAGE_SIZE, total);
+  const pageStart = (safeCurrentPage - 1) * REPOSITORY_PAGE_SIZE;
+  const visibleRepositories = useMemo(
+    () => sortedRepositories.slice(pageStart, pageStart + REPOSITORY_PAGE_SIZE),
+    [pageStart, sortedRepositories],
+  );
+  const rangeStart = sortedRepositories.length === 0 ? 0 : pageStart + 1;
+  const rangeEnd = Math.min(pageStart + REPOSITORY_PAGE_SIZE, sortedRepositories.length);
 
   const selectedPathCount = useMemo(
     () => selectedPaths.filter((path) => path.rootPath && path.active !== false).length,
@@ -67,35 +110,55 @@ function ManageRepositories() {
     }
   }
 
+  async function fetchRepositoryCatalogue(nextFilters = filters) {
+    const items = [];
+    let offset = 0;
+    let expectedTotal = 0;
+
+    do {
+      const result = await adminService.listRepositories({
+        ...nextFilters,
+        limit: REPOSITORY_FETCH_LIMIT,
+        offset,
+      });
+      const batch = result.items || [];
+      expectedTotal = Number(result.total || 0);
+      items.push(...batch);
+      offset += batch.length;
+
+      if (batch.length === 0) {
+        break;
+      }
+    } while (items.length < expectedTotal);
+
+    return items;
+  }
+
   async function loadRepositories(
     nextFilters = filters,
     preferredRepoId = selectedRepoId,
     nextPage = currentPage,
   ) {
-    const safePage = Math.max(1, Number(nextPage) || 1);
+    const requestedPage = Math.max(1, Number(nextPage) || 1);
     setLoading(true);
     setError('');
 
     try {
-      const result = await adminService.listRepositories({
-        ...nextFilters,
-        limit: REPOSITORY_PAGE_SIZE,
-        offset: (safePage - 1) * REPOSITORY_PAGE_SIZE,
-      });
-      const nextRepositories = result.items || [];
-      const nextTotal = result.total || 0;
-      const nextPageCount = Math.max(1, Math.ceil(nextTotal / REPOSITORY_PAGE_SIZE));
-
-      if (nextTotal > 0 && safePage > nextPageCount) {
-        await loadRepositories(nextFilters, preferredRepoId, nextPageCount);
-        return;
-      }
+      const nextRepositories = await fetchRepositoryCatalogue(nextFilters);
+      const sortedNextRepositories = sortItemsBySorts(
+        nextRepositories,
+        sorts,
+        getRepositorySortValue,
+      );
+      const nextPageCount = Math.max(
+        1,
+        Math.ceil(sortedNextRepositories.length / REPOSITORY_PAGE_SIZE),
+      );
 
       setRepositories(nextRepositories);
-      setTotal(nextTotal);
-      setCurrentPage(safePage);
 
       if (nextRepositories.length === 0) {
+        setCurrentPage(1);
         setSelectedRepoId('');
         setSelectedRepository(null);
         setSelectedPaths([]);
@@ -106,9 +169,21 @@ function ManageRepositories() {
       const preferredRepositoryExists = nextRepositories.some(
         (repository) => repository.repoId === preferredRepoId,
       );
-      setSelectedRepoId(
-        preferredRepositoryExists ? preferredRepoId : nextRepositories[0]?.repoId || '',
-      );
+      const resolvedRepository = preferredRepositoryExists
+        ? sortedNextRepositories.find((repository) => repository.repoId === preferredRepoId)
+        : sortedNextRepositories[(Math.min(requestedPage, nextPageCount) - 1) * REPOSITORY_PAGE_SIZE] ||
+          sortedNextRepositories[0];
+      const selectedIndex = resolvedRepository
+        ? sortedNextRepositories.findIndex(
+            (repository) => repository.repoId === resolvedRepository.repoId,
+          )
+        : -1;
+      const resolvedPage = selectedIndex >= 0
+        ? Math.floor(selectedIndex / REPOSITORY_PAGE_SIZE) + 1
+        : Math.min(requestedPage, nextPageCount);
+
+      setCurrentPage(resolvedPage);
+      setSelectedRepoId(resolvedRepository?.repoId || '');
     } catch (loadError) {
       setError(loadError.message || 'Failed to load repositories.');
     } finally {
@@ -151,13 +226,9 @@ function ManageRepositories() {
       setError('');
 
       try {
-        const [profilesResult, repositoriesResult, readinessResult] = await Promise.all([
+        const [profilesResult, repositoryItems, readinessResult] = await Promise.all([
           adminService.listConfigProfiles(),
-          adminService.listRepositories({
-            ...DEFAULT_REPOSITORY_FILTERS,
-            limit: REPOSITORY_PAGE_SIZE,
-            offset: 0,
-          }),
+          fetchRepositoryCatalogue(DEFAULT_REPOSITORY_FILTERS),
           adminService.getSkycommandRepositoryReadiness(),
         ]);
 
@@ -166,14 +237,18 @@ function ManageRepositories() {
         }
 
         const nextProfiles = profilesResult.items || [];
-        const nextRepositories = repositoriesResult.items || [];
+        const nextRepositories = repositoryItems || [];
+        const sortedNextRepositories = sortItemsBySorts(
+          nextRepositories,
+          MANAGE_REPOSITORY_DEFAULT_SORTS,
+          getRepositorySortValue,
+        );
 
         setProfiles(nextProfiles);
         setRepositories(nextRepositories);
-        setTotal(repositoriesResult.total || 0);
         setCurrentPage(1);
         setReadiness(readinessResult.readiness || null);
-        setSelectedRepoId(nextRepositories[0]?.repoId || '');
+        setSelectedRepoId(sortedNextRepositories[0]?.repoId || '');
         setForm(createRepositoryForm(nextProfiles));
       } catch (loadError) {
         if (active) {
@@ -392,35 +467,108 @@ function ManageRepositories() {
 
   function clearFilters() {
     setFilters(DEFAULT_REPOSITORY_FILTERS);
+    setCurrentPage(1);
+  }
+
+  function applySorting(nextSorts, customized) {
+    const sorted = sortItemsBySorts(repositories, nextSorts, getRepositorySortValue);
+    const selectedIndex = selectedRepoId
+      ? sorted.findIndex((repository) => repository.repoId === selectedRepoId)
+      : -1;
+    const nextPage = selectedIndex >= 0
+      ? Math.floor(selectedIndex / REPOSITORY_PAGE_SIZE) + 1
+      : 1;
+
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setCurrentPage(nextPage);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: MANAGE_REPOSITORY_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(MANAGE_REPOSITORY_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
   }
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    loadRepositories(filters, '', nextPage);
+    const nextRepository = sortedRepositories[(nextPage - 1) * REPOSITORY_PAGE_SIZE] || null;
+
+    setCurrentPage(nextPage);
+    setSelectedRepoId(nextRepository?.repoId || '');
+    setSuccess('');
+    setError('');
   }
 
   function renderPagination() {
     return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
-          Showing {rangeStart}-{rangeEnd} of {total} repository configuration record(s)
+      <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">
+          Showing {rangeStart}-{rangeEnd} of {sortedRepositories.length} repository configuration record(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Manage repositories pagination">
+        <div
+          className="sky-pagination-controls sky-canonical-operations-pagination-controls"
+          aria-label="Manage repositories pagination"
+        >
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="First page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || loading}
             onClick={() => goToPage(1)}
+            title="First page"
             type="button"
           >
-            First
+            «
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Previous page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || loading}
             onClick={() => goToPage(safeCurrentPage - 1)}
+            title="Previous page"
             type="button"
           >
-            Back
+            ‹
           </button>
           <label className="sky-pagination-select-label" htmlFor="manageRepositoriesPageSelect">
             Page
@@ -440,22 +588,27 @@ function ManageRepositories() {
           </select>
           <span className="small sky-muted">of {pageCount}</span>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Next page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || loading}
             onClick={() => goToPage(safeCurrentPage + 1)}
+            title="Next page"
             type="button"
           >
-            Next
+            ›
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Last page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || loading}
             onClick={() => goToPage(pageCount)}
+            title="Last page"
             type="button"
           >
-            Last
+            »
           </button>
         </div>
+        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
@@ -552,6 +705,11 @@ function ManageRepositories() {
               </select>
             </div>
             <div className="sky-manage-repositories-filter-actions">
+              {sortingCustomized && (
+                <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                  Clear sorting
+                </button>
+              )}
               <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
                 Clear filters
               </button>
@@ -559,16 +717,16 @@ function ManageRepositories() {
           </div>
         </div>
 
-        <div className="table-responsive sky-table-card sky-functional-history-table-card">
-          <table className="table table-sm table-hover sky-table align-middle mb-0">
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+          <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
             <thead>
               <tr>
-                <th>Repository</th>
-                <th>Branches</th>
-                <th>Remote</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Updated</th>
+                {renderSortableHeader('Repository', 'repository')}
+                {renderSortableHeader('Branches', 'branches')}
+                {renderSortableHeader('Remote', 'remote')}
+                {renderSortableHeader('Role', 'role')}
+                {renderSortableHeader('Status', 'status')}
+                {renderSortableHeader('Updated', 'updated')}
                 <th className="text-end">Actions</th>
               </tr>
             </thead>
@@ -581,7 +739,7 @@ function ManageRepositories() {
                     </div>
                   </td>
                 </tr>
-              ) : repositories.length === 0 ? (
+              ) : visibleRepositories.length === 0 ? (
                 <tr>
                   <td colSpan="7">
                     <div className="sky-empty-state py-4">
@@ -590,7 +748,7 @@ function ManageRepositories() {
                   </td>
                 </tr>
               ) : (
-                repositories.map((repository) => (
+                visibleRepositories.map((repository) => (
                   <tr
                     className={`sky-clickable-row ${
                       repository.repoId === selectedRepoId ? 'sky-selected-row' : ''
