@@ -255,7 +255,8 @@
     "db:docker:cutover:check": "node scripts/docker/postgresCutoverCheck.js",
     "db:docker:rollback": "node scripts/docker/postgresDocker.js rollback",
     "db:docker:persistence": "node scripts/docker/postgresDocker.js persistence",
-    "db:docker:finalize": "node scripts/docker/postgresDocker.js finalize"
+    "db:docker:finalize": "node scripts/docker/postgresDocker.js finalize",
+    "operations-table-batch:self-test": "node apps/admin-web/src/pages/operationsTableBatchRefinementSelfTest.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

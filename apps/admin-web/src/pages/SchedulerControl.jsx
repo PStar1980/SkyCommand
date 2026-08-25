@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
+import { getNextSortState, serializeSorts } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SCHEDULE_TARGET_TYPE_OPTIONS = [
@@ -37,6 +38,11 @@ const SCHEDULER_PAGE_SIZE = 10;
 const SCHEDULER_HISTORY_POLL_FAST_MS = 2500;
 const SCHEDULER_HISTORY_POLL_IDLE_MS = 15000;
 const WORKER_HISTORY_POLL_MS = 10000;
+const SCHEDULER_RUN_DEFAULT_SORTS = [{ field: 'queuedAt', direction: 'desc' }];
+const WORKER_NODE_DEFAULT_SORTS = [
+  { field: 'status', direction: 'asc' },
+  { field: 'lastHeartbeatAt', direction: 'desc' },
+];
 
 function getDefaultRunAt() {
   const date = new Date(Date.now() + 10 * 60 * 1000);
@@ -828,6 +834,10 @@ function SchedulerControl({ view = 'manage' }) {
     limit: SCHEDULER_PAGE_SIZE,
     offset: 0,
   });
+  const [runSorts, setRunSorts] = useState(() => SCHEDULER_RUN_DEFAULT_SORTS);
+  const [runSortingCustomized, setRunSortingCustomized] = useState(false);
+  const [nodeSorts, setNodeSorts] = useState(() => WORKER_NODE_DEFAULT_SORTS);
+  const [nodeSortingCustomized, setNodeSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -836,8 +846,10 @@ function SchedulerControl({ view = 'manage' }) {
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
   const scheduleFilterTimerRef = useRef(null);
   const runFilterTimerRef = useRef(null);
+  const nodeFilterTimerRef = useRef(null);
   const scheduleRequestIdRef = useRef(0);
   const runRequestIdRef = useRef(0);
+  const nodeRequestIdRef = useRef(0);
 
   const workflowBridgeTool = useMemo(
     () => tools.find((tool) => isWorkflowBridgeTool(tool)) || null,
@@ -933,10 +945,10 @@ function SchedulerControl({ view = 'manage' }) {
     });
   }
 
-  async function loadRuns(nextFilters = runFilters) {
+  async function loadRuns(nextFilters = runFilters, nextSorts = runSorts) {
     const requestId = runRequestIdRef.current + 1;
     runRequestIdRef.current = requestId;
-    const result = await workerService.listRuns(nextFilters);
+    const result = await workerService.listRuns({ ...nextFilters, sort: serializeSorts(nextSorts) });
 
     if (requestId !== runRequestIdRef.current) {
       return;
@@ -958,7 +970,7 @@ function SchedulerControl({ view = 'manage' }) {
     });
   }
 
-  async function loadNodes(nextFilters = nodeFilters) {
+  async function loadNodes(nextFilters = nodeFilters, nextSorts = nodeSorts) {
     if (!canViewNodes) {
       setNodes([]);
       setNodeTotal(0);
@@ -966,7 +978,14 @@ function SchedulerControl({ view = 'manage' }) {
       return;
     }
 
-    const result = await workerService.listNodes(nextFilters);
+    const requestId = nodeRequestIdRef.current + 1;
+    nodeRequestIdRef.current = requestId;
+    const result = await workerService.listNodes({ ...nextFilters, sort: serializeSorts(nextSorts) });
+
+    if (requestId !== nodeRequestIdRef.current) {
+      return;
+    }
+
     const nextItems = result.items || [];
     setNodes(nextItems);
     setNodeTotal(result.total || 0);
@@ -1059,6 +1078,9 @@ function SchedulerControl({ view = 'manage' }) {
       if (runFilterTimerRef.current) {
         window.clearTimeout(runFilterTimerRef.current);
       }
+      if (nodeFilterTimerRef.current) {
+        window.clearTimeout(nodeFilterTimerRef.current);
+      }
     };
   }, []);
 
@@ -1096,7 +1118,7 @@ function SchedulerControl({ view = 'manage' }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, hasActiveScheduleRuns, runFilters, nodeFilters]);
+  }, [view, hasActiveScheduleRuns, runFilters, nodeFilters, runSorts, nodeSorts]);
 
   function queueScheduleFilterLoad(nextFilters, delayMs = 0) {
     if (scheduleFilterTimerRef.current) {
@@ -1128,6 +1150,21 @@ function SchedulerControl({ view = 'manage' }) {
     }, delayMs);
   }
 
+  function queueNodeFilterLoad(nextFilters, delayMs = 0) {
+    if (nodeFilterTimerRef.current) {
+      window.clearTimeout(nodeFilterTimerRef.current);
+    }
+
+    nodeFilterTimerRef.current = window.setTimeout(async () => {
+      setError('');
+      try {
+        await loadNodes(nextFilters, nodeSorts);
+      } catch (loadError) {
+        setError(loadError.message || 'Failed to load worker nodes.');
+      }
+    }, delayMs);
+  }
+
   function updateScheduleFilter(name, value) {
     const nextFilters = {
       ...scheduleFilters,
@@ -1149,22 +1186,13 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   function updateNodeFilter(name, value) {
-    setNodeFilters((currentFilters) => ({
-      ...currentFilters,
+    const nextFilters = {
+      ...nodeFilters,
       [name]: value,
       offset: 0,
-    }));
-  }
-
-  async function applyNodeFilters(event) {
-    event.preventDefault();
-    setError('');
-
-    try {
-      await loadNodes(nodeFilters);
-    } catch (loadError) {
-      setError(loadError.message || 'Failed to load worker nodes.');
-    }
+    };
+    setNodeFilters(nextFilters);
+    queueNodeFilterLoad(nextFilters, name === 'q' ? 250 : 0);
   }
 
   async function clearScheduleFilters() {
@@ -1199,6 +1227,9 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
   async function clearNodeFilters() {
+    if (nodeFilterTimerRef.current) {
+      window.clearTimeout(nodeFilterTimerRef.current);
+    }
     const nextFilters = {
       status: '',
       q: '',
@@ -1206,7 +1237,7 @@ function SchedulerControl({ view = 'manage' }) {
       offset: 0,
     };
     setNodeFilters(nextFilters);
-    await loadNodes(nextFilters);
+    await loadNodes(nextFilters, nodeSorts);
   }
 
   function resetForm(tool = getDefaultTool(tools)) {
@@ -1697,14 +1728,14 @@ function SchedulerControl({ view = 'manage' }) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), runPageCount);
     const nextFilters = { ...runFilters, offset: (nextPage - 1) * runFilters.limit };
     setRunFilters(nextFilters);
-    loadRuns(nextFilters);
+    loadRuns(nextFilters, runSorts);
   }
 
   function goToNodePage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), nodePageCount);
     const nextFilters = { ...nodeFilters, offset: (nextPage - 1) * nodeFilters.limit };
     setNodeFilters(nextFilters);
-    loadNodes(nextFilters);
+    loadNodes(nextFilters, nodeSorts);
   }
 
   function renderPagination({ currentPage, pageCount, total, label, onPageChange }) {
@@ -1730,6 +1761,95 @@ function SchedulerControl({ view = 'manage' }) {
           <button className="btn btn-sm sky-btn-ghost" disabled={currentPage >= pageCount} onClick={() => onPageChange(currentPage + 1)} type="button">Next</button>
           <button className="btn btn-sm sky-btn-ghost" disabled={currentPage >= pageCount} onClick={() => onPageChange(pageCount)} type="button">Last</button>
         </div>
+      </div>
+    );
+  }
+
+  function applyRunSorting(nextSorts, customized) {
+    const nextFilters = { ...runFilters, offset: 0 };
+    setRunSorts(nextSorts);
+    setRunSortingCustomized(customized);
+    setRunFilters(nextFilters);
+    loadRuns(nextFilters, nextSorts);
+  }
+
+  function applyNodeSorting(nextSorts, customized) {
+    const nextFilters = { ...nodeFilters, offset: 0 };
+    setNodeSorts(nextSorts);
+    setNodeSortingCustomized(customized);
+    setNodeFilters(nextFilters);
+    loadNodes(nextFilters, nextSorts);
+  }
+
+  function updateRunSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts: runSorts,
+      defaultSorts: SCHEDULER_RUN_DEFAULT_SORTS,
+      sortingCustomized: runSortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applyRunSorting(nextState.sorts, nextState.customized);
+  }
+
+  function updateNodeSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts: nodeSorts,
+      defaultSorts: WORKER_NODE_DEFAULT_SORTS,
+      sortingCustomized: nodeSortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applyNodeSorting(nextState.sorts, nextState.customized);
+  }
+
+  function renderSortableHeader(label, field, activeSorts, updateSorting, className = '') {
+    const activeIndex = activeSorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? activeSorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th className={className}>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">{activeSort ? directionIcon : '↕'}</span>
+          {activeSort && <span className="sky-table-sort-priority" aria-hidden="true">{activeIndex + 1}</span>}
+        </button>
+      </th>
+    );
+  }
+
+  function renderCanonicalPagination({ currentPage, pageCount, total, label, onPageChange, idPrefix }) {
+    const rangeStart = total === 0 ? 0 : (currentPage - 1) * SCHEDULER_PAGE_SIZE + 1;
+    const rangeEnd = Math.min(currentPage * SCHEDULER_PAGE_SIZE, total);
+    const selectId = `${idPrefix}-page-select`;
+
+    return (
+      <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">Showing {rangeStart}-{rangeEnd} of {total} {label}</div>
+        <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label={`${label} pagination`}>
+          <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage <= 1} onClick={() => onPageChange(1)} title="First page" type="button">«</button>
+          <button aria-label="Previous page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} title="Previous page" type="button">‹</button>
+          <label className="sky-pagination-select-label" htmlFor={selectId}>Page</label>
+          <select className="form-select form-select-sm sky-form-control sky-pagination-select" id={selectId} onChange={(event) => onPageChange(event.target.value)} value={currentPage}>
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
+              <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {pageCount}</span>
+          <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage >= pageCount} onClick={() => onPageChange(currentPage + 1)} title="Next page" type="button">›</button>
+          <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage >= pageCount} onClick={() => onPageChange(pageCount)} title="Last page" type="button">»</button>
+        </div>
+        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
@@ -2678,6 +2798,9 @@ function SchedulerControl({ view = 'manage' }) {
                   </select>
                 </div>
                 <div className="sky-run-tools-filter-actions">
+                  {runSortingCustomized && (
+                    <button className="btn btn-sm sky-btn-ghost" onClick={() => applyRunSorting(SCHEDULER_RUN_DEFAULT_SORTS, false)} type="button">Clear sorting</button>
+                  )}
                   <button
                     className="btn btn-sm sky-btn-ghost"
                     onClick={clearRunFilters}
@@ -2694,15 +2817,15 @@ function SchedulerControl({ view = 'manage' }) {
             ) : runs.length === 0 ? (
               <div className="sky-empty-state">No scheduled runs found for these filters.</div>
             ) : (
-              <div className="table-responsive sky-table-card">
-                <table className="table table-hover sky-table">
+              <div className="table-responsive sky-table-card sky-canonical-operations-table-frame">
+                <table className="table table-hover sky-table sky-canonical-operations-table">
                   <thead>
                     <tr>
-                      <th>Schedule</th>
-                      <th>Status</th>
-                      <th>Node</th>
-                      <th>Queued</th>
-                      <th>Duration</th>
+                      {renderSortableHeader('Schedule', 'schedule', runSorts, updateRunSorting)}
+                      {renderSortableHeader('Status', 'status', runSorts, updateRunSorting)}
+                      {renderSortableHeader('Node', 'node', runSorts, updateRunSorting)}
+                      {renderSortableHeader('Queued', 'queuedAt', runSorts, updateRunSorting)}
+                      {renderSortableHeader('Duration', 'durationMs', runSorts, updateRunSorting)}
                     </tr>
                   </thead>
                   <tbody>
@@ -2734,12 +2857,13 @@ function SchedulerControl({ view = 'manage' }) {
                 </table>
               </div>
             )}
-            {renderPagination({
+            {renderCanonicalPagination({
               currentPage: currentRunPage,
               pageCount: runPageCount,
               total: runTotal,
               label: 'schedule run(s)',
               onPageChange: goToRunPage,
+              idPrefix: 'scheduler-runs',
             })}
           </section>
           </div>
@@ -2818,54 +2942,50 @@ function SchedulerControl({ view = 'manage' }) {
           <div className="d-flex flex-column gap-3">
             <section className="sky-card sky-table-card">
               <div className="sky-card-header">
-                <div className="d-flex flex-wrap align-items-start justify-content-between gap-3">
-                  <div>
-                    <div className="sky-page-kicker">Worker browser</div>
-                    <h2 className="h5 mb-1">Registered worker nodes</h2>
-                    <div className="small sky-muted">
-                      Heartbeat records refresh automatically while this page remains open.
+                <div>
+                  <div className="sky-page-kicker">Worker browser</div>
+                  <h2 className="h5 mb-1">Registered worker nodes</h2>
+                  <div className="small sky-muted">Heartbeat records refresh automatically while this page remains open.</div>
+                </div>
+                {canViewNodes ? (
+                  <div className="sky-history-browser-filter-grid">
+                    <div className="sky-run-tools-search-filter">
+                      <label className="form-label" htmlFor="workerNodeSearch">Search</label>
+                      <input className="form-control sky-form-control" id="workerNodeSearch" onChange={(event) => updateNodeFilter('q', event.target.value)} placeholder="Search node, host, version..." type="search" value={nodeFilters.q} />
                     </div>
-                  </div>
-                  {canViewNodes ? (
-                    <form className="sky-inline-filter-form" onSubmit={applyNodeFilters}>
-                      <input
-                        className="form-control form-control-sm sky-form-control"
-                        onChange={(event) => updateNodeFilter('q', event.target.value)}
-                        placeholder="Search node, host, version..."
-                        type="search"
-                        value={nodeFilters.q}
-                      />
-                      <select
-                        className="form-select form-select-sm sky-form-control"
-                        onChange={(event) => updateNodeFilter('status', event.target.value)}
-                        value={nodeFilters.status}
-                      >
+                    <div>
+                      <label className="form-label" htmlFor="workerNodeStatus">Status</label>
+                      <select className="form-select sky-form-control" id="workerNodeStatus" onChange={(event) => updateNodeFilter('status', event.target.value)} value={nodeFilters.status}>
                         <option value="">All statuses</option>
                         <option value="ONLINE">Online</option>
                         <option value="ERROR">Error</option>
                         <option value="OFFLINE">Offline</option>
                       </select>
-                      <button className="btn btn-sm sky-btn-primary" type="submit">Apply filters</button>
+                    </div>
+                    <div className="sky-run-tools-filter-actions">
+                      {nodeSortingCustomized && (
+                        <button className="btn btn-sm sky-btn-ghost" onClick={() => applyNodeSorting(WORKER_NODE_DEFAULT_SORTS, false)} type="button">Clear sorting</button>
+                      )}
                       <button className="btn btn-sm sky-btn-ghost" onClick={clearNodeFilters} type="button">Clear filters</button>
-                    </form>
-                  ) : (
-                    <span className="sky-pill sky-pill-info">WORKER_ADMIN required</span>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="sky-pill sky-pill-info">WORKER_ADMIN required</span>
+                )}
               </div>
 
               {canViewNodes ? (
                 nodes.length > 0 ? (
-                  <div className="table-responsive">
-                    <table className="table table-hover sky-table align-middle mb-0">
+                  <div className="table-responsive sky-canonical-operations-table-frame">
+                    <table className="table table-hover sky-table sky-canonical-operations-table align-middle mb-0">
                       <thead>
                         <tr>
-                          <th>Node</th>
-                          <th>Status</th>
-                          <th>Heartbeat</th>
-                          <th>Process</th>
-                          <th>Version</th>
-                          <th>Started</th>
+                          {renderSortableHeader('Node', 'node', nodeSorts, updateNodeSorting)}
+                          {renderSortableHeader('Status', 'status', nodeSorts, updateNodeSorting)}
+                          {renderSortableHeader('Heartbeat', 'lastHeartbeatAt', nodeSorts, updateNodeSorting)}
+                          {renderSortableHeader('Process', 'processId', nodeSorts, updateNodeSorting)}
+                          {renderSortableHeader('Version', 'version', nodeSorts, updateNodeSorting)}
+                          {renderSortableHeader('Started', 'startedAt', nodeSorts, updateNodeSorting)}
                           <th className="text-end">Actions</th>
                         </tr>
                       </thead>
@@ -2915,12 +3035,13 @@ function SchedulerControl({ view = 'manage' }) {
               ) : (
                 <div className="sky-empty-state">Worker node visibility requires WORKER_ADMIN.</div>
               )}
-              {canViewNodes ? renderPagination({
+              {canViewNodes ? renderCanonicalPagination({
                 currentPage: currentNodePage,
                 pageCount: nodePageCount,
                 total: nodeTotal,
                 label: 'worker node(s)',
                 onPageChange: goToNodePage,
+                idPrefix: 'worker-nodes',
               }) : null}
             </section>
 

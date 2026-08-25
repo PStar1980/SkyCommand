@@ -6532,6 +6532,21 @@ async function listWorkflowApprovalRequests(filters = {}) {
   }
 
   const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const orderBy = buildWhitelistedOrderBy({
+    sortValue: filters.sort,
+    sortFields: {
+      workflow: "LOWER(COALESCE(NULLIF(BTRIM(workflow_display_name), ''), workflow_code))",
+      approval: "LOWER(COALESCE(NULLIF(BTRIM(approval_title), ''), NULLIF(BTRIM(node_display_name), ''), approval_key, node_key))",
+      status: 'status',
+      requiredRole: "LOWER(COALESCE(required_role_code, ''))",
+      requestedBy: "LOWER(COALESCE(NULLIF(BTRIM(requested_by_display_name), ''), NULLIF(BTRIM(requested_by_email), ''), ''))",
+      requestedAt: 'COALESCE(requested_at, created_at)',
+      decidedBy: "LOWER(COALESCE(NULLIF(BTRIM(decided_by_display_name), ''), NULLIF(BTRIM(decided_by_email), ''), ''))",
+      decidedAt: 'decided_at',
+    },
+    defaultSorts: [{ field: 'requestedAt', direction: 'desc' }],
+    tieBreakers: ['created_at DESC', 'approval_request_id DESC'],
+  });
   const countValues = [...values];
   const offset = (page - 1) * limit;
   const itemValues = [...values, limit, offset];
@@ -6552,7 +6567,7 @@ async function listWorkflowApprovalRequests(filters = {}) {
         SELECT *
         FROM worker.vw_workflow_approval_requests
         ${whereClause}
-        ORDER BY COALESCE(requested_at, created_at) DESC, created_at DESC
+        ${orderBy}
         LIMIT $${limitParameter}
         OFFSET $${offsetParameter}
       `,

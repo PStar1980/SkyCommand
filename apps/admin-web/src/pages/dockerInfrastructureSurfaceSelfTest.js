@@ -170,7 +170,7 @@ const operationsTableSource = operations.slice(
   operations.indexOf('<thead>'),
   operations.indexOf('</table>') + '</table>'.length,
 );
-assert.match(operationsTableSource, /<th>Resource<\/th>[\s\S]*?<th>Requested<\/th>[\s\S]*?<th>Project<\/th>[\s\S]*?<th>Type<\/th>/);
+assert.match(operationsTableSource, /renderSortableHeader\('Resource', 'resource'\)[\s\S]*?renderSortableHeader\('Requested', 'requestedAt'\)[\s\S]*?renderSortableHeader\('Project', 'project'\)[\s\S]*?renderSortableHeader\('Type', 'type'\)/);
 assert.doesNotMatch(operationsTableSource, /<th>Scope<\/th>/);
 assert.match(operations, /function formatResourceType\(resourceType\)/);
 assert.match(operations, /COMPOSE_PROJECT'\) return 'Project'/);
@@ -183,10 +183,10 @@ assert.match(operations, /`\/docker\/networks\?\$\{params\.toString\(\)\}`/);
 assert.match(operationsTableSource, /<Link/);
 assert.match(operationsTableSource, /to=\{resourceDrilldown\}/);
 assert.doesNotMatch(operationsTableSource, /label=\{item\.resourceType/);
-assert.match(operations, /First/);
-assert.match(operations, /Back/);
-assert.match(operations, /Next/);
-assert.match(operations, /Last/);
+assert.match(operations, /aria-label="First page"/);
+assert.match(operations, /aria-label="Previous page"/);
+assert.match(operations, /aria-label="Next page"/);
+assert.match(operations, /aria-label="Last page"/);
 assert.match(operations, /Clear filters/);
 assert.match(operations, /PAGE_SIZE = 10/);
 assert.doesNotMatch(operations, /Operation Filters/);

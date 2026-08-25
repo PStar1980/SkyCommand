@@ -5,6 +5,7 @@ const {
 } = require('../../../../packages/host-agent/src/config');
 const { getTemporalConfig } = require('../../../../packages/temporal/src/config');
 const { getHostAgentAvailability } = require('./workflowExecutionPreflightService');
+const { buildWhitelistedOrderBy } = require('./tableSortUtils');
 
 const DOCKER_PROVIDER_CODE = 'DOCKER';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
@@ -1493,6 +1494,34 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
   }
 
   const whereSql = conditions.join(' AND ');
+  const orderBy = buildWhitelistedOrderBy({
+    sortValue: filters.sort,
+    sortFields: {
+      resource: `LOWER(COALESCE(
+        CASE
+          WHEN event_type = '${DOCKER_RESOURCE_OPERATION_EVENT_TYPE}' THEN metadata->>'resourceReference'
+          WHEN event_type = '${DOCKER_CONTAINER_OPERATION_EVENT_TYPE}' THEN metadata->>'containerName'
+          ELSE resource_id
+        END,
+        resource_id,
+        ''
+      ))`,
+      requestedAt: 'created_at',
+      project: `LOWER(COALESCE(metadata->>'projectName', CASE WHEN event_type = '${DOCKER_OPERATION_EVENT_TYPE}' THEN resource_id END, ''))`,
+      type: `CASE
+        WHEN event_type = '${DOCKER_OPERATION_EVENT_TYPE}' THEN 'PROJECT'
+        WHEN event_type = '${DOCKER_CONTAINER_OPERATION_EVENT_TYPE}' THEN 'CONTAINER'
+        ELSE UPPER(COALESCE(metadata->>'dockerResourceType', 'RESOURCE'))
+      END`,
+      action: 'LOWER(action)',
+      result: 'success',
+      actor: "LOWER(COALESCE(NULLIF(BTRIM(display_name), ''), NULLIF(BTRIM(username), ''), NULLIF(BTRIM(email), ''), ''))",
+      state: "LOWER(COALESCE(metadata->>'resultingState', metadata->>'previousState', ''))",
+      durationMs: "COALESCE(NULLIF(metadata->>'durationMs', '')::numeric, 0)",
+    },
+    defaultSorts: [{ field: 'requestedAt', direction: 'desc' }],
+    tieBreakers: ['audit_event_id DESC'],
+  });
   const countResult = await queryExecutor(
     `SELECT COUNT(*)::int AS total FROM auth.vw_audit_events_recent WHERE ${whereSql}`,
     params,
@@ -1517,7 +1546,7 @@ async function listDockerOperations(filters = {}, { queryExecutor = defaultQuery
         created_at
       FROM auth.vw_audit_events_recent
       WHERE ${whereSql}
-      ORDER BY created_at DESC
+      ${orderBy}
       LIMIT $${pageParams.length - 1}
       OFFSET $${pageParams.length}
     `,
