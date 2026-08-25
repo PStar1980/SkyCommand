@@ -7,7 +7,10 @@ import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
+import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 const MANAGE_TOOLS_PAGE_SIZE = 10;
+const MANAGE_TOOLS_FETCH_LIMIT = 500;
+const MANAGE_TOOLS_DEFAULT_SORTS = [{ field: 'tool', direction: 'asc' }];
 
 const DEFAULT_FILTERS = {
   q: '',
@@ -16,6 +19,43 @@ const DEFAULT_FILTERS = {
   riskCode: '',
   enabled: '',
 };
+
+async function listAllManagedTools(nextFilters = DEFAULT_FILTERS) {
+  const items = [];
+  let offset = 0;
+  let expectedTotal = null;
+
+  while (true) {
+    const result = await adminService.listAdminTools({
+      ...nextFilters,
+      limit: MANAGE_TOOLS_FETCH_LIMIT,
+      offset,
+    });
+    const batch = Array.isArray(result.items) ? result.items : [];
+    const reportedTotal = Number(result.total);
+
+    items.push(...batch);
+
+    if (Number.isFinite(reportedTotal) && reportedTotal >= 0) {
+      expectedTotal = reportedTotal;
+    }
+
+    if (
+      batch.length === 0 ||
+      batch.length < MANAGE_TOOLS_FETCH_LIMIT ||
+      (expectedTotal !== null && items.length >= expectedTotal)
+    ) {
+      break;
+    }
+
+    offset += batch.length;
+  }
+
+  return {
+    items,
+    total: expectedTotal ?? items.length,
+  };
+}
 
 function getCategoryKind(options = {}, categoryId) {
   return (
@@ -225,6 +265,44 @@ function buildToolPayload(form, options = {}) {
     parameters,
     ingestionProfile,
   };
+}
+
+function getManagedToolSortValue(tool, field) {
+  if (field === 'tool') {
+    return `${tool?.label || ''} ${tool?.toolCode || ''}`.trim();
+  }
+
+  if (field === 'category') {
+    return tool?.categoryLabel || '';
+  }
+
+  if (field === 'runtime') {
+    return tool?.runtimeCode || '';
+  }
+
+  if (field === 'risk') {
+    const riskRank = { low: 1, medium: 2, high: 3 };
+    return riskRank[String(tool?.riskCode || '').toLowerCase()] ?? 99;
+  }
+
+  if (field === 'parameters') {
+    return Number(tool?.parameterCount || 0);
+  }
+
+  if (field === 'visibility') {
+    const visibility = Array.isArray(tool?.visibility) ? tool.visibility : [];
+    return visibility.join(',');
+  }
+
+  if (field === 'outputContract') {
+    return tool?.outputType || null;
+  }
+
+  if (field === 'status') {
+    return tool?.enabled ? 1 : 0;
+  }
+
+  return tool?.[field] ?? '';
 }
 
 function ManagedToolVerificationPanel({ canWrite, onToolUpdated, tool }) {
@@ -620,6 +698,8 @@ function ManageTools() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sorts, setSorts] = useState(() => MANAGE_TOOLS_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const [selectedToolId, setSelectedToolId] = useState('');
   const [selectedTool, setSelectedTool] = useState(null);
   const [form, setForm] = useState(createEmptyToolForm());
@@ -638,10 +718,22 @@ function ManageTools() {
     [selectedToolId, tools],
   );
 
-  const pageCount = Math.max(1, Math.ceil(total / MANAGE_TOOLS_PAGE_SIZE));
+  const sortedTools = useMemo(
+    () => sortItemsBySorts(tools, sorts, getManagedToolSortValue),
+    [sorts, tools],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedTools.length / MANAGE_TOOLS_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * MANAGE_TOOLS_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * MANAGE_TOOLS_PAGE_SIZE, total);
+  const rangeStart = sortedTools.length === 0 ? 0 : (safeCurrentPage - 1) * MANAGE_TOOLS_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * MANAGE_TOOLS_PAGE_SIZE, sortedTools.length);
+  const visibleTools = useMemo(
+    () =>
+      sortedTools.slice(
+        (safeCurrentPage - 1) * MANAGE_TOOLS_PAGE_SIZE,
+        safeCurrentPage * MANAGE_TOOLS_PAGE_SIZE,
+      ),
+    [safeCurrentPage, sortedTools],
+  );
 
   function scrollToVerification(behavior = 'smooth') {
     const target = verificationPanelRef.current;
@@ -665,29 +757,22 @@ function ManageTools() {
     const safePage = Math.max(1, Number(nextPage) || 1);
 
     try {
-      const result = await adminService.listAdminTools({
-        ...nextFilters,
-        limit: MANAGE_TOOLS_PAGE_SIZE,
-        offset: (safePage - 1) * MANAGE_TOOLS_PAGE_SIZE,
-      });
+      const result = await listAllManagedTools(nextFilters);
       const nextTools = result.items || [];
-      const nextTotal = result.total || 0;
+      const nextTotal = nextTools.length;
+      const sortedNextTools = sortItemsBySorts(nextTools, sorts, getManagedToolSortValue);
       const nextPageCount = Math.max(1, Math.ceil(nextTotal / MANAGE_TOOLS_PAGE_SIZE));
-
-      if (nextTotal > 0 && safePage > nextPageCount) {
-        await loadList(nextFilters, preferredToolId, nextPageCount);
-        return;
-      }
 
       setTools(nextTools);
       setTotal(nextTotal);
-      setCurrentPage(safePage);
 
       if (creating) {
+        setCurrentPage(Math.min(safePage, nextPageCount));
         return;
       }
 
       if (nextTools.length === 0) {
+        setCurrentPage(1);
         setSelectedToolId('');
         setSelectedTool(null);
         setForm(createEmptyToolForm(options));
@@ -695,7 +780,14 @@ function ManageTools() {
       }
 
       const preferredToolExists = nextTools.some((tool) => tool.toolId === preferredToolId);
-      setSelectedToolId(preferredToolExists ? preferredToolId : nextTools[0]?.toolId || '');
+      const resolvedToolId = preferredToolExists ? preferredToolId : sortedNextTools[0]?.toolId || '';
+      const selectedIndex = sortedNextTools.findIndex((tool) => tool.toolId === resolvedToolId);
+      const resolvedPage = selectedIndex >= 0
+        ? Math.floor(selectedIndex / MANAGE_TOOLS_PAGE_SIZE) + 1
+        : Math.min(safePage, nextPageCount);
+
+      setCurrentPage(Math.min(resolvedPage, nextPageCount));
+      setSelectedToolId(resolvedToolId);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load tool catalogue.');
     } finally {
@@ -733,11 +825,7 @@ function ManageTools() {
       try {
         const [optionsResult, toolsResult] = await Promise.all([
           adminService.getAdminToolOptions(),
-          adminService.listAdminTools({
-            ...DEFAULT_FILTERS,
-            limit: MANAGE_TOOLS_PAGE_SIZE,
-            offset: 0,
-          }),
+          listAllManagedTools(DEFAULT_FILTERS),
         ]);
 
         if (!active) {
@@ -745,11 +833,22 @@ function ManageTools() {
         }
 
         const nextTools = toolsResult.items || [];
+        const sortedNextTools = sortItemsBySorts(
+          nextTools,
+          MANAGE_TOOLS_DEFAULT_SORTS,
+          getManagedToolSortValue,
+        );
+        const requestedToolExists = nextTools.some((tool) => tool.toolId === requestedToolId);
+        const resolvedToolId = requestedToolExists
+          ? requestedToolId
+          : sortedNextTools[0]?.toolId || '';
+        const selectedIndex = sortedNextTools.findIndex((tool) => tool.toolId === resolvedToolId);
+
         setOptions(optionsResult);
         setTools(nextTools);
-        setTotal(toolsResult.total || 0);
-        setCurrentPage(1);
-        setSelectedToolId(requestedToolId || nextTools[0]?.toolId || '');
+        setTotal(nextTools.length);
+        setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / MANAGE_TOOLS_PAGE_SIZE) + 1 : 1);
+        setSelectedToolId(resolvedToolId);
         setForm(createEmptyToolForm(optionsResult));
       } catch (loadError) {
         if (active) {
@@ -954,37 +1053,105 @@ function ManageTools() {
 
   function clearFilters() {
     setFilters(DEFAULT_FILTERS);
+    setCurrentPage(1);
     setCreating(false);
+  }
+
+  function applySorting(nextSorts, customized) {
+    const sortedItems = sortItemsBySorts(tools, nextSorts, getManagedToolSortValue);
+    const selectedIndex = selectedToolId
+      ? sortedItems.findIndex((tool) => tool.toolId === selectedToolId)
+      : -1;
+    const nextPage = selectedIndex >= 0
+      ? Math.floor(selectedIndex / MANAGE_TOOLS_PAGE_SIZE) + 1
+      : 1;
+
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setCurrentPage(nextPage);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: MANAGE_TOOLS_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(MANAGE_TOOLS_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
   }
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
     setCreating(false);
-    loadList(filters, '', nextPage);
+    setCurrentPage(nextPage);
   }
 
   function renderPagination() {
     return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
-          Showing {rangeStart}-{rangeEnd} of {total} managed tool(s)
+      <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">
+          Showing {rangeStart}-{rangeEnd} of {sortedTools.length} managed tool(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Manage tools pagination">
+        <div
+          className="sky-pagination-controls sky-canonical-operations-pagination-controls"
+          aria-label="Manage tools pagination"
+        >
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="First page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || loading}
             onClick={() => goToPage(1)}
+            title="First page"
             type="button"
           >
-            First
+            «
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Previous page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage <= 1 || loading}
             onClick={() => goToPage(safeCurrentPage - 1)}
+            title="Previous page"
             type="button"
           >
-            Back
+            ‹
           </button>
           <label className="sky-pagination-select-label" htmlFor="manageToolsPageSelect">
             Page
@@ -1004,22 +1171,27 @@ function ManageTools() {
           </select>
           <span className="small sky-muted">of {pageCount}</span>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Next page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || loading}
             onClick={() => goToPage(safeCurrentPage + 1)}
+            title="Next page"
             type="button"
           >
-            Next
+            ›
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
+            aria-label="Last page"
+            className="btn btn-sm sky-pagination-nav-button"
             disabled={safeCurrentPage >= pageCount || loading}
             onClick={() => goToPage(pageCount)}
+            title="Last page"
             type="button"
           >
-            Last
+            »
           </button>
         </div>
+        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
@@ -1152,6 +1324,11 @@ function ManageTools() {
               </select>
             </div>
             <div className="sky-manage-tools-filter-actions">
+              {sortingCustomized && (
+                <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                  Clear sorting
+                </button>
+              )}
               <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
                 Clear filters
               </button>
@@ -1159,18 +1336,18 @@ function ManageTools() {
           </div>
         </div>
 
-        <div className="table-responsive sky-table-card sky-functional-history-table-card">
-          <table className="table table-sm table-hover sky-table align-middle mb-0">
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+          <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
             <thead>
               <tr>
-                <th>Tool</th>
-                <th>Category</th>
-                <th>Runtime</th>
-                <th>Risk</th>
-                <th>Parameters</th>
-                <th>Visibility</th>
-                <th>Output contract</th>
-                <th>Status</th>
+                {renderSortableHeader('Tool', 'tool')}
+                {renderSortableHeader('Category', 'category')}
+                {renderSortableHeader('Runtime', 'runtime')}
+                {renderSortableHeader('Risk', 'risk')}
+                {renderSortableHeader('Parameters', 'parameters')}
+                {renderSortableHeader('Visibility', 'visibility')}
+                {renderSortableHeader('Output contract', 'outputContract')}
+                {renderSortableHeader('Status', 'status')}
               </tr>
             </thead>
             <tbody>
@@ -1182,7 +1359,7 @@ function ManageTools() {
                     </div>
                   </td>
                 </tr>
-              ) : tools.length === 0 ? (
+              ) : visibleTools.length === 0 ? (
                 <tr>
                   <td colSpan="8">
                     <div className="sky-empty-state py-4">
@@ -1191,7 +1368,7 @@ function ManageTools() {
                   </td>
                 </tr>
               ) : (
-                tools.map((tool) => (
+                visibleTools.map((tool) => (
                   <tr
                     className={`sky-clickable-row ${
                       tool.toolId === selectedToolId && !creating ? 'sky-selected-row' : ''
