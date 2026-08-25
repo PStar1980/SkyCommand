@@ -50,9 +50,27 @@ assert(
   'Start Workflow must provide Tool Operations-style pagination.',
 );
 assert(
-  workflowSource.includes('<th>Workflow</th>') &&
-    workflowSource.includes('onClick={() => handleDefinitionSelect(definition.workflowCode)}') &&
-    workflowSource.includes('<th>Published version</th>\n                    <th>Status</th>\n                  </tr>') &&
+  workflowSource.includes("renderStartWorkflowSortableHeader('Workflow', 'workflow')") &&
+    workflowSource.includes("renderStartWorkflowSortableHeader('Structure', 'structure')") &&
+    workflowSource.includes("renderStartWorkflowSortableHeader('Nodes', 'nodes')") &&
+    workflowSource.includes("renderStartWorkflowSortableHeader('Edges', 'edges')") &&
+    workflowSource.includes("renderStartWorkflowSortableHeader('Runtime parameters', 'runtimeParameters')") &&
+    workflowSource.includes("renderStartWorkflowSortableHeader('Published version', 'publishedVersion')") &&
+    workflowSource.includes("renderStartWorkflowSortableHeader('Status', 'status')") &&
+    workflowSource.includes('Shift+click to add to multi-column sorting') &&
+    workflowSource.includes('Clear sorting'),
+  'Start Workflow catalogue headers must use the canonical multi-column sorting controls.',
+);
+assert(
+  workflowSource.includes('sky-canonical-operations-table-frame') &&
+    workflowSource.includes('sky-canonical-operations-table align-middle mb-0') &&
+    workflowSource.includes('sky-canonical-operations-pagination-row') &&
+    workflowSource.includes('sky-canonical-operations-pagination-balance') &&
+    workflowSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
+  'Start Workflow catalogue must use the canonical table frame, row treatment, and centered gold pagination.',
+);
+assert(
+  workflowSource.includes('onClick={() => handleDefinitionSelect(definition.workflowCode)}') &&
     workflowSource.includes('<span className="sky-pill sky-pill-success">') &&
     !workflowSource.includes("{selected ? 'Selected' : 'Select workflow'}") &&
     !workflowSource.includes('id="workflowStartDefinition"'),

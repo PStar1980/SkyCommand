@@ -37,6 +37,7 @@ import SummaryParameterEditor, {
 } from '../components/SummaryParameterEditor.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
+import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_API_PARAMETERS = {
@@ -52,6 +53,7 @@ const DEFAULT_API_PARAMETERS = {
 
 const VERSION_HISTORY_PAGE_SIZE = 5;
 const MANAGE_WORKFLOW_PAGE_SIZE = 10;
+const MANAGE_WORKFLOW_DEFAULT_SORTS = [{ field: 'workflow', direction: 'asc' }];
 const DEFAULT_MANAGE_WORKFLOW_FILTERS = {
   q: '',
   status: '',
@@ -59,6 +61,25 @@ const DEFAULT_MANAGE_WORKFLOW_FILTERS = {
   parameterMode: '',
   nodeScale: '',
 };
+
+function getWorkflowDefinitionSortValue(definition, field) {
+  if (field === 'workflow') {
+    return `${definition.displayName || ''} ${definition.workflowCode || ''}`.trim();
+  }
+  if (field === 'structure') return getDefinitionStructureLabel(definition);
+  if (field === 'nodes') return getDefinitionNodeCount(definition);
+  if (field === 'edges') return getDefinitionEdgeCount(definition);
+  if (field === 'runtimeParameters') return getDefinitionRuntimeParameterCount(definition);
+  if (field === 'publishedVersion') {
+    if (definition.publishedVersionNumber === null || definition.publishedVersionNumber === undefined || definition.publishedVersionNumber === '') {
+      return null;
+    }
+    const value = Number(definition.publishedVersionNumber);
+    return Number.isFinite(value) ? value : null;
+  }
+  if (field === 'status') return String(definition.status || 'ACTIVE').toUpperCase();
+  return definition[field] ?? '';
+}
 
 const EMPTY_NODE = {
   nodeKey: '',
@@ -979,6 +1000,8 @@ function WorkflowManager() {
   const [versionHistoryPage, setVersionHistoryPage] = useState(1);
   const [manageWorkflowFilters, setManageWorkflowFilters] = useState(DEFAULT_MANAGE_WORKFLOW_FILTERS);
   const [manageWorkflowPage, setManageWorkflowPage] = useState(1);
+  const [manageWorkflowSorts, setManageWorkflowSorts] = useState(() => MANAGE_WORKFLOW_DEFAULT_SORTS);
+  const [manageWorkflowSortingCustomized, setManageWorkflowSortingCustomized] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
   const toolTargets = useMemo(
@@ -1673,10 +1696,18 @@ function WorkflowManager() {
       ].some((value) => String(value || '').toLowerCase().includes(searchText));
     });
   }, [definitions, manageWorkflowFilters]);
-  const manageWorkflowPageCount = Math.max(1, Math.ceil(filteredDefinitions.length / MANAGE_WORKFLOW_PAGE_SIZE));
+  const sortedDefinitions = useMemo(
+    () => sortItemsBySorts(
+      filteredDefinitions,
+      manageWorkflowSorts,
+      getWorkflowDefinitionSortValue,
+    ),
+    [filteredDefinitions, manageWorkflowSorts],
+  );
+  const manageWorkflowPageCount = Math.max(1, Math.ceil(sortedDefinitions.length / MANAGE_WORKFLOW_PAGE_SIZE));
   const safeManageWorkflowPage = Math.min(manageWorkflowPage, manageWorkflowPageCount);
   const manageWorkflowPageStart = (safeManageWorkflowPage - 1) * MANAGE_WORKFLOW_PAGE_SIZE;
-  const visibleDefinitions = filteredDefinitions.slice(
+  const visibleDefinitions = sortedDefinitions.slice(
     manageWorkflowPageStart,
     manageWorkflowPageStart + MANAGE_WORKFLOW_PAGE_SIZE,
   );
@@ -1734,6 +1765,58 @@ function WorkflowManager() {
     setVersionHistoryPage(Math.min(Math.max(1, Number(page) || 1), versionHistoryPageCount));
   }
 
+  function applyManageWorkflowSorting(nextSorts, customized) {
+    setManageWorkflowSorts(nextSorts);
+    setManageWorkflowSortingCustomized(customized);
+    setManageWorkflowPage(1);
+  }
+
+  function updateManageWorkflowSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts: manageWorkflowSorts,
+      defaultSorts: MANAGE_WORKFLOW_DEFAULT_SORTS,
+      sortingCustomized: manageWorkflowSortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applyManageWorkflowSorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearManageWorkflowSorting() {
+    applyManageWorkflowSorting(MANAGE_WORKFLOW_DEFAULT_SORTS, false);
+  }
+
+  function renderManageWorkflowSortableHeader(label, field) {
+    const activeIndex = manageWorkflowSorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? manageWorkflowSorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateManageWorkflowSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
+  }
+
   function updateManageWorkflowFilter(name, value) {
     setManageWorkflowFilters((current) => ({ ...current, [name]: value }));
     setManageWorkflowPage(1);
@@ -1750,32 +1833,40 @@ function WorkflowManager() {
 
   function renderManageWorkflowPagination() {
     return (
-      <div className="sky-pagination-row">
-        <div className="small sky-muted">
+      <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">
           Showing {manageWorkflowRangeStart}-{manageWorkflowRangeEnd} of {filteredDefinitions.length} workflow definition(s)
         </div>
-        <div className="sky-pagination-controls" aria-label="Manage workflows pagination">
+        <div
+          className="sky-pagination-controls sky-canonical-operations-pagination-controls"
+          aria-label="Manage workflows pagination"
+        >
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={safeManageWorkflowPage <= 1}
+            aria-label="First page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeManageWorkflowPage <= 1 || loading}
             onClick={() => goToManageWorkflowPage(1)}
+            title="First page"
             type="button"
           >
-            First
+            «
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={safeManageWorkflowPage <= 1}
+            aria-label="Previous page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeManageWorkflowPage <= 1 || loading}
             onClick={() => goToManageWorkflowPage(safeManageWorkflowPage - 1)}
+            title="Previous page"
             type="button"
           >
-            Back
+            ‹
           </button>
           <label className="sky-pagination-select-label" htmlFor="manageWorkflowPageSelect">
             Page
           </label>
           <select
             className="form-select form-select-sm sky-form-control sky-pagination-select"
+            disabled={loading}
             id="manageWorkflowPageSelect"
             onChange={(event) => goToManageWorkflowPage(event.target.value)}
             value={safeManageWorkflowPage}
@@ -1788,25 +1879,31 @@ function WorkflowManager() {
           </select>
           <span className="small sky-muted">of {manageWorkflowPageCount}</span>
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={safeManageWorkflowPage >= manageWorkflowPageCount}
+            aria-label="Next page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeManageWorkflowPage >= manageWorkflowPageCount || loading}
             onClick={() => goToManageWorkflowPage(safeManageWorkflowPage + 1)}
+            title="Next page"
             type="button"
           >
-            Next
+            ›
           </button>
           <button
-            className="btn btn-sm sky-btn-ghost"
-            disabled={safeManageWorkflowPage >= manageWorkflowPageCount}
+            aria-label="Last page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeManageWorkflowPage >= manageWorkflowPageCount || loading}
             onClick={() => goToManageWorkflowPage(manageWorkflowPageCount)}
+            title="Last page"
             type="button"
           >
-            Last
+            »
           </button>
         </div>
+        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
       </div>
     );
   }
+
 
   return (
     <div>
@@ -1932,6 +2029,11 @@ function WorkflowManager() {
               </select>
             </div>
             <div className="sky-run-tools-filter-actions">
+              {manageWorkflowSortingCustomized && (
+                <button className="btn btn-sm sky-btn-ghost" onClick={clearManageWorkflowSorting} type="button">
+                  Clear sorting
+                </button>
+              )}
               <button className="btn btn-sm sky-btn-ghost" onClick={clearManageWorkflowFilters} type="button">
                 Clear filters
               </button>
@@ -1939,17 +2041,17 @@ function WorkflowManager() {
           </div>
         </div>
 
-        <div className="table-responsive sky-table-card sky-functional-history-table-card">
-          <table className="table table-sm table-hover sky-table align-middle mb-0">
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+          <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
             <thead>
               <tr>
-                <th>Workflow</th>
-                <th>Structure</th>
-                <th>Nodes</th>
-                <th>Edges</th>
-                <th>Runtime parameters</th>
-                <th>Published version</th>
-                <th>Status</th>
+                {renderManageWorkflowSortableHeader('Workflow', 'workflow')}
+                {renderManageWorkflowSortableHeader('Structure', 'structure')}
+                {renderManageWorkflowSortableHeader('Nodes', 'nodes')}
+                {renderManageWorkflowSortableHeader('Edges', 'edges')}
+                {renderManageWorkflowSortableHeader('Runtime parameters', 'runtimeParameters')}
+                {renderManageWorkflowSortableHeader('Published version', 'publishedVersion')}
+                {renderManageWorkflowSortableHeader('Status', 'status')}
               </tr>
             </thead>
             <tbody>
