@@ -1,3 +1,10 @@
+2026-08-24 - Tool Operations multi-column server-side sorting
+- Added sortable Tool Operations headers for Tool, Category, Status, Started, Duration, and Completed while keeping Actions non-sortable.
+- Normal click establishes/toggles a primary sort; Shift+click adds, toggles, or removes secondary/tertiary sorts. Active headers show direction plus numeric priority, unsorted headers show a neutral bidirectional indicator, and custom sorting exposes a Clear sorting control that restores the default newest-first Started ordering.
+- Sorting resets pagination to page one and is executed across the full filtered result set by the API rather than only the visible 10-row page.
+- Added a reusable whitelist-based server-side ORDER BY utility with deterministic execution-ID tie-breaking and strict rejection of malformed, duplicate, or unsupported sort expressions.
+- Added Tool Operations multi-sort and generic table-sort regression self-tests and wired both into routine validation.
+
 2026-08-24 - Tool Operations first-cell top-edge completion
 - Completed the final selected/hover row outline seam by explicitly painting the gold top inset on the first cell, overriding the legacy global selected-row first-cell shadow.
 - Preserves the canonical Tool Operations grid, uniform selected fill, transparent hover treatment, and centered gold paginator without changing table geometry.

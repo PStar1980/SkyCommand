@@ -52,6 +52,8 @@ const routineSelfTests = [
   'tool-execution-response:self-test',
   'tool-execution-output-workspace:self-test',
   'tool-operations-table:self-test',
+  'tool-operations-sorting:self-test',
+  'table-sort-utils:self-test',
   'chart-typography:self-test',
   'dashboard-ui-consistency:self-test',
   'surface-rhythm:self-test',

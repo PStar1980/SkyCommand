@@ -3,6 +3,7 @@ const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const scriptExecutionService = require('./scriptExecutionService');
 const { translateWorkspacePath } = require('../../../../packages/core/src/runtimePathResolver');
+const { buildWhitelistedOrderBy } = require('./tableSortUtils');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -942,12 +943,26 @@ async function listScriptExecutions(filters = {}) {
     searchText: filters.q,
   });
 
+  const orderBy = buildWhitelistedOrderBy({
+    sortValue: filters.sort,
+    sortFields: {
+      tool: "LOWER(COALESCE(NULLIF(BTRIM(metadata ->> 'toolLabel'), ''), script_name))",
+      category: "LOWER(COALESCE(NULLIF(BTRIM(metadata ->> 'categoryLabel'), ''), category, ''))",
+      status: 'status',
+      startedAt: 'started_at',
+      durationMs: 'duration_ms',
+      finishedAt: 'finished_at',
+    },
+    defaultSorts: [{ field: 'startedAt', direction: 'desc' }],
+    tieBreakers: ['execution_id DESC'],
+  });
+
   const result = await runPagedQuery({
     selectSql: 'SELECT * FROM auth.vw_script_execution_recent',
     countSql: 'SELECT COUNT(*)::int AS total FROM auth.vw_script_execution_recent',
     clauses,
     values,
-    orderBy: 'ORDER BY started_at DESC',
+    orderBy,
     limit,
     offset,
   });
