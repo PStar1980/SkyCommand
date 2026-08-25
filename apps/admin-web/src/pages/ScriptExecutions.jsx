@@ -11,6 +11,16 @@ import adminService from '../services/adminService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const TOOL_HISTORY_PAGE_SIZE = 10;
+const TOOL_HISTORY_DEFAULT_SORTS = [{ field: 'startedAt', direction: 'desc' }];
+
+function serializeSorts(sorts = []) {
+  return sorts.map((sort) => `${sort.field}:${sort.direction}`).join(',');
+}
+
+function sortStacksMatch(left = [], right = []) {
+  return serializeSorts(left) === serializeSorts(right);
+}
+
 
 function isActiveExecution(item) {
   return String(item?.status || '').toUpperCase() === 'STARTED';
@@ -163,6 +173,8 @@ function ScriptExecutions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
+  const [sorts, setSorts] = useState(() => TOOL_HISTORY_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
 
   useEffect(() => {
     if (!requestedExecutionId) return;
@@ -250,7 +262,7 @@ function ScriptExecutions() {
   async function loadExecutions(
     nextFilters = filters,
     nextPage = currentPage,
-    { keepSelection = true, quiet = false } = {},
+    { keepSelection = true, quiet = false, nextSorts = sorts } = {},
   ) {
     if (!quiet) {
       setLoading(true);
@@ -260,6 +272,7 @@ function ScriptExecutions() {
     const safePage = Math.max(1, Number(nextPage) || 1);
     const query = {
       ...nextFilters,
+      sort: serializeSorts(nextSorts),
       limit: TOOL_HISTORY_PAGE_SIZE,
       offset: (safePage - 1) * TOOL_HISTORY_PAGE_SIZE,
     };
@@ -272,7 +285,11 @@ function ScriptExecutions() {
 
       if (resultTotal > 0 && safePage > resultPageCount) {
         setCurrentPage(resultPageCount);
-        await loadExecutions(nextFilters, resultPageCount, { keepSelection: false, quiet });
+        await loadExecutions(nextFilters, resultPageCount, {
+          keepSelection: false,
+          quiet,
+          nextSorts,
+        });
         return;
       }
 
@@ -345,6 +362,7 @@ function ScriptExecutions() {
       filters.category,
       filters.scriptName,
       filters.status,
+      serializeSorts(sorts),
       safeCurrentPage,
       selectedItem?.executionId,
     ],
@@ -398,6 +416,114 @@ function ScriptExecutions() {
     const nextFilters = { q: '', category: '', scriptName: '', status: '' };
     setFilters(nextFilters);
     loadExecutions(nextFilters, 1, { keepSelection: false });
+  }
+
+  function applySorting(nextSorts, customized) {
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setCurrentPage(1);
+    loadExecutions(filters, 1, {
+      keepSelection: false,
+      nextSorts,
+    });
+  }
+
+  function updateSorting(field, event) {
+    const currentSorts = sorts.length > 0 ? sorts : TOOL_HISTORY_DEFAULT_SORTS;
+    const activeIndex = currentSorts.findIndex((sort) => sort.field === field);
+    const shiftPressed = Boolean(event?.shiftKey);
+
+    if (shiftPressed) {
+      if (activeIndex < 0) {
+        applySorting([...currentSorts, { field, direction: 'asc' }], true);
+        return;
+      }
+
+      const activeSort = currentSorts[activeIndex];
+
+      if (!sortingCustomized && sortStacksMatch(currentSorts, TOOL_HISTORY_DEFAULT_SORTS)) {
+        const nextSorts = [...currentSorts];
+        nextSorts[activeIndex] = { field, direction: 'asc' };
+        applySorting(nextSorts, true);
+        return;
+      }
+
+      if (activeSort.direction === 'asc') {
+        const nextSorts = [...currentSorts];
+        nextSorts[activeIndex] = { ...activeSort, direction: 'desc' };
+        applySorting(nextSorts, true);
+        return;
+      }
+
+      const nextSorts = currentSorts.filter((_, index) => index !== activeIndex);
+      const normalizedSorts = nextSorts.length > 0 ? nextSorts : TOOL_HISTORY_DEFAULT_SORTS;
+      applySorting(
+        normalizedSorts,
+        !sortStacksMatch(normalizedSorts, TOOL_HISTORY_DEFAULT_SORTS),
+      );
+      return;
+    }
+
+    if (currentSorts.length > 1) {
+      const nextPrimarySort =
+        activeIndex >= 0 ? { ...currentSorts[activeIndex] } : { field, direction: 'asc' };
+      applySorting([nextPrimarySort], true);
+      return;
+    }
+
+    if (activeIndex < 0) {
+      applySorting([{ field, direction: 'asc' }], true);
+      return;
+    }
+
+    const activeSort = currentSorts[0];
+
+    if (!sortingCustomized && sortStacksMatch(currentSorts, TOOL_HISTORY_DEFAULT_SORTS)) {
+      applySorting([{ field, direction: 'asc' }], true);
+      return;
+    }
+
+    if (activeSort.direction === 'asc') {
+      applySorting([{ field, direction: 'desc' }], true);
+      return;
+    }
+
+    applySorting(TOOL_HISTORY_DEFAULT_SORTS, false);
+  }
+
+  function clearSorting() {
+    applySorting(TOOL_HISTORY_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
   }
 
   function goToPage(page) {
@@ -577,6 +703,15 @@ function ScriptExecutions() {
                 </select>
               </div>
               <div className="sky-run-tools-filter-actions">
+                {sortingCustomized && (
+                  <button
+                    className="btn btn-sm sky-btn-ghost"
+                    onClick={clearSorting}
+                    type="button"
+                  >
+                    Clear sorting
+                  </button>
+                )}
                 <button
                   className="btn btn-sm sky-btn-ghost"
                   onClick={clearFilters}
@@ -592,12 +727,12 @@ function ScriptExecutions() {
             <table className="table table-sm table-hover sky-table sky-tool-operations-table align-middle">
               <thead>
                 <tr>
-                  <th>Tool</th>
-                  <th>Category</th>
-                  <th>Status</th>
-                  <th>Started</th>
-                  <th>Duration</th>
-                  <th>Completed</th>
+                  {renderSortableHeader('Tool', 'tool')}
+                  {renderSortableHeader('Category', 'category')}
+                  {renderSortableHeader('Status', 'status')}
+                  {renderSortableHeader('Started', 'startedAt')}
+                  {renderSortableHeader('Duration', 'durationMs')}
+                  {renderSortableHeader('Completed', 'finishedAt')}
                   <th className="text-end">Actions</th>
                 </tr>
               </thead>
