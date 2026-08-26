@@ -3,6 +3,7 @@ const path = require('path');
 
 const pageSource = fs.readFileSync(path.join(__dirname, 'SkyWorkflows.jsx'), 'utf8');
 const cssSource = fs.readFileSync(path.join(__dirname, '..', 'App.css'), 'utf8');
+const pageSizeSource = fs.readFileSync(path.join(__dirname, '..', 'utils', 'tablePageSize.js'), 'utf8');
 const workflowExecutorSource = fs.readFileSync(
   path.join(__dirname, '..', '..', '..', 'api', 'src', 'services', 'workflowExecutorService.js'),
   'utf8',
@@ -54,12 +55,26 @@ assert(
 
 assert(
   pageSource.includes('sky-workflow-operations-pagination-row')
-    && pageSource.includes('sky-workflow-operations-pagination-balance')
+    && pageSource.includes('id="workflowHistoryRowsSelect"')
+    && pageSource.includes('historyAvailablePageSizes.map')
+    && pageSource.includes('changeHistoryPageSize')
+    && pageSource.includes('historyBrowserRef.current?.scrollIntoView')
     && pageSource.includes('aria-label="First page"')
     && pageSource.includes('aria-label="Previous page"')
     && pageSource.includes('aria-label="Next page"')
     && pageSource.includes('aria-label="Last page"'),
-  'Workflow Operations must use the centered canonical gold paginator.',
+  'Workflow Operations must use the centered canonical gold paginator with smart row sizing and browser re-anchoring.',
+);
+
+
+assert(
+  pageSizeSource.includes('export const SMART_TABLE_PAGE_SIZE_OPTIONS = [10, 25, 50]')
+    && pageSizeSource.includes('if (size === 25) return recordCount >= 11;')
+    && pageSizeSource.includes('if (size === 50) return recordCount >= 26;')
+    && pageSizeSource.includes('normalizeTablePageSize')
+    && cssSource.includes('.sky-canonical-rows-control')
+    && cssSource.includes('.sky-table-browser-anchor'),
+  'Workflow row sizing must share the canonical smart 10/25/50 thresholds and browser-anchor treatment.',
 );
 
 assert(

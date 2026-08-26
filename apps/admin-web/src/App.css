@@ -7862,6 +7862,19 @@ select.sky-form-control optgroup {
   min-width: 5.25rem;
 }
 
+.sky-canonical-rows-control {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 0.5rem;
+}
+
+.sky-canonical-rows-select {
+  width: 5.25rem;
+  min-width: 5.25rem;
+}
+
+.sky-table-browser-anchor,
 .sky-tool-operations-browser-anchor {
   scroll-margin-top: 5.5rem;
 }
@@ -7938,7 +7951,8 @@ select.sky-form-control optgroup {
     gap: 0.75rem;
   }
 
-  .sky-tool-operations-rows-control {
+  .sky-tool-operations-rows-control,
+  .sky-canonical-rows-control {
     margin-left: auto;
   }
 }

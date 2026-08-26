@@ -193,6 +193,7 @@ SkyCommand/
 │   │       │   └── workflowService.js
 │   │       └── utils/
 │   │           ├── dockerLiveStatus.js
+│   │           ├── tablePageSize.js
 │   │           └── tableSorting.js
 │   ├── api/
 │   │   └── src/

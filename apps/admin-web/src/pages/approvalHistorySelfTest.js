@@ -18,6 +18,7 @@ const workflowService = fs.readFileSync(
 const checks = [
   [approvalPage.includes('<h1 className="sky-page-title">Approval History</h1>'), 'Approval History title is required.'],
   [approvalPage.includes('aria-label="Approval history pagination"'), 'Approval History pagination controls are required.'],
+  [approvalPage.includes('id="approvalHistoryRowsSelect"') && approvalPage.includes('availablePageSizes.map') && approvalPage.includes('changePageSize') && approvalPage.includes('browserCardRef.current?.scrollIntoView'), 'Approval History must provide the canonical smart Rows selector and re-anchor after row-size changes.'],
   [approvalPage.includes('All roles') && approvalPage.includes('All users'), 'Role and user filters are required.'],
   [approvalPage.includes('Selected approval record'), 'Selected approval result workspace is required.'],
   [approvalPage.includes('Approval request') && approvalPage.includes('Recorded result'), 'Approval request and result sections are required.'],

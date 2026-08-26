@@ -65,9 +65,12 @@ assert(
   workflowSource.includes('sky-canonical-operations-table-frame') &&
     workflowSource.includes('sky-canonical-operations-table align-middle mb-0') &&
     workflowSource.includes('sky-canonical-operations-pagination-row') &&
-    workflowSource.includes('sky-canonical-operations-pagination-balance') &&
+    workflowSource.includes('id="startWorkflowRowsSelect"') &&
+    workflowSource.includes('startWorkflowAvailablePageSizes.map') &&
+    workflowSource.includes('changeStartWorkflowPageSize') &&
+    workflowSource.includes('startWorkflowBrowserRef.current?.scrollIntoView') &&
     workflowSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-  'Start Workflow catalogue must use the canonical table frame, row treatment, and centered gold pagination.',
+  'Start Workflow catalogue must use the canonical table frame, row treatment, centered gold pagination, and smart Rows selector.',
 );
 assert(
   workflowSource.includes('onClick={() => handleDefinitionSelect(definition.workflowCode)}') &&
