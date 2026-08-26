@@ -802,6 +802,35 @@ async function retryRun(req, res, next) {
   }
 }
 
+async function retryNode(req, res, next) {
+  try {
+    const context = authService.getRequestContext(req);
+    const result = await workflowExecutorService.retryWorkflowNode({
+      workflowRunRecordId: req.params.workflowRunRecordId,
+      nodeKey: req.params.nodeKey,
+      user: req.user,
+      session: req.session,
+      permissions: req.permissions || [],
+      context,
+    });
+
+    res.status(202).json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
 async function listApprovals(req, res, next) {
   try {
     const result = await workflowExecutorService.listWorkflowApprovalRequests(req.query || {});
@@ -896,6 +925,7 @@ module.exports = {
   publishDraftVersion,
   replaceDefinitionGraph,
   retryRun,
+  retryNode,
   saveDraftGraph,
   startWorkflow,
   terminateRun,

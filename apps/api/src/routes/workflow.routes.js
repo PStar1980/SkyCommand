@@ -100,6 +100,12 @@ router.post(
   workflowController.retryRun,
 );
 
+router.post(
+  '/runs/:workflowRunRecordId/nodes/:nodeKey/retry',
+  requireAnyPermission(['WORKFLOW_RUN']),
+  workflowController.retryNode,
+);
+
 
 router.get(
   '/definitions/:workflowCode/manage',

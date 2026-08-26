@@ -106,6 +106,13 @@ function retryRun(workflowRunRecordId, payload = {}) {
   return api.post(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/retry`, payload);
 }
 
+function retryNode(workflowRunRecordId, nodeKey, payload = {}) {
+  return api.post(
+    `/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/nodes/${encodeURIComponent(nodeKey)}/retry`,
+    payload,
+  );
+}
+
 const workflowService = {
   cancelRun,
   archiveDefinition,
@@ -132,6 +139,7 @@ const workflowService = {
   startWorkflow,
   terminateRun,
   retryRun,
+  retryNode,
   updateDefinition,
 };
 

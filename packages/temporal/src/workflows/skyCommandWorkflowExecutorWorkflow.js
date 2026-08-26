@@ -255,6 +255,20 @@ function buildContextObjectFromPatch(patch = {}) {
   }, {});
 }
 
+function buildContextObjectFromPersistedRows(rows = []) {
+  const patch = getSafeArray(rows).reduce((accumulator, item) => {
+    const contextKey = String(item?.contextKey || '').trim();
+
+    if (contextKey) {
+      accumulator[contextKey] = cloneJsonCompatible(item?.value);
+    }
+
+    return accumulator;
+  }, {});
+
+  return buildContextObjectFromPatch(patch);
+}
+
 function mergeContextObjects(base = {}, patchObject = {}) {
   const output = { ...getSafeObject(base) };
 
@@ -1752,18 +1766,23 @@ async function executeNodeWithRetries({
 }
 
 async function skyserverWorkflowExecutorWorkflow(input = {}) {
-  const startedAtMs = Date.now();
+  let startedAtMs = Date.now();
   const info = workflowInfo();
   const temporalWorkflowId = info.workflowId;
   const temporalRunId = info.runId;
   const workflowCode = input.workflowCode;
   const workflowRunRecordId = input.workflowRunRecordId;
   const requestInput = getSafeObject(input.input);
+  const nodeRecovery = getSafeObject(requestInput.nodeRecovery);
+  const recoveryNodeKey = nodeRecovery.active === true
+    ? String(nodeRecovery.nodeKey || '').trim()
+    : '';
   const usesSkyCommandIdentity = input.identityVersion === 'skycommand.v1';
   const nodeRuns = [];
   const nodeOutputsByKey = {};
   let workflowRuntimeContext = {};
   let previousNodeOutput = null;
+  let recoveryState = null;
   let conditionStop = null;
   let approvalStop = null;
   const approvalDecisions = {};
@@ -1792,28 +1811,76 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     });
   }
 
-  const definition = await definitionActivities.loadSkyserverWorkflowDefinitionActivity({
-    workflowCode,
-  });
-
-  workflowRuntimeContext = buildContextObjectFromPatch(
-    buildInitialWorkflowContextPatch({
-      workflowRunRecordId,
-      definition,
-      requestInput,
-    }),
+  const definitionActivityInput = requestInput.workflowVersionId
+    ? { workflowCode, workflowVersionId: requestInput.workflowVersionId }
+    : { workflowCode };
+  const definition = await definitionActivities.loadSkyserverWorkflowDefinitionActivity(
+    definitionActivityInput,
   );
+
+  if (recoveryNodeKey) {
+    recoveryState = await ledgerActivities.loadSkyserverWorkflowNodeRecoveryStateActivity({
+      workflowRunRecordId,
+      nodeKey: recoveryNodeKey,
+    });
+    const originalStartedAtMs = Date.parse(
+      recoveryState?.run?.startedAt || recoveryState?.run?.createdAt || '',
+    );
+
+    if (Number.isFinite(originalStartedAtMs)) {
+      startedAtMs = originalStartedAtMs;
+    }
+
+    workflowRuntimeContext = buildContextObjectFromPersistedRows(
+      recoveryState?.contextValues || [],
+    );
+
+    for (const priorNodeRun of getSafeArray(recoveryState?.priorNodeRuns)) {
+      nodeRuns.push(priorNodeRun);
+      nodeOutputsByKey[priorNodeRun.nodeKey] = getSafeObject(priorNodeRun.output);
+    }
+
+    const previousCompletedNodeRun = nodeRuns[nodeRuns.length - 1] || null;
+
+    if (previousCompletedNodeRun) {
+      previousNodeOutput = getSafeObject(previousCompletedNodeRun.output);
+      workflowRuntimeContext = applyContextPatch(
+        workflowRuntimeContext,
+        buildNodeContextPatch(previousCompletedNodeRun),
+      );
+    }
+  } else {
+    workflowRuntimeContext = buildContextObjectFromPatch(
+      buildInitialWorkflowContextPatch({
+        workflowRunRecordId,
+        definition,
+        requestInput,
+      }),
+    );
+  }
 
   await ledgerActivities.linkSkyserverWorkflowRunToTemporalActivity({
     workflowRunRecordId,
     temporalWorkflowId,
     temporalRunId,
-    summary: `Workflow ${definition.displayName} is running through Temporal-backed ${usesSkyCommandIdentity ? 'SkyCommand' : 'SkyServer'} executor.`,
+    summary: recoveryNodeKey
+      ? `Workflow ${definition.displayName} is recovering from failed node ${recoveryNodeKey} through Temporal-backed ${usesSkyCommandIdentity ? 'SkyCommand' : 'SkyServer'} executor.`
+      : `Workflow ${definition.displayName} is running through Temporal-backed ${usesSkyCommandIdentity ? 'SkyCommand' : 'SkyServer'} executor.`,
     metadata: {
       workflowCode,
       nodeCount: definition.nodes.length,
       edgeCount: definition.edges.length,
       temporalWorkflowType: 'skyserverWorkflowExecutorWorkflow',
+      ...(recoveryNodeKey
+        ? {
+            manualNodeRecovery: true,
+            nodeRecoveryActive: true,
+            nodeRecoveryNodeKey: recoveryNodeKey,
+            nodeRecoveryAttemptNumber: nodeRecovery.recoveryAttemptNumber || 1,
+            previousTemporalWorkflowId: nodeRecovery.previousTemporalWorkflowId || null,
+            previousTemporalRunId: nodeRecovery.previousTemporalRunId || null,
+          }
+        : {}),
       ...(usesSkyCommandIdentity ? { productIdentity: 'SkyCommand' } : {}),
     },
   });
@@ -1822,7 +1889,17 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     const executionPlan = buildWorkflowExecutionPlan(definition.nodes);
     const conditionBranchRoutes = [];
     const approvalBranchRoutes = [];
-    let currentNodeIndex = 0;
+    let currentNodeIndex = recoveryNodeKey
+      ? executionPlan.nodeIndexByKey.get(recoveryNodeKey)
+      : 0;
+
+    if (!Number.isInteger(currentNodeIndex) || currentNodeIndex < 0) {
+      throw ApplicationFailure.create({
+        message: `Recovery node ${recoveryNodeKey || 'unknown'} is not present in workflow version ${requestInput.workflowVersionId || definition.publishedVersionId || 'unknown'}.`,
+        type: 'SkyServerWorkflowNodeRecoveryInputError',
+        nonRetryable: true,
+      });
+    }
 
     while (currentNodeIndex < executionPlan.nodes.length) {
       const node = executionPlan.nodes[currentNodeIndex];
@@ -1840,9 +1917,19 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         nodeRuns,
         startedAtMs,
         totalNodeCount: definition.nodes.length,
+        ...(recoveryNodeKey
+          ? {
+              nodeRecovery: {
+                ...nodeRecovery,
+                active: true,
+                recoveryNodeKey,
+              },
+            }
+          : {}),
       };
       const parameters = buildNodeParameters(node, requestInput, nodeContext);
       const nodeAttemptOffset = getNodeAttemptOffset(requestInput, node.nodeKey);
+      const recoveringThisNode = Boolean(recoveryNodeKey && node.nodeKey === recoveryNodeKey);
       const nodeRun = await ledgerActivities.startSkyserverWorkflowNodeRunActivity({
         workflowRunRecordId,
         node,
@@ -1852,6 +1939,14 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           temporalRunId,
           manualRetryAttemptOffset: nodeAttemptOffset,
           displayedAttemptCount: getDisplayedAttemptCount(nodeAttemptOffset, 1),
+          ...(recoveringThisNode
+            ? {
+                manualNodeRecovery: true,
+                nodeRecoveryNodeKey: recoveryNodeKey,
+                nodeRecoveryAttemptNumber: nodeRecovery.recoveryAttemptNumber || 1,
+                nodeRecoveryRequestedAt: nodeRecovery.requestedAt || null,
+              }
+            : {}),
         },
       });
       let nextNodeIndex = currentNodeIndex + 1;
@@ -2035,6 +2130,18 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         summaryTitle: summaryOutput?.title || null,
         temporalWorkflowId,
         temporalRunId,
+        ...(recoveryNodeKey
+          ? {
+              manualNodeRecovery: true,
+              nodeRecoveryActive: false,
+              nodeRecoveryNodeKey: recoveryNodeKey,
+              nodeRecoveryAttemptNumber: nodeRecovery.recoveryAttemptNumber || 1,
+              nodeRecoveryCompletedAt: new Date().toISOString(),
+              recoveredSuccessfully: true,
+              errorMessage: null,
+              errorName: null,
+            }
+          : {}),
       },
     });
 
@@ -2065,6 +2172,16 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
         errorName: normalizedError.name,
         temporalWorkflowId,
         temporalRunId,
+        ...(recoveryNodeKey
+          ? {
+              manualNodeRecovery: true,
+              nodeRecoveryActive: false,
+              nodeRecoveryNodeKey: recoveryNodeKey,
+              nodeRecoveryAttemptNumber: nodeRecovery.recoveryAttemptNumber || 1,
+              nodeRecoveryFailedAt: new Date().toISOString(),
+              recoveredSuccessfully: false,
+            }
+          : {}),
       },
     });
 

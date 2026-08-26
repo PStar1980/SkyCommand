@@ -4302,6 +4302,193 @@ function WorkflowNodeParameterCard({
   );
 }
 
+function WorkflowNodeFailureRecoveryCard({
+  canRetry = false,
+  nodeRuns = [],
+  nodes = [],
+  onRetry,
+  retryLoading = false,
+  run = null,
+  selectedNodeIndex = null,
+}) {
+  const hasSelection =
+    Number.isInteger(selectedNodeIndex) &&
+    selectedNodeIndex >= 0 &&
+    selectedNodeIndex < nodes.length;
+  const selectedNode = hasSelection ? nodes[selectedNodeIndex] : null;
+  const nodeRun = selectedNode ? getVisualNodeRun(selectedNode, nodeRuns) : null;
+
+  if (!selectedNode || !nodeRun) {
+    return null;
+  }
+
+  const displayName = selectedNode.displayName || selectedNode.nodeKey || 'Failed node';
+  const failureOutput = getSafeObject(nodeRun.output);
+  const failureMessage =
+    nodeRun.errorMessage ||
+    failureOutput.message ||
+    failureOutput.error?.message ||
+    failureOutput.summary ||
+    'The node reported a failure without an additional error message.';
+  const resolvedParameters = getSafeObject(nodeRun.metadata?.parameters);
+  const parameterEntries = Object.entries(resolvedParameters);
+  const failureEntries = Object.entries(failureOutput).filter(
+    ([key]) => !['message', 'summary'].includes(String(key)),
+  );
+  const completedNodeCount = nodeRuns.filter(
+    (item) => String(item?.status || '').toUpperCase() === 'COMPLETED',
+  ).length;
+  const workflowFailed = String(run?.status || '').toUpperCase() === 'FAILED';
+  const nodeFailed = String(nodeRun.status || '').toUpperCase() === 'FAILED';
+  const recoveryAvailable = workflowFailed && nodeFailed;
+
+  return (
+    <section className="sky-card mb-4 sky-workflow-node-recovery-card">
+      <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Failed node recovery</div>
+          <h2 className="h5 mb-0">Node {selectedNodeIndex + 1} · {displayName}</h2>
+          <p className="small sky-muted mb-0 mt-1">
+            The workflow is no longer active because this node failed. Review the failure evidence,
+            then retry this checkpoint to preserve completed nodes and continue the same workflow run.
+          </p>
+        </div>
+        <div className="d-flex flex-wrap align-items-center justify-content-end gap-2">
+          <span className="sky-pill sky-pill-danger">FAILED</span>
+          <span className="sky-pill sky-pill-info">
+            {nodeRun.attemptCount || 0} attempt(s)
+          </span>
+          <button
+            className="btn btn-sm sky-btn-primary"
+            disabled={!canRetry || !recoveryAvailable || retryLoading}
+            onClick={() => onRetry?.(selectedNode)}
+            type="button"
+          >
+            {retryLoading ? 'Starting recovery…' : 'Retry failed node & continue'}
+          </button>
+        </div>
+      </div>
+
+      <div className="sky-card-body">
+        <div className="row g-3 mb-3">
+          <div className="col-xl-7">
+            <div className="sky-workflow-node-recovery-panel h-100">
+              <div className="sky-page-kicker mb-2">Failure evidence</div>
+              <dl className="row small mb-0">
+                <dt className="col-md-3 sky-detail-label">Error</dt>
+                <dd className="col-md-9 sky-detail-value">
+                  <pre className="sky-node-output-readable-text mb-0">{String(failureMessage)}</pre>
+                </dd>
+                <dt className="col-md-3 sky-detail-label">Target</dt>
+                <dd className="col-md-9 sky-detail-value sky-mono">
+                  {selectedNode.targetCode || nodeRun.targetCode || '—'}
+                </dd>
+                <dt className="col-md-3 sky-detail-label">Failed at</dt>
+                <dd className="col-md-9 sky-detail-value">{formatDate(nodeRun.completedAt)}</dd>
+                <dt className="col-md-3 sky-detail-label">Node run</dt>
+                <dd className="col-md-9 sky-detail-value sky-mono text-break">
+                  {nodeRun.workflowNodeRunRecordId || '—'}
+                </dd>
+              </dl>
+            </div>
+          </div>
+          <div className="col-xl-5">
+            <div className="sky-workflow-node-recovery-panel h-100">
+              <div className="sky-page-kicker mb-2">Recovery scope</div>
+              <div className="small sky-detail-value">
+                <div className="mb-2">
+                  <strong>{completedNodeCount}</strong> completed node(s) remain preserved in this run.
+                </div>
+                <div className="mb-2">
+                  Only <strong>{displayName}</strong> is reprocessed first. If it succeeds, SkyCommand
+                  continues with the remaining workflow graph.
+                </div>
+                <div>
+                  The retry uses the original workflow version and durable run context. Previously
+                  approved and completed checkpoints are not replayed.
+                </div>
+              </div>
+              {!canRetry && (
+                <div className="small text-warning mt-3">
+                  WORKFLOW_RUN permission is required to recover a failed node.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="sky-page-kicker mb-2">Resolved parameters from failed attempt</div>
+        {parameterEntries.length > 0 ? (
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Resolved value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {parameterEntries.map(([key, value]) => (
+                  <tr key={key}>
+                    <td className="fw-semibold">{humanizeOutputKey(key)}</td>
+                    <td className="sky-focused-node-output-value">
+                      <FriendlyOutputScalar
+                        fieldKey={key}
+                        value={
+                          value && typeof value === 'object'
+                            ? JSON.stringify(value, null, 2)
+                            : value
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="sky-empty-state text-start mb-3">
+            No resolved node parameters were captured for the failed attempt.
+          </div>
+        )}
+
+        {failureEntries.length > 0 && (
+          <>
+            <div className="sky-page-kicker mb-2">Failed result details</div>
+            <div className="table-responsive sky-table-card">
+              <table className="table table-sm sky-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {failureEntries.map(([key, value]) => (
+                    <tr key={key}>
+                      <td className="fw-semibold">{humanizeOutputKey(key)}</td>
+                      <td className="sky-focused-node-output-value">
+                        <FriendlyOutputScalar
+                          fieldKey={key}
+                          value={
+                            value && typeof value === 'object'
+                              ? JSON.stringify(value, null, 2)
+                              : value
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function WorkflowNodeOutputLedger({
   outputs = [],
   contextValues = [],
@@ -4944,6 +5131,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [runActionLoading, setRunActionLoading] = useState('');
+  const [nodeRecoveryLoading, setNodeRecoveryLoading] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
@@ -5022,6 +5210,31 @@ function SkyWorkflows({ mode = 'start' }) {
     // selection keeps follow mode enabled.
     if (!options.followActiveNode) {
       setFollowActiveRuntimeNode(false);
+    }
+  }
+
+  async function handleRetryFailedNode(node) {
+    if (!selectedRun?.workflowRunRecordId || !node?.nodeKey || nodeRecoveryLoading) {
+      return;
+    }
+
+    setNodeRecoveryLoading(node.nodeKey);
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await workflowService.retryNode(
+        selectedRun.workflowRunRecordId,
+        node.nodeKey,
+      );
+      setMessage(result.message || `Recovery started for ${node.displayName || node.nodeKey}.`);
+      setFollowActiveRuntimeNode(true);
+      setApprovalResumePollingUntil(Date.now() + APPROVAL_RESUME_FAST_WINDOW_MS);
+      await loadRunDetail(selectedRun.workflowRunRecordId, { quiet: true, telemetry: true });
+    } catch (actionError) {
+      setError(formatApiError(actionError, 'Failed to retry the workflow node.'));
+    } finally {
+      setNodeRecoveryLoading('');
     }
   }
 
@@ -6691,7 +6904,23 @@ function SkyWorkflows({ mode = 'start' }) {
             {Number.isInteger(selectedRuntimeNodeIndex)
             && selectedRuntimeNodeIndex >= 0
             && selectedRuntimeNodeIndex < runtimeVisualNodes.length ? (
-              isVisualNodeCompleted(
+              String(
+                getVisualNodeRuntimeStatus(
+                  runtimeVisualNodes[selectedRuntimeNodeIndex],
+                  selectedNodeRuns,
+                  selectedApprovals,
+                ),
+              ).toUpperCase() === 'FAILED' && selectedRun && !isActiveRun(selectedRun) ? (
+                <WorkflowNodeFailureRecoveryCard
+                  canRetry={canStart}
+                  nodeRuns={selectedNodeRuns}
+                  nodes={runtimeVisualNodes}
+                  onRetry={handleRetryFailedNode}
+                  retryLoading={nodeRecoveryLoading === runtimeVisualNodes[selectedRuntimeNodeIndex]?.nodeKey}
+                  run={selectedRun}
+                  selectedNodeIndex={selectedRuntimeNodeIndex}
+                />
+              ) : isVisualNodeCompleted(
                 runtimeVisualNodes[selectedRuntimeNodeIndex],
                 selectedNodeRuns,
                 selectedApprovals,
@@ -7136,7 +7365,23 @@ function SkyWorkflows({ mode = 'start' }) {
                 {Number.isInteger(selectedRuntimeNodeIndex) &&
                 selectedRuntimeNodeIndex >= 0 &&
                 selectedRuntimeNodeIndex < runtimeVisualNodes.length ? (
-                  isVisualNodeCompleted(
+                  String(
+                    getVisualNodeRuntimeStatus(
+                      runtimeVisualNodes[selectedRuntimeNodeIndex],
+                      selectedNodeRuns,
+                      selectedApprovals,
+                    ),
+                  ).toUpperCase() === 'FAILED' && selectedRun && !isActiveRun(selectedRun) ? (
+                    <WorkflowNodeFailureRecoveryCard
+                      canRetry={canStart}
+                      nodeRuns={selectedNodeRuns}
+                      nodes={runtimeVisualNodes}
+                      onRetry={handleRetryFailedNode}
+                      retryLoading={nodeRecoveryLoading === runtimeVisualNodes[selectedRuntimeNodeIndex]?.nodeKey}
+                      run={selectedRun}
+                      selectedNodeIndex={selectedRuntimeNodeIndex}
+                    />
+                  ) : isVisualNodeCompleted(
                     runtimeVisualNodes[selectedRuntimeNodeIndex],
                     selectedNodeRuns,
                     selectedApprovals,

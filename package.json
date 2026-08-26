@@ -126,6 +126,7 @@
     "git-local-sync:self-test": "node packages/git/src/gitLocalSyncResultSelfTest.js",
     "workflow-condition:self-test": "node apps/api/src/services/workflowConditionSelfTest.js",
     "workflow-approval-branch:self-test": "node apps/api/src/services/workflowApprovalBranchSelfTest.js",
+    "workflow-node-recovery:self-test": "node apps/api/src/services/workflowNodeRecoverySelfTest.js",
     "workflow-node-parameters:self-test": "node apps/api/src/services/workflowParameterUtilsSelfTest.js",
     "workflow-cli-params:self-test": "node packages/core/src/workflowCliRuntimeParametersSelfTest.js",
     "scheduler-workflow-params:self-test": "node apps/api/src/services/schedulerWorkflowParametersSelfTest.js",
