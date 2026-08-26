@@ -8,7 +8,13 @@ import adminService from '../services/adminService.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
-const MANAGE_TOOLS_PAGE_SIZE = 10;
+import {
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+} from '../utils/tablePageSize.js';
+const MANAGE_TOOLS_DEFAULT_PAGE_SIZE = SMART_TABLE_DEFAULT_PAGE_SIZE;
 const MANAGE_TOOLS_FETCH_LIMIT = 500;
 const MANAGE_TOOLS_DEFAULT_SORTS = [{ field: 'tool', direction: 'asc' }];
 
@@ -698,6 +704,7 @@ function ManageTools() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(MANAGE_TOOLS_DEFAULT_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => MANAGE_TOOLS_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [selectedToolId, setSelectedToolId] = useState('');
@@ -712,6 +719,7 @@ function ManageTools() {
   const verificationPanelRef = useRef(null);
   const verificationScrollHandledRef = useRef(false);
   const initialLoadCompleteRef = useRef(false);
+  const browserCardRef = useRef(null);
 
   const selectedListTool = useMemo(
     () => tools.find((tool) => tool.toolId === selectedToolId) || null,
@@ -722,18 +730,22 @@ function ManageTools() {
     () => sortItemsBySorts(tools, sorts, getManagedToolSortValue),
     [sorts, tools],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedTools.length / MANAGE_TOOLS_PAGE_SIZE));
+  const availablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedTools.length),
+    [sortedTools.length],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedTools.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = sortedTools.length === 0 ? 0 : (safeCurrentPage - 1) * MANAGE_TOOLS_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * MANAGE_TOOLS_PAGE_SIZE, sortedTools.length);
   const visibleTools = useMemo(
     () =>
       sortedTools.slice(
-        (safeCurrentPage - 1) * MANAGE_TOOLS_PAGE_SIZE,
-        safeCurrentPage * MANAGE_TOOLS_PAGE_SIZE,
+        (safeCurrentPage - 1) * pageSize,
+        safeCurrentPage * pageSize,
       ),
-    [safeCurrentPage, sortedTools],
+    [pageSize, safeCurrentPage, sortedTools],
   );
+  const rangeStart = visibleTools.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleTools.length - 1;
 
   function scrollToVerification(behavior = 'smooth') {
     const target = verificationPanelRef.current;
@@ -761,10 +773,12 @@ function ManageTools() {
       const nextTools = result.items || [];
       const nextTotal = nextTools.length;
       const sortedNextTools = sortItemsBySorts(nextTools, sorts, getManagedToolSortValue);
-      const nextPageCount = Math.max(1, Math.ceil(nextTotal / MANAGE_TOOLS_PAGE_SIZE));
+      const resolvedPageSize = normalizeTablePageSize(pageSize, nextTotal);
+      const nextPageCount = Math.max(1, Math.ceil(nextTotal / resolvedPageSize));
 
       setTools(nextTools);
       setTotal(nextTotal);
+      setPageSize(resolvedPageSize);
 
       if (creating) {
         setCurrentPage(Math.min(safePage, nextPageCount));
@@ -783,7 +797,7 @@ function ManageTools() {
       const resolvedToolId = preferredToolExists ? preferredToolId : sortedNextTools[0]?.toolId || '';
       const selectedIndex = sortedNextTools.findIndex((tool) => tool.toolId === resolvedToolId);
       const resolvedPage = selectedIndex >= 0
-        ? Math.floor(selectedIndex / MANAGE_TOOLS_PAGE_SIZE) + 1
+        ? getPageForAbsoluteIndex(selectedIndex, resolvedPageSize)
         : Math.min(safePage, nextPageCount);
 
       setCurrentPage(Math.min(resolvedPage, nextPageCount));
@@ -844,10 +858,16 @@ function ManageTools() {
           : sortedNextTools[0]?.toolId || '';
         const selectedIndex = sortedNextTools.findIndex((tool) => tool.toolId === resolvedToolId);
 
+        const initialPageSize = normalizeTablePageSize(
+          MANAGE_TOOLS_DEFAULT_PAGE_SIZE,
+          nextTools.length,
+        );
+
         setOptions(optionsResult);
         setTools(nextTools);
         setTotal(nextTools.length);
-        setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / MANAGE_TOOLS_PAGE_SIZE) + 1 : 1);
+        setPageSize(initialPageSize);
+        setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, initialPageSize) : 1);
         setSelectedToolId(resolvedToolId);
         setForm(createEmptyToolForm(optionsResult));
       } catch (loadError) {
@@ -1063,7 +1083,7 @@ function ManageTools() {
       ? sortedItems.findIndex((tool) => tool.toolId === selectedToolId)
       : -1;
     const nextPage = selectedIndex >= 0
-      ? Math.floor(selectedIndex / MANAGE_TOOLS_PAGE_SIZE) + 1
+      ? getPageForAbsoluteIndex(selectedIndex, pageSize)
       : 1;
 
     setSorts(nextSorts);
@@ -1123,11 +1143,34 @@ function ManageTools() {
     setCurrentPage(nextPage);
   }
 
+  function scrollBrowserToTop() {
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!availablePageSizes.includes(nextPageSize) || nextPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedToolId
+      ? sortedTools.findIndex((tool) => tool.toolId === selectedToolId)
+      : -1;
+
+    setCreating(false);
+    setPageSize(nextPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1);
+    scrollBrowserToTop();
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {sortedTools.length} managed tool(s)
+          Showing {rangeStart}–{rangeEnd} of {sortedTools.length} managed tool(s)
         </div>
         <div
           className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -1191,7 +1234,24 @@ function ManageTools() {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="manageToolsRowsSelect">
+            Rows
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="manageToolsRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -1221,7 +1281,10 @@ function ManageTools() {
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
       {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
 
-      <section className="sky-card mb-3 sky-functional-history-browser sky-manage-tools-browser">
+      <section
+        className="sky-card mb-3 sky-functional-history-browser sky-manage-tools-browser sky-table-browser-anchor"
+        ref={browserCardRef}
+      >
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Catalogue browser</div>

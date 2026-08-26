@@ -42,9 +42,12 @@ assert(
   toolsSource.includes('sky-canonical-operations-table-frame')
     && toolsSource.includes('sky-canonical-operations-table align-middle mb-0')
     && toolsSource.includes('sky-canonical-operations-pagination-row')
-    && toolsSource.includes('sky-canonical-operations-pagination-balance')
+    && toolsSource.includes('id="runToolsRowsSelect"')
+    && toolsSource.includes('availablePageSizes.map')
+    && toolsSource.includes('changePageSize')
+    && toolsSource.includes('browserCardRef.current?.scrollIntoView')
     && toolsSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-  'Run Tools catalogue must use the canonical table frame and centered gold pagination.',
+  'Run Tools catalogue must use the canonical table frame, centered gold pagination, and smart Rows selector.',
 );
 
 
