@@ -9,7 +9,12 @@ import ingestionService from '../services/ingestionService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
-const DATA_INTELLIGENCE_PAGE_SIZE = 10;
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+} from '../utils/tablePageSize.js';
 const DATA_INTELLIGENCE_FETCH_LIMIT = 500;
 const DATA_INTELLIGENCE_DEFAULT_SORTS = [{ field: 'indicator', direction: 'asc' }];
 
@@ -119,6 +124,7 @@ function DataStatus() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftSearch, setDraftSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => DATA_INTELLIGENCE_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [total, setTotal] = useState(0);
@@ -127,20 +133,26 @@ function DataStatus() {
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
   const indicatorRequestIdRef = useRef(0);
+  const browserRef = useRef(null);
 
   const sortedItems = useMemo(
     () => sortItemsBySorts(items, sorts, getIndicatorSortValue),
     [items, sorts],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedItems.length / DATA_INTELLIGENCE_PAGE_SIZE));
-  const safeCurrentPage = Math.min(currentPage, pageCount);
-  const pageStart = (safeCurrentPage - 1) * DATA_INTELLIGENCE_PAGE_SIZE;
-  const visibleItems = useMemo(
-    () => sortedItems.slice(pageStart, pageStart + DATA_INTELLIGENCE_PAGE_SIZE),
-    [pageStart, sortedItems],
+  const pageSizeOptions = useMemo(
+    () => getAvailableTablePageSizes(sortedItems.length),
+    [sortedItems.length],
   );
-  const rangeStart = sortedItems.length === 0 ? 0 : pageStart + 1;
-  const rangeEnd = Math.min(pageStart + DATA_INTELLIGENCE_PAGE_SIZE, sortedItems.length);
+  const effectivePageSize = normalizeTablePageSize(pageSize, sortedItems.length);
+  const pageCount = Math.max(1, Math.ceil(sortedItems.length / effectivePageSize));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const pageStart = (safeCurrentPage - 1) * effectivePageSize;
+  const visibleItems = useMemo(
+    () => sortedItems.slice(pageStart, pageStart + effectivePageSize),
+    [effectivePageSize, pageStart, sortedItems],
+  );
+  const rangeStart = sortedItems.length === 0 || visibleItems.length === 0 ? 0 : pageStart + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleItems.length - 1;
 
   async function loadSourceOptions() {
     try {
@@ -197,6 +209,7 @@ function DataStatus() {
       } while (nextItems.length < nextTotal);
 
       const sortedNextItems = sortItemsBySorts(nextItems, nextSorts, getIndicatorSortValue);
+      const nextPageSize = normalizeTablePageSize(pageSize, sortedNextItems.length);
       const currentId = keepSelection ? selectedItem?.indicatorCode : null;
       const nextSelected =
         sortedNextItems.find((indicator) => indicator.indicatorCode === currentId) ||
@@ -208,11 +221,11 @@ function DataStatus() {
           )
         : -1;
       const selectedPage = selectedIndex >= 0
-        ? Math.floor(selectedIndex / DATA_INTELLIGENCE_PAGE_SIZE) + 1
+        ? getPageForAbsoluteIndex(selectedIndex, nextPageSize)
         : 1;
       const nextPageCount = Math.max(
         1,
-        Math.ceil(sortedNextItems.length / DATA_INTELLIGENCE_PAGE_SIZE),
+        Math.ceil(sortedNextItems.length / nextPageSize),
       );
       const resolvedPage = keepSelection && selectedIndex >= 0
         ? selectedPage
@@ -220,6 +233,7 @@ function DataStatus() {
 
       setItems(nextItems);
       setTotal(nextItems.length);
+      setPageSize(nextPageSize);
       setCurrentPage(resolvedPage);
       setRefreshingAt(new Date());
       setSelectedItem(nextSelected);
@@ -258,6 +272,13 @@ function DataStatus() {
     loadIndicators(DEFAULT_FILTERS, 1, { keepSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (pageSize !== effectivePageSize) {
+      setPageSize(effectivePageSize);
+      setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(sortedItems.length / effectivePageSize))));
+    }
+  }, [effectivePageSize, pageSize, sortedItems.length]);
 
   const pollingState = useSmartPolling({
     dependencies: [
@@ -313,7 +334,7 @@ function DataStatus() {
       ? sorted.findIndex((indicator) => indicator.indicatorCode === selectedItem.indicatorCode)
       : -1;
     const nextPage = selectedIndex >= 0
-      ? Math.floor(selectedIndex / DATA_INTELLIGENCE_PAGE_SIZE) + 1
+      ? getPageForAbsoluteIndex(selectedIndex, effectivePageSize)
       : 1;
 
     setSorts(nextSorts);
@@ -371,17 +392,36 @@ function DataStatus() {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
     setCurrentPage(nextPage);
 
-    const firstVisible = sortedItems[(nextPage - 1) * DATA_INTELLIGENCE_PAGE_SIZE];
+    const firstVisible = sortedItems[(nextPage - 1) * effectivePageSize];
     if (firstVisible && firstVisible.indicatorCode !== selectedItem?.indicatorCode) {
       selectIndicator(firstVisible);
     }
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!pageSizeOptions.includes(nextPageSize) || nextPageSize === effectivePageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedItem?.indicatorCode
+      ? sortedItems.findIndex((indicator) => indicator.indicatorCode === selectedItem.indicatorCode)
+      : -1;
+    const nextPage = selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1;
+
+    setPageSize(nextPageSize);
+    setCurrentPage(nextPage);
+    window.requestAnimationFrame(() => {
+      browserRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {total} indicator status record(s)
+          Showing {rangeStart}–{rangeEnd} of {total} indicator status record(s)
         </div>
         <div
           className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -445,7 +485,20 @@ function DataStatus() {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="dataStatusRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="dataStatusRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={effectivePageSize}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -472,7 +525,7 @@ function DataStatus() {
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <div className="sky-functional-history-shell sky-data-status-shell">
-        <section className="sky-card mb-4 sky-functional-history-browser">
+        <section ref={browserRef} className="sky-card mb-4 sky-functional-history-browser sky-table-browser-anchor">
           <div className="sky-card-header">
             <div>
               <div className="sky-page-kicker">Indicator browser</div>
@@ -614,7 +667,7 @@ function DataStatus() {
                       onClick={() => selectIndicator(indicator)}
                     >
                       <td>
-                        <div className="fw-bold sky-detail-value sky-mono">
+                        <div className="fw-bold">
                           {indicator.indicatorCode}
                         </div>
                         <div className="small sky-muted sky-truncate">
@@ -628,7 +681,7 @@ function DataStatus() {
                           {normalizeStatus(indicator.status)}
                         </span>
                       </td>
-                      <td className="small sky-mono">
+                      <td className="sky-mono">
                         {indicator.freshness?.reasonCode || '—'}
                       </td>
                       <td>{formatDate(getLatestDataDate(indicator), { dateOnly: true })}</td>

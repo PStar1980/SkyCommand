@@ -5,11 +5,16 @@ import adminService from '../services/adminService';
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+} from '../utils/tablePageSize.js';
+import {
   createRepositoryForm,
   DEFAULT_REPOSITORY_FILTERS,
   formatRepositoryDate,
   populateRepositoryForm,
-  REPOSITORY_PAGE_SIZE,
   repositoryStatusClass,
   repositoryStatusLabel,
   sanitizeRepositoryPayload,
@@ -59,6 +64,7 @@ function ManageRepositories() {
   const [form, setForm] = useState(createRepositoryForm());
   const [filters, setFilters] = useState(DEFAULT_REPOSITORY_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => MANAGE_REPOSITORY_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -70,20 +76,26 @@ function ManageRepositories() {
   const [readinessLoading, setReadinessLoading] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const filterAutoApplyReadyRef = useRef(false);
+  const browserRef = useRef(null);
 
   const sortedRepositories = useMemo(
     () => sortItemsBySorts(repositories, sorts, getRepositorySortValue),
     [repositories, sorts],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedRepositories.length / REPOSITORY_PAGE_SIZE));
-  const safeCurrentPage = Math.min(currentPage, pageCount);
-  const pageStart = (safeCurrentPage - 1) * REPOSITORY_PAGE_SIZE;
-  const visibleRepositories = useMemo(
-    () => sortedRepositories.slice(pageStart, pageStart + REPOSITORY_PAGE_SIZE),
-    [pageStart, sortedRepositories],
+  const pageSizeOptions = useMemo(
+    () => getAvailableTablePageSizes(sortedRepositories.length),
+    [sortedRepositories.length],
   );
-  const rangeStart = sortedRepositories.length === 0 ? 0 : pageStart + 1;
-  const rangeEnd = Math.min(pageStart + REPOSITORY_PAGE_SIZE, sortedRepositories.length);
+  const effectivePageSize = normalizeTablePageSize(pageSize, sortedRepositories.length);
+  const pageCount = Math.max(1, Math.ceil(sortedRepositories.length / effectivePageSize));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const pageStart = (safeCurrentPage - 1) * effectivePageSize;
+  const visibleRepositories = useMemo(
+    () => sortedRepositories.slice(pageStart, pageStart + effectivePageSize),
+    [effectivePageSize, pageStart, sortedRepositories],
+  );
+  const rangeStart = sortedRepositories.length === 0 || visibleRepositories.length === 0 ? 0 : pageStart + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleRepositories.length - 1;
 
   const selectedPathCount = useMemo(
     () => selectedPaths.filter((path) => path.rootPath && path.active !== false).length,
@@ -150,12 +162,14 @@ function ManageRepositories() {
         sorts,
         getRepositorySortValue,
       );
+      const nextPageSize = normalizeTablePageSize(pageSize, sortedNextRepositories.length);
       const nextPageCount = Math.max(
         1,
-        Math.ceil(sortedNextRepositories.length / REPOSITORY_PAGE_SIZE),
+        Math.ceil(sortedNextRepositories.length / nextPageSize),
       );
 
       setRepositories(nextRepositories);
+      setPageSize(nextPageSize);
 
       if (nextRepositories.length === 0) {
         setCurrentPage(1);
@@ -171,7 +185,7 @@ function ManageRepositories() {
       );
       const resolvedRepository = preferredRepositoryExists
         ? sortedNextRepositories.find((repository) => repository.repoId === preferredRepoId)
-        : sortedNextRepositories[(Math.min(requestedPage, nextPageCount) - 1) * REPOSITORY_PAGE_SIZE] ||
+        : sortedNextRepositories[(Math.min(requestedPage, nextPageCount) - 1) * nextPageSize] ||
           sortedNextRepositories[0];
       const selectedIndex = resolvedRepository
         ? sortedNextRepositories.findIndex(
@@ -179,7 +193,7 @@ function ManageRepositories() {
           )
         : -1;
       const resolvedPage = selectedIndex >= 0
-        ? Math.floor(selectedIndex / REPOSITORY_PAGE_SIZE) + 1
+        ? getPageForAbsoluteIndex(selectedIndex, nextPageSize)
         : Math.min(requestedPage, nextPageCount);
 
       setCurrentPage(resolvedPage);
@@ -273,6 +287,13 @@ function ManageRepositories() {
     loadSelectedRepository(selectedRepoId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRepoId, profiles]);
+
+  useEffect(() => {
+    if (pageSize !== effectivePageSize) {
+      setPageSize(effectivePageSize);
+      setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(sortedRepositories.length / effectivePageSize))));
+    }
+  }, [effectivePageSize, pageSize, sortedRepositories.length]);
 
   useEffect(() => {
     if (!filterAutoApplyReadyRef.current) {
@@ -476,7 +497,7 @@ function ManageRepositories() {
       ? sorted.findIndex((repository) => repository.repoId === selectedRepoId)
       : -1;
     const nextPage = selectedIndex >= 0
-      ? Math.floor(selectedIndex / REPOSITORY_PAGE_SIZE) + 1
+      ? getPageForAbsoluteIndex(selectedIndex, effectivePageSize)
       : 1;
 
     setSorts(nextSorts);
@@ -532,7 +553,7 @@ function ManageRepositories() {
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    const nextRepository = sortedRepositories[(nextPage - 1) * REPOSITORY_PAGE_SIZE] || null;
+    const nextRepository = sortedRepositories[(nextPage - 1) * effectivePageSize] || null;
 
     setCurrentPage(nextPage);
     setSelectedRepoId(nextRepository?.repoId || '');
@@ -540,11 +561,30 @@ function ManageRepositories() {
     setError('');
   }
 
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!pageSizeOptions.includes(nextPageSize) || nextPageSize === effectivePageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedRepoId
+      ? sortedRepositories.findIndex((repository) => repository.repoId === selectedRepoId)
+      : -1;
+    const nextPage = selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1;
+
+    setPageSize(nextPageSize);
+    setCurrentPage(nextPage);
+    window.requestAnimationFrame(() => {
+      browserRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {sortedRepositories.length} repository configuration record(s)
+          Showing {rangeStart}–{rangeEnd} of {sortedRepositories.length} repository configuration record(s)
         </div>
         <div
           className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -608,7 +648,20 @@ function ManageRepositories() {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="manageRepositoriesRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="manageRepositoriesRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={effectivePageSize}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -644,7 +697,7 @@ function ManageRepositories() {
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
       {success && <DismissibleAlert tone="success">{success}</DismissibleAlert>}
 
-      <section className="sky-card mb-3 sky-functional-history-browser sky-manage-repositories-browser">
+      <section ref={browserRef} className="sky-card mb-3 sky-functional-history-browser sky-manage-repositories-browser sky-table-browser-anchor">
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Repository browser</div>
@@ -761,11 +814,11 @@ function ManageRepositories() {
                     }}
                   >
                     <td>
-                      <div className="fw-semibold sky-detail-value">{repository.repoName}</div>
+                      <div className="fw-bold">{repository.repoName}</div>
                       <div className="small sky-muted sky-mono">{repository.repoCode}</div>
                     </td>
                     <td>
-                      <div className="small sky-muted">main: {repository.mainBranch}</div>
+                      <div>main: {repository.mainBranch}</div>
                       <div className="small sky-muted">dev: {repository.devBranch}</div>
                     </td>
                     <td>
@@ -775,7 +828,7 @@ function ManageRepositories() {
                       {repository.isSkycommandRepository ? (
                         <span className="sky-pill sky-pill-info">SKYCOMMAND</span>
                       ) : (
-                        <span className="sky-muted">Standard</span>
+                        <span>Standard</span>
                       )}
                     </td>
                     <td>
