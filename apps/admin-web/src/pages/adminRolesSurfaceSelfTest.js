@@ -36,9 +36,9 @@ assert(
   rolesSource.includes('sky-canonical-operations-table-frame')
     && rolesSource.includes('sky-canonical-operations-table align-middle mb-0')
     && rolesSource.includes('sky-canonical-operations-pagination-row')
-    && rolesSource.includes('sky-canonical-operations-pagination-balance')
+    && rolesSource.includes('sky-canonical-rows-control')
     && rolesSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-  'Roles browser must use the canonical table frame and centered pagination.',
+  'Roles browser must use the canonical table frame, centered pagination, and right-aligned Rows control.',
 );
 
 assert(
@@ -72,6 +72,22 @@ assert(
     && cssSource.includes('.sky-admin-role-access-grid')
     && cssSource.includes('.sky-admin-role-permission-select'),
   'Admin Roles layout styles must support the canonical browser and full-width role workspace.',
+);
+
+
+assert(
+  rolesSource.includes("from '../utils/tablePageSize.js'")
+    && rolesSource.includes('id="rolesRowsSelect"')
+    && rolesSource.includes('getAvailableTablePageSizes(sortedRoles.length)')
+    && rolesSource.includes('normalizeTablePageSize(pageSize, sortedRoles.length)')
+    && rolesSource.includes('Showing {rangeStart}–{rangeEnd} of {sortedRoles.length} role(s)'),
+  'Roles browser must use the canonical smart Rows selector and actual rendered-range math.',
+);
+
+assert(
+  rolesSource.includes('<div className="fw-bold sky-mono">{role.roleCode}</div>')
+    && rolesSource.includes('<div className="small sky-muted">{role.roleName}</div>'),
+  'Roles browser rows must use canonical bold primary and muted secondary typography.',
 );
 
 console.log('[SkyCommand] Admin Roles surface self-test passed.');

@@ -4,6 +4,11 @@ import adminService from '../services/adminService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+} from '../utils/tablePageSize.js';
 
 const PRIVILEGE_PAGE_SIZE = 10;
 const PRIVILEGE_FETCH_LIMIT = 200;
@@ -92,6 +97,7 @@ function AdminPrivileges() {
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PRIVILEGE_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => PRIVILEGE_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -102,6 +108,7 @@ function AdminPrivileges() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(DEFAULT_CREATE_FORM);
   const initialLoadCompleteRef = useRef(false);
+  const browserCardRef = useRef(null);
   const [editForm, setEditForm] = useState({
     permissionCode: '',
     resource: '',
@@ -124,17 +131,32 @@ function AdminPrivileges() {
     () => sortItemsBySorts(permissions, sorts, getPrivilegeSortValue),
     [permissions, sorts],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedPermissions.length / PRIVILEGE_PAGE_SIZE));
+  const availablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedPermissions.length),
+    [sortedPermissions.length],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedPermissions.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = sortedPermissions.length === 0 ? 0 : (safeCurrentPage - 1) * PRIVILEGE_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * PRIVILEGE_PAGE_SIZE, sortedPermissions.length);
   const visiblePermissions = useMemo(
     () => sortedPermissions.slice(
-      (safeCurrentPage - 1) * PRIVILEGE_PAGE_SIZE,
-      safeCurrentPage * PRIVILEGE_PAGE_SIZE,
+      (safeCurrentPage - 1) * pageSize,
+      safeCurrentPage * pageSize,
     ),
-    [safeCurrentPage, sortedPermissions],
+    [pageSize, safeCurrentPage, sortedPermissions],
   );
+  const rangeStart = visiblePermissions.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visiblePermissions.length - 1;
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(pageSize, sortedPermissions.length);
+    if (normalizedPageSize === pageSize) return;
+
+    const selectedIndex = selectedPermissionId
+      ? sortedPermissions.findIndex((permission) => permission.permissionId === selectedPermissionId)
+      : -1;
+    setPageSize(normalizedPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1);
+  }, [pageSize, selectedPermissionId, sortedPermissions]);
 
   async function fetchAllPermissions(nextFilters = filters) {
     const items = [];
@@ -191,7 +213,7 @@ function AdminPrivileges() {
       const selectedIndex = sortedNextPermissions.findIndex(
         (permission) => permission.permissionId === resolvedPermissionId,
       );
-      setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / PRIVILEGE_PAGE_SIZE) + 1 : 1);
+      setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
       setSelectedPermissionId(resolvedPermissionId);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load privileges.');
@@ -326,7 +348,7 @@ function AdminPrivileges() {
 
     setSorts(nextSorts);
     setSortingCustomized(customized);
-    setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / PRIVILEGE_PAGE_SIZE) + 1 : 1);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
   }
 
   function updateSorting(field, event) {
@@ -375,18 +397,32 @@ function AdminPrivileges() {
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    const firstPermission = sortedPermissions[(nextPage - 1) * PRIVILEGE_PAGE_SIZE] || null;
+    const firstPermission = sortedPermissions[(nextPage - 1) * pageSize] || null;
     setCurrentPage(nextPage);
     if (firstPermission) {
       setSelectedPermissionId(firstPermission.permissionId);
     }
   }
 
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+    if (!availablePageSizes.includes(nextPageSize) || nextPageSize === pageSize) return;
+
+    const selectedIndex = selectedPermissionId
+      ? sortedPermissions.findIndex((permission) => permission.permissionId === selectedPermissionId)
+      : -1;
+    setPageSize(nextPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1);
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {sortedPermissions.length} privilege(s)
+          Showing {rangeStart}–{rangeEnd} of {sortedPermissions.length} privilege(s)
         </div>
         <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label="Privileges pagination">
           <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage <= 1 || loading} onClick={() => goToPage(1)} title="First page" type="button">«</button>
@@ -399,7 +435,20 @@ function AdminPrivileges() {
           <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage >= pageCount || loading} onClick={() => goToPage(safeCurrentPage + 1)} title="Next page" type="button">›</button>
           <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage >= pageCount || loading} onClick={() => goToPage(pageCount)} title="Last page" type="button">»</button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="privilegesRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="privilegesRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -635,7 +684,7 @@ function AdminPrivileges() {
         </section>
       )}
 
-      <section className="sky-card sky-functional-history-browser sky-admin-privileges-browser">
+      <section ref={browserCardRef} className="sky-card sky-functional-history-browser sky-admin-privileges-browser sky-table-browser-anchor">
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Privilege browser</div>
@@ -760,7 +809,7 @@ function AdminPrivileges() {
                     onClick={() => setSelectedPermissionId(permission.permissionId)}
                   >
                     <td>
-                      <div className="fw-bold sky-detail-value sky-mono">{permission.permissionCode}</div>
+                      <div className="fw-bold sky-mono">{permission.permissionCode}</div>
                       <div className="small sky-muted sky-truncate">{permission.description || '—'}</div>
                     </td>
                     <td>

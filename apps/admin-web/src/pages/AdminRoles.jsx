@@ -4,6 +4,11 @@ import adminService from '../services/adminService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+} from '../utils/tablePageSize.js';
 
 const ROLE_PAGE_SIZE = 10;
 const ROLE_FETCH_LIMIT = 200;
@@ -106,6 +111,7 @@ function AdminRoles() {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(ROLE_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => ROLE_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -116,6 +122,7 @@ function AdminRoles() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(DEFAULT_CREATE_FORM);
   const initialLoadCompleteRef = useRef(false);
+  const browserCardRef = useRef(null);
   const [editForm, setEditForm] = useState({
     roleCode: '',
     roleName: '',
@@ -137,14 +144,30 @@ function AdminRoles() {
     () => sortItemsBySorts(roles, sorts, getRoleSortValue),
     [roles, sorts],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedRoles.length / ROLE_PAGE_SIZE));
-  const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = sortedRoles.length === 0 ? 0 : (safeCurrentPage - 1) * ROLE_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * ROLE_PAGE_SIZE, sortedRoles.length);
-  const visibleRoles = useMemo(
-    () => sortedRoles.slice((safeCurrentPage - 1) * ROLE_PAGE_SIZE, safeCurrentPage * ROLE_PAGE_SIZE),
-    [safeCurrentPage, sortedRoles],
+  const availablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedRoles.length),
+    [sortedRoles.length],
   );
+  const pageCount = Math.max(1, Math.ceil(sortedRoles.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const visibleRoles = useMemo(
+    () => sortedRoles.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize),
+    [pageSize, safeCurrentPage, sortedRoles],
+  );
+  const rangeStart = visibleRoles.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleRoles.length - 1;
+
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(pageSize, sortedRoles.length);
+    if (normalizedPageSize === pageSize) return;
+
+    const selectedIndex = selectedRoleId
+      ? sortedRoles.findIndex((role) => role.roleId === selectedRoleId)
+      : -1;
+    setPageSize(normalizedPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1);
+  }, [pageSize, selectedRoleId, sortedRoles]);
 
   async function loadPermissions(nextAppCode = 'ALL') {
     if (!canReadPermissions) {
@@ -201,7 +224,7 @@ function AdminRoles() {
       const preferredRoleExists = nextRoles.some((role) => role.roleId === preferredRoleId);
       const resolvedRoleId = preferredRoleExists ? preferredRoleId : sortedNextRoles[0]?.roleId || '';
       const selectedIndex = sortedNextRoles.findIndex((role) => role.roleId === resolvedRoleId);
-      setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / ROLE_PAGE_SIZE) + 1 : 1);
+      setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
       setSelectedRoleId(resolvedRoleId);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load roles.');
@@ -452,7 +475,7 @@ function AdminRoles() {
 
     setSorts(nextSorts);
     setSortingCustomized(customized);
-    setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / ROLE_PAGE_SIZE) + 1 : 1);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
   }
 
   function updateSorting(field, event) {
@@ -501,18 +524,36 @@ function AdminRoles() {
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    const firstRole = sortedRoles[(nextPage - 1) * ROLE_PAGE_SIZE] || null;
+    const firstRole = sortedRoles[(nextPage - 1) * pageSize] || null;
     setCurrentPage(nextPage);
     if (firstRole) {
       setSelectedRoleId(firstRole.roleId);
     }
   }
 
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!availablePageSizes.includes(nextPageSize) || nextPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedRoleId
+      ? sortedRoles.findIndex((role) => role.roleId === selectedRoleId)
+      : -1;
+
+    setPageSize(nextPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1);
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {sortedRoles.length} role(s)
+          Showing {rangeStart}–{rangeEnd} of {sortedRoles.length} role(s)
         </div>
         <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label="Roles pagination">
           <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage <= 1 || loading} onClick={() => goToPage(1)} title="First page" type="button">«</button>
@@ -525,7 +566,20 @@ function AdminRoles() {
           <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage >= pageCount || loading} onClick={() => goToPage(safeCurrentPage + 1)} title="Next page" type="button">›</button>
           <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage >= pageCount || loading} onClick={() => goToPage(pageCount)} title="Last page" type="button">»</button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="rolesRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="rolesRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -645,7 +699,7 @@ function AdminRoles() {
         </section>
       )}
 
-      <section className="sky-card sky-functional-history-browser sky-admin-roles-browser">
+      <section ref={browserCardRef} className="sky-card sky-functional-history-browser sky-admin-roles-browser sky-table-browser-anchor">
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Role browser</div>
@@ -744,7 +798,7 @@ function AdminRoles() {
                     onClick={() => setSelectedRoleId(role.roleId)}
                   >
                     <td>
-                      <div className="fw-bold sky-detail-value sky-mono">{role.roleCode}</div>
+                      <div className="fw-bold sky-mono">{role.roleCode}</div>
                       <div className="small sky-muted">{role.roleName}</div>
                     </td>
                     <td>

@@ -36,9 +36,9 @@ assert(
   privilegesSource.includes('sky-canonical-operations-table-frame')
     && privilegesSource.includes('sky-canonical-operations-table align-middle mb-0')
     && privilegesSource.includes('sky-canonical-operations-pagination-row')
-    && privilegesSource.includes('sky-canonical-operations-pagination-balance')
+    && privilegesSource.includes('sky-canonical-rows-control')
     && privilegesSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-  'Privileges browser must use the canonical table frame and centered pagination.',
+  'Privileges browser must use the canonical table frame, centered pagination, and right-aligned Rows control.',
 );
 
 assert(
@@ -71,6 +71,24 @@ assert(
     && cssSource.includes('.sky-admin-privilege-status-row')
     && cssSource.includes('.sky-admin-privilege-grants-panel'),
   'Admin Privileges layout styles must support the canonical browser and full-width privilege workspace.',
+);
+
+
+assert(
+  privilegesSource.includes("from '../utils/tablePageSize.js'")
+    && privilegesSource.includes('id="privilegesRowsSelect"')
+    && privilegesSource.includes('getAvailableTablePageSizes(sortedPermissions.length)')
+    && privilegesSource.includes('normalizeTablePageSize(pageSize, sortedPermissions.length)')
+    && privilegesSource.includes('Showing {rangeStart}–{rangeEnd} of {sortedPermissions.length} privilege(s)'),
+  'Privileges browser must use the canonical smart Rows selector and actual rendered-range math.',
+);
+
+assert(
+  privilegesSource.includes('<div className="fw-bold sky-mono">{permission.permissionCode}</div>')
+    && privilegesSource.includes(`<div className="small sky-muted sky-truncate">{permission.description || '—'}</div>`)
+    && privilegesSource.includes('<td className="sky-mono">{permission.resource}</td>')
+    && privilegesSource.includes('<td className="sky-mono">{permission.action}</td>'),
+  'Privileges browser rows must use canonical primary/secondary typography while retaining semantic monospace code cells.',
 );
 
 console.log('[SkyCommand] Admin Privileges surface self-test passed.');

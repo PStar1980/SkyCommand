@@ -40,17 +40,16 @@ assert(
   historySource.includes('sky-canonical-operations-table-frame')
     && historySource.includes('sky-canonical-operations-table align-middle mb-0')
     && historySource.includes('sky-canonical-operations-pagination-row')
-    && historySource.includes('sky-canonical-operations-pagination-balance')
+    && historySource.includes('sky-canonical-rows-control')
     && historySource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-  'User History browser must use the canonical table frame and centered pagination.',
+  'User History browser must use the canonical table frame, centered pagination, and right-aligned Rows control.',
 );
 
 assert(
-  historySource.includes('const USER_HISTORY_PAGE_SIZE = 10;')
-    && historySource.includes('const USER_HISTORY_FETCH_LIMIT = 200;')
+  historySource.includes('const USER_HISTORY_FETCH_LIMIT = 200;')
     && historySource.includes('async function fetchAllHistory')
     && historySource.includes('offset += batch.length;'),
-  'User History must fetch complete filtered evidence in API-safe 200-row batches before client sorting and 10-row pagination.',
+  'User History must fetch complete filtered evidence in API-safe 200-row batches before client sorting and smart client pagination.',
 );
 
 assert(
@@ -77,6 +76,26 @@ assert(
     && cssSource.includes('.sky-admin-user-history-detail-grid')
     && cssSource.includes('.sky-admin-user-history-evidence-grid'),
   'User History layout styles must support the canonical browser and full-width forensic detail workspace.',
+);
+
+
+assert(
+  historySource.includes("from '../utils/tablePageSize.js'")
+    && historySource.includes('id="userHistoryRowsSelect"')
+    && historySource.includes('getAvailableTablePageSizes(sortedItems.length)')
+    && historySource.includes('normalizeTablePageSize(pageSize, sortedItems.length)')
+    && historySource.includes('Showing {rangeStart}–{rangeEnd} of {sortedItems.length} {sourceLabel}(s)'),
+  'User History browser must use the canonical smart Rows selector and actual rendered-range math.',
+);
+
+assert(
+  historySource.includes(`<div className="fw-bold">\n                        {item.success ? 'LOGIN_SUCCESS' : 'LOGIN_FAILED'}`)
+    && historySource.includes('<td className="sky-mono">authenticate</td>')
+    && historySource.includes('<div className="fw-bold">{getLoginUserLabel(item)}</div>')
+    && historySource.includes('<div className="fw-bold">{item.eventType}</div>')
+    && historySource.includes('<td className="sky-mono">{item.action}</td>')
+    && historySource.includes('<div className="fw-bold">{getUserLabel(item)}</div>'),
+  'User History browser rows must use the canonical primary/body typography hierarchy in both source modes.',
 );
 
 console.log('[SkyCommand] Admin User History surface self-test passed.');

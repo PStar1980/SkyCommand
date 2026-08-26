@@ -34,9 +34,9 @@ assert(
   usersSource.includes('sky-canonical-operations-table-frame')
     && usersSource.includes('sky-canonical-operations-table align-middle mb-0')
     && usersSource.includes('sky-canonical-operations-pagination-row')
-    && usersSource.includes('sky-canonical-operations-pagination-balance')
+    && usersSource.includes('sky-canonical-rows-control')
     && usersSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-  'Users browser must use the canonical table frame and centered pagination.',
+  'Users browser must use the canonical table frame, centered pagination, and right-aligned Rows control.',
 );
 
 assert(
@@ -70,6 +70,23 @@ assert(
     && cssSource.includes('.sky-admin-user-security-grid')
     && cssSource.includes('.sky-admin-user-detail-card .sky-app-access-list'),
   'Admin Users layout styles must support the new full-width detail workspace.',
+);
+
+
+assert(
+  usersSource.includes("from '../utils/tablePageSize.js'")
+    && usersSource.includes('id="usersRowsSelect"')
+    && usersSource.includes('getAvailableTablePageSizes(sortedUsers.length)')
+    && usersSource.includes('normalizeTablePageSize(pageSize, sortedUsers.length)')
+    && usersSource.includes("scrollIntoView({ behavior: 'smooth', block: 'start' })")
+    && usersSource.includes('Showing {rangeStart}–{rangeEnd} of {sortedUsers.length} user(s)'),
+  'Users browser must use the canonical smart Rows selector, rendered-range math, and browser re-anchor behavior.',
+);
+
+assert(
+  usersSource.includes('<div className="fw-bold">\n                        {item.displayName || item.username || item.email}')
+    && usersSource.includes('<div className="small sky-muted">{item.email}</div>'),
+  'Users browser rows must use Workflow Operations primary and secondary typography hierarchy.',
 );
 
 console.log('[SkyCommand] Admin Users surface self-test passed.');
