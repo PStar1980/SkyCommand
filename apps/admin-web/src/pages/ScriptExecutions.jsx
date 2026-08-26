@@ -10,8 +10,32 @@ import useSmartPolling, {
 import adminService from '../services/adminService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
-const TOOL_HISTORY_PAGE_SIZE = 10;
+const TOOL_HISTORY_DEFAULT_PAGE_SIZE = 10;
+const TOOL_HISTORY_PAGE_SIZE_OPTIONS = [10, 25, 50];
 const TOOL_HISTORY_DEFAULT_SORTS = [{ field: 'startedAt', direction: 'desc' }];
+
+
+function getAvailableToolHistoryPageSizes(total) {
+  const recordCount = Math.max(0, Number(total) || 0);
+
+  return TOOL_HISTORY_PAGE_SIZE_OPTIONS.filter((size) => {
+    if (size === 10) return true;
+    if (size === 25) return recordCount >= 11;
+    if (size === 50) return recordCount >= 26;
+    return false;
+  });
+}
+
+function normalizeToolHistoryPageSize(pageSize, total) {
+  const availablePageSizes = getAvailableToolHistoryPageSizes(total);
+  const numericPageSize = Number(pageSize);
+
+  if (availablePageSizes.includes(numericPageSize)) {
+    return numericPageSize;
+  }
+
+  return availablePageSizes[availablePageSizes.length - 1] || TOOL_HISTORY_DEFAULT_PAGE_SIZE;
+}
 
 function serializeSorts(sorts = []) {
   return sorts.map((sort) => `${sort.field}:${sort.direction}`).join(',');
@@ -161,6 +185,7 @@ function ScriptExecutions() {
   const [detailError, setDetailError] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailRequestId = useRef(0);
+  const browserCardRef = useRef(null);
   const [filters, setFilters] = useState(() => ({
     q: requestedExecutionId,
     category: '',
@@ -169,6 +194,7 @@ function ScriptExecutions() {
   }));
   const [filterOptions, setFilterOptions] = useState({ categories: [], tools: [] });
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(TOOL_HISTORY_DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -187,10 +213,15 @@ function ScriptExecutions() {
     setDetailsOpen(false);
   }, [requestedExecutionId]);
 
-  const pageCount = Math.max(1, Math.ceil(total / TOOL_HISTORY_PAGE_SIZE));
+  const availablePageSizes = useMemo(() => getAvailableToolHistoryPageSizes(total), [total]);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = total === 0 ? 0 : (safeCurrentPage - 1) * TOOL_HISTORY_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * TOOL_HISTORY_PAGE_SIZE, total);
+  const rangeStart = total === 0 || items.length === 0
+    ? 0
+    : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0
+    ? 0
+    : Math.min(rangeStart + items.length - 1, total);
   const visibleToolOptions = useMemo(
     () =>
       (filterOptions.tools || []).filter(
@@ -262,7 +293,12 @@ function ScriptExecutions() {
   async function loadExecutions(
     nextFilters = filters,
     nextPage = currentPage,
-    { keepSelection = true, quiet = false, nextSorts = sorts } = {},
+    {
+      keepSelection = true,
+      quiet = false,
+      nextSorts = sorts,
+      nextPageSize = pageSize,
+    } = {},
   ) {
     if (!quiet) {
       setLoading(true);
@@ -270,31 +306,38 @@ function ScriptExecutions() {
     }
 
     const safePage = Math.max(1, Number(nextPage) || 1);
+    const requestedPageSize = TOOL_HISTORY_PAGE_SIZE_OPTIONS.includes(Number(nextPageSize))
+      ? Number(nextPageSize)
+      : TOOL_HISTORY_DEFAULT_PAGE_SIZE;
     const query = {
       ...nextFilters,
       sort: serializeSorts(nextSorts),
-      limit: TOOL_HISTORY_PAGE_SIZE,
-      offset: (safePage - 1) * TOOL_HISTORY_PAGE_SIZE,
+      limit: requestedPageSize,
+      offset: (safePage - 1) * requestedPageSize,
     };
 
     try {
       const result = await adminService.listScriptExecutions(query);
       const resultItems = result.items || [];
       const resultTotal = result.total || 0;
-      const resultPageCount = Math.max(1, Math.ceil(resultTotal / TOOL_HISTORY_PAGE_SIZE));
+      const resolvedPageSize = normalizeToolHistoryPageSize(requestedPageSize, resultTotal);
+      const resultPageCount = Math.max(1, Math.ceil(resultTotal / resolvedPageSize));
 
       if (resultTotal > 0 && safePage > resultPageCount) {
         setCurrentPage(resultPageCount);
+        setPageSize(resolvedPageSize);
         await loadExecutions(nextFilters, resultPageCount, {
           keepSelection: false,
           quiet,
           nextSorts,
+          nextPageSize: resolvedPageSize,
         });
         return;
       }
 
       setItems(resultItems);
       setTotal(resultTotal);
+      setPageSize(resolvedPageSize);
       setCurrentPage(safePage);
       setRefreshingAt(new Date());
       const nextSelected =
@@ -363,6 +406,7 @@ function ScriptExecutions() {
       filters.scriptName,
       filters.status,
       serializeSorts(sorts),
+      pageSize,
       safeCurrentPage,
       selectedItem?.executionId,
     ],
@@ -531,11 +575,39 @@ function ScriptExecutions() {
     loadExecutions(filters, nextPage, { keepSelection: false });
   }
 
+  function scrollBrowserToTop() {
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!TOOL_HISTORY_PAGE_SIZE_OPTIONS.includes(nextPageSize) || nextPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedItem
+      ? items.findIndex((item) => item.executionId === selectedItem.executionId)
+      : -1;
+    const absoluteSelectedIndex = selectedIndex >= 0
+      ? (safeCurrentPage - 1) * pageSize + selectedIndex
+      : 0;
+    const nextPage = Math.floor(absoluteSelectedIndex / nextPageSize) + 1;
+
+    scrollBrowserToTop();
+    loadExecutions(filters, nextPage, {
+      keepSelection: selectedIndex >= 0,
+      nextPageSize,
+    });
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-tool-operations-pagination-row">
         <div className="small sky-muted sky-tool-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {total} tool execution(s)
+          Showing {rangeStart}–{rangeEnd} of {total} tool execution(s)
         </div>
         <div
           className="sky-pagination-controls sky-tool-operations-pagination-controls"
@@ -599,7 +671,24 @@ function ScriptExecutions() {
             »
           </button>
         </div>
-        <div className="sky-tool-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-tool-operations-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="toolHistoryRowsSelect">
+            Rows
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-tool-operations-rows-select"
+            disabled={loading}
+            id="toolHistoryRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -625,7 +714,10 @@ function ScriptExecutions() {
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <div className="sky-functional-history-shell sky-tool-history-shell">
-        <section className="sky-card mb-4 sky-functional-history-browser">
+        <section
+          className="sky-card mb-4 sky-functional-history-browser sky-tool-operations-browser-anchor"
+          ref={browserCardRef}
+        >
           <div className="sky-card-header">
             <div>
               <div className="sky-page-kicker">Execution browser</div>

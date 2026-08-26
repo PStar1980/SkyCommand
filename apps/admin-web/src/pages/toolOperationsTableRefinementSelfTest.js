@@ -47,8 +47,37 @@ assert(
 assert(
   pageSource.includes('sky-tool-operations-pagination-row')
     && cssSource.includes('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);')
-    && pageSource.includes('sky-tool-operations-pagination-balance'),
-  'Tool Operations pagination controls must be centered independently of the range summary.',
+    && pageSource.includes('sky-tool-operations-rows-control')
+    && cssSource.includes('.sky-tool-operations-rows-control')
+    && cssSource.includes('justify-self: end;'),
+  'Tool Operations pagination controls must remain centered while the Rows selector occupies the right footer column.',
+);
+
+assert(
+  pageSource.includes('const TOOL_HISTORY_PAGE_SIZE_OPTIONS = [10, 25, 50];')
+    && pageSource.includes('if (size === 25) return recordCount >= 11;')
+    && pageSource.includes('if (size === 50) return recordCount >= 26;')
+    && pageSource.includes('id="toolHistoryRowsSelect"')
+    && pageSource.includes('onChange={(event) => changePageSize(event.target.value)}')
+    && pageSource.includes('limit: requestedPageSize')
+    && pageSource.includes('offset: (safePage - 1) * requestedPageSize'),
+  'Tool Operations must support smart 10/25/50 row counts and apply the selected size to server-side pagination.',
+);
+
+
+assert(
+  pageSource.includes('rangeStart + items.length - 1')
+    && pageSource.includes('Showing {rangeStart}–{rangeEnd} of {total} tool execution(s)'),
+  'Tool Operations footer summary must describe the actual rendered row range using the current loaded row count.',
+);
+
+assert(
+  pageSource.includes('const browserCardRef = useRef(null);')
+    && pageSource.includes("browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });")
+    && pageSource.includes('sky-tool-operations-browser-anchor')
+    && cssSource.includes('.sky-tool-operations-browser-anchor')
+    && cssSource.includes('scroll-margin-top: 5.5rem;'),
+  'Changing the Tool Operations row count must re-anchor the viewport to the top of the execution browser.',
 );
 
 for (const [label, symbol] of [

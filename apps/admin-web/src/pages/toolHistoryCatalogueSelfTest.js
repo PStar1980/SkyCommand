@@ -10,9 +10,10 @@ function assert(condition, message) {
 }
 
 assert(
-  source.includes('<th>Tool</th>')
-    && source.includes('<th>Category</th>')
-    && source.indexOf('<th>Category</th>') > source.indexOf('<th>Tool</th>'),
+  source.includes("renderSortableHeader('Tool', 'tool')")
+    && source.includes("renderSortableHeader('Category', 'category')")
+    && source.indexOf("renderSortableHeader('Category', 'category')")
+      > source.indexOf("renderSortableHeader('Tool', 'tool')"),
   'Tool Operations must expose Category immediately after Tool.',
 );
 
