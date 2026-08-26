@@ -1,8 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
+import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+} from '../utils/tablePageSize.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
+const LISTENER_FETCH_LIMIT = 500;
+const LISTENER_DEFAULT_SORTS = [{ field: 'listener', direction: 'asc' }];
+
 const LISTENER_TYPE_OPTIONS = [
   { value: '', label: 'All listener types' },
   { value: 'FILE_DROP', label: 'File drop' },
@@ -75,6 +85,26 @@ function getJsonPreview(value) {
   }
 }
 
+function getListenerSortValue(listener, field) {
+  if (field === 'listener') {
+    return `${listener?.listenerName || ''} ${listener?.listenerCode || ''}`.trim();
+  }
+
+  if (field === 'type') {
+    return listener?.listenerType || '';
+  }
+
+  if (field === 'tool') {
+    return `${listener?.toolLabel || ''} ${listener?.toolCode || ''}`.trim();
+  }
+
+  if (field === 'status') {
+    return listener?.enabled ? 1 : 0;
+  }
+
+  return listener?.[field] ?? '';
+}
+
 function buildStatCards(health, listeners = []) {
   const enabledCount = listeners.filter((listener) => listener.enabled).length;
   const disabledCount = listeners.length - enabledCount;
@@ -121,15 +151,40 @@ function AutomationListeners() {
     enabled: '',
     listenerType: '',
     q: '',
-    limit: 50,
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
+  const [sorts, setSorts] = useState(() => LISTENER_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
+  const filterTimerRef = useRef(null);
+  const browserCardRef = useRef(null);
+  const requestIdRef = useRef(0);
 
   const statCards = useMemo(() => buildStatCards(health, listeners), [health, listeners]);
+  const sortedListeners = useMemo(
+    () => sortItemsBySorts(listeners, sorts, getListenerSortValue),
+    [listeners, sorts],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedListeners.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const visibleListeners = useMemo(
+    () => sortedListeners.slice(
+      (safeCurrentPage - 1) * pageSize,
+      safeCurrentPage * pageSize,
+    ),
+    [pageSize, safeCurrentPage, sortedListeners],
+  );
+  const pageSizeOptions = useMemo(
+    () => getAvailableTablePageSizes(sortedListeners.length),
+    [sortedListeners.length],
+  );
+  const rangeStart = visibleListeners.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleListeners.length - 1;
 
   async function loadHealth() {
     const result = await workerService.getHealth();
@@ -137,18 +192,44 @@ function AutomationListeners() {
   }
 
   async function loadListeners(nextFilters = filters) {
-    const result = await workerService.listListeners(nextFilters);
-    const nextItems = result.items || [];
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const nextItems = [];
+    let total = 0;
+    let offset = 0;
+
+    do {
+      const result = await workerService.listListeners({
+        ...nextFilters,
+        limit: LISTENER_FETCH_LIMIT,
+        offset,
+      });
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      const batch = result.items || [];
+      total = Number(result.total || 0);
+      nextItems.push(...batch);
+      offset += batch.length;
+
+      if (batch.length === 0) {
+        break;
+      }
+    } while (nextItems.length < total);
+
+    const sortedNextItems = sortItemsBySorts(nextItems, sorts, getListenerSortValue);
     setListeners(nextItems);
-    setListenerTotal(result.total || 0);
+    setListenerTotal(total);
     setSelectedListener((currentSelected) => {
       if (!currentSelected) {
-        return nextItems[0] || null;
+        return sortedNextItems[0] || null;
       }
 
       return (
         nextItems.find((listener) => listener.listenerId === currentSelected.listenerId) ||
-        nextItems[0] ||
+        sortedNextItems[0] ||
         null
       );
     });
@@ -183,27 +264,140 @@ function AutomationListeners() {
 
     return () => {
       active = false;
+      if (filterTimerRef.current) {
+        window.clearTimeout(filterTimerRef.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function updateFilter(name, value) {
-    setFilters((currentFilters) => ({
-      ...currentFilters,
-      [name]: value,
-    }));
+  function queueFilterLoad(nextFilters, delayMs = 0) {
+    if (filterTimerRef.current) {
+      window.clearTimeout(filterTimerRef.current);
+    }
+
+    filterTimerRef.current = window.setTimeout(async () => {
+      setError('');
+      try {
+        await loadListeners(nextFilters);
+      } catch (loadError) {
+        setError(loadError.message || 'Failed to load active listeners.');
+      }
+    }, delayMs);
   }
 
-  async function applyFilters(event) {
-    event.preventDefault();
-    setError('');
+  function updateFilter(name, value) {
+    const nextFilters = {
+      ...filters,
+      [name]: value,
+    };
+    setFilters(nextFilters);
+    setCurrentPage(1);
+    queueFilterLoad(nextFilters, name === 'q' ? 250 : 0);
+  }
 
+  async function clearFilters() {
+    if (filterTimerRef.current) {
+      window.clearTimeout(filterTimerRef.current);
+    }
+    const nextFilters = { enabled: '', listenerType: '', q: '' };
+    setFilters(nextFilters);
+    setCurrentPage(1);
+    setError('');
     try {
-      await loadListeners(filters);
+      await loadListeners(nextFilters);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load active listeners.');
     }
   }
+
+  function applySorting(nextSorts, customized) {
+    const sortedItems = sortItemsBySorts(listeners, nextSorts, getListenerSortValue);
+    const selectedIndex = selectedListener?.listenerId
+      ? sortedItems.findIndex((listener) => listener.listenerId === selectedListener.listenerId)
+      : -1;
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: LISTENER_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">{activeSort ? directionIcon : '↕'}</span>
+          {activeSort && <span className="sky-table-sort-priority" aria-hidden="true">{activeIndex + 1}</span>}
+        </button>
+      </th>
+    );
+  }
+
+  function goToPage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
+    setCurrentPage(nextPage);
+    const firstItem = sortedListeners[(nextPage - 1) * pageSize];
+    if (firstItem) {
+      setSelectedListener(firstItem);
+    }
+  }
+
+  function scrollBrowserToTop() {
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+    if (!pageSizeOptions.includes(nextPageSize) || nextPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedListener?.listenerId
+      ? sortedListeners.findIndex((listener) => listener.listenerId === selectedListener.listenerId)
+      : -1;
+    setPageSize(nextPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1);
+    scrollBrowserToTop();
+  }
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(pageSize, sortedListeners.length);
+    if (normalizedPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedListener?.listenerId
+      ? sortedListeners.findIndex((listener) => listener.listenerId === selectedListener.listenerId)
+      : -1;
+    setPageSize(normalizedPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1);
+  }, [pageSize, selectedListener?.listenerId, sortedListeners]);
 
   async function handleListenerStatus(listener, enabled) {
     if (!canChangeListeners) {
@@ -293,17 +487,17 @@ function AutomationListeners() {
 
       <div className="row g-3 sky-automation-surface-row">
         <div className="col-xl-8">
-          <section className="sky-card sky-table-card h-100">
+          <section ref={browserCardRef} className="sky-card sky-table-card h-100 sky-table-browser-anchor">
             <div className="sky-card-header">
               <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
                 <div>
                   <h2 className="h5 mb-1">Active Listeners</h2>
                   <div className="small sky-muted">
-                    Showing {listeners.length} of {listenerTotal} active listener definition
+                    Showing {rangeStart}–{rangeEnd} of {listenerTotal} active listener definition
                     {listenerTotal === 1 ? '' : 's'}.
                   </div>
                 </div>
-                <form className="sky-inline-filter-form" onSubmit={applyFilters}>
+                <div className="sky-inline-filter-form">
                   <select
                     className="form-select form-select-sm sky-form-control"
                     onChange={(event) => updateFilter('enabled', event.target.value)}
@@ -331,10 +525,15 @@ function AutomationListeners() {
                     type="search"
                     value={filters.q}
                   />
-                  <button className="btn btn-sm sky-btn-primary" type="submit">
-                    Apply
+                  {sortingCustomized && (
+                    <button className="btn btn-sm sky-btn-ghost" onClick={() => applySorting(LISTENER_DEFAULT_SORTS, false)} type="button">
+                      Clear sorting
+                    </button>
+                  )}
+                  <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
+                    Clear filters
                   </button>
-                </form>
+                </div>
               </div>
             </div>
 
@@ -346,19 +545,19 @@ function AutomationListeners() {
             ) : listeners.length === 0 ? (
               <div className="sky-empty-state">No active listeners configured yet.</div>
             ) : (
-              <div className="table-responsive">
-                <table className="table table-hover sky-table">
+              <div className="table-responsive sky-canonical-operations-table-frame">
+                <table className="table table-hover sky-table sky-canonical-operations-table align-middle mb-0">
                   <thead>
                     <tr>
-                      <th>Listener</th>
-                      <th>Type</th>
-                      <th>Tool</th>
-                      <th>Status</th>
+                      {renderSortableHeader('Listener', 'listener')}
+                      {renderSortableHeader('Type', 'type')}
+                      {renderSortableHeader('Tool', 'tool')}
+                      {renderSortableHeader('Status', 'status')}
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {listeners.map((listener) => (
+                    {visibleListeners.map((listener) => (
                       <tr
                         className={`sky-clickable-row ${
                           selectedListener?.listenerId === listener.listenerId
@@ -369,12 +568,12 @@ function AutomationListeners() {
                         onClick={() => setSelectedListener(listener)}
                       >
                         <td>
-                          <div className="fw-bold sky-detail-value">{listener.listenerName}</div>
+                          <div className="fw-bold">{listener.listenerName}</div>
                           <div className="small sky-muted sky-mono">{listener.listenerCode}</div>
                         </td>
                         <td>{listener.listenerType}</td>
                         <td>
-                          <div className="fw-bold sky-detail-value">
+                          <div className="fw-bold">
                             {listener.toolLabel || listener.toolCode}
                           </div>
                           <div className="small sky-muted sky-mono">{listener.toolCode}</div>
@@ -402,6 +601,32 @@ function AutomationListeners() {
                 </table>
               </div>
             )}
+            <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+              <div className="small sky-muted sky-canonical-operations-pagination-summary">
+                Showing {rangeStart}–{rangeEnd} of {listenerTotal} listener definition{listenerTotal === 1 ? '' : 's'}
+              </div>
+              <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label="Listener pagination">
+                <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage <= 1} onClick={() => goToPage(1)} title="First page" type="button">«</button>
+                <button aria-label="Previous page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage <= 1} onClick={() => goToPage(safeCurrentPage - 1)} title="Previous page" type="button">‹</button>
+                <label className="sky-pagination-select-label" htmlFor="listenerPageSelect">Page</label>
+                <select className="form-select form-select-sm sky-form-control sky-pagination-select" id="listenerPageSelect" onChange={(event) => goToPage(event.target.value)} value={safeCurrentPage}>
+                  {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
+                    <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
+                  ))}
+                </select>
+                <span className="small sky-muted">of {pageCount}</span>
+                <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage >= pageCount} onClick={() => goToPage(safeCurrentPage + 1)} title="Next page" type="button">›</button>
+                <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={safeCurrentPage >= pageCount} onClick={() => goToPage(pageCount)} title="Last page" type="button">»</button>
+              </div>
+              <div className="sky-canonical-rows-control">
+                <label className="sky-pagination-select-label" htmlFor="listenerRowsSelect">Rows</label>
+                <select className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select" id="listenerRowsSelect" onChange={(event) => changePageSize(event.target.value)} value={pageSize}>
+                  {pageSizeOptions.map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </section>
         </div>
 

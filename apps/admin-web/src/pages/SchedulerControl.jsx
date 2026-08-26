@@ -3,6 +3,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
 import { getNextSortState, serializeSorts, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+} from '../utils/tablePageSize.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SCHEDULE_TARGET_TYPE_OPTIONS = [
@@ -34,7 +40,7 @@ const STATUS_OPTIONS = [
 ];
 
 const DEFAULT_TIMEZONE = 'America/Toronto';
-const SCHEDULER_PAGE_SIZE = 10;
+const SCHEDULER_PAGE_SIZE = SMART_TABLE_DEFAULT_PAGE_SIZE;
 const SCHEDULE_FETCH_LIMIT = 500;
 const SCHEDULER_HISTORY_POLL_FAST_MS = 2500;
 const SCHEDULER_HISTORY_POLL_IDLE_MS = 15000;
@@ -884,6 +890,9 @@ function SchedulerControl({ view = 'manage' }) {
   const scheduleRequestIdRef = useRef(0);
   const runRequestIdRef = useRef(0);
   const nodeRequestIdRef = useRef(0);
+  const scheduleBrowserRef = useRef(null);
+  const runBrowserRef = useRef(null);
+  const nodeBrowserRef = useRef(null);
 
   const workflowBridgeTool = useMemo(
     () => tools.find((tool) => isWorkflowBridgeTool(tool)) || null,
@@ -922,6 +931,18 @@ function SchedulerControl({ view = 'manage' }) {
       currentSchedulePage * scheduleFilters.limit,
     ),
     [currentSchedulePage, scheduleFilters.limit, sortedSchedules],
+  );
+  const schedulePageSizeOptions = useMemo(
+    () => getAvailableTablePageSizes(sortedSchedules.length),
+    [sortedSchedules.length],
+  );
+  const runPageSizeOptions = useMemo(
+    () => getAvailableTablePageSizes(runTotal),
+    [runTotal],
+  );
+  const nodePageSizeOptions = useMemo(
+    () => getAvailableTablePageSizes(nodeTotal),
+    [nodeTotal],
   );
   const runPageCount = Math.max(1, Math.ceil(runTotal / runFilters.limit));
   const currentRunPage = Math.min(
@@ -1280,7 +1301,7 @@ function SchedulerControl({ view = 'manage' }) {
       scheduleType: '',
       status: '',
       q: '',
-      limit: SCHEDULER_PAGE_SIZE,
+      limit: scheduleFilters.limit,
       offset: 0,
     };
     setScheduleFilters(nextFilters);
@@ -1295,7 +1316,7 @@ function SchedulerControl({ view = 'manage' }) {
       status: '',
       toolCode: '',
       q: '',
-      limit: SCHEDULER_PAGE_SIZE,
+      limit: runFilters.limit,
       offset: 0,
     };
     setRunFilters(nextFilters);
@@ -1309,12 +1330,77 @@ function SchedulerControl({ view = 'manage' }) {
     const nextFilters = {
       status: '',
       q: '',
-      limit: SCHEDULER_PAGE_SIZE,
+      limit: nodeFilters.limit,
       offset: 0,
     };
     setNodeFilters(nextFilters);
     await loadNodes(nextFilters, nodeSorts);
   }
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(scheduleFilters.limit, sortedSchedules.length);
+
+    if (normalizedPageSize === scheduleFilters.limit) {
+      return;
+    }
+
+    const selectedIndex = selectedSchedule?.scheduleId
+      ? sortedSchedules.findIndex((schedule) => schedule.scheduleId === selectedSchedule.scheduleId)
+      : -1;
+    const nextPage = selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1;
+
+    setScheduleFilters((current) => ({
+      ...current,
+      limit: normalizedPageSize,
+      offset: (nextPage - 1) * normalizedPageSize,
+    }));
+  }, [scheduleFilters.limit, selectedSchedule?.scheduleId, sortedSchedules]);
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(runFilters.limit, runTotal);
+
+    if (normalizedPageSize === runFilters.limit) {
+      return;
+    }
+
+    const selectedIndexOnPage = selectedRun?.scheduleRunId
+      ? runs.findIndex((run) => run.scheduleRunId === selectedRun.scheduleRunId)
+      : -1;
+    const absoluteIndex = selectedIndexOnPage >= 0 ? runFilters.offset + selectedIndexOnPage : 0;
+    const nextPage = getPageForAbsoluteIndex(absoluteIndex, normalizedPageSize);
+    const nextFilters = {
+      ...runFilters,
+      limit: normalizedPageSize,
+      offset: (nextPage - 1) * normalizedPageSize,
+    };
+
+    setRunFilters(nextFilters);
+    loadRuns(nextFilters, runSorts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runTotal]);
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(nodeFilters.limit, nodeTotal);
+
+    if (normalizedPageSize === nodeFilters.limit) {
+      return;
+    }
+
+    const selectedIndexOnPage = selectedNode?.workerNodeId
+      ? nodes.findIndex((node) => node.workerNodeId === selectedNode.workerNodeId)
+      : -1;
+    const absoluteIndex = selectedIndexOnPage >= 0 ? nodeFilters.offset + selectedIndexOnPage : 0;
+    const nextPage = getPageForAbsoluteIndex(absoluteIndex, normalizedPageSize);
+    const nextFilters = {
+      ...nodeFilters,
+      limit: normalizedPageSize,
+      offset: (nextPage - 1) * normalizedPageSize,
+    };
+
+    setNodeFilters(nextFilters);
+    loadNodes(nextFilters, nodeSorts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeTotal]);
 
   function resetForm(tool = getDefaultTool(tools)) {
     setFormMode('create');
@@ -1816,6 +1902,82 @@ function SchedulerControl({ view = 'manage' }) {
   }
 
 
+  function scrollAutomationBrowserToTop(targetRef) {
+    window.requestAnimationFrame(() => {
+      targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function changeSchedulePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!schedulePageSizeOptions.includes(nextPageSize) || nextPageSize === scheduleFilters.limit) {
+      return;
+    }
+
+    const selectedIndex = selectedSchedule?.scheduleId
+      ? sortedSchedules.findIndex((schedule) => schedule.scheduleId === selectedSchedule.scheduleId)
+      : -1;
+    const nextPage = selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1;
+
+    setScheduleFilters((current) => ({
+      ...current,
+      limit: nextPageSize,
+      offset: (nextPage - 1) * nextPageSize,
+    }));
+    scrollAutomationBrowserToTop(scheduleBrowserRef);
+  }
+
+  function changeRunPageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!runPageSizeOptions.includes(nextPageSize) || nextPageSize === runFilters.limit) {
+      return;
+    }
+
+    const selectedIndexOnPage = selectedRun?.scheduleRunId
+      ? runs.findIndex((run) => run.scheduleRunId === selectedRun.scheduleRunId)
+      : -1;
+    const absoluteIndex = selectedIndexOnPage >= 0
+      ? runFilters.offset + selectedIndexOnPage
+      : runFilters.offset;
+    const nextPage = getPageForAbsoluteIndex(absoluteIndex, nextPageSize);
+    const nextFilters = {
+      ...runFilters,
+      limit: nextPageSize,
+      offset: (nextPage - 1) * nextPageSize,
+    };
+
+    setRunFilters(nextFilters);
+    loadRuns(nextFilters, runSorts);
+    scrollAutomationBrowserToTop(runBrowserRef);
+  }
+
+  function changeNodePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!nodePageSizeOptions.includes(nextPageSize) || nextPageSize === nodeFilters.limit) {
+      return;
+    }
+
+    const selectedIndexOnPage = selectedNode?.workerNodeId
+      ? nodes.findIndex((node) => node.workerNodeId === selectedNode.workerNodeId)
+      : -1;
+    const absoluteIndex = selectedIndexOnPage >= 0
+      ? nodeFilters.offset + selectedIndexOnPage
+      : nodeFilters.offset;
+    const nextPage = getPageForAbsoluteIndex(absoluteIndex, nextPageSize);
+    const nextFilters = {
+      ...nodeFilters,
+      limit: nextPageSize,
+      offset: (nextPage - 1) * nextPageSize,
+    };
+
+    setNodeFilters(nextFilters);
+    loadNodes(nextFilters, nodeSorts);
+    scrollAutomationBrowserToTop(nodeBrowserRef);
+  }
+
   function applyRunSorting(nextSorts, customized) {
     const nextFilters = { ...runFilters, offset: 0 };
     setRunSorts(nextSorts);
@@ -1911,14 +2073,26 @@ function SchedulerControl({ view = 'manage' }) {
     );
   }
 
-  function renderCanonicalPagination({ currentPage, pageCount, total, label, onPageChange, idPrefix }) {
-    const rangeStart = total === 0 ? 0 : (currentPage - 1) * SCHEDULER_PAGE_SIZE + 1;
-    const rangeEnd = Math.min(currentPage * SCHEDULER_PAGE_SIZE, total);
+  function renderCanonicalPagination({
+    currentPage,
+    pageCount,
+    total,
+    renderedCount,
+    pageSize,
+    pageSizeOptions,
+    label,
+    onPageChange,
+    onPageSizeChange,
+    idPrefix,
+  }) {
+    const rangeStart = total === 0 || renderedCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const rangeEnd = rangeStart === 0 ? 0 : rangeStart + renderedCount - 1;
     const selectId = `${idPrefix}-page-select`;
+    const rowsSelectId = `${idPrefix}-rows-select`;
 
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
-        <div className="small sky-muted sky-canonical-operations-pagination-summary">Showing {rangeStart}-{rangeEnd} of {total} {label}</div>
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">Showing {rangeStart}–{rangeEnd} of {total} {label}</div>
         <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label={`${label} pagination`}>
           <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage <= 1} onClick={() => onPageChange(1)} title="First page" type="button">«</button>
           <button aria-label="Previous page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} title="Previous page" type="button">‹</button>
@@ -1932,7 +2106,19 @@ function SchedulerControl({ view = 'manage' }) {
           <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage >= pageCount} onClick={() => onPageChange(currentPage + 1)} title="Next page" type="button">›</button>
           <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={currentPage >= pageCount} onClick={() => onPageChange(pageCount)} title="Last page" type="button">»</button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor={rowsSelectId}>Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            id={rowsSelectId}
+            onChange={(event) => onPageSizeChange(event.target.value)}
+            value={pageSize}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -2444,7 +2630,7 @@ function SchedulerControl({ view = 'manage' }) {
 
         {view === 'manage' && (
           <div className="col-12">
-          <section className="sky-card h-100 sky-scheduler-browser">
+          <section ref={scheduleBrowserRef} className="sky-card h-100 sky-scheduler-browser sky-table-browser-anchor">
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Schedule browser</div>
@@ -2545,7 +2731,7 @@ function SchedulerControl({ view = 'manage' }) {
               <div className="sky-empty-state">No schedule definitions found for these filters.</div>
             ) : (
               <div className="table-responsive sky-table-card sky-canonical-operations-table-frame">
-                <table className="table table-hover sky-table sky-canonical-operations-table">
+                <table className="table table-hover sky-table sky-canonical-operations-table align-middle mb-0">
                   <thead>
                     <tr>
                       {renderSortableHeader('Schedule', 'schedule', scheduleSorts, updateScheduleSorting)}
@@ -2569,7 +2755,7 @@ function SchedulerControl({ view = 'manage' }) {
                         onClick={() => setSelectedSchedule(schedule)}
                       >
                         <td>
-                          <div className="fw-bold sky-detail-value">{schedule.scheduleName}</div>
+                          <div className="fw-bold">{schedule.scheduleName}</div>
                           <div className="small sky-muted sky-mono">{schedule.scheduleCode}</div>
                         </td>
                         <td>
@@ -2584,7 +2770,7 @@ function SchedulerControl({ view = 'manage' }) {
                           </span>
                         </td>
                         <td>
-                          <div className="fw-bold sky-detail-value">
+                          <div className="fw-bold">
                             {getScheduleTargetLabel(schedule, activeWorkflows)}
                           </div>
                           <div className="small sky-muted sky-mono">
@@ -2619,8 +2805,12 @@ function SchedulerControl({ view = 'manage' }) {
               currentPage: currentSchedulePage,
               pageCount: schedulePageCount,
               total: sortedSchedules.length,
+              renderedCount: visibleSchedules.length,
+              pageSize: scheduleFilters.limit,
+              pageSizeOptions: schedulePageSizeOptions,
               label: 'schedule definition(s)',
               onPageChange: goToSchedulePage,
+              onPageSizeChange: changeSchedulePageSize,
               idPrefix: 'manage-schedules',
             })}
           </section>
@@ -2784,7 +2974,7 @@ function SchedulerControl({ view = 'manage' }) {
 
         {view === 'history' && (
           <div className="col-12">
-          <section className="sky-card h-100 sky-scheduler-browser">
+          <section ref={runBrowserRef} className="sky-card h-100 sky-scheduler-browser sky-table-browser-anchor">
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Run browser</div>
@@ -2864,7 +3054,7 @@ function SchedulerControl({ view = 'manage' }) {
               <div className="sky-empty-state">No scheduled runs found for these filters.</div>
             ) : (
               <div className="table-responsive sky-table-card sky-canonical-operations-table-frame">
-                <table className="table table-hover sky-table sky-canonical-operations-table">
+                <table className="table table-hover sky-table sky-canonical-operations-table align-middle mb-0">
                   <thead>
                     <tr>
                       {renderSortableHeader('Schedule', 'schedule', runSorts, updateRunSorting)}
@@ -2884,7 +3074,7 @@ function SchedulerControl({ view = 'manage' }) {
                         onClick={() => setSelectedRun(run)}
                       >
                         <td>
-                          <div className="fw-bold sky-detail-value">
+                          <div className="fw-bold">
                             {run.scheduleName || run.scheduleCode}
                           </div>
                           <div className="small sky-muted sky-mono">{run.toolCode}</div>
@@ -2907,8 +3097,12 @@ function SchedulerControl({ view = 'manage' }) {
               currentPage: currentRunPage,
               pageCount: runPageCount,
               total: runTotal,
+              renderedCount: runs.length,
+              pageSize: runFilters.limit,
+              pageSizeOptions: runPageSizeOptions,
               label: 'schedule run(s)',
               onPageChange: goToRunPage,
+              onPageSizeChange: changeRunPageSize,
               idPrefix: 'scheduler-runs',
             })}
           </section>
@@ -2986,7 +3180,7 @@ function SchedulerControl({ view = 'manage' }) {
         {view === 'worker' && (
           <div className="col-12">
           <div className="d-flex flex-column gap-3">
-            <section className="sky-card sky-table-card">
+            <section ref={nodeBrowserRef} className="sky-card sky-table-card sky-table-browser-anchor">
               <div className="sky-card-header">
                 <div>
                   <div className="sky-page-kicker">Worker browser</div>
@@ -3043,7 +3237,7 @@ function SchedulerControl({ view = 'manage' }) {
                             onClick={() => setSelectedNode(node)}
                           >
                             <td>
-                              <div className="fw-bold sky-detail-value">{node.nodeName}</div>
+                              <div className="fw-bold">{node.nodeName}</div>
                               <div className="small sky-muted">{node.hostname || '—'}</div>
                             </td>
                             <td><span className={`sky-pill ${statusClass(node.status)}`}>{node.status}</span></td>
@@ -3085,8 +3279,12 @@ function SchedulerControl({ view = 'manage' }) {
                 currentPage: currentNodePage,
                 pageCount: nodePageCount,
                 total: nodeTotal,
+                renderedCount: nodes.length,
+                pageSize: nodeFilters.limit,
+                pageSizeOptions: nodePageSizeOptions,
                 label: 'worker node(s)',
                 onPageChange: goToNodePage,
+                onPageSizeChange: changeNodePageSize,
                 idPrefix: 'worker-nodes',
               }) : null}
             </section>

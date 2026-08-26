@@ -62,6 +62,36 @@ const checks = [
     && schedulerPage.includes('do {')
     && schedulerPage.includes('nextItems.push(...batch)'), 'Manage Schedules must fetch filtered schedules in API-safe batches for global sorting.'],
   [schedulerPage.includes("label: 'worker node(s)'"), 'Worker Operations pagination is required.'],
+  [schedulerPage.includes('getAvailableTablePageSizes')
+    && schedulerPage.includes('changeSchedulePageSize')
+    && schedulerPage.includes('changeRunPageSize')
+    && schedulerPage.includes('changeNodePageSize')
+    && schedulerPage.includes('sky-canonical-rows-control')
+    && schedulerPage.includes('sky-table-browser-anchor'), 'Scheduler Operations, Manage Schedules, and Worker Operations must expose the canonical smart Rows selector and browser re-anchor behavior.'],
+  [schedulerPage.includes('Showing {rangeStart}–{rangeEnd} of {total} {label}')
+    && schedulerPage.includes('renderedCount: visibleSchedules.length')
+    && schedulerPage.includes('renderedCount: runs.length')
+    && schedulerPage.includes('renderedCount: nodes.length'), 'Automation pagination summaries must describe the actual rendered range for the selected Rows size.'],
+  [schedulerPage.includes('<div className="fw-bold">{schedule.scheduleName}</div>')
+    && schedulerPage.includes('<div className="small sky-muted sky-mono">{schedule.scheduleCode}</div>')
+    && schedulerPage.includes('<div className="fw-bold">{node.nodeName}</div>')
+    && !schedulerPage.includes('fw-bold sky-detail-value">{schedule.scheduleName}')
+    && !schedulerPage.includes('fw-bold sky-detail-value">{node.nodeName}'), 'Automation browser rows must use Workflow Operations typography for primary and secondary text.'],
+  [listenersPage.includes('LISTENER_FETCH_LIMIT = 500')
+    && listenersPage.includes("renderSortableHeader('Listener', 'listener')")
+    && listenersPage.includes("renderSortableHeader('Type', 'type')")
+    && listenersPage.includes("renderSortableHeader('Tool', 'tool')")
+    && listenersPage.includes("renderSortableHeader('Status', 'status')")
+    && listenersPage.includes('Clear sorting')
+    && listenersPage.includes('sky-canonical-operations-table-frame'), 'Listeners must use the canonical sortable table browser treatment.'],
+  [listenersPage.includes('getAvailableTablePageSizes')
+    && listenersPage.includes('changePageSize')
+    && listenersPage.includes('listenerRowsSelect')
+    && listenersPage.includes('sky-canonical-rows-control')
+    && listenersPage.includes('sky-table-browser-anchor'), 'Listeners must expose the canonical smart Rows selector and browser re-anchor behavior.'],
+  [listenersPage.includes('<div className="fw-bold">{listener.listenerName}</div>')
+    && listenersPage.includes('<div className="small sky-muted sky-mono">{listener.listenerCode}</div>')
+    && !listenersPage.includes('fw-bold sky-detail-value">{listener.listenerName}'), 'Listener browser typography must match Workflow Operations primary/subtext hierarchy.'],
   [
     (schedulerPage.match(/sky-automation-surface-row/g) || []).length >= 4
       && (listenersPage.match(/sky-automation-surface-row/g) || []).length >= 2
