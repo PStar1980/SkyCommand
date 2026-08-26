@@ -91,6 +91,12 @@ const checks = [
     'Manage Tools catalogue must use the canonical table frame, centered gold pagination, and smart Rows selector.',
   ],
   [
+    manageToolsSource.includes('<div className="fw-bold">{tool.label}</div>')
+      && manageToolsSource.includes('<div className="small sky-mono sky-muted">{tool.toolCode}</div>')
+      && !manageToolsSource.includes('<div className="fw-semibold sky-detail-value">{tool.label}</div>'),
+    'Manage Tools rows must match Workflow Operations primary and secondary row typography.',
+  ],
+  [
     manageToolsSource.includes('const MANAGE_TOOLS_FETCH_LIMIT = 500;')
       && manageToolsSource.includes('async function listAllManagedTools')
       && manageToolsSource.includes('offset += batch.length;')
