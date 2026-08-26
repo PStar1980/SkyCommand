@@ -7794,3 +7794,155 @@ select.sky-form-control optgroup {
   border-radius: 0.35rem;
   background: rgba(5, 10, 18, 0.58);
 }
+
+/* Access Control · Sessions — canonical browser + full-width detail workspace. */
+.sky-admin-sessions-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1.7fr) minmax(10rem, 0.75fr) minmax(10rem, 0.75fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  min-width: min(100%, 78rem);
+}
+
+.sky-admin-sessions-filter-grid .form-label {
+  margin-bottom: 0.35rem;
+}
+
+.sky-admin-sessions-browser .sky-table {
+  min-width: 74rem;
+}
+
+.sky-admin-session-detail-stack,
+.sky-admin-session-detail-section {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.sky-admin-session-detail-section {
+  padding: 1rem;
+  border: 1px solid rgba(220, 177, 63, 0.18);
+  border-radius: var(--sky-card-radius);
+  background: rgba(1, 4, 7, 0.34);
+}
+
+.sky-admin-session-detail-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.sky-admin-session-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  min-width: 0;
+}
+
+.sky-admin-session-detail-pane {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(220, 177, 63, 0.14);
+  border-radius: var(--sky-card-radius);
+  background: rgba(3, 7, 11, 0.58);
+}
+
+.sky-admin-session-detail-list {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 0.42fr) minmax(0, 1fr);
+  gap: 0.7rem 1rem;
+  align-items: start;
+}
+
+.sky-admin-session-detail-list dt {
+  color: #d9bd70;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.sky-admin-session-detail-list dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--sky-text);
+  overflow-wrap: anywhere;
+}
+
+.sky-admin-session-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  min-width: 0;
+}
+
+.sky-admin-session-evidence-grid .sky-code-block {
+  min-height: 8rem;
+  max-height: 18rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sky-admin-session-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sky-admin-session-control-row > .small {
+  max-width: 64rem;
+}
+
+.sky-app-shell-authenticated .sky-main > .sky-access-control-surface-row {
+  margin-top: calc(-1 * var(--bs-gutter-y)) !important;
+  margin-bottom: 0 !important;
+}
+
+@media (max-width: 1500px) {
+  .sky-admin-sessions-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sky-admin-sessions-search-filter {
+    grid-column: 1 / -1;
+  }
+
+  .sky-admin-session-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .sky-admin-session-overview-grid,
+  .sky-admin-session-evidence-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .sky-admin-sessions-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-admin-sessions-search-filter {
+    grid-column: auto;
+  }
+
+  .sky-admin-session-detail-list {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .sky-admin-session-detail-list dd + dt {
+    margin-top: 0.65rem;
+  }
+
+  .sky-admin-session-control-row .btn {
+    width: 100%;
+  }
+}
