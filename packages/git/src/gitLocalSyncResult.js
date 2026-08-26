@@ -82,6 +82,7 @@ function createGitLocalSyncToolResult(result = {}) {
       currentBranch: nullable(result.currentBranch),
       expectedLocalDevSha: nullable(result.expectedLocalDevSha),
       expectedSynchronizedHeadSha: nullable(result.expectedSynchronizedHeadSha),
+      devBaselineState: nullable(result.devBaselineState),
       localMainBeforeSha: nullable(result.localMainBeforeSha),
       localDevBeforeSha: nullable(result.localDevBeforeSha),
       remoteMainBeforeSha: nullable(result.remoteMainBeforeSha),

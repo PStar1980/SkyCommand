@@ -62,6 +62,16 @@
       "type": ["string", "null"],
       "pattern": "^[a-fA-F0-9]{40,64}$"
     },
+    "devBaselineState": {
+      "type": ["string", "null"],
+      "enum": [
+        "TRUSTED_BASELINE",
+        "APPROVED_LINEAGE_INTERMEDIATE",
+        "ALREADY_SYNCHRONIZED",
+        "REJECTED",
+        null
+      ]
+    },
     "localMainBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
     "localDevBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
     "remoteMainBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },

@@ -1048,6 +1048,10 @@ function GitLocalSyncOutput({ toolResult }) {
               <td className="sky-mono text-break">{output.expectedSynchronizedHeadSha || '—'}</td>
             </tr>
             <tr>
+              <th>Local dev baseline state</th>
+              <td colSpan="3">{String(output.devBaselineState || 'UNKNOWN').replaceAll('_', ' ')}</td>
+            </tr>
+            <tr>
               <th>Local main before</th>
               <td className="sky-mono text-break">{output.localMainBeforeSha || '—'}</td>
               <th>Local dev before</th>
@@ -1085,7 +1089,7 @@ function GitLocalSyncOutput({ toolResult }) {
               ['No Git operation in progress', 'gitOperationClear'],
               ['Working tree clean', 'workingTreeClean'],
               ['Worktree ownership safe', 'worktreeOwnershipSafe'],
-              ['Dev baseline matched', 'devBaselineMatched'],
+              ['Dev baseline / approved lineage accepted', 'devBaselineMatched'],
               ['Remote target matched', 'remoteTargetMatched'],
               ['Local main fast-forward safe', 'localMainFastForwardSafe'],
               ['Local dev fast-forward safe', 'localDevFastForwardSafe'],

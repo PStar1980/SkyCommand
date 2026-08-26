@@ -138,13 +138,15 @@ assert(
     mainMerge.includes("['remote', 'get-url', remote]") &&
     mainMerge.includes("['ls-remote', '--heads', remote, branchRef]") &&
     mainMerge.includes("'--no-write-fetch-head'") &&
-    mainMerge.includes('Docker object transfer only') &&
+    mainMerge.includes('Docker URL object transfer only') &&
     mainMerge.includes('GIT_OPTIONAL_LOCKS') &&
     mainMerge.includes('Docker URL transport') &&
     mainMerge.includes('createDeferredLocalBranchRefState') &&
     mainMerge.includes('localHostSyncRequired') &&
     mainMerge.includes('localSyncCommandTemplate') &&
     localRepoSync.includes('Local Repository Sync is host-only') &&
+    localRepoSync.includes('APPROVED_LINEAGE_INTERMEDIATE') &&
+    localRepoSync.includes('classifyDevBaseline') &&
     localRepoSync.includes("['merge', '--ff-only', targetSha]") &&
     localRepoSync.includes("['update-ref', ref, targetSha") &&
     !localRepoSync.includes("reset', '--hard"),

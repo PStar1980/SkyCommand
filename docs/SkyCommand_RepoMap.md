@@ -493,6 +493,8 @@ SkyCommand/
 │   │       ├── gitRepositoryStatusResult.js
 │   │       ├── gitRepositoryStatusSelfTest.js
 │   │       ├── local_repo_sync.js
+│   │       ├── localRepoSyncLineage.js
+│   │       ├── localRepoSyncLineageSelfTest.js
 │   │       └── main_merge.js
 │   ├── host-agent/
 │   │   └── src/
