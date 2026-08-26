@@ -31,6 +31,12 @@ assert.match(pageSource, /Shift\+click to add to multi-column sorting/);
 assert.match(pageSource, /Clear sorting/);
 assert.match(pageSource, /sky-canonical-operations-table-frame/);
 assert.match(pageSource, /sky-canonical-operations-pagination-row/);
+assert.match(pageSource, /getAvailableTablePageSizes/);
+assert.match(pageSource, /id="ingestionOperationsRows"/);
+assert.match(pageSource, /sky-canonical-rows-control/);
+assert.match(pageSource, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
+assert.match(pageSource, /<div className="fw-bold">\{run\.domainCode\}<\/div>/);
+assert.match(pageSource, /small sky-muted sky-mono/);
 assert.doesNotMatch(pageSource, /\['FRED',\s*'BOC',\s*'STATCAN'\]/);
 
 assert.match(mainSource, /path="data\/operations"/);

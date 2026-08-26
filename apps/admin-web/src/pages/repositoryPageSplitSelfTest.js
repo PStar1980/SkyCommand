@@ -48,7 +48,7 @@ const checks = [
   [navbarSource.includes("label: 'Add Repository'"), 'Add Repository navigation is required.'],
   [
     utilsSource.includes('export const REPOSITORY_PAGE_SIZE = 10;'),
-    'Repository catalogue page size must be 10.',
+    'Repository catalogue default page size must remain 10.',
   ],
   [manageSource.includes('id="repositorySearch"'), 'Manage Repositories search is required.'],
   [manageSource.includes('id="repositoryStatusFilter"'), 'Repository status filter is required.'],
@@ -79,9 +79,21 @@ const checks = [
     manageSource.includes('sky-canonical-operations-table-frame') &&
       manageSource.includes('sky-canonical-operations-table align-middle mb-0') &&
       manageSource.includes('sky-canonical-operations-pagination-row') &&
-      manageSource.includes('sky-canonical-operations-pagination-balance') &&
+      manageSource.includes('sky-canonical-rows-control') &&
       manageSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-    'Manage Repositories must use the canonical table frame and centered gold pagination.',
+    'Manage Repositories must use the canonical table frame, centered gold pagination, and smart Rows control.',
+  ],
+  [
+    manageSource.includes('getAvailableTablePageSizes') &&
+      manageSource.includes('id="manageRepositoriesRowsSelect"') &&
+      manageSource.includes("scrollIntoView({ behavior: 'smooth', block: 'start' })"),
+    'Manage Repositories Rows changes must use smart page sizes and re-anchor the repository browser.',
+  ],
+  [
+    manageSource.includes('<div className="fw-bold">{repository.repoName}</div>') &&
+      manageSource.includes('<div className="small sky-muted sky-mono">{repository.repoCode}</div>') &&
+      !manageSource.includes('<div className="fw-semibold sky-detail-value">{repository.repoName}</div>'),
+    'Manage Repositories row typography must match the Workflow Operations primary/subtext hierarchy.',
   ],
   [
     manageSource.includes('<th className="text-end">Actions</th>') &&

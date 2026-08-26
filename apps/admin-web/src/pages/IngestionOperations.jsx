@@ -10,7 +10,12 @@ import ingestionService from '../services/ingestionService.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
-const PAGE_SIZE = 10;
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+} from '../utils/tablePageSize.js';
 const INGESTION_RUN_FETCH_LIMIT = 250;
 const INGESTION_RUN_DEFAULT_SORTS = [{ field: 'started', direction: 'desc' }];
 
@@ -127,6 +132,7 @@ function IngestionOperations() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftSearch, setDraftSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => INGESTION_RUN_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [total, setTotal] = useState(0);
@@ -135,20 +141,26 @@ function IngestionOperations() {
   const [error, setError] = useState('');
   const [refreshingAt, setRefreshingAt] = useState(null);
   const runRequestIdRef = useRef(0);
+  const browserRef = useRef(null);
 
   const sortedRuns = useMemo(
     () => sortItemsBySorts(runs, sorts, getRunSortValue),
     [runs, sorts],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedRuns.length / PAGE_SIZE));
-  const safeCurrentPage = Math.min(currentPage, pageCount);
-  const pageStart = (safeCurrentPage - 1) * PAGE_SIZE;
-  const visibleRuns = useMemo(
-    () => sortedRuns.slice(pageStart, pageStart + PAGE_SIZE),
-    [pageStart, sortedRuns],
+  const pageSizeOptions = useMemo(
+    () => getAvailableTablePageSizes(sortedRuns.length),
+    [sortedRuns.length],
   );
-  const rangeStart = sortedRuns.length === 0 ? 0 : pageStart + 1;
-  const rangeEnd = Math.min(pageStart + PAGE_SIZE, sortedRuns.length);
+  const effectivePageSize = normalizeTablePageSize(pageSize, sortedRuns.length);
+  const pageCount = Math.max(1, Math.ceil(sortedRuns.length / effectivePageSize));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const pageStart = (safeCurrentPage - 1) * effectivePageSize;
+  const visibleRuns = useMemo(
+    () => sortedRuns.slice(pageStart, pageStart + effectivePageSize),
+    [effectivePageSize, pageStart, sortedRuns],
+  );
+  const rangeStart = sortedRuns.length === 0 || visibleRuns.length === 0 ? 0 : pageStart + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleRuns.length - 1;
 
   const filteredSources = useMemo(
     () =>
@@ -259,6 +271,7 @@ function IngestionOperations() {
       } while (nextRuns.length < nextTotal);
 
       const sortedNextRuns = sortItemsBySorts(nextRuns, nextSorts, getRunSortValue);
+      const nextPageSize = normalizeTablePageSize(pageSize, sortedNextRuns.length);
       const currentId = keepSelection ? selectedRun?.ingestionRunId : null;
       const nextSelected =
         sortedNextRuns.find((run) => run.ingestionRunId === currentId) ||
@@ -267,14 +280,15 @@ function IngestionOperations() {
       const selectedIndex = nextSelected
         ? sortedNextRuns.findIndex((run) => run.ingestionRunId === nextSelected.ingestionRunId)
         : -1;
-      const selectedPage = selectedIndex >= 0 ? Math.floor(selectedIndex / PAGE_SIZE) + 1 : 1;
-      const nextPageCount = Math.max(1, Math.ceil(sortedNextRuns.length / PAGE_SIZE));
+      const selectedPage = selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1;
+      const nextPageCount = Math.max(1, Math.ceil(sortedNextRuns.length / nextPageSize));
       const resolvedPage = keepSelection && selectedIndex >= 0
         ? selectedPage
         : Math.min(requestedPage, nextPageCount);
 
       setRuns(nextRuns);
       setTotal(nextRuns.length);
+      setPageSize(nextPageSize);
       setCurrentPage(resolvedPage);
       setRefreshingAt(new Date());
       setSelectedRun(nextSelected);
@@ -297,6 +311,13 @@ function IngestionOperations() {
     loadRuns(DEFAULT_FILTERS, 1, { keepSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (pageSize !== effectivePageSize) {
+      setPageSize(effectivePageSize);
+      setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(sortedRuns.length / effectivePageSize))));
+    }
+  }, [effectivePageSize, pageSize, sortedRuns.length]);
 
   const pollingState = useSmartPolling({
     dependencies: [
@@ -347,7 +368,7 @@ function IngestionOperations() {
     const selectedIndex = selectedRun?.ingestionRunId
       ? sorted.findIndex((run) => run.ingestionRunId === selectedRun.ingestionRunId)
       : -1;
-    const nextPage = selectedIndex >= 0 ? Math.floor(selectedIndex / PAGE_SIZE) + 1 : 1;
+    const nextPage = selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, effectivePageSize) : 1;
 
     setSorts(nextSorts);
     setSortingCustomized(customized);
@@ -404,10 +425,29 @@ function IngestionOperations() {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
     setCurrentPage(nextPage);
 
-    const firstVisible = sortedRuns[(nextPage - 1) * PAGE_SIZE];
+    const firstVisible = sortedRuns[(nextPage - 1) * effectivePageSize];
     if (firstVisible && firstVisible.ingestionRunId !== selectedRun?.ingestionRunId) {
       selectRun(firstVisible);
     }
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!pageSizeOptions.includes(nextPageSize) || nextPageSize === effectivePageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedRun?.ingestionRunId
+      ? sortedRuns.findIndex((run) => run.ingestionRunId === selectedRun.ingestionRunId)
+      : -1;
+    const nextPage = selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1;
+
+    setPageSize(nextPageSize);
+    setCurrentPage(nextPage);
+    window.requestAnimationFrame(() => {
+      browserRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   function selectRun(run) {
@@ -450,7 +490,7 @@ function IngestionOperations() {
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <div className="sky-functional-history-shell sky-ingestion-operations-shell">
-        <section className="sky-card mb-4 sky-functional-history-browser">
+        <section ref={browserRef} className="sky-card mb-4 sky-functional-history-browser sky-table-browser-anchor">
           <div className="sky-card-header">
             <div>
               <div className="sky-page-kicker">Run browser</div>
@@ -581,12 +621,12 @@ function IngestionOperations() {
                       <div className="small sky-muted">{formatDuration(run.durationMs)}</div>
                     </td>
                     <td>
-                      <div className="fw-semibold">{run.domainCode}</div>
-                      <div className="small sky-mono">{run.sourceCode}</div>
+                      <div className="fw-bold">{run.domainCode}</div>
+                      <div className="small sky-muted sky-mono">{run.sourceCode}</div>
                     </td>
                     <td>
-                      <div>{run.toolLabel || run.toolCode || '—'}</div>
-                      <div className="small sky-mono">{run.toolCode || '—'}</div>
+                      <div className="fw-bold">{run.toolLabel || run.toolCode || '—'}</div>
+                      <div className="small sky-muted sky-mono">{run.toolCode || '—'}</div>
                     </td>
                     <td>{run.triggerCode || '—'}</td>
                     <td><span className={`sky-pill ${statusClass(run.statusCode)}`}>{run.statusCode}</span></td>
@@ -601,7 +641,7 @@ function IngestionOperations() {
 
           <div className="sky-pagination-row sky-canonical-operations-pagination-row">
             <div className="small sky-muted sky-canonical-operations-pagination-summary">
-              Showing {rangeStart}-{rangeEnd} of {total} ingestion run(s)
+              Showing {rangeStart}–{rangeEnd} of {total} ingestion run(s)
             </div>
             <div
               className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -661,7 +701,20 @@ function IngestionOperations() {
                 »
               </button>
             </div>
-            <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+            <div className="sky-canonical-rows-control">
+              <label className="sky-pagination-select-label" htmlFor="ingestionOperationsRows">Rows</label>
+              <select
+                className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+                disabled={loading}
+                id="ingestionOperationsRows"
+                onChange={(event) => changePageSize(event.target.value)}
+                value={effectivePageSize}
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </section>
 
