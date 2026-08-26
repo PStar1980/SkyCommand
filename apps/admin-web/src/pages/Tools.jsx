@@ -1077,8 +1077,8 @@ function Tools() {
                         onClick={() => handleSelectTool(tool)}
                       >
                         <td>
-                          <div className="fw-bold sky-detail-value">{tool.label}</div>
-                          <div className="small sky-mono">{tool.toolCode}</div>
+                          <div className="fw-bold">{tool.label}</div>
+                          <div className="small sky-mono sky-muted">{tool.toolCode}</div>
                         </td>
                         <td>{getCategoryLabel(tool)}</td>
                         <td>{tool.runtimeCode || tool.runtimeName || '—'}</td>

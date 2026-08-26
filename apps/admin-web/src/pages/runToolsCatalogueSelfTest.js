@@ -28,9 +28,10 @@ assert(
 );
 
 assert(
-  toolsSource.includes('<div className="small sky-mono">{tool.toolCode}</div>')
+  toolsSource.includes('<div className="fw-bold">{tool.label}</div>')
+    && toolsSource.includes('<div className="small sky-mono sky-muted">{tool.toolCode}</div>')
     && toolsSource.includes('<td>{getCategoryLabel(tool)}</td>'),
-  'Run Tools rows must display the tool code beneath the name and category in its own column.',
+  'Run Tools rows must match Workflow Operations primary and secondary row typography.',
 );
 
 assert(

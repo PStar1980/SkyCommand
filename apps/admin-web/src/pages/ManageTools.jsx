@@ -1445,8 +1445,8 @@ function ManageTools() {
                     }}
                   >
                     <td>
-                      <div className="fw-semibold sky-detail-value">{tool.label}</div>
-                      <div className="small sky-mono">{tool.toolCode}</div>
+                      <div className="fw-bold">{tool.label}</div>
+                      <div className="small sky-mono sky-muted">{tool.toolCode}</div>
                     </td>
                     <td>{tool.categoryLabel || '—'}</td>
                     <td>{tool.runtimeCode || '—'}</td>
