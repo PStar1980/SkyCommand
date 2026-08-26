@@ -3003,6 +3003,199 @@ select.sky-form-control optgroup {
   background: rgba(72, 167, 255, 0.14);
 }
 
+/* Access Control · Users — canonical browser + full-width detail workspace. */
+.sky-admin-users-browser .sky-table {
+  min-width: 58rem;
+}
+
+.sky-admin-user-detail-stack {
+  display: grid;
+  gap: var(--sky-surface-gap, 1rem);
+}
+
+.sky-admin-user-detail-section {
+  border: 1px solid rgba(220, 177, 63, 0.2);
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(135deg, rgba(220, 177, 63, 0.035), transparent 42%),
+    rgba(3, 7, 12, 0.5);
+  padding: 1rem;
+}
+
+.sky-admin-user-detail-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.sky-admin-user-identity-grid,
+.sky-admin-user-access-grid,
+.sky-admin-user-security-grid {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+.sky-admin-user-identity-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 0.9fr);
+}
+
+.sky-admin-user-access-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 0.85fr);
+}
+
+.sky-admin-user-security-grid {
+  grid-template-columns: minmax(18rem, 0.85fr) minmax(0, 1.4fr);
+}
+
+.sky-admin-user-detail-pane {
+  min-width: 0;
+  border: 1px solid rgba(220, 177, 63, 0.16);
+  border-radius: 0.3rem;
+  background: rgba(2, 6, 11, 0.48);
+  padding: 1rem;
+}
+
+.sky-admin-user-detail-card .sky-app-access-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sky-admin-user-role-select {
+  min-height: 12rem;
+}
+
+/* Access Control · Roles — canonical browser + full-width role workspace. */
+.sky-admin-roles-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1.65fr) minmax(12rem, 0.9fr) minmax(10rem, 0.7fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  min-width: min(100%, 78rem);
+}
+
+.sky-admin-roles-filter-grid .form-label {
+  margin-bottom: 0.35rem;
+}
+
+.sky-admin-roles-browser .sky-table {
+  min-width: 68rem;
+}
+
+.sky-admin-role-detail-stack {
+  display: grid;
+  gap: var(--sky-surface-gap, 1rem);
+  min-width: 0;
+}
+
+.sky-admin-role-workspace-section {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(220, 177, 63, 0.2);
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(135deg, rgba(220, 177, 63, 0.035), transparent 42%),
+    rgba(3, 7, 12, 0.5);
+}
+
+.sky-admin-role-identity-grid {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) minmax(13rem, 0.85fr) minmax(16rem, 1.15fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sky-admin-role-description-field {
+  grid-column: 1 / -1;
+}
+
+.sky-admin-role-status-row {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(220, 177, 63, 0.16);
+}
+
+.sky-admin-role-access-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(20rem, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sky-admin-role-permissions-panel,
+.sky-admin-role-users-panel {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(220, 177, 63, 0.16);
+  border-radius: 0.3rem;
+  background: rgba(2, 6, 11, 0.48);
+}
+
+.sky-admin-role-permission-select {
+  min-height: 16rem;
+}
+
+.sky-admin-role-users-table-wrap {
+  max-height: 24rem;
+  overflow: auto;
+}
+
+@media (max-width: 1300px) {
+  .sky-admin-roles-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sky-admin-roles-search-filter {
+    grid-column: 1 / -1;
+  }
+
+  .sky-admin-role-identity-grid,
+  .sky-admin-role-access-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-admin-role-description-field {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 1200px) {
+  .sky-admin-user-identity-grid,
+  .sky-admin-user-access-grid,
+  .sky-admin-user-security-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .sky-admin-user-detail-card .sky-app-access-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .sky-admin-roles-filter-grid,
+  .sky-admin-role-status-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-admin-roles-search-filter {
+    grid-column: auto;
+  }
+
+  .sky-admin-role-status-row .btn {
+    width: 100%;
+  }
+}
+
 .sky-app-access-list {
   display: grid;
   gap: 0.85rem;
