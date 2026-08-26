@@ -124,6 +124,7 @@ SkyCommand/
 │   │       │   ├── AddRepository.jsx
 │   │       │   ├── AddTool.jsx
 │   │       │   ├── AdminPrivileges.jsx
+│   │       │   ├── adminPrivilegesSurfaceSelfTest.js
 │   │       │   ├── AdminRepositories.jsx
 │   │       │   ├── AdminRoles.jsx
 │   │       │   ├── adminRolesSurfaceSelfTest.js

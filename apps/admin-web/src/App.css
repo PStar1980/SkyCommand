@@ -3146,6 +3146,111 @@ select.sky-form-control optgroup {
   overflow: auto;
 }
 
+
+/* Access Control · Privileges — canonical browser + full-width privilege workspace. */
+.sky-admin-privileges-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1.55fr) minmax(12rem, 0.9fr) minmax(11rem, 0.8fr) minmax(10rem, 0.7fr) minmax(10rem, 0.65fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  min-width: min(100%, 92rem);
+}
+
+.sky-admin-privileges-filter-grid .form-label {
+  margin-bottom: 0.35rem;
+}
+
+.sky-admin-privileges-browser .sky-table {
+  min-width: 74rem;
+}
+
+.sky-admin-privilege-detail-stack {
+  display: grid;
+  gap: var(--sky-surface-gap, 1rem);
+  min-width: 0;
+}
+
+.sky-admin-privilege-workspace-section {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(220, 177, 63, 0.2);
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(135deg, rgba(220, 177, 63, 0.035), transparent 42%),
+    rgba(3, 7, 12, 0.5);
+}
+
+.sky-admin-privilege-identity-grid {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(16rem, 1.2fr) minmax(12rem, 0.85fr) minmax(10rem, 0.7fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sky-admin-privilege-description-field {
+  grid-column: 1 / -1;
+}
+
+.sky-admin-privilege-status-row {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(220, 177, 63, 0.16);
+}
+
+.sky-admin-privilege-grants-panel {
+  min-width: 0;
+  border: 1px solid rgba(220, 177, 63, 0.16);
+  border-radius: 0.3rem;
+  background: rgba(2, 6, 11, 0.48);
+  padding: 1rem;
+}
+
+.sky-admin-privilege-grants-table-wrap {
+  max-height: 24rem;
+  overflow: auto;
+}
+
+@media (max-width: 1450px) {
+  .sky-admin-privileges-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sky-admin-privileges-search-filter {
+    grid-column: 1 / -1;
+  }
+
+  .sky-admin-privilege-identity-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sky-admin-privilege-description-field {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .sky-admin-privileges-filter-grid,
+  .sky-admin-privilege-identity-grid,
+  .sky-admin-privilege-status-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-admin-privileges-search-filter,
+  .sky-admin-privilege-description-field {
+    grid-column: auto;
+  }
+
+  .sky-admin-privilege-status-row .btn {
+    width: 100%;
+  }
+}
+
 @media (max-width: 1300px) {
   .sky-admin-roles-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
