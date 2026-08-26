@@ -124,6 +124,7 @@
     "git-commit:self-test": "node packages/git/src/gitCommitResultSelfTest.js",
     "git-branch-sync:self-test": "node packages/git/src/gitBranchSyncResultSelfTest.js",
     "git-local-sync:self-test": "node packages/git/src/gitLocalSyncResultSelfTest.js",
+    "git-local-sync-lineage:self-test": "node packages/git/src/localRepoSyncLineageSelfTest.js",
     "workflow-condition:self-test": "node apps/api/src/services/workflowConditionSelfTest.js",
     "workflow-approval-branch:self-test": "node apps/api/src/services/workflowApprovalBranchSelfTest.js",
     "workflow-node-recovery:self-test": "node apps/api/src/services/workflowNodeRecoverySelfTest.js",

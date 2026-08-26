@@ -28,6 +28,10 @@ const { getTemporalConfig } = require('../../temporal/src/config');
 const {
   DEFAULT_HOST_AGENT_TASK_QUEUE,
 } = require('../../host-agent/src/config');
+const {
+  DEV_BASELINE_STATES,
+  classifyDevBaseline,
+} = require('./localRepoSyncLineage');
 
 const SKY_COMMAND_ROOT = path.resolve(__dirname, '../../..');
 const TOOL_CODE = 'local_repo_sync';
@@ -617,6 +621,7 @@ async function executeLocalRepositorySync(args = []) {
     currentBranch: null,
     expectedLocalDevSha,
     expectedSynchronizedHeadSha,
+    devBaselineState: null,
     localMainBeforeSha: null,
     localDevBeforeSha: null,
     remoteMainBeforeSha: null,
@@ -701,17 +706,6 @@ async function executeLocalRepositorySync(args = []) {
     if (!state.localDevBeforeSha) {
       block('LOCAL_DEV_MISSING', `Local ${repo.devBranch} branch does not exist.`, state);
     }
-    if (
-      state.localDevBeforeSha !== expectedLocalDevSha &&
-      state.localDevBeforeSha !== expectedSynchronizedHeadSha
-    ) {
-      block(
-        'LOCAL_DEV_CHANGED',
-        `Local ${repo.devBranch} changed after the trusted Dev Commit baseline. Expected ${expectedLocalDevSha} (or already-synchronized ${expectedSynchronizedHeadSha}), found ${state.localDevBeforeSha}. No refs were modified.`,
-        state,
-      );
-    }
-    state.safeguards.devBaselineMatched = true;
 
     state.remoteMainBeforeSha = getRemoteBranchSha('origin', repo.mainBranch, repo.rootPath);
     state.remoteDevBeforeSha = getRemoteBranchSha('origin', repo.devBranch, repo.rootPath);
@@ -763,7 +757,37 @@ async function executeLocalRepositorySync(args = []) {
         state,
       );
     }
+
+    const devBaseline = classifyDevBaseline({
+      localDevSha: state.localDevBeforeSha,
+      expectedLocalDevSha,
+      expectedSynchronizedHeadSha,
+      isAncestor: (ancestorSha, descendantSha) =>
+        isGitAncestor(ancestorSha, descendantSha, repo.rootPath),
+    });
+    state.devBaselineState = devBaseline.state;
+
+    if (!devBaseline.accepted) {
+      block(
+        'LOCAL_DEV_CHANGED',
+        `Local ${repo.devBranch} at ${state.localDevBeforeSha} is outside the approved synchronization lineage. It must equal the trusted Dev Commit baseline ${expectedLocalDevSha}, equal the approved synchronized head ${expectedSynchronizedHeadSha}, or be both a descendant of the trusted baseline and an ancestor of the approved head. No refs were modified.`,
+        state,
+      );
+    }
+
+    state.safeguards.devBaselineMatched = true;
     state.safeguards.localDevFastForwardSafe = true;
+
+    if (devBaseline.state === DEV_BASELINE_STATES.APPROVED_LINEAGE_INTERMEDIATE) {
+      const lineageMessage =
+        `Local ${repo.devBranch} ${state.localDevBeforeSha} is an approved-lineage intermediate between trusted baseline ${expectedLocalDevSha} and approved head ${expectedSynchronizedHeadSha}; fast-forward synchronization is permitted.`;
+      state.warnings.push(lineageMessage);
+      console.log(`🧬 ${lineageMessage}`);
+    } else if (devBaseline.state === DEV_BASELINE_STATES.ALREADY_SYNCHRONIZED) {
+      console.log(`✅ Local ${repo.devBranch} is already at the approved synchronized head.`);
+    } else {
+      console.log(`✅ Local ${repo.devBranch} matches the trusted Dev Commit baseline.`);
+    }
 
     if (
       state.localMainBeforeSha &&

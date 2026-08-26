@@ -29,6 +29,7 @@ function run() {
     currentBranch: 'dev',
     expectedLocalDevSha: baseline,
     expectedSynchronizedHeadSha: target,
+    devBaselineState: 'APPROVED_LINEAGE_INTERMEDIATE',
     localMainBeforeSha: baseline,
     localDevBeforeSha: baseline,
     remoteMainBeforeSha: target,
@@ -71,6 +72,7 @@ function run() {
   assert.equal(result.success, true);
   assert.equal(result.output.fourWaySynchronized, true);
   assert.equal(result.output.executionTarget, 'HOST');
+  assert.equal(result.output.devBaselineState, 'APPROVED_LINEAGE_INTERMEDIATE');
   validateToolResult(result, {
     expectedOutputType: GIT_LOCAL_SYNC_OUTPUT_TYPE,
     outputSchema,
@@ -97,6 +99,8 @@ function run() {
   assert.match(source, /status', '--porcelain=v1'/);
   assert.match(source, /worktree', 'list', '--porcelain'/);
   assert.match(source, /merge-base', '--is-ancestor'/);
+  assert.match(source, /APPROVED_LINEAGE_INTERMEDIATE/);
+  assert.match(source, /classifyDevBaseline/);
   assert.match(source, /update-ref/);
   assert.match(source, /merge', '--ff-only'/);
   assert.match(source, /expectedLocalDevSha/);
