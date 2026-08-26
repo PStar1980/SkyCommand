@@ -3,10 +3,16 @@ import { Link } from 'react-router-dom';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import infrastructureService from '../services/infrastructureService.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+} from '../utils/tablePageSize.js';
 import { getNextSortState, serializeSorts } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = SMART_TABLE_DEFAULT_PAGE_SIZE;
 const DOCKER_OPERATIONS_DEFAULT_SORTS = [{ field: 'requestedAt', direction: 'desc' }];
 const DEFAULT_FILTERS = {
   q: '',
@@ -79,18 +85,26 @@ function DockerOperations() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sorts, setSorts] = useState(() => DOCKER_OPERATIONS_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const requestSequence = useRef(0);
+  const browserCardRef = useRef(null);
 
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const availablePageSizes = getAvailableTablePageSizes(total);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount);
-  const rangeStart = total === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safePage * PAGE_SIZE, total);
+  const rangeStart = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const rangeEnd = total === 0 ? 0 : rangeStart + items.length - 1;
 
-  async function loadOperations(nextPage = page, nextFilters = appliedFilters, nextSorts = sorts) {
+  async function loadOperations(
+    nextPage = page,
+    nextFilters = appliedFilters,
+    nextSorts = sorts,
+    nextPageSize = pageSize,
+  ) {
     const requestId = requestSequence.current + 1;
     requestSequence.current = requestId;
     setLoading(true);
@@ -99,23 +113,24 @@ function DockerOperations() {
     try {
       const result = await infrastructureService.listDockerOperations({
         ...nextFilters,
-        limit: PAGE_SIZE,
-        offset: (nextPage - 1) * PAGE_SIZE,
+        limit: nextPageSize,
+        offset: (nextPage - 1) * nextPageSize,
         sort: serializeSorts(nextSorts),
       });
       if (requestId !== requestSequence.current) return;
 
       const resultTotal = Number(result.total || 0);
-      const resultPageCount = Math.max(1, Math.ceil(resultTotal / PAGE_SIZE));
+      const resultPageCount = Math.max(1, Math.ceil(resultTotal / nextPageSize));
 
       if (resultTotal > 0 && nextPage > resultPageCount) {
         setPage(resultPageCount);
-        await loadOperations(resultPageCount, nextFilters, nextSorts);
+        await loadOperations(resultPageCount, nextFilters, nextSorts, nextPageSize);
         return;
       }
 
       setItems(result.items || []);
       setTotal(resultTotal);
+      setPageSize(normalizeTablePageSize(nextPageSize, resultTotal));
       setPage(nextPage);
     } catch (loadError) {
       if (requestId === requestSequence.current) {
@@ -148,7 +163,20 @@ function DockerOperations() {
 
   function goToPage(nextPage) {
     const normalized = Math.min(Math.max(Number(nextPage) || 1, 1), pageCount);
-    loadOperations(normalized, appliedFilters, sorts);
+    loadOperations(normalized, appliedFilters, sorts, pageSize);
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = normalizeTablePageSize(value, total);
+    if (nextPageSize === pageSize) return;
+
+    const currentAbsoluteIndex = Math.max(0, (safePage - 1) * pageSize);
+    const nextPage = getPageForAbsoluteIndex(currentAbsoluteIndex, nextPageSize);
+    setPageSize(nextPageSize);
+    loadOperations(nextPage, appliedFilters, sorts, nextPageSize);
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   function applySorting(nextSorts, customized) {
@@ -224,7 +252,7 @@ function DockerOperations() {
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
 
-      <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-operations-browser">
+      <section ref={browserCardRef} className="sky-card mb-4 sky-workflow-history-browser sky-docker-operations-browser sky-table-browser-anchor">
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Operation browser</div>
@@ -352,16 +380,16 @@ function DockerOperations() {
                         {resourceDrilldown ? (
                           <Link
                             aria-label={`Open ${formatResourceType(item.resourceType)} ${item.resourceName || ''}`}
-                            className="fw-semibold text-decoration-underline"
+                            className="fw-bold text-decoration-underline"
                             title={`Open ${formatResourceType(item.resourceType)} in Docker inventory`}
                             to={resourceDrilldown}
                           >
                             {item.resourceName || '—'}
                           </Link>
                         ) : (
-                          <div className="fw-semibold">{item.resourceName || '—'}</div>
+                          <div className="fw-bold">{item.resourceName || '—'}</div>
                         )}
-                        {item.serviceName && <div className="small sky-muted">{item.serviceName}</div>}
+                        {item.serviceName && <div className="small sky-mono sky-muted">{item.serviceName}</div>}
                       </td>
                     <td>{formatDate(item.createdAt)}</td>
                     <td>{item.projectName || '—'}</td>
@@ -379,7 +407,7 @@ function DockerOperations() {
                       <td>
                         <div>{item.message || '—'}</div>
                         {item.errorCode && (
-                          <div className="small sky-muted">{item.errorCode}</div>
+                          <div className="small sky-mono sky-muted">{item.errorCode}</div>
                         )}
                       </td>
                     </tr>
@@ -392,7 +420,7 @@ function DockerOperations() {
 
         <div className="sky-pagination-row sky-canonical-operations-pagination-row">
           <div className="small sky-muted sky-canonical-operations-pagination-summary">
-            Showing {rangeStart}-{rangeEnd} of {total} Docker operation(s)
+            Showing {rangeStart}–{rangeEnd} of {total} Docker operation(s)
           </div>
           <div
             className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -410,7 +438,20 @@ function DockerOperations() {
             <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={safePage >= pageCount || loading} onClick={() => goToPage(safePage + 1)} title="Next page" type="button">›</button>
             <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={safePage >= pageCount || loading} onClick={() => goToPage(pageCount)} title="Last page" type="button">»</button>
           </div>
-          <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+          <div className="sky-canonical-rows-control">
+            <label className="sky-pagination-select-label" htmlFor="dockerOperationsRowsSelect">Rows</label>
+            <select
+              className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+              disabled={loading}
+              id="dockerOperationsRowsSelect"
+              onChange={(event) => changePageSize(event.target.value)}
+              value={pageSize}
+            >
+              {availablePageSizes.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
     </>

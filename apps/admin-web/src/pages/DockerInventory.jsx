@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DockerContainerDetailsModal from '../components/DockerContainerDetailsModal.jsx';
 import DockerProjectDetailsModal from '../components/DockerProjectDetailsModal.jsx';
@@ -9,6 +9,12 @@ import StatusPill from '../components/ui/StatusPill.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useDockerOverview from '../hooks/useDockerOverview.js';
 import infrastructureService from '../services/infrastructureService.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+} from '../utils/tablePageSize.js';
 import { getNextSortState } from '../utils/tableSorting.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
@@ -45,7 +51,7 @@ const VIEW_CONFIG = {
   },
 };
 
-const DOCKER_BROWSER_PAGE_SIZE = 10;
+const DOCKER_BROWSER_DEFAULT_PAGE_SIZE = SMART_TABLE_DEFAULT_PAGE_SIZE;
 
 const DOCKER_INVENTORY_DEFAULT_SORTS = {
   projects: [{ field: 'name', direction: 'asc' }],
@@ -244,18 +250,22 @@ function getResourceReference(resourceType, resource) {
 
 function DockerBrowserPagination({
   ariaLabel,
+  availablePageSizes,
   filteredCount,
   onPageChange,
+  onPageSizeChange,
   page,
   pageCount,
+  pageSize,
   rangeEnd,
   rangeStart,
+  rowsSelectId,
   selectId,
 }) {
   return (
     <div className="sky-pagination-row sky-canonical-operations-pagination-row">
       <div className="small sky-muted sky-canonical-operations-pagination-summary">
-        Showing {rangeStart}-{rangeEnd} of {filteredCount} record(s)
+        Showing {rangeStart}–{rangeEnd} of {filteredCount} record(s)
       </div>
       <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label={ariaLabel}>
         <button
@@ -315,7 +325,19 @@ function DockerBrowserPagination({
           »
         </button>
       </div>
-      <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+      <div className="sky-canonical-rows-control">
+        <label className="sky-pagination-select-label" htmlFor={rowsSelectId}>Rows</label>
+        <select
+          className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+          id={rowsSelectId}
+          onChange={(event) => onPageSizeChange(event.target.value)}
+          value={pageSize}
+        >
+          {availablePageSizes.map((size) => (
+            <option key={size} value={size}>{size}</option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }
@@ -359,7 +381,7 @@ function ProjectTable({ loading, onSelect, onSort, projects, selectedProjectName
                   onClick={() => onSelect(project)}
                 >
                   <td>
-                    <div className="fw-semibold">{project.name}</div>
+                    <div className="fw-bold">{project.name}</div>
                     {selfManaged && (
                       <div className="small sky-muted">Protected control-plane project</div>
                     )}
@@ -412,8 +434,8 @@ function ContainerTable({ containers, loading, onSelect, onSort, selectedContain
                   onClick={() => onSelect(container)}
                 >
                   <td>
-                    <div className="fw-semibold">{container.name || '—'}</div>
-                    <div className="small sky-muted">{container.id || '—'}</div>
+                    <div className="fw-bold">{container.name || '—'}</div>
+                    <div className="small sky-mono sky-muted">{container.id || '—'}</div>
                   </td>
                   <td>{container.project || '—'}</td>
                   <td>{container.service || '—'}</td>
@@ -478,9 +500,9 @@ function ImageTable({ images, loading, onSelect, onSort, selectedImageKey, sorts
                   key={`${image.id}-${image.repository}-${image.tag}`}
                   onClick={() => onSelect(image)}
                 >
-                  <td className="fw-semibold">{image.repository || '—'}</td>
+                  <td className="fw-bold">{image.repository || '—'}</td>
                   <td>{image.tag || '—'}</td>
-                  <td>{image.id || '—'}</td>
+                  <td className="sky-mono">{image.id || '—'}</td>
                   <td>{image.size || '—'}</td>
                   <td>{image.createdSince || '—'}</td>
                   <td>{image.cleanup?.usageCount ?? image.containers ?? '—'}</td>
@@ -520,7 +542,7 @@ function StorageTable({ loading, onSelect, onSort, selectedVolumeName, sorts, vo
                   key={volume.name}
                   onClick={() => onSelect(volume)}
                 >
-                  <td className="fw-semibold">{volume.name}</td>
+                  <td className="fw-bold">{volume.name}</td>
                   <td>{volume.driver || '—'}</td>
                   <td>{volume.scope || '—'}</td>
                   <td>{volume.cleanup?.usageCount ?? '—'}</td>
@@ -560,7 +582,7 @@ function NetworkTable({ loading, networks, onSelect, onSort, selectedNetworkName
                   key={network.id || network.name}
                   onClick={() => onSelect(network)}
                 >
-                  <td className="fw-semibold">{network.name}</td>
+                  <td className="fw-bold">{network.name}</td>
                   <td>{network.driver || '—'}</td>
                   <td>{network.scope || '—'}</td>
                   <td>{network.cleanup?.usageCount ?? '—'}</td>
@@ -626,6 +648,8 @@ function DockerInventory({ view }) {
       : DEFAULT_NETWORK_FILTERS,
   );
   const [networkPage, setNetworkPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DOCKER_BROWSER_DEFAULT_PAGE_SIZE);
+  const browserCardRef = useRef(null);
   const { error, loadOverview, loading, overview, pollingState, refreshingAt } =
     useDockerOverview();
   const projects = Array.isArray(overview?.projects) ? overview.projects : [];
@@ -767,77 +791,84 @@ function DockerInventory({ view }) {
     [filteredNetworks, sorts, view],
   );
 
-  const projectPageCount = Math.max(
-    1,
-    Math.ceil(filteredProjects.length / DOCKER_BROWSER_PAGE_SIZE),
+  const activeFilteredCount = view === 'projects'
+    ? filteredProjects.length
+    : view === 'containers'
+      ? filteredContainers.length
+      : view === 'images'
+        ? filteredImages.length
+        : view === 'storage'
+          ? filteredVolumes.length
+          : filteredNetworks.length;
+  const availablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(activeFilteredCount),
+    [activeFilteredCount],
   );
+
+  const projectPageCount = Math.max(1, Math.ceil(filteredProjects.length / pageSize));
   const currentProjectPage = Math.min(projectPage, projectPageCount);
   const pagedProjects = useMemo(() => {
-    const offset = (currentProjectPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return sortedProjects.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentProjectPage, sortedProjects]);
+    const offset = (currentProjectPage - 1) * pageSize;
+    return sortedProjects.slice(offset, offset + pageSize);
+  }, [currentProjectPage, pageSize, sortedProjects]);
   const projectRangeStart = filteredProjects.length === 0
     ? 0
-    : (currentProjectPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+    : (currentProjectPage - 1) * pageSize + 1;
   const projectRangeEnd = filteredProjects.length === 0
     ? 0
-    : Math.min(currentProjectPage * DOCKER_BROWSER_PAGE_SIZE, filteredProjects.length);
+    : projectRangeStart + pagedProjects.length - 1;
 
-  const containerPageCount = Math.max(
-    1,
-    Math.ceil(filteredContainers.length / DOCKER_BROWSER_PAGE_SIZE),
-  );
+  const containerPageCount = Math.max(1, Math.ceil(filteredContainers.length / pageSize));
   const currentContainerPage = Math.min(containerPage, containerPageCount);
   const pagedContainers = useMemo(() => {
-    const offset = (currentContainerPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return sortedContainers.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentContainerPage, sortedContainers]);
+    const offset = (currentContainerPage - 1) * pageSize;
+    return sortedContainers.slice(offset, offset + pageSize);
+  }, [currentContainerPage, pageSize, sortedContainers]);
   const containerRangeStart = filteredContainers.length === 0
     ? 0
-    : (currentContainerPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+    : (currentContainerPage - 1) * pageSize + 1;
   const containerRangeEnd = filteredContainers.length === 0
     ? 0
-    : Math.min(currentContainerPage * DOCKER_BROWSER_PAGE_SIZE, filteredContainers.length);
+    : containerRangeStart + pagedContainers.length - 1;
 
-  const imagePageCount = Math.max(1, Math.ceil(filteredImages.length / DOCKER_BROWSER_PAGE_SIZE));
+  const imagePageCount = Math.max(1, Math.ceil(filteredImages.length / pageSize));
   const currentImagePage = Math.min(imagePage, imagePageCount);
   const pagedImages = useMemo(() => {
-    const offset = (currentImagePage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return sortedImages.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentImagePage, sortedImages]);
+    const offset = (currentImagePage - 1) * pageSize;
+    return sortedImages.slice(offset, offset + pageSize);
+  }, [currentImagePage, pageSize, sortedImages]);
   const imageRangeStart = filteredImages.length === 0
     ? 0
-    : (currentImagePage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+    : (currentImagePage - 1) * pageSize + 1;
   const imageRangeEnd = filteredImages.length === 0
     ? 0
-    : Math.min(currentImagePage * DOCKER_BROWSER_PAGE_SIZE, filteredImages.length);
+    : imageRangeStart + pagedImages.length - 1;
 
-
-  const storagePageCount = Math.max(1, Math.ceil(filteredVolumes.length / DOCKER_BROWSER_PAGE_SIZE));
+  const storagePageCount = Math.max(1, Math.ceil(filteredVolumes.length / pageSize));
   const currentStoragePage = Math.min(storagePage, storagePageCount);
   const pagedVolumes = useMemo(() => {
-    const offset = (currentStoragePage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return sortedVolumes.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentStoragePage, sortedVolumes]);
+    const offset = (currentStoragePage - 1) * pageSize;
+    return sortedVolumes.slice(offset, offset + pageSize);
+  }, [currentStoragePage, pageSize, sortedVolumes]);
   const storageRangeStart = filteredVolumes.length === 0
     ? 0
-    : (currentStoragePage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+    : (currentStoragePage - 1) * pageSize + 1;
   const storageRangeEnd = filteredVolumes.length === 0
     ? 0
-    : Math.min(currentStoragePage * DOCKER_BROWSER_PAGE_SIZE, filteredVolumes.length);
+    : storageRangeStart + pagedVolumes.length - 1;
 
-  const networkPageCount = Math.max(1, Math.ceil(filteredNetworks.length / DOCKER_BROWSER_PAGE_SIZE));
+  const networkPageCount = Math.max(1, Math.ceil(filteredNetworks.length / pageSize));
   const currentNetworkPage = Math.min(networkPage, networkPageCount);
   const pagedNetworks = useMemo(() => {
-    const offset = (currentNetworkPage - 1) * DOCKER_BROWSER_PAGE_SIZE;
-    return sortedNetworks.slice(offset, offset + DOCKER_BROWSER_PAGE_SIZE);
-  }, [currentNetworkPage, sortedNetworks]);
+    const offset = (currentNetworkPage - 1) * pageSize;
+    return sortedNetworks.slice(offset, offset + pageSize);
+  }, [currentNetworkPage, pageSize, sortedNetworks]);
   const networkRangeStart = filteredNetworks.length === 0
     ? 0
-    : (currentNetworkPage - 1) * DOCKER_BROWSER_PAGE_SIZE + 1;
+    : (currentNetworkPage - 1) * pageSize + 1;
   const networkRangeEnd = filteredNetworks.length === 0
     ? 0
-    : Math.min(currentNetworkPage * DOCKER_BROWSER_PAGE_SIZE, filteredNetworks.length);
+    : networkRangeStart + pagedNetworks.length - 1;
   const selectedImageKey = selectedResource?.resourceType === 'IMAGE'
     ? getImageSelectionKey(selectedResource.resource)
     : '';
@@ -847,6 +878,11 @@ function DockerInventory({ view }) {
   const selectedNetworkName = selectedResource?.resourceType === 'NETWORK'
     ? selectedResource.resource?.name || ''
     : '';
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(pageSize, activeFilteredCount);
+    if (normalizedPageSize !== pageSize) setPageSize(normalizedPageSize);
+  }, [activeFilteredCount, pageSize]);
 
   useEffect(() => {
     if (projectPage > projectPageCount) setProjectPage(projectPageCount);
@@ -1006,6 +1042,47 @@ function DockerInventory({ view }) {
     else if (view === 'images') setImagePage(1);
     else if (view === 'storage') setStoragePage(1);
     else if (view === 'networks') setNetworkPage(1);
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = normalizeTablePageSize(value, activeFilteredCount);
+    if (nextPageSize === pageSize) return;
+
+    let selectedIndex = -1;
+    let currentPage = 1;
+
+    if (view === 'projects') {
+      selectedIndex = sortedProjects.findIndex((project) => project.name === selectedProjectName);
+      currentPage = currentProjectPage;
+    } else if (view === 'containers') {
+      selectedIndex = sortedContainers.findIndex((container) => container.id === selectedContainerId);
+      currentPage = currentContainerPage;
+    } else if (view === 'images') {
+      selectedIndex = sortedImages.findIndex((image) => getImageSelectionKey(image) === selectedImageKey);
+      currentPage = currentImagePage;
+    } else if (view === 'storage') {
+      selectedIndex = sortedVolumes.findIndex((volume) => volume.name === selectedVolumeName);
+      currentPage = currentStoragePage;
+    } else if (view === 'networks') {
+      selectedIndex = sortedNetworks.findIndex((network) => network.name === selectedNetworkName);
+      currentPage = currentNetworkPage;
+    }
+
+    const absoluteIndex = selectedIndex >= 0
+      ? selectedIndex
+      : Math.max(0, (currentPage - 1) * pageSize);
+    const nextPage = getPageForAbsoluteIndex(absoluteIndex, nextPageSize);
+
+    setPageSize(nextPageSize);
+    if (view === 'projects') setProjectPage(nextPage);
+    else if (view === 'containers') setContainerPage(nextPage);
+    else if (view === 'images') setImagePage(nextPage);
+    else if (view === 'storage') setStoragePage(nextPage);
+    else if (view === 'networks') setNetworkPage(nextPage);
+
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   function applySorting(nextSorts, customized) {
@@ -1214,7 +1291,7 @@ function DockerInventory({ view }) {
 
       {view === 'projects' && (
         <>
-          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+          <section ref={browserCardRef} className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser sky-table-browser-anchor">
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Project browser</div>
@@ -1290,12 +1367,16 @@ function DockerInventory({ view }) {
             />
             <DockerBrowserPagination
               ariaLabel="Docker project pagination"
+              availablePageSizes={availablePageSizes}
               filteredCount={filteredProjects.length}
               onPageChange={setProjectPage}
+              onPageSizeChange={changePageSize}
               page={currentProjectPage}
               pageCount={projectPageCount}
+              pageSize={pageSize}
               rangeEnd={projectRangeEnd}
               rangeStart={projectRangeStart}
+              rowsSelectId="dockerProjectRowsSelect"
               selectId="dockerProjectPageSelect"
             />
           </section>
@@ -1321,7 +1402,7 @@ function DockerInventory({ view }) {
 
       {view === 'containers' && (
         <>
-          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+          <section ref={browserCardRef} className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser sky-table-browser-anchor">
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Container browser</div>
@@ -1388,12 +1469,16 @@ function DockerInventory({ view }) {
             />
             <DockerBrowserPagination
               ariaLabel="Docker container pagination"
+              availablePageSizes={availablePageSizes}
               filteredCount={filteredContainers.length}
               onPageChange={setContainerPage}
+              onPageSizeChange={changePageSize}
               page={currentContainerPage}
               pageCount={containerPageCount}
+              pageSize={pageSize}
               rangeEnd={containerRangeEnd}
               rangeStart={containerRangeStart}
+              rowsSelectId="dockerContainerRowsSelect"
               selectId="dockerContainerPageSelect"
             />
           </section>
@@ -1415,7 +1500,7 @@ function DockerInventory({ view }) {
 
       {view === 'images' && (
         <>
-          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+          <section ref={browserCardRef} className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser sky-table-browser-anchor">
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Image browser</div>
@@ -1485,12 +1570,16 @@ function DockerInventory({ view }) {
             />
             <DockerBrowserPagination
               ariaLabel="Docker image pagination"
+              availablePageSizes={availablePageSizes}
               filteredCount={filteredImages.length}
               onPageChange={setImagePage}
+              onPageSizeChange={changePageSize}
               page={currentImagePage}
               pageCount={imagePageCount}
+              pageSize={pageSize}
               rangeEnd={imageRangeEnd}
               rangeStart={imageRangeStart}
+              rowsSelectId="dockerImageRowsSelect"
               selectId="dockerImagePageSelect"
             />
           </section>
@@ -1513,7 +1602,7 @@ function DockerInventory({ view }) {
 
       {view === 'storage' && (
         <>
-          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+          <section ref={browserCardRef} className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser sky-table-browser-anchor">
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Storage browser</div>
@@ -1580,12 +1669,16 @@ function DockerInventory({ view }) {
             />
             <DockerBrowserPagination
               ariaLabel="Docker storage pagination"
+              availablePageSizes={availablePageSizes}
               filteredCount={filteredVolumes.length}
               onPageChange={setStoragePage}
+              onPageSizeChange={changePageSize}
               page={currentStoragePage}
               pageCount={storagePageCount}
+              pageSize={pageSize}
               rangeEnd={storageRangeEnd}
               rangeStart={storageRangeStart}
+              rowsSelectId="dockerStorageRowsSelect"
               selectId="dockerStoragePageSelect"
             />
           </section>
@@ -1608,7 +1701,7 @@ function DockerInventory({ view }) {
 
       {view === 'networks' && (
         <>
-          <section className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser">
+          <section ref={browserCardRef} className="sky-card mb-4 sky-workflow-history-browser sky-docker-record-browser sky-table-browser-anchor">
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Network browser</div>
@@ -1677,12 +1770,16 @@ function DockerInventory({ view }) {
             />
             <DockerBrowserPagination
               ariaLabel="Docker network pagination"
+              availablePageSizes={availablePageSizes}
               filteredCount={filteredNetworks.length}
               onPageChange={setNetworkPage}
+              onPageSizeChange={changePageSize}
               page={currentNetworkPage}
               pageCount={networkPageCount}
+              pageSize={pageSize}
               rangeEnd={networkRangeEnd}
               rangeStart={networkRangeStart}
+              rowsSelectId="dockerNetworkRowsSelect"
               selectId="dockerNetworkPageSelect"
             />
           </section>

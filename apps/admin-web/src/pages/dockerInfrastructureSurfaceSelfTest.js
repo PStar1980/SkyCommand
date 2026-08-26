@@ -93,8 +93,14 @@ assert.match(echartCanvas, /instance\.setOption\(normalizedOption/);
 assert.match(apiClient, /text\/event-stream/);
 assert.match(apiClient, /Last-Event-ID/);
 assert.match(inventory, /INFRASTRUCTURE_DOCKER_CONTROL/);
-assert.match(inventory, /DOCKER_BROWSER_PAGE_SIZE = 10/);
+assert.match(inventory, /DOCKER_BROWSER_DEFAULT_PAGE_SIZE = SMART_TABLE_DEFAULT_PAGE_SIZE/);
 assert.match(inventory, /DOCKER_INVENTORY_DEFAULT_SORTS/);
+assert.match(inventory, /getAvailableTablePageSizes/);
+assert.match(inventory, /getPageForAbsoluteIndex/);
+assert.match(inventory, /normalizeTablePageSize/);
+assert.match(inventory, /sky-canonical-rows-control/);
+assert.match(inventory, /sky-table-browser-anchor/);
+assert.match(inventory, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
 assert.match(inventory, /getNextSortState/);
 assert.match(inventory, /sortInventoryItems/);
 assert.match(inventory, /DockerSortableHeader/);
@@ -112,6 +118,7 @@ assert.match(inventory, /dockerProjectSearch/);
 assert.match(inventory, /dockerProjectStateFilter/);
 assert.match(inventory, /dockerProjectStatusFilter/);
 assert.match(inventory, /dockerProjectPageSelect/);
+assert.match(inventory, /dockerProjectRowsSelect/);
 assert.match(inventory, /pagedProjects\[0\]/);
 assert.match(inventory, /selectedProjectName/);
 assert.match(inventory, /useSearchParams/);
@@ -121,10 +128,12 @@ assert.match(inventory, /dockerContainerSearch/);
 assert.match(inventory, /dockerContainerProjectFilter/);
 assert.match(inventory, /dockerContainerStateFilter/);
 assert.match(inventory, /dockerContainerPageSelect/);
+assert.match(inventory, /dockerContainerRowsSelect/);
 assert.match(inventory, /dockerImageSearch/);
 assert.match(inventory, /dockerImageRepositoryFilter/);
 assert.match(inventory, /dockerImageUsageFilter/);
 assert.match(inventory, /dockerImagePageSelect/);
+assert.match(inventory, /dockerImageRowsSelect/);
 assert.match(inventory, /Clear filters/);
 assert.match(inventory, /sky-selected-row/);
 assert.match(inventory, /pagedContainers\[0\]/);
@@ -137,14 +146,32 @@ const projectTableSource = inventory.slice(
   inventory.indexOf('function ContainerTable'),
 );
 assert.match(projectTableSource, /sky-selected-row/);
+assert.match(projectTableSource, /className="fw-bold"/);
+assert.doesNotMatch(projectTableSource, /fw-semibold/);
 assert.doesNotMatch(projectTableSource, /<th>Controls<\/th>/);
 assert.doesNotMatch(projectTableSource, /<th>Actions<\/th>/);
 assert.doesNotMatch(projectTableSource, /Project Details/);
+const containerTableSource = inventory.slice(
+  inventory.indexOf('function ContainerTable'),
+  inventory.indexOf('function CleanupPill'),
+);
+assert.match(containerTableSource, /className="fw-bold"/);
+assert.match(containerTableSource, /small sky-mono sky-muted/);
+assert.doesNotMatch(containerTableSource, /fw-semibold/);
+const imageTableSource = inventory.slice(
+  inventory.indexOf('function ImageTable'),
+  inventory.indexOf('function StorageTable'),
+);
+assert.match(imageTableSource, /className="fw-bold"/);
+assert.match(imageTableSource, /className="sky-mono"/);
+assert.doesNotMatch(imageTableSource, /fw-semibold/);
 const storageTableSource = inventory.slice(
   inventory.indexOf('function StorageTable'),
   inventory.indexOf('function NetworkTable'),
 );
 assert.match(storageTableSource, /sky-selected-row/);
+assert.match(storageTableSource, /className="fw-bold"/);
+assert.doesNotMatch(storageTableSource, /fw-semibold/);
 assert.doesNotMatch(storageTableSource, /<th>Actions<\/th>/);
 assert.doesNotMatch(storageTableSource, /Volume Details/);
 const networkTableSource = inventory.slice(
@@ -152,6 +179,8 @@ const networkTableSource = inventory.slice(
   inventory.indexOf('function DockerInventory'),
 );
 assert.match(networkTableSource, /sky-selected-row/);
+assert.match(networkTableSource, /className="fw-bold"/);
+assert.doesNotMatch(networkTableSource, /fw-semibold/);
 assert.doesNotMatch(networkTableSource, /<th>Actions<\/th>/);
 assert.doesNotMatch(networkTableSource, /Network Details/);
 assert.match(inventory, /controlDockerContainer/);
@@ -160,11 +189,13 @@ assert.match(inventory, /dockerStorageSearch/);
 assert.match(inventory, /dockerStorageDriverFilter/);
 assert.match(inventory, /dockerStorageScopeFilter/);
 assert.match(inventory, /dockerStoragePageSelect/);
+assert.match(inventory, /dockerStorageRowsSelect/);
 assert.match(inventory, /pagedVolumes\[0\]/);
 assert.match(inventory, /dockerNetworkSearch/);
 assert.match(inventory, /dockerNetworkDriverFilter/);
 assert.match(inventory, /dockerNetworkCleanupFilter/);
 assert.match(inventory, /dockerNetworkPageSelect/);
+assert.match(inventory, /dockerNetworkRowsSelect/);
 assert.match(inventory, /pagedNetworks\[0\]/);
 assert.match(resourceDetails, /Storage Details/);
 assert.match(resourceDetails, /Network Details/);
@@ -180,6 +211,13 @@ assert.match(operations, /dockerOperationScope/);
 assert.match(operations, /dockerOperationAction/);
 assert.match(operations, /dockerOperationResult/);
 assert.match(operations, /dockerOperationsPageSelect/);
+assert.match(operations, /dockerOperationsRowsSelect/);
+assert.match(operations, /getAvailableTablePageSizes/);
+assert.match(operations, /getPageForAbsoluteIndex/);
+assert.match(operations, /normalizeTablePageSize/);
+assert.match(operations, /sky-canonical-rows-control/);
+assert.match(operations, /sky-table-browser-anchor/);
+assert.match(operations, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
 const operationsTableSource = operations.slice(
   operations.indexOf('<thead>'),
   operations.indexOf('</table>') + '</table>'.length,
@@ -195,6 +233,9 @@ assert.match(operations, /`\/docker\/containers\?\$\{params\.toString\(\)\}`/);
 assert.match(operations, /`\/docker\/images\?\$\{params\.toString\(\)\}`/);
 assert.match(operations, /`\/docker\/networks\?\$\{params\.toString\(\)\}`/);
 assert.match(operationsTableSource, /<Link/);
+assert.match(operationsTableSource, /className="fw-bold text-decoration-underline"/);
+assert.match(operationsTableSource, /small sky-mono sky-muted/);
+assert.doesNotMatch(operationsTableSource, /fw-semibold/);
 assert.match(operationsTableSource, /to=\{resourceDrilldown\}/);
 assert.doesNotMatch(operationsTableSource, /label=\{item\.resourceType/);
 assert.match(operations, /aria-label="First page"/);
@@ -202,7 +243,7 @@ assert.match(operations, /aria-label="Previous page"/);
 assert.match(operations, /aria-label="Next page"/);
 assert.match(operations, /aria-label="Last page"/);
 assert.match(operations, /Clear filters/);
-assert.match(operations, /PAGE_SIZE = 10/);
+assert.match(operations, /DEFAULT_PAGE_SIZE = SMART_TABLE_DEFAULT_PAGE_SIZE/);
 assert.doesNotMatch(operations, /Operation Filters/);
 assert.doesNotMatch(operations, />\s*Apply\s*</);
 assert.doesNotMatch(operations, /Control Plane Guardrail/);
