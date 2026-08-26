@@ -83,9 +83,12 @@ const checks = [
     manageToolsSource.includes('sky-canonical-operations-table-frame')
       && manageToolsSource.includes('sky-canonical-operations-table align-middle mb-0')
       && manageToolsSource.includes('sky-canonical-operations-pagination-row')
-      && manageToolsSource.includes('sky-canonical-operations-pagination-balance')
+      && manageToolsSource.includes('id="manageToolsRowsSelect"')
+      && manageToolsSource.includes('availablePageSizes.map')
+      && manageToolsSource.includes('changePageSize')
+      && manageToolsSource.includes('browserCardRef.current?.scrollIntoView')
       && manageToolsSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-    'Manage Tools catalogue must use the canonical table frame and centered gold pagination.',
+    'Manage Tools catalogue must use the canonical table frame, centered gold pagination, and smart Rows selector.',
   ],
   [
     manageToolsSource.includes('const MANAGE_TOOLS_FETCH_LIMIT = 500;')
