@@ -3003,6 +3003,83 @@ select.sky-form-control optgroup {
   background: rgba(72, 167, 255, 0.14);
 }
 
+.sky-admin-users-browser .sky-table {
+  min-width: 58rem;
+}
+
+.sky-admin-user-detail-stack {
+  display: grid;
+  gap: var(--sky-surface-gap, 1rem);
+}
+
+.sky-admin-user-detail-section {
+  border: 1px solid rgba(220, 177, 63, 0.2);
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(135deg, rgba(220, 177, 63, 0.035), transparent 42%),
+    rgba(3, 7, 12, 0.5);
+  padding: 1rem;
+}
+
+.sky-admin-user-detail-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.sky-admin-user-identity-grid,
+.sky-admin-user-access-grid,
+.sky-admin-user-security-grid {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+.sky-admin-user-identity-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 0.9fr);
+}
+
+.sky-admin-user-access-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 0.85fr);
+}
+
+.sky-admin-user-security-grid {
+  grid-template-columns: minmax(18rem, 0.85fr) minmax(0, 1.4fr);
+}
+
+.sky-admin-user-detail-pane {
+  min-width: 0;
+  border: 1px solid rgba(220, 177, 63, 0.16);
+  border-radius: 0.3rem;
+  background: rgba(2, 6, 11, 0.48);
+  padding: 1rem;
+}
+
+.sky-admin-user-detail-card .sky-app-access-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sky-admin-user-role-select {
+  min-height: 12rem;
+}
+
+@media (max-width: 1200px) {
+  .sky-admin-user-identity-grid,
+  .sky-admin-user-access-grid,
+  .sky-admin-user-security-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .sky-admin-user-detail-card .sky-app-access-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 .sky-app-access-list {
   display: grid;
   gap: 0.85rem;

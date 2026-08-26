@@ -128,6 +128,7 @@ SkyCommand/
 │   │       │   ├── AdminRoles.jsx
 │   │       │   ├── AdminSessions.jsx
 │   │       │   ├── AdminUsers.jsx
+│   │       │   ├── adminUsersSurfaceSelfTest.js
 │   │       │   ├── ApiDashboard.jsx
 │   │       │   ├── apiDashboardSelfTest.js
 │   │       │   ├── approvalHistorySelfTest.js
