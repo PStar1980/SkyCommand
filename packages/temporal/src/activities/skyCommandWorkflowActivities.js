@@ -26,8 +26,19 @@ async function loadTemporalWorkflowDefinitionActivity(input = {}) {
 }
 
 async function loadSkyserverWorkflowDefinitionActivity(input = {}) {
-  console.log(`[Temporal:SkyWorkflow] Loading workflow definition ${input.workflowCode}`);
-  return workflowExecutorService.getWorkflowDefinition(input.workflowCode);
+  console.log(`[Temporal:SkyWorkflow] Loading workflow definition ${input.workflowCode}${input.workflowVersionId ? ` version ${input.workflowVersionId}` : ''}`);
+  return workflowExecutorService.getWorkflowDefinitionForVersion(
+    input.workflowCode,
+    input.workflowVersionId || null,
+  );
+}
+
+async function loadSkyserverWorkflowNodeRecoveryStateActivity(input = {}) {
+  console.log(`[Temporal:SkyWorkflow] Loading recovery state for run ${input.workflowRunRecordId} node ${input.nodeKey}`);
+  return workflowExecutorService.getWorkflowNodeRecoveryState({
+    workflowRunRecordId: input.workflowRunRecordId,
+    nodeKey: input.nodeKey,
+  });
 }
 
 async function linkSkyserverWorkflowRunToTemporalActivity(input = {}) {
@@ -217,6 +228,7 @@ module.exports = {
   resolveSkyserverWorkflowApprovalRequestActivity,
   linkSkyserverWorkflowRunToTemporalActivity,
   loadSkyserverWorkflowDefinitionActivity,
+  loadSkyserverWorkflowNodeRecoveryStateActivity,
   loadTemporalWorkflowDefinitionActivity,
   markSkyserverWorkflowNodeAttemptActivity,
   startChildSkyserverWorkflowRunActivity,
@@ -231,6 +243,7 @@ module.exports = {
   resolveSkyCommandWorkflowApprovalRequestActivity: resolveSkyserverWorkflowApprovalRequestActivity,
   linkSkyCommandWorkflowRunToTemporalActivity: linkSkyserverWorkflowRunToTemporalActivity,
   loadSkyCommandWorkflowDefinitionActivity: loadSkyserverWorkflowDefinitionActivity,
+  loadSkyCommandWorkflowNodeRecoveryStateActivity: loadSkyserverWorkflowNodeRecoveryStateActivity,
   markSkyCommandWorkflowNodeAttemptActivity: markSkyserverWorkflowNodeAttemptActivity,
   startChildSkyCommandWorkflowRunActivity: startChildSkyserverWorkflowRunActivity,
   startSkyCommandWorkflowNodeRunActivity: startSkyserverWorkflowNodeRunActivity,

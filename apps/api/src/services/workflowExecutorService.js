@@ -2240,6 +2240,42 @@ async function getWorkflowDefinition(workflowCode) {
   };
 }
 
+async function getWorkflowDefinitionForVersion(workflowCode, workflowVersionId) {
+  if (!workflowVersionId) {
+    return getWorkflowDefinition(workflowCode);
+  }
+
+  const [definition, graph] = await Promise.all([
+    getWorkflowDefinitionByCode(workflowCode),
+    getWorkflowVersionGraph(workflowVersionId),
+  ]);
+
+  if (!graph) {
+    throw new WorkflowServiceError('Workflow version was not found.', 404, {
+      workflowCode,
+      workflowVersionId,
+    });
+  }
+
+  if (graph.workflowDefinitionId !== definition.workflowDefinitionId) {
+    throw new WorkflowServiceError('Workflow version does not belong to the requested workflow.', 409, {
+      workflowCode,
+      workflowVersionId,
+      workflowDefinitionId: definition.workflowDefinitionId,
+      versionWorkflowDefinitionId: graph.workflowDefinitionId,
+    });
+  }
+
+  return {
+    ...definition,
+    publishedVersionId: graph.workflowVersionId,
+    publishedVersionNumber: graph.versionNumber,
+    publishedVersionStatus: graph.versionStatus,
+    nodes: graph.nodes || [],
+    edges: graph.edges || [],
+  };
+}
+
 function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
   const input = getSafeObject(requestInput);
   const nodeInputs = getSafeObject(input.nodeInputs);
@@ -2353,6 +2389,7 @@ async function linkWorkflowRunToTemporal({
           status = 'RUNNING',
           summary = COALESCE($4, summary),
           started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+          completed_at = NULL,
           metadata = metadata || $5::jsonb
       WHERE workflow_run_record_id = $1
       RETURNING *
@@ -2383,7 +2420,58 @@ async function insertNodeRun({ workflowRunRecordId, node, attemptCount = 1, meta
   );
 
   if (existing.rows[0]) {
-    return normalizeNodeRunRow(existing.rows[0]);
+    const existingNodeRun = normalizeNodeRunRow(existing.rows[0]);
+
+    if (metadata?.manualNodeRecovery === true) {
+      const resetResult = await query(
+        `
+          UPDATE worker.workflow_node_run_records
+          SET status = 'RUNNING',
+              attempt_count = GREATEST(attempt_count, $2),
+              started_at = CURRENT_TIMESTAMP,
+              completed_at = NULL,
+              output = '{}'::jsonb,
+              error_message = NULL,
+              metadata = metadata || $3::jsonb
+          WHERE workflow_node_run_record_id = $1
+          RETURNING *
+        `,
+        [
+          existingNodeRun.workflowNodeRunRecordId,
+          attemptCount,
+          JSON.stringify({
+            ...getSafeObject(metadata),
+            recoveryResetAt: new Date().toISOString(),
+          }),
+        ],
+      );
+
+      try {
+        await query(
+          `
+            DELETE FROM worker.workflow_run_node_outputs
+            WHERE workflow_node_run_record_id = $1
+          `,
+          [existingNodeRun.workflowNodeRunRecordId],
+        );
+        await query(
+          `
+            DELETE FROM worker.workflow_run_context_values
+            WHERE workflow_run_record_id = $1
+              AND source_node_key = $2
+          `,
+          [workflowRunRecordId, node.nodeKey],
+        );
+      } catch (error) {
+        if (!isOptionalWorkflowPersistenceMissing(error)) {
+          throw error;
+        }
+      }
+
+      return resetResult.rows[0] ? normalizeNodeRunRow(resetResult.rows[0]) : existingNodeRun;
+    }
+
+    return existingNodeRun;
   }
 
   const result = await query(
@@ -2922,6 +3010,260 @@ async function retryWorkflowRun({
     originalRun: run,
     run: retryRun || result.run,
     message: `Retry started for ${run.workflowDisplayName || run.workflowCode}.`,
+  };
+}
+
+async function getWorkflowNodeRecoveryState({ workflowRunRecordId, nodeKey } = {}) {
+  const normalizedNodeKey = String(nodeKey || '').trim();
+
+  if (!workflowRunRecordId || !normalizedNodeKey) {
+    throw new WorkflowServiceError('Workflow node recovery requires a run ID and node key.', 400, {
+      workflowRunRecordId,
+      nodeKey: normalizedNodeKey || null,
+    });
+  }
+
+  const run = await getWorkflowRunById(workflowRunRecordId);
+
+  if (!run) {
+    throw new WorkflowServiceError('Workflow run was not found.', 404, {
+      workflowRunRecordId,
+    });
+  }
+
+  const [nodeRuns, contextValues, definitionGraph] = await Promise.all([
+    getWorkflowNodeRunsForRun(workflowRunRecordId),
+    getWorkflowContextValuesForRun(workflowRunRecordId),
+    getWorkflowVersionGraph(run.workflowVersionId),
+  ]);
+  const nodeRunIndex = nodeRuns.findIndex((nodeRun) => nodeRun.nodeKey === normalizedNodeKey);
+  const nodeRun = nodeRunIndex >= 0 ? nodeRuns[nodeRunIndex] : null;
+  const definitionNode = definitionGraph?.nodes?.find((node) => node.nodeKey === normalizedNodeKey) || null;
+
+  if (!nodeRun || !definitionNode) {
+    throw new WorkflowServiceError('Workflow node was not found in the selected run.', 404, {
+      workflowRunRecordId,
+      nodeKey: normalizedNodeKey,
+    });
+  }
+
+  const laterExecutedNodeRuns = nodeRuns.slice(nodeRunIndex + 1).filter((item) =>
+    ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED'].includes(
+      String(item?.status || '').toUpperCase(),
+    ),
+  );
+
+  return {
+    run,
+    nodeRun,
+    definitionNode,
+    priorNodeRuns: nodeRuns
+      .slice(0, nodeRunIndex)
+      .filter((item) => String(item?.status || '').toUpperCase() === TERMINAL_SUCCESS_STATUS),
+    laterExecutedNodeRuns,
+    contextValues: contextValues.filter((item) => item.sourceNodeKey !== normalizedNodeKey),
+    workflowVersionId: run.workflowVersionId,
+  };
+}
+
+async function retryWorkflowNode({
+  workflowRunRecordId,
+  nodeKey,
+  user,
+  session,
+  permissions = [],
+  context = {},
+} = {}) {
+  assertPermission({
+    permissionCode: WORKFLOW_RUN_PERMISSION,
+    permissions,
+    action: 'retry_workflow_node',
+  });
+
+  const recoveryState = await getWorkflowNodeRecoveryState({ workflowRunRecordId, nodeKey });
+  const { run, nodeRun, definitionNode, laterExecutedNodeRuns } = recoveryState;
+  const normalizedRunStatus = String(run.status || '').toUpperCase();
+  const normalizedNodeStatus = String(nodeRun.status || '').toUpperCase();
+
+  if (normalizedRunStatus !== TERMINAL_FAILURE_STATUS) {
+    throw new WorkflowServiceError(
+      'Failed-node recovery is available only when the workflow run is failed and no longer active.',
+      409,
+      {
+        workflowRunRecordId,
+        status: run.status,
+        nodeKey: definitionNode.nodeKey,
+      },
+    );
+  }
+
+  if (normalizedNodeStatus !== TERMINAL_FAILURE_STATUS) {
+    throw new WorkflowServiceError('Only failed workflow nodes can be manually retried.', 409, {
+      workflowRunRecordId,
+      nodeKey: definitionNode.nodeKey,
+      nodeStatus: nodeRun.status,
+    });
+  }
+
+  if (laterExecutedNodeRuns.length > 0) {
+    throw new WorkflowServiceError(
+      'Only the most recently executed failed node can resume this workflow safely.',
+      409,
+      {
+        workflowRunRecordId,
+        nodeKey: definitionNode.nodeKey,
+        laterNodeKeys: laterExecutedNodeRuns.map((item) => item.nodeKey),
+      },
+    );
+  }
+
+  const definition = await getWorkflowDefinitionForVersion(run.workflowCode, run.workflowVersionId);
+  const recoveryNodeIndex = definition.nodes.findIndex(
+    (item) => item.nodeKey === definitionNode.nodeKey,
+  );
+  const recoveryDefinition = {
+    ...definition,
+    nodes: recoveryNodeIndex >= 0 ? definition.nodes.slice(recoveryNodeIndex) : definition.nodes,
+  };
+
+  await assertWorkflowExecutionTargetsAvailable(recoveryDefinition);
+
+  const retryAttemptOffsetByNodeKey = buildRetryAttemptOffsetByNodeKey(
+    await getWorkflowNodeRunsForRun(workflowRunRecordId),
+  );
+  const previousRecoveryAttempt = Number.parseInt(run.metadata?.nodeRecoveryAttemptNumber, 10);
+  const nodeRecoveryAttemptNumber =
+    Number.isFinite(previousRecoveryAttempt) && previousRecoveryAttempt > 0
+      ? previousRecoveryAttempt + 1
+      : 1;
+  const requestedAt = new Date().toISOString();
+  const workflowId = `skycommand-recovery-${run.workflowCode}-${String(run.workflowRunRecordId).slice(0, 8)}-${definitionNode.nodeKey}-${Date.now()}`;
+  const nodeRecovery = {
+    active: true,
+    mode: 'FAILED_NODE_RETRY',
+    nodeKey: definitionNode.nodeKey,
+    nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+    nodeTypeCode: definitionNode.nodeTypeCode,
+    targetCode: definitionNode.targetCode || null,
+    requestedAt,
+    requestedByUserId: user?.userId || null,
+    requestedByDisplayName: user?.displayName || user?.email || null,
+    recoveryAttemptNumber: nodeRecoveryAttemptNumber,
+    previousTemporalWorkflowId: run.temporalWorkflowId || null,
+    previousTemporalRunId: run.temporalRunId || null,
+  };
+  const recoveryInput = {
+    ...getSafeObject(run.input),
+    workflowId,
+    workflowVersionId: run.workflowVersionId,
+    retryAttemptOffsetByNodeKey,
+    nodeRecovery,
+  };
+
+  let temporalStart;
+
+  try {
+    temporalStart = await temporalService.startSkyCommandWorkflowExecutorWorkflow({
+      workflowCode: run.workflowCode,
+      workflowRunRecordId: run.workflowRunRecordId,
+      input: recoveryInput,
+      actor: user,
+      session,
+      permissions,
+      context,
+    });
+  } catch (error) {
+    await recordWorkflowAuditEvent({
+      user,
+      context,
+      eventType: 'WORKFLOW_NODE_RETRY_FAILED_TO_START',
+      resourceType: 'worker.workflow_node_run_records',
+      resourceId: nodeRun.workflowNodeRunRecordId,
+      action: 'retry_workflow_node',
+      success: false,
+      message: `Failed to start recovery for ${definitionNode.displayName || definitionNode.nodeKey}.`,
+      metadata: {
+        workflowRunRecordId: run.workflowRunRecordId,
+        workflowCode: run.workflowCode,
+        nodeKey: definitionNode.nodeKey,
+        error: error.message || String(error),
+      },
+    });
+    throw new WorkflowServiceError('Failed to start failed-node recovery in Temporal.', 500, {
+      workflowRunRecordId: run.workflowRunRecordId,
+      nodeKey: definitionNode.nodeKey,
+      error: error.message || String(error),
+    });
+  }
+
+  const recoveryHistory = [
+    ...getSafeArray(run.metadata?.nodeRecoveryHistory),
+    {
+      nodeKey: definitionNode.nodeKey,
+      nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      requestedAt,
+      requestedByUserId: user?.userId || null,
+      recoveryAttemptNumber: nodeRecoveryAttemptNumber,
+      previousTemporalWorkflowId: run.temporalWorkflowId || null,
+      previousTemporalRunId: run.temporalRunId || null,
+      temporalWorkflowId: temporalStart.workflow.workflowId || null,
+      temporalRunId: temporalStart.workflow.runId || null,
+    },
+  ].slice(-25);
+  const summary = `Retrying failed node ${definitionNode.displayName || definitionNode.nodeKey}; completed workflow nodes are preserved and execution will continue from this checkpoint.`;
+  const linkedRun = await linkWorkflowRunToTemporal({
+    workflowRunRecordId: run.workflowRunRecordId,
+    temporalWorkflowId: temporalStart.workflow.workflowId,
+    temporalRunId: temporalStart.workflow.runId,
+    summary,
+    metadata: {
+      manualNodeRecovery: true,
+      nodeRecoveryActive: true,
+      nodeRecoveryNodeKey: definitionNode.nodeKey,
+      nodeRecoveryNodeRunRecordId: nodeRun.workflowNodeRunRecordId,
+      nodeRecoveryAttemptNumber,
+      nodeRecoveryRequestedAt: requestedAt,
+      nodeRecoveryRequestedByUserId: user?.userId || null,
+      previousTemporalWorkflowId: run.temporalWorkflowId || null,
+      previousTemporalRunId: run.temporalRunId || null,
+      nodeRecoveryHistory: recoveryHistory,
+      errorMessage: null,
+      errorName: null,
+    },
+  });
+
+  await recordWorkflowAuditEvent({
+    user,
+    context,
+    eventType: 'WORKFLOW_NODE_RETRIED',
+    resourceType: 'worker.workflow_node_run_records',
+    resourceId: nodeRun.workflowNodeRunRecordId,
+    action: 'retry_workflow_node',
+    success: true,
+    message: summary,
+    metadata: {
+      workflowRunRecordId: run.workflowRunRecordId,
+      workflowCode: run.workflowCode,
+      workflowDisplayName: run.workflowDisplayName,
+      workflowVersionId: run.workflowVersionId,
+      nodeKey: definitionNode.nodeKey,
+      nodeTypeCode: definitionNode.nodeTypeCode,
+      targetCode: definitionNode.targetCode || null,
+      previousAttemptCount: nodeRun.attemptCount || 0,
+      recoveryAttemptNumber: nodeRecoveryAttemptNumber,
+      temporalWorkflowId: temporalStart.workflow.workflowId || null,
+      temporalRunId: temporalStart.workflow.runId || null,
+    },
+  });
+
+  return {
+    ok: true,
+    recoveryStarted: true,
+    run: linkedRun || run,
+    nodeRun,
+    node: definitionNode,
+    temporalWorkflow: temporalStart.workflow,
+    message: summary,
   };
 }
 
@@ -6360,6 +6702,56 @@ async function createWorkflowApprovalRequest({
   );
 
   if (existingResult.rows[0]) {
+    if (context?.nodeRecovery?.active === true) {
+      const recoveryExpiresAt = approvalParameters.timeoutMs
+        ? new Date(Date.now() + approvalParameters.timeoutMs).toISOString()
+        : null;
+      const resetResult = await query(
+        `
+          UPDATE worker.workflow_approval_requests
+          SET approval_title = $2,
+              instructions = $3,
+              status = 'PENDING',
+              required_role_code = $4,
+              on_reject = $5,
+              on_timeout = $6,
+              timeout_ms = $7,
+              temporal_workflow_id = $8,
+              temporal_run_id = $9,
+              requested_by_user_id = $10,
+              decided_by_user_id = NULL,
+              decision_note = NULL,
+              requested_at = CURRENT_TIMESTAMP,
+              decided_at = NULL,
+              expires_at = $11,
+              metadata = metadata || $12::jsonb
+          WHERE approval_request_id = $1
+          RETURNING *
+        `,
+        [
+          existingResult.rows[0].approval_request_id,
+          approvalParameters.approvalTitle,
+          approvalParameters.instructions || null,
+          approvalParameters.requiredRoleCode || null,
+          approvalParameters.onReject,
+          approvalParameters.onTimeout,
+          approvalParameters.timeoutMs || null,
+          temporalWorkflowId || null,
+          temporalRunId || null,
+          user?.userId || null,
+          recoveryExpiresAt,
+          JSON.stringify({
+            manualNodeRecovery: true,
+            nodeRecoveryNodeKey: node.nodeKey || null,
+            nodeRecoveryAttemptNumber: context.nodeRecovery?.recoveryAttemptNumber || 1,
+            reopenedAt: new Date().toISOString(),
+          }),
+        ],
+      );
+
+      return normalizeApprovalRow(resetResult.rows[0]);
+    }
+
     return normalizeApprovalRow(existingResult.rows[0]);
   }
 
@@ -7216,7 +7608,10 @@ module.exports = {
   failWorkflowRun,
   requestWorkflowRunControlAction,
   retryWorkflowRun,
+  retryWorkflowNode,
+  getWorkflowNodeRecoveryState,
   getWorkflowDefinition,
+  getWorkflowDefinitionForVersion,
   getWorkflowDefinitionForManage,
   getWorkflowRun,
   getWorkflowRunTelemetry,
