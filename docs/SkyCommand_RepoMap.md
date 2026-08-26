@@ -279,6 +279,7 @@ SkyCommand/
 │   │       │   ├── workflowExecutionPreflightService.js
 │   │       │   ├── workflowExecutorService.js
 │   │       │   ├── workflowHealthService.js
+│   │       │   ├── workflowNodeRecoverySelfTest.js
 │   │       │   ├── workflowParameterUtils.js
 │   │       │   ├── workflowParameterUtilsSelfTest.js
 │   │       │   ├── workflowServiceError.js
