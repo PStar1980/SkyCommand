@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import adminService from '../services/adminService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
+import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 const USER_STATUSES = ['ACTIVE', 'PENDING', 'LOCKED', 'DISABLED'];
 const DEFAULT_ADMIN_APP_CODE = 'SKYSERVER_ADMIN';
+const USER_PAGE_SIZE = 10;
+const USER_FETCH_LIMIT = 200;
+const USER_DEFAULT_SORTS = [{ field: 'user', direction: 'asc' }];
 const DEFAULT_CREATE_FORM = {
   email: '',
   username: '',
@@ -21,7 +25,6 @@ function getInitialUserFilters(searchParams) {
     status: searchParams.get('status') || '',
     appCode: searchParams.get('appCode') || '',
     roleCode: searchParams.get('roleCode') || '',
-    limit: 50,
   };
 }
 
@@ -34,6 +37,32 @@ function formatDate(value) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
+}
+
+function getUserSortValue(user, field) {
+  if (field === 'user') {
+    return `${user?.displayName || ''} ${user?.username || ''} ${user?.email || ''}`.trim();
+  }
+
+  if (field === 'status') {
+    const statusRank = { ACTIVE: 1, PENDING: 2, LOCKED: 3, DISABLED: 4 };
+    return statusRank[String(user?.status || '').toUpperCase()] ?? 99;
+  }
+
+  if (field === 'system') {
+    return user?.isSystemUser ? 1 : 0;
+  }
+
+  if (field === 'lastLogin') {
+    if (!user?.lastLoginAt) {
+      return null;
+    }
+
+    const timestamp = Date.parse(user.lastLoginAt);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  return user?.[field] ?? '';
 }
 
 function statusClass(status) {
@@ -130,6 +159,9 @@ function AdminUsers() {
   const [sessions, setSessions] = useState([]);
   const [filters, setFilters] = useState(() => initialFilters);
   const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sorts, setSorts] = useState(() => USER_DEFAULT_SORTS);
+  const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -145,6 +177,7 @@ function AdminUsers() {
     roleCodes: [],
   });
   const [passwordForm, setPasswordForm] = useState({ password: '', revokeSessions: true });
+  const initialLoadCompleteRef = useRef(false);
 
   const activeRoles = useMemo(
     () =>
@@ -159,10 +192,51 @@ function AdminUsers() {
     [filters.appCode, roles],
   );
   const selectedIsCurrentUser = currentUser?.userId && selectedUser?.userId === currentUser.userId;
+  const sortedUsers = useMemo(
+    () => sortItemsBySorts(users, sorts, getUserSortValue),
+    [sorts, users],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedUsers.length / USER_PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const rangeStart = sortedUsers.length === 0 ? 0 : (safeCurrentPage - 1) * USER_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * USER_PAGE_SIZE, sortedUsers.length);
+  const visibleUsers = useMemo(
+    () =>
+      sortedUsers.slice(
+        (safeCurrentPage - 1) * USER_PAGE_SIZE,
+        safeCurrentPage * USER_PAGE_SIZE,
+      ),
+    [safeCurrentPage, sortedUsers],
+  );
 
   async function loadRoles() {
     const result = await adminService.listRoles({ limit: 200 });
     setRoles(result.items || []);
+  }
+
+  async function fetchAllUsers(nextFilters = filters) {
+    const items = [];
+    let offset = 0;
+    let totalCount = 0;
+
+    while (true) {
+      const result = await adminService.listUsers({
+        ...nextFilters,
+        limit: USER_FETCH_LIMIT,
+        offset,
+      });
+      const batch = result.items || [];
+      totalCount = Number(result.total || 0);
+      items.push(...batch);
+
+      if (batch.length === 0 || items.length >= totalCount || batch.length < USER_FETCH_LIMIT) {
+        break;
+      }
+
+      offset += batch.length;
+    }
+
+    return { items, total: totalCount };
   }
 
   async function loadUsers(nextFilters = filters, preferredUserId = selectedUserId) {
@@ -170,12 +244,15 @@ function AdminUsers() {
     setError('');
 
     try {
-      const result = await adminService.listUsers(nextFilters);
+      const result = await fetchAllUsers(nextFilters);
       const nextUsers = result.items || [];
+      const sortedNextUsers = sortItemsBySorts(nextUsers, sorts, getUserSortValue);
+
       setUsers(nextUsers);
-      setTotal(result.total || 0);
+      setTotal(result.total || nextUsers.length);
 
       if (nextUsers.length === 0) {
+        setCurrentPage(1);
         setSelectedUserId('');
         setSelectedUser(null);
         setSelectedPermissions([]);
@@ -184,8 +261,14 @@ function AdminUsers() {
         return;
       }
 
-      const stillVisible = nextUsers.some((item) => item.userId === preferredUserId);
-      setSelectedUserId(stillVisible ? preferredUserId : nextUsers[0].userId);
+      const preferredVisible = nextUsers.some((item) => item.userId === preferredUserId);
+      const resolvedUserId = preferredVisible
+        ? preferredUserId
+        : sortedNextUsers[0]?.userId || '';
+      const selectedIndex = sortedNextUsers.findIndex((item) => item.userId === resolvedUserId);
+
+      setSelectedUserId(resolvedUserId);
+      setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / USER_PAGE_SIZE) + 1 : 1);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load users.');
     } finally {
@@ -244,24 +327,29 @@ function AdminUsers() {
         const [rolesResult, applicationsResult, usersResult] = await Promise.all([
           adminService.listRoles({ limit: 200 }),
           adminService.listApplications({ active: true, limit: 100 }),
-          adminService.listUsers(filters),
+          fetchAllUsers(filters),
         ]);
 
         if (!active) {
           return;
         }
 
+        const nextUsers = usersResult.items || [];
+        const sortedNextUsers = sortItemsBySorts(nextUsers, USER_DEFAULT_SORTS, getUserSortValue);
+
         setRoles(rolesResult.items || []);
         setApplications(applicationsResult.items || []);
-        setUsers(usersResult.items || []);
-        setTotal(usersResult.total || 0);
-        setSelectedUserId(usersResult.items?.[0]?.userId || '');
+        setUsers(nextUsers);
+        setTotal(usersResult.total || nextUsers.length);
+        setCurrentPage(1);
+        setSelectedUserId(sortedNextUsers[0]?.userId || '');
       } catch (loadError) {
         if (active) {
           setError(loadError.message || 'Failed to load access-control data.');
         }
       } finally {
         if (active) {
+          initialLoadCompleteRef.current = true;
           setLoading(false);
         }
       }
@@ -279,6 +367,20 @@ function AdminUsers() {
     loadSelectedUser(selectedUserId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUserId]);
+
+  useEffect(() => {
+    if (!initialLoadCompleteRef.current) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadUsers(filters, '');
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+    // loadUsers intentionally uses the filter snapshot from this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.q, filters.status, filters.appCode, filters.roleCode]);
 
   function updateFilter(name, value) {
     const nextFilters = {
@@ -303,9 +405,155 @@ function AdminUsers() {
     }));
   }
 
-  async function handleApplyFilters(event) {
-    event.preventDefault();
-    await loadUsers(filters);
+  function clearFilters() {
+    setFilters({
+      q: '',
+      status: '',
+      appCode: '',
+      roleCode: '',
+    });
+    setCurrentPage(1);
+  }
+
+  function applySorting(nextSorts, customized) {
+    const nextSortedUsers = sortItemsBySorts(users, nextSorts, getUserSortValue);
+    const selectedIndex = selectedUserId
+      ? nextSortedUsers.findIndex((item) => item.userId === selectedUserId)
+      : -1;
+
+    setSorts(nextSorts);
+    setSortingCustomized(customized);
+    setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / USER_PAGE_SIZE) + 1 : 1);
+  }
+
+  function updateSorting(field, event) {
+    const nextState = getNextSortState({
+      sorts,
+      defaultSorts: USER_DEFAULT_SORTS,
+      sortingCustomized,
+      field,
+      shiftKey: Boolean(event?.shiftKey),
+    });
+    applySorting(nextState.sorts, nextState.customized);
+  }
+
+  function clearSorting() {
+    applySorting(USER_DEFAULT_SORTS, false);
+  }
+
+  function renderSortableHeader(label, field) {
+    const activeIndex = sorts.findIndex((sort) => sort.field === field);
+    const activeSort = activeIndex >= 0 ? sorts[activeIndex] : null;
+    const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+    const sortDescription = activeSort
+      ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+      : 'not currently sorted';
+
+    return (
+      <th>
+        <button
+          aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+          className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+          onClick={(event) => updateSorting(field, event)}
+          title="Click to sort · Shift+click to add sort"
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sky-table-sort-indicator" aria-hidden="true">
+            {activeSort ? directionIcon : '↕'}
+          </span>
+          {activeSort && (
+            <span className="sky-table-sort-priority" aria-hidden="true">
+              {activeIndex + 1}
+            </span>
+          )}
+        </button>
+      </th>
+    );
+  }
+
+  function goToPage(page) {
+    const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
+    const nextPageStart = (nextPage - 1) * USER_PAGE_SIZE;
+    const nextUser = sortedUsers[nextPageStart] || null;
+
+    setCurrentPage(nextPage);
+    if (nextUser) {
+      setSelectedUserId(nextUser.userId);
+    }
+  }
+
+  function renderPagination() {
+    return (
+      <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+        <div className="small sky-muted sky-canonical-operations-pagination-summary">
+          Showing {rangeStart}-{rangeEnd} of {total} user(s)
+        </div>
+        <div
+          className="sky-pagination-controls sky-canonical-operations-pagination-controls"
+          aria-label="Users pagination"
+        >
+          <button
+            aria-label="First page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeCurrentPage <= 1 || loading}
+            onClick={() => goToPage(1)}
+            title="First page"
+            type="button"
+          >
+            «
+          </button>
+          <button
+            aria-label="Previous page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeCurrentPage <= 1 || loading}
+            onClick={() => goToPage(safeCurrentPage - 1)}
+            title="Previous page"
+            type="button"
+          >
+            ‹
+          </button>
+          <label className="sky-pagination-select-label" htmlFor="usersPageSelect">
+            Page
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select"
+            disabled={loading}
+            id="usersPageSelect"
+            onChange={(event) => goToPage(event.target.value)}
+            value={safeCurrentPage}
+          >
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
+              <option key={page} value={page}>
+                {page}
+              </option>
+            ))}
+          </select>
+          <span className="small sky-muted">of {pageCount}</span>
+          <button
+            aria-label="Next page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeCurrentPage >= pageCount || loading}
+            onClick={() => goToPage(safeCurrentPage + 1)}
+            title="Next page"
+            type="button"
+          >
+            ›
+          </button>
+          <button
+            aria-label="Last page"
+            className="btn btn-sm sky-pagination-nav-button"
+            disabled={safeCurrentPage >= pageCount || loading}
+            onClick={() => goToPage(pageCount)}
+            title="Last page"
+            type="button"
+          >
+            »
+          </button>
+        </div>
+        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+      </div>
+    );
   }
 
   async function handleCreateUser(event) {
@@ -677,10 +925,19 @@ function AdminUsers() {
         </section>
       )}
 
-      <section className="sky-card mb-3">
-        <div className="sky-card-body">
-          <form className="row g-3 align-items-end" onSubmit={handleApplyFilters}>
-            <div className="col-lg-3 col-md-6">
+      <section className="sky-card sky-functional-history-browser sky-admin-users-browser">
+        <div className="sky-card-header">
+          <div>
+            <div className="sky-page-kicker">User browser</div>
+            <h2 className="h5 mb-0">User directory</h2>
+            <p className="sky-muted small mb-0">
+              Search and filter shared identities, then select a row to manage the complete user
+              workspace below.
+            </p>
+          </div>
+
+          <div className="sky-run-tools-filter-grid">
+            <div className="sky-run-tools-search-filter">
               <label className="form-label" htmlFor="userSearch">
                 Search
               </label>
@@ -689,10 +946,11 @@ function AdminUsers() {
                 id="userSearch"
                 onChange={(event) => updateFilter('q', event.target.value)}
                 placeholder="Email, username, display name..."
+                type="search"
                 value={filters.q}
               />
             </div>
-            <div className="col-lg-2 col-md-3">
+            <div>
               <label className="form-label" htmlFor="userStatusFilter">
                 Status
               </label>
@@ -702,7 +960,7 @@ function AdminUsers() {
                 onChange={(event) => updateFilter('status', event.target.value)}
                 value={filters.status}
               >
-                <option value="">All</option>
+                <option value="">All statuses</option>
                 {USER_STATUSES.map((status) => (
                   <option key={status} value={status}>
                     {status}
@@ -710,7 +968,7 @@ function AdminUsers() {
                 ))}
               </select>
             </div>
-            <div className="col-lg-2 col-md-3">
+            <div>
               <label className="form-label" htmlFor="userAppFilter">
                 Application access
               </label>
@@ -734,7 +992,7 @@ function AdminUsers() {
                 ))}
               </select>
             </div>
-            <div className="col-lg-3 col-md-3">
+            <div>
               <label className="form-label" htmlFor="userRoleFilter">
                 Role
               </label>
@@ -752,113 +1010,124 @@ function AdminUsers() {
                 ))}
               </select>
             </div>
-            <div className="col-lg-1 col-md-3">
-              <label className="form-label" htmlFor="userLimit">
-                Limit
-              </label>
-              <select
-                className="form-select sky-form-control"
-                id="userLimit"
-                onChange={(event) => updateFilter('limit', event.target.value)}
-                value={filters.limit}
-              >
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </div>
-            <div className="col-lg-1 col-md-3 d-grid">
-              <button className="btn sky-btn-ghost" disabled={loading} type="submit">
-                Apply
+            <div className="sky-run-tools-filter-actions">
+              {sortingCustomized && (
+                <button className="btn btn-sm sky-btn-ghost" onClick={clearSorting} type="button">
+                  Clear sorting
+                </button>
+              )}
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">
+                Clear filters
               </button>
             </div>
-          </form>
-        </div>
-      </section>
-
-      <div className="row g-3">
-        <div className="col-xl-7">
-          <section className="sky-card sky-table-card">
-            {loading ? (
-              <div className="sky-empty-state">
-                <div className="spinner-border text-info" role="status" aria-label="Loading" />
-                <div className="mt-3">Loading users...</div>
-              </div>
-            ) : users.length === 0 ? (
-              <div className="sky-empty-state">No users matched the current filters.</div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-hover sky-table">
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Status</th>
-                      <th>System</th>
-                      <th>Last login</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((item) => (
-                      <tr
-                        className={`sky-clickable-row ${
-                          selectedUserId === item.userId ? 'sky-selected-row' : ''
-                        }`}
-                        key={item.userId}
-                        onClick={() => setSelectedUserId(item.userId)}
-                      >
-                        <td>
-                          <div className="fw-bold sky-detail-value">
-                            {item.displayName || item.username || item.email}
-                          </div>
-                          <div className="small sky-muted">{item.email}</div>
-                        </td>
-                        <td>
-                          <span className={`sky-pill ${statusClass(item.status)}`}>
-                            {item.status}
-                          </span>
-                        </td>
-                        <td>{item.isSystemUser ? 'Yes' : 'No'}</td>
-                        <td>{formatDate(item.lastLoginAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-          <div className="small sky-muted mt-2">
-            Showing {users.length} of {total}
           </div>
         </div>
 
-        <div className="col-xl-5">
-          <section className="sky-card">
-            <div className="sky-card-header">
-              <h2 className="h5 mb-0">User detail</h2>
-            </div>
-            <div className="sky-card-body">
-              {detailLoading ? (
-                <div className="sky-empty-state">Loading user detail...</div>
-              ) : selectedUser ? (
-                <>
-                  <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-                    <span className={`sky-pill ${statusClass(selectedUser.status)}`}>
-                      {selectedUser.status}
-                    </span>
-                    {selectedUser.isSystemUser && <span className="sky-pill">System user</span>}
-                    <span className="sky-pill sky-pill-info">
-                      {selectedPermissions.length} permission
-                      {selectedPermissions.length === 1 ? '' : 's'}
-                    </span>
-                    <span className="sky-pill sky-pill-info">
-                      {applicationAccessCount(applicationForm)} app
-                      {applicationAccessCount(applicationForm) === 1 ? '' : 's'} active
-                    </span>
-                  </div>
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+          <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
+            <thead>
+              <tr>
+                {renderSortableHeader('User', 'user')}
+                {renderSortableHeader('Status', 'status')}
+                {renderSortableHeader('System', 'system')}
+                {renderSortableHeader('Last login', 'lastLogin')}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="4">
+                    <div className="sky-empty-state py-4">
+                      <div className="spinner-border text-info" role="status" aria-label="Loading" />
+                    </div>
+                  </td>
+                </tr>
+              ) : visibleUsers.length === 0 ? (
+                <tr>
+                  <td colSpan="4">
+                    <div className="sky-empty-state py-4">No users match the current filters.</div>
+                  </td>
+                </tr>
+              ) : (
+                visibleUsers.map((item) => (
+                  <tr
+                    className={`sky-clickable-row ${
+                      selectedUserId === item.userId ? 'sky-selected-row' : ''
+                    }`}
+                    key={item.userId}
+                    onClick={() => setSelectedUserId(item.userId)}
+                  >
+                    <td>
+                      <div className="fw-bold sky-detail-value">
+                        {item.displayName || item.username || item.email}
+                      </div>
+                      <div className="small sky-muted">{item.email}</div>
+                    </td>
+                    <td>
+                      <span className={`sky-pill ${statusClass(item.status)}`}>{item.status}</span>
+                    </td>
+                    <td>{item.isSystemUser ? 'Yes' : 'No'}</td>
+                    <td>{formatDate(item.lastLoginAt)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {renderPagination()}
+      </section>
 
-                  <form onSubmit={handleSaveProfile}>
+      <section className="sky-card sky-admin-user-detail-card">
+        <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+          <div>
+            <div className="sky-page-kicker">User detail</div>
+            <h2 className="h5 mb-1">
+              {selectedUser
+                ? selectedUser.displayName || selectedUser.username || selectedUser.email
+                : 'Selected user workspace'}
+            </h2>
+            {selectedUser && <div className="small sky-muted">{selectedUser.email}</div>}
+          </div>
+          {selectedUser && (
+            <div className="d-flex flex-wrap align-items-center gap-2">
+              <span className={`sky-pill ${statusClass(selectedUser.status)}`}>
+                {selectedUser.status}
+              </span>
+              {selectedUser.isSystemUser && <span className="sky-pill sky-pill-info">System user</span>}
+              <span className="sky-pill sky-pill-info">
+                {selectedPermissions.length} permission{selectedPermissions.length === 1 ? '' : 's'}
+              </span>
+              <span className="sky-pill sky-pill-info">
+                {applicationAccessCount(applicationForm)} app
+                {applicationAccessCount(applicationForm) === 1 ? '' : 's'} active
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="sky-card-body">
+          {detailLoading ? (
+            <div className="sky-empty-state py-5">Loading user detail...</div>
+          ) : selectedUser ? (
+            <div className="sky-admin-user-detail-stack">
+              <section className="sky-admin-user-detail-section">
+                <div className="sky-admin-user-detail-section-header">
+                  <div>
+                    <div className="sky-detail-label">Identity &amp; account</div>
+                    <div className="small sky-muted">
+                      Maintain the shared identity and account lifecycle state for this user.
+                    </div>
+                  </div>
+                  {selectedIsCurrentUser && (
+                    <span className="sky-pill sky-pill-warning">Self-protection enabled</span>
+                  )}
+                </div>
+
+                <div className="sky-admin-user-identity-grid">
+                  <form className="sky-admin-user-detail-pane" onSubmit={handleSaveProfile}>
+                    <div className="sky-detail-label mb-3">Profile</div>
                     <div className="row g-3">
-                      <div className="col-md-12">
+                      <div className="col-lg-6">
                         <label className="form-label" htmlFor="editEmail">
                           Email
                         </label>
@@ -872,7 +1141,7 @@ function AdminUsers() {
                           value={editForm.email}
                         />
                       </div>
-                      <div className="col-md-6">
+                      <div className="col-lg-3 col-md-6">
                         <label className="form-label" htmlFor="editUsername">
                           Username
                         </label>
@@ -884,7 +1153,7 @@ function AdminUsers() {
                           value={editForm.username}
                         />
                       </div>
-                      <div className="col-md-6">
+                      <div className="col-lg-3 col-md-6">
                         <label className="form-label" htmlFor="editDisplayName">
                           Display name
                         </label>
@@ -897,7 +1166,6 @@ function AdminUsers() {
                         />
                       </div>
                     </div>
-
                     {canWriteUsers && (
                       <button className="btn sky-btn-primary mt-3" disabled={saving} type="submit">
                         Save profile
@@ -905,143 +1173,155 @@ function AdminUsers() {
                     )}
                   </form>
 
-                  <hr className="border-secondary my-4" />
-
-                  <div className="row g-3 align-items-end">
-                    <div className="col-md-7">
-                      <label className="form-label" htmlFor="editStatus">
-                        Account status
-                      </label>
-                      <select
-                        className="form-select sky-form-control"
-                        disabled={!canWriteUsers || selectedIsCurrentUser || saving}
-                        id="editStatus"
-                        onChange={(event) => updateEditField('status', event.target.value)}
-                        value={editForm.status}
-                      >
-                        {USER_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedIsCurrentUser && (
-                        <div className="form-text sky-muted">Self-status changes are blocked.</div>
+                  <div className="sky-admin-user-detail-pane">
+                    <div className="sky-detail-label mb-3">Account status</div>
+                    <div className="row g-3 align-items-end">
+                      <div className="col-md-8">
+                        <label className="form-label" htmlFor="editStatus">
+                          Lifecycle state
+                        </label>
+                        <select
+                          className="form-select sky-form-control"
+                          disabled={!canWriteUsers || selectedIsCurrentUser || saving}
+                          id="editStatus"
+                          onChange={(event) => updateEditField('status', event.target.value)}
+                          value={editForm.status}
+                        >
+                          {USER_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {canWriteUsers && (
+                        <div className="col-md-4 d-grid">
+                          <button
+                            className="btn sky-btn-ghost"
+                            disabled={selectedIsCurrentUser || saving}
+                            onClick={handleSaveStatus}
+                            type="button"
+                          >
+                            Save status
+                          </button>
+                        </div>
                       )}
                     </div>
-                    {canWriteUsers && (
-                      <div className="col-md-5 d-grid">
-                        <button
-                          className="btn sky-btn-ghost"
-                          disabled={selectedIsCurrentUser || saving}
-                          onClick={handleSaveStatus}
-                          type="button"
-                        >
-                          Save status
-                        </button>
-                      </div>
-                    )}
+                    <div className="small sky-muted mt-3">
+                      {selectedIsCurrentUser
+                        ? 'Self-status changes are blocked to protect the active administrator session.'
+                        : 'Use account status to lock, disable, reactivate, or stage the selected identity.'}
+                    </div>
                   </div>
+                </div>
+              </section>
 
-                  <hr className="border-secondary my-4" />
-
+              <section className="sky-admin-user-detail-section">
+                <div className="sky-admin-user-detail-section-header">
                   <div>
+                    <div className="sky-detail-label">Access &amp; roles</div>
+                    <div className="small sky-muted">
+                      Control application memberships and SkyCommand administrative role assignments.
+                    </div>
+                  </div>
+                  {selectedIsCurrentUser && (
+                    <span className="sky-pill sky-pill-warning">Self access changes blocked</span>
+                  )}
+                </div>
+
+                <div className="sky-admin-user-access-grid">
+                  <div className="sky-admin-user-detail-pane">
                     <div className="d-flex flex-wrap justify-content-between gap-2 mb-3">
                       <div>
                         <div className="sky-detail-label">Application access</div>
                         <div className="small sky-muted">
-                          Shared identity, separate keys. Grant SkyWeb without granting Admin-Web.
+                          Shared identity, separate keys. Grant an application without granting the others.
                         </div>
                       </div>
-                      {selectedIsCurrentUser && (
-                        <span className="sky-pill sky-pill-warning">
-                          Self access changes blocked
-                        </span>
-                      )}
                     </div>
 
-                    <div className="sky-app-access-list">
-                      {applicationForm.map((application) => {
-                        const enabled = application.status === 'ACTIVE';
+                    {applicationForm.length > 0 ? (
+                      <div className="sky-app-access-list">
+                        {applicationForm.map((application) => {
+                          const enabled = application.status === 'ACTIVE';
 
-                        return (
-                          <div className="sky-app-access-card" key={application.appCode}>
-                            <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
-                              <div>
-                                <div className="fw-bold sky-detail-value">{application.title}</div>
-                                <div className="small sky-mono sky-muted">
-                                  {application.appCode}
+                          return (
+                            <div className="sky-app-access-card" key={application.appCode}>
+                              <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                                <div>
+                                  <div className="fw-bold sky-detail-value">{application.title}</div>
+                                  <div className="small sky-mono sky-muted">{application.appCode}</div>
+                                  {application.description && (
+                                    <div className="small sky-muted mt-1">{application.description}</div>
+                                  )}
                                 </div>
-                                {application.description && (
-                                  <div className="small sky-muted mt-1">
-                                    {application.description}
-                                  </div>
-                                )}
+                                <span
+                                  className={`sky-pill ${membershipStatusClass(application.status)}`}
+                                >
+                                  {application.status}
+                                </span>
                               </div>
-                              <span
-                                className={`sky-pill ${membershipStatusClass(application.status)}`}
-                              >
-                                {application.status}
-                              </span>
-                            </div>
 
-                            <div className="form-check form-switch mt-3">
-                              <input
-                                checked={enabled}
-                                className="form-check-input"
-                                disabled={!canWriteUsers || selectedIsCurrentUser || saving}
-                                id={`app-${application.appCode}`}
-                                onChange={(event) =>
-                                  updateApplicationStatus(application.appCode, event.target.checked)
-                                }
-                                type="checkbox"
-                              />
-                              <label
-                                className="form-check-label sky-muted"
-                                htmlFor={`app-${application.appCode}`}
-                              >
-                                Application membership
-                              </label>
-                            </div>
+                              <div className="form-check form-switch mt-3">
+                                <input
+                                  checked={enabled}
+                                  className="form-check-input"
+                                  disabled={!canWriteUsers || selectedIsCurrentUser || saving}
+                                  id={`app-${application.appCode}`}
+                                  onChange={(event) =>
+                                    updateApplicationStatus(application.appCode, event.target.checked)
+                                  }
+                                  type="checkbox"
+                                />
+                                <label
+                                  className="form-check-label sky-muted"
+                                  htmlFor={`app-${application.appCode}`}
+                                >
+                                  Application membership
+                                </label>
+                              </div>
 
-                            {application.roles.length > 0 && (
-                              <div className="mt-3">
-                                <div className="sky-detail-label mb-2">App roles</div>
-                                <div className="sky-role-check-grid">
-                                  {application.roles.map((role) => (
-                                    <label className="sky-role-check" key={role.roleCode}>
-                                      <input
-                                        checked={application.roleCodes.includes(role.roleCode)}
-                                        disabled={
-                                          !canWriteUsers ||
-                                          selectedIsCurrentUser ||
-                                          saving ||
-                                          !enabled
-                                        }
-                                        onChange={(event) =>
-                                          updateApplicationRole(
-                                            application.appCode,
-                                            role.roleCode,
-                                            event.target.checked,
-                                          )
-                                        }
-                                        type="checkbox"
-                                      />
-                                      <span>
-                                        <span className="fw-bold">{role.roleCode}</span>
-                                        <span className="small sky-muted d-block">
-                                          {role.roleName}
+                              {application.roles.length > 0 && (
+                                <div className="mt-3">
+                                  <div className="sky-detail-label mb-2">App roles</div>
+                                  <div className="sky-role-check-grid">
+                                    {application.roles.map((role) => (
+                                      <label className="sky-role-check" key={role.roleCode}>
+                                        <input
+                                          checked={application.roleCodes.includes(role.roleCode)}
+                                          disabled={
+                                            !canWriteUsers ||
+                                            selectedIsCurrentUser ||
+                                            saving ||
+                                            !enabled
+                                          }
+                                          onChange={(event) =>
+                                            updateApplicationRole(
+                                              application.appCode,
+                                              role.roleCode,
+                                              event.target.checked,
+                                            )
+                                          }
+                                          type="checkbox"
+                                        />
+                                        <span>
+                                          <span className="fw-bold">{role.roleCode}</span>
+                                          <span className="small sky-muted d-block">
+                                            {role.roleName}
+                                          </span>
                                         </span>
-                                      </span>
-                                    </label>
-                                  ))}
+                                      </label>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="sky-empty-state py-3">No application memberships available.</div>
+                    )}
 
                     {canWriteUsers && (
                       <button
@@ -1055,14 +1335,13 @@ function AdminUsers() {
                     )}
                   </div>
 
-                  <hr className="border-secondary my-4" />
-
-                  <div>
+                  <div className="sky-admin-user-detail-pane">
+                    <div className="sky-detail-label mb-3">SkyCommand Admin roles</div>
                     <label className="form-label" htmlFor="editRoles">
-                      SkyCommand Admin role assignments
+                      Role assignments
                     </label>
                     <select
-                      className="form-select sky-form-control"
+                      className="form-select sky-form-control sky-admin-user-role-select"
                       disabled={!canWriteRoles || selectedIsCurrentUser || saving}
                       id="editRoles"
                       multiple
@@ -1091,14 +1370,26 @@ function AdminUsers() {
                       </button>
                     )}
                   </div>
+                </div>
+              </section>
 
-                  {canWriteUsers && (
-                    <>
-                      <hr className="border-secondary my-4" />
+              <section className="sky-admin-user-detail-section">
+                <div className="sky-admin-user-detail-section-header">
+                  <div>
+                    <div className="sky-detail-label">Security &amp; sessions</div>
+                    <div className="small sky-muted">
+                      Reset credentials and inspect or revoke active sessions for the selected user.
+                    </div>
+                  </div>
+                </div>
 
+                <div className="sky-admin-user-security-grid">
+                  <div className="sky-admin-user-detail-pane">
+                    <div className="sky-detail-label mb-3">Password reset</div>
+                    {canWriteUsers ? (
                       <form onSubmit={handleResetPassword}>
                         <label className="form-label" htmlFor="resetPassword">
-                          Reset password
+                          New temporary password
                         </label>
                         <input
                           className="form-control sky-form-control"
@@ -1110,12 +1401,12 @@ function AdminUsers() {
                               password: event.target.value,
                             }))
                           }
-                          placeholder="New temporary password"
+                          placeholder="Minimum 12 characters"
                           required
                           type="password"
                           value={passwordForm.password}
                         />
-                        <div className="form-check form-switch mt-2">
+                        <div className="form-check form-switch mt-3">
                           <input
                             checked={passwordForm.revokeSessions}
                             className="form-check-input"
@@ -1139,58 +1430,62 @@ function AdminUsers() {
                           Reset password
                         </button>
                       </form>
-                    </>
-                  )}
-
-                  <hr className="border-secondary my-4" />
-
-                  <div className="d-flex flex-wrap justify-content-between gap-2 mb-2">
-                    <div>
-                      <div className="sky-detail-label">Active sessions</div>
-                      <div className="small sky-muted">{sessions.length} active session(s)</div>
-                    </div>
-                    {canWriteUsers && (
-                      <button
-                        className="btn btn-sm sky-btn-ghost"
-                        disabled={selectedIsCurrentUser || saving || sessions.length === 0}
-                        onClick={handleRevokeSessions}
-                        type="button"
-                      >
-                        Revoke sessions
-                      </button>
+                    ) : (
+                      <div className="small sky-muted">
+                        Your current permissions do not allow password resets.
+                      </div>
                     )}
                   </div>
 
-                  {sessions.length > 0 ? (
-                    <div className="table-responsive">
-                      <table className="table sky-table">
-                        <thead>
-                          <tr>
-                            <th>Last seen</th>
-                            <th>Expires</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sessions.map((session) => (
-                            <tr key={session.sessionId}>
-                              <td>{formatDate(session.lastSeenAt || session.createdAt)}</td>
-                              <td>{formatDate(session.expiresAt)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div className="sky-admin-user-detail-pane">
+                    <div className="d-flex flex-wrap justify-content-between gap-2 mb-3">
+                      <div>
+                        <div className="sky-detail-label">Active sessions</div>
+                        <div className="small sky-muted">{sessions.length} active session(s)</div>
+                      </div>
+                      {canWriteUsers && (
+                        <button
+                          className="btn btn-sm sky-btn-ghost"
+                          disabled={selectedIsCurrentUser || saving || sessions.length === 0}
+                          onClick={handleRevokeSessions}
+                          type="button"
+                        >
+                          Revoke sessions
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="sky-empty-state py-3">No active sessions.</div>
-                  )}
-                </>
-              ) : (
-                <div className="sky-empty-state">Select a user to inspect.</div>
-              )}
+
+                    {sessions.length > 0 ? (
+                      <div className="table-responsive">
+                        <table className="table table-sm sky-table mb-0">
+                          <thead>
+                            <tr>
+                              <th>Last seen</th>
+                              <th>Expires</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sessions.map((session) => (
+                              <tr key={session.sessionId}>
+                                <td>{formatDate(session.lastSeenAt || session.createdAt)}</td>
+                                <td>{formatDate(session.expiresAt)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="sky-empty-state py-3">No active sessions.</div>
+                    )}
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
+          ) : (
+            <div className="sky-empty-state py-5">Select a user to inspect.</div>
+          )}
         </div>
-      </div>
+      </section>
     </>
   );
 }
