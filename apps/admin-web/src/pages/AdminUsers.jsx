@@ -5,6 +5,11 @@ import adminService from '../services/adminService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+} from '../utils/tablePageSize.js';
 const USER_STATUSES = ['ACTIVE', 'PENDING', 'LOCKED', 'DISABLED'];
 const DEFAULT_ADMIN_APP_CODE = 'SKYSERVER_ADMIN';
 const USER_PAGE_SIZE = 10;
@@ -158,8 +163,8 @@ function AdminUsers() {
   const [applicationForm, setApplicationForm] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [filters, setFilters] = useState(() => initialFilters);
-  const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(USER_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => USER_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -178,6 +183,7 @@ function AdminUsers() {
   });
   const [passwordForm, setPasswordForm] = useState({ password: '', revokeSessions: true });
   const initialLoadCompleteRef = useRef(false);
+  const browserCardRef = useRef(null);
 
   const activeRoles = useMemo(
     () =>
@@ -196,18 +202,34 @@ function AdminUsers() {
     () => sortItemsBySorts(users, sorts, getUserSortValue),
     [sorts, users],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedUsers.length / USER_PAGE_SIZE));
+  const availablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedUsers.length),
+    [sortedUsers.length],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart = sortedUsers.length === 0 ? 0 : (safeCurrentPage - 1) * USER_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * USER_PAGE_SIZE, sortedUsers.length);
   const visibleUsers = useMemo(
     () =>
       sortedUsers.slice(
-        (safeCurrentPage - 1) * USER_PAGE_SIZE,
-        safeCurrentPage * USER_PAGE_SIZE,
+        (safeCurrentPage - 1) * pageSize,
+        safeCurrentPage * pageSize,
       ),
-    [safeCurrentPage, sortedUsers],
+    [pageSize, safeCurrentPage, sortedUsers],
   );
+  const rangeStart = visibleUsers.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleUsers.length - 1;
+
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(pageSize, sortedUsers.length);
+    if (normalizedPageSize === pageSize) return;
+
+    const selectedIndex = selectedUserId
+      ? sortedUsers.findIndex((item) => item.userId === selectedUserId)
+      : -1;
+    setPageSize(normalizedPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1);
+  }, [pageSize, selectedUserId, sortedUsers]);
 
   async function loadRoles() {
     const result = await adminService.listRoles({ limit: 200 });
@@ -249,7 +271,6 @@ function AdminUsers() {
       const sortedNextUsers = sortItemsBySorts(nextUsers, sorts, getUserSortValue);
 
       setUsers(nextUsers);
-      setTotal(result.total || nextUsers.length);
 
       if (nextUsers.length === 0) {
         setCurrentPage(1);
@@ -268,7 +289,7 @@ function AdminUsers() {
       const selectedIndex = sortedNextUsers.findIndex((item) => item.userId === resolvedUserId);
 
       setSelectedUserId(resolvedUserId);
-      setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / USER_PAGE_SIZE) + 1 : 1);
+      setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load users.');
     } finally {
@@ -340,7 +361,6 @@ function AdminUsers() {
         setRoles(rolesResult.items || []);
         setApplications(applicationsResult.items || []);
         setUsers(nextUsers);
-        setTotal(usersResult.total || nextUsers.length);
         setCurrentPage(1);
         setSelectedUserId(sortedNextUsers[0]?.userId || '');
       } catch (loadError) {
@@ -423,7 +443,7 @@ function AdminUsers() {
 
     setSorts(nextSorts);
     setSortingCustomized(customized);
-    setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / USER_PAGE_SIZE) + 1 : 1);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
   }
 
   function updateSorting(field, event) {
@@ -474,7 +494,7 @@ function AdminUsers() {
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    const nextPageStart = (nextPage - 1) * USER_PAGE_SIZE;
+    const nextPageStart = (nextPage - 1) * pageSize;
     const nextUser = sortedUsers[nextPageStart] || null;
 
     setCurrentPage(nextPage);
@@ -483,11 +503,29 @@ function AdminUsers() {
     }
   }
 
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!availablePageSizes.includes(nextPageSize) || nextPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedUserId
+      ? sortedUsers.findIndex((item) => item.userId === selectedUserId)
+      : -1;
+
+    setPageSize(nextPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1);
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {total} user(s)
+          Showing {rangeStart}–{rangeEnd} of {sortedUsers.length} user(s)
         </div>
         <div
           className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -551,7 +589,20 @@ function AdminUsers() {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="usersRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="usersRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -925,7 +976,7 @@ function AdminUsers() {
         </section>
       )}
 
-      <section className="sky-card sky-functional-history-browser sky-admin-users-browser">
+      <section ref={browserCardRef} className="sky-card sky-functional-history-browser sky-admin-users-browser sky-table-browser-anchor">
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">User browser</div>
@@ -1058,7 +1109,7 @@ function AdminUsers() {
                     onClick={() => setSelectedUserId(item.userId)}
                   >
                     <td>
-                      <div className="fw-bold sky-detail-value">
+                      <div className="fw-bold">
                         {item.displayName || item.username || item.email}
                       </div>
                       <div className="small sky-muted">{item.email}</div>

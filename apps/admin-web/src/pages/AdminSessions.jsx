@@ -5,6 +5,11 @@ import adminService from '../services/adminService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+} from '../utils/tablePageSize.js';
 
 const SESSION_PAGE_SIZE = 10;
 const SESSION_FETCH_LIMIT = 200;
@@ -170,6 +175,7 @@ function AdminSessions() {
   const [sessions, setSessions] = useState([]);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(SESSION_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => SESSION_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -178,24 +184,40 @@ function AdminSessions() {
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [revokingSessionId, setRevokingSessionId] = useState(null);
   const initialLoadCompleteRef = useRef(false);
+  const browserCardRef = useRef(null);
 
   const sortedSessions = useMemo(
     () => sortItemsBySorts(sessions, sorts, getSessionSortValue),
     [sessions, sorts],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedSessions.length / SESSION_PAGE_SIZE));
+  const availablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedSessions.length),
+    [sortedSessions.length],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedSessions.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart =
-    sortedSessions.length === 0 ? 0 : (safeCurrentPage - 1) * SESSION_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * SESSION_PAGE_SIZE, sortedSessions.length);
   const visibleSessions = useMemo(
     () =>
       sortedSessions.slice(
-        (safeCurrentPage - 1) * SESSION_PAGE_SIZE,
-        safeCurrentPage * SESSION_PAGE_SIZE,
+        (safeCurrentPage - 1) * pageSize,
+        safeCurrentPage * pageSize,
       ),
-    [safeCurrentPage, sortedSessions],
+    [pageSize, safeCurrentPage, sortedSessions],
   );
+  const rangeStart = visibleSessions.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleSessions.length - 1;
+
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(pageSize, sortedSessions.length);
+    if (normalizedPageSize === pageSize) return;
+
+    const selectedIndex = selectedSessionId
+      ? sortedSessions.findIndex((item) => item.sessionId === selectedSessionId)
+      : -1;
+    setPageSize(normalizedPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1);
+  }, [pageSize, selectedSessionId, sortedSessions]);
 
   const selectedSession = useMemo(
     () => sessions.find((item) => item.sessionId === selectedSessionId) || sessions[0] || null,
@@ -268,7 +290,7 @@ function AdminSessions() {
       const selectedIndex = sortedItems.findIndex((item) => item.sessionId === resolvedSessionId);
 
       setSelectedSessionId(resolvedSessionId);
-      setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / SESSION_PAGE_SIZE) + 1 : 1);
+      setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load active sessions.');
     } finally {
@@ -294,7 +316,7 @@ function AdminSessions() {
 
     setSorts(nextSorts);
     setSortingCustomized(customized);
-    setCurrentPage(selectedIndex >= 0 ? Math.floor(selectedIndex / SESSION_PAGE_SIZE) + 1 : 1);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1);
   }
 
   function updateSorting(field, event) {
@@ -345,7 +367,7 @@ function AdminSessions() {
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    const nextPageStart = (nextPage - 1) * SESSION_PAGE_SIZE;
+    const nextPageStart = (nextPage - 1) * pageSize;
     const nextSession = sortedSessions[nextPageStart] || null;
 
     setCurrentPage(nextPage);
@@ -354,11 +376,29 @@ function AdminSessions() {
     }
   }
 
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!availablePageSizes.includes(nextPageSize) || nextPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedSessionId
+      ? sortedSessions.findIndex((item) => item.sessionId === selectedSessionId)
+      : -1;
+
+    setPageSize(nextPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1);
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {total} active session(s)
+          Showing {rangeStart}–{rangeEnd} of {sortedSessions.length} active session(s)
         </div>
         <div
           className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -422,7 +462,20 @@ function AdminSessions() {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="sessionsRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="sessionsRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -594,7 +647,7 @@ function AdminSessions() {
         </div>
       </div>
 
-      <section className="sky-card sky-functional-history-browser sky-admin-sessions-browser">
+      <section ref={browserCardRef} className="sky-card sky-functional-history-browser sky-admin-sessions-browser sky-table-browser-anchor">
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Session browser</div>
@@ -704,7 +757,7 @@ function AdminSessions() {
                     onClick={() => setSelectedSessionId(item.sessionId)}
                   >
                     <td>
-                      <div className="fw-bold sky-detail-value">
+                      <div className="fw-bold">
                         {item.displayName || item.username || 'Unknown user'}
                       </div>
                       <div className="small sky-muted">{item.email}</div>
@@ -714,13 +767,13 @@ function AdminSessions() {
                       <div className="small sky-muted mt-1">{item.appTitle || '—'}</div>
                     </td>
                     <td>
-                      <div className="sky-mono small">{getShortId(item.sessionId)}</div>
+                      <div className="sky-mono">{getShortId(item.sessionId)}</div>
                       {item.isCurrentSession && (
                         <span className="sky-pill sky-pill-info mt-1">Current</span>
                       )}
                     </td>
                     <td>
-                      <div className="sky-detail-value">{item.ipAddress || '—'}</div>
+                      <div>{item.ipAddress || '—'}</div>
                       <div className="small sky-muted">{getUserAgentSummary(item.userAgent)}</div>
                     </td>
                     <td>{formatDate(item.lastSeenAt || item.createdAt)}</td>

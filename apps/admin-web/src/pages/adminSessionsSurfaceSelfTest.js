@@ -37,9 +37,9 @@ assert(
   sessionsSource.includes('sky-canonical-operations-table-frame')
     && sessionsSource.includes('sky-canonical-operations-table align-middle mb-0')
     && sessionsSource.includes('sky-canonical-operations-pagination-row')
-    && sessionsSource.includes('sky-canonical-operations-pagination-balance')
+    && sessionsSource.includes('sky-canonical-rows-control')
     && sessionsSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-  'Sessions browser must use the canonical table frame and centered pagination.',
+  'Sessions browser must use the canonical table frame, centered pagination, and right-aligned Rows control.',
 );
 
 assert(
@@ -80,6 +80,24 @@ assert(
     && cssSource.includes('.sky-admin-session-evidence-grid')
     && cssSource.includes('.sky-access-control-surface-row'),
   'Sessions layout styles must support the canonical browser, full-width detail workspace, and standard card rhythm.',
+);
+
+
+assert(
+  sessionsSource.includes("from '../utils/tablePageSize.js'")
+    && sessionsSource.includes('id="sessionsRowsSelect"')
+    && sessionsSource.includes('getAvailableTablePageSizes(sortedSessions.length)')
+    && sessionsSource.includes('normalizeTablePageSize(pageSize, sortedSessions.length)')
+    && sessionsSource.includes('Showing {rangeStart}–{rangeEnd} of {sortedSessions.length} active session(s)'),
+  'Sessions browser must use the canonical smart Rows selector and actual rendered-range math.',
+);
+
+assert(
+  sessionsSource.includes(`<div className="fw-bold">\n                        {item.displayName || item.username || 'Unknown user'}`)
+    && sessionsSource.includes('<div className="small sky-muted">{item.email}</div>')
+    && sessionsSource.includes('<div className="sky-mono">{getShortId(item.sessionId)}</div>')
+    && sessionsSource.includes("<div>{item.ipAddress || '—'}</div>"),
+  'Sessions browser rows must use canonical primary, secondary, identifier, and body-cell typography.',
 );
 
 console.log('[SkyCommand] Admin Sessions surface self-test passed.');

@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 import adminService from '../services/adminService';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+} from '../utils/tablePageSize.js';
 
 const USER_HISTORY_PAGE_SIZE = 10;
 const USER_HISTORY_FETCH_LIMIT = 200;
@@ -121,30 +126,46 @@ function AuditEvents() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [filters, setFilters] = useState(initialState.filters);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(USER_HISTORY_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => USER_HISTORY_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const browserCardRef = useRef(null);
 
   const sortedItems = useMemo(
     () => sortItemsBySorts(items, sorts, (item, field) => getHistorySortValue(item, field, source)),
     [items, sorts, source],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedItems.length / USER_HISTORY_PAGE_SIZE));
+  const availablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedItems.length),
+    [sortedItems.length],
+  );
+  const pageCount = Math.max(1, Math.ceil(sortedItems.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, pageCount);
-  const rangeStart =
-    sortedItems.length === 0 ? 0 : (safeCurrentPage - 1) * USER_HISTORY_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safeCurrentPage * USER_HISTORY_PAGE_SIZE, sortedItems.length);
   const visibleItems = useMemo(
     () =>
       sortedItems.slice(
-        (safeCurrentPage - 1) * USER_HISTORY_PAGE_SIZE,
-        safeCurrentPage * USER_HISTORY_PAGE_SIZE,
+        (safeCurrentPage - 1) * pageSize,
+        safeCurrentPage * pageSize,
       ),
-    [safeCurrentPage, sortedItems],
+    [pageSize, safeCurrentPage, sortedItems],
   );
+  const rangeStart = visibleItems.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : rangeStart + visibleItems.length - 1;
   const sourceLabel = source === 'login' ? 'login attempt' : 'user history event';
 
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(pageSize, sortedItems.length);
+    if (normalizedPageSize === pageSize) return;
+
+    const selectedId = getItemId(selectedItem, source);
+    const selectedIndex = selectedId
+      ? sortedItems.findIndex((item) => getItemId(item, source) === selectedId)
+      : -1;
+    setPageSize(normalizedPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1);
+  }, [pageSize, selectedItem, sortedItems, source]);
   function syncUrl(nextSource, nextFilters) {
     const nextParams = new URLSearchParams();
 
@@ -246,7 +267,7 @@ function AuditEvents() {
       setItems(resultItems);
       setSelectedItem(resolvedSelection);
       setCurrentPage(
-        selectedIndex >= 0 ? Math.floor(selectedIndex / USER_HISTORY_PAGE_SIZE) + 1 : 1,
+        selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1,
       );
     } catch (loadError) {
       setError(loadError.message || 'Failed to load user history.');
@@ -299,7 +320,7 @@ function AuditEvents() {
     setSorts(nextSorts);
     setSortingCustomized(customized);
     setCurrentPage(
-      selectedIndex >= 0 ? Math.floor(selectedIndex / USER_HISTORY_PAGE_SIZE) + 1 : 1,
+      selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, pageSize) : 1,
     );
   }
 
@@ -351,16 +372,31 @@ function AuditEvents() {
 
   function goToPage(page) {
     const nextPage = Math.min(Math.max(1, Number(page) || 1), pageCount);
-    const firstItem = sortedItems[(nextPage - 1) * USER_HISTORY_PAGE_SIZE] || null;
+    const firstItem = sortedItems[(nextPage - 1) * pageSize] || null;
     setCurrentPage(nextPage);
     setSelectedItem(firstItem);
+  }
+
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+    if (!availablePageSizes.includes(nextPageSize) || nextPageSize === pageSize) return;
+
+    const selectedId = getItemId(selectedItem, source);
+    const selectedIndex = selectedId
+      ? sortedItems.findIndex((item) => getItemId(item, source) === selectedId)
+      : -1;
+    setPageSize(nextPageSize);
+    setCurrentPage(selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, nextPageSize) : 1);
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {sortedItems.length} {sourceLabel}(s)
+          Showing {rangeStart}–{rangeEnd} of {sortedItems.length} {sourceLabel}(s)
         </div>
         <div
           className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -424,7 +460,20 @@ function AuditEvents() {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="userHistoryRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="userHistoryRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -452,7 +501,7 @@ function AuditEvents() {
 
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
-      <section className="sky-card sky-functional-history-browser sky-admin-user-history-browser">
+      <section ref={browserCardRef} className="sky-card sky-functional-history-browser sky-admin-user-history-browser sky-table-browser-anchor">
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">User history browser</div>
@@ -644,20 +693,20 @@ function AuditEvents() {
                     onClick={() => setSelectedItem(item)}
                   >
                     <td>
-                      <div className="fw-bold sky-detail-value">
+                      <div className="fw-bold">
                         {item.success ? 'LOGIN_SUCCESS' : 'LOGIN_FAILED'}
                       </div>
                       <div className="small sky-muted">auth.login_events</div>
                     </td>
-                    <td className="sky-mono small">authenticate</td>
+                    <td className="sky-mono">authenticate</td>
                     <td>
-                      <div className="fw-semibold sky-detail-value">{getLoginUserLabel(item)}</div>
+                      <div className="fw-bold">{getLoginUserLabel(item)}</div>
                       {item.emailAttempted && item.emailAttempted !== getLoginUserLabel(item) && (
                         <div className="small sky-muted">{item.emailAttempted}</div>
                       )}
                     </td>
                     <td>
-                      <div className="fw-semibold">{item.appTitle || item.appCode || '—'}</div>
+                      <div className="fw-bold">{item.appTitle || item.appCode || '—'}</div>
                       <div className="small sky-muted sky-mono">{item.appCode || '—'}</div>
                     </td>
                     <td>{item.failureReason || '—'}</td>
@@ -683,18 +732,18 @@ function AuditEvents() {
                     onClick={() => setSelectedItem(item)}
                   >
                     <td>
-                      <div className="fw-bold sky-detail-value">{item.eventType}</div>
+                      <div className="fw-bold">{item.eventType}</div>
                       <div className="small sky-muted">{item.resourceType || '—'}</div>
                     </td>
-                    <td className="sky-mono small">{item.action}</td>
+                    <td className="sky-mono">{item.action}</td>
                     <td>
-                      <div className="fw-semibold sky-detail-value">{getUserLabel(item)}</div>
+                      <div className="fw-bold">{getUserLabel(item)}</div>
                       {item.email && item.email !== getUserLabel(item) && (
                         <div className="small sky-muted">{item.email}</div>
                       )}
                     </td>
-                    <td className="sky-mono small">{formatCodes(item.roleCodes)}</td>
-                    <td className="sky-mono small">{formatCodes(item.privilegeCodes)}</td>
+                    <td className="sky-mono">{formatCodes(item.roleCodes)}</td>
+                    <td className="sky-mono">{formatCodes(item.privilegeCodes)}</td>
                     <td>
                       <span
                         className={`sky-pill ${
