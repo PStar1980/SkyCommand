@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import workflowService from '../services/workflowService.js';
 import { getNextSortState, serializeSorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+  SMART_TABLE_PAGE_SIZE_OPTIONS,
+} from '../utils/tablePageSize.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
-const PAGE_SIZE = 10;
 const APPROVAL_HISTORY_DEFAULT_SORTS = [{ field: 'requestedAt', direction: 'desc' }];
 const DEFAULT_FILTERS = {
   q: '',
@@ -131,6 +137,7 @@ function WorkflowApprovals() {
     q: (searchParams.get('approvalRequestId') || '').trim(),
   }));
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [pageCount, setPageCount] = useState(1);
   const [total, setTotal] = useState(0);
   const [approvals, setApprovals] = useState([]);
@@ -145,6 +152,7 @@ function WorkflowApprovals() {
   const [error, setError] = useState('');
   const [sorts, setSorts] = useState(() => APPROVAL_HISTORY_DEFAULT_SORTS);
   const [sortingCustomized, setSortingCustomized] = useState(false);
+  const browserCardRef = useRef(null);
   const requestedApprovalId = (searchParams.get('approvalRequestId') || '').trim();
 
   useEffect(() => {
@@ -175,22 +183,35 @@ function WorkflowApprovals() {
 
     return [...STANDARD_STATUS_OPTIONS, ...dynamic];
   }, [facets.statuses]);
-  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(page * PAGE_SIZE, total);
+  const availablePageSizes = useMemo(() => getAvailableTablePageSizes(total), [total]);
+  const rangeStart = total === 0 || approvals.length === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = rangeStart === 0 ? 0 : Math.min(rangeStart + approvals.length - 1, total);
 
   async function loadApprovals({ preserveSelection = true, nextSorts = sorts } = {}) {
     setLoading(true);
     setError('');
 
     try {
+      const requestedPageSize = SMART_TABLE_PAGE_SIZE_OPTIONS.includes(Number(pageSize))
+        ? Number(pageSize)
+        : SMART_TABLE_DEFAULT_PAGE_SIZE;
       const result = await workflowService.listApprovals({
         ...filters,
         page,
-        limit: PAGE_SIZE,
+        limit: requestedPageSize,
         sort: serializeSorts(nextSorts),
       });
       const items = result.items || [];
-      const resolvedPageCount = Math.max(1, Number(result.pageCount || 1));
+      const resultTotal = Number(result.total || 0);
+      const resolvedPageSize = normalizeTablePageSize(requestedPageSize, resultTotal);
+      const resolvedPageCount = Math.max(1, Math.ceil(resultTotal / resolvedPageSize));
+
+      if (resolvedPageSize !== requestedPageSize) {
+        const requestedOffset = Math.max(0, (page - 1) * requestedPageSize);
+        setPageSize(resolvedPageSize);
+        setPage(getPageForAbsoluteIndex(requestedOffset, resolvedPageSize));
+        return;
+      }
 
       if (page > resolvedPageCount) {
         setPage(resolvedPageCount);
@@ -198,7 +219,7 @@ function WorkflowApprovals() {
       }
 
       setApprovals(items);
-      setTotal(Number(result.total || 0));
+      setTotal(resultTotal);
       setPageCount(resolvedPageCount);
       setFacets({
         roles: result.facets?.roles || [],
@@ -225,7 +246,7 @@ function WorkflowApprovals() {
   useEffect(() => {
     loadApprovals({ preserveSelection: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, page, sorts]);
+  }, [filters, page, pageSize, sorts]);
 
   function updateFilter(name, value) {
     if (name === 'q' && searchParams.has('approvalRequestId')) {
@@ -299,11 +320,32 @@ function WorkflowApprovals() {
     setPage(Math.min(Math.max(1, Number(nextPage) || 1), pageCount));
   }
 
+  function changePageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (!SMART_TABLE_PAGE_SIZE_OPTIONS.includes(nextPageSize) || nextPageSize === pageSize) {
+      return;
+    }
+
+    const selectedIndex = selectedApprovalId
+      ? approvals.findIndex((approval) => approval.approvalRequestId === selectedApprovalId)
+      : -1;
+    const absoluteIndex = selectedIndex >= 0
+      ? (page - 1) * pageSize + selectedIndex
+      : (page - 1) * pageSize;
+
+    setPageSize(nextPageSize);
+    setPage(getPageForAbsoluteIndex(absoluteIndex, nextPageSize));
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {rangeStart}-{rangeEnd} of {total} approval record(s)
+          Showing {rangeStart}–{rangeEnd} of {total} approval record(s)
         </div>
         <div className="sky-pagination-controls sky-canonical-operations-pagination-controls" aria-label="Approval history pagination">
           <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={page <= 1} onClick={() => goToPage(1)} title="First page" type="button">«</button>
@@ -318,7 +360,20 @@ function WorkflowApprovals() {
           <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={page >= pageCount} onClick={() => goToPage(page + 1)} title="Next page" type="button">›</button>
           <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={page >= pageCount} onClick={() => goToPage(pageCount)} title="Last page" type="button">»</button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="approvalHistoryRowsSelect">Rows</label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="approvalHistoryRowsSelect"
+            onChange={(event) => changePageSize(event.target.value)}
+            value={pageSize}
+          >
+            {availablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -347,7 +402,7 @@ function WorkflowApprovals() {
 
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
-      <section className="sky-card mb-4 sky-functional-history-browser">
+      <section className="sky-card mb-4 sky-functional-history-browser sky-table-browser-anchor" ref={browserCardRef}>
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Approval browser</div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ConditionParameterEditor, {
   cleanConditionParameterValues,
@@ -38,6 +38,13 @@ import SummaryParameterEditor, {
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+  SMART_TABLE_PAGE_SIZE_OPTIONS,
+} from '../utils/tablePageSize.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_API_PARAMETERS = {
@@ -52,7 +59,6 @@ const DEFAULT_API_PARAMETERS = {
 };
 
 const VERSION_HISTORY_PAGE_SIZE = 5;
-const MANAGE_WORKFLOW_PAGE_SIZE = 10;
 const MANAGE_WORKFLOW_DEFAULT_SORTS = [{ field: 'workflow', direction: 'asc' }];
 const DEFAULT_MANAGE_WORKFLOW_FILTERS = {
   q: '',
@@ -1000,9 +1006,11 @@ function WorkflowManager() {
   const [versionHistoryPage, setVersionHistoryPage] = useState(1);
   const [manageWorkflowFilters, setManageWorkflowFilters] = useState(DEFAULT_MANAGE_WORKFLOW_FILTERS);
   const [manageWorkflowPage, setManageWorkflowPage] = useState(1);
+  const [manageWorkflowPageSize, setManageWorkflowPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [manageWorkflowSorts, setManageWorkflowSorts] = useState(() => MANAGE_WORKFLOW_DEFAULT_SORTS);
   const [manageWorkflowSortingCustomized, setManageWorkflowSortingCustomized] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
+  const browserCardRef = useRef(null);
 
   const toolTargets = useMemo(
     () => [...(catalog.toolTargets || [])].sort((a, b) => {
@@ -1704,18 +1712,29 @@ function WorkflowManager() {
     ),
     [filteredDefinitions, manageWorkflowSorts],
   );
-  const manageWorkflowPageCount = Math.max(1, Math.ceil(sortedDefinitions.length / MANAGE_WORKFLOW_PAGE_SIZE));
+  const manageWorkflowAvailablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedDefinitions.length),
+    [sortedDefinitions.length],
+  );
+  const manageWorkflowPageCount = Math.max(
+    1,
+    Math.ceil(sortedDefinitions.length / manageWorkflowPageSize),
+  );
   const safeManageWorkflowPage = Math.min(manageWorkflowPage, manageWorkflowPageCount);
-  const manageWorkflowPageStart = (safeManageWorkflowPage - 1) * MANAGE_WORKFLOW_PAGE_SIZE;
+  const manageWorkflowPageStart = (safeManageWorkflowPage - 1) * manageWorkflowPageSize;
   const visibleDefinitions = sortedDefinitions.slice(
     manageWorkflowPageStart,
-    manageWorkflowPageStart + MANAGE_WORKFLOW_PAGE_SIZE,
+    manageWorkflowPageStart + manageWorkflowPageSize,
   );
-  const manageWorkflowRangeStart = filteredDefinitions.length === 0 ? 0 : manageWorkflowPageStart + 1;
-  const manageWorkflowRangeEnd = Math.min(
-    manageWorkflowPageStart + MANAGE_WORKFLOW_PAGE_SIZE,
-    filteredDefinitions.length,
-  );
+  const manageWorkflowRangeStart = sortedDefinitions.length === 0 || visibleDefinitions.length === 0
+    ? 0
+    : manageWorkflowPageStart + 1;
+  const manageWorkflowRangeEnd = manageWorkflowRangeStart === 0
+    ? 0
+    : Math.min(
+        manageWorkflowRangeStart + visibleDefinitions.length - 1,
+        sortedDefinitions.length,
+      );
   const editing = detail?.editing || {};
   const draftGraph = detail?.draftGraph || null;
   const graphLocked = Boolean(detail && !draftGraph);
@@ -1736,6 +1755,23 @@ function WorkflowManager() {
   );
   const versionHistoryRangeStart = versionHistoryItems.length === 0 ? 0 : versionHistoryStartIndex + 1;
   const versionHistoryRangeEnd = Math.min(versionHistoryStartIndex + VERSION_HISTORY_PAGE_SIZE, versionHistoryItems.length);
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(
+      manageWorkflowPageSize,
+      sortedDefinitions.length,
+    );
+
+    if (normalizedPageSize !== manageWorkflowPageSize) {
+      const selectedIndex = selectedCode
+        ? sortedDefinitions.findIndex((definition) => definition.workflowCode === selectedCode)
+        : -1;
+      setManageWorkflowPageSize(normalizedPageSize);
+      setManageWorkflowPage(
+        selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1,
+      );
+    }
+  }, [manageWorkflowPageSize, selectedCode, sortedDefinitions]);
 
   useEffect(() => {
     if (manageWorkflowPage > manageWorkflowPageCount) {
@@ -1831,11 +1867,33 @@ function WorkflowManager() {
     setManageWorkflowPage(Math.min(Math.max(1, Number(page) || 1), manageWorkflowPageCount));
   }
 
+  function changeManageWorkflowPageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (
+      !SMART_TABLE_PAGE_SIZE_OPTIONS.includes(nextPageSize) ||
+      nextPageSize === manageWorkflowPageSize
+    ) {
+      return;
+    }
+
+    const selectedIndex = selectedCode
+      ? sortedDefinitions.findIndex((definition) => definition.workflowCode === selectedCode)
+      : -1;
+    const absoluteIndex = selectedIndex >= 0 ? selectedIndex : manageWorkflowPageStart;
+
+    setManageWorkflowPageSize(nextPageSize);
+    setManageWorkflowPage(getPageForAbsoluteIndex(absoluteIndex, nextPageSize));
+    window.requestAnimationFrame(() => {
+      browserCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderManageWorkflowPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {manageWorkflowRangeStart}-{manageWorkflowRangeEnd} of {filteredDefinitions.length} workflow definition(s)
+          Showing {manageWorkflowRangeStart}–{manageWorkflowRangeEnd} of {sortedDefinitions.length} workflow definition(s)
         </div>
         <div
           className="sky-pagination-controls sky-canonical-operations-pagination-controls"
@@ -1899,7 +1957,22 @@ function WorkflowManager() {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="manageWorkflowRowsSelect">
+            Rows
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="manageWorkflowRowsSelect"
+            onChange={(event) => changeManageWorkflowPageSize(event.target.value)}
+            value={manageWorkflowPageSize}
+          >
+            {manageWorkflowAvailablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -1942,7 +2015,7 @@ function WorkflowManager() {
         </DismissibleAlert>
       )}
 
-      <section className="sky-card mb-4 sky-functional-history-browser sky-workflow-start-browser">
+      <section className="sky-card mb-4 sky-functional-history-browser sky-workflow-start-browser sky-table-browser-anchor" ref={browserCardRef}>
         <div className="sky-card-header">
           <div>
             <div className="sky-page-kicker">Workflow browser</div>

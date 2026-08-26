@@ -45,9 +45,12 @@ const checks = [
     managerSource.includes('sky-canonical-operations-table-frame')
       && managerSource.includes('sky-canonical-operations-table align-middle mb-0')
       && managerSource.includes('sky-canonical-operations-pagination-row')
-      && managerSource.includes('sky-canonical-operations-pagination-balance')
+      && managerSource.includes('id="manageWorkflowRowsSelect"')
+      && managerSource.includes('manageWorkflowAvailablePageSizes.map')
+      && managerSource.includes('changeManageWorkflowPageSize')
+      && managerSource.includes('browserCardRef.current?.scrollIntoView')
       && managerSource.includes('className="btn btn-sm sky-pagination-nav-button"'),
-    'Manage Workflows catalogue must use the canonical table frame and centered gold pagination.',
+    'Manage Workflows catalogue must use the canonical table frame, centered gold pagination, and smart Rows selector.',
   ],
   [
     /\.sky-workflow-start-detail-stack\s*\{[^}]*display:\s*grid;[^}]*gap:\s*1rem;/s.test(cssSource),

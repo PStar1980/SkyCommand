@@ -8,6 +8,13 @@ import WorkflowApprovalOverlay from '../components/WorkflowApprovalOverlay.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
+import {
+  getAvailableTablePageSizes,
+  getPageForAbsoluteIndex,
+  normalizeTablePageSize,
+  SMART_TABLE_DEFAULT_PAGE_SIZE,
+  SMART_TABLE_PAGE_SIZE_OPTIONS,
+} from '../utils/tablePageSize.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const STATUS_OPTIONS = [
@@ -19,9 +26,7 @@ const STATUS_OPTIONS = [
   { value: 'TERMINATED', label: 'Terminated' },
 ];
 
-const HISTORY_PAGE_SIZE = 10;
 const WORKFLOW_HISTORY_DEFAULT_SORTS = [{ field: 'startedAt', direction: 'desc' }];
-const START_WORKFLOW_PAGE_SIZE = 10;
 const START_WORKFLOW_DEFAULT_SORTS = [{ field: 'workflow', direction: 'asc' }];
 
 function serializeSorts(sorts = []) {
@@ -5124,12 +5129,14 @@ function SkyWorkflows({ mode = 'start' }) {
     runtime: normalizeRuntimeFilter(searchParams.get('runtime')),
   }));
   const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [historySorts, setHistorySorts] = useState(() => WORKFLOW_HISTORY_DEFAULT_SORTS);
   const [historySortingCustomized, setHistorySortingCustomized] = useState(false);
   const [startWorkflowFilters, setStartWorkflowFilters] = useState(
     DEFAULT_START_WORKFLOW_FILTERS,
   );
   const [startWorkflowPage, setStartWorkflowPage] = useState(1);
+  const [startWorkflowPageSize, setStartWorkflowPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [startWorkflowSorts, setStartWorkflowSorts] = useState(() => START_WORKFLOW_DEFAULT_SORTS);
   const [startWorkflowSortingCustomized, setStartWorkflowSortingCustomized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -5158,6 +5165,8 @@ function SkyWorkflows({ mode = 'start' }) {
     warning: '',
   });
   const telemetryPollingRef = useRef(false);
+  const historyBrowserRef = useRef(null);
+  const startWorkflowBrowserRef = useRef(null);
   const completionFocusRef = useRef({
     applied: false,
     runId: null,
@@ -5323,15 +5332,23 @@ function SkyWorkflows({ mode = 'start' }) {
     ),
     [filters.q, filters.runtime, runs],
   );
-  const historyPageCount = Math.max(1, Math.ceil(historyRuns.length / HISTORY_PAGE_SIZE));
+  const historyAvailablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(historyRuns.length),
+    [historyRuns.length],
+  );
+  const historyPageCount = Math.max(1, Math.ceil(historyRuns.length / historyPageSize));
   const currentHistoryPage = Math.min(historyPage, historyPageCount);
-  const historyPageStart = (currentHistoryPage - 1) * HISTORY_PAGE_SIZE;
+  const historyPageStart = (currentHistoryPage - 1) * historyPageSize;
   const pagedHistoryRuns = historyRuns.slice(
     historyPageStart,
-    historyPageStart + HISTORY_PAGE_SIZE,
+    historyPageStart + historyPageSize,
   );
-  const historyRangeStart = historyRuns.length === 0 ? 0 : historyPageStart + 1;
-  const historyRangeEnd = Math.min(historyPageStart + HISTORY_PAGE_SIZE, historyRuns.length);
+  const historyRangeStart = historyRuns.length === 0 || pagedHistoryRuns.length === 0
+    ? 0
+    : historyPageStart + 1;
+  const historyRangeEnd = historyRangeStart === 0
+    ? 0
+    : Math.min(historyRangeStart + pagedHistoryRuns.length - 1, historyRuns.length);
   const filteredStartDefinitions = useMemo(() => {
     const searchText = startWorkflowFilters.q.trim().toLowerCase();
 
@@ -5387,23 +5404,31 @@ function SkyWorkflows({ mode = 'start' }) {
     ),
     [filteredStartDefinitions, startWorkflowSorts],
   );
+  const startWorkflowAvailablePageSizes = useMemo(
+    () => getAvailableTablePageSizes(sortedStartDefinitions.length),
+    [sortedStartDefinitions.length],
+  );
   const startWorkflowPageCount = Math.max(
     1,
-    Math.ceil(sortedStartDefinitions.length / START_WORKFLOW_PAGE_SIZE),
+    Math.ceil(sortedStartDefinitions.length / startWorkflowPageSize),
   );
   const safeStartWorkflowPage = Math.min(startWorkflowPage, startWorkflowPageCount);
   const startWorkflowPageStart =
-    (safeStartWorkflowPage - 1) * START_WORKFLOW_PAGE_SIZE;
+    (safeStartWorkflowPage - 1) * startWorkflowPageSize;
   const visibleStartDefinitions = sortedStartDefinitions.slice(
     startWorkflowPageStart,
-    startWorkflowPageStart + START_WORKFLOW_PAGE_SIZE,
+    startWorkflowPageStart + startWorkflowPageSize,
   );
   const startWorkflowRangeStart =
-    filteredStartDefinitions.length === 0 ? 0 : startWorkflowPageStart + 1;
-  const startWorkflowRangeEnd = Math.min(
-    startWorkflowPageStart + START_WORKFLOW_PAGE_SIZE,
-    filteredStartDefinitions.length,
-  );
+    sortedStartDefinitions.length === 0 || visibleStartDefinitions.length === 0
+      ? 0
+      : startWorkflowPageStart + 1;
+  const startWorkflowRangeEnd = startWorkflowRangeStart === 0
+    ? 0
+    : Math.min(
+        startWorkflowRangeStart + visibleStartDefinitions.length - 1,
+        sortedStartDefinitions.length,
+      );
 
   async function loadDefinitions({ keepSelection = true } = {}) {
     const [result, catalogResult] = await Promise.all([
@@ -5580,12 +5605,12 @@ function SkyWorkflows({ mode = 'start' }) {
           runMatchesRuntimeFilter(run, filters.runtime) &&
           runMatchesHistorySearch(run, filters.q),
       );
-      const visiblePageCount = Math.max(1, Math.ceil(visibleRuns.length / HISTORY_PAGE_SIZE));
+      const visiblePageCount = Math.max(1, Math.ceil(visibleRuns.length / historyPageSize));
       const visibleCurrentPage = Math.min(historyPage, visiblePageCount);
-      const visiblePageStart = (visibleCurrentPage - 1) * HISTORY_PAGE_SIZE;
+      const visiblePageStart = (visibleCurrentPage - 1) * historyPageSize;
       const visiblePageRuns = visibleRuns.slice(
         visiblePageStart,
-        visiblePageStart + HISTORY_PAGE_SIZE,
+        visiblePageStart + historyPageSize,
       );
       const selectedRunId = selectedRun?.workflowRunRecordId;
       const selectedVisibleRun = selectedRunId
@@ -6099,6 +6124,45 @@ function SkyWorkflows({ mode = 'start' }) {
   }, [selectedDefinitionDetail?.workflowCode]);
 
   useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(
+      startWorkflowPageSize,
+      sortedStartDefinitions.length,
+    );
+
+    if (normalizedPageSize !== startWorkflowPageSize) {
+      const selectedIndex = selectedDefinition
+        ? sortedStartDefinitions.findIndex(
+            (definition) => definition.workflowCode === selectedDefinition.workflowCode,
+          )
+        : -1;
+      setStartWorkflowPageSize(normalizedPageSize);
+      setStartWorkflowPage(
+        selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1,
+      );
+    }
+  }, [
+    selectedDefinition,
+    sortedStartDefinitions,
+    startWorkflowPageSize,
+  ]);
+
+  useEffect(() => {
+    const normalizedPageSize = normalizeTablePageSize(historyPageSize, historyRuns.length);
+
+    if (normalizedPageSize !== historyPageSize) {
+      const selectedIndex = selectedRun?.workflowRunRecordId
+        ? historyRuns.findIndex(
+            (run) => run.workflowRunRecordId === selectedRun.workflowRunRecordId,
+          )
+        : -1;
+      setHistoryPageSize(normalizedPageSize);
+      setHistoryPage(
+        selectedIndex >= 0 ? getPageForAbsoluteIndex(selectedIndex, normalizedPageSize) : 1,
+      );
+    }
+  }, [historyPageSize, historyRuns, selectedRun?.workflowRunRecordId]);
+
+  useEffect(() => {
     if (startWorkflowPage > startWorkflowPageCount) {
       setStartWorkflowPage(startWorkflowPageCount);
     }
@@ -6210,6 +6274,7 @@ function SkyWorkflows({ mode = 'start' }) {
     filters.status,
     filters.runtime,
     serializeSorts(historySorts),
+    historyPageSize,
     selectedRun?.workflowRunRecordId,
     selectedRun?.status,
     approvalResumePollingUntil,
@@ -6540,11 +6605,35 @@ function SkyWorkflows({ mode = 'start' }) {
     );
   }
 
+  function changeStartWorkflowPageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (
+      !SMART_TABLE_PAGE_SIZE_OPTIONS.includes(nextPageSize) ||
+      nextPageSize === startWorkflowPageSize
+    ) {
+      return;
+    }
+
+    const selectedIndex = selectedDefinition
+      ? sortedStartDefinitions.findIndex(
+          (definition) => definition.workflowCode === selectedDefinition.workflowCode,
+        )
+      : -1;
+    const absoluteIndex = selectedIndex >= 0 ? selectedIndex : startWorkflowPageStart;
+
+    setStartWorkflowPageSize(nextPageSize);
+    setStartWorkflowPage(getPageForAbsoluteIndex(absoluteIndex, nextPageSize));
+    window.requestAnimationFrame(() => {
+      startWorkflowBrowserRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderStartWorkflowPagination() {
     return (
       <div className="sky-pagination-row sky-canonical-operations-pagination-row">
         <div className="small sky-muted sky-canonical-operations-pagination-summary">
-          Showing {startWorkflowRangeStart}-{startWorkflowRangeEnd} of{' '}
+          Showing {startWorkflowRangeStart}–{startWorkflowRangeEnd} of{' '}
           {filteredStartDefinitions.length} available workflow(s)
         </div>
         <div
@@ -6611,7 +6700,22 @@ function SkyWorkflows({ mode = 'start' }) {
             »
           </button>
         </div>
-        <div className="sky-canonical-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="startWorkflowRowsSelect">
+            Rows
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="startWorkflowRowsSelect"
+            onChange={(event) => changeStartWorkflowPageSize(event.target.value)}
+            value={startWorkflowPageSize}
+          >
+            {startWorkflowAvailablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -6621,11 +6725,35 @@ function SkyWorkflows({ mode = 'start' }) {
     setHistoryPage(nextPage);
   }
 
+  function changeHistoryPageSize(value) {
+    const nextPageSize = Number(value);
+
+    if (
+      !SMART_TABLE_PAGE_SIZE_OPTIONS.includes(nextPageSize) ||
+      nextPageSize === historyPageSize
+    ) {
+      return;
+    }
+
+    const selectedIndex = selectedRun?.workflowRunRecordId
+      ? historyRuns.findIndex(
+          (run) => run.workflowRunRecordId === selectedRun.workflowRunRecordId,
+        )
+      : -1;
+    const absoluteIndex = selectedIndex >= 0 ? selectedIndex : historyPageStart;
+
+    setHistoryPageSize(nextPageSize);
+    setHistoryPage(getPageForAbsoluteIndex(absoluteIndex, nextPageSize));
+    window.requestAnimationFrame(() => {
+      historyBrowserRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderHistoryPagination() {
     return (
       <div className="sky-pagination-row sky-workflow-operations-pagination-row">
         <div className="small sky-muted sky-workflow-operations-pagination-summary">
-          Showing {historyRangeStart}-{historyRangeEnd} of {historyRuns.length} workflow run(s)
+          Showing {historyRangeStart}–{historyRangeEnd} of {historyRuns.length} workflow run(s)
         </div>
         <div
           className="sky-pagination-controls sky-workflow-operations-pagination-controls"
@@ -6689,7 +6817,22 @@ function SkyWorkflows({ mode = 'start' }) {
             »
           </button>
         </div>
-        <div className="sky-workflow-operations-pagination-balance" aria-hidden="true" />
+        <div className="sky-canonical-rows-control">
+          <label className="sky-pagination-select-label" htmlFor="workflowHistoryRowsSelect">
+            Rows
+          </label>
+          <select
+            className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select"
+            disabled={loading}
+            id="workflowHistoryRowsSelect"
+            onChange={(event) => changeHistoryPageSize(event.target.value)}
+            value={historyPageSize}
+          >
+            {historyAvailablePageSizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
     );
   }
@@ -6697,7 +6840,7 @@ function SkyWorkflows({ mode = 'start' }) {
   function renderHistoryView() {
     return (
       <div className="sky-workflow-history-shell">
-        <section className="sky-card mb-4 sky-workflow-history-browser">
+        <section className="sky-card mb-4 sky-workflow-history-browser sky-table-browser-anchor" ref={historyBrowserRef}>
           <div className="sky-card-header">
             <div>
               <div className="sky-page-kicker">Run browser</div>
@@ -7000,7 +7143,7 @@ function SkyWorkflows({ mode = 'start' }) {
         renderHistoryView()
       ) : (
         <div className="sky-workflow-start-workspace d-flex flex-column gap-4">
-          <section className="sky-card sky-functional-history-browser sky-run-tools-browser sky-workflow-start-browser">
+          <section className="sky-card sky-functional-history-browser sky-run-tools-browser sky-workflow-start-browser sky-table-browser-anchor" ref={startWorkflowBrowserRef}>
             <div className="sky-card-header">
               <div>
                 <div className="sky-page-kicker">Workflow browser</div>
