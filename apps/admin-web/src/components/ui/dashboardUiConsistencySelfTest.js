@@ -216,12 +216,24 @@ assert.match(dashboardSource, /label: 'Host agent'/);
 assert.match(dashboardSource, /hostAgentHealth\.online/);
 assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Online'/);
 assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'ONLINE'/);
-assert.match(dashboardSource, /className="sky-command-center-page"/);
-assert.match(cssSource, /\.sky-command-center-page \{\s*display: contents;/);
-assert.match(
-  cssSource,
-  /\.sky-command-center-page :is\([\s\S]*?\.sky-page-header,[\s\S]*?\.sky-card,[\s\S]*?\.sky-dashboard-visuals,[\s\S]*?\.sky-chart-card,[\s\S]*?\.sky-server-status-card,[\s\S]*?\.sky-api-metric-card,[\s\S]*?\.sky-mini-metric,[\s\S]*?\.sky-api-route-card[\s\S]*?\) \{\s*border: 1px solid rgba\(220, 177, 63, 0\.68\);/,
-);
+assert.doesNotMatch(dashboardSource, /sky-command-center-page/);
+assert.doesNotMatch(cssSource, /Command Center gold-outline experiment/);
+assert.match(cssSource, /--sky-card-outline: rgba\(220, 177, 63, 0\.68\);/);
+assert.match(cssSource, /Global gold card-outline contract/);
+for (const selector of [
+  '.sky-page-header,',
+  '.sky-card,',
+  '.sky-table-card,',
+  '.sky-dashboard-visuals,',
+  '.sky-chart-card,',
+  '.sky-server-status-card,',
+  '.sky-api-metric-card,',
+  '.sky-api-route-card,',
+  '.sky-mini-metric,',
+]) {
+  assert.ok(cssSource.includes(selector), `${selector} should participate in the global gold card-outline contract.`);
+}
+assert.match(cssSource, /border: 1px solid var\(--sky-card-outline\);/);
 assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Polling'/);
 assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'POLLING'/);
 assert.doesNotMatch(dashboardSource, /label: 'Readiness'/);

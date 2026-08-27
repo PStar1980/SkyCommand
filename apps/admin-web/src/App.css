@@ -5688,24 +5688,6 @@ select.sky-form-control optgroup {
   }
 }
 
-/* Command Center gold-outline experiment */
-.sky-command-center-page {
-  display: contents;
-}
-
-.sky-command-center-page :is(
-  .sky-page-header,
-  .sky-card,
-  .sky-dashboard-visuals,
-  .sky-chart-card,
-  .sky-server-status-card,
-  .sky-api-metric-card,
-  .sky-mini-metric,
-  .sky-api-route-card
-) {
-  border: 1px solid rgba(220, 177, 63, 0.68);
-}
-
 /* Command Center identity early-warning refinements */
 .sky-dashboard-identity-panel {
   overflow: hidden;
@@ -6695,6 +6677,7 @@ select.sky-form-control optgroup {
   --sky-surface-hover: #0c1116;
   --sky-border: #5b481e;
   --sky-border-soft: rgba(220, 177, 63, 0.2);
+  --sky-card-outline: rgba(220, 177, 63, 0.68);
   --sky-text: #f5f2e9;
   --sky-heading-text: #ffffff;
   --sky-text-muted: #b3ac9d;
@@ -7706,6 +7689,43 @@ select.sky-form-control optgroup {
     .sky-node-parameter-preview
   ) {
   border-radius: var(--sky-card-radius);
+}
+
+/* Global gold card-outline contract — promoted from the Command Center prototype.
+   Uses the same 1px gold edge as the primary navigation frame while allowing
+   higher-specificity hover/active/semantic states to remain expressive. */
+.sky-page-header,
+.sky-card,
+.sky-table-card,
+.sky-dashboard-visuals,
+.sky-dashboard-command-hero,
+.sky-dashboard-hero,
+.sky-dashboard-shortcuts,
+.sky-worker-hero,
+.sky-chart-card,
+.sky-stat-card,
+.sky-source-card,
+.sky-server-status-card,
+.sky-system-health-card,
+.sky-api-metric-card,
+.sky-api-route-card,
+.sky-app-access-card,
+.sky-mini-stat-grid > div,
+.sky-mini-metric,
+.sky-session-item,
+.sky-worker-command-card,
+.sky-temporal-id-card,
+.sky-temporal-command-card,
+.sky-tool-item,
+.sky-tool-category,
+.sky-output-box,
+.sky-confirm-panel,
+.sky-node-parameter-preview,
+.sky-dashboard-command-metric,
+.sky-dashboard-task,
+.sky-dashboard-workflow-status,
+.sky-modal-card {
+  border: 1px solid var(--sky-card-outline);
 }
 
 @media (max-width: 768px) {

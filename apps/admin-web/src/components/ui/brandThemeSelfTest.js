@@ -34,6 +34,16 @@ assert(
     cssSource.includes('color: #d9bd70;'),
   'Authenticated page cards and structural labels must use the neutral-black and gold-forward treatment.',
 );
+
+assert(
+  cssSource.includes('--sky-card-outline: rgba(220, 177, 63, 0.68);') &&
+    cssSource.includes('Global gold card-outline contract — promoted from the Command Center prototype.') &&
+    cssSource.includes('.sky-page-header,') &&
+    cssSource.includes('.sky-card,') &&
+    cssSource.includes('.sky-table-card,') &&
+    cssSource.includes('border: 1px solid var(--sky-card-outline);'),
+  'Authenticated card surfaces must share the same 1px gold outline weight proven on the navigation frame and Command Center.',
+);
 assert(
   cssSource.includes('--sky-heading-text: #ffffff;') &&
     cssSource.includes('.sky-workflow-visual-title,') &&
