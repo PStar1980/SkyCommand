@@ -14,6 +14,10 @@ const dockerOverviewSource = fs.readFileSync(
   path.join(__dirname, '..', '..', 'pages', 'DockerOverview.jsx'),
   'utf8',
 );
+const commandCenterSource = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'pages', 'Dashboard.jsx'),
+  'utf8',
+);
 
 assert(
   cssSource.includes('--sky-page-gutter: 1rem;') &&
@@ -58,6 +62,14 @@ assert(
     cssSource.includes(':is(.sky-dashboard-filter-card, .sky-dashboard-surface-row)') &&
     cssSource.includes('margin-bottom: 0 !important;'),
   'Dashboard filter cards and dashboard surface rows must not stack legacy bottom margins on top of the canonical page gap.',
+);
+
+assert(
+  !commandCenterSource.includes('sky-command-center-page') &&
+    commandCenterSource.includes('<ServerStatusPanel') &&
+    commandCenterSource.includes('<DashboardVisuals') &&
+    commandCenterSource.includes('<ApiObservabilityPanel className="mt-4"'),
+  'Command Center must keep its major surfaces as direct page children so canonical surface-gap rules can neutralize legacy mb/mt utilities.',
 );
 
 assert(

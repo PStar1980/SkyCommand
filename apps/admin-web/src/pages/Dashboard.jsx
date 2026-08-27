@@ -296,7 +296,7 @@ function Dashboard() {
   }, []);
 
   return (
-    <div className="sky-command-center-page">
+    <>
       <PageHeader
         actionClassName="sky-dashboard-page-actions"
         actions={
@@ -502,7 +502,7 @@ function Dashboard() {
           </div>
         </div>
       </section>
-    </div>
+    </>
   );
 }
 
