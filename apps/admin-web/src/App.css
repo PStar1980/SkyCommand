@@ -3341,7 +3341,7 @@ select.sky-form-control optgroup {
 }
 
 .sky-workflow-visual-shell {
-  border: 1px solid rgba(220, 177, 63, 0.24);
+  border: 1px solid var(--sky-card-outline);
   border-radius: 1rem;
   background:
     radial-gradient(circle at top left, rgba(220, 177, 63, 0.08), transparent 34%),
