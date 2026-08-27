@@ -7034,6 +7034,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 headingKicker="Runtime status overlay"
                 followActiveNode={followActiveRuntimeNode}
                 inspectorMode="navigation"
+                navigationAlign="center"
                 nodeRuns={selectedNodeRuns}
                 nodes={runtimeVisualNodes}
                 onFollowActiveNodeChange={setFollowActiveRuntimeNode}
@@ -7496,6 +7497,7 @@ function SkyWorkflows({ mode = 'start' }) {
                   headingKicker="Runtime status overlay"
                   headerActionsStandalone
                   inspectorMode="navigation"
+                  navigationAlign="center"
                   nodeRuns={selectedNodeRuns}
                   nodes={runtimeVisualNodes}
                   onFollowActiveNodeChange={setFollowActiveRuntimeNode}

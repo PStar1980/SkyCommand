@@ -1103,15 +1103,17 @@ function WorkflowVisualInspector({ approvals = [], catalogs, includeRuntimeInspe
   );
 }
 
-function WorkflowVisualNavigation({ nodes = [], selectedNodeIndex = null, selectionLocked = false, onNodeSelect }) {
+function WorkflowVisualNavigation({ nodes = [], selectedNodeIndex = null, selectionLocked = false, onNodeSelect, align = 'end' }) {
   const hasSelection = Number.isInteger(selectedNodeIndex)
     && selectedNodeIndex >= 0
     && selectedNodeIndex < nodes.length;
   const previousIndex = hasSelection ? selectedNodeIndex - 1 : -1;
   const nextIndex = hasSelection ? selectedNodeIndex + 1 : 0;
 
+  const alignmentClassName = align === 'center' ? 'justify-content-center' : 'justify-content-end';
+
   return (
-    <div className="d-flex flex-wrap justify-content-end align-items-center gap-2 mt-3">
+    <div className={`d-flex flex-wrap ${alignmentClassName} align-items-center gap-2 mt-3`}>
       <button
         className="btn btn-sm sky-btn-ghost"
         disabled={selectionLocked || previousIndex < 0}
@@ -1156,6 +1158,7 @@ function WorkflowVisualGraph({
   onNodeMove,
   onNodeReorder,
   onNodeSelect,
+  navigationAlign = 'end',
 }) {
   const catalogs = {
     toolTargets,
@@ -1516,6 +1519,7 @@ function WorkflowVisualGraph({
             />
           ) : inspectorMode === 'navigation' ? (
             <WorkflowVisualNavigation
+              align={navigationAlign}
               nodes={nodes}
               selectionLocked={selectionLocked}
               onNodeSelect={onNodeSelect}
