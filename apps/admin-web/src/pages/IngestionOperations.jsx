@@ -130,7 +130,6 @@ function IngestionOperations() {
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [recoveries, setRecoveries] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [draftSearch, setDraftSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => INGESTION_RUN_DEFAULT_SORTS);
@@ -350,16 +349,9 @@ function IngestionOperations() {
     loadRuns(nextFilters, 1, { keepSelection: false });
   }
 
-  function applySearch(event) {
-    event.preventDefault();
-    const nextFilters = { ...filters, q: draftSearch.trim() };
-    setFilters(nextFilters);
-    loadRuns(nextFilters, 1, { keepSelection: false });
-  }
 
   function resetFilters() {
     setFilters(DEFAULT_FILTERS);
-    setDraftSearch('');
     loadRuns(DEFAULT_FILTERS, 1, { keepSelection: false });
   }
 
@@ -500,7 +492,18 @@ function IngestionOperations() {
               </p>
             </div>
 
-            <div className="sky-history-filter-grid sky-ingestion-operations-filters">
+            <div className="sky-ingestion-operations-filters">
+              <div className="sky-ingestion-operations-search">
+                <label className="form-label" htmlFor="ingestionOperationsSearch">Search</label>
+                <input
+                  className="form-control sky-form-control"
+                  id="ingestionOperationsSearch"
+                  onChange={(event) => updateFilter('q', event.target.value)}
+                  placeholder="Run, source, tool, summary..."
+                  type="search"
+                  value={filters.q}
+                />
+              </div>
               <div>
                 <label className="form-label" htmlFor="ingestionOperationsDomain">Domain</label>
                 <select
@@ -511,9 +514,7 @@ function IngestionOperations() {
                 >
                   <option value="">All domains</option>
                   {domains.map((domain) => (
-                    <option key={domain.domainCode} value={domain.domainCode}>
-                      {domain.domainName || domain.domainCode}
-                    </option>
+                    <option key={domain.domainCode} value={domain.domainCode}>{domain.domainName || domain.domainCode}</option>
                   ))}
                 </select>
               </div>
@@ -527,9 +528,7 @@ function IngestionOperations() {
                 >
                   <option value="">All sources</option>
                   {filteredSources.map((source) => (
-                    <option key={`${source.domainCode}-${source.sourceCode}`} value={source.sourceCode}>
-                      {source.sourceName || source.sourceCode}
-                    </option>
+                    <option key={`${source.domainCode}-${source.sourceCode}`} value={source.sourceCode}>{source.sourceName || source.sourceCode}</option>
                   ))}
                 </select>
               </div>
@@ -542,9 +541,7 @@ function IngestionOperations() {
                   value={filters.statusCode}
                 >
                   {STATUS_OPTIONS.map((status) => (
-                    <option key={status || 'all'} value={status}>
-                      {status || 'All statuses'}
-                    </option>
+                    <option key={status || 'all'} value={status}>{status || 'All statuses'}</option>
                   ))}
                 </select>
               </div>
@@ -558,34 +555,20 @@ function IngestionOperations() {
                 >
                   <option value="">All ingestion tools</option>
                   {filteredTools.map((tool) => (
-                    <option key={tool.toolCode} value={tool.toolCode}>
-                      {tool.toolLabel || tool.toolCode}
-                    </option>
+                    <option key={tool.toolCode} value={tool.toolCode}>{tool.toolLabel || tool.toolCode}</option>
                   ))}
                 </select>
               </div>
-              <form className="sky-ingestion-operations-search" onSubmit={applySearch}>
-                <label className="form-label" htmlFor="ingestionOperationsSearch">Search</label>
-                <div className="d-flex gap-2">
-                  <input
-                    className="form-control sky-form-control"
-                    id="ingestionOperationsSearch"
-                    onChange={(event) => setDraftSearch(event.target.value)}
-                    placeholder="Run, source, tool, summary..."
-                    type="search"
-                    value={draftSearch}
-                  />
-                  <button className="btn sky-btn-primary" disabled={loading} type="submit">Apply</button>
-                  {sortingCustomized && (
-                    <button className="btn sky-btn-ghost" disabled={loading} onClick={clearSorting} type="button">
-                      Clear sorting
-                    </button>
-                  )}
-                  <button className="btn sky-btn-ghost" disabled={loading} onClick={resetFilters} type="button">
-                    Clear filters
+              <div className="sky-run-tools-filter-actions">
+                {sortingCustomized && (
+                  <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={clearSorting} type="button">
+                    Clear sorting
                   </button>
-                </div>
-              </form>
+                )}
+                <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={resetFilters} type="button">
+                  Clear filters
+                </button>
+              </div>
             </div>
           </div>
 

@@ -93,7 +93,7 @@ assert.match(dataDashboardSource, /title="Data Dashboard"/);
 
 
 const dataStatusSource = fs.readFileSync(path.join(sourceRoot, 'pages/DataStatus.jsx'), 'utf8');
-assert.match(dataStatusSource, /title="Data Intelligence"/);
+assert.match(dataStatusSource, /title="Indicators"/);
 assert.match(dataStatusSource, />Indicator freshness</);
 assert.match(dataStatusSource, /SMART_TABLE_DEFAULT_PAGE_SIZE/);
 assert.match(dataStatusSource, /DATA_INTELLIGENCE_FETCH_LIMIT = 500/);
@@ -116,8 +116,16 @@ const dataGroupSource = navbarSource.slice(
   navbarSource.indexOf("label: 'Data',\n      icon: '◫'"),
   navbarSource.indexOf("label: 'Access Control'"),
 );
-assert.match(dataGroupSource, /label: 'Data Intelligence'/);
+assert.match(dataGroupSource, /label: 'Indicators'/);
 assert.match(dataGroupSource, /to: '\/data\/intelligence'/);
+assert.ok(dataGroupSource.indexOf("label: 'Ingestion Operations'") < dataGroupSource.indexOf("label: 'Indicators'"));
+assert.match(dataStatusSource, /className="sky-data-status-filters"/);
+assert.ok(
+  dataStatusSource.indexOf('id="dataStatusSearchFilter"') < dataStatusSource.indexOf('id="dataStatusSourceFilter"'),
+  'Indicators should place Search first in the filter row.',
+);
+assert.match(dataStatusSource, /onChange=\{\(event\) => updateFilter\('q', event\.target\.value\)\}/);
+assert.doesNotMatch(dataStatusSource, />\s*Apply\s*</);
 assert.doesNotMatch(navbarSource, /label: 'Configuration'/);
 
 const routerSource = fs.readFileSync(path.join(sourceRoot, 'main.jsx'), 'utf8');

@@ -122,7 +122,6 @@ function DataStatus() {
   const [sourceOptions, setSourceOptions] = useState(DEFAULT_SOURCE_OPTIONS);
   const [selectedItem, setSelectedItem] = useState(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [draftSearch, setDraftSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(SMART_TABLE_DEFAULT_PAGE_SIZE);
   const [sorts, setSorts] = useState(() => DATA_INTELLIGENCE_DEFAULT_SORTS);
@@ -311,20 +310,9 @@ function DataStatus() {
     loadIndicators(nextFilters, 1, { keepSelection: false });
   }
 
-  function applySearch(event) {
-    event.preventDefault();
-    const nextFilters = {
-      ...filters,
-      q: draftSearch.trim(),
-    };
-
-    setFilters(nextFilters);
-    loadIndicators(nextFilters, 1, { keepSelection: false });
-  }
 
   function resetFilters() {
     setFilters(DEFAULT_FILTERS);
-    setDraftSearch('');
     loadIndicators(DEFAULT_FILTERS, 1, { keepSelection: false });
   }
 
@@ -517,9 +505,9 @@ function DataStatus() {
             pollingState={pollingState}
           />
         }
-        kicker="Data · Intelligence"
+        kicker="Data · Indicators"
         subtitle="Inspect freshness, source coverage, and the evidence behind each data-health state."
-        title="Data Intelligence"
+        title="Indicators"
       />
 
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
@@ -535,11 +523,20 @@ function DataStatus() {
               </p>
             </div>
 
-            <div className="sky-history-filter-grid sky-data-status-filters">
+            <div className="sky-data-status-filters">
+              <div className="sky-data-status-search">
+                <label className="form-label" htmlFor="dataStatusSearchFilter">Search</label>
+                <input
+                  className="form-control sky-form-control"
+                  id="dataStatusSearchFilter"
+                  onChange={(event) => updateFilter('q', event.target.value)}
+                  placeholder="Indicator code or description..."
+                  type="search"
+                  value={filters.q}
+                />
+              </div>
               <div>
-                <label className="form-label" htmlFor="dataStatusSourceFilter">
-                  Source
-                </label>
+                <label className="form-label" htmlFor="dataStatusSourceFilter">Source</label>
                 <select
                   className="form-select sky-form-control"
                   id="dataStatusSourceFilter"
@@ -547,16 +544,12 @@ function DataStatus() {
                   value={filters.source}
                 >
                   {sourceOptions.map((option) => (
-                    <option key={option.value || 'all'} value={option.value}>
-                      {option.label}
-                    </option>
+                    <option key={option.value || 'all'} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="form-label" htmlFor="dataStatusIndicatorFilter">
-                  Status
-                </label>
+                <label className="form-label" htmlFor="dataStatusIndicatorFilter">Status</label>
                 <select
                   className="form-select sky-form-control"
                   id="dataStatusIndicatorFilter"
@@ -564,16 +557,12 @@ function DataStatus() {
                   value={filters.status}
                 >
                   {STATUS_OPTIONS.map((option) => (
-                    <option key={option.value || 'all'} value={option.value}>
-                      {option.label}
-                    </option>
+                    <option key={option.value || 'all'} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="form-label" htmlFor="dataStatusActiveFilter">
-                  Active state
-                </label>
+                <label className="form-label" htmlFor="dataStatusActiveFilter">Active state</label>
                 <select
                   className="form-select sky-form-control"
                   id="dataStatusActiveFilter"
@@ -585,42 +574,16 @@ function DataStatus() {
                   <option value="">All</option>
                 </select>
               </div>
-              <form className="sky-data-status-search" onSubmit={applySearch}>
-                <label className="form-label" htmlFor="dataStatusSearchFilter">
-                  Search
-                </label>
-                <div className="d-flex gap-2">
-                  <input
-                    className="form-control sky-form-control"
-                    id="dataStatusSearchFilter"
-                    onChange={(event) => setDraftSearch(event.target.value)}
-                    placeholder="Indicator code or description..."
-                    type="search"
-                    value={draftSearch}
-                  />
-                  <button className="btn sky-btn-primary" disabled={loading} type="submit">
-                    Apply
+              <div className="sky-run-tools-filter-actions">
+                {sortingCustomized && (
+                  <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={clearSorting} type="button">
+                    Clear sorting
                   </button>
-                  {sortingCustomized && (
-                    <button
-                      className="btn sky-btn-ghost"
-                      disabled={loading}
-                      onClick={clearSorting}
-                      type="button"
-                    >
-                      Clear sorting
-                    </button>
-                  )}
-                  <button
-                    className="btn sky-btn-ghost"
-                    disabled={loading}
-                    onClick={resetFilters}
-                    type="button"
-                  >
-                    Clear filters
-                  </button>
-                </div>
-              </form>
+                )}
+                <button className="btn btn-sm sky-btn-ghost" disabled={loading} onClick={resetFilters} type="button">
+                  Clear filters
+                </button>
+              </div>
             </div>
           </div>
 
