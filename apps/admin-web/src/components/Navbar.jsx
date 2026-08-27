@@ -363,18 +363,18 @@ function createNavGroups(hasPermission, hasRole) {
       visible: canViewData,
       items: [
         {
-          label: 'Data Intelligence',
-          to: '/data/intelligence',
-          icon: '◫',
-          visible: hasPermission('INGESTION_VIEW_STATUS'),
-          description: 'Indicator freshness',
-        },
-        {
           label: 'Ingestion Operations',
           to: '/data/operations',
           icon: '↺',
           visible: hasPermission('INGESTION_VIEW_STATUS'),
           description: 'Runs, evidence, recovery',
+        },
+        {
+          label: 'Indicators',
+          to: '/data/intelligence',
+          icon: '◫',
+          visible: hasPermission('INGESTION_VIEW_STATUS'),
+          description: 'Indicator freshness',
         },
       ],
     },

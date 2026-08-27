@@ -6035,23 +6035,25 @@ select.sky-form-control optgroup {
   min-height: 1.8rem;
 }
 
-/* Ad hoc demo polish — Data Intelligence ledger and centered command search */
+/* Data indicators browser — canonical single-row filter layout. */
 .sky-data-status-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(10rem, 0.72fr)) minmax(22rem, 1.45fr);
-  gap: 0.85rem;
-  min-width: min(100%, 82rem);
-}
-
-.sky-data-status-search {
+  grid-template-columns: minmax(18rem, 1.35fr) repeat(3, minmax(9rem, 0.72fr)) auto;
+  gap: 0.75rem;
+  align-items: end;
+  width: 100%;
   min-width: 0;
 }
 
-.sky-data-status-search .d-flex {
-  min-width: 0;
+.sky-data-status-filters .form-label,
+.sky-ingestion-operations-filters .form-label {
+  margin-bottom: 0.35rem;
 }
 
-.sky-data-status-search input {
+.sky-data-status-search,
+.sky-data-status-search input,
+.sky-ingestion-operations-search,
+.sky-ingestion-operations-search input {
   min-width: 0;
 }
 
@@ -6077,8 +6079,8 @@ select.sky-form-control optgroup {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .sky-data-status-search {
-    grid-column: 1 / -1;
+  .sky-data-status-filters .sky-run-tools-filter-actions {
+    justify-content: flex-end;
   }
 
   .sky-data-status-detail-grid {
@@ -6098,9 +6100,6 @@ select.sky-form-control optgroup {
     grid-template-columns: 1fr;
   }
 
-  .sky-data-status-search .d-flex {
-    flex-wrap: wrap;
-  }
 }
 
 /* Ad hoc demo polish — route-contained workflow graph and consistent navigation */
@@ -7186,12 +7185,12 @@ select.sky-form-control optgroup {
 
 /* Phase 16.8.1 — generic ingestion operations surface */
 .sky-ingestion-operations-filters {
-  grid-template-columns: repeat(4, minmax(10.5rem, 1fr));
-  min-width: min(100%, 76rem);
-}
-
-.sky-ingestion-operations-search {
-  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(16rem, 1.25fr) repeat(4, minmax(8.75rem, 0.72fr)) auto;
+  gap: 0.75rem;
+  align-items: end;
+  width: 100%;
+  min-width: 0;
 }
 
 .sky-ingestion-run-metric-grid {
@@ -7201,6 +7200,10 @@ select.sky-form-control optgroup {
 @media (max-width: 1199.98px) {
   .sky-ingestion-operations-filters {
     grid-template-columns: repeat(2, minmax(12rem, 1fr));
+  }
+
+  .sky-ingestion-operations-filters .sky-run-tools-filter-actions {
+    justify-content: flex-end;
   }
 }
 
@@ -7212,9 +7215,6 @@ select.sky-form-control optgroup {
     width: 100%;
   }
 
-  .sky-ingestion-operations-search {
-    grid-column: auto;
-  }
 }
 
 /* Git repository administration — split manage/create surfaces */

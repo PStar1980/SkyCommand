@@ -41,6 +41,15 @@ assert.doesNotMatch(pageSource, /\['FRED',\s*'BOC',\s*'STATCAN'\]/);
 
 assert.match(mainSource, /path="data\/operations"/);
 assert.match(navbarSource, /label: 'Ingestion Operations'/);
+assert.match(navbarSource, /label: 'Indicators'/);
+assert.ok(navbarSource.indexOf("label: 'Ingestion Operations'") < navbarSource.indexOf("label: 'Indicators'"));
+assert.match(pageSource, /className="sky-ingestion-operations-filters"/);
+assert.ok(
+  pageSource.indexOf('id="ingestionOperationsSearch"') < pageSource.indexOf('id="ingestionOperationsDomain"'),
+  'Ingestion Operations should place Search first in the filter row.',
+);
+assert.match(pageSource, /onChange=\{\(event\) => updateFilter\('q', event\.target\.value\)\}/);
+assert.doesNotMatch(pageSource, />\s*Apply\s*</);
 assert.match(serviceSource, /listCatalogueSources/);
 assert.match(serviceSource, /listIngestionRuns/);
 assert.match(serviceSource, /getIngestionRun/);
