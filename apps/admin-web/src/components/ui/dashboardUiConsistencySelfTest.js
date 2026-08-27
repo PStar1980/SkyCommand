@@ -216,6 +216,12 @@ assert.match(dashboardSource, /label: 'Host agent'/);
 assert.match(dashboardSource, /hostAgentHealth\.online/);
 assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Online'/);
 assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'ONLINE'/);
+assert.match(dashboardSource, /className="sky-command-center-page"/);
+assert.match(cssSource, /\.sky-command-center-page \{\s*display: contents;/);
+assert.match(
+  cssSource,
+  /\.sky-command-center-page :is\([\s\S]*?\.sky-page-header,[\s\S]*?\.sky-card,[\s\S]*?\.sky-dashboard-visuals,[\s\S]*?\.sky-chart-card,[\s\S]*?\.sky-server-status-card,[\s\S]*?\.sky-api-metric-card,[\s\S]*?\.sky-mini-metric,[\s\S]*?\.sky-api-route-card[\s\S]*?\) \{\s*border: 1px solid rgba\(220, 177, 63, 0\.68\);/,
+);
 assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Polling'/);
 assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'POLLING'/);
 assert.doesNotMatch(dashboardSource, /label: 'Readiness'/);

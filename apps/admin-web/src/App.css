@@ -5688,6 +5688,24 @@ select.sky-form-control optgroup {
   }
 }
 
+/* Command Center gold-outline experiment */
+.sky-command-center-page {
+  display: contents;
+}
+
+.sky-command-center-page :is(
+  .sky-page-header,
+  .sky-card,
+  .sky-dashboard-visuals,
+  .sky-chart-card,
+  .sky-server-status-card,
+  .sky-api-metric-card,
+  .sky-mini-metric,
+  .sky-api-route-card
+) {
+  border: 1px solid rgba(220, 177, 63, 0.68);
+}
+
 /* Command Center identity early-warning refinements */
 .sky-dashboard-identity-panel {
   overflow: hidden;
