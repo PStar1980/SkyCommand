@@ -19,6 +19,7 @@ const REQUIRED_RELATIONS = [
   'auth.sessions',
   'core.tools',
   'worker.schedules',
+  'worker.workflow_categories',
   'worker.workflow_definitions',
   'worker.workflow_versions',
   'worker.workflow_nodes',

@@ -277,6 +277,7 @@ SkyCommand/
 │   │       │   ├── toolVerificationService.js
 │   │       │   ├── workerService.js
 │   │       │   ├── workflowApprovalBranchSelfTest.js
+│   │       │   ├── workflowCategoryFoundationSelfTest.js
 │   │       │   ├── workflowCloneParitySelfTest.js
 │   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowConditionService.js
@@ -425,7 +426,8 @@ SkyCommand/
 │   │       │   ├── 00103__docker_compose_lifecycle_controls.sql
 │   │       │   ├── 00104__docker_container_operations.sql
 │   │       │   ├── 00105__docker_resource_cleanup.sql
-│   │       │   └── 00106__user_notification_foundation.sql
+│   │       │   ├── 00106__user_notification_foundation.sql
+│   │       │   └── 00107__workflow_category_foundation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -470,7 +472,8 @@ SkyCommand/
 │   │           ├── 00089__portable_quality_policies_seed.sql
 │   │           ├── 00091__ingestion_recovery_foundation_seed.sql
 │   │           ├── 00092__production_ingestion_recovery_integration.sql
-│   │           └── 00093__workflow_ingestion_recovery_parameters.sql
+│   │           ├── 00093__workflow_ingestion_recovery_parameters.sql
+│   │           └── 00108__workflow_category_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -688,6 +691,7 @@ SkyCommand/
 ├── scripts/
 │   ├── validate.js
 │   ├── db/
+│   │   ├── workflowCategoryFoundation.js
 │   │   ├── functions/
 │   │   │   ├── auth.set_updated_at.sql
 │   │   │   ├── core.set_updated_at.sql
@@ -747,6 +751,7 @@ SkyCommand/
 │   │   │   ├── worker.temporal_workflow_run_records.sql
 │   │   │   ├── worker.worker_nodes.sql
 │   │   │   ├── worker.workflow_approval_requests.sql
+│   │   │   ├── worker.workflow_categories.sql
 │   │   │   ├── worker.workflow_definitions.sql
 │   │   │   ├── worker.workflow_edges.sql
 │   │   │   ├── worker.workflow_node_run_records.sql
@@ -784,6 +789,7 @@ SkyCommand/
 │   │   │   ├── worker.temporal_workflow_run_records_set_updated_at.sql
 │   │   │   ├── worker.worker_nodes_set_updated_at.sql
 │   │   │   ├── worker.workflow_approval_requests_set_updated_at.sql
+│   │   │   ├── worker.workflow_categories_set_updated_at.sql
 │   │   │   ├── worker.workflow_definitions_set_updated_at.sql
 │   │   │   ├── worker.workflow_edges_set_updated_at.sql
 │   │   │   ├── worker.workflow_node_run_records_set_updated_at.sql

@@ -3,6 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS worker.workflow_definitions (
   workflow_definition_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workflow_category_id UUID NOT NULL REFERENCES worker.workflow_categories(workflow_category_id) ON DELETE RESTRICT,
   workflow_code TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
   description TEXT,
@@ -28,4 +29,8 @@ ALTER TABLE worker.workflow_definitions OWNER TO postgres;
 CREATE INDEX IF NOT EXISTS idx_workflow_definitions_status_enabled
   ON worker.workflow_definitions (status, enabled, visible_in_admin, workflow_code);
 
+CREATE INDEX IF NOT EXISTS idx_workflow_definitions_category_status
+  ON worker.workflow_definitions (workflow_category_id, status, enabled, visible_in_admin, workflow_code);
+
 COMMENT ON TABLE worker.workflow_definitions IS 'SkyCommand workflow definitions. These are user/config-defined orchestration graphs, not raw Temporal workflow types.';
+COMMENT ON COLUMN worker.workflow_definitions.workflow_category_id IS 'Primary catalogue category for this workflow definition. Category changes do not create workflow graph versions.';

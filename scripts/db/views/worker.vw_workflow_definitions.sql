@@ -50,8 +50,16 @@ SELECT
   COALESCE(latest_counts.node_count, 0) AS latest_node_count,
   COALESCE(latest_counts.edge_count, 0) AS latest_edge_count,
   COALESCE(published_counts.node_count, 0) AS published_node_count,
-  COALESCE(published_counts.edge_count, 0) AS published_edge_count
+  COALESCE(published_counts.edge_count, 0) AS published_edge_count,
+  d.workflow_category_id,
+  category.category_code,
+  category.display_name AS category_display_name,
+  category.description AS category_description,
+  category.display_order AS category_display_order,
+  category.enabled AS category_enabled
 FROM worker.workflow_definitions d
+JOIN worker.workflow_categories category
+  ON category.workflow_category_id = d.workflow_category_id
 LEFT JOIN version_counts vc
   ON vc.workflow_definition_id = d.workflow_definition_id
 LEFT JOIN worker.workflow_versions latest
@@ -71,4 +79,4 @@ LEFT JOIN auth.users updater
 
 ALTER VIEW worker.vw_workflow_definitions OWNER TO postgres;
 
-COMMENT ON VIEW worker.vw_workflow_definitions IS 'SkyCommand workflow definitions with version and graph summary counts.';
+COMMENT ON VIEW worker.vw_workflow_definitions IS 'SkyCommand workflow definitions with category metadata, version counts, and graph summary counts.';

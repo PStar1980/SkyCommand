@@ -15,6 +15,12 @@ router.get(
 );
 
 router.get(
+  '/categories',
+  requireAnyPermission(['WORKFLOW_READ', 'WORKFLOW_CREATE', 'WORKFLOW_CHANGE', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
+  workflowController.listCategories,
+);
+
+router.get(
   '/definitions',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
   workflowController.listDefinitions,

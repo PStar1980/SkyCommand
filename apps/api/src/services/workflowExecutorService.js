@@ -46,6 +46,7 @@ const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
 const DEFAULT_START_PERMISSION = 'WORKFLOW_RUN';
 const DEFAULT_CANCEL_PERMISSION = 'WORKFLOW_RUN';
+const DEFAULT_WORKFLOW_CATEGORY_CODE = 'GENERAL';
 const WORKFLOW_CREATE_PERMISSION = 'WORKFLOW_CREATE';
 const WORKFLOW_RUN_PERMISSION = 'WORKFLOW_RUN';
 const WORKFLOW_CHANGE_PERMISSION = 'WORKFLOW_CHANGE';
@@ -169,6 +170,64 @@ function normalizeWorkflowCode(value) {
     .slice(0, 80);
 }
 
+function normalizeWorkflowCategoryCode(value, fallback = DEFAULT_WORKFLOW_CATEGORY_CODE) {
+  const normalized = String(value || fallback)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+
+  return normalized || fallback;
+}
+
+function normalizeWorkflowCategoryRow(row) {
+  const item = camelizeRow(row);
+
+  return {
+    workflowCategoryId: item.workflowCategoryId,
+    categoryCode: item.categoryCode,
+    displayName: item.displayName,
+    description: item.description || null,
+    displayOrder: Number(item.displayOrder || 0),
+    enabled: toBoolean(item.enabled),
+    config: item.config || {},
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+async function resolveWorkflowCategory(client, categoryCode, { enabledOnly = true } = {}) {
+  const normalizedCategoryCode = normalizeWorkflowCategoryCode(categoryCode);
+  const result = await client.query(
+    `
+      SELECT
+        workflow_category_id,
+        category_code,
+        display_name,
+        description,
+        display_order,
+        enabled,
+        config,
+        created_at,
+        updated_at
+      FROM worker.workflow_categories
+      WHERE category_code = $1
+        ${enabledOnly ? 'AND enabled = TRUE' : ''}
+      LIMIT 1
+    `,
+    [normalizedCategoryCode],
+  );
+
+  if (!result.rows[0]) {
+    throw new WorkflowServiceError('Workflow category was not found or is disabled.', 400, {
+      categoryCode: normalizedCategoryCode,
+    });
+  }
+
+  return normalizeWorkflowCategoryRow(result.rows[0]);
+}
+
 function normalizeNodeKey(value, fallback = 'node') {
   const normalized = normalizeWorkflowCode(value).replace(/-/g, '_');
 
@@ -190,6 +249,8 @@ function buildDefinitionSnapshot({ definition, nodes = [], edges = [], status = 
     workflowCode: definition.workflowCode,
     displayName: definition.displayName,
     description: definition.description || null,
+    categoryCode: definition.categoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
+    categoryDisplayName: definition.categoryDisplayName || 'General',
     status,
     graphVersion: '1.0',
     nodes: nodes.map((node) => ({
@@ -1045,6 +1106,12 @@ function normalizeDefinitionRow(row) {
 
   return {
     workflowDefinitionId: item.workflowDefinitionId,
+    workflowCategoryId: item.workflowCategoryId,
+    categoryCode: item.categoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
+    categoryDisplayName: item.categoryDisplayName || 'General',
+    categoryDescription: item.categoryDescription || null,
+    categoryDisplayOrder: Number(item.categoryDisplayOrder || 0),
+    categoryEnabled: item.categoryEnabled === undefined ? true : toBoolean(item.categoryEnabled),
     workflowCode: item.workflowCode,
     displayName: item.displayName,
     description: item.description,
@@ -2106,13 +2173,40 @@ async function getWorkflowContextValuesForRun(workflowRunRecordId) {
   }
 }
 
+async function listWorkflowCategories({ enabledOnly = true } = {}) {
+  const result = await query(
+    `
+      SELECT
+        workflow_category_id,
+        category_code,
+        display_name,
+        description,
+        display_order,
+        enabled,
+        config,
+        created_at,
+        updated_at
+      FROM worker.workflow_categories
+      ${enabledOnly ? 'WHERE enabled = TRUE' : ''}
+      ORDER BY display_order, display_name, category_code
+    `,
+  );
+
+  return {
+    total: result.rows.length,
+    items: result.rows.map(normalizeWorkflowCategoryRow),
+  };
+}
+
 async function listWorkflowDefinitions({
   visibleOnly = true,
   enabledOnly = true,
   publishedOnly = true,
   activeOnly = true,
+  categoryCode = '',
 } = {}) {
   const clauses = [];
+  const params = [];
 
   if (visibleOnly) {
     clauses.push('visible_in_admin = TRUE');
@@ -2130,6 +2224,11 @@ async function listWorkflowDefinitions({
     clauses.push("status = 'ACTIVE'");
   }
 
+  if (String(categoryCode || '').trim()) {
+    params.push(normalizeWorkflowCategoryCode(categoryCode));
+    clauses.push(`category_code = $${params.length}`);
+  }
+
   const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
   const result = await query(
     `
@@ -2138,6 +2237,7 @@ async function listWorkflowDefinitions({
       ${whereClause}
       ORDER BY display_name, workflow_code
     `,
+    params,
   );
 
   return {
@@ -2341,6 +2441,8 @@ async function insertWorkflowRun({
         executor: 'skycommand_workflow_executor_v1',
         nodeCount: definition.nodes.length,
         edgeCount: definition.edges.length,
+        workflowCategoryCode: definition.categoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
+        workflowCategoryDisplayName: definition.categoryDisplayName || 'General',
         ...getSafeObject(metadata),
       }),
     ],
@@ -3483,6 +3585,9 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
           workflow_code,
           display_name,
           description,
+          category_code,
+          category_display_name,
+          category_display_order,
           status,
           published_node_count,
           published_edge_count
@@ -3592,6 +3697,9 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
       targetRefId: item.workflowDefinitionId,
       displayName: item.displayName,
       description: item.description,
+      categoryCode: item.categoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
+      categoryDisplayName: item.categoryDisplayName || 'General',
+      categoryDisplayOrder: Number(item.categoryDisplayOrder || 0),
       status: item.status,
       nodeCount: item.publishedNodeCount || 0,
       edgeCount: item.publishedEdgeCount || 0,
@@ -3931,6 +4039,9 @@ async function createWorkflowDefinition({
   assertWorkflowParameterDefinitionLimit(payload.runtimeParameters);
   const runtimeParameters = normalizeWorkflowParameterDefinitions(payload.runtimeParameters);
   const baseDefinitionConfig = getSafeObject(definitionDefaults.config);
+  const categoryCode = normalizeWorkflowCategoryCode(
+    payload.categoryCode || definitionDefaults.categoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
+  );
   const startPermissionCode =
     String(definitionDefaults.startPermissionCode || DEFAULT_START_PERMISSION).trim() ||
     DEFAULT_START_PERMISSION;
@@ -3973,12 +4084,14 @@ async function createWorkflowDefinition({
       });
     }
 
+    const category = await resolveWorkflowCategory(client, categoryCode);
     const { toolsByCode, workflowDefinitionsByCode, temporalDefinitionsByCode } =
       await validateWorkflowTargets(client, nodes, { parentWorkflowCode: workflowCode });
 
     const definitionResult = await client.query(
       `
         INSERT INTO worker.workflow_definitions (
+          workflow_category_id,
           workflow_code,
           display_name,
           description,
@@ -3991,10 +4104,11 @@ async function createWorkflowDefinition({
           created_by_user_id,
           updated_by_user_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $11)
         RETURNING *
       `,
       [
+        category.workflowCategoryId,
         workflowCode,
         displayName,
         description,
@@ -4027,7 +4141,14 @@ async function createWorkflowDefinition({
         user?.userId || null,
       ],
     );
-    const definition = normalizeDefinitionRow(definitionResult.rows[0]);
+    const definition = {
+      ...normalizeDefinitionRow(definitionResult.rows[0]),
+      categoryCode: category.categoryCode,
+      categoryDisplayName: category.displayName,
+      categoryDescription: category.description,
+      categoryDisplayOrder: category.displayOrder,
+      categoryEnabled: category.enabled,
+    };
 
     const versionResult = await client.query(
       `
@@ -4481,6 +4602,9 @@ async function updateWorkflowDefinition({
     : existing.status;
   const nextEnabled = nextStatus === 'ACTIVE';
   const nextVisible = true;
+  const nextCategory = Object.prototype.hasOwnProperty.call(payload, 'categoryCode')
+    ? await resolveWorkflowCategory(pool, payload.categoryCode)
+    : null;
   const configPatch = { updatedBy: 'workflow_manager_v1' };
 
   if (Object.prototype.hasOwnProperty.call(payload, 'runtimeParameters')) {
@@ -4498,8 +4622,9 @@ async function updateWorkflowDefinition({
           status = $4,
           enabled = $5,
           visible_in_admin = $6,
-          updated_by_user_id = $7,
-          config = config || $8::jsonb
+          workflow_category_id = COALESCE($7, workflow_category_id),
+          updated_by_user_id = $8,
+          config = config || $9::jsonb
       WHERE workflow_code = $1
     `,
     [
@@ -4511,6 +4636,7 @@ async function updateWorkflowDefinition({
       nextStatus,
       nextEnabled,
       nextVisible,
+      nextCategory?.workflowCategoryId || null,
       user?.userId || null,
       JSON.stringify(configPatch),
     ],
@@ -5685,6 +5811,7 @@ async function cloneWorkflowDefinition({
       publish: payload.publish !== false,
       visibleInAdmin: true,
       enabled: true,
+      categoryCode: payload.categoryCode || source.categoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
       runtimeParameters: sourceRuntimeParameters,
       nodes: versionNodesToCreateInput(sourceNodes),
     },
@@ -7623,6 +7750,7 @@ module.exports = {
   listWorkflowApprovalRequests,
   resolveWorkflowApprovalRequest,
   listBuilderCatalog,
+  listWorkflowCategories,
   linkWorkflowRunToTemporal,
   listWorkflowDefinitions,
   listActiveWorkflowRuns,
