@@ -71,6 +71,52 @@ assert(
   'Workflow run history must prefer category snapshots and provide a current-definition fallback for legacy runs.',
 );
 
+const legacyRunViewColumns = [
+  'r.workflow_run_record_id',
+  'r.workflow_definition_id',
+  'd.workflow_code AS definition_workflow_code',
+  'd.display_name AS workflow_display_name',
+  'r.workflow_version_id',
+  'v.version_number AS definition_version_number',
+  'r.workflow_code',
+  'r.version_number',
+  'r.run_source',
+  'r.trigger_type',
+  'r.status',
+  'r.temporal_workflow_id',
+  'r.temporal_run_id',
+  'r.input',
+  'r.request_context',
+  'r.summary',
+  'r.started_by_user_id',
+  'u.email AS started_by_email',
+  'u.display_name AS started_by_display_name',
+  'r.started_at',
+  'r.completed_at',
+  'r.metadata',
+  'r.created_at',
+  'r.updated_at',
+];
+
+function assertViewAppendsCategoryColumns(source, label) {
+  let previousIndex = -1;
+
+  legacyRunViewColumns.forEach((column) => {
+    const index = source.indexOf(column);
+    assert(index > previousIndex, `${label} must preserve legacy run-view column order through ${column}.`);
+    previousIndex = index;
+  });
+
+  const categoryIndex = source.indexOf('AS workflow_category_code');
+  assert(
+    categoryIndex > source.indexOf('r.updated_at'),
+    `${label} must append workflow category columns after every existing run-view column so CREATE OR REPLACE VIEW remains PostgreSQL-compatible.`,
+  );
+}
+
+assertViewAppendsCategoryColumns(runProjectionMigration, 'Workflow category run projection migration');
+assertViewAppendsCategoryColumns(runViewSource, 'Workflow run source-of-truth view');
+
 assert(
   workflowService.includes('async function listWorkflowCategories')
     && workflowService.includes('async function resolveWorkflowCategory')
