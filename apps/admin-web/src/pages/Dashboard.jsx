@@ -76,7 +76,6 @@ function Dashboard() {
     },
     userSummaries: {
       skyCommand: null,
-      skyWeb: null,
     },
     ingestion: null,
     worker: null,
@@ -165,7 +164,6 @@ function Dashboard() {
         executionsResult,
         auditResult,
         skyCommandUserResult,
-        skyWebUserResult,
         apiTelemetryResult,
         ingestionResult,
         workerResult,
@@ -190,11 +188,6 @@ function Dashboard() {
                 appCode: 'SKYSERVER_ADMIN',
                 days: userSummaryDays,
               }),
-            )
-          : Promise.resolve(null),
-        hasPermission('ADMIN_USER_READ')
-          ? loadOptional('skyweb-user-summary', () =>
-              adminService.getApplicationUserSummary({ appCode: 'SKYWEB', days: userSummaryDays }),
             )
           : Promise.resolve(null),
         hasPermission('API_TELEMETRY_READ')
@@ -232,7 +225,6 @@ function Dashboard() {
         },
         userSummaries: {
           skyCommand: skyCommandUserResult,
-          skyWeb: skyWebUserResult,
         },
         ingestion: ingestionResult,
         worker: workerResult,
@@ -465,7 +457,7 @@ function Dashboard() {
         <div className="sky-card-header sky-dashboard-section-heading">
           <div>
             <div className="sky-page-kicker">Identity early warning</div>
-            <h2 className="h5 mb-0">Application access activity</h2>
+            <h2 className="h5 mb-0">SkyCommand access activity</h2>
             <div className="small sky-muted mt-1">
               Compare login and session pressure with the immediately preceding period.
             </div>
@@ -492,14 +484,6 @@ function Dashboard() {
             loading={loading}
             title="SkyCommand User Summary"
           />
-
-          <div className="mt-3">
-            <ApplicationUserSummaryRow
-              data={summary.userSummaries.skyWeb}
-              loading={loading}
-              title="SkyWeb User Summary"
-            />
-          </div>
         </div>
       </section>
     </>
