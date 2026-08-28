@@ -44,3 +44,44 @@ export function getWorkflowCategoryDisplayName(item = {}, categories = []) {
 
   return matchedCategory?.displayName || (categoryCode === DEFAULT_WORKFLOW_CATEGORY_CODE ? 'General' : categoryCode);
 }
+
+export function groupWorkflowsByCategory(items = []) {
+  const groups = new Map();
+
+  for (const item of Array.isArray(items) ? items : []) {
+    if (!item) continue;
+
+    const categoryCode = getWorkflowCategoryCode(item);
+    const displayName = getWorkflowCategoryDisplayName(item);
+    const displayOrder = Number(
+      item.categoryDisplayOrder ?? item.workflowCategoryDisplayOrder ?? 999,
+    );
+    const current = groups.get(categoryCode) || {
+      categoryCode,
+      displayName,
+      displayOrder: Number.isFinite(displayOrder) ? displayOrder : 999,
+      items: [],
+    };
+
+    current.items.push(item);
+    groups.set(categoryCode, current);
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort((left, right) =>
+        String(left.displayName || left.workflowCode || left.targetCode || '').localeCompare(
+          String(right.displayName || right.workflowCode || right.targetCode || ''),
+        )),
+    }))
+    .sort((left, right) => {
+      const orderCompare = left.displayOrder - right.displayOrder;
+      return orderCompare !== 0
+        ? orderCompare
+        : String(left.displayName || left.categoryCode).localeCompare(
+            String(right.displayName || right.categoryCode),
+          );
+    });
+}
+

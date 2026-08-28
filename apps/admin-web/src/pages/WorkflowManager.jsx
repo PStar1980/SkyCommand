@@ -41,6 +41,7 @@ import {
   DEFAULT_WORKFLOW_CATEGORY_CODE,
   getWorkflowCategoryCode,
   getWorkflowCategoryDisplayName,
+  groupWorkflowsByCategory,
   normalizeWorkflowCategories,
 } from '../utils/workflowCategories.js';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
@@ -506,6 +507,7 @@ function getManagerNodeExpressionSummary(node, selectedTool) {
 function EditableNodeCard({ index, node, allNodes = [], highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], runtimeParameters = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
+  const groupedWorkflowTargets = groupWorkflowsByCategory(workflowTargets);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
   const nodeTypeCode = node.nodeTypeCode || 'TOOL';
 
@@ -715,7 +717,13 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
               value={node.targetCode}
             >
               <option value="">Select active workflow...</option>
-              {workflowTargets.map((workflow) => <WorkflowTargetOption key={workflow.targetCode} workflow={workflow} />)}
+              {groupedWorkflowTargets.map((group) => (
+                <optgroup key={group.categoryCode} label={group.displayName}>
+                  {group.items.map((workflow) => (
+                    <WorkflowTargetOption key={workflow.targetCode} workflow={workflow} />
+                  ))}
+                </optgroup>
+              ))}
             </select>
             {selectedWorkflow && (
               <div className="form-text">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
+import { groupWorkflowsByCategory } from '../utils/workflowCategories.js';
 import { getNextSortState, serializeSorts, sortItemsBySorts } from '../utils/tableSorting.js';
 import {
   getAvailableTablePageSizes,
@@ -907,6 +908,7 @@ function SchedulerControl({ view = 'manage' }) {
     [scheduleForm.toolCode, tools],
   );
   const selectedWorkflowCode = scheduleForm.parameters?.workflowCode || '';
+  const groupedActiveWorkflows = useMemo(() => groupWorkflowsByCategory(activeWorkflows), [activeWorkflows]);
   const selectedWorkflow = useMemo(
     () => getSelectedWorkflow(activeWorkflows, selectedWorkflowCode),
     [activeWorkflows, selectedWorkflowCode],
@@ -2318,10 +2320,14 @@ function SchedulerControl({ view = 'manage' }) {
                           value={selectedWorkflowCode}
                         >
                           <option value="">Select active workflow</option>
-                          {activeWorkflows.map((workflow) => (
-                            <option key={getWorkflowCode(workflow)} value={getWorkflowCode(workflow)}>
-                              {getWorkflowDisplayName(workflow)} ({getWorkflowCode(workflow)})
-                            </option>
+                          {groupedActiveWorkflows.map((group) => (
+                            <optgroup key={group.categoryCode} label={group.displayName}>
+                              {group.items.map((workflow) => (
+                                <option key={getWorkflowCode(workflow)} value={getWorkflowCode(workflow)}>
+                                  {getWorkflowDisplayName(workflow)} ({getWorkflowCode(workflow)})
+                                </option>
+                              ))}
+                            </optgroup>
                           ))}
                         </select>
                         {selectedWorkflow ? (
