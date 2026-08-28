@@ -103,6 +103,8 @@ async function recordWorkflowDefinitionAudit(req, {
       metadata: {
         workflowCode: definition.workflowCode || req.params?.workflowCode || null,
         workflowDisplayName: definition.displayName || null,
+        workflowCategoryCode: definition.categoryCode || null,
+        workflowCategoryDisplayName: definition.categoryDisplayName || null,
         workflowVersionId:
           definition.workflowVersionId
           || definition.publishedVersionId
@@ -140,6 +142,21 @@ async function getWorkerHealth(req, res, next) {
   }
 }
 
+async function listCategories(req, res, next) {
+  try {
+    const result = await workflowExecutorService.listWorkflowCategories({
+      enabledOnly: parseBooleanQuery(req.query?.enabledOnly, true),
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function listDefinitions(req, res, next) {
   try {
     const result = await workflowExecutorService.listWorkflowDefinitions({
@@ -147,6 +164,7 @@ async function listDefinitions(req, res, next) {
       enabledOnly: parseBooleanQuery(req.query?.enabledOnly, true),
       publishedOnly: parseBooleanQuery(req.query?.publishedOnly, true),
       activeOnly: parseBooleanQuery(req.query?.activeOnly, true),
+      categoryCode: req.query?.categoryCode || '',
     });
 
     res.json({
@@ -916,6 +934,7 @@ module.exports = {
   controlRun,
   cancelRun,
   listApprovals,
+  listCategories,
   decideApproval,
   approveApproval,
   rejectApproval,

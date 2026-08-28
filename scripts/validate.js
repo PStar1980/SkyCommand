@@ -49,6 +49,7 @@ const routineSelfTests = [
   'workflow-database-output:self-test',
   'workflow-start-catalogue:self-test',
   'workflow-clone-parity:self-test',
+  'workflow-category-foundation:self-test',
   'workflow-host-agent-preflight:self-test',
   'auth-expiry-refresh:self-test',
   'tool-execution-response:self-test',
