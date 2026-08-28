@@ -37,6 +37,7 @@ import SummaryParameterEditor, {
 import workflowService from '../services/workflowService';
 import {
   DEFAULT_WORKFLOW_CATEGORY_CODE,
+  groupWorkflowsByCategory,
   normalizeWorkflowCategories,
 } from '../utils/workflowCategories.js';
 
@@ -378,6 +379,7 @@ function WorkflowBuilderNodeCard({
 }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
+  const groupedWorkflowTargets = groupWorkflowsByCategory(workflowTargets);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
   const nodeTypeCode = node.nodeTypeCode || 'TOOL';
 
@@ -585,7 +587,13 @@ function WorkflowBuilderNodeCard({
               value={node.targetCode}
             >
               <option value="">Select active workflow...</option>
-              {workflowTargets.map((workflow) => <WorkflowTargetOption key={workflow.targetCode} workflow={workflow} />)}
+              {groupedWorkflowTargets.map((group) => (
+                <optgroup key={group.categoryCode} label={group.displayName}>
+                  {group.items.map((workflow) => (
+                    <WorkflowTargetOption key={workflow.targetCode} workflow={workflow} />
+                  ))}
+                </optgroup>
+              ))}
             </select>
             {selectedWorkflow && (
               <div className="form-text">
@@ -791,7 +799,6 @@ function WorkflowBuilder() {
       .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))),
     [catalog.workflowTargets, form.workflowCode, form.displayName],
   );
-
   const temporalWorkflowTargets = useMemo(
     () => [...(catalog.temporalWorkflowTargets || [])]
       .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))),

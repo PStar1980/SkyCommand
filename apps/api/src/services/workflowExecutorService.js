@@ -661,6 +661,9 @@ function normalizeApprovalRow(row) {
     workflowNodeId: item.workflowNodeId,
     workflowCode: item.workflowCode,
     workflowDisplayName: item.workflowDisplayName,
+    workflowCategoryCode: item.workflowCategoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
+    workflowCategoryDisplayName: item.workflowCategoryDisplayName || 'General',
+    workflowCategorySource: item.workflowCategorySource || 'DEFAULT',
     nodeKey: item.nodeKey,
     nodeDisplayName: item.nodeDisplayName,
     nodeTypeCode: item.nodeTypeCode,
@@ -7009,6 +7012,7 @@ async function listWorkflowApprovalRequests(filters = {}) {
     .toUpperCase();
   const workflowRunRecordId = String(filters.workflowRunRecordId || '').trim();
   const workflowCode = String(filters.workflowCode || '').trim();
+  const categoryCode = String(filters.categoryCode || '').trim().toUpperCase();
   const requiredRoleCode = normalizeRoleCode(filters.requiredRoleCode || '');
   const userId = String(filters.userId || '').trim();
   const searchText = String(filters.q || filters.search || '').trim();
@@ -7026,6 +7030,11 @@ async function listWorkflowApprovalRequests(filters = {}) {
   if (workflowCode) {
     values.push(workflowCode);
     clauses.push(`workflow_code = $${values.length}`);
+  }
+
+  if (categoryCode) {
+    values.push(categoryCode);
+    clauses.push(`workflow_category_code = $${values.length}`);
   }
 
   if (requiredRoleCode) {
@@ -7048,6 +7057,8 @@ async function listWorkflowApprovalRequests(filters = {}) {
       OR workflow_run_record_id::text ILIKE $${values.length}
       OR COALESCE(workflow_display_name, '') ILIKE $${values.length}
       OR COALESCE(workflow_code, '') ILIKE $${values.length}
+      OR COALESCE(workflow_category_display_name, '') ILIKE $${values.length}
+      OR COALESCE(workflow_category_code, '') ILIKE $${values.length}
       OR COALESCE(approval_title, '') ILIKE $${values.length}
       OR COALESCE(approval_key, '') ILIKE $${values.length}
       OR COALESCE(node_key, '') ILIKE $${values.length}
@@ -7068,6 +7079,7 @@ async function listWorkflowApprovalRequests(filters = {}) {
     sortValue: filters.sort,
     sortFields: {
       workflow: "LOWER(COALESCE(NULLIF(BTRIM(workflow_display_name), ''), workflow_code))",
+      category: "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), ''), workflow_category_code))",
       approval: "LOWER(COALESCE(NULLIF(BTRIM(approval_title), ''), NULLIF(BTRIM(node_display_name), ''), approval_key, node_key))",
       status: 'status',
       requiredRole: "LOWER(COALESCE(required_role_code, ''))",
@@ -7085,7 +7097,7 @@ async function listWorkflowApprovalRequests(filters = {}) {
   const limitParameter = itemValues.length - 1;
   const offsetParameter = itemValues.length;
 
-  const [countResult, itemResult, workflowResult, roleResult, userResult, statusResult] = await Promise.all([
+  const [countResult, itemResult, categoryResult, workflowResult, roleResult, userResult, statusResult] = await Promise.all([
     query(
       `
         SELECT COUNT(*)::integer AS total
@@ -7104,6 +7116,20 @@ async function listWorkflowApprovalRequests(filters = {}) {
         OFFSET $${offsetParameter}
       `,
       itemValues,
+    ),
+    query(
+      `
+        SELECT c.category_code AS workflow_category_code,
+               c.display_name AS workflow_category_display_name
+        FROM worker.workflow_categories c
+        WHERE c.enabled = TRUE
+          AND EXISTS (
+            SELECT 1
+            FROM worker.vw_workflow_approval_requests a
+            WHERE a.workflow_category_code = c.category_code
+          )
+        ORDER BY c.display_order, c.display_name, c.category_code
+      `,
     ),
     query(
       `
@@ -7163,6 +7189,10 @@ async function listWorkflowApprovalRequests(filters = {}) {
     pageCount,
     items: itemResult.rows.map(normalizeApprovalRow),
     facets: {
+      categories: categoryResult.rows.map((row) => ({
+        value: row.workflow_category_code,
+        label: row.workflow_category_display_name || row.workflow_category_code,
+      })),
       workflows: workflowResult.rows.map((row) => ({
         value: row.workflow_code,
         label: row.workflow_display_name || row.workflow_code,

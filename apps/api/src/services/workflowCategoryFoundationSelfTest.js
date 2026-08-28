@@ -13,10 +13,12 @@ function assert(condition, message) {
 const migration = read('packages/db_build/src/migrations/00107__workflow_category_foundation.sql');
 const seed = read('packages/db_build/src/seeds/00108__workflow_category_seed.sql');
 const runProjectionMigration = read('packages/db_build/src/migrations/00109__workflow_run_category_projection.sql');
+const approvalProjectionMigration = read('packages/db_build/src/migrations/00110__workflow_approval_category_projection.sql');
 const tableSource = read('scripts/db/tables/worker.workflow_categories.sql');
 const definitionTableSource = read('scripts/db/tables/worker.workflow_definitions.sql');
 const definitionViewSource = read('scripts/db/views/worker.vw_workflow_definitions.sql');
 const runViewSource = read('scripts/db/views/worker.vw_workflow_run_records.sql');
+const approvalViewSource = read('scripts/db/views/worker.vw_workflow_approval_requests.sql');
 const workflowService = read('apps/api/src/services/workflowExecutorService.js');
 const workflowController = read('apps/api/src/controllers/workflowController.js');
 const workflowRoutes = read('apps/api/src/routes/workflow.routes.js');
@@ -118,6 +120,14 @@ assertViewAppendsCategoryColumns(runProjectionMigration, 'Workflow category run 
 assertViewAppendsCategoryColumns(runViewSource, 'Workflow run source-of-truth view');
 
 assert(
+  approvalProjectionMigration.includes('00110__workflow_approval_category_projection.sql')
+    && approvalProjectionMigration.indexOf('rr.workflow_category_code') > approvalProjectionMigration.indexOf('a.updated_at')
+    && approvalViewSource.indexOf('rr.workflow_category_code') > approvalViewSource.indexOf('a.updated_at')
+    && approvalViewSource.includes('LEFT JOIN worker.vw_workflow_run_records rr'),
+  'Approval History category projection must append category columns after the legacy view contract and reuse the run category projection.',
+);
+
+assert(
   workflowService.includes('async function listWorkflowCategories')
     && workflowService.includes('async function resolveWorkflowCategory')
     && workflowService.includes("const DEFAULT_WORKFLOW_CATEGORY_CODE = 'GENERAL';")
@@ -188,6 +198,7 @@ assert(
 assert(
   setupScript.includes("00107__workflow_category_foundation.sql")
     && setupScript.includes("00109__workflow_run_category_projection.sql")
+    && setupScript.includes("00110__workflow_approval_category_projection.sql")
     && setupScript.includes("00108__workflow_category_seed.sql")
     && setupScript.includes("workflow_category_id IS NULL")
     && setupScript.includes("Known workflow category mismatch"),

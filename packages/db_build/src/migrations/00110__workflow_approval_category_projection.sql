@@ -1,5 +1,6 @@
--- View: worker.vw_workflow_approval_requests
--- Purpose: Human approval requests joined to workflow run, workflow category, node run, and approver identity metadata.
+-- Migration: 00110__workflow_approval_category_projection.sql
+-- Purpose: Append workflow category metadata to Approval History while preserving the legacy view column order.
+-- Depends on: 00109 workflow run category projection.
 
 CREATE OR REPLACE VIEW worker.vw_workflow_approval_requests AS
 SELECT

@@ -5,6 +5,8 @@ import SkyCommandMark from './ui/SkyCommandMark.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import authService from '../services/authService';
 import notificationService from '../services/notificationService.js';
+import workflowService from '../services/workflowService';
+import { getWorkflowCategoryDisplayName } from '../utils/workflowCategories.js';
 
 import DismissibleAlert from './ui/DismissibleAlert.jsx';
 const DEFAULT_PASSWORD_FORM = {
@@ -547,6 +549,7 @@ function Navbar() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedNavGroupLabel, setExpandedNavGroupLabel] = useState('Dashboards');
   const [commandQuery, setCommandQuery] = useState('');
+  const [commandWorkflowTargets, setCommandWorkflowTargets] = useState([]);
   const [topbarPanel, setTopbarPanel] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [notificationItems, setNotificationItems] = useState([]);
@@ -563,6 +566,44 @@ function Navbar() {
     [hasPermission, hasRole],
   );
   useEffect(() => {
+    let cancelled = false;
+
+    if (!isAuthenticated || !hasPermission('WORKFLOW_READ')) {
+      setCommandWorkflowTargets([]);
+      return () => { cancelled = true; };
+    }
+
+    workflowService
+      .listDefinitions({
+        activeOnly: true,
+        enabledOnly: true,
+        visibleOnly: true,
+        publishedOnly: true,
+      })
+      .then((result) => {
+        if (cancelled) return;
+        setCommandWorkflowTargets(
+          (result.items || []).map((workflow) => {
+            const categoryDisplayName = getWorkflowCategoryDisplayName(workflow);
+            const workflowCode = workflow.workflowCode || '';
+
+            return {
+              label: workflow.displayName || workflowCode,
+              description: `${categoryDisplayName} · ${workflowCode}`,
+              group: `Workflow · ${categoryDisplayName}`,
+              searchText: `${workflow.categoryCode || ''} ${categoryDisplayName} ${workflowCode}`,
+              to: `/workflows/start?workflowCode=${encodeURIComponent(workflowCode)}`,
+            };
+          }),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setCommandWorkflowTargets([]);
+      });
+
+    return () => { cancelled = true; };
+  }, [hasPermission, isAuthenticated]);
+  useEffect(() => {
     const activeGroup = getNavGroupForPath(navGroups, location.pathname);
     const fallbackGroup = navGroups.find((group) => group.label === 'Dashboards') || navGroups[0];
 
@@ -570,8 +611,8 @@ function Navbar() {
   }, [location.pathname, navGroups]);
 
   const commandSearchTargets = useMemo(
-    () =>
-      navGroups.flatMap((group) =>
+    () => [
+      ...navGroups.flatMap((group) =>
         group.items.map((item) => ({
           label: item.label,
           description: item.description,
@@ -579,7 +620,9 @@ function Navbar() {
           to: item.to,
         })),
       ),
-    [navGroups],
+      ...commandWorkflowTargets,
+    ],
+    [commandWorkflowTargets, navGroups],
   );
   const commandSearchMatches = useMemo(() => {
     const normalizedQuery = commandQuery.trim().toLowerCase();
@@ -591,7 +634,7 @@ function Navbar() {
     return commandSearchTargets
       .filter((target) => {
         const haystack =
-          `${target.group} ${target.label} ${target.description} ${target.to}`.toLowerCase();
+          `${target.group} ${target.label} ${target.description} ${target.searchText || ''} ${target.to}`.toLowerCase();
         return haystack.includes(normalizedQuery);
       })
       .slice(0, 5);

@@ -14,6 +14,9 @@ const serviceSource = read('apps/admin-web/src/services/workflowService.js');
 const builderSource = read('apps/admin-web/src/pages/WorkflowBuilder.jsx');
 const managerSource = read('apps/admin-web/src/pages/WorkflowManager.jsx');
 const workflowSource = read('apps/admin-web/src/pages/SkyWorkflows.jsx');
+const approvalSource = read('apps/admin-web/src/pages/WorkflowApprovals.jsx');
+const schedulerSource = read('apps/admin-web/src/pages/SchedulerControl.jsx');
+const navbarSource = read('apps/admin-web/src/components/Navbar.jsx');
 const categoryUtilsSource = read('apps/admin-web/src/utils/workflowCategories.js');
 const cssSource = read('apps/admin-web/src/App.css');
 
@@ -27,7 +30,8 @@ assert(
   categoryUtilsSource.includes("DEFAULT_WORKFLOW_CATEGORY_CODE = 'GENERAL'")
     && categoryUtilsSource.includes('getWorkflowCategoryCode')
     && categoryUtilsSource.includes('getWorkflowCategoryDisplayName')
-    && categoryUtilsSource.includes('normalizeWorkflowCategories'),
+    && categoryUtilsSource.includes('normalizeWorkflowCategories')
+    && categoryUtilsSource.includes('groupWorkflowsByCategory'),
   'Workflow category UI must share one normalization/display contract.',
 );
 
@@ -63,6 +67,40 @@ assert(
     && workflowSource.includes('categoryCode: nextFilters.categoryCode')
     && workflowSource.includes('getWorkflowCategoryDisplayName(run, workflowCategories)'),
   'Workflow Operations must expose Category as a server-backed filter and sortable run-history column.',
+);
+
+
+
+assert(
+  approvalSource.includes('id="approvalHistoryCategory"')
+    && approvalSource.includes("renderSortableHeader('Category', 'category')")
+    && approvalSource.includes("updateFilter('categoryCode'")
+    && approvalSource.includes("approval.workflowCategoryDisplayName || 'General'"),
+  'Approval History must filter, sort, and display workflow categories.',
+);
+
+assert(
+  builderSource.includes('groupedWorkflowTargets.map((group)')
+    && builderSource.includes('<optgroup key={group.categoryCode} label={group.displayName}>')
+    && managerSource.includes('groupedWorkflowTargets.map((group)')
+    && managerSource.includes('<optgroup key={group.categoryCode} label={group.displayName}>'),
+  'Create/Manage Workflow child-workflow targets must be grouped by workflow category.',
+);
+
+assert(
+  schedulerSource.includes('groupedActiveWorkflows')
+    && schedulerSource.includes('<optgroup key={group.categoryCode} label={group.displayName}>'),
+  'Create/Manage Schedules must group workflow targets by category.',
+);
+
+assert(
+  navbarSource.includes('commandWorkflowTargets')
+    && navbarSource.includes('.listDefinitions({')
+    && navbarSource.includes('getWorkflowCategoryDisplayName(workflow)')
+    && navbarSource.includes('/workflows/start?workflowCode=')
+    && workflowSource.includes("searchParams.get('workflowCode')")
+    && workflowSource.includes('requestedSelection = mode === \'start\''),
+  'Global Search must discover workflows by category and deep-link to the selected Start Workflow definition.',
 );
 
 assert(

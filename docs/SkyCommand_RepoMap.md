@@ -430,7 +430,8 @@ SkyCommand/
 │   │       │   ├── 00105__docker_resource_cleanup.sql
 │   │       │   ├── 00106__user_notification_foundation.sql
 │   │       │   ├── 00107__workflow_category_foundation.sql
-│   │       │   └── 00109__workflow_run_category_projection.sql
+│   │       │   ├── 00109__workflow_run_category_projection.sql
+│   │       │   └── 00110__workflow_approval_category_projection.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

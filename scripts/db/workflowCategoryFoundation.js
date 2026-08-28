@@ -23,6 +23,14 @@ const MIGRATION_PATHS = [
     'migrations',
     '00109__workflow_run_category_projection.sql',
   ),
+  path.join(
+    REPOSITORY_ROOT,
+    'packages',
+    'db_build',
+    'src',
+    'migrations',
+    '00110__workflow_approval_category_projection.sql',
+  ),
 ];
 const SEED_PATH = path.join(
   REPOSITORY_ROOT,
@@ -68,7 +76,7 @@ async function applySqlFile(pool, filePath) {
 }
 
 async function loadVerification(pool) {
-  const [categoryResult, definitionResult, uncategorizedResult, runCategoryResult] = await Promise.all([
+  const [categoryResult, definitionResult, uncategorizedResult, runCategoryResult, approvalCategoryResult] = await Promise.all([
     pool.query(`
       SELECT
         category_code,
@@ -101,6 +109,15 @@ async function loadVerification(pool) {
       ORDER BY created_at DESC
       LIMIT 1
     `),
+    pool.query(`
+      SELECT
+        workflow_category_code,
+        workflow_category_display_name,
+        workflow_category_source
+      FROM worker.vw_workflow_approval_requests
+      ORDER BY created_at DESC
+      LIMIT 1
+    `),
   ]);
 
   return {
@@ -108,6 +125,7 @@ async function loadVerification(pool) {
     definitions: definitionResult.rows,
     uncategorized: Number(uncategorizedResult.rows[0]?.count || 0),
     latestRunCategoryProjection: runCategoryResult.rows[0] || null,
+    latestApprovalCategoryProjection: approvalCategoryResult.rows[0] || null,
   };
 }
 

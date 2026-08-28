@@ -15,6 +15,7 @@ const APPROVAL_HISTORY_DEFAULT_SORTS = [{ field: 'requestedAt', direction: 'desc
 const DEFAULT_FILTERS = {
   q: '',
   status: 'ALL',
+  categoryCode: '',
   workflowCode: '',
   requiredRoleCode: '',
   userId: '',
@@ -142,6 +143,7 @@ function WorkflowApprovals() {
   const [total, setTotal] = useState(0);
   const [approvals, setApprovals] = useState([]);
   const [facets, setFacets] = useState({
+    categories: [],
     roles: [],
     statuses: [],
     users: [],
@@ -222,6 +224,7 @@ function WorkflowApprovals() {
       setTotal(resultTotal);
       setPageCount(resolvedPageCount);
       setFacets({
+        categories: result.facets?.categories || [],
         roles: result.facets?.roles || [],
         statuses: result.facets?.statuses || [],
         users: result.facets?.users || [],
@@ -449,6 +452,24 @@ function WorkflowApprovals() {
               </select>
             </div>
             <div>
+              <label className="form-label" htmlFor="approvalHistoryCategory">
+                Category
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="approvalHistoryCategory"
+                onChange={(event) => updateFilter('categoryCode', event.target.value)}
+                value={filters.categoryCode}
+              >
+                <option value="">All categories</option>
+                {facets.categories.map((category) => (
+                  <option key={category.value} value={category.value}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="form-label" htmlFor="approvalHistoryWorkflow">
                 Workflow
               </label>
@@ -518,6 +539,7 @@ function WorkflowApprovals() {
             <thead>
               <tr>
                 {renderSortableHeader('Workflow', 'workflow')}
+                {renderSortableHeader('Category', 'category')}
                 {renderSortableHeader('Approval', 'approval')}
                 {renderSortableHeader('Status', 'status')}
                 {renderSortableHeader('Required role', 'requiredRole')}
@@ -531,13 +553,13 @@ function WorkflowApprovals() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="9">
+                  <td colSpan="10">
                     <div className="sky-empty-state">Loading approval history...</div>
                   </td>
                 </tr>
               ) : approvals.length === 0 ? (
                 <tr>
-                  <td colSpan="9">
+                  <td colSpan="10">
                     <div className="sky-empty-state">
                       No approval records match the current filters.
                     </div>
@@ -559,6 +581,7 @@ function WorkflowApprovals() {
                         </div>
                         <div className="small sky-muted sky-mono">{approval.workflowCode}</div>
                       </td>
+                      <td>{approval.workflowCategoryDisplayName || 'General'}</td>
                       <td>
                         <div className="fw-bold">{approval.approvalTitle || approval.nodeDisplayName}</div>
                         <div className="small sky-muted sky-mono">
@@ -618,6 +641,9 @@ function WorkflowApprovals() {
           </div>
           {selectedApproval && (
             <div className="d-flex flex-wrap gap-2">
+              <span className="sky-pill sky-pill-info">
+                {selectedApproval.workflowCategoryDisplayName || 'General'}
+              </span>
               <span className={`sky-pill ${statusClass(selectedApproval.status)}`}>
                 {selectedApproval.status}
               </span>

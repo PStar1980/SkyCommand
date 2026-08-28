@@ -5193,6 +5193,7 @@ function SkyWorkflows({ mode = 'start' }) {
     runId: null,
   });
   const requestedRunId = (searchParams.get('runId') || '').trim();
+  const requestedWorkflowCode = (searchParams.get('workflowCode') || '').trim();
 
   useEffect(() => {
     if (!requestedRunId) return;
@@ -5202,6 +5203,16 @@ function SkyWorkflows({ mode = 'start' }) {
     setHistoryPage(1);
     setSelectedRunDetail(null);
   }, [requestedRunId]);
+
+  useEffect(() => {
+    if (mode !== 'start' || !requestedWorkflowCode) return;
+    setStartWorkflowFilters((current) =>
+      current.q === requestedWorkflowCode
+        ? current
+        : { ...DEFAULT_START_WORKFLOW_FILTERS, q: requestedWorkflowCode },
+    );
+    setStartWorkflowPage(1);
+  }, [mode, requestedWorkflowCode]);
 
   const selectedRun = selectedRunDetail?.run || null;
   const selectedNodeRuns = selectedRunDetail?.nodeRuns || [];
@@ -5475,11 +5486,14 @@ function SkyWorkflows({ mode = 'start' }) {
       setRepositoryOptions(catalogResult.repositoryOptions || []);
     }
 
+    const requestedSelection = mode === 'start' && requestedWorkflowCode
+      ? items.find((item) => item.workflowCode === requestedWorkflowCode)
+      : null;
     const preservedSelection =
       keepSelection && selectedDefinition
         ? items.find((item) => item.workflowCode === selectedDefinition.workflowCode)
         : null;
-    const nextSelection = preservedSelection || (items[0] || null);
+    const nextSelection = requestedSelection || preservedSelection || (items[0] || null);
 
     setSelectedDefinition(nextSelection);
 
