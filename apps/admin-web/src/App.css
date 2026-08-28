@@ -4841,10 +4841,10 @@ select.sky-form-control optgroup {
 
 .sky-history-browser-filter-grid {
   display: grid;
-  grid-template-columns: minmax(15rem, 1.45fr) repeat(2, minmax(10rem, 0.75fr)) auto;
+  grid-template-columns: minmax(15rem, 1.45fr) repeat(3, minmax(9.5rem, 0.72fr)) auto;
   gap: 0.75rem;
   align-items: end;
-  min-width: min(100%, 72rem);
+  min-width: min(100%, 84rem);
 }
 
 .sky-history-browser-filter-grid .form-label {
@@ -6393,9 +6393,14 @@ select.sky-form-control optgroup {
   min-width: min(100%, 92rem);
 }
 
-.sky-manage-workflows-filter-grid {
+.sky-workflow-start-filter-grid {
   grid-template-columns: minmax(15rem, 1.45fr) repeat(4, minmax(8.5rem, 0.68fr)) auto;
   min-width: min(100%, 92rem);
+}
+
+.sky-manage-workflows-filter-grid {
+  grid-template-columns: minmax(15rem, 1.45fr) repeat(5, minmax(8rem, 0.64fr)) auto;
+  min-width: min(100%, 104rem);
 }
 
 .sky-run-tools-filter-grid .form-label,

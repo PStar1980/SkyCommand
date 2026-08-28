@@ -37,6 +37,12 @@ import SummaryParameterEditor, {
 } from '../components/SummaryParameterEditor.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
+import {
+  DEFAULT_WORKFLOW_CATEGORY_CODE,
+  getWorkflowCategoryCode,
+  getWorkflowCategoryDisplayName,
+  normalizeWorkflowCategories,
+} from '../utils/workflowCategories.js';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 import {
   getAvailableTablePageSizes,
@@ -62,6 +68,7 @@ const VERSION_HISTORY_PAGE_SIZE = 5;
 const MANAGE_WORKFLOW_DEFAULT_SORTS = [{ field: 'workflow', direction: 'asc' }];
 const DEFAULT_MANAGE_WORKFLOW_FILTERS = {
   q: '',
+  categoryCode: '',
   status: '',
   structure: '',
   parameterMode: '',
@@ -72,6 +79,7 @@ function getWorkflowDefinitionSortValue(definition, field) {
   if (field === 'workflow') {
     return `${definition.displayName || ''} ${definition.workflowCode || ''}`.trim();
   }
+  if (field === 'category') return getWorkflowCategoryDisplayName(definition);
   if (field === 'structure') return getDefinitionStructureLabel(definition);
   if (field === 'nodes') return getDefinitionNodeCount(definition);
   if (field === 'edges') return getDefinitionEdgeCount(definition);
@@ -985,11 +993,13 @@ function ReadOnlyNodeParameterPanel({
 
 function WorkflowManager() {
   const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [], repositoryOptions: [] });
+  const [workflowCategories, setWorkflowCategories] = useState([]);
   const [definitions, setDefinitions] = useState([]);
   const [selectedCode, setSelectedCode] = useState('');
   const [detail, setDetail] = useState(null);
   const [metadataForm, setMetadataForm] = useState({
     displayName: '',
+    categoryCode: DEFAULT_WORKFLOW_CATEGORY_CODE,
     description: '',
     status: 'ACTIVE',
     runtimeParameters: [],
@@ -1049,7 +1059,7 @@ function WorkflowManager() {
     setError('');
 
     try {
-      const [definitionResult, catalogResult] = await Promise.all([
+      const [definitionResult, catalogResult, categoryResult] = await Promise.all([
         workflowService.listDefinitions({
           visibleOnly: 'false',
           enabledOnly: 'false',
@@ -1057,9 +1067,11 @@ function WorkflowManager() {
           activeOnly: 'false',
         }),
         workflowService.getBuilderCatalog(),
+        workflowService.listCategories(),
       ]);
       const items = definitionResult.items || [];
       setDefinitions(items);
+      setWorkflowCategories(normalizeWorkflowCategories(categoryResult.items || []));
       setCatalog({
         nodeTypes: catalogResult.nodeTypes || [],
         toolTargets: catalogResult.toolTargets || [],
@@ -1103,6 +1115,7 @@ function WorkflowManager() {
       setDetail(definition);
       setMetadataForm({
         displayName: definition.displayName || '',
+        categoryCode: getWorkflowCategoryCode(definition),
         description: definition.description || '',
         status: definition.status || 'ACTIVE',
         runtimeParameters: normalizeRuntimeParameterDefinitions(definition.runtimeParameters || definition.config?.runtimeParameters || []),
@@ -1484,6 +1497,7 @@ function WorkflowManager() {
     try {
       const result = await workflowService.updateDefinition(detail.workflowCode, {
         displayName: metadataForm.displayName,
+        categoryCode: metadataForm.categoryCode,
         description: metadataForm.description,
         status: metadataForm.status,
         runtimeParameters: cleanRuntimeParameterDefinitions(metadataForm.runtimeParameters),
@@ -1663,6 +1677,13 @@ function WorkflowManager() {
       const nodeCount = getDefinitionNodeCount(definition);
       const parameterCount = getDefinitionRuntimeParameterCount(definition);
 
+      if (
+        manageWorkflowFilters.categoryCode &&
+        getWorkflowCategoryCode(definition) !== manageWorkflowFilters.categoryCode
+      ) {
+        return false;
+      }
+
       if (manageWorkflowFilters.status && String(definition.status || 'ACTIVE').toUpperCase() !== manageWorkflowFilters.status) {
         return false;
       }
@@ -1699,6 +1720,8 @@ function WorkflowManager() {
         definition.displayName,
         definition.workflowCode,
         definition.description,
+        definition.categoryDisplayName,
+        definition.categoryCode,
         definition.status,
         getDefinitionStructureLabel(definition),
       ].some((value) => String(value || '').toLowerCase().includes(searchText));
@@ -2040,6 +2063,24 @@ function WorkflowManager() {
               />
             </div>
             <div>
+              <label className="form-label" htmlFor="manageWorkflowCategoryFilter">
+                Category
+              </label>
+              <select
+                className="form-select sky-form-control"
+                id="manageWorkflowCategoryFilter"
+                onChange={(event) => updateManageWorkflowFilter('categoryCode', event.target.value)}
+                value={manageWorkflowFilters.categoryCode}
+              >
+                <option value="">All categories</option>
+                {workflowCategories.map((category) => (
+                  <option key={category.workflowCategoryId || category.categoryCode} value={category.categoryCode}>
+                    {category.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="form-label" htmlFor="manageWorkflowStatusFilter">
                 Status
               </label>
@@ -2119,6 +2160,7 @@ function WorkflowManager() {
             <thead>
               <tr>
                 {renderManageWorkflowSortableHeader('Workflow', 'workflow')}
+                {renderManageWorkflowSortableHeader('Category', 'category')}
                 {renderManageWorkflowSortableHeader('Structure', 'structure')}
                 {renderManageWorkflowSortableHeader('Nodes', 'nodes')}
                 {renderManageWorkflowSortableHeader('Edges', 'edges')}
@@ -2130,7 +2172,7 @@ function WorkflowManager() {
             <tbody>
               {visibleDefinitions.length === 0 ? (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <div className="sky-empty-state">
                       No workflow definitions match the current filters.
                     </div>
@@ -2150,6 +2192,7 @@ function WorkflowManager() {
                         <div className="fw-bold sky-detail-value">{definition.displayName}</div>
                         <div className="small sky-mono sky-muted">{definition.workflowCode}</div>
                       </td>
+                      <td>{getWorkflowCategoryDisplayName(definition, workflowCategories)}</td>
                       <td>{getDefinitionStructureLabel(definition)}</td>
                       <td>{getDefinitionNodeCount(definition)}</td>
                       <td>{getDefinitionEdgeCount(definition)}</td>
@@ -2216,7 +2259,23 @@ function WorkflowManager() {
                         value={metadataForm.description}
                       />
                     </div>
-                    <div className="col-lg-4">
+                    <div className="col-lg-6">
+                      <label className="form-label" htmlFor="managerCategory">Category</label>
+                      <select
+                        className="form-select sky-form-control"
+                        id="managerCategory"
+                        onChange={(event) => setMetadataForm((current) => ({ ...current, categoryCode: event.target.value }))}
+                        value={metadataForm.categoryCode}
+                      >
+                        {workflowCategories.map((category) => (
+                          <option key={category.workflowCategoryId || category.categoryCode} value={category.categoryCode}>
+                            {category.displayName}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="form-text sky-muted">Category changes reorganize the catalogue without creating a new workflow graph version.</div>
+                    </div>
+                    <div className="col-lg-6">
                       <label className="form-label" htmlFor="managerStatus">Status</label>
                       <select
                         className="form-select sky-form-control"

@@ -4,6 +4,10 @@ function getWorkerHealth() {
   return api.get('/api/workflows/worker-health');
 }
 
+function listCategories(filters = {}) {
+  return api.get('/api/workflows/categories', { query: filters });
+}
+
 function listDefinitions(filters = {}) {
   return api.get('/api/workflows/definitions', { query: filters });
 }
@@ -129,6 +133,7 @@ const workflowService = {
   getRunTelemetry,
   listActiveRuns,
   listApprovals,
+  listCategories,
   decideApproval,
   discardDraft,
   listDefinitions,

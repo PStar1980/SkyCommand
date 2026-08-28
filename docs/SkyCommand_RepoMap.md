@@ -172,6 +172,7 @@ SkyCommand/
 │   │       │   ├── WorkerControl.jsx
 │   │       │   ├── WorkflowApprovals.jsx
 │   │       │   ├── WorkflowBuilder.jsx
+│   │       │   ├── workflowCategoryUiSelfTest.js
 │   │       │   ├── workflowDatabaseOutputSelfTest.js
 │   │       │   ├── workflowEditorGraphParitySelfTest.js
 │   │       │   ├── WorkflowManager.jsx
@@ -194,7 +195,8 @@ SkyCommand/
 │   │       └── utils/
 │   │           ├── dockerLiveStatus.js
 │   │           ├── tablePageSize.js
-│   │           └── tableSorting.js
+│   │           ├── tableSorting.js
+│   │           └── workflowCategories.js
 │   ├── api/
 │   │   └── src/
 │   │       ├── index.js
@@ -427,7 +429,8 @@ SkyCommand/
 │   │       │   ├── 00104__docker_container_operations.sql
 │   │       │   ├── 00105__docker_resource_cleanup.sql
 │   │       │   ├── 00106__user_notification_foundation.sql
-│   │       │   └── 00107__workflow_category_foundation.sql
+│   │       │   ├── 00107__workflow_category_foundation.sql
+│   │       │   └── 00109__workflow_run_category_projection.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

@@ -7,6 +7,11 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import WorkflowApprovalOverlay from '../components/WorkflowApprovalOverlay.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import workflowService from '../services/workflowService';
+import {
+  getWorkflowCategoryCode,
+  getWorkflowCategoryDisplayName,
+  normalizeWorkflowCategories,
+} from '../utils/workflowCategories.js';
 import { getNextSortState, sortItemsBySorts } from '../utils/tableSorting.js';
 import {
   getAvailableTablePageSizes,
@@ -52,6 +57,7 @@ const RUNTIME_FILTER_OPTIONS = [
 
 const DEFAULT_START_WORKFLOW_FILTERS = {
   q: '',
+  categoryCode: '',
   structure: '',
   parameterMode: '',
   nodeScale: '',
@@ -61,6 +67,7 @@ function getWorkflowDefinitionSortValue(definition, field) {
   if (field === 'workflow') {
     return `${definition.displayName || ''} ${definition.workflowCode || ''}`.trim();
   }
+  if (field === 'category') return getWorkflowCategoryDisplayName(definition);
   if (field === 'structure') return getDefinitionStructureLabel(definition);
   if (field === 'nodes') return getDefinitionNodeCount(definition);
   if (field === 'edges') return getDefinitionEdgeCount(definition);
@@ -311,6 +318,11 @@ function runMatchesRuntimeFilter(run, runtimeFilter) {
   return true;
 }
 
+function runMatchesWorkflowCategory(run, categoryCode = '') {
+  const normalizedCategoryCode = String(categoryCode || '').trim();
+  return !normalizedCategoryCode || getWorkflowCategoryCode(run) === normalizedCategoryCode;
+}
+
 function runMatchesHistorySearch(run, searchText = '') {
   const normalizedSearch = String(searchText || '').trim().toLowerCase();
 
@@ -321,6 +333,8 @@ function runMatchesHistorySearch(run, searchText = '') {
   return [
     run?.workflowDisplayName,
     run?.workflowCode,
+    run?.workflowCategoryDisplayName,
+    run?.workflowCategoryCode,
     run?.status,
     run?.summary,
     run?.triggerType,
@@ -5119,12 +5133,14 @@ function SkyWorkflows({ mode = 'start' }) {
   const canDecideApproval = hasPermission('WORKFLOW_APPROVAL_DECIDE');
 
   const [definitions, setDefinitions] = useState([]);
+  const [workflowCategories, setWorkflowCategories] = useState([]);
   const [selectedDefinition, setSelectedDefinition] = useState(null);
   const [selectedDefinitionDetail, setSelectedDefinitionDetail] = useState(null);
   const [runs, setRuns] = useState([]);
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
   const [filters, setFilters] = useState(() => ({
     q: (searchParams.get('runId') || '').trim(),
+    categoryCode: '',
     status: '',
     runtime: normalizeRuntimeFilter(searchParams.get('runtime')),
   }));
@@ -5327,10 +5343,11 @@ function SkyWorkflows({ mode = 'start' }) {
   const historyRuns = useMemo(
     () => runs.filter(
       (run) =>
+        runMatchesWorkflowCategory(run, filters.categoryCode) &&
         runMatchesRuntimeFilter(run, filters.runtime) &&
         runMatchesHistorySearch(run, filters.q),
     ),
-    [filters.q, filters.runtime, runs],
+    [filters.categoryCode, filters.q, filters.runtime, runs],
   );
   const historyAvailablePageSizes = useMemo(
     () => getAvailableTablePageSizes(historyRuns.length),
@@ -5355,6 +5372,13 @@ function SkyWorkflows({ mode = 'start' }) {
     return definitions.filter((definition) => {
       const nodeCount = getDefinitionNodeCount(definition);
       const parameterCount = getDefinitionRuntimeParameterCount(definition);
+
+      if (
+        startWorkflowFilters.categoryCode &&
+        getWorkflowCategoryCode(definition) !== startWorkflowFilters.categoryCode
+      ) {
+        return false;
+      }
 
       if (
         startWorkflowFilters.structure &&
@@ -5391,6 +5415,8 @@ function SkyWorkflows({ mode = 'start' }) {
         definition.displayName,
         definition.workflowCode,
         definition.description,
+        definition.categoryDisplayName,
+        definition.categoryCode,
         definition.status,
         getDefinitionStructureLabel(definition),
       ].some((value) => String(value || '').toLowerCase().includes(searchText));
@@ -5430,6 +5456,13 @@ function SkyWorkflows({ mode = 'start' }) {
         sortedStartDefinitions.length,
       );
 
+  async function loadWorkflowCategories() {
+    const result = await workflowService.listCategories();
+    const items = normalizeWorkflowCategories(result.items || []);
+    setWorkflowCategories(items);
+    return items;
+  }
+
   async function loadDefinitions({ keepSelection = true } = {}) {
     const [result, catalogResult] = await Promise.all([
       workflowService.listDefinitions(),
@@ -5464,6 +5497,7 @@ function SkyWorkflows({ mode = 'start' }) {
   ) {
     const query = {
       limit: HISTORY_LOAD_LIMIT,
+      categoryCode: nextFilters.categoryCode,
       status: nextFilters.status,
       sort: serializeSorts(nextSorts),
     };
@@ -5494,6 +5528,8 @@ function SkyWorkflows({ mode = 'start' }) {
     setError('');
 
     try {
+      await loadWorkflowCategories();
+
       // Workflow Operations refreshes only the execution ledger/detail. Reloading the
       // definition catalogue here is unnecessary and can transiently desynchronize the
       // selected run from its graph while a manual refresh is in flight. Start Workflow
@@ -5595,6 +5631,7 @@ function SkyWorkflows({ mode = 'start' }) {
     try {
       const result = await workflowService.listRuns({
         limit: HISTORY_LOAD_LIMIT,
+        categoryCode: filters.categoryCode,
         status: filters.status,
         sort: serializeSorts(historySorts),
       });
@@ -5602,6 +5639,7 @@ function SkyWorkflows({ mode = 'start' }) {
       const activeRunCount = items.filter(isActiveRun).length;
       const visibleRuns = items.filter(
         (run) =>
+          runMatchesWorkflowCategory(run, filters.categoryCode) &&
           runMatchesRuntimeFilter(run, filters.runtime) &&
           runMatchesHistorySearch(run, filters.q),
       );
@@ -5972,7 +6010,7 @@ function SkyWorkflows({ mode = 'start' }) {
   }
 
   function clearHistoryFilters() {
-    const nextFilters = { q: '', status: '', runtime: 'skycommand' };
+    const nextFilters = { q: '', categoryCode: '', status: '', runtime: 'skycommand' };
     const nextSearchParams = new URLSearchParams(searchParams);
     nextSearchParams.delete('runtime');
     nextSearchParams.delete('runId');
@@ -6270,6 +6308,7 @@ function SkyWorkflows({ mode = 'start' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isHistoryMode,
+    filters.categoryCode,
     filters.q,
     filters.status,
     filters.runtime,
@@ -6873,6 +6912,24 @@ function SkyWorkflows({ mode = 'start' }) {
                 />
               </div>
               <div>
+                <label className="form-label" htmlFor="workflowHistoryCategory">
+                  Category
+                </label>
+                <select
+                  className="form-select sky-form-control"
+                  id="workflowHistoryCategory"
+                  onChange={(event) => updateFilter('categoryCode', event.target.value)}
+                  value={filters.categoryCode}
+                >
+                  <option value="">All categories</option>
+                  {workflowCategories.map((category) => (
+                    <option key={category.workflowCategoryId || category.categoryCode} value={category.categoryCode}>
+                      {category.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="form-label" htmlFor="workflowHistoryRuntime">
                   Runtime source
                 </label>
@@ -6931,6 +6988,7 @@ function SkyWorkflows({ mode = 'start' }) {
               <thead>
                 <tr>
                   {renderHistorySortableHeader('Workflow', 'workflow')}
+                  {renderHistorySortableHeader('Category', 'category')}
                   {renderHistorySortableHeader('Status', 'status')}
                   {renderHistorySortableHeader('Started', 'startedAt')}
                   {renderHistorySortableHeader('Duration', 'durationMs')}
@@ -6942,14 +7000,14 @@ function SkyWorkflows({ mode = 'start' }) {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan="8">
                       <div className="sky-empty-state">Loading workflow runs...</div>
                     </td>
                   </tr>
                 )}
                 {!loading && historyRuns.length === 0 && (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan="8">
                       <div className="sky-empty-state">
                         No workflow runs found for these filters.
                       </div>
@@ -6979,6 +7037,7 @@ function SkyWorkflows({ mode = 'start' }) {
                           </div>
                         )}
                       </td>
+                      <td>{getWorkflowCategoryDisplayName(run, workflowCategories)}</td>
                       <td>
                         <span className={`sky-pill ${statusClass(run.status)}`}>{run.status}</span>
                       </td>
@@ -7169,6 +7228,24 @@ function SkyWorkflows({ mode = 'start' }) {
                   />
                 </div>
                 <div>
+                  <label className="form-label" htmlFor="startWorkflowCategoryFilter">
+                    Category
+                  </label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="startWorkflowCategoryFilter"
+                    onChange={(event) => updateStartWorkflowFilter('categoryCode', event.target.value)}
+                    value={startWorkflowFilters.categoryCode}
+                  >
+                    <option value="">All categories</option>
+                    {workflowCategories.map((category) => (
+                      <option key={category.workflowCategoryId || category.categoryCode} value={category.categoryCode}>
+                        {category.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="form-label" htmlFor="startWorkflowStructureFilter">
                     Structure
                   </label>
@@ -7247,6 +7324,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 <thead>
                   <tr>
                     {renderStartWorkflowSortableHeader('Workflow', 'workflow')}
+                    {renderStartWorkflowSortableHeader('Category', 'category')}
                     {renderStartWorkflowSortableHeader('Structure', 'structure')}
                     {renderStartWorkflowSortableHeader('Nodes', 'nodes')}
                     {renderStartWorkflowSortableHeader('Edges', 'edges')}
@@ -7258,7 +7336,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 <tbody>
                   {visibleStartDefinitions.length === 0 ? (
                     <tr>
-                      <td colSpan="7">
+                      <td colSpan="8">
                         <div className="sky-empty-state">
                           No workflows match the current filters.
                         </div>
@@ -7283,6 +7361,7 @@ function SkyWorkflows({ mode = 'start' }) {
                               {definition.workflowCode}
                             </div>
                           </td>
+                          <td>{getWorkflowCategoryDisplayName(definition, workflowCategories)}</td>
                           <td>{getDefinitionStructureLabel(definition)}</td>
                           <td>{getDefinitionNodeCount(definition)}</td>
                           <td>{getDefinitionEdgeCount(definition)}</td>
@@ -7317,6 +7396,9 @@ function SkyWorkflows({ mode = 'start' }) {
                     </div>
                   </div>
                   <div className="d-flex flex-wrap align-items-center gap-2">
+                    <span className="sky-pill sky-pill-info">
+                      {getWorkflowCategoryDisplayName(selectedDefinitionDetail || selectedDefinition, workflowCategories)}
+                    </span>
                     <span
                       className={`sky-pill ${statusClass(
                         selectedDefinitionDetail?.status || selectedDefinition.status,

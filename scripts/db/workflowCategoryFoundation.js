@@ -6,14 +6,24 @@ const dotenv = require('dotenv');
 const { Pool } = require('pg');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..');
-const MIGRATION_PATH = path.join(
-  REPOSITORY_ROOT,
-  'packages',
-  'db_build',
-  'src',
-  'migrations',
-  '00107__workflow_category_foundation.sql',
-);
+const MIGRATION_PATHS = [
+  path.join(
+    REPOSITORY_ROOT,
+    'packages',
+    'db_build',
+    'src',
+    'migrations',
+    '00107__workflow_category_foundation.sql',
+  ),
+  path.join(
+    REPOSITORY_ROOT,
+    'packages',
+    'db_build',
+    'src',
+    'migrations',
+    '00109__workflow_run_category_projection.sql',
+  ),
+];
 const SEED_PATH = path.join(
   REPOSITORY_ROOT,
   'packages',
@@ -58,7 +68,7 @@ async function applySqlFile(pool, filePath) {
 }
 
 async function loadVerification(pool) {
-  const [categoryResult, definitionResult, uncategorizedResult] = await Promise.all([
+  const [categoryResult, definitionResult, uncategorizedResult, runCategoryResult] = await Promise.all([
     pool.query(`
       SELECT
         category_code,
@@ -82,12 +92,22 @@ async function loadVerification(pool) {
       FROM worker.workflow_definitions
       WHERE workflow_category_id IS NULL
     `),
+    pool.query(`
+      SELECT
+        workflow_category_code,
+        workflow_category_display_name,
+        workflow_category_source
+      FROM worker.vw_workflow_run_records
+      ORDER BY created_at DESC
+      LIMIT 1
+    `),
   ]);
 
   return {
     categories: categoryResult.rows,
     definitions: definitionResult.rows,
     uncategorized: Number(uncategorizedResult.rows[0]?.count || 0),
+    latestRunCategoryProjection: runCategoryResult.rows[0] || null,
   };
 }
 
@@ -156,7 +176,9 @@ async function main() {
 
   try {
     if (command === 'setup') {
-      await applySqlFile(pool, MIGRATION_PATH);
+      for (const migrationPath of MIGRATION_PATHS) {
+        await applySqlFile(pool, migrationPath);
+      }
       await applySqlFile(pool, SEED_PATH);
     } else if (command !== 'verify') {
       throw new Error('Usage: node scripts/db/workflowCategoryFoundation.js [setup|verify]');
