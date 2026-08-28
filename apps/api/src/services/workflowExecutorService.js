@@ -1198,6 +1198,11 @@ function normalizeRunRow(row) {
     workflowVersionId: item.workflowVersionId,
     workflowCode: item.workflowCode,
     workflowDisplayName: item.workflowDisplayName,
+    workflowCategoryCode:
+      item.workflowCategoryCode || metadata.workflowCategoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
+    workflowCategoryDisplayName:
+      item.workflowCategoryDisplayName || metadata.workflowCategoryDisplayName || 'General',
+    workflowCategorySource: item.workflowCategorySource || (metadata.workflowCategoryCode ? 'SNAPSHOT' : 'DEFAULT'),
     versionNumber: item.versionNumber || item.definitionVersionNumber,
     runSource: item.runSource,
     triggerType: item.triggerType,
@@ -6700,6 +6705,8 @@ async function listWorkflowRuns(filters = {}) {
     .trim()
     .toUpperCase();
   const workflowCode = String(filters.workflowCode || '').trim();
+  const rawCategoryCode = String(filters.categoryCode || '').trim();
+  const categoryCode = rawCategoryCode ? normalizeWorkflowCategoryCode(rawCategoryCode) : '';
 
   if (status) {
     values.push(status);
@@ -6711,11 +6718,17 @@ async function listWorkflowRuns(filters = {}) {
     clauses.push(`workflow_code = $${values.length}`);
   }
 
+  if (categoryCode) {
+    values.push(categoryCode);
+    clauses.push(`workflow_category_code = $${values.length}`);
+  }
+
   const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
   const orderBy = buildWhitelistedOrderBy({
     sortValue: filters.sort,
     sortFields: {
       workflow: "LOWER(COALESCE(NULLIF(BTRIM(workflow_display_name), ''), workflow_code))",
+      category: "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), ''), workflow_category_code))",
       status: 'status',
       startedAt: 'COALESCE(started_at, created_at)',
       durationMs: 'EXTRACT(EPOCH FROM (COALESCE(completed_at, NOW()) - COALESCE(started_at, created_at))) * 1000',

@@ -12,9 +12,11 @@ function assert(condition, message) {
 
 const migration = read('packages/db_build/src/migrations/00107__workflow_category_foundation.sql');
 const seed = read('packages/db_build/src/seeds/00108__workflow_category_seed.sql');
+const runProjectionMigration = read('packages/db_build/src/migrations/00109__workflow_run_category_projection.sql');
 const tableSource = read('scripts/db/tables/worker.workflow_categories.sql');
 const definitionTableSource = read('scripts/db/tables/worker.workflow_definitions.sql');
 const definitionViewSource = read('scripts/db/views/worker.vw_workflow_definitions.sql');
+const runViewSource = read('scripts/db/views/worker.vw_workflow_run_records.sql');
 const workflowService = read('apps/api/src/services/workflowExecutorService.js');
 const workflowController = read('apps/api/src/controllers/workflowController.js');
 const workflowRoutes = read('apps/api/src/routes/workflow.routes.js');
@@ -57,6 +59,16 @@ assert(
     && definitionViewSource.includes('category.category_code')
     && definitionViewSource.includes('category.display_name AS category_display_name'),
   'Database source-of-truth scripts must model workflow categories and expose them through worker.vw_workflow_definitions.',
+);
+
+
+assert(
+  runProjectionMigration.includes("metadata ->> 'workflowCategoryCode'")
+    && runProjectionMigration.includes('workflow_category_code')
+    && runProjectionMigration.includes("'CURRENT_DEFINITION'")
+    && runViewSource.includes('workflow_category_display_name')
+    && runViewSource.includes('workflow_category_source'),
+  'Workflow run history must prefer category snapshots and provide a current-definition fallback for legacy runs.',
 );
 
 assert(
@@ -112,6 +124,16 @@ assert(
   'Workflow definition normalization and child-workflow targets must expose category metadata to future UI consumers.',
 );
 
+
+assert(
+  workflowService.includes('workflowCategoryCode:')
+    && workflowService.includes('workflowCategoryDisplayName:')
+    && workflowService.includes("const rawCategoryCode = String(filters.categoryCode || '').trim();")
+    && workflowService.includes('workflow_category_code = $${values.length}')
+    && workflowService.includes('category: "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), \'\'), workflow_category_code))"'),
+  'Workflow run history must normalize, filter, and sort category metadata for Workflow Operations.',
+);
+
 assert(
   readinessService.includes("'worker.workflow_categories'"),
   'Production readiness must require the workflow category catalogue relation.',
@@ -119,6 +141,7 @@ assert(
 
 assert(
   setupScript.includes("00107__workflow_category_foundation.sql")
+    && setupScript.includes("00109__workflow_run_category_projection.sql")
     && setupScript.includes("00108__workflow_category_seed.sql")
     && setupScript.includes("workflow_category_id IS NULL")
     && setupScript.includes("Known workflow category mismatch"),

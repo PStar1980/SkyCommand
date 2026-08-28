@@ -161,6 +161,7 @@
     "workflow-start-catalogue:self-test": "node apps/admin-web/src/pages/workflowStartCatalogueSelfTest.js",
     "workflow-clone-parity:self-test": "node apps/api/src/services/workflowCloneParitySelfTest.js",
     "workflow-category-foundation:self-test": "node apps/api/src/services/workflowCategoryFoundationSelfTest.js",
+    "workflow-category-ui:self-test": "node apps/admin-web/src/pages/workflowCategoryUiSelfTest.js",
     "workflow-categories:setup": "node scripts/db/workflowCategoryFoundation.js setup",
     "workflow-categories:verify": "node scripts/db/workflowCategoryFoundation.js verify",
     "workflow-host-agent-preflight:self-test": "node apps/api/src/services/workflowExecutionPreflightSelfTest.js",

@@ -1,6 +1,7 @@
--- View: worker.vw_workflow_run_records
--- Purpose: SkyCommand workflow run records joined to user, workflow, and category metadata.
--- Category snapshots are preferred; legacy runs fall back to the current definition category.
+-- Migration: 00109__workflow_run_category_projection.sql
+-- Purpose: Project workflow category metadata into workflow run history.
+-- New runs preserve the category snapshot captured at start time; legacy runs
+-- fall back to the workflow definition's current category for catalogue usability.
 
 CREATE OR REPLACE VIEW worker.vw_workflow_run_records AS
 SELECT

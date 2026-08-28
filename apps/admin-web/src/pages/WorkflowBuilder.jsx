@@ -35,6 +35,10 @@ import SummaryParameterEditor, {
   getSummaryExpressionSummary,
 } from '../components/SummaryParameterEditor.jsx';
 import workflowService from '../services/workflowService';
+import {
+  DEFAULT_WORKFLOW_CATEGORY_CODE,
+  normalizeWorkflowCategories,
+} from '../utils/workflowCategories.js';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DEFAULT_API_PARAMETERS = {
@@ -751,6 +755,7 @@ function WorkflowBuilderNodeCard({
 
 function WorkflowBuilder() {
   const [catalog, setCatalog] = useState({ nodeTypes: [], toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [], repositoryOptions: [] });
+  const [workflowCategories, setWorkflowCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -759,6 +764,7 @@ function WorkflowBuilder() {
   const [form, setForm] = useState({
     workflowCode: '',
     displayName: '',
+    categoryCode: DEFAULT_WORKFLOW_CATEGORY_CODE,
     description: '',
     publish: true,
     runtimeParameters: [],
@@ -868,7 +874,10 @@ function WorkflowBuilder() {
     setError('');
 
     try {
-      const result = await workflowService.getBuilderCatalog();
+      const [result, categoryResult] = await Promise.all([
+        workflowService.getBuilderCatalog(),
+        workflowService.listCategories(),
+      ]);
       setCatalog({
         nodeTypes: result.nodeTypes || [],
         supportedNodeTypes: result.supportedNodeTypes || [],
@@ -878,6 +887,7 @@ function WorkflowBuilder() {
         approvalRoleTargets: result.approvalRoleTargets || [],
         repositoryOptions: result.repositoryOptions || [],
       });
+      setWorkflowCategories(normalizeWorkflowCategories(categoryResult.items || []));
     } catch (loadError) {
       setError(formatApiError(loadError, 'Failed to load workflow builder catalog.'));
     } finally {
@@ -1230,9 +1240,15 @@ function WorkflowBuilder() {
         throw new Error('Display name is required.');
       }
 
+      const categoryCode = String(form.categoryCode || '').trim();
+      if (!categoryCode) {
+        throw new Error('Workflow category is required.');
+      }
+
       const payload = {
         workflowCode,
         displayName,
+        categoryCode,
         description: String(form.description || '').trim(),
         publish: form.publish,
         visibleInAdmin: true,
@@ -1316,6 +1332,23 @@ function WorkflowBuilder() {
                     placeholder="my-automation-pipeline"
                     value={form.workflowCode}
                   />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="workflowCategory">Category</label>
+                  <select
+                    className="form-select sky-form-control"
+                    id="workflowCategory"
+                    onChange={(event) => patchForm({ categoryCode: event.target.value })}
+                    required
+                    value={form.categoryCode}
+                  >
+                    {workflowCategories.map((category) => (
+                      <option key={category.workflowCategoryId || category.categoryCode} value={category.categoryCode}>
+                        {category.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="form-text sky-muted">Categories organize the workflow catalogue without changing executable graph semantics.</div>
                 </div>
                 <div className="mb-3">
                   <label className="form-label" htmlFor="workflowDescription">Description</label>
