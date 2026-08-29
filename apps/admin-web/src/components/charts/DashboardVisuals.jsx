@@ -1,12 +1,19 @@
 import { useMemo } from 'react';
-import DurationTrendChart from './DurationTrendChart.jsx';
 import OutcomeBarChart from './OutcomeBarChart.jsx';
 import StatusDonut from './StatusDonut.jsx';
 import TrendAreaChart from './TrendAreaChart.jsx';
-import { buildRecentDayDurationSeries, buildRecentDaySeriesFromField, countByField, dateFromField, getDateDiffMs } from './chartData.js';
+import {
+  buildRecentDayDurationPercentileSeries,
+  buildRecentDaySeriesFromField,
+  countByField,
+  dateFromField,
+  getDateDiffMs,
+} from './chartData.js';
 import { CHART_COLORS } from './chartTheme.js';
 
-const STOPPED_WORKFLOW_STATUSES = ['FAILED', 'TERMINATED', 'CANCELED'];
+const TOOL_ERROR_STATUSES = ['FAILED'];
+const WORKFLOW_ERROR_STATUSES = ['FAILED'];
+const AUTOMATION_ERROR_STATUSES = ['FAILED'];
 
 function getRunDurationMs(run) {
   const metadataDuration = Number(run?.metadata?.durationMs);
@@ -18,87 +25,104 @@ function getRunDurationMs(run) {
   return getDateDiffMs(run?.startedAt || run?.createdAt, run?.completedAt);
 }
 
-function buildWorkflowRunSeries(workflowRuns) {
-  const completedSeries = buildRecentDaySeriesFromField(
-    workflowRuns.filter((run) => String(run.status || '').toUpperCase() === 'COMPLETED'),
-    'startedAt',
-  );
-  const stoppedSeries = buildRecentDaySeriesFromField(
-    workflowRuns.filter((run) => STOPPED_WORKFLOW_STATUSES.includes(String(run.status || '').toUpperCase())),
-    'startedAt',
+function buildActivitySeries(items, { dateField, errorStatuses = [] } = {}) {
+  const runSeries = buildRecentDaySeriesFromField(items, dateField);
+  const errorSeries = buildRecentDaySeriesFromField(
+    items.filter((item) => errorStatuses.includes(String(item.status || '').toUpperCase())),
+    dateField,
   );
 
   return {
-    labels: completedSeries.labels,
+    labels: runSeries.labels,
     series: [
-      { name: 'Completed', values: completedSeries.values, areaOpacity: 0.14 },
-      { name: 'Failed / stopped', values: stoppedSeries.values, areaOpacity: 0.08 },
+      { name: 'Runs', values: runSeries.values, areaOpacity: 0.16 },
+      { name: 'Errors', values: errorSeries.values, areaOpacity: 0.04 },
     ],
   };
 }
 
-function buildOperationsSeries(recentExecutions, recentAudits) {
-  const executionSeries = buildRecentDaySeriesFromField(recentExecutions, 'startedAt');
-  const auditSeries = buildRecentDaySeriesFromField(recentAudits, 'createdAt');
-
-  return {
-    labels: executionSeries.labels,
-    series: [
-      { name: 'Tool runs', values: executionSeries.values, areaOpacity: 0.16 },
-      { name: 'Audit events', values: auditSeries.values, areaOpacity: 0.1 },
-    ],
-  };
-}
-
-function buildRuntimePressureSeries(workflowRuns) {
-  return buildRecentDayDurationSeries(workflowRuns, {
+function buildWorkflowPerformanceSeries(workflowRuns) {
+  const completedRuns = workflowRuns.filter(
+    (run) => String(run.status || '').toUpperCase() === 'COMPLETED',
+  );
+  const result = buildRecentDayDurationPercentileSeries(completedRuns, {
     dateAccessor: (run) => dateFromField(run, 'startedAt') || dateFromField(run, 'createdAt'),
     durationAccessor: getRunDurationMs,
+    percentiles: [0.5, 0.95],
   });
+
+  return {
+    labels: result.labels,
+    series: [
+      { name: 'P50 duration', values: result.percentileValues[0] || [], areaOpacity: 0.08 },
+      { name: 'P95 duration', values: result.percentileValues[1] || [], areaOpacity: 0.03 },
+    ],
+  };
 }
 
-function buildFreshnessData(ingestionCounts) {
-  const problems =
-    Number(ingestionCounts.errorIndicators || 0) +
-    Number(ingestionCounts.missingTableIndicators || 0);
+function buildTopToolData(executions, limit = 5) {
+  const counts = new Map();
 
-  return [
-    { name: 'Current', value: Number(ingestionCounts.currentIndicators || 0) },
-    { name: 'Stale', value: Number(ingestionCounts.staleIndicators || 0) },
-    { name: 'No data', value: Number(ingestionCounts.noDataIndicators || 0) },
-    { name: 'Problems', value: problems },
-  ].filter((item) => item.value > 0);
+  for (const execution of executions) {
+    const label =
+      execution?.metadata?.toolLabel ||
+      execution?.metadata?.toolCode ||
+      execution?.scriptName ||
+      'Unknown tool';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1] || String(left[0]).localeCompare(String(right[0])))
+    .slice(0, limit)
+    .reverse()
+    .map(([name, value]) => ({ name, value }));
 }
 
-function DashboardVisuals({
-  ingestionCounts,
-  recentAudits,
-  recentExecutions,
-  workflowRuns = [],
-}) {
-  const operations = useMemo(
-    () => buildOperationsSeries(recentExecutions, recentAudits),
-    [recentAudits, recentExecutions],
+const formatSeconds = (value) => `${Math.round(Number(value || 0) / 1000)}s`;
+const formatSecondsWithSpace = (value) => `${Math.round(Number(value || 0) / 1000)} s`;
+
+function DashboardVisuals({ recentExecutions = [], scheduleRuns = [], workflowRuns = [] }) {
+  const toolActivity = useMemo(
+    () =>
+      buildActivitySeries(recentExecutions, {
+        dateField: 'startedAt',
+        errorStatuses: TOOL_ERROR_STATUSES,
+      }),
+    [recentExecutions],
   );
   const workflowActivity = useMemo(
-    () => buildWorkflowRunSeries(workflowRuns),
+    () =>
+      buildActivitySeries(workflowRuns, {
+        dateField: 'startedAt',
+        errorStatuses: WORKFLOW_ERROR_STATUSES,
+      }),
     [workflowRuns],
   );
-  const runtimePressure = useMemo(
-    () => buildRuntimePressureSeries(workflowRuns),
+  const automationActivity = useMemo(
+    () =>
+      buildActivitySeries(scheduleRuns, {
+        dateField: 'queuedAt',
+        errorStatuses: AUTOMATION_ERROR_STATUSES,
+      }),
+    [scheduleRuns],
+  );
+  const topTools = useMemo(() => buildTopToolData(recentExecutions), [recentExecutions]);
+  const workflowPerformance = useMemo(
+    () => buildWorkflowPerformanceSeries(workflowRuns),
     [workflowRuns],
   );
-  const workflowOutcomes = useMemo(
-    () => countByField(workflowRuns, 'status', ['COMPLETED', 'FAILED', 'TERMINATED', 'CANCELED', 'RUNNING']),
-    [workflowRuns],
-  );
-  const freshnessData = useMemo(
-    () => buildFreshnessData(ingestionCounts),
-    [ingestionCounts],
-  );
-  const executionStatusData = useMemo(
-    () => countByField(recentExecutions, 'status', ['SUCCESS', 'STARTED', 'FAILED', 'TERMINATED']),
-    [recentExecutions],
+  const automationOutcomes = useMemo(
+    () =>
+      countByField(scheduleRuns, 'status', [
+        'SUCCESS',
+        'FAILED',
+        'STARTED',
+        'QUEUED',
+        'SKIPPED',
+        'CANCELLED',
+      ]),
+    [scheduleRuns],
   );
 
   return (
@@ -108,19 +132,18 @@ function DashboardVisuals({
           <div className="sky-page-kicker">Automation intelligence</div>
           <h2 className="h5 mb-0">Visual operations layer</h2>
         </div>
-        <span className="sky-muted small">Apache ECharts rendering · D3-powered grouping</span>
+        <span className="sky-muted small">True 7-day window · Apache ECharts rendering</span>
       </div>
-
 
       <div className="sky-dashboard-chart-grid sky-dashboard-chart-grid-expanded">
         <TrendAreaChart
-          colors={[CHART_COLORS.cyan, CHART_COLORS.gold]}
+          colors={[CHART_COLORS.cyan, CHART_COLORS.red]}
           height={285}
-          kicker="Weekly activity"
-          labels={operations.labels}
-          series={operations.series}
-          subtitle="Tool executions and audit events grouped across the last 7 days."
-          title="Operations activity"
+          kicker="Tool activity"
+          labels={toolActivity.labels}
+          series={toolActivity.series}
+          subtitle="All tool executions and failed tool executions across the last 7 calendar days."
+          title="Runs & errors"
         />
         <TrendAreaChart
           colors={[CHART_COLORS.green, CHART_COLORS.red]}
@@ -128,42 +151,54 @@ function DashboardVisuals({
           kicker="Workflow activity"
           labels={workflowActivity.labels}
           series={workflowActivity.series}
-          subtitle="Completed and stopped workflow runs across the last 7 days."
-          title="Workflow run trend"
+          subtitle="All workflow runs and failed workflow runs across the last 7 calendar days."
+          title="Runs & errors"
         />
-        <DurationTrendChart
+        <TrendAreaChart
+          colors={[CHART_COLORS.gold, CHART_COLORS.red]}
           height={285}
-          labels={runtimePressure.labels}
-          subtitle="Average workflow run duration by day, based on recent completed runs."
-          title="Average duration"
-          values={runtimePressure.values}
-        />
-        <StatusDonut
-          colors={[CHART_COLORS.green, CHART_COLORS.red, CHART_COLORS.gold, CHART_COLORS.violet, CHART_COLORS.blue]}
-          data={workflowOutcomes}
-          height={285}
-          kicker="Workflow outcomes"
-          name="Workflow runs"
-          subtitle="Completed, failed, terminated, canceled, and running workflow runs."
-          title="Workflow quality mix"
-        />
-        <StatusDonut
-          colors={[CHART_COLORS.green, CHART_COLORS.gold, CHART_COLORS.blue, CHART_COLORS.red]}
-          data={freshnessData}
-          height={285}
-          kicker="Macro freshness"
-          name="Indicators"
-          subtitle="Current, stale, no-data, and problem indicators at a glance."
-          title="Indicator health mix"
+          kicker="Automation activity"
+          labels={automationActivity.labels}
+          series={automationActivity.series}
+          subtitle="Scheduled executions and failed scheduled executions across the last 7 calendar days."
+          title="Scheduled runs & errors"
         />
         <OutcomeBarChart
-          colors={[CHART_COLORS.green, CHART_COLORS.blue, CHART_COLORS.red, CHART_COLORS.gold, CHART_COLORS.violet]}
-          data={executionStatusData}
+          barWidth={20}
+          colors={[CHART_COLORS.cyan]}
+          data={topTools}
           height={285}
-          kicker="Execution quality"
+          kicker="Tool utilization"
           name="Executions"
-          subtitle="Recent tool execution outcomes from the latest dashboard load."
-          title="Tool run status"
+          subtitle="Top five tools by execution volume across the same 7-day window."
+          title="Top executed tools"
+        />
+        <TrendAreaChart
+          colors={[CHART_COLORS.gold, CHART_COLORS.violet]}
+          height={285}
+          kicker="Workflow performance"
+          labels={workflowPerformance.labels}
+          series={workflowPerformance.series}
+          subtitle="Median and 95th-percentile duration for completed workflow runs by day."
+          title="P50 / P95 duration"
+          valueFormatter={formatSecondsWithSpace}
+          yAxisFormatter={formatSeconds}
+        />
+        <StatusDonut
+          colors={[
+            CHART_COLORS.green,
+            CHART_COLORS.red,
+            CHART_COLORS.blue,
+            CHART_COLORS.cyan,
+            CHART_COLORS.gold,
+            CHART_COLORS.violet,
+          ]}
+          data={automationOutcomes}
+          height={285}
+          kicker="Automation reliability"
+          name="Schedule runs"
+          subtitle="Outcome distribution for scheduled executions across the same 7-day window."
+          title="Schedule outcome mix"
         />
       </div>
     </section>

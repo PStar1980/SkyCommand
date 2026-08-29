@@ -252,6 +252,53 @@ assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'POLL
 assert.doesNotMatch(dashboardSource, /label: 'Readiness'/);
 assert.doesNotMatch(dashboardSource, /productionReadiness/);
 
+assert.match(dashboardSource, /loadDashboardActivity\(\(query\) => workflowService\.listRuns\(query\)\)/);
+assert.match(dashboardSource, /loadDashboardActivity\(\(query\) => workerService\.listRuns\(query\)\)/);
+assert.match(dashboardSource, /from: getDashboardActivityWindowStart\(\)/);
+assert.match(dashboardSource, /to: new Date\(\)\.toISOString\(\)/);
+assert.doesNotMatch(dashboardSource, /DASHBOARD_RECENT_LIMIT/);
+assert.doesNotMatch(dashboardSource, /listAuditEvents/);
+assert.doesNotMatch(dashboardSource, /api\/ingestion\/status/);
+
+const dashboardVisualsSource = fs.readFileSync(
+  path.join(sourceRoot, 'components/charts/DashboardVisuals.jsx'),
+  'utf8',
+);
+for (const expectedText of [
+  'Tool activity',
+  'Workflow activity',
+  'Automation activity',
+  'Tool utilization',
+  'Workflow performance',
+  'Automation reliability',
+  'P50 duration',
+  'P95 duration',
+]) {
+  assert.ok(dashboardVisualsSource.includes(expectedText), `${expectedText} should appear in Automation Intelligence.`);
+}
+assert.match(dashboardVisualsSource, /name: 'Runs'/);
+assert.match(dashboardVisualsSource, /name: 'Errors'/);
+assert.doesNotMatch(dashboardVisualsSource, /Audit events/);
+assert.doesNotMatch(dashboardVisualsSource, /Macro freshness/);
+assert.doesNotMatch(dashboardVisualsSource, /Workflow quality mix/);
+
+const workflowExecutorSource = fs.readFileSync(
+  path.join(apiSourceRoot, 'services/workflowExecutorService.js'),
+  'utf8',
+);
+assert.match(workflowExecutorSource, /COALESCE\(started_at, created_at\) >= \$\$\{values\.length\}::timestamptz/);
+assert.match(workflowExecutorSource, /COALESCE\(started_at, created_at\) <= \$\$\{values\.length\}::timestamptz/);
+assert.match(workflowExecutorSource, /OFFSET \$\$\{values\.length \+ 2\}/);
+assert.match(workflowExecutorSource, /SELECT COUNT\(\*\)::int AS total FROM worker\.vw_workflow_run_records/);
+
+const workerServiceSource = fs.readFileSync(
+  path.join(apiSourceRoot, 'services/workerService.js'),
+  'utf8',
+);
+const scheduleRunSource = workerServiceSource.slice(workerServiceSource.indexOf('async function listScheduleRuns'));
+assert.match(scheduleRunSource, /queued_at >= \$\$\{values\.length\}::timestamptz/);
+assert.match(scheduleRunSource, /queued_at <= \$\$\{values\.length\}::timestamptz/);
+
 const ingestionVisualsSource = fs.readFileSync(
   path.join(sourceRoot, 'components/charts/IngestionStatusVisuals.jsx'),
   'utf8',

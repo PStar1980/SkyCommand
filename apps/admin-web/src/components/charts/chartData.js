@@ -1,4 +1,4 @@
-import { mean, rollups } from 'd3-array';
+import { mean, quantileSorted, rollups } from 'd3-array';
 import { timeDay } from 'd3-time';
 import { timeFormat } from 'd3-time-format';
 
@@ -89,6 +89,49 @@ export function buildRecentDayDurationSeries(
   return {
     labels: days.map((date) => formatLabel(date)),
     values: days.map((date) => rolled.get(formatKey(date)) || 0),
+  };
+}
+
+
+export function buildRecentDayDurationPercentileSeries(
+  items,
+  { dateAccessor, durationAccessor, daysBack = 7, percentiles = [0.5, 0.95] } = {},
+) {
+  const today = timeDay.floor(new Date());
+  const days = Array.from({ length: daysBack }, (_, index) =>
+    timeDay.offset(today, index - (daysBack - 1)),
+  );
+  const formatKey = timeFormat('%Y-%m-%d');
+  const formatLabel = timeFormat('%b %d');
+  const startDate = days[0];
+  const buckets = new Map();
+
+  for (const item of items) {
+    const date = toChartDate(dateAccessor?.(item));
+    const durationMs = durationAccessor?.(item);
+
+    if (!date || date < startDate || !Number.isFinite(durationMs)) {
+      continue;
+    }
+
+    const key = formatKey(timeDay.floor(date));
+    const values = buckets.get(key) || [];
+    values.push(Number(durationMs));
+    buckets.set(key, values);
+  }
+
+  for (const values of buckets.values()) {
+    values.sort((left, right) => left - right);
+  }
+
+  return {
+    labels: days.map((date) => formatLabel(date)),
+    percentileValues: percentiles.map((percentile) =>
+      days.map((date) => {
+        const values = buckets.get(formatKey(date)) || [];
+        return values.length ? Math.round(quantileSorted(values, percentile) || 0) : 0;
+      }),
+    ),
   };
 }
 
