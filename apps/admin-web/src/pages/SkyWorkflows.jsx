@@ -6,6 +6,10 @@ import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.js
 import PageHeader from '../components/ui/PageHeader.jsx';
 import WorkflowApprovalOverlay from '../components/WorkflowApprovalOverlay.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
+import {
+  ArchiveBuildBreakdownTable,
+  PerformanceTelemetryTable,
+} from '../components/tools/StructuredToolResultDisplay.jsx';
 import workflowService from '../services/workflowService';
 import {
   getWorkflowCategoryCode,
@@ -1728,116 +1732,6 @@ function MacroIngestionOutput({ toolResult }) {
 }
 
 
-function hasPerformanceTiming(value) {
-  return value !== undefined && value !== null && Number.isFinite(Number(value));
-}
-
-function formatPerformanceShare(value, total) {
-  const duration = Number(value);
-  const totalDuration = Number(total);
-
-  if (!Number.isFinite(duration) || !Number.isFinite(totalDuration) || totalDuration <= 0) {
-    return '—';
-  }
-
-  return `${((duration / totalDuration) * 100).toFixed(1)}%`;
-}
-
-function RepositoryPerformanceTelemetry({ performance: rawPerformance }) {
-  const performance = getSafeObject(rawPerformance);
-  const archiveBreakdown = getSafeObject(performance.archiveBreakdown);
-  const isArchive = hasPerformanceTiming(performance.archiveMs);
-  const totalMs = performance.totalMs;
-  const phaseRows = (isArchive
-    ? [
-        ['Configuration / repository resolution', performance.configurationMs],
-        ['Repository scan', performance.scanMs],
-        ['Archive build', performance.archiveMs],
-        ['Source-size statistics pass', performance.sourceStatisticsMs],
-        ['Artifact stat', performance.artifactStatMs],
-      ]
-    : [
-        ['Configuration / repository resolution', performance.configurationMs],
-        ['Repository scan', performance.scanMs],
-        ['Tree render', performance.renderMs],
-        ['Artifact write', performance.writeMs],
-        ['Artifact stat', performance.artifactStatMs],
-      ]).filter(([, value]) => hasPerformanceTiming(value));
-
-  if (phaseRows.length === 0 || !hasPerformanceTiming(totalMs)) {
-    return null;
-  }
-
-  const archiveRows = [
-    ['Source file stat', archiveBreakdown.fileStatMs],
-    ['Source file reads', archiveBreakdown.fileReadMs],
-    ['Compression (deflate)', archiveBreakdown.compressionMs],
-    ['CRC32 checksum', archiveBreakdown.checksumMs],
-    ['Archive writes', archiveBreakdown.writeMs],
-    ['Header / other', archiveBreakdown.otherMs],
-  ].filter(([, value]) => hasPerformanceTiming(value));
-
-  return (
-    <>
-      <div className="sky-page-kicker mb-2">Performance telemetry</div>
-      <div className="table-responsive sky-table-card mb-3">
-        <table className="table table-sm sky-table align-middle mb-0">
-          <thead>
-            <tr>
-              <th>Phase</th>
-              <th>Duration</th>
-              <th>Share of instrumented total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {phaseRows.map(([label, value]) => (
-              <tr key={label}>
-                <td className="fw-semibold">{label}</td>
-                <td>{formatDuration(value)}</td>
-                <td>{formatPerformanceShare(value, totalMs)}</td>
-              </tr>
-            ))}
-            <tr>
-              <td className="fw-semibold">Instrumented total</td>
-              <td>{formatDuration(totalMs)}</td>
-              <td>100.0%</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p className="small sky-muted mb-3">
-        Instrumented total covers repository-tool internals. Workflow node duration can also include
-        process-wrapper, structured-result transport, and orchestration overhead.
-      </p>
-
-      {isArchive && archiveRows.length > 0 ? (
-        <>
-          <div className="sky-page-kicker mb-2">Archive build breakdown</div>
-          <div className="table-responsive sky-table-card mb-3">
-            <table className="table table-sm sky-table align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Archive phase</th>
-                  <th>Duration</th>
-                  <th>Share of archive build</th>
-                </tr>
-              </thead>
-              <tbody>
-                {archiveRows.map(([label, value]) => (
-                  <tr key={label}>
-                    <td className="fw-semibold">{label}</td>
-                    <td>{formatDuration(value)}</td>
-                    <td>{formatPerformanceShare(value, performance.archiveMs)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : null}
-    </>
-  );
-}
 
 function RepositoryPackageOutput({ toolResult }) {
   const output = getSafeObject(toolResult?.output);
@@ -1902,7 +1796,8 @@ function RepositoryPackageOutput({ toolResult }) {
         </table>
       </div>
 
-      <RepositoryPerformanceTelemetry performance={output.performance} />
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <ArchiveBuildBreakdownTable telemetry={output.performanceTelemetry} />
 
       <div className="sky-page-kicker mb-2">Packaging policy</div>
       <div className="table-responsive sky-table-card">
@@ -2005,7 +1900,7 @@ function RepositoryMapOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
-      <RepositoryPerformanceTelemetry performance={output.performance} />
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
 
       <div className="sky-page-kicker mb-2">Documentation policy</div>
       <div className="table-responsive sky-table-card mb-3">
@@ -2427,6 +2322,7 @@ function GitCommitOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
       <div className="sky-page-kicker mb-2">Change set</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -2547,6 +2443,8 @@ function GitLocalSyncOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
 
       <div className="sky-page-kicker mb-2">Safety guardrails</div>
       <div className="table-responsive sky-table-card mb-3">
@@ -2711,6 +2609,8 @@ function GitBranchSyncOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
 
       <div className="sky-page-kicker mb-2">Branch head movement</div>
       <div className="table-responsive sky-table-card mb-3">

@@ -113,7 +113,7 @@ function formatTelemetryShare(durationMs, totalMs) {
   return `${((duration / total) * 100).toFixed(1)}%`;
 }
 
-function PerformanceTelemetryTable({ telemetry }) {
+export function PerformanceTelemetryTable({ telemetry }) {
   const data = getSafeObject(telemetry);
   const phases = getSafeArray(data.phases);
   const instrumentedTotalMs = Number(data.instrumentedTotalMs);
@@ -158,7 +158,7 @@ function PerformanceTelemetryTable({ telemetry }) {
   );
 }
 
-function ArchiveBuildBreakdownTable({ telemetry }) {
+export function ArchiveBuildBreakdownTable({ telemetry }) {
   const data = getSafeObject(telemetry);
   const breakdown = getSafeObject(data.archiveBuildBreakdown);
   const phases = getSafeArray(breakdown.phases);
