@@ -1301,6 +1301,18 @@ async function listScheduleRuns(filters = {}) {
     clauses.push(`tool_code = $${values.length}`);
   }
 
+  const from = normalizeOptionalString(filters.from);
+  if (from) {
+    values.push(from);
+    clauses.push(`queued_at >= $${values.length}::timestamptz`);
+  }
+
+  const to = normalizeOptionalString(filters.to || filters.through);
+  if (to) {
+    values.push(to);
+    clauses.push(`queued_at <= $${values.length}::timestamptz`);
+  }
+
   addSearchFilter({
     clauses,
     values,

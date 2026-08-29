@@ -228,8 +228,10 @@ assert(
   'The shared chart palette must match the Midnight Gold brand system.',
 );
 assert(
-  dashboardVisualsSource.includes('colors={[CHART_COLORS.cyan, CHART_COLORS.gold]}'),
-  'Weekly activity must use cyan for tool runs and gold for audit events.',
+  dashboardVisualsSource.includes('colors={[CHART_COLORS.cyan, CHART_COLORS.red]}') &&
+    dashboardVisualsSource.includes('colors={[CHART_COLORS.green, CHART_COLORS.red]}') &&
+    dashboardVisualsSource.includes('colors={[CHART_COLORS.gold, CHART_COLORS.red]}'),
+  'Automation Intelligence activity charts must pair domain colors with red error series.',
 );
 
 console.log('[SkyCommand] Midnight Gold brand theme self-test passed.');

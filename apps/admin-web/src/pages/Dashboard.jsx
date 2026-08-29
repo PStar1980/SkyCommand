@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ApiObservabilityPanel from '../components/charts/ApiObservabilityPanel.jsx';
 import ApplicationUserSummaryRow from '../components/charts/ApplicationUserSummaryRow.jsx';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
@@ -16,7 +16,6 @@ import workerService from '../services/workerService';
 import workflowService from '../services/workflowService';
 
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
-const DASHBOARD_RECENT_LIMIT = 60;
 const DASHBOARD_ACTIVITY_PAGE_SIZE = 200;
 const DASHBOARD_ACTIVITY_DAYS = 7;
 
@@ -30,14 +29,16 @@ function getDashboardActivityWindowStart() {
 async function loadDashboardActivity(loader) {
   const query = {
     from: getDashboardActivityWindowStart(),
+    to: new Date().toISOString(),
     limit: DASHBOARD_ACTIVITY_PAGE_SIZE,
     offset: 0,
   };
   const firstPage = await loader(query);
   const items = [...(firstPage?.items || [])];
   const total = Number(firstPage?.total || items.length);
+  let offset = items.length;
 
-  for (let offset = items.length; offset < total; offset += DASHBOARD_ACTIVITY_PAGE_SIZE) {
+  while (offset < total) {
     const page = await loader({
       ...query,
       offset,
@@ -49,6 +50,7 @@ async function loadDashboardActivity(loader) {
     }
 
     items.push(...pageItems);
+    offset = items.length;
   }
 
   return {
@@ -70,69 +72,27 @@ function Dashboard() {
       total: 0,
       items: [],
     },
-    audits: {
-      total: 0,
-      items: [],
-    },
     userSummaries: {
       skyCommand: null,
     },
-    ingestion: null,
     worker: null,
     workflowHealth: null,
     workflowRunsDetailed: {
       total: 0,
       items: [],
     },
+    scheduleRunsDetailed: {
+      total: 0,
+      items: [],
+    },
   });
   const [error, setError] = useState('');
   const recentExecutions = summary.executions.items || [];
-  const recentAudits = summary.audits.items || [];
-  const ingestionCounts = useMemo(() => {
-    const ingestion = summary.ingestion || {};
-    const sources = ingestion.sources || [];
-
-    const sourceTotals = sources.reduce(
-      (totals, source) => {
-        totals.totalIndicators += Number(source.counts?.total || 0);
-        totals.activeIndicators += Number(source.counts?.active || 0);
-        totals.inactiveIndicators += Number(source.counts?.inactive || 0);
-        totals.currentIndicators += Number(source.counts?.current || 0);
-        totals.staleIndicators += Number(source.counts?.stale || 0);
-        totals.noDataIndicators += Number(source.counts?.noData || 0);
-        totals.missingTableIndicators += Number(source.counts?.missingTable || 0);
-        totals.errorIndicators += Number(source.counts?.error || 0);
-        return totals;
-      },
-      {
-        totalIndicators: 0,
-        activeIndicators: 0,
-        inactiveIndicators: 0,
-        currentIndicators: 0,
-        staleIndicators: 0,
-        noDataIndicators: 0,
-        missingTableIndicators: 0,
-        errorIndicators: 0,
-      },
-    );
-
-    return {
-      totalIndicators: Number(ingestion.totalIndicators ?? sourceTotals.totalIndicators),
-      activeIndicators: Number(ingestion.activeIndicators ?? sourceTotals.activeIndicators),
-      inactiveIndicators: Number(ingestion.inactiveIndicators ?? sourceTotals.inactiveIndicators),
-      currentIndicators: Number(ingestion.currentIndicators ?? sourceTotals.currentIndicators),
-      staleIndicators: Number(ingestion.staleIndicators ?? sourceTotals.staleIndicators),
-      noDataIndicators: Number(ingestion.noDataIndicators ?? sourceTotals.noDataIndicators),
-      missingTableIndicators: Number(
-        ingestion.missingTableIndicators ?? sourceTotals.missingTableIndicators,
-      ),
-      errorIndicators: Number(ingestion.errorIndicators ?? sourceTotals.errorIndicators),
-    };
-  }, [summary.ingestion]);
   const workerHealth = summary.worker || null;
   const workerNodes = workerHealth?.nodes || {};
   const workflowHealth = summary.workflowHealth || null;
   const workflowRunRecords = summary.workflowRunsDetailed?.items || [];
+  const scheduleRunRecords = summary.scheduleRunsDetailed?.items || [];
   const workflowTaskQueue = workflowHealth?.taskQueue || {};
   const hostAgentHealth = workflowHealth?.hostAgent || null;
 
@@ -162,24 +122,18 @@ function Dashboard() {
         apiHealth,
         dbHealth,
         executionsResult,
-        auditResult,
         skyCommandUserResult,
         apiTelemetryResult,
-        ingestionResult,
         workerResult,
         workflowHealthResult,
         workflowRunsResult,
+        scheduleRunsResult,
       ] = await Promise.all([
         loadOptional('api-health', () => api.get('/_health')),
         loadOptional('db-health', () => api.get('/_db/health')),
         hasPermission('SCRIPT_EXECUTION_READ')
           ? loadOptional('executions', () =>
               loadDashboardActivity((query) => adminService.listScriptExecutions(query)),
-            )
-          : Promise.resolve(null),
-        hasPermission('AUDIT_READ')
-          ? loadOptional('audit', () =>
-              loadDashboardActivity((query) => adminService.listAuditEvents(query)),
             )
           : Promise.resolve(null),
         hasPermission('ADMIN_USER_READ')
@@ -193,11 +147,6 @@ function Dashboard() {
         hasPermission('API_TELEMETRY_READ')
           ? loadOptional('api-telemetry', () => adminService.getApiTelemetrySummary({ days: 7 }))
           : Promise.resolve(null),
-        hasPermission('INGESTION_VIEW_STATUS')
-          ? loadOptional('ingestion', () =>
-              api.get('/api/ingestion/status', { query: { recentLimit: 6 } }),
-            )
-          : Promise.resolve(null),
         hasPermission('WORKER_SCHEDULE_READ')
           ? loadOptional('worker', () => workerService.getHealth())
           : Promise.resolve(null),
@@ -206,7 +155,12 @@ function Dashboard() {
           : Promise.resolve(null),
         hasPermission('WORKFLOW_READ')
           ? loadOptional('workflow-runs', () =>
-              workflowService.listRuns({ limit: DASHBOARD_RECENT_LIMIT }),
+              loadDashboardActivity((query) => workflowService.listRuns(query)),
+            )
+          : Promise.resolve(null),
+        hasPermission('WORKER_SCHEDULE_READ')
+          ? loadOptional('schedule-runs', () =>
+              loadDashboardActivity((query) => workerService.listRuns(query)),
             )
           : Promise.resolve(null),
       ]);
@@ -219,19 +173,18 @@ function Dashboard() {
           total: executionsResult?.total || 0,
           items: executionsResult?.items || [],
         },
-        audits: {
-          total: auditResult?.total || 0,
-          items: auditResult?.items || [],
-        },
         userSummaries: {
           skyCommand: skyCommandUserResult,
         },
-        ingestion: ingestionResult,
         worker: workerResult,
         workflowHealth: workflowHealthResult,
         workflowRunsDetailed: {
           total: workflowRunsResult?.total || 0,
           items: workflowRunsResult?.items || [],
+        },
+        scheduleRunsDetailed: {
+          total: scheduleRunsResult?.total || 0,
+          items: scheduleRunsResult?.items || [],
         },
       };
       const nextRunningExecutions = nextSummary.executions.items.filter(
@@ -239,11 +192,16 @@ function Dashboard() {
       );
       const nextWorkflowRuns = nextSummary.workflowHealth?.runs || {};
       const nextActiveRuns = Number(nextWorkflowRuns.active || 0);
+      const nextActiveScheduleRuns = nextSummary.scheduleRunsDetailed.items.filter((run) =>
+        ['QUEUED', 'STARTED'].includes(String(run.status || '').toUpperCase()),
+      );
 
       setSummary(nextSummary);
       setRefreshingAt(new Date());
 
-      return { activeCount: nextRunningExecutions.length + nextActiveRuns };
+      return {
+        activeCount: nextRunningExecutions.length + nextActiveRuns + nextActiveScheduleRuns.length,
+      };
     } catch (loadError) {
       if (!quiet) {
         setError(loadError.message || 'Failed to load dashboard.');
@@ -445,9 +403,8 @@ function Dashboard() {
       />
 
       <DashboardVisuals
-        ingestionCounts={ingestionCounts}
-        recentAudits={recentAudits}
         recentExecutions={recentExecutions}
+        scheduleRuns={scheduleRunRecords}
         workflowRuns={workflowRunRecords}
       />
 

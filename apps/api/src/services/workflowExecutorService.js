@@ -149,6 +149,11 @@ function parseLimit(value) {
   return Math.min(parsed, MAX_LIMIT);
 }
 
+function parseOffset(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 function getSafeObject(value, fallback = {}) {
   if (!value || Array.isArray(value) || typeof value !== 'object') {
     return fallback;
@@ -6702,6 +6707,7 @@ async function executeWorkflow({
 
 async function listWorkflowRuns(filters = {}) {
   const limit = parseLimit(filters.limit);
+  const offset = parseOffset(filters.offset);
   const clauses = [];
   const values = [];
   const status = String(filters.status || '')
@@ -6710,6 +6716,8 @@ async function listWorkflowRuns(filters = {}) {
   const workflowCode = String(filters.workflowCode || '').trim();
   const rawCategoryCode = String(filters.categoryCode || '').trim();
   const categoryCode = rawCategoryCode ? normalizeWorkflowCategoryCode(rawCategoryCode) : '';
+  const from = String(filters.from || '').trim();
+  const to = String(filters.to || filters.through || '').trim();
 
   if (status) {
     values.push(status);
@@ -6724,6 +6732,16 @@ async function listWorkflowRuns(filters = {}) {
   if (categoryCode) {
     values.push(categoryCode);
     clauses.push(`workflow_category_code = $${values.length}`);
+  }
+
+  if (from) {
+    values.push(from);
+    clauses.push(`COALESCE(started_at, created_at) >= $${values.length}::timestamptz`);
+  }
+
+  if (to) {
+    values.push(to);
+    clauses.push(`COALESCE(started_at, created_at) <= $${values.length}::timestamptz`);
   }
 
   const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -6741,22 +6759,29 @@ async function listWorkflowRuns(filters = {}) {
     defaultSorts: [{ field: 'startedAt', direction: 'desc' }],
     tieBreakers: ['created_at DESC', 'workflow_run_record_id DESC'],
   });
-  values.push(limit);
-
-  const result = await query(
-    `
-      SELECT *
-      FROM worker.vw_workflow_run_records
-      ${whereClause}
-      ${orderBy}
-      LIMIT $${values.length}
-    `,
-    values,
-  );
+  const filterValues = [...values];
+  const [countResult, result] = await Promise.all([
+    query(
+      `SELECT COUNT(*)::int AS total FROM worker.vw_workflow_run_records ${whereClause}`,
+      filterValues,
+    ),
+    query(
+      `
+        SELECT *
+        FROM worker.vw_workflow_run_records
+        ${whereClause}
+        ${orderBy}
+        LIMIT $${values.length + 1}
+        OFFSET $${values.length + 2}
+      `,
+      [...values, limit, offset],
+    ),
+  ]);
 
   return {
-    total: result.rows.length,
+    total: countResult.rows[0]?.total || 0,
     limit,
+    offset,
     items: result.rows.map(normalizeRunRow),
   };
 }
