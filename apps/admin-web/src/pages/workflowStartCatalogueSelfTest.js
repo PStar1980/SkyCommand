@@ -106,6 +106,12 @@ assert(
     workflowSource.includes('<WorkflowNodeParameterCard'),
   'Start Workflow must switch between focused output and saved node parameters based on node completion.',
 );
+assert(
+  workflowSource.includes('Performance telemetry') &&
+    workflowSource.includes('Archive build breakdown') &&
+    workflowSource.includes('Source-size statistics pass'),
+  'Repository Map and Repository Zip workflow output must expose phase-level performance telemetry.',
+);
 
 assert(
   !workflowSource.includes('Start workflow with parameters') &&

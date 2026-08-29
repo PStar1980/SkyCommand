@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { performance } = require('perf_hooks');
 
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
 const {
@@ -222,18 +223,48 @@ function renderTree(nodeName, children, prefix = '') {
   return output;
 }
 
+function elapsedMilliseconds(startedAt) {
+  return Math.max(0, performance.now() - startedAt);
+}
+
+function performancePhase(code, label, durationMs) {
+  return {
+    code,
+    label,
+    durationMs: Math.max(0, Number(durationMs) || 0),
+  };
+}
+
 async function executeRepositoryMap(args = [], dependencies = {}) {
   const startedAt = new Date().toISOString();
+  const instrumentationStartedAt = performance.now();
+
+  let phaseStartedAt = performance.now();
   const options = await parseRepositoryMapArgs(args, dependencies);
+  const configurationDurationMs = elapsedMilliseconds(phaseStartedAt);
   const repositoryName = options.repositoryName || path.basename(options.location);
+
+  phaseStartedAt = performance.now();
   const statistics = createScanStatistics();
   const structure = scanDirectory(options.location, '', statistics);
-  const asciiTree = renderTree(repositoryName, structure);
+  const repositoryScanDurationMs = elapsedMilliseconds(phaseStartedAt);
 
+  phaseStartedAt = performance.now();
+  const asciiTree = renderTree(repositoryName, structure);
+  const treeRenderDurationMs = elapsedMilliseconds(phaseStartedAt);
+
+  phaseStartedAt = performance.now();
   fs.mkdirSync(options.outputPath, { recursive: true });
   fs.writeFileSync(options.outputFilePath, asciiTree, 'utf8');
+  const artifactWriteDurationMs = elapsedMilliseconds(phaseStartedAt);
 
+  phaseStartedAt = performance.now();
+  const outputBytes = fs.statSync(options.outputFilePath).size;
+  const artifactStatDurationMs = elapsedMilliseconds(phaseStartedAt);
+
+  const instrumentedTotalMs = elapsedMilliseconds(instrumentationStartedAt);
   const completedAt = new Date().toISOString();
+
   return {
     ok: true,
     repositoryName,
@@ -248,9 +279,23 @@ async function executeRepositoryMap(args = [], dependencies = {}) {
     filesDocumented: statistics.filesDocumented,
     directoriesExcluded: statistics.directoriesExcluded,
     filesExcluded: statistics.filesExcluded,
-    outputBytes: fs.statSync(options.outputFilePath).size,
+    outputBytes,
     topLevelEntries: structure.map((entry) => entry.name),
     extensionCounts: statistics.extensionCounts,
+    performanceTelemetry: {
+      instrumentedTotalMs,
+      phases: [
+        performancePhase(
+          'CONFIGURATION',
+          'Configuration / repository resolution',
+          configurationDurationMs,
+        ),
+        performancePhase('REPOSITORY_SCAN', 'Repository scan', repositoryScanDurationMs),
+        performancePhase('TREE_RENDER', 'Tree render', treeRenderDurationMs),
+        performancePhase('ARTIFACT_WRITE', 'Artifact write', artifactWriteDurationMs),
+        performancePhase('ARTIFACT_STAT', 'Artifact stat', artifactStatDurationMs),
+      ],
+    },
     nodeModulesExcluded: true,
     sensitiveEnvironmentFilesExcluded: true,
     generatedArtifactsExcluded: true,

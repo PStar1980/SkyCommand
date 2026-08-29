@@ -102,6 +102,107 @@ function formatByteCount(value) {
   return `${scaled.toFixed(scaled >= 10 ? 1 : 2)} ${units[unitIndex]}`;
 }
 
+function formatTelemetryShare(durationMs, totalMs) {
+  const duration = Number(durationMs);
+  const total = Number(totalMs);
+
+  if (!Number.isFinite(duration) || !Number.isFinite(total) || total <= 0) {
+    return '—';
+  }
+
+  return `${((duration / total) * 100).toFixed(1)}%`;
+}
+
+function PerformanceTelemetryTable({ telemetry }) {
+  const data = getSafeObject(telemetry);
+  const phases = getSafeArray(data.phases);
+  const instrumentedTotalMs = Number(data.instrumentedTotalMs);
+
+  if (phases.length === 0 || !Number.isFinite(instrumentedTotalMs)) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="sky-page-kicker mb-2">Performance telemetry</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>Duration</th>
+              <th>Share of instrumented total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {phases.map((phase, index) => (
+              <tr key={`${phase?.code || phase?.label || 'phase'}-${index}`}>
+                <td>{phase?.label || humanizeOutputKey(phase?.code)}</td>
+                <td>{formatDuration(phase?.durationMs)}</td>
+                <td>{formatTelemetryShare(phase?.durationMs, instrumentedTotalMs)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td className="fw-semibold">Instrumented total</td>
+              <td className="fw-semibold">{formatDuration(instrumentedTotalMs)}</td>
+              <td className="fw-semibold">100.0%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="small sky-muted mt-2 mb-3">
+        Instrumented total covers repository-tool internals. Workflow node duration can also include
+        process-wrapper, structured-result transport, and orchestration overhead.
+      </div>
+    </>
+  );
+}
+
+function ArchiveBuildBreakdownTable({ telemetry }) {
+  const data = getSafeObject(telemetry);
+  const breakdown = getSafeObject(data.archiveBuildBreakdown);
+  const phases = getSafeArray(breakdown.phases);
+  const archiveBuildDurationMs = Number(breakdown.durationMs);
+
+  if (phases.length === 0 || !Number.isFinite(archiveBuildDurationMs)) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="sky-page-kicker mb-2">Archive build breakdown</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Archive phase</th>
+              <th>Duration</th>
+              <th>Share of archive build</th>
+            </tr>
+          </thead>
+          <tbody>
+            {phases.map((phase, index) => (
+              <tr key={`${phase?.code || phase?.label || 'archive-phase'}-${index}`}>
+                <td>{phase?.label || humanizeOutputKey(phase?.code)}</td>
+                <td>{formatDuration(phase?.durationMs)}</td>
+                <td>{formatTelemetryShare(phase?.durationMs, archiveBuildDurationMs)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="small sky-muted mt-2 mb-3">
+        Source stat/read work uses bounded asynchronous batches
+        {Number.isFinite(Number(breakdown.ioConcurrency))
+          ? ` (${Number(breakdown.ioConcurrency).toLocaleString()} concurrent files)`
+          : ''}
+        . Source size is accumulated from the bytes already read for the archive, so no second
+        filesystem statistics pass is required.
+      </div>
+    </>
+  );
+}
+
 function FriendlyOutputScalar({ fieldKey = '', value }) {
   const normalizedKey = String(fieldKey || '').toLowerCase();
 
@@ -438,6 +539,9 @@ function RepositoryPackageOutput({ toolResult }) {
         </table>
       </div>
 
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <ArchiveBuildBreakdownTable telemetry={output.performanceTelemetry} />
+
       <div className="sky-page-kicker mb-2">Packaging policy</div>
       <div className="table-responsive sky-table-card">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -539,6 +643,8 @@ function RepositoryMapOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+
       <div className="sky-page-kicker mb-2">Documentation policy</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
