@@ -107,10 +107,27 @@ assert(
   'Start Workflow must switch between focused output and saved node parameters based on node completion.',
 );
 assert(
-  workflowSource.includes('Performance telemetry') &&
-    workflowSource.includes('Archive build breakdown') &&
-    workflowSource.includes('Source-size statistics pass'),
-  'Repository Map and Repository Zip workflow output must expose phase-level performance telemetry.',
+  workflowSource.includes('PerformanceTelemetryTable,') &&
+    workflowSource.includes('ArchiveBuildBreakdownTable,') &&
+    workflowSource.includes("from '../components/tools/StructuredToolResultDisplay.jsx'") &&
+    workflowSource.includes(
+      '<PerformanceTelemetryTable telemetry={output.performanceTelemetry} />',
+    ) &&
+    workflowSource.includes(
+      '<ArchiveBuildBreakdownTable telemetry={output.performanceTelemetry} />',
+    ) &&
+    !workflowSource.includes('RepositoryPerformanceTelemetry') &&
+    !workflowSource.includes('performance={output.performance}'),
+  'Workflow focused node output must use the shared current performanceTelemetry renderer instead of the legacy output.performance contract.',
+);
+
+assert(
+  (
+    workflowSource.match(
+      /<PerformanceTelemetryTable telemetry=\{output\.performanceTelemetry\} \/>/g,
+    ) || []
+  ).length >= 5,
+  'Repository Map, Repository Zip, Dev Commit, Repo Merge / Sync, and Local Repository Sync must all render performance telemetry in focused node output.',
 );
 
 assert(
