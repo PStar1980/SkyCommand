@@ -2,6 +2,7 @@ const {
   TOOL_RESULT_SCHEMA_VERSION,
   validateToolResult,
 } = require('../../tools/src/toolResultContract');
+const { normalizePerformanceTelemetry } = require('./gitPerformanceTelemetry');
 
 const GIT_LOCAL_SYNC_OUTPUT_TYPE = 'git_local_sync_summary.v1';
 
@@ -51,6 +52,7 @@ function normalizeSteps(value = {}) {
 
 function createGitLocalSyncToolResult(result = {}) {
   const success = result.ok !== false;
+  const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
   const outcome = String(
     result.outcome || (success ? 'SYNCHRONIZED' : 'FAILED'),
   ).toUpperCase();
@@ -103,6 +105,7 @@ function createGitLocalSyncToolResult(result = {}) {
       startedAt: nullable(result.startedAt),
       completedAt: nullable(result.completedAt),
       durationMs: normalizeNumber(result.durationMs),
+      ...(performanceTelemetry ? { performanceTelemetry } : {}),
     },
     warnings: Array.isArray(result.warnings) ? result.warnings.map(String) : [],
     error: success ? null : normalizeError(result.error),

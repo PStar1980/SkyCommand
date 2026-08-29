@@ -56,6 +56,16 @@ function run() {
     mainBranchPushed: true,
     devBranchPushed: true,
     remoteFastForwardVerified: true,
+    profileCode: 'DOCKER_LOCAL',
+    executionTarget: 'DOCKER',
+    transport: 'git_cli',
+    performanceTelemetry: {
+      instrumentedTotalMs: 120,
+      phases: [
+        { code: 'REMOTE_HEAD_INSPECTION', label: 'Remote main/dev head inspection', durationMs: 40 },
+        { code: 'REMOTE_DEV_PUSH', label: 'Remote development fast-forward', durationMs: 80 },
+      ],
+    },
   });
 
   assert.equal(synchronized.outputType, GIT_BRANCH_SYNC_OUTPUT_TYPE);
@@ -67,6 +77,10 @@ function run() {
   assert.equal(synchronized.output.watcherSafe, true);
   assert.equal(synchronized.output.localWorkspaceRefreshRequired, false);
   assert.equal(synchronized.output.synchronizedHeadSha, '2'.repeat(40));
+  assert.equal(synchronized.output.performanceTelemetry.instrumentedTotalMs, 120);
+  assert.equal(synchronized.output.performanceTelemetry.phases.length, 2);
+  assert.equal(synchronized.metadata.executionTarget, 'DOCKER');
+  assert.equal(synchronized.metadata.transport, 'git_cli');
   validateToolResult(synchronized, {
     expectedOutputType: GIT_BRANCH_SYNC_OUTPUT_TYPE,
     outputSchema,

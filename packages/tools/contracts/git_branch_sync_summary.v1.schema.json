@@ -353,6 +353,48 @@
         "null"
       ],
       "maxLength": 4000
+    },
+    "performanceTelemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instrumentedTotalMs",
+        "phases"
+      ],
+      "properties": {
+        "instrumentedTotalMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "label",
+              "durationMs"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "durationMs": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

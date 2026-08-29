@@ -501,6 +501,7 @@ SkyCommand/
 │   │       ├── gitCommitResultSelfTest.js
 │   │       ├── gitLocalSyncResult.js
 │   │       ├── gitLocalSyncResultSelfTest.js
+│   │       ├── gitPerformanceTelemetry.js
 │   │       ├── gitRepositoryStatusInspector.js
 │   │       ├── gitRepositoryStatusResult.js
 │   │       ├── gitRepositoryStatusSelfTest.js

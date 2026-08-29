@@ -21,6 +21,7 @@ const {
   createGitBranchSyncFailureToolResult,
   createGitBranchSyncToolResult,
 } = require('./gitBranchSyncResult');
+const { createGitPerformanceTelemetry } = require('./gitPerformanceTelemetry');
 
 const SCRIPT_DIR = __dirname;
 const SKY_SERVER_ROOT = path.resolve(SCRIPT_DIR, '../../..');
@@ -139,7 +140,7 @@ function getRemoteUrl(remote, cwd) {
   return remoteUrl;
 }
 
-function pushRemoteRef({ remote = 'origin', refspec, cwd }) {
+function pushRemoteRef({ remote = 'origin', refspec, cwd, remoteUrl = null }) {
   if (!refspec) fail('Missing Git push refspec.');
 
   if (!isDockerLocalProfile()) {
@@ -152,17 +153,46 @@ function pushRemoteRef({ remote = 'origin', refspec, cwd }) {
   // local ref write can collide with the host Git client / VS Code. Pushing to
   // the configured URL preserves the exact remote operation without mutating
   // refs/remotes/* inside the host-owned working copy.
-  const remoteUrl = getRemoteUrl(remote, cwd);
+  const resolvedRemoteUrl = remoteUrl || getRemoteUrl(remote, cwd);
   console.log(`> git push ${remote} ${refspec} [Docker URL transport]`);
-  executeGit(['push', remoteUrl, refspec], cwd, { printCommand: false });
+  executeGit(['push', resolvedRemoteUrl, refspec], cwd, { printCommand: false });
+}
+
+function getRemoteBranchShas(remote, branches, cwd) {
+  const normalizedBranches = [...new Set((branches || [])
+    .map((branch) => String(branch || '').trim())
+    .filter(Boolean))];
+
+  if (normalizedBranches.length === 0) {
+    fail('At least one remote branch is required for verification.');
+  }
+
+  const branchRefs = normalizedBranches.map((branch) => `refs/heads/${branch}`);
+  const output = getGitOutput(['ls-remote', '--heads', remote, ...branchRefs], cwd, {
+    printCommand: true,
+  });
+  const byRef = new Map();
+
+  for (const line of String(output || '').split(/\r?\n/).filter(Boolean)) {
+    const [sha, ref] = line.trim().split(/\s+/);
+    if (sha && ref) byRef.set(ref, sha);
+  }
+
+  return Object.fromEntries(
+    normalizedBranches.map((branch) => {
+      const branchRef = `refs/heads/${branch}`;
+      const sha = byRef.get(branchRef);
+      if (!sha) {
+        fail(`Remote branch verification failed: ${remote}/${branch} was not found.`);
+      }
+      return [branch, sha];
+    }),
+  );
 }
 
 function getRemoteBranchSha(remote, branch, cwd) {
-  const branchRef = `refs/heads/${branch}`;
-  const output = getGitOutput(['ls-remote', '--heads', remote, branchRef], cwd, {
-    printCommand: true,
-  });
-  const [sha] = String(output || '').split(/\s+/);
+  const branchHeads = getRemoteBranchShas(remote, [branch], cwd);
+  const sha = branchHeads[branch];
 
   if (!sha) {
     fail(`Remote branch verification failed: ${remote}/${branch} was not found.`);
@@ -171,7 +201,7 @@ function getRemoteBranchSha(remote, branch, cwd) {
   return sha;
 }
 
-function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd }) {
+function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd, remoteUrl = null }) {
   const branchRefs = [...new Set((branches || []).map((branch) => String(branch || '').trim()).filter(Boolean))]
     .map((branch) => `refs/heads/${branch}`);
 
@@ -189,15 +219,17 @@ function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd }) {
   // collide with Windows Git/VS Code in the bind-mounted host repository. Use
   // the configured remote URL as the transport source so Git transfers only the
   // requested objects and does not apply the named remote's tracking refspecs.
-  const remoteUrl = getRemoteUrl(remote, cwd);
-  const args = ['fetch', '--no-tags', '--no-write-fetch-head', remoteUrl, ...branchRefs];
+  const resolvedRemoteUrl = remoteUrl || getRemoteUrl(remote, cwd);
+  const args = ['fetch', '--no-tags', '--no-write-fetch-head', resolvedRemoteUrl, ...branchRefs];
   const displayArgs = ['fetch', '--no-tags', '--no-write-fetch-head', remote, ...branchRefs];
   console.log(`> git ${displayArgs.join(' ')} [Docker URL object transfer only]`);
   executeGit(args, cwd, { printCommand: false });
 }
 
-function createDeferredLocalBranchRefState({ branch, targetSha, currentBranch, cwd }) {
-  const localSha = tryGetGitOutput(['rev-parse', '--verify', `refs/heads/${branch}`], cwd);
+function createDeferredLocalBranchRefState({ branch, targetSha, currentBranch, cwd, localSha: knownLocalSha }) {
+  const localSha = knownLocalSha === undefined
+    ? tryGetGitOutput(['rev-parse', '--verify', `refs/heads/${branch}`], cwd)
+    : knownLocalSha;
   const differsFromTarget = localSha !== targetSha;
 
   return {
@@ -238,8 +270,26 @@ function getTreeSha(ref, cwd) {
   return getGitOutput(['rev-parse', `${ref}^{tree}`], cwd);
 }
 
-function getCurrentBranch(cwd) {
-  return getGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
+function getHeadState(cwd) {
+  const output = getGitOutput(['rev-parse', 'HEAD', '--abbrev-ref', 'HEAD'], cwd);
+  const [headSha, branch] = output.split(/\r?\n/);
+  if (!headSha || !branch) fail('Unable to resolve Git HEAD and current branch.');
+  return { headSha: headSha.trim(), branch: branch.trim() };
+}
+
+function getRefShas(refs, cwd) {
+  const normalizedRefs = [...new Set((refs || []).map((ref) => String(ref || '').trim()).filter(Boolean))];
+  if (normalizedRefs.length === 0) return {};
+  const output = getGitOutput(
+    ['for-each-ref', '--format=%(refname)%09%(objectname)', ...normalizedRefs],
+    cwd,
+  );
+  const result = Object.fromEntries(normalizedRefs.map((ref) => [ref, null]));
+  for (const line of String(output || '').split(/\r?\n/).filter(Boolean)) {
+    const [ref, sha] = line.split('\t');
+    if (ref && sha && Object.prototype.hasOwnProperty.call(result, ref)) result[ref] = sha.trim();
+  }
+  return result;
 }
 
 function assertCleanWorkingTree(cwd) {
@@ -377,11 +427,16 @@ function createLocalRefreshCommand(repo) {
 
 async function executeMainMerge(args = []) {
   const startedAt = new Date().toISOString();
+  const telemetry = createGitPerformanceTelemetry();
   const [repoName, rawTagName] = (Array.isArray(args) ? args : [])
     .map(String)
     .filter((arg) => !arg.startsWith('--'));
   const tagName = String(rawTagName || '').trim();
-  const repo = await loadRepository(repoName);
+  const repo = await telemetry.measure(
+    'CONFIGURATION_REPOSITORY_RESOLUTION',
+    'Configuration / repository resolution',
+    () => loadRepository(repoName),
+  );
   const warnings = [];
 
   console.log('');
@@ -395,63 +450,106 @@ async function executeMainMerge(args = []) {
   console.log(`🌿 Dev branch: ${repo.devBranch}`);
   console.log('');
 
-  assertCleanWorkingTree(repo.rootPath);
+  if (isDockerLocalProfile()) {
+    // Docker-local Main Merge is deliberately remote-only: it never checks out a
+    // branch or advances host-owned refs/heads/*. A full `git status` scan across
+    // the Windows bind mount adds latency without protecting any local mutation.
+    console.log('🛡️ Docker remote-only mode: skipping unnecessary working-tree status scan.');
+  } else {
+    telemetry.measureSync('WORKING_TREE_PREFLIGHT', 'Working-tree preflight', () => {
+      assertCleanWorkingTree(repo.rootPath);
+    });
+  }
 
-  const currentBranch = getCurrentBranch(repo.rootPath);
-  const localHeadBeforeSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
-  const mainHeadBeforeSha = tryGetGitOutput(
-    ['rev-parse', '--verify', `refs/heads/${repo.mainBranch}`],
-    repo.rootPath,
-  );
-  const localDevHeadBeforeSha = tryGetGitOutput(
-    ['rev-parse', '--verify', `refs/heads/${repo.devBranch}`],
-    repo.rootPath,
-  );
+  const {
+    currentBranch,
+    localHeadBeforeSha,
+    mainHeadBeforeSha,
+    localDevHeadBeforeSha,
+  } = telemetry.measureSync('LOCAL_REF_INSPECTION', 'Local branch / ref inspection', () => {
+    const headState = getHeadState(repo.rootPath);
+    const mainRef = `refs/heads/${repo.mainBranch}`;
+    const devRef = `refs/heads/${repo.devBranch}`;
+    const refShas = getRefShas([mainRef, devRef], repo.rootPath);
+    return {
+      currentBranch: headState.branch,
+      localHeadBeforeSha: headState.headSha,
+      mainHeadBeforeSha: refShas[mainRef],
+      localDevHeadBeforeSha: refShas[devRef],
+    };
+  });
 
   let mainHeadSha;
   let remoteDevHeadBeforeSha;
+  let dockerRemoteUrl = null;
 
   if (isDockerLocalProfile()) {
     // Remote-tracking refs inside this repository belong to the Windows host.
     // Read authoritative branch heads directly from the remote, then transfer
     // only the referenced Git objects required for local graph calculations.
-    mainHeadSha = getRemoteBranchSha('origin', repo.mainBranch, repo.rootPath);
-    remoteDevHeadBeforeSha = getRemoteBranchSha('origin', repo.devBranch, repo.rootPath);
-    fetchRemoteBranchObjects({
-      remote: 'origin',
-      branches: [repo.mainBranch, repo.devBranch],
-      cwd: repo.rootPath,
+    dockerRemoteUrl = telemetry.measureSync('REMOTE_CONFIGURATION', 'Remote URL resolution', () =>
+      getRemoteUrl('origin', repo.rootPath),
+    );
+    const remoteHeadsBefore = telemetry.measureSync(
+      'REMOTE_HEAD_INSPECTION',
+      'Remote main/dev head inspection',
+      () => getRemoteBranchShas('origin', [repo.mainBranch, repo.devBranch], repo.rootPath),
+    );
+    mainHeadSha = remoteHeadsBefore[repo.mainBranch];
+    remoteDevHeadBeforeSha = remoteHeadsBefore[repo.devBranch];
+    telemetry.measureSync('REMOTE_OBJECT_TRANSFER', 'Remote Git object transfer', () => {
+      fetchRemoteBranchObjects({
+        remote: 'origin',
+        branches: [repo.mainBranch, repo.devBranch],
+        cwd: repo.rootPath,
+        remoteUrl: dockerRemoteUrl,
+      });
     });
   } else {
-    runGit(['fetch', '--prune', 'origin'], repo.rootPath);
+    telemetry.measureSync('REMOTE_OBJECT_TRANSFER', 'Remote fetch / prune', () => {
+      runGit(['fetch', '--prune', 'origin'], repo.rootPath);
+    });
     const remoteMainRef = `refs/remotes/origin/${repo.mainBranch}`;
     const remoteDevRef = `refs/remotes/origin/${repo.devBranch}`;
-    mainHeadSha = getGitOutput(['rev-parse', remoteMainRef], repo.rootPath);
-    remoteDevHeadBeforeSha = getGitOutput(['rev-parse', remoteDevRef], repo.rootPath);
-  }
-
-  if (!isGitAncestor(remoteDevHeadBeforeSha, mainHeadSha, repo.rootPath)) {
-    fail(
-      `origin/${repo.devBranch} cannot be fast-forwarded to origin/${repo.mainBranch}. The branches have diverged and require manual reconciliation.`,
+    const remoteTrackingHeads = telemetry.measureSync(
+      'REMOTE_TRACKING_INSPECTION',
+      'Remote-tracking ref inspection',
+      () => getRefShas([remoteMainRef, remoteDevRef], repo.rootPath),
     );
+    mainHeadSha = remoteTrackingHeads[remoteMainRef];
+    remoteDevHeadBeforeSha = remoteTrackingHeads[remoteDevRef];
+    if (!mainHeadSha || !remoteDevHeadBeforeSha) {
+      fail('Fetched remote-tracking refs for main/dev could not be resolved.');
+    }
   }
 
-  const commitsApplied = Number(
-    getGitOutput(
-      ['rev-list', '--count', `${remoteDevHeadBeforeSha}..${mainHeadSha}`],
-      repo.rootPath,
-    ) || 0,
-  );
+  const commitsApplied = telemetry.measureSync('LINEAGE_ANALYSIS', 'Fast-forward lineage analysis', () => {
+    if (!isGitAncestor(remoteDevHeadBeforeSha, mainHeadSha, repo.rootPath)) {
+      fail(
+        `origin/${repo.devBranch} cannot be fast-forwarded to origin/${repo.mainBranch}. The branches have diverged and require manual reconciliation.`,
+      );
+    }
+
+    return Number(
+      getGitOutput(
+        ['rev-list', '--count', `${remoteDevHeadBeforeSha}..${mainHeadSha}`],
+        repo.rootPath,
+      ) || 0,
+    );
+  });
   const devAdvanced = remoteDevHeadBeforeSha !== mainHeadSha;
 
   if (devAdvanced) {
     console.log(
       `\n🔄 Fast-forwarding origin/${repo.devBranch} to the approved origin/${repo.mainBranch} head without checking out either branch...`,
     );
-    pushRemoteRef({
-      remote: 'origin',
-      refspec: `${mainHeadSha}:refs/heads/${repo.devBranch}`,
-      cwd: repo.rootPath,
+    telemetry.measureSync('REMOTE_DEV_PUSH', 'Remote development fast-forward', () => {
+      pushRemoteRef({
+        remote: 'origin',
+        refspec: `${mainHeadSha}:refs/heads/${repo.devBranch}`,
+        cwd: repo.rootPath,
+        remoteUrl: dockerRemoteUrl,
+      });
     });
   } else {
     console.log(`\n✨ origin/${repo.devBranch} is already synchronized with origin/${repo.mainBranch}.`);
@@ -461,23 +559,31 @@ async function executeMainMerge(args = []) {
 
   if (tagName) {
     console.log(`\n🏷️ Creating tag ${tagName} at ${mainHeadSha}...`);
-    if (isDockerLocalProfile()) {
-      pushRemoteRef({
-        remote: 'origin',
-        refspec: `${mainHeadSha}:refs/tags/${tagName}`,
-        cwd: repo.rootPath,
-      });
-    } else {
-      runGit(['tag', tagName, mainHeadSha], repo.rootPath);
-      runGit(['push', 'origin', `refs/tags/${tagName}`], repo.rootPath);
-    }
+    telemetry.measureSync('TAG_PUSH', 'Tag creation / push', () => {
+      if (isDockerLocalProfile()) {
+        pushRemoteRef({
+          remote: 'origin',
+          refspec: `${mainHeadSha}:refs/tags/${tagName}`,
+          cwd: repo.rootPath,
+          remoteUrl: dockerRemoteUrl,
+        });
+      } else {
+        runGit(['tag', tagName, mainHeadSha], repo.rootPath);
+        runGit(['push', 'origin', `refs/tags/${tagName}`], repo.rootPath);
+      }
+    });
     tagCreated = true;
   }
 
   // Verify the authoritative remote directly. A second fetch is unnecessary and
   // would rewrite refs/remotes/* inside the bind-mounted host repository.
-  const remoteMainHeadAfterSha = getRemoteBranchSha('origin', repo.mainBranch, repo.rootPath);
-  const remoteDevHeadAfterSha = getRemoteBranchSha('origin', repo.devBranch, repo.rootPath);
+  const remoteHeadsAfter = telemetry.measureSync(
+    'REMOTE_VERIFICATION',
+    'Remote main/dev verification',
+    () => getRemoteBranchShas('origin', [repo.mainBranch, repo.devBranch], repo.rootPath),
+  );
+  const remoteMainHeadAfterSha = remoteHeadsAfter[repo.mainBranch];
+  const remoteDevHeadAfterSha = remoteHeadsAfter[repo.devBranch];
   const branchesSynchronized =
     remoteMainHeadAfterSha === mainHeadSha && remoteDevHeadAfterSha === mainHeadSha;
 
@@ -496,18 +602,26 @@ async function executeMainMerge(args = []) {
     // race Windows Git/VS Code and surface as "couldn't set refs/heads/..." even
     // after the remote synchronization has already succeeded. Keep Docker's Git
     // responsibility remote-only and let the host refresh its checked-out branch.
-    mainRefUpdate = createDeferredLocalBranchRefState({
-      branch: repo.mainBranch,
-      targetSha: mainHeadSha,
-      currentBranch,
-      cwd: repo.rootPath,
-    });
-    devRefUpdate = createDeferredLocalBranchRefState({
-      branch: repo.devBranch,
-      targetSha: remoteDevHeadAfterSha,
-      currentBranch,
-      cwd: repo.rootPath,
-    });
+    ({ mainRefUpdate, devRefUpdate } = telemetry.measureSync(
+      'LOCAL_SYNC_DEFERRAL',
+      'Host local-sync deferral analysis',
+      () => ({
+        mainRefUpdate: createDeferredLocalBranchRefState({
+          branch: repo.mainBranch,
+          targetSha: mainHeadSha,
+          currentBranch,
+          cwd: repo.rootPath,
+          localSha: mainHeadBeforeSha,
+        }),
+        devRefUpdate: createDeferredLocalBranchRefState({
+          branch: repo.devBranch,
+          targetSha: remoteDevHeadAfterSha,
+          currentBranch,
+          cwd: repo.rootPath,
+          localSha: localDevHeadBeforeSha,
+        }),
+      }),
+    ));
 
     deferredLocalBranches = [mainRefUpdate, devRefUpdate]
       .filter((state) => state.hostSyncRequired)
@@ -519,18 +633,24 @@ async function executeMainMerge(args = []) {
       );
     }
   } else {
-    mainRefUpdate = updateLocalBranchRefWithoutCheckout({
-      branch: repo.mainBranch,
-      targetSha: mainHeadSha,
-      currentBranch,
-      cwd: repo.rootPath,
-    });
-    devRefUpdate = updateLocalBranchRefWithoutCheckout({
-      branch: repo.devBranch,
-      targetSha: remoteDevHeadAfterSha,
-      currentBranch,
-      cwd: repo.rootPath,
-    });
+    ({ mainRefUpdate, devRefUpdate } = telemetry.measureSync(
+      'LOCAL_REF_UPDATE',
+      'Local branch ref synchronization',
+      () => ({
+        mainRefUpdate: updateLocalBranchRefWithoutCheckout({
+          branch: repo.mainBranch,
+          targetSha: mainHeadSha,
+          currentBranch,
+          cwd: repo.rootPath,
+        }),
+        devRefUpdate: updateLocalBranchRefWithoutCheckout({
+          branch: repo.devBranch,
+          targetSha: remoteDevHeadAfterSha,
+          currentBranch,
+          cwd: repo.rootPath,
+        }),
+      }),
+    ));
   }
   const localHostSyncRequired = deferredLocalBranches.length > 0;
   const localWorkspaceRefreshRequired =
@@ -551,7 +671,11 @@ async function executeMainMerge(args = []) {
     );
   }
 
-  const localHeadAfterSha = getGitOutput(['rev-parse', 'HEAD'], repo.rootPath);
+  const localHeadAfterSha = isDockerLocalProfile()
+    ? localHeadBeforeSha
+    : telemetry.measureSync('FINAL_HEAD_READ', 'Final local head read', () =>
+        getGitOutput(['rev-parse', 'HEAD'], repo.rootPath),
+      );
   const completedAt = new Date().toISOString();
   const outcome = tagCreated
     ? 'TAGGED'
@@ -630,6 +754,9 @@ async function executeMainMerge(args = []) {
     tagsPushed: tagCreated,
     warnings,
     profileCode: PROFILE_CODE,
+    executionTarget: isDockerLocalProfile() ? 'DOCKER' : 'HOST',
+    transport: 'git_cli',
+    performanceTelemetry: telemetry.snapshot(),
   };
 }
 
@@ -685,6 +812,7 @@ module.exports = {
   executeMainMerge,
   fetchRemoteBranchObjects,
   getRemoteBranchSha,
+  getRemoteBranchShas,
   isDockerLocalProfile,
   main,
   printMainMergeResult,
