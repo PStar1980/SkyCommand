@@ -51,6 +51,10 @@ async function run() {
     assert.equal(result.filesDocumented, 2);
     assert.ok(result.directoriesDocumented >= 2);
     assert.ok(result.outputBytes > 0);
+    assert.ok(result.performanceTelemetry.instrumentedTotalMs >= 0);
+    assert.ok(
+      result.performanceTelemetry.phases.some((phase) => phase.code === 'REPOSITORY_SCAN'),
+    );
     assert.equal(result.extensionCounts['.js'], 1);
     assert.equal(result.extensionCounts['.md'], 1);
     const content = fs.readFileSync(result.artifactPath, 'utf8');
@@ -64,6 +68,7 @@ async function run() {
     assert.equal(toolResult.outputType, REPOSITORY_MAP_OUTPUT_TYPE);
     assert.equal(toolResult.output.filesDocumented, 2);
     assert.equal(toolResult.output.policy.sensitiveEnvironmentFilesExcluded, true);
+    assert.ok(toolResult.output.performanceTelemetry.instrumentedTotalMs >= 0);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

@@ -7,6 +7,7 @@ const {
   executeRepositoryZip,
   flattenFiles,
   parseRepositoryZipArgs,
+  resolveZipIoConcurrency,
   scanDirectory,
 } = require('./generateRepoZip');
 const {
@@ -15,6 +16,10 @@ const {
 } = require('./repositoryPackageResult');
 
 async function run() {
+  assert.strictEqual(resolveZipIoConcurrency({}), 16);
+  assert.strictEqual(resolveZipIoConcurrency({ SKYCOMMAND_REPOSITORY_ZIP_IO_CONCURRENCY: '8' }), 8);
+  assert.strictEqual(resolveZipIoConcurrency({ SKYCOMMAND_REPOSITORY_ZIP_IO_CONCURRENCY: '1000' }), 64);
+
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skycommand-repo-package-'));
   const sourceRoot = path.join(tempRoot, 'sample-repo');
   const outputRoot = path.join(tempRoot, 'output');
@@ -82,6 +87,14 @@ async function run() {
     assert.strictEqual(result.filesIncluded, 3);
     assert.ok(result.sourceBytes > 0);
     assert.ok(result.archiveBytes > 0);
+    assert.ok(result.performanceTelemetry.instrumentedTotalMs >= 0);
+    assert.ok(result.performanceTelemetry.phases.some((phase) => phase.code === 'ARCHIVE_BUILD'));
+    assert.strictEqual(result.performanceTelemetry.archiveBuildBreakdown.ioConcurrency, 16);
+    assert.ok(
+      result.performanceTelemetry.archiveBuildBreakdown.phases.some(
+        (phase) => phase.code === 'SOURCE_FILE_READS',
+      ),
+    );
     assert.ok(fs.existsSync(result.artifactPath));
     assert.strictEqual(fs.readFileSync(result.artifactPath, { encoding: null }).subarray(0, 2).toString(), 'PK');
 
@@ -92,6 +105,11 @@ async function run() {
     assert.strictEqual(toolResult.output.filesIncluded, 3);
     assert.strictEqual(toolResult.output.options.sensitiveEnvironmentFilesExcluded, true);
     assert.ok(toolResult.output.compressionRatio > 0);
+    assert.ok(toolResult.output.performanceTelemetry.instrumentedTotalMs >= 0);
+    assert.strictEqual(
+      toolResult.output.performanceTelemetry.archiveBuildBreakdown.ioConcurrency,
+      16,
+    );
     assert.ok(!Object.prototype.hasOwnProperty.call(toolResult.output, 'stdout'));
     assert.ok(!Object.prototype.hasOwnProperty.call(toolResult.output, 'stderr'));
   } finally {

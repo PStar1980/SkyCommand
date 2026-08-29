@@ -16,6 +16,10 @@ const pool = new Pool({
   database: requireEnv('PGDATABASE'),
   user: requireEnv('PGUSER'),
   password: requireEnv('PGPASSWORD'),
+  // Short-lived CLI/tool processes should not be held open solely by an idle
+  // PostgreSQL socket. Long-running API/worker processes remain alive because
+  // their servers and workflow runtimes keep the Node.js event loop active.
+  allowExitOnIdle: true,
 });
 
 pool.on('error', (err) => {

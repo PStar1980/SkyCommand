@@ -29,12 +29,49 @@ function normalizeError(error) {
   };
 }
 
+function normalizePerformancePhases(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((phase) => phase && typeof phase === 'object')
+    .map((phase) => ({
+      code: String(phase.code || 'UNKNOWN'),
+      label: String(phase.label || phase.code || 'Phase'),
+      durationMs: Math.max(0, normalizeNumber(phase.durationMs)),
+    }));
+}
+
+function normalizePerformanceTelemetry(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const archiveBuild = value.archiveBuildBreakdown;
+  const normalized = {
+    instrumentedTotalMs: Math.max(0, normalizeNumber(value.instrumentedTotalMs)),
+    phases: normalizePerformancePhases(value.phases),
+  };
+
+  if (archiveBuild && typeof archiveBuild === 'object' && !Array.isArray(archiveBuild)) {
+    normalized.archiveBuildBreakdown = {
+      durationMs: Math.max(0, normalizeNumber(archiveBuild.durationMs)),
+      ioConcurrency: Math.max(1, Math.trunc(normalizeNumber(archiveBuild.ioConcurrency, 1))),
+      phases: normalizePerformancePhases(archiveBuild.phases),
+    };
+  }
+
+  return normalized;
+}
+
 function createRepositoryPackageToolResult(result = {}) {
   const success = result.ok !== false;
   const outcome = success ? 'CREATED' : 'FAILED';
   const sourceBytes = normalizeNumber(result.sourceBytes);
   const archiveBytes = normalizeNumber(result.archiveBytes);
   const compressionRatio = sourceBytes > 0 ? archiveBytes / sourceBytes : 0;
+  const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
 
   return validateToolResult({
     schemaVersion: TOOL_RESULT_SCHEMA_VERSION,
@@ -57,6 +94,7 @@ function createRepositoryPackageToolResult(result = {}) {
       sourceBytes,
       archiveBytes,
       compressionRatio,
+      ...(performanceTelemetry ? { performanceTelemetry } : {}),
       options: {
         nodeModulesIncluded: Boolean(result.nodeModulesIncluded),
         imagesIncluded: Boolean(result.imagesIncluded),

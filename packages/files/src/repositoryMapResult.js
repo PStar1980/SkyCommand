@@ -31,8 +31,26 @@ function normalizeCountMap(value) {
   );
 }
 
+function normalizePerformanceTelemetry(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+  return {
+    instrumentedTotalMs: normalizeNumber(value.instrumentedTotalMs),
+    phases: Array.isArray(value.phases)
+      ? value.phases
+          .filter((phase) => phase && typeof phase === 'object')
+          .map((phase) => ({
+            code: String(phase.code || 'UNKNOWN'),
+            label: String(phase.label || phase.code || 'Phase'),
+            durationMs: normalizeNumber(phase.durationMs),
+          }))
+      : [],
+  };
+}
+
 function createRepositoryMapToolResult(result = {}) {
   const success = result.ok !== false;
+  const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
   return validateToolResult({
     schemaVersion: TOOL_RESULT_SCHEMA_VERSION,
     success,
@@ -60,6 +78,7 @@ function createRepositoryMapToolResult(result = {}) {
         ? result.topLevelEntries.map(String)
         : [],
       extensionCounts: normalizeCountMap(result.extensionCounts),
+      ...(performanceTelemetry ? { performanceTelemetry } : {}),
       policy: {
         nodeModulesExcluded: result.nodeModulesExcluded !== false,
         sensitiveEnvironmentFilesExcluded: result.sensitiveEnvironmentFilesExcluded !== false,

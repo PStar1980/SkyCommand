@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { performance } = require('perf_hooks');
 
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
 const {
@@ -31,6 +32,8 @@ const OUTPUT_TYPE = 'repository_package_summary.v1';
 const ZIP32_MAX_VALUE = 0xffffffff;
 const ZIP32_MAX_ENTRY_COUNT = 0xffff;
 const DEPENDENCY_FOLDER_NAME = 'node_modules';
+const DEFAULT_ZIP_IO_CONCURRENCY = 16;
+const MAX_ZIP_IO_CONCURRENCY = 64;
 
 const SUPPORTED_OPTIONS = new Set([
   '--include-node-modules',
@@ -97,6 +100,28 @@ const IMAGE_FILE_EXTENSIONS = new Set([
 const ALWAYS_EXCLUDED_FILE_EXTENSIONS = new Set(['.png']);
 
 const PRESERVED_IMAGE_RELATIVE_PATHS = new Set(['apps/admin-web/public/favicon.svg']);
+
+function resolveZipIoConcurrency(environment = process.env) {
+  const configured = Number(environment.SKYCOMMAND_REPOSITORY_ZIP_IO_CONCURRENCY);
+
+  if (!Number.isFinite(configured) || configured < 1) {
+    return DEFAULT_ZIP_IO_CONCURRENCY;
+  }
+
+  return Math.min(MAX_ZIP_IO_CONCURRENCY, Math.max(1, Math.trunc(configured)));
+}
+
+function elapsedMilliseconds(startedAt) {
+  return Math.max(0, performance.now() - startedAt);
+}
+
+function performancePhase(code, label, durationMs) {
+  return {
+    code,
+    label,
+    durationMs: Math.max(0, Number(durationMs) || 0),
+  };
+}
 
 function hasPathSeparators(value) {
   return /[\\/]/.test(value);
@@ -173,6 +198,7 @@ async function parseRepositoryZipArgs(args = [], dependencies = {}) {
     outputFilePath: path.resolve(outputPath, fileName),
     includeNodeModules: optionArgs.includes('--include-node-modules'),
     includeImages: optionArgs.includes('--include-images'),
+    ioConcurrency: resolveZipIoConcurrency(dependencies.environment || process.env),
   };
 }
 
@@ -448,56 +474,99 @@ function logProgress(current, total) {
   }
 }
 
-function writeZipArchive(files, rootName, targetFilePath) {
+async function writeZipArchive(
+  files,
+  rootName,
+  targetFilePath,
+  { ioConcurrency = DEFAULT_ZIP_IO_CONCURRENCY } = {},
+) {
   if (files.length > ZIP32_MAX_ENTRY_COUNT) {
     throw new Error(
       `❌ Error: ${files.length} files exceed standard ZIP32 entry limits. This repo archive needs ZIP64 support.`,
     );
   }
 
+  const concurrency = Math.min(
+    MAX_ZIP_IO_CONCURRENCY,
+    Math.max(1, Math.trunc(Number(ioConcurrency) || DEFAULT_ZIP_IO_CONCURRENCY)),
+  );
   const centralParts = [];
+  const breakdown = {
+    sourceFileStatMs: 0,
+    sourceFileReadMs: 0,
+    compressionMs: 0,
+    checksumMs: 0,
+    archiveWriteMs: 0,
+  };
+  let sourceBytes = 0;
   let offset = 0;
+  const archiveBuildStartedAt = performance.now();
   const fd = fs.openSync(targetFilePath, 'w');
 
   try {
-    files.forEach((file, index) => {
-      const stat = fs.statSync(file.fullPath);
-      const rawData = fs.readFileSync(file.fullPath);
-      const compressedData = zlib.deflateRawSync(rawData);
-      const checksum = crc32(rawData);
-      const zipEntryPath = toZipPath(path.join(rootName, file.relativePath));
-      const fileNameBuffer = Buffer.from(zipEntryPath, 'utf8');
-      const { dosDate, dosTime } = toDosDateTime(stat.mtime);
+    for (let batchStart = 0; batchStart < files.length; batchStart += concurrency) {
+      const batch = files.slice(batchStart, batchStart + concurrency);
 
-      assertZip32Value(rawData.length, `Uncompressed size for ${file.relativePath}`);
-      assertZip32Value(compressedData.length, `Compressed size for ${file.relativePath}`);
-      assertZip32Value(offset, `Archive offset before ${file.relativePath}`);
+      let stageStartedAt = performance.now();
+      const stats = await Promise.all(batch.map((file) => fs.promises.stat(file.fullPath)));
+      breakdown.sourceFileStatMs += elapsedMilliseconds(stageStartedAt);
 
-      const localHeader = createLocalFileHeader({
-        fileNameBuffer,
-        crc: checksum,
-        compressedSize: compressedData.length,
-        uncompressedSize: rawData.length,
-        dosTime,
-        dosDate,
+      stageStartedAt = performance.now();
+      const rawFiles = await Promise.all(batch.map((file) => fs.promises.readFile(file.fullPath)));
+      breakdown.sourceFileReadMs += elapsedMilliseconds(stageStartedAt);
+
+      const batchArchiveParts = [];
+
+      batch.forEach((file, batchIndex) => {
+        const rawData = rawFiles[batchIndex];
+        const stat = stats[batchIndex];
+        sourceBytes += rawData.length;
+
+        stageStartedAt = performance.now();
+        const compressedData = zlib.deflateRawSync(rawData);
+        breakdown.compressionMs += elapsedMilliseconds(stageStartedAt);
+
+        stageStartedAt = performance.now();
+        const checksum = crc32(rawData);
+        breakdown.checksumMs += elapsedMilliseconds(stageStartedAt);
+
+        const zipEntryPath = toZipPath(path.join(rootName, file.relativePath));
+        const fileNameBuffer = Buffer.from(zipEntryPath, 'utf8');
+        const { dosDate, dosTime } = toDosDateTime(stat.mtime);
+
+        assertZip32Value(rawData.length, `Uncompressed size for ${file.relativePath}`);
+        assertZip32Value(compressedData.length, `Compressed size for ${file.relativePath}`);
+        assertZip32Value(offset, `Archive offset before ${file.relativePath}`);
+
+        const localHeader = createLocalFileHeader({
+          fileNameBuffer,
+          crc: checksum,
+          compressedSize: compressedData.length,
+          uncompressedSize: rawData.length,
+          dosTime,
+          dosDate,
+        });
+        const centralHeader = createCentralDirectoryHeader({
+          fileNameBuffer,
+          crc: checksum,
+          compressedSize: compressedData.length,
+          uncompressedSize: rawData.length,
+          dosTime,
+          dosDate,
+          localHeaderOffset: offset,
+        });
+
+        batchArchiveParts.push(localHeader, compressedData);
+        centralParts.push(centralHeader);
+        offset += localHeader.length + compressedData.length;
+        assertZip32Value(offset, `Archive offset after ${file.relativePath}`);
+        logProgress(batchStart + batchIndex + 1, files.length);
       });
-      const centralHeader = createCentralDirectoryHeader({
-        fileNameBuffer,
-        crc: checksum,
-        compressedSize: compressedData.length,
-        uncompressedSize: rawData.length,
-        dosTime,
-        dosDate,
-        localHeaderOffset: offset,
-      });
 
-      writeBuffer(fd, localHeader);
-      writeBuffer(fd, compressedData);
-      centralParts.push(centralHeader);
-      offset += localHeader.length + compressedData.length;
-      assertZip32Value(offset, `Archive offset after ${file.relativePath}`);
-      logProgress(index + 1, files.length);
-    });
+      stageStartedAt = performance.now();
+      writeBuffer(fd, Buffer.concat(batchArchiveParts));
+      breakdown.archiveWriteMs += elapsedMilliseconds(stageStartedAt);
+    }
 
     const centralDirectoryOffset = offset;
     const centralDirectory = Buffer.concat(centralParts);
@@ -506,46 +575,83 @@ function writeZipArchive(files, rootName, targetFilePath) {
     assertZip32Value(centralDirectoryOffset, 'Central directory offset');
     assertZip32Value(centralDirectorySize, 'Central directory size');
 
-    writeBuffer(fd, centralDirectory);
-    writeBuffer(
-      fd,
-      createEndOfCentralDirectory({
-        entryCount: files.length,
-        centralDirectorySize,
-        centralDirectoryOffset,
-      }),
-    );
+    const endOfCentralDirectory = createEndOfCentralDirectory({
+      entryCount: files.length,
+      centralDirectorySize,
+      centralDirectoryOffset,
+    });
+
+    const stageStartedAt = performance.now();
+    writeBuffer(fd, Buffer.concat([centralDirectory, endOfCentralDirectory]));
+    breakdown.archiveWriteMs += elapsedMilliseconds(stageStartedAt);
   } finally {
     fs.closeSync(fd);
   }
+
+  const archiveBuildDurationMs = elapsedMilliseconds(archiveBuildStartedAt);
+  const measuredBreakdownMs =
+    breakdown.sourceFileStatMs +
+    breakdown.sourceFileReadMs +
+    breakdown.compressionMs +
+    breakdown.checksumMs +
+    breakdown.archiveWriteMs;
+  const headerAndOtherMs = Math.max(0, archiveBuildDurationMs - measuredBreakdownMs);
+
+  return {
+    sourceBytes,
+    archiveBuildBreakdown: {
+      durationMs: archiveBuildDurationMs,
+      ioConcurrency: concurrency,
+      phases: [
+        performancePhase('SOURCE_FILE_STAT', 'Source file stat', breakdown.sourceFileStatMs),
+        performancePhase('SOURCE_FILE_READS', 'Source file reads', breakdown.sourceFileReadMs),
+        performancePhase('COMPRESSION', 'Compression (deflate)', breakdown.compressionMs),
+        performancePhase('CRC32', 'CRC32 checksum', breakdown.checksumMs),
+        performancePhase('ARCHIVE_WRITES', 'Archive writes', breakdown.archiveWriteMs),
+        performancePhase('HEADER_OTHER', 'Header / other', headerAndOtherMs),
+      ],
+    },
+  };
 }
 
 async function executeRepositoryZip(args = [], dependencies = {}) {
   const startedAt = new Date().toISOString();
+  const instrumentationStartedAt = performance.now();
+
+  let phaseStartedAt = performance.now();
   const options = await parseRepositoryZipArgs(args, dependencies);
+  const configurationDurationMs = elapsedMilliseconds(phaseStartedAt);
   const rootName = path.basename(options.location);
+
+  phaseStartedAt = performance.now();
   const structure = scanDirectory(options.location, options.location, options);
   const files = flattenFiles(structure);
+  const repositoryScanDurationMs = elapsedMilliseconds(phaseStartedAt);
 
   if (!fs.existsSync(options.outputPath)) {
     fs.mkdirSync(options.outputPath, { recursive: true });
   }
 
+  let archiveResult;
+  phaseStartedAt = performance.now();
   try {
-    writeZipArchive(files, rootName, options.outputFilePath);
+    archiveResult = await writeZipArchive(files, rootName, options.outputFilePath, {
+      ioConcurrency: options.ioConcurrency,
+    });
   } catch (error) {
     if (fs.existsSync(options.outputFilePath)) {
       fs.rmSync(options.outputFilePath, { force: true });
     }
     throw error;
   }
+  const archiveBuildDurationMs = elapsedMilliseconds(phaseStartedAt);
 
-  const completedAt = new Date().toISOString();
-  const sourceBytes = files.reduce(
-    (total, file) => total + fs.statSync(file.fullPath).size,
-    0,
-  );
+  phaseStartedAt = performance.now();
   const archiveBytes = fs.statSync(options.outputFilePath).size;
+  const artifactStatDurationMs = elapsedMilliseconds(phaseStartedAt);
+
+  const instrumentedTotalMs = elapsedMilliseconds(instrumentationStartedAt);
+  const completedAt = new Date().toISOString();
 
   return {
     ok: true,
@@ -557,8 +663,22 @@ async function executeRepositoryZip(args = [], dependencies = {}) {
     completedAt,
     durationMs: Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime()),
     filesIncluded: files.length,
-    sourceBytes,
+    sourceBytes: archiveResult.sourceBytes,
     archiveBytes,
+    performanceTelemetry: {
+      instrumentedTotalMs,
+      phases: [
+        performancePhase(
+          'CONFIGURATION',
+          'Configuration / repository resolution',
+          configurationDurationMs,
+        ),
+        performancePhase('REPOSITORY_SCAN', 'Repository scan', repositoryScanDurationMs),
+        performancePhase('ARCHIVE_BUILD', 'Archive build', archiveBuildDurationMs),
+        performancePhase('ARTIFACT_STAT', 'Artifact stat', artifactStatDurationMs),
+      ],
+      archiveBuildBreakdown: archiveResult.archiveBuildBreakdown,
+    },
     nodeModulesIncluded: options.includeNodeModules,
     imagesIncluded: options.includeImages,
     sensitiveEnvironmentFilesExcluded: true,
@@ -608,6 +728,7 @@ module.exports = {
   normalizeOutputFileName,
   parseRepositoryZipArgs,
   printRepositoryZipResult,
+  resolveZipIoConcurrency,
   scanDirectory,
   writeZipArchive,
 };

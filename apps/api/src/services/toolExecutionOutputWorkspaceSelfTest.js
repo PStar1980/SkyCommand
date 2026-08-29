@@ -90,6 +90,9 @@ for (const outputType of [
 }
 assert.match(structuredDisplaySource, /Run totals/);
 assert.match(structuredDisplaySource, /Indicator results/);
+assert.match(structuredDisplaySource, /Performance telemetry/);
+assert.match(structuredDisplaySource, /Archive build breakdown/);
+assert.match(structuredDisplaySource, /Source-size statistics pass/);
 
 assert.match(dashboardSource, /<ServerStatusPanel/);
 for (const serverLabel of [
