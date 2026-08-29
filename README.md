@@ -150,7 +150,7 @@ Structured-result files are ephemeral runtime artifacts, not source files. They 
 | SkyCommand Dashboard | Private operational intelligence dashboard for API/DB health, ingestion, automation, workflows, task queue health, readiness, tools, sessions, scripts, audits, and chart-based visual summaries |
 | Tools                | Permission-filtered operational tool launcher with dynamic parameters and Tools History logging                                                                                                  |
 | Workflows            | Versioned workflow builder, visual graph editor, start/history, approvals, run controls, Temporal diagnostics, and worker health                                                                 |
-| Automation           | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyCommand workflows                                                                                             |
+| Automation           | Scheduler/listener control surfaces, including bridges to Temporal templates and SkyCommand workflows                                                                                            |
 | Ingestion Status     | Source health, indicator freshness, stale-data detection, run history, per-indicator diagnostics, and macro pipeline analytics                                                                   |
 | Access Control       | User, role, permission, session, password administration, and User History audit review                                                                                                          |
 | Tools History        | Browser-triggered and worker-triggered tool execution history with stdout/stderr traceability plus usage, speed, category, and outcome analytics                                                 |
@@ -199,7 +199,7 @@ SkyWeb Analytics
 
 SkyCommand and SkyWeb now have a clean boundary:
 
-| SkyCommand owns                                      | SkyWeb owns                                     |
+| SkyCommand owns                                     | SkyWeb owns                                     |
 | --------------------------------------------------- | ----------------------------------------------- |
 | Ingestion pipelines                                 | Public/member analytics UI                      |
 | Worker scheduling                                   | Dashboards and saved views                      |
@@ -367,93 +367,93 @@ Database, ingestion, API, worker, and tool execution scripts load `.env` from th
 
 | Surface                 | URL                                |
 | ----------------------- | ---------------------------------- |
-| SkyCommand API health    | `http://localhost:7171/_health`    |
-| SkyCommand DB health     | `http://localhost:7171/_db/health` |
+| SkyCommand API health   | `http://localhost:7171/_health`    |
+| SkyCommand DB health    | `http://localhost:7171/_db/health` |
 | Temporal Web UI         | `http://localhost:8600`            |
-| SkyCommand Admin-Web     | `http://localhost:15171`            |
+| SkyCommand Admin-Web    | `http://localhost:15171`           |
 | SkyWeb Analytics client | `http://localhost:5175`            |
 | SkyWeb.Api Swagger      | `http://localhost:7280/swagger`    |
 
 ## NPM Scripts
 
-| Command                       | Description                                                                                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `npm run start`               | Starts the API server.                                                                      |
-| `npm run api`                 | Starts the API server with Nodemon.                                                         |
-| `npm run api:docker:up`      | Builds and starts the Dockerized SkyCommand API on host port 7171.                          |
-| `npm run api:docker:stop`    | Stops the Dockerized API.                                                                   |
-| `npm run api:docker:restart` | Rebuilds/recreates the Dockerized API.                                                       |
-| `npm run api:docker:status`  | Shows the Dockerized API container status/health.                                            |
-| `npm run api:docker:logs`    | Follows Dockerized API logs.                                                                 |
-| `npm run api:docker:git:check` | Runs the layered GitHub credential proof inside the API container.                         |
-| `npm run backend:stack:up`   | Starts/builds API, Node worker, Temporal worker, and Temporal service together.              |
-| `npm run backend:stack:stop` | Stops the Docker backend services while preserving Temporal data.                            |
-| `npm run web`                 | Starts the Admin-Web Vite development server.                                               |
-| `npm run web:build`           | Builds the Admin-Web frontend.                                                              |
-| `npm run web:preview`         | Previews the built Admin-Web frontend.                                                      |
-| `npm run web:docker:up`       | Builds and starts the production-style Admin-Web NGINX container on host port 15171.          |
-| `npm run web:docker:stop`     | Stops Docker Admin-Web while leaving the backend containers untouched.                       |
-| `npm run web:docker:restart`  | Rebuilds/recreates Docker Admin-Web.                                                         |
-| `npm run web:docker:status`   | Shows Docker Admin-Web container status/health.                                              |
-| `npm run web:docker:logs`     | Follows Docker Admin-Web/NGINX logs.                                                         |
-| `npm run skycommand:docker:up` | Starts/builds PostgreSQL, Web, API, Node worker, Temporal worker, and Temporal service together. |
-| `npm run skycommand:docker:restart` | Rebuilds and force-recreates the full six-container runtime so source/image changes are picked up while persistent volumes are preserved. |
-| `npm run skycommand:docker:stop` | Stops the six SkyCommand runtime containers while preserving PostgreSQL and Temporal volumes. |
-| `npm run skycommand:docker:status` | Shows status for the full six-container SkyCommand runtime.                              |
-| `npm run skycommand:docker:logs` | Follows logs for the full six-container SkyCommand runtime.                                |
-| `npm run worker`              | Starts the worker daemon.                                                                   |
-| `npm run worker:dev`          | Starts the worker daemon with Nodemon.                                                      |
-| `npm run worker:docker:up`   | Builds and starts the Dockerized scheduler/listener Node worker.                            |
-| `npm run worker:docker:stop` | Stops the Dockerized Node worker.                                                           |
-| `npm run worker:docker:restart` | Rebuilds/recreates the Dockerized Node worker.                                           |
-| `npm run worker:docker:status` | Shows the Dockerized Node worker container status.                                        |
-| `npm run worker:docker:logs` | Follows Dockerized Node worker logs.                                                        |
-| `npm run worker:docker:git:check` | Reuses the Docker Git credential proof inside the Node worker container.                |
-| `npm run automation:stack:up` | Starts/builds Temporal service, Temporal worker, and Node worker together.                   |
-| `npm run automation:stack:stop` | Stops the three Docker automation services while preserving Temporal data.                |
-| `npm run temporal:server:up`      | Starts/recreates the Dockerized Temporal development service in the background.              |
-| `npm run temporal:server:stop`    | Stops the Temporal service container without deleting its persistent volume.                |
-| `npm run temporal:server:restart` | Restarts the Temporal service container.                                                     |
-| `npm run temporal:server:status`  | Shows the Temporal service container status/health.                                         |
-| `npm run temporal:server:logs`    | Follows Temporal service container logs.                                                     |
-| `npm run temporal:worker:docker:up` | Builds and starts the Dockerized SkyCommand Temporal worker.                               |
-| `npm run temporal:worker:docker:stop` | Stops the Dockerized Temporal worker.                                                     |
-| `npm run temporal:worker:docker:status` | Shows the Dockerized Temporal worker container status.                                  |
-| `npm run temporal:worker:docker:logs` | Follows Dockerized Temporal worker logs.                                                 |
-| `npm run temporal:stack:up`       | Starts/builds the Temporal service and Docker worker together.                               |
-| `npm run temporal:stack:stop`     | Stops the Docker worker and Temporal service while preserving Temporal data.                  |
-| `npm run temporal:worker`         | Starts the SkyCommand Temporal worker on the host as a compatibility fallback.                |
-| `npm run temporal:worker:dev`     | Starts the host Temporal worker with Nodemon.                                                |
-| `npm run temporal:health`         | Checks connectivity to the configured Temporal service.                                     |
-| `npm run temporal:fred`       | Starts the FRED ingestion workflow pilot and waits for the result.                          |
-| `npm run host-agent`          | Starts the host-only Temporal activity worker for guarded host resource operations.        |
-| `npm run host-agent:dev`      | Starts the Host Agent with Nodemon for local development.                                  |
-| `npm run host-agent:check`    | Performs an end-to-end Temporal health probe through the Docker workflow worker to the host agent queue. |
-| `npm run docker-integration:self-test` | Runs the consolidated Phase 17 Docker boundary, control, observability, permission, UI, and deployment regression proofs. |
-| `npm run host-agent:auto-start:install` | Installs and starts the limited-privilege Windows logon task for the host-native Host Agent. |
-| `npm run host-agent:auto-start:status` | Shows the Host Agent automatic-start task state and last result. |
-| `npm run host-agent:auto-start:uninstall` | Stops and removes the Host Agent Windows automatic-start task. |
-| `npm run development-promotion:host-sync:check` | Verifies the published Development Promotion graph, Local Repository Sync bindings, edge order, and Host Agent tool visibility. |
-| `npm run daemon`              | Starts the API daemon entry point with Nodemon.                                             |
-| `npm run core`                | Starts the SkyCommand Core CLI with top-level Run Tools / Run Workflows menus.               |
-| `npm run repository:sync:local -- <repo> <expectedDevSha> <approvedHeadSha>` | Runs guarded local synchronization directly on the host, or dispatches through the Host Agent when invoked from Docker. |
-| `npm run db:health`           | Tests PostgreSQL connectivity.                                                              |
-| `npm run db:build`            | Rebuilds the configured PostgreSQL database from SQL files.                                 |
-| `npm run db:docker:stage`     | Refreshes the Docker PostgreSQL shadow candidate from a source backup and requires parity.   |
-| `npm run db:docker:parity`    | Verifies critical source/candidate tool and workflow configuration parity.                    |
-| `npm run db:docker:cutover`   | Performs the controlled blue/green switch to Docker PostgreSQL with automatic rollback on verification failure. |
-| `npm run db:docker:cutover:check` | Verifies host CLI, API, PostgreSQL, and Temporal connectivity after cutover.               |
-| `npm run db:docker:rollback`  | Restores the pre-cutover runtime environment for immediate recovery to Windows PostgreSQL.   |
-| `npm run db:docker:persistence` | Cold-restarts the six-service Docker stack and proves PostgreSQL named-volume persistence.  |
-| `npm run db:docker:finalize`  | Creates a verified Docker-active backup and marks the migration ready for Windows DB retirement. |
-| `npm run auth:create-admin`   | Runs the first-admin/user creation script.                                                  |
-| `npm run lint`                | Runs ESLint checks.                                                                         |
-| `npm run format:check`        | Verifies Prettier formatting.                                                               |
-| `npm run validate:syntax`     | Runs cross-platform JavaScript syntax checks one file at a time.                            |
-| `npm run validate:self-tests` | Runs the permanent routine regression suite one self-test at a time.                        |
-| `npm run validate`            | Runs syntax checks and routine self-tests without constructing one oversized shell command. |
-| `npm run validate:release`    | Runs full validation followed by the Admin-Web production build.                            |
-| `npm run prepush`             | Lightweight reminder; run `npm run validate:release` intentionally before release handoff.  |
+| Command                                                                      | Description                                                                                                                               |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run start`                                                              | Starts the API server.                                                                                                                    |
+| `npm run api`                                                                | Starts the API server with Nodemon.                                                                                                       |
+| `npm run api:docker:up`                                                      | Builds and starts the Dockerized SkyCommand API on host port 7171.                                                                        |
+| `npm run api:docker:stop`                                                    | Stops the Dockerized API.                                                                                                                 |
+| `npm run api:docker:restart`                                                 | Rebuilds/recreates the Dockerized API.                                                                                                    |
+| `npm run api:docker:status`                                                  | Shows the Dockerized API container status/health.                                                                                         |
+| `npm run api:docker:logs`                                                    | Follows Dockerized API logs.                                                                                                              |
+| `npm run api:docker:git:check`                                               | Runs the layered GitHub credential proof inside the API container.                                                                        |
+| `npm run backend:stack:up`                                                   | Starts/builds API, Node worker, Temporal worker, and Temporal service together.                                                           |
+| `npm run backend:stack:stop`                                                 | Stops the Docker backend services while preserving Temporal data.                                                                         |
+| `npm run web`                                                                | Starts the Admin-Web Vite development server.                                                                                             |
+| `npm run web:build`                                                          | Builds the Admin-Web frontend.                                                                                                            |
+| `npm run web:preview`                                                        | Previews the built Admin-Web frontend.                                                                                                    |
+| `npm run web:docker:up`                                                      | Builds and starts the production-style Admin-Web NGINX container on host port 15171.                                                      |
+| `npm run web:docker:stop`                                                    | Stops Docker Admin-Web while leaving the backend containers untouched.                                                                    |
+| `npm run web:docker:restart`                                                 | Rebuilds/recreates Docker Admin-Web.                                                                                                      |
+| `npm run web:docker:status`                                                  | Shows Docker Admin-Web container status/health.                                                                                           |
+| `npm run web:docker:logs`                                                    | Follows Docker Admin-Web/NGINX logs.                                                                                                      |
+| `npm run skycommand:docker:up`                                               | Starts/builds PostgreSQL, Web, API, Node worker, Temporal worker, and Temporal service together.                                          |
+| `npm run skycommand:docker:restart`                                          | Rebuilds and force-recreates the full six-container runtime so source/image changes are picked up while persistent volumes are preserved. |
+| `npm run skycommand:docker:stop`                                             | Stops the six SkyCommand runtime containers while preserving PostgreSQL and Temporal volumes.                                             |
+| `npm run skycommand:docker:status`                                           | Shows status for the full six-container SkyCommand runtime.                                                                               |
+| `npm run skycommand:docker:logs`                                             | Follows logs for the full six-container SkyCommand runtime.                                                                               |
+| `npm run worker`                                                             | Starts the worker daemon.                                                                                                                 |
+| `npm run worker:dev`                                                         | Starts the worker daemon with Nodemon.                                                                                                    |
+| `npm run worker:docker:up`                                                   | Builds and starts the Dockerized scheduler/listener Node worker.                                                                          |
+| `npm run worker:docker:stop`                                                 | Stops the Dockerized Node worker.                                                                                                         |
+| `npm run worker:docker:restart`                                              | Rebuilds/recreates the Dockerized Node worker.                                                                                            |
+| `npm run worker:docker:status`                                               | Shows the Dockerized Node worker container status.                                                                                        |
+| `npm run worker:docker:logs`                                                 | Follows Dockerized Node worker logs.                                                                                                      |
+| `npm run worker:docker:git:check`                                            | Reuses the Docker Git credential proof inside the Node worker container.                                                                  |
+| `npm run automation:stack:up`                                                | Starts/builds Temporal service, Temporal worker, and Node worker together.                                                                |
+| `npm run automation:stack:stop`                                              | Stops the three Docker automation services while preserving Temporal data.                                                                |
+| `npm run temporal:server:up`                                                 | Starts/recreates the Dockerized Temporal development service in the background.                                                           |
+| `npm run temporal:server:stop`                                               | Stops the Temporal service container without deleting its persistent volume.                                                              |
+| `npm run temporal:server:restart`                                            | Restarts the Temporal service container.                                                                                                  |
+| `npm run temporal:server:status`                                             | Shows the Temporal service container status/health.                                                                                       |
+| `npm run temporal:server:logs`                                               | Follows Temporal service container logs.                                                                                                  |
+| `npm run temporal:worker:docker:up`                                          | Builds and starts the Dockerized SkyCommand Temporal worker.                                                                              |
+| `npm run temporal:worker:docker:stop`                                        | Stops the Dockerized Temporal worker.                                                                                                     |
+| `npm run temporal:worker:docker:status`                                      | Shows the Dockerized Temporal worker container status.                                                                                    |
+| `npm run temporal:worker:docker:logs`                                        | Follows Dockerized Temporal worker logs.                                                                                                  |
+| `npm run temporal:stack:up`                                                  | Starts/builds the Temporal service and Docker worker together.                                                                            |
+| `npm run temporal:stack:stop`                                                | Stops the Docker worker and Temporal service while preserving Temporal data.                                                              |
+| `npm run temporal:worker`                                                    | Starts the SkyCommand Temporal worker on the host as a compatibility fallback.                                                            |
+| `npm run temporal:worker:dev`                                                | Starts the host Temporal worker with Nodemon.                                                                                             |
+| `npm run temporal:health`                                                    | Checks connectivity to the configured Temporal service.                                                                                   |
+| `npm run temporal:fred`                                                      | Starts the FRED ingestion workflow pilot and waits for the result.                                                                        |
+| `npm run host-agent`                                                         | Starts the host-only Temporal activity worker for guarded host resource operations.                                                       |
+| `npm run host-agent:dev`                                                     | Starts the Host Agent with Nodemon for local development.                                                                                 |
+| `npm run host-agent:check`                                                   | Performs an end-to-end Temporal health probe through the Docker workflow worker to the host agent queue.                                  |
+| `npm run docker-integration:self-test`                                       | Runs the consolidated Phase 17 Docker boundary, control, observability, permission, UI, and deployment regression proofs.                 |
+| `npm run host-agent:auto-start:install`                                      | Installs and starts the limited-privilege Windows logon task for the host-native Host Agent.                                              |
+| `npm run host-agent:auto-start:status`                                       | Shows the Host Agent automatic-start task state and last result.                                                                          |
+| `npm run host-agent:auto-start:uninstall`                                    | Stops and removes the Host Agent Windows automatic-start task.                                                                            |
+| `npm run development-promotion:host-sync:check`                              | Verifies the published Development Promotion graph, Local Repository Sync bindings, edge order, and Host Agent tool visibility.           |
+| `npm run daemon`                                                             | Starts the API daemon entry point with Nodemon.                                                                                           |
+| `npm run core`                                                               | Starts the SkyCommand Core CLI with top-level Run Tools / Run Workflows menus.                                                            |
+| `npm run repository:sync:local -- <repo> <expectedDevSha> <approvedHeadSha>` | Runs guarded local synchronization directly on the host, or dispatches through the Host Agent when invoked from Docker.                   |
+| `npm run db:health`                                                          | Tests PostgreSQL connectivity.                                                                                                            |
+| `npm run db:build`                                                           | Rebuilds the configured PostgreSQL database from SQL files.                                                                               |
+| `npm run db:docker:stage`                                                    | Refreshes the Docker PostgreSQL shadow candidate from a source backup and requires parity.                                                |
+| `npm run db:docker:parity`                                                   | Verifies critical source/candidate tool and workflow configuration parity.                                                                |
+| `npm run db:docker:cutover`                                                  | Performs the controlled blue/green switch to Docker PostgreSQL with automatic rollback on verification failure.                           |
+| `npm run db:docker:cutover:check`                                            | Verifies host CLI, API, PostgreSQL, and Temporal connectivity after cutover.                                                              |
+| `npm run db:docker:rollback`                                                 | Restores the pre-cutover runtime environment for immediate recovery to Windows PostgreSQL.                                                |
+| `npm run db:docker:persistence`                                              | Cold-restarts the six-service Docker stack and proves PostgreSQL named-volume persistence.                                                |
+| `npm run db:docker:finalize`                                                 | Creates a verified Docker-active backup and marks the migration ready for Windows DB retirement.                                          |
+| `npm run auth:create-admin`                                                  | Runs the first-admin/user creation script.                                                                                                |
+| `npm run lint`                                                               | Runs ESLint checks.                                                                                                                       |
+| `npm run format:check`                                                       | Verifies Prettier formatting.                                                                                                             |
+| `npm run validate:syntax`                                                    | Runs cross-platform JavaScript syntax checks one file at a time.                                                                          |
+| `npm run validate:self-tests`                                                | Runs the permanent routine regression suite one self-test at a time.                                                                      |
+| `npm run validate`                                                           | Runs syntax checks and routine self-tests without constructing one oversized shell command.                                               |
+| `npm run validate:release`                                                   | Runs full validation followed by the Admin-Web production build.                                                                          |
+| `npm run prepush`                                                            | Lightweight reminder; run `npm run validate:release` intentionally before release handoff.                                                |
 
 ## Repository Layout
 
@@ -640,14 +640,14 @@ The browser/Admin-Web should call SkyCommand API rather than Temporal directly, 
 
 The Admin-Web visualization layer is built around reusable chart primitives under `apps/admin-web/src/components/charts`:
 
-| Component/helper                          | Purpose                                                                                    |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `EChartCard`                              | Shared chart card shell with title, subtitle, expand action, empty state, and chart canvas |
-| `ChartFullscreenOverlay`                  | Reusable full-screen chart inspection overlay with close/Escape/backdrop behavior          |
-| `TrendAreaChart`                          | Standard line/area trend chart for activity, run pressure, and status movement             |
-| `DurationTrendChart`                      | Duration-specific trend chart for runtime pressure and execution timing                    |
-| `StatusDonut`                             | Donut chart helper for health/outcome/status mix visualizations                            |
-| `OutcomeBarChart`                         | Horizontal/vertical bar chart helper for outcome counts and ranked categories              |
+| Component/helper                          | Purpose                                                                                                                            |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `EChartCard`                              | Shared chart card shell with title, subtitle, expand action, empty state, and chart canvas                                         |
+| `ChartFullscreenOverlay`                  | Reusable full-screen chart inspection overlay with close/Escape/backdrop behavior                                                  |
+| `TrendAreaChart`                          | Standard line/area trend chart for activity, run pressure, and status movement                                                     |
+| `DurationTrendChart`                      | Duration-specific trend chart for runtime pressure and execution timing                                                            |
+| `StatusDonut`                             | Donut chart helper for health/outcome/status mix visualizations                                                                    |
+| `OutcomeBarChart`                         | Horizontal/vertical bar chart helper for outcome counts and ranked categories                                                      |
 | `chartTheme`, `chartOptions`, `chartData` | Centralized status colors, card/overlay typography profiles, tooltip/legend/axis styling, overlap protection, and grouping helpers |
 
 Current visual pages include:
@@ -679,21 +679,21 @@ Execution records are stored in `auth.script_execution_log`; captured stdout/std
 
 `README.md` is the current-state overview. Detailed implementation history remains in `change.log`; generated structure remains in the repo map. Closed planning documents and generated audit snapshots were removed after acceptance because the architecture is now represented by the surviving design/closure records, the data-domain onboarding guide, runtime code, and PostgreSQL evidence.
 
-| Asset | Purpose |
-| --- | --- |
-| [`change.log`](change.log) | Canonical implementation history and detailed engineering notes |
-| [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md) | Generated repository structure map |
-| [`docs/SkyCommand_API_Docker_Local_Setup.md`](docs/SkyCommand_API_Docker_Local_Setup.md) | Docker API local setup, runtime boundary, and proof sequence |
-| [`docs/SkyCommand_Admin_Web_Docker_Local_Setup.md`](docs/SkyCommand_Admin_Web_Docker_Local_Setup.md) | Docker Admin-Web/NGINX deployment mode, full-stack commands, and proof sequence |
-| [`docs/SkyCommand_Docker_Infrastructure_Control_Plane.md`](docs/SkyCommand_Docker_Infrastructure_Control_Plane.md) | Completed Phase 17 Docker control/observability architecture, permission boundaries, failure states, recovery, and Kubernetes extension seam |
-| [`docs/SkyCommand_Host_Agent_Local_Setup.md`](docs/SkyCommand_Host_Agent_Local_Setup.md) | Host Agent Temporal queue, guarded local repository synchronization, health proof, and Development Promotion bindings |
-| [`docs/SkyCommand_PostgreSQL_Docker_Migration.md`](docs/SkyCommand_PostgreSQL_Docker_Migration.md) | PostgreSQL shadow staging, parity, blue/green cutover, rollback, persistence, backup, and finalization |
-| [`docs/SkyCommand_Temporal_Local_Setup.md`](docs/SkyCommand_Temporal_Local_Setup.md) | Current local Temporal setup, commands, and troubleshooting |
-| [`docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md`](docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md) | Historical architecture decision record for the Temporal migration |
-| [`docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md`](docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md) | Current process for adding domains, sources, assets, metrics, adapters, policies, and operations |
-| [`docs/SkyCommand_Tool_Authoring_Guide.md`](docs/SkyCommand_Tool_Authoring_Guide.md) | Requirements and examples for creating a compatible Node.js tool |
-| [`docs/SkyCommand_AI_Tool_Build_Prompt.md`](docs/SkyCommand_AI_Tool_Build_Prompt.md) | Standalone prompt for generating a reviewable tool package with an AI coding assistant |
-| [`docs/SkyCommand_API_Observability.md`](docs/SkyCommand_API_Observability.md) | Persistent API telemetry, privacy boundaries, retention, and deployment behavior |
+| Asset                                                                                                                              | Purpose                                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`change.log`](change.log)                                                                                                         | Canonical implementation history and detailed engineering notes                                                                              |
+| [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md)                                                                         | Generated repository structure map                                                                                                           |
+| [`docs/SkyCommand_API_Docker_Local_Setup.md`](docs/SkyCommand_API_Docker_Local_Setup.md)                                           | Docker API local setup, runtime boundary, and proof sequence                                                                                 |
+| [`docs/SkyCommand_Admin_Web_Docker_Local_Setup.md`](docs/SkyCommand_Admin_Web_Docker_Local_Setup.md)                               | Docker Admin-Web/NGINX deployment mode, full-stack commands, and proof sequence                                                              |
+| [`docs/SkyCommand_Docker_Infrastructure_Control_Plane.md`](docs/SkyCommand_Docker_Infrastructure_Control_Plane.md)                 | Completed Phase 17 Docker control/observability architecture, permission boundaries, failure states, recovery, and Kubernetes extension seam |
+| [`docs/SkyCommand_Host_Agent_Local_Setup.md`](docs/SkyCommand_Host_Agent_Local_Setup.md)                                           | Host Agent Temporal queue, guarded local repository synchronization, health proof, and Development Promotion bindings                        |
+| [`docs/SkyCommand_PostgreSQL_Docker_Migration.md`](docs/SkyCommand_PostgreSQL_Docker_Migration.md)                                 | PostgreSQL shadow staging, parity, blue/green cutover, rollback, persistence, backup, and finalization                                       |
+| [`docs/SkyCommand_Temporal_Local_Setup.md`](docs/SkyCommand_Temporal_Local_Setup.md)                                               | Current local Temporal setup, commands, and troubleshooting                                                                                  |
+| [`docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md`](docs/SkyCommand_Temporal_Workflow_Architecture_Plan.md)                 | Historical architecture decision record for the Temporal migration                                                                           |
+| [`docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md`](docs/SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md) | Current process for adding domains, sources, assets, metrics, adapters, policies, and operations                                             |
+| [`docs/SkyCommand_Tool_Authoring_Guide.md`](docs/SkyCommand_Tool_Authoring_Guide.md)                                               | Requirements and examples for creating a compatible Node.js tool                                                                             |
+| [`docs/SkyCommand_AI_Tool_Build_Prompt.md`](docs/SkyCommand_AI_Tool_Build_Prompt.md)                                               | Standalone prompt for generating a reviewable tool package with an AI coding assistant                                                       |
+| [`docs/SkyCommand_API_Observability.md`](docs/SkyCommand_API_Observability.md)                                                     | Persistent API telemetry, privacy boundaries, retention, and deployment behavior                                                             |
 
 Removed after Temporal implementation because their contents are now represented by `README.md`, `change.log`, the current UI, and the surviving architecture/setup references:
 
@@ -707,26 +707,26 @@ docs/SkyCommand_Workflow_Builder_Foundation.md
 
 ## Roadmap
 
-| Phase | Status | Objective |
-| --- | --- | --- |
-| Phase 1 | ✅ Complete | Bootstrap the Node.js application and establish npm tooling. |
-| Phase 2 | ✅ Complete | Add code-quality automation with ESLint, Prettier, Husky, and lint-staged. |
-| Phase 3 | ✅ Complete | Establish PostgreSQL schemas, migrations, seeds, the indicator registry, and core views. |
-| Phase 4 | ✅ Complete | Build FRED, Bank of Canada, Statistics Canada, and manual ingestion pipelines. |
-| Phase 5 | ✅ Complete | Introduce SkyCommand Core for controlled tool launching and workflow starts. |
-| Phase 6 | ✅ Complete | Add private Admin-Web, authentication, RBAC, tool catalogue management, execution logging, and safety controls. |
-| Phase 7 | ✅ Complete | Add macro operations, ingestion monitoring, admin APIs, access control, and dashboard surfaces. |
-| Phase 8 | ✅ Complete | Establish worker automation with scheduled tools, worker APIs, listeners, and health monitoring. |
-| Phase 9 | ✅ Complete | Integrate SkyWeb-facing macro, preference, dashboard, alert, and Signal Center support. |
-| Phase 10 | ✅ Complete | Add Temporal-backed workflow orchestration with visual editing, approvals, branching, retries, and diagnostics. |
-| Phase 11 | ✅ Complete | Modernize Admin-Web into the branded SkyCommand shell with unified navigation and reusable UI primitives. |
-| Phase 12 | ✅ Complete | Add ECharts/D3 operational analytics, reusable visual components, and full-screen chart inspection. |
-| Phase 13 | ✅ Complete | Add live workflow telemetry, runtime context, durable node outputs, conditions, and summary nodes. |
-| Phase 14 | ✅ Complete | Establish structured tool results, workflow output contracts, typed bindings, and repository automation evidence. |
-| Phase 15 | ✅ Complete | Add managed tool onboarding, contract validation, controlled execution, and regression/recovery proof. |
-| Phase 16 | ✅ Complete | Build portable ingestion/data contracts with quality policies, freshness, recovery, generic operations, and consumer contracts. |
-| Phase 17 | ✅ Complete | Operate Docker as a guarded infrastructure provider with provider/target abstraction, deep inventory and workload/resource inspection, permission-separated lifecycle and cleanup controls, self-protection, durable audit evidence, native event streaming, live resource telemetry, application-stack observability, failure-domain diagnostics, and consolidated regression proof. |
-| Continuous | 🔄 Ongoing | Expand reusable tools, workflow templates, diagnostics, tests, documentation, and UI polish. |
+| Phase      | Status      | Objective                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 1    | ✅ Complete | Bootstrap the Node.js application and establish npm tooling.                                                                                                                                                                                                                                                                                                                           |
+| Phase 2    | ✅ Complete | Add code-quality automation with ESLint, Prettier, Husky, and lint-staged.                                                                                                                                                                                                                                                                                                             |
+| Phase 3    | ✅ Complete | Establish PostgreSQL schemas, migrations, seeds, the indicator registry, and core views.                                                                                                                                                                                                                                                                                               |
+| Phase 4    | ✅ Complete | Build FRED, Bank of Canada, Statistics Canada, and manual ingestion pipelines.                                                                                                                                                                                                                                                                                                         |
+| Phase 5    | ✅ Complete | Introduce SkyCommand Core for controlled tool launching and workflow starts.                                                                                                                                                                                                                                                                                                           |
+| Phase 6    | ✅ Complete | Add private Admin-Web, authentication, RBAC, tool catalogue management, execution logging, and safety controls.                                                                                                                                                                                                                                                                        |
+| Phase 7    | ✅ Complete | Add macro operations, ingestion monitoring, admin APIs, access control, and dashboard surfaces.                                                                                                                                                                                                                                                                                        |
+| Phase 8    | ✅ Complete | Establish worker automation with scheduled tools, worker APIs, listeners, and health monitoring.                                                                                                                                                                                                                                                                                       |
+| Phase 9    | ✅ Complete | Integrate SkyWeb-facing macro, preference, dashboard, alert, and Signal Center support.                                                                                                                                                                                                                                                                                                |
+| Phase 10   | ✅ Complete | Add Temporal-backed workflow orchestration with visual editing, approvals, branching, retries, and diagnostics.                                                                                                                                                                                                                                                                        |
+| Phase 11   | ✅ Complete | Modernize Admin-Web into the branded SkyCommand shell with unified navigation and reusable UI primitives.                                                                                                                                                                                                                                                                              |
+| Phase 12   | ✅ Complete | Add ECharts/D3 operational analytics, reusable visual components, and full-screen chart inspection.                                                                                                                                                                                                                                                                                    |
+| Phase 13   | ✅ Complete | Add live workflow telemetry, runtime context, durable node outputs, conditions, and summary nodes.                                                                                                                                                                                                                                                                                     |
+| Phase 14   | ✅ Complete | Establish structured tool results, workflow output contracts, typed bindings, and repository automation evidence.                                                                                                                                                                                                                                                                      |
+| Phase 15   | ✅ Complete | Add managed tool onboarding, contract validation, controlled execution, and regression/recovery proof.                                                                                                                                                                                                                                                                                 |
+| Phase 16   | ✅ Complete | Build portable ingestion/data contracts with quality policies, freshness, recovery, generic operations, and consumer contracts.                                                                                                                                                                                                                                                        |
+| Phase 17   | ✅ Complete | Operate Docker as a guarded infrastructure provider with provider/target abstraction, deep inventory and workload/resource inspection, permission-separated lifecycle and cleanup controls, self-protection, durable audit evidence, native event streaming, live resource telemetry, application-stack observability, failure-domain diagnostics, and consolidated regression proof . |
+| Continuous | 🔄 Ongoing  | Expand reusable tools, workflow templates, diagnostics, tests, documentation, and UI polish.                                                                                                                                                                                                                                                                                           |
 
 The Phase 17 infrastructure contracts intentionally leave **Kubernetes** as a future sibling provider. No Kubernetes runtime is implemented by Phase 17; the reusable target/provider, durable-control, live-observability, source-health, and protection seams are now established for that later integration.
 
