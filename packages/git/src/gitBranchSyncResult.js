@@ -2,6 +2,7 @@ const {
   TOOL_RESULT_SCHEMA_VERSION,
   validateToolResult,
 } = require('../../tools/src/toolResultContract');
+const { normalizePerformanceTelemetry } = require('./gitPerformanceTelemetry');
 
 const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
 
@@ -25,6 +26,7 @@ function normalizeError(error) {
 
 function createGitBranchSyncToolResult(result = {}) {
   const success = result.ok !== false;
+  const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
   const outcome = String(
     result.outcome || (success ? 'SYNCHRONIZED' : 'FAILED'),
   ).toUpperCase();
@@ -87,6 +89,7 @@ function createGitBranchSyncToolResult(result = {}) {
       startedAt: nullable(result.startedAt),
       completedAt: nullable(result.completedAt),
       durationMs: normalizeNumber(result.durationMs),
+      ...(performanceTelemetry ? { performanceTelemetry } : {}),
       steps: {
         fetched: Boolean(result.fetched),
         mainBranchSelected: Boolean(result.mainBranchSelected),
@@ -108,7 +111,8 @@ function createGitBranchSyncToolResult(result = {}) {
     error: success ? null : normalizeError(result.error),
     metadata: {
       profileCode: nullable(result.profileCode),
-      transport: 'git_cli',
+      transport: String(result.transport || 'git_cli'),
+      executionTarget: nullable(result.executionTarget),
     },
   });
 }

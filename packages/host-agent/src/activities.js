@@ -1,5 +1,6 @@
 const os = require('node:os');
 
+const { executeDevCommit } = require('../../git/src/dev_commit');
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
 const {
@@ -20,6 +21,7 @@ const {
 } = require('./dockerResource');
 
 const HOST_AGENT_HEALTH_TOOL_CODE = '__health';
+const DEV_COMMIT_TOOL_CODE = 'dev_commit';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 
@@ -201,6 +203,35 @@ async function executeSkyCommandHostToolActivity(input = {}) {
     }
   }
 
+  if (toolCode === DEV_COMMIT_TOOL_CODE) {
+    try {
+      const result = await executeDevCommit(
+        [normalizeText(input.repoName), normalizeText(input.commitMessage)],
+        {
+          orchestratedExecution: true,
+          executionTarget: 'HOST',
+          transport: 'temporal_host_agent',
+        },
+      );
+
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+          executionTarget: 'HOST',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
   if (toolCode !== LOCAL_REPOSITORY_SYNC_TOOL_CODE) {
     return {
       ok: false,
@@ -244,6 +275,7 @@ module.exports = {
   DOCKER_RESOURCE_CONTROL_TOOL_CODE,
   DOCKER_RESOURCE_DETAIL_TOOL_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
+  DEV_COMMIT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
   LOCAL_REPOSITORY_SYNC_TOOL_CODE,
   executeSkyCommandHostToolActivity,

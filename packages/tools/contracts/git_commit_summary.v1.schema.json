@@ -29,22 +29,39 @@
     },
     "outcome": {
       "type": "string",
-      "enum": ["PUSHED", "NO_CHANGES", "FAILED"]
+      "enum": [
+        "PUSHED",
+        "PUSHED_EXISTING",
+        "NO_CHANGES",
+        "FAILED"
+      ]
     },
     "repositoryCode": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 200
     },
     "repositoryName": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 240
     },
     "repositoryRoot": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 4000
     },
     "branch": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 500
     },
     "remote": {
@@ -53,23 +70,38 @@
       "maxLength": 500
     },
     "commitMessage": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 4000
     },
     "previousHeadSha": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[a-fA-F0-9]{7,64}$"
     },
     "currentHeadSha": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[a-fA-F0-9]{7,64}$"
     },
     "commitSha": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[a-fA-F0-9]{7,64}$"
     },
     "startedAt": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "anyOf": [
         {
           "type": "null"
@@ -81,7 +113,10 @@
       ]
     },
     "completedAt": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "anyOf": [
         {
           "type": "null"
@@ -103,7 +138,14 @@
     "changes": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["added", "modified", "deleted", "renamed", "untracked", "other"],
+      "required": [
+        "added",
+        "modified",
+        "deleted",
+        "renamed",
+        "untracked",
+        "other"
+      ],
       "properties": {
         "added": {
           "type": "number",
@@ -134,7 +176,14 @@
     "steps": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["fetched", "switchedBranch", "pulled", "staged", "committed", "pushed"],
+      "required": [
+        "fetched",
+        "switchedBranch",
+        "pulled",
+        "staged",
+        "committed",
+        "pushed"
+      ],
       "properties": {
         "fetched": {
           "type": "boolean"
@@ -153,6 +202,48 @@
         },
         "pushed": {
           "type": "boolean"
+        }
+      }
+    },
+    "performanceTelemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instrumentedTotalMs",
+        "phases"
+      ],
+      "properties": {
+        "instrumentedTotalMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "label",
+              "durationMs"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "durationMs": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
         }
       }
     }

@@ -40,30 +40,94 @@
     "durationMs"
   ],
   "properties": {
-    "operationKind": { "const": "LOCAL_REPOSITORY_SYNC" },
-    "executionTarget": { "const": "HOST" },
+    "operationKind": {
+      "const": "LOCAL_REPOSITORY_SYNC"
+    },
+    "executionTarget": {
+      "const": "HOST"
+    },
     "outcome": {
       "type": "string",
-      "enum": ["SYNCHRONIZED", "ALREADY_SYNCHRONIZED", "BLOCKED", "FAILED"]
+      "enum": [
+        "SYNCHRONIZED",
+        "ALREADY_SYNCHRONIZED",
+        "BLOCKED",
+        "FAILED"
+      ]
     },
-    "repositoryCode": { "type": ["string", "null"], "maxLength": 200 },
-    "repositoryName": { "type": ["string", "null"], "maxLength": 240 },
-    "repositoryRoot": { "type": ["string", "null"], "maxLength": 4000 },
-    "profileCode": { "type": ["string", "null"], "maxLength": 200 },
-    "remote": { "type": "string", "minLength": 1, "maxLength": 500 },
-    "mainBranch": { "type": ["string", "null"], "maxLength": 500 },
-    "devBranch": { "type": ["string", "null"], "maxLength": 500 },
-    "currentBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "repositoryCode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "repositoryName": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 240
+    },
+    "repositoryRoot": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4000
+    },
+    "profileCode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "remote": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "mainBranch": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    },
+    "devBranch": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    },
+    "currentBranch": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    },
     "expectedLocalDevSha": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[a-fA-F0-9]{40,64}$"
     },
     "expectedSynchronizedHeadSha": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[a-fA-F0-9]{40,64}$"
     },
     "devBaselineState": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "enum": [
         "TRUSTED_BASELINE",
         "APPROVED_LINEAGE_INTERMEDIATE",
@@ -72,21 +136,84 @@
         null
       ]
     },
-    "localMainBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "localDevBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "remoteMainBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "remoteDevBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "localMainAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "localDevAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "remoteMainAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "remoteDevAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
-    "stashCount": { "type": "number", "minimum": 0 },
-    "workingTreeCleanBefore": { "type": "boolean" },
-    "workingTreeCleanAfter": { "type": "boolean" },
-    "mainRefUpdated": { "type": "boolean" },
-    "devRefUpdated": { "type": "boolean" },
-    "checkedOutBranchUpdated": { "type": "boolean" },
-    "fourWaySynchronized": { "type": "boolean" },
+    "localMainBeforeSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "localDevBeforeSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "remoteMainBeforeSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "remoteDevBeforeSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "localMainAfterSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "localDevAfterSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "remoteMainAfterSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "remoteDevAfterSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "stashCount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "workingTreeCleanBefore": {
+      "type": "boolean"
+    },
+    "workingTreeCleanAfter": {
+      "type": "boolean"
+    },
+    "mainRefUpdated": {
+      "type": "boolean"
+    },
+    "devRefUpdated": {
+      "type": "boolean"
+    },
+    "checkedOutBranchUpdated": {
+      "type": "boolean"
+    },
+    "fourWaySynchronized": {
+      "type": "boolean"
+    },
     "safeguards": {
       "type": "object",
       "additionalProperties": false,
@@ -103,16 +230,36 @@
         "remoteReverifiedBeforeMutation"
       ],
       "properties": {
-        "hostProfileVerified": { "type": "boolean" },
-        "repositoryLockAcquired": { "type": "boolean" },
-        "gitOperationClear": { "type": "boolean" },
-        "workingTreeClean": { "type": "boolean" },
-        "worktreeOwnershipSafe": { "type": "boolean" },
-        "devBaselineMatched": { "type": "boolean" },
-        "remoteTargetMatched": { "type": "boolean" },
-        "localMainFastForwardSafe": { "type": "boolean" },
-        "localDevFastForwardSafe": { "type": "boolean" },
-        "remoteReverifiedBeforeMutation": { "type": "boolean" }
+        "hostProfileVerified": {
+          "type": "boolean"
+        },
+        "repositoryLockAcquired": {
+          "type": "boolean"
+        },
+        "gitOperationClear": {
+          "type": "boolean"
+        },
+        "workingTreeClean": {
+          "type": "boolean"
+        },
+        "worktreeOwnershipSafe": {
+          "type": "boolean"
+        },
+        "devBaselineMatched": {
+          "type": "boolean"
+        },
+        "remoteTargetMatched": {
+          "type": "boolean"
+        },
+        "localMainFastForwardSafe": {
+          "type": "boolean"
+        },
+        "localDevFastForwardSafe": {
+          "type": "boolean"
+        },
+        "remoteReverifiedBeforeMutation": {
+          "type": "boolean"
+        }
       }
     },
     "steps": {
@@ -127,26 +274,93 @@
         "postVerified"
       ],
       "properties": {
-        "remoteInspected": { "type": "boolean" },
-        "fetched": { "type": "boolean" },
-        "mainRefUpdated": { "type": "boolean" },
-        "devRefUpdated": { "type": "boolean" },
-        "remoteReverified": { "type": "boolean" },
-        "postVerified": { "type": "boolean" }
+        "remoteInspected": {
+          "type": "boolean"
+        },
+        "fetched": {
+          "type": "boolean"
+        },
+        "mainRefUpdated": {
+          "type": "boolean"
+        },
+        "devRefUpdated": {
+          "type": "boolean"
+        },
+        "remoteReverified": {
+          "type": "boolean"
+        },
+        "postVerified": {
+          "type": "boolean"
+        }
       }
     },
     "startedAt": {
       "anyOf": [
-        { "type": "null" },
-        { "type": "string", "format": "date-time" }
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
       ]
     },
     "completedAt": {
       "anyOf": [
-        { "type": "null" },
-        { "type": "string", "format": "date-time" }
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
       ]
     },
-    "durationMs": { "type": "number", "minimum": 0 }
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "performanceTelemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instrumentedTotalMs",
+        "phases"
+      ],
+      "properties": {
+        "instrumentedTotalMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "label",
+              "durationMs"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "durationMs": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

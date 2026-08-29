@@ -151,7 +151,7 @@ function PerformanceTelemetryTable({ telemetry }) {
         </table>
       </div>
       <div className="small sky-muted mt-2 mb-3">
-        Instrumented total covers repository-tool internals. Workflow node duration can also include
+        Instrumented total covers tool internals. Workflow node duration can also include
         process-wrapper, structured-result transport, and orchestration overhead.
       </div>
     </>
@@ -1021,6 +1021,7 @@ function GitCommitOutput({ toolResult }) {
   const output = getSafeObject(toolResult?.output);
   const changes = getSafeObject(output.changes);
   const steps = getSafeObject(output.steps);
+  const metadata = getSafeObject(toolResult?.metadata);
   return (
     <div className="sky-git-commit-output">
       <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
@@ -1039,6 +1040,9 @@ function GitCommitOutput({ toolResult }) {
           >
             {output.outcome || 'UNKNOWN'}
           </span>
+          {metadata.executionTarget ? (
+            <span className="sky-pill sky-pill-info">{metadata.executionTarget}</span>
+          ) : null}
           <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
         </div>
       </div>
@@ -1065,6 +1069,7 @@ function GitCommitOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
       <div className="sky-page-kicker mb-2">Change set</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -1185,6 +1190,8 @@ function GitLocalSyncOutput({ toolResult }) {
         </table>
       </div>
 
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+
       <div className="sky-page-kicker mb-2">Safety guardrails</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -1248,6 +1255,7 @@ function GitLocalSyncOutput({ toolResult }) {
 function GitBranchSyncOutput({ toolResult }) {
   const output = getSafeObject(toolResult?.output);
   const steps = getSafeObject(output.steps);
+  const metadata = getSafeObject(toolResult?.metadata);
   const warnings = getSafeArray(toolResult?.warnings);
   const failedMessage = toolResult?.error?.message || null;
   const sourceBranch = output.sourceBranch || output.mainBranch || 'main';
@@ -1270,6 +1278,9 @@ function GitBranchSyncOutput({ toolResult }) {
           <span className={`sky-pill ${operationOutcomeClass(output.outcome)}`}>
             {output.outcome || 'UNKNOWN'}
           </span>
+          {metadata.executionTarget ? (
+            <span className="sky-pill sky-pill-info">{metadata.executionTarget}</span>
+          ) : null}
           <span className="sky-pill sky-pill-info">{formatDuration(output.durationMs)}</span>
         </div>
       </div>
@@ -1341,6 +1352,8 @@ function GitBranchSyncOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
 
       <div className="sky-page-kicker mb-2">Branch head movement</div>
       <div className="table-responsive sky-table-card mb-3">

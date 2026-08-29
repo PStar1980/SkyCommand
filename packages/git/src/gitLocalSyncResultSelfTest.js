@@ -66,6 +66,13 @@ function run() {
       postVerified: true,
     },
     durationMs: 100,
+    performanceTelemetry: {
+      instrumentedTotalMs: 85,
+      phases: [
+        { code: 'REMOTE_FETCH', label: 'Remote fetch / prune', durationMs: 55 },
+        { code: 'POST_SYNC_REMOTE_VERIFICATION', label: 'Post-sync remote main/dev verification', durationMs: 30 },
+      ],
+    },
   });
 
   assert.equal(result.outputType, GIT_LOCAL_SYNC_OUTPUT_TYPE);
@@ -73,6 +80,8 @@ function run() {
   assert.equal(result.output.fourWaySynchronized, true);
   assert.equal(result.output.executionTarget, 'HOST');
   assert.equal(result.output.devBaselineState, 'APPROVED_LINEAGE_INTERMEDIATE');
+  assert.equal(result.output.performanceTelemetry.instrumentedTotalMs, 85);
+  assert.equal(result.output.performanceTelemetry.phases.length, 2);
   validateToolResult(result, {
     expectedOutputType: GIT_LOCAL_SYNC_OUTPUT_TYPE,
     outputSchema,
@@ -106,6 +115,9 @@ function run() {
   assert.match(source, /expectedLocalDevSha/);
   assert.match(source, /expectedSynchronizedHeadSha/);
   assert.match(source, /local-sync\.lock/);
+  assert.match(source, /getRemoteBranchShas/);
+  assert.match(source, /rev-parse', '--git-dir/);
+  assert.doesNotMatch(source, /rev-parse', '--git-path/);
   assert.doesNotMatch(source, /reset', '--hard'/);
   assert.doesNotMatch(source, /clean', '-f/);
   assert.doesNotMatch(source, /branch', '-f/);

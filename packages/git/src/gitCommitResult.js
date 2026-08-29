@@ -2,6 +2,7 @@ const {
   TOOL_RESULT_SCHEMA_VERSION,
   validateToolResult,
 } = require('../../tools/src/toolResultContract');
+const { normalizePerformanceTelemetry } = require('./gitPerformanceTelemetry');
 
 const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
 
@@ -48,6 +49,7 @@ function parseGitStatusPorcelain(status = '') {
 
 function createGitCommitToolResult(result = {}) {
   const success = result.ok !== false;
+  const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
   const outcome = String(result.outcome || (success ? 'PUSHED' : 'FAILED')).toUpperCase();
   const repositoryLabel = result.repositoryCode || result.repositoryName || 'repository';
   const message =
@@ -79,6 +81,7 @@ function createGitCommitToolResult(result = {}) {
       durationMs: normalizeNumber(result.durationMs),
       changedFiles: normalizeNumber(result.changedFiles),
       changes: normalizeChanges(result.changes),
+      ...(performanceTelemetry ? { performanceTelemetry } : {}),
       steps: {
         fetched: Boolean(result.fetched),
         switchedBranch: Boolean(result.switchedBranch),
@@ -90,7 +93,11 @@ function createGitCommitToolResult(result = {}) {
     },
     warnings: Array.isArray(result.warnings) ? result.warnings.map(String) : [],
     error: success ? null : normalizeError(result.error),
-    metadata: { profileCode: nullable(result.profileCode), transport: 'git_cli' },
+    metadata: {
+      profileCode: nullable(result.profileCode),
+      transport: String(result.transport || 'git_cli'),
+      executionTarget: nullable(result.executionTarget),
+    },
   });
 }
 

@@ -32,6 +32,7 @@ const {
   DEV_BASELINE_STATES,
   classifyDevBaseline,
 } = require('./localRepoSyncLineage');
+const { createGitPerformanceTelemetry } = require('./gitPerformanceTelemetry');
 
 const SKY_COMMAND_ROOT = path.resolve(__dirname, '../../..');
 const TOOL_CODE = 'local_repo_sync';
@@ -172,6 +173,23 @@ function tryGetGitOutput(args, cwd) {
   return result.status === 0 ? String(result.stdout || '').trim() : null;
 }
 
+function getRefShas(refs, cwd) {
+  const normalizedRefs = [...new Set((refs || []).map((ref) => String(ref || '').trim()).filter(Boolean))];
+  if (normalizedRefs.length === 0) return {};
+  const output = getGitOutput(
+    ['for-each-ref', '--format=%(refname)%09%(objectname)', ...normalizedRefs],
+    cwd,
+  );
+  const result = Object.fromEntries(normalizedRefs.map((ref) => [ref, null]));
+  for (const line of String(output || '').split(/\r?\n/).filter(Boolean)) {
+    const [ref, sha] = line.split('\t');
+    if (ref && sha && Object.prototype.hasOwnProperty.call(result, ref)) {
+      result[ref] = sha.trim().toLowerCase();
+    }
+  }
+  return result;
+}
+
 function isGitAncestor(ancestorRef, descendantRef, cwd) {
   const result = executeGit(['merge-base', '--is-ancestor', ancestorRef, descendantRef], cwd, {
     capture: true,
@@ -181,19 +199,45 @@ function isGitAncestor(ancestorRef, descendantRef, cwd) {
   return result.status === 0;
 }
 
-function getRemoteBranchSha(remote, branch, cwd) {
-  const ref = `refs/heads/${branch}`;
-  const output = getGitOutput(['ls-remote', '--heads', remote, ref], cwd, {
-    printCommand: true,
-  });
-  const [sha] = String(output || '').split(/\s+/);
-  if (!sha) {
+function getRemoteBranchShas(remote, branches, cwd) {
+  const normalizedBranches = [...new Set((branches || [])
+    .map((branch) => String(branch || '').trim())
+    .filter(Boolean))];
+  if (normalizedBranches.length === 0) {
     throw createSyncError(
       'LOCAL_REPOSITORY_SYNC_REMOTE_BRANCH_MISSING',
-      `Remote branch ${remote}/${branch} was not found.`,
+      'At least one remote branch is required for verification.',
     );
   }
-  return sha.toLowerCase();
+
+  const refs = normalizedBranches.map((branch) => `refs/heads/${branch}`);
+  const output = getGitOutput(['ls-remote', '--heads', remote, ...refs], cwd, {
+    printCommand: true,
+  });
+  const byRef = new Map();
+
+  for (const line of String(output || '').split(/\r?\n/).filter(Boolean)) {
+    const [sha, ref] = line.trim().split(/\s+/);
+    if (sha && ref) byRef.set(ref, sha.toLowerCase());
+  }
+
+  return Object.fromEntries(
+    normalizedBranches.map((branch) => {
+      const ref = `refs/heads/${branch}`;
+      const sha = byRef.get(ref);
+      if (!sha) {
+        throw createSyncError(
+          'LOCAL_REPOSITORY_SYNC_REMOTE_BRANCH_MISSING',
+          `Remote branch ${remote}/${branch} was not found.`,
+        );
+      }
+      return [branch, sha];
+    }),
+  );
+}
+
+function getRemoteBranchSha(remote, branch, cwd) {
+  return getRemoteBranchShas(remote, [branch], cwd)[branch];
 }
 
 function normalizePathForComparison(value) {
@@ -201,8 +245,8 @@ function normalizePathForComparison(value) {
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
-function getGitPath(cwd, gitPathName) {
-  const raw = getGitOutput(['rev-parse', '--git-path', gitPathName], cwd);
+function getGitDirectory(cwd) {
+  const raw = getGitOutput(['rev-parse', '--git-dir'], cwd);
   return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
 }
 
@@ -217,7 +261,8 @@ function findGitOperationBlockers(cwd) {
     'sequencer',
     'index.lock',
   ];
-  return markers.filter((marker) => fs.existsSync(getGitPath(cwd, marker)));
+  const gitDirectory = getGitDirectory(cwd);
+  return markers.filter((marker) => fs.existsSync(path.join(gitDirectory, marker)));
 }
 
 function getWorkingTreeStatus(cwd) {
@@ -598,6 +643,7 @@ async function executeLocalRepositorySyncRouted(args = []) {
 
 async function executeLocalRepositorySync(args = []) {
   const startedAt = new Date().toISOString();
+  const telemetry = createGitPerformanceTelemetry();
   const positional = (Array.isArray(args) ? args : [])
     .map(String)
     .filter((arg) => !arg.startsWith('--'));
@@ -607,7 +653,11 @@ async function executeLocalRepositorySync(args = []) {
     rawExpectedSynchronizedHeadSha,
     'expectedSynchronizedHeadSha',
   );
-  const repo = await loadRepository(repoName);
+  const repo = await telemetry.measure(
+    'CONFIGURATION_REPOSITORY_RESOLUTION',
+    'Configuration / repository resolution',
+    () => loadRepository(repoName),
+  );
   const state = {
     ok: true,
     outcome: 'SYNCHRONIZED',
@@ -659,13 +709,18 @@ async function executeLocalRepositorySync(args = []) {
     },
     startedAt,
     warnings: [],
+    performanceTelemetry: null,
   };
 
-  assertHostExecutionProfile(state);
-  state.safeguards.hostProfileVerified = true;
-  assertRepositoryRoot(repo, state);
+  telemetry.measureSync('HOST_REPOSITORY_PREFLIGHT', 'Host / repository preflight', () => {
+    assertHostExecutionProfile(state);
+    state.safeguards.hostProfileVerified = true;
+    assertRepositoryRoot(repo, state);
+  });
 
-  const lock = acquireRepositoryLock(repo.repoCode);
+  const lock = telemetry.measureSync('REPOSITORY_LOCK', 'Repository lock acquisition', () =>
+    acquireRepositoryLock(repo.repoCode),
+  );
   state.safeguards.repositoryLockAcquired = true;
 
   try {
@@ -677,93 +732,97 @@ async function executeLocalRepositorySync(args = []) {
     console.log('🛡️ Policy: fast-forward-only; no reset --hard, clean, forced checkout, or blind ref rewrite.');
     console.log('');
 
-    state.currentBranch = getGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], repo.rootPath);
-    assertCleanAndIdle(repo.rootPath, state);
-    assertWorktreeOwnershipSafe({
-      cwd: repo.rootPath,
-      mainBranch: repo.mainBranch,
-      devBranch: repo.devBranch,
-      state,
+    telemetry.measureSync('LOCAL_SAFETY_PREFLIGHT', 'Local repository safety preflight', () => {
+      state.currentBranch = getGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], repo.rootPath);
+      assertCleanAndIdle(repo.rootPath, state);
+      assertWorktreeOwnershipSafe({
+        cwd: repo.rootPath,
+        mainBranch: repo.mainBranch,
+        devBranch: repo.devBranch,
+        state,
+      });
+      state.safeguards.worktreeOwnershipSafe = true;
+
+      state.stashCount = getStashCount(repo.rootPath);
+      if (state.stashCount > 0) {
+        state.warnings.push(
+          `${state.stashCount} Git stash entr${state.stashCount === 1 ? 'y exists' : 'ies exist'}; stashes were not modified.`,
+        );
+      }
+
+      const mainRef = `refs/heads/${repo.mainBranch}`;
+      const devRef = `refs/heads/${repo.devBranch}`;
+      const localRefs = getRefShas([mainRef, devRef], repo.rootPath);
+      state.localMainBeforeSha = localRefs[mainRef];
+      state.localDevBeforeSha = localRefs[devRef];
     });
-    state.safeguards.worktreeOwnershipSafe = true;
-
-    state.stashCount = getStashCount(repo.rootPath);
-    if (state.stashCount > 0) {
-      state.warnings.push(
-        `${state.stashCount} Git stash entr${state.stashCount === 1 ? 'y exists' : 'ies exist'}; stashes were not modified.`,
-      );
-    }
-
-    state.localMainBeforeSha = tryGetGitOutput(
-      ['rev-parse', '--verify', `refs/heads/${repo.mainBranch}`],
-      repo.rootPath,
-    );
-    state.localDevBeforeSha = tryGetGitOutput(
-      ['rev-parse', '--verify', `refs/heads/${repo.devBranch}`],
-      repo.rootPath,
-    );
 
     if (!state.localDevBeforeSha) {
       block('LOCAL_DEV_MISSING', `Local ${repo.devBranch} branch does not exist.`, state);
     }
 
-    state.remoteMainBeforeSha = getRemoteBranchSha('origin', repo.mainBranch, repo.rootPath);
-    state.remoteDevBeforeSha = getRemoteBranchSha('origin', repo.devBranch, repo.rootPath);
-    state.steps.remoteInspected = true;
-    if (
-      state.remoteMainBeforeSha !== expectedSynchronizedHeadSha ||
-      state.remoteDevBeforeSha !== expectedSynchronizedHeadSha
-    ) {
-      block(
-        'REMOTE_CHANGED',
-        `Remote main/dev no longer match the approved synchronized head ${expectedSynchronizedHeadSha}. origin/${repo.mainBranch}=${state.remoteMainBeforeSha}; origin/${repo.devBranch}=${state.remoteDevBeforeSha}.`,
-        state,
-      );
-    }
-
-    executeGit(['fetch', '--prune', '--no-tags', 'origin'], repo.rootPath, {
-      capture: true,
-      echoOutput: true,
+    // Fetch is the first remote operation and does not mutate local main/dev. The
+    // resulting origin/* refs therefore serve as the authoritative initial remote
+    // snapshot. A separate pre-fetch ls-remote round trip was redundant; we still
+    // re-verify the remote immediately before mutation and again after mutation.
+    telemetry.measureSync('REMOTE_FETCH', 'Remote fetch / prune', () => {
+      executeGit(['fetch', '--prune', '--no-tags', 'origin'], repo.rootPath, {
+        capture: true,
+        echoOutput: true,
+      });
     });
     state.steps.fetched = true;
 
-    const trackingMainSha = getGitOutput(
-      ['rev-parse', `refs/remotes/origin/${repo.mainBranch}`],
-      repo.rootPath,
-    ).toLowerCase();
-    const trackingDevSha = getGitOutput(
-      ['rev-parse', `refs/remotes/origin/${repo.devBranch}`],
-      repo.rootPath,
-    ).toLowerCase();
+    const { trackingMainSha, trackingDevSha } = telemetry.measureSync(
+      'REMOTE_TRACKING_INSPECTION',
+      'Fetched remote-tracking ref inspection',
+      () => {
+        const mainRef = `refs/remotes/origin/${repo.mainBranch}`;
+        const devRef = `refs/remotes/origin/${repo.devBranch}`;
+        const trackingRefs = getRefShas([mainRef, devRef], repo.rootPath);
+        return {
+          trackingMainSha: trackingRefs[mainRef],
+          trackingDevSha: trackingRefs[devRef],
+        };
+      },
+    );
+    if (!trackingMainSha || !trackingDevSha) {
+      block('REMOTE_TRACKING_MISSING', 'Fetched origin/main or origin/dev tracking ref is missing.', state);
+    }
+    state.remoteMainBeforeSha = trackingMainSha;
+    state.remoteDevBeforeSha = trackingDevSha;
+    state.steps.remoteInspected = true;
     if (
       trackingMainSha !== expectedSynchronizedHeadSha ||
       trackingDevSha !== expectedSynchronizedHeadSha
     ) {
       block(
         'REMOTE_TRACKING_MISMATCH',
-        `Fetched remote-tracking refs do not match approved head ${expectedSynchronizedHeadSha}.`,
+        `Fetched remote-tracking refs do not match approved head ${expectedSynchronizedHeadSha}. origin/${repo.mainBranch}=${trackingMainSha}; origin/${repo.devBranch}=${trackingDevSha}.`,
         state,
       );
     }
     state.safeguards.remoteTargetMatched = true;
 
-    assertCommitExists(expectedLocalDevSha, repo.rootPath, 'Trusted local-dev baseline', state);
-    assertCommitExists(expectedSynchronizedHeadSha, repo.rootPath, 'Approved synchronized head', state);
+    const devBaseline = telemetry.measureSync('LINEAGE_VALIDATION', 'Approved lineage validation', () => {
+      assertCommitExists(expectedLocalDevSha, repo.rootPath, 'Trusted local-dev baseline', state);
+      assertCommitExists(expectedSynchronizedHeadSha, repo.rootPath, 'Approved synchronized head', state);
 
-    if (!isGitAncestor(expectedLocalDevSha, expectedSynchronizedHeadSha, repo.rootPath)) {
-      block(
-        'DEV_NOT_FAST_FORWARD',
-        `Trusted local dev baseline ${expectedLocalDevSha} is not an ancestor of approved head ${expectedSynchronizedHeadSha}.`,
-        state,
-      );
-    }
+      if (!isGitAncestor(expectedLocalDevSha, expectedSynchronizedHeadSha, repo.rootPath)) {
+        block(
+          'DEV_NOT_FAST_FORWARD',
+          `Trusted local dev baseline ${expectedLocalDevSha} is not an ancestor of approved head ${expectedSynchronizedHeadSha}.`,
+          state,
+        );
+      }
 
-    const devBaseline = classifyDevBaseline({
-      localDevSha: state.localDevBeforeSha,
-      expectedLocalDevSha,
-      expectedSynchronizedHeadSha,
-      isAncestor: (ancestorSha, descendantSha) =>
-        isGitAncestor(ancestorSha, descendantSha, repo.rootPath),
+      return classifyDevBaseline({
+        localDevSha: state.localDevBeforeSha,
+        expectedLocalDevSha,
+        expectedSynchronizedHeadSha,
+        isAncestor: (ancestorSha, descendantSha) =>
+          isGitAncestor(ancestorSha, descendantSha, repo.rootPath),
+      });
     });
     state.devBaselineState = devBaseline.state;
 
@@ -789,55 +848,56 @@ async function executeLocalRepositorySync(args = []) {
       console.log(`✅ Local ${repo.devBranch} matches the trusted Dev Commit baseline.`);
     }
 
-    if (
-      state.localMainBeforeSha &&
-      state.localMainBeforeSha !== expectedSynchronizedHeadSha &&
-      !isGitAncestor(state.localMainBeforeSha, expectedSynchronizedHeadSha, repo.rootPath)
-    ) {
-      block(
-        'LOCAL_MAIN_DIVERGED',
-        `Local ${repo.mainBranch} at ${state.localMainBeforeSha} is not a fast-forward ancestor of ${expectedSynchronizedHeadSha}.`,
-        state,
-      );
-    }
-    state.safeguards.localMainFastForwardSafe = true;
+    telemetry.measureSync('MUTATION_PREFLIGHT', 'Compare-and-swap mutation preflight', () => {
+      if (
+        state.localMainBeforeSha &&
+        state.localMainBeforeSha !== expectedSynchronizedHeadSha &&
+        !isGitAncestor(state.localMainBeforeSha, expectedSynchronizedHeadSha, repo.rootPath)
+      ) {
+        block(
+          'LOCAL_MAIN_DIVERGED',
+          `Local ${repo.mainBranch} at ${state.localMainBeforeSha} is not a fast-forward ancestor of ${expectedSynchronizedHeadSha}.`,
+          state,
+        );
+      }
+      state.safeguards.localMainFastForwardSafe = true;
 
-    // Re-check all host-owned state immediately before any ref mutation. This is
-    // the compare-and-swap guard against a manual commit/file edit during the run.
-    assertCleanAndIdle(repo.rootPath, state);
-    const devImmediatelyBeforeMutation = getGitOutput(
-      ['rev-parse', `refs/heads/${repo.devBranch}`],
-      repo.rootPath,
-    ).toLowerCase();
-    const mainImmediatelyBeforeMutation = tryGetGitOutput(
-      ['rev-parse', '--verify', `refs/heads/${repo.mainBranch}`],
-      repo.rootPath,
-    );
-    if (devImmediatelyBeforeMutation !== state.localDevBeforeSha) {
-      block(
-        'LOCAL_DEV_CHANGED_DURING_SYNC',
-        `Local ${repo.devBranch} changed during synchronization preflight. Expected ${state.localDevBeforeSha}, found ${devImmediatelyBeforeMutation}.`,
-        state,
-      );
-    }
-    if ((mainImmediatelyBeforeMutation || null) !== (state.localMainBeforeSha || null)) {
-      block(
-        'LOCAL_MAIN_CHANGED_DURING_SYNC',
-        `Local ${repo.mainBranch} changed during synchronization preflight.`,
-        state,
-      );
-    }
+      // Re-check all host-owned state immediately before any ref mutation. This is
+      // the compare-and-swap guard against a manual commit/file edit during the run.
+      assertCleanAndIdle(repo.rootPath, state);
+      const mainRef = `refs/heads/${repo.mainBranch}`;
+      const devRef = `refs/heads/${repo.devBranch}`;
+      const localRefsImmediatelyBeforeMutation = getRefShas([mainRef, devRef], repo.rootPath);
+      const devImmediatelyBeforeMutation = localRefsImmediatelyBeforeMutation[devRef];
+      const mainImmediatelyBeforeMutation = localRefsImmediatelyBeforeMutation[mainRef];
+      if (!devImmediatelyBeforeMutation) {
+        block('LOCAL_DEV_MISSING_DURING_SYNC', `Local ${repo.devBranch} disappeared during synchronization preflight.`, state);
+      }
+      if (devImmediatelyBeforeMutation !== state.localDevBeforeSha) {
+        block(
+          'LOCAL_DEV_CHANGED_DURING_SYNC',
+          `Local ${repo.devBranch} changed during synchronization preflight. Expected ${state.localDevBeforeSha}, found ${devImmediatelyBeforeMutation}.`,
+          state,
+        );
+      }
+      if ((mainImmediatelyBeforeMutation || null) !== (state.localMainBeforeSha || null)) {
+        block(
+          'LOCAL_MAIN_CHANGED_DURING_SYNC',
+          `Local ${repo.mainBranch} changed during synchronization preflight.`,
+          state,
+        );
+      }
+    });
 
-    const remoteMainImmediatelyBeforeMutation = getRemoteBranchSha(
-      'origin',
-      repo.mainBranch,
-      repo.rootPath,
+    const remoteHeadsImmediatelyBeforeMutation = telemetry.measureSync(
+      'REMOTE_REVERIFICATION',
+      'Remote main/dev re-verification',
+      () => getRemoteBranchShas('origin', [repo.mainBranch, repo.devBranch], repo.rootPath),
     );
-    const remoteDevImmediatelyBeforeMutation = getRemoteBranchSha(
-      'origin',
-      repo.devBranch,
-      repo.rootPath,
-    );
+    const remoteMainImmediatelyBeforeMutation =
+      remoteHeadsImmediatelyBeforeMutation[repo.mainBranch];
+    const remoteDevImmediatelyBeforeMutation =
+      remoteHeadsImmediatelyBeforeMutation[repo.devBranch];
     state.steps.remoteReverified = true;
     if (
       remoteMainImmediatelyBeforeMutation !== expectedSynchronizedHeadSha ||
@@ -855,68 +915,82 @@ async function executeLocalRepositorySync(args = []) {
       state.localMainBeforeSha === expectedSynchronizedHeadSha &&
       state.localDevBeforeSha === expectedSynchronizedHeadSha;
 
-    if (!alreadySynchronized) {
-      if (state.currentBranch === repo.mainBranch) {
-        state.mainRefUpdated = state.localMainBeforeSha !== expectedSynchronizedHeadSha
-          ? updateCheckedOutBranch({
-              branch: repo.mainBranch,
-              targetSha: expectedSynchronizedHeadSha,
-              cwd: repo.rootPath,
-            })
-          : false;
-        state.checkedOutBranchUpdated ||= state.mainRefUpdated;
-      } else {
-        state.mainRefUpdated = updateNonCheckedOutBranch({
-          branch: repo.mainBranch,
-          targetSha: expectedSynchronizedHeadSha,
-          expectedOldSha: state.localMainBeforeSha,
-          cwd: repo.rootPath,
-          state,
-        });
+    telemetry.measureSync('LOCAL_REF_UPDATE', 'Local main/dev ref update', () => {
+      if (!alreadySynchronized) {
+        if (state.currentBranch === repo.mainBranch) {
+          state.mainRefUpdated = state.localMainBeforeSha !== expectedSynchronizedHeadSha
+            ? updateCheckedOutBranch({
+                branch: repo.mainBranch,
+                targetSha: expectedSynchronizedHeadSha,
+                cwd: repo.rootPath,
+              })
+            : false;
+          state.checkedOutBranchUpdated ||= state.mainRefUpdated;
+        } else {
+          state.mainRefUpdated = updateNonCheckedOutBranch({
+            branch: repo.mainBranch,
+            targetSha: expectedSynchronizedHeadSha,
+            expectedOldSha: state.localMainBeforeSha,
+            cwd: repo.rootPath,
+            state,
+          });
+        }
+        state.steps.mainRefUpdated = state.mainRefUpdated;
+
+        if (state.currentBranch === repo.devBranch) {
+          state.devRefUpdated = state.localDevBeforeSha !== expectedSynchronizedHeadSha
+            ? updateCheckedOutBranch({
+                branch: repo.devBranch,
+                targetSha: expectedSynchronizedHeadSha,
+                cwd: repo.rootPath,
+              })
+            : false;
+          state.checkedOutBranchUpdated ||= state.devRefUpdated;
+        } else {
+          state.devRefUpdated = updateNonCheckedOutBranch({
+            branch: repo.devBranch,
+            targetSha: expectedSynchronizedHeadSha,
+            expectedOldSha: state.localDevBeforeSha,
+            cwd: repo.rootPath,
+            state,
+          });
+        }
+        state.steps.devRefUpdated = state.devRefUpdated;
       }
-      state.steps.mainRefUpdated = state.mainRefUpdated;
+    });
 
-      if (state.currentBranch === repo.devBranch) {
-        state.devRefUpdated = state.localDevBeforeSha !== expectedSynchronizedHeadSha
-          ? updateCheckedOutBranch({
-              branch: repo.devBranch,
-              targetSha: expectedSynchronizedHeadSha,
-              cwd: repo.rootPath,
-            })
-          : false;
-        state.checkedOutBranchUpdated ||= state.devRefUpdated;
-      } else {
-        state.devRefUpdated = updateNonCheckedOutBranch({
-          branch: repo.devBranch,
-          targetSha: expectedSynchronizedHeadSha,
-          expectedOldSha: state.localDevBeforeSha,
-          cwd: repo.rootPath,
+    telemetry.measureSync('POST_SYNC_LOCAL_VERIFICATION', 'Post-sync local verification', () => {
+      const finalStatus = getWorkingTreeStatus(repo.rootPath);
+      state.workingTreeCleanAfter = finalStatus === '';
+      if (!state.workingTreeCleanAfter) {
+        throw createSyncError(
+          'LOCAL_REPOSITORY_SYNC_POSTCHECK_DIRTY',
+          `Working tree became dirty during local synchronization.\n${finalStatus}`,
           state,
-        });
+        );
       }
-      state.steps.devRefUpdated = state.devRefUpdated;
-    }
 
-    const finalStatus = getWorkingTreeStatus(repo.rootPath);
-    state.workingTreeCleanAfter = finalStatus === '';
-    if (!state.workingTreeCleanAfter) {
-      throw createSyncError(
-        'LOCAL_REPOSITORY_SYNC_POSTCHECK_DIRTY',
-        `Working tree became dirty during local synchronization.\n${finalStatus}`,
-        state,
-      );
-    }
+      const mainRef = `refs/heads/${repo.mainBranch}`;
+      const devRef = `refs/heads/${repo.devBranch}`;
+      const localRefsAfter = getRefShas([mainRef, devRef], repo.rootPath);
+      state.localMainAfterSha = localRefsAfter[mainRef];
+      state.localDevAfterSha = localRefsAfter[devRef];
+      if (!state.localMainAfterSha || !state.localDevAfterSha) {
+        throw createSyncError(
+          'LOCAL_REPOSITORY_SYNC_POSTCHECK_REF_MISSING',
+          'Post-sync verification could not resolve local main/dev refs.',
+          state,
+        );
+      }
+    });
 
-    state.localMainAfterSha = getGitOutput(
-      ['rev-parse', `refs/heads/${repo.mainBranch}`],
-      repo.rootPath,
-    ).toLowerCase();
-    state.localDevAfterSha = getGitOutput(
-      ['rev-parse', `refs/heads/${repo.devBranch}`],
-      repo.rootPath,
-    ).toLowerCase();
-    state.remoteMainAfterSha = getRemoteBranchSha('origin', repo.mainBranch, repo.rootPath);
-    state.remoteDevAfterSha = getRemoteBranchSha('origin', repo.devBranch, repo.rootPath);
+    const remoteHeadsAfter = telemetry.measureSync(
+      'POST_SYNC_REMOTE_VERIFICATION',
+      'Post-sync remote main/dev verification',
+      () => getRemoteBranchShas('origin', [repo.mainBranch, repo.devBranch], repo.rootPath),
+    );
+    state.remoteMainAfterSha = remoteHeadsAfter[repo.mainBranch];
+    state.remoteDevAfterSha = remoteHeadsAfter[repo.devBranch];
 
     state.fourWaySynchronized = [
       state.localMainAfterSha,
@@ -936,6 +1010,7 @@ async function executeLocalRepositorySync(args = []) {
     state.outcome = alreadySynchronized ? 'ALREADY_SYNCHRONIZED' : 'SYNCHRONIZED';
     state.completedAt = new Date().toISOString();
     state.durationMs = Math.max(0, new Date(state.completedAt) - new Date(startedAt));
+    state.performanceTelemetry = telemetry.snapshot();
 
     console.log('');
     console.log(`✅ Four-way repository synchronization verified at ${expectedSynchronizedHeadSha}.`);
@@ -947,6 +1022,7 @@ async function executeLocalRepositorySync(args = []) {
 
     return state;
   } catch (error) {
+    state.performanceTelemetry = telemetry.snapshot();
     error.syncResult = { ...state, ...(error.syncResult || {}) };
     throw error;
   } finally {
@@ -999,6 +1075,7 @@ module.exports = {
   executeLocalRepositorySyncRouted,
   executeLocalRepositorySyncViaHostAgent,
   main,
+  getRemoteBranchShas,
   normalizeSha,
   printLocalRepositorySyncResult,
 };
