@@ -1,11 +1,9 @@
 import { useMemo } from 'react';
 import OutcomeBarChart from './OutcomeBarChart.jsx';
-import StatusDonut from './StatusDonut.jsx';
 import TrendAreaChart from './TrendAreaChart.jsx';
 import {
   buildRecentDayDurationPercentileSeries,
   buildRecentDaySeriesFromField,
-  countByField,
   dateFromField,
   getDateDiffMs,
 } from './chartData.js';
@@ -60,15 +58,11 @@ function buildWorkflowPerformanceSeries(workflowRuns) {
   };
 }
 
-function buildTopToolData(executions, limit = 5) {
+function buildTopUsageData(items, labelAccessor, limit = 5) {
   const counts = new Map();
 
-  for (const execution of executions) {
-    const label =
-      execution?.metadata?.toolLabel ||
-      execution?.metadata?.toolCode ||
-      execution?.scriptName ||
-      'Unknown tool';
+  for (const item of items) {
+    const label = labelAccessor(item) || 'Unknown';
     counts.set(label, (counts.get(label) || 0) + 1);
   }
 
@@ -107,30 +101,44 @@ function DashboardVisuals({ recentExecutions = [], scheduleRuns = [], workflowRu
       }),
     [scheduleRuns],
   );
-  const topTools = useMemo(() => buildTopToolData(recentExecutions), [recentExecutions]);
+  const topTools = useMemo(
+    () =>
+      buildTopUsageData(
+        recentExecutions,
+        (execution) =>
+          execution?.metadata?.toolLabel ||
+          execution?.metadata?.toolCode ||
+          execution?.scriptName ||
+          'Unknown tool',
+      ),
+    [recentExecutions],
+  );
+  const topWorkflows = useMemo(
+    () =>
+      buildTopUsageData(
+        workflowRuns,
+        (run) =>
+          run?.workflowName ||
+          run?.displayName ||
+          run?.name ||
+          run?.metadata?.workflowDisplayName ||
+          run?.metadata?.workflowName ||
+          run?.workflowCode ||
+          run?.code ||
+          'Unknown workflow',
+      ),
+    [workflowRuns],
+  );
   const workflowPerformance = useMemo(
     () => buildWorkflowPerformanceSeries(workflowRuns),
     [workflowRuns],
   );
-  const automationOutcomes = useMemo(
-    () =>
-      countByField(scheduleRuns, 'status', [
-        'SUCCESS',
-        'FAILED',
-        'STARTED',
-        'QUEUED',
-        'SKIPPED',
-        'CANCELLED',
-      ]),
-    [scheduleRuns],
-  );
-
   return (
     <section className="sky-dashboard-visuals mb-3">
       <div className="sky-dashboard-section-heading mb-3">
         <div>
-          <div className="sky-page-kicker">Automation intelligence</div>
-          <h2 className="h5 mb-0">Visual operations layer</h2>
+          <div className="sky-page-kicker">Productivity intelligence</div>
+          <h2 className="h5 mb-0">Operational productivity layer</h2>
         </div>
         <span className="sky-muted small">True 7-day window · Apache ECharts rendering</span>
       </div>
@@ -184,21 +192,15 @@ function DashboardVisuals({ recentExecutions = [], scheduleRuns = [], workflowRu
           valueFormatter={formatSecondsWithSpace}
           yAxisFormatter={formatSeconds}
         />
-        <StatusDonut
-          colors={[
-            CHART_COLORS.green,
-            CHART_COLORS.red,
-            CHART_COLORS.blue,
-            CHART_COLORS.cyan,
-            CHART_COLORS.gold,
-            CHART_COLORS.violet,
-          ]}
-          data={automationOutcomes}
+        <OutcomeBarChart
+          barWidth={20}
+          colors={[CHART_COLORS.green]}
+          data={topWorkflows}
           height={285}
-          kicker="Automation reliability"
-          name="Schedule runs"
-          subtitle="Outcome distribution for scheduled executions across the same 7-day window."
-          title="Schedule outcome mix"
+          kicker="Workflow utilization"
+          name="Executions"
+          subtitle="Top five workflows by execution volume across the same 7-day window."
+          title="Top executed workflows"
         />
       </div>
     </section>

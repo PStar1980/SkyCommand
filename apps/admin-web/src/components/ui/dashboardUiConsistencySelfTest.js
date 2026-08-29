@@ -270,17 +270,20 @@ for (const expectedText of [
   'Automation activity',
   'Tool utilization',
   'Workflow performance',
-  'Automation reliability',
+  'Workflow utilization',
   'P50 duration',
   'P95 duration',
+  'Productivity intelligence',
 ]) {
-  assert.ok(dashboardVisualsSource.includes(expectedText), `${expectedText} should appear in Automation Intelligence.`);
+  assert.ok(dashboardVisualsSource.includes(expectedText), `${expectedText} should appear in Productivity Intelligence.`);
 }
 assert.match(dashboardVisualsSource, /name: 'Runs'/);
 assert.match(dashboardVisualsSource, /name: 'Errors'/);
 assert.doesNotMatch(dashboardVisualsSource, /Audit events/);
 assert.doesNotMatch(dashboardVisualsSource, /Macro freshness/);
 assert.doesNotMatch(dashboardVisualsSource, /Workflow quality mix/);
+assert.doesNotMatch(dashboardVisualsSource, /Automation reliability/);
+assert.doesNotMatch(dashboardVisualsSource, /Schedule outcome mix/);
 
 const workflowExecutorSource = fs.readFileSync(
   path.join(apiSourceRoot, 'services/workflowExecutorService.js'),
