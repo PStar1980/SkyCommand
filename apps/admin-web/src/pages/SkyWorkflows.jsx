@@ -9,6 +9,7 @@ import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import {
   ArchiveBuildBreakdownTable,
   PerformanceTelemetryTable,
+  ProcessEnvelopeTelemetryTable,
   TransportTelemetryTable,
 } from '../components/tools/StructuredToolResultDisplay.jsx';
 import workflowService from '../services/workflowService';
@@ -2325,6 +2326,7 @@ function GitCommitOutput({ toolResult }) {
       </div>
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
       <TransportTelemetryTable telemetry={output.transportTelemetry} />
+      <ProcessEnvelopeTelemetryTable toolResult={toolResult} />
       <div className="sky-page-kicker mb-2">Change set</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -2448,6 +2450,7 @@ function GitLocalSyncOutput({ toolResult }) {
 
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
       <TransportTelemetryTable telemetry={output.transportTelemetry} />
+      <ProcessEnvelopeTelemetryTable toolResult={toolResult} />
 
       <div className="sky-page-kicker mb-2">Safety guardrails</div>
       <div className="table-responsive sky-table-card mb-3">
@@ -2614,6 +2617,8 @@ function GitBranchSyncOutput({ toolResult }) {
       </div>
 
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <TransportTelemetryTable telemetry={output.transportTelemetry} />
+      <ProcessEnvelopeTelemetryTable toolResult={toolResult} />
 
       <div className="sky-page-kicker mb-2">Branch head movement</div>
       <div className="table-responsive sky-table-card mb-3">

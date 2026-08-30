@@ -30,6 +30,7 @@ const HOST_AGENT_PROFILE_CODE = (
 // loading any activity handlers.
 process.env.SKYCOMMAND_LOCAL_SYNC_PROFILE = HOST_AGENT_PROFILE_CODE;
 process.env.SKYCOMMAND_DEV_COMMIT_PROFILE = HOST_AGENT_PROFILE_CODE;
+process.env.SKYCOMMAND_MAIN_MERGE_PROFILE = HOST_AGENT_PROFILE_CODE;
 
 const { pool, query } = require('../../db/src/connection');
 const { getTemporalConfig } = require('../../temporal/src/config');

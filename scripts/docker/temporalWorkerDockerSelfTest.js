@@ -136,11 +136,13 @@ assert(
 assert(
   mainMerge.includes("const DOCKER_LOCAL_PROFILE = 'DOCKER_LOCAL'") &&
     mainMerge.includes("['remote', 'get-url', remote]") &&
-    mainMerge.includes("['ls-remote', '--heads', remote, branchRef]") &&
+    mainMerge.includes("['ls-remote', '--heads', remote, ...branchRefs]") &&
     mainMerge.includes("'--no-write-fetch-head'") &&
-    mainMerge.includes('Docker URL object transfer only') &&
+    mainMerge.includes('remote-only URL object transfer') &&
     mainMerge.includes('GIT_OPTIONAL_LOCKS') &&
-    mainMerge.includes('Docker URL transport') &&
+    mainMerge.includes('remote-only URL transport') &&
+    mainMerge.includes('executeMainMergeViaHostAgent') &&
+    mainMerge.includes('remoteOnly') &&
     mainMerge.includes('createDeferredLocalBranchRefState') &&
     mainMerge.includes('localHostSyncRequired') &&
     mainMerge.includes('localSyncCommandTemplate') &&
@@ -150,7 +152,7 @@ assert(
     localRepoSync.includes("['merge', '--ff-only', targetSha]") &&
     localRepoSync.includes("['update-ref', ref, targetSha") &&
     !localRepoSync.includes("reset', '--hard"),
-  'DOCKER_LOCAL Main Merge must remain remote-authoritative while deferring Windows-owned refs to the guarded host-only Local Repository Sync action.',
+  'DOCKER_LOCAL Main Merge must route to host-native remote-only Git while deferring Windows-owned local refs to the guarded Local Repository Sync action.',
 );
 assert(
   scriptExecution.includes('SKYCOMMAND_EXECUTION_LOG_ROOT') &&

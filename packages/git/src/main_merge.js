@@ -14,6 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { randomUUID } = require('node:crypto');
 const dotenv = require('dotenv');
 
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
@@ -22,6 +23,8 @@ const {
   createGitBranchSyncToolResult,
 } = require('./gitBranchSyncResult');
 const { createGitPerformanceTelemetry } = require('./gitPerformanceTelemetry');
+const { getTemporalConfig } = require('../../temporal/src/config');
+const { DEFAULT_HOST_AGENT_TASK_QUEUE } = require('../../host-agent/src/config');
 
 const SCRIPT_DIR = __dirname;
 const SKY_SERVER_ROOT = path.resolve(SCRIPT_DIR, '../../..');
@@ -36,6 +39,7 @@ dotenv.config({ path: ENV_PATH });
 const { pool } = require('../../db/src/connection');
 
 const PROFILE_CODE =
+  process.env.SKYCOMMAND_MAIN_MERGE_PROFILE ||
   process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
   process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
@@ -44,6 +48,27 @@ const GIT_COMMAND_TIMEOUT_MS = Math.max(
   10000,
   Number(process.env.SKYCOMMAND_GIT_COMMAND_TIMEOUT_MS || DEFAULT_GIT_COMMAND_TIMEOUT_MS),
 );
+
+
+function toBoolean(value) {
+  return (
+    value === true ||
+    value === 1 ||
+    String(value || '').trim().toLowerCase() === 'true' ||
+    String(value || '').trim() === '1'
+  );
+}
+
+function isDockerRuntime() {
+  return String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase() === 'docker';
+}
+
+function getHostAgentTaskQueue() {
+  return (
+    String(process.env.SKYCOMMAND_HOST_AGENT_TASK_QUEUE || DEFAULT_HOST_AGENT_TASK_QUEUE).trim() ||
+    DEFAULT_HOST_AGENT_TASK_QUEUE
+  );
+}
 
 function fail(message) {
   throw new Error(message);
@@ -140,10 +165,10 @@ function getRemoteUrl(remote, cwd) {
   return remoteUrl;
 }
 
-function pushRemoteRef({ remote = 'origin', refspec, cwd, remoteUrl = null }) {
+function pushRemoteRef({ remote = 'origin', refspec, cwd, remoteUrl = null, remoteOnly = false }) {
   if (!refspec) fail('Missing Git push refspec.');
 
-  if (!isDockerLocalProfile()) {
+  if (!isDockerLocalProfile() && !remoteOnly) {
     runGit(['push', remote, refspec], cwd);
     return;
   }
@@ -154,7 +179,7 @@ function pushRemoteRef({ remote = 'origin', refspec, cwd, remoteUrl = null }) {
   // the configured URL preserves the exact remote operation without mutating
   // refs/remotes/* inside the host-owned working copy.
   const resolvedRemoteUrl = remoteUrl || getRemoteUrl(remote, cwd);
-  console.log(`> git push ${remote} ${refspec} [Docker URL transport]`);
+  console.log(`> git push ${remote} ${refspec} [remote-only URL transport]`);
   executeGit(['push', resolvedRemoteUrl, refspec], cwd, { printCommand: false });
 }
 
@@ -201,7 +226,7 @@ function getRemoteBranchSha(remote, branch, cwd) {
   return sha;
 }
 
-function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd, remoteUrl = null }) {
+function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd, remoteUrl = null, remoteOnly = false }) {
   const branchRefs = [...new Set((branches || []).map((branch) => String(branch || '').trim()).filter(Boolean))]
     .map((branch) => `refs/heads/${branch}`);
 
@@ -209,7 +234,7 @@ function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd, remot
     fail('At least one branch is required for Git object transfer.');
   }
 
-  if (!isDockerLocalProfile()) {
+  if (!isDockerLocalProfile() && !remoteOnly) {
     runGit(['fetch', '--prune', remote], cwd);
     return;
   }
@@ -222,7 +247,7 @@ function fetchRemoteBranchObjects({ remote = 'origin', branches = [], cwd, remot
   const resolvedRemoteUrl = remoteUrl || getRemoteUrl(remote, cwd);
   const args = ['fetch', '--no-tags', '--no-write-fetch-head', resolvedRemoteUrl, ...branchRefs];
   const displayArgs = ['fetch', '--no-tags', '--no-write-fetch-head', remote, ...branchRefs];
-  console.log(`> git ${displayArgs.join(' ')} [Docker URL object transfer only]`);
+  console.log(`> git ${displayArgs.join(' ')} [remote-only URL object transfer]`);
   executeGit(args, cwd, { printCommand: false });
 }
 
@@ -415,9 +440,132 @@ function createLocalRefreshCommand(repo) {
   return `git switch ${repo.devBranch} && git pull --ff-only origin ${repo.devBranch}`;
 }
 
-async function executeMainMerge(args = []) {
+async function executeMainMergeViaHostAgent(args = []) {
+  const transportStartedUptimeMs = process.uptime() * 1000;
+  const transportTelemetry = createGitPerformanceTelemetry();
+  const positional = (Array.isArray(args) ? args : [])
+    .map(String)
+    .filter((arg) => !arg.startsWith('--'));
+  const [repoName, rawTagName] = positional;
+  const tagName = String(rawTagName || '').trim();
+
+  if (!toBoolean(process.env.SKYCOMMAND_HOST_AGENT_ENABLED)) {
+    fail(
+      'SkyCommand Host Agent dispatch is disabled. Set SKYCOMMAND_HOST_AGENT_ENABLED=true and start npm run host-agent before routing Repo Merge / Sync to the host.',
+    );
+  }
+
+  const { temporal, hostTaskQueue, workflowId } = transportTelemetry.measureSync(
+    'TEMPORAL_DISPATCH_SETUP',
+    'Temporal configuration / dispatch setup',
+    () => ({
+      temporal: getTemporalConfig(),
+      hostTaskQueue: getHostAgentTaskQueue(),
+      workflowId: [
+        'skycommand-host-main-merge',
+        String(repoName || 'repository').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80),
+        randomUUID().slice(0, 8),
+      ].join('-'),
+    }),
+  );
+  const { Connection, Client } = transportTelemetry.measureSync(
+    'TEMPORAL_CLIENT_LOAD',
+    'Temporal client module load',
+    () => require('@temporalio/client'),
+  );
+
+  console.log('');
+  console.log(`[SkyCommand Host Agent] Dispatching ${TOOL_CODE} to host task queue ${hostTaskQueue}`);
+  console.log(`[SkyCommand Host Agent] Temporal address=${temporal.address}`);
+  console.log(`[SkyCommand Host Agent] workflowId=${workflowId}`);
+
+  let connection = null;
+  let routedResult = null;
+  let routedError = null;
+
+  try {
+    connection = await transportTelemetry.measure(
+      'TEMPORAL_CONNECTION',
+      'Temporal connection',
+      () => Connection.connect({ address: temporal.address }),
+    );
+    const client = new Client({ connection, namespace: temporal.namespace });
+    const response = await transportTelemetry.measure(
+      'HOST_WORKFLOW_DISPATCH_WAIT',
+      'Host workflow dispatch + wait',
+      () =>
+        client.workflow.execute('skyCommandHostAgentToolWorkflow', {
+          taskQueue: temporal.taskQueue,
+          workflowId,
+          args: [
+            {
+              toolCode: TOOL_CODE,
+              repoName,
+              tagName,
+              hostTaskQueue,
+            },
+          ],
+        }),
+    );
+
+    if (!response?.ok) {
+      const remoteError = response?.error || {};
+      const error = new Error(remoteError.message || 'SkyCommand Host Agent Repo Merge / Sync failed.');
+      error.code = remoteError.code || 'MAIN_MERGE_HOST_AGENT_FAILED';
+      throw error;
+    }
+
+    routedResult = {
+      ...(response.result || {}),
+      transport: 'temporal_host_agent',
+      executionTarget: 'HOST',
+    };
+  } catch (error) {
+    routedError = error;
+  } finally {
+    if (connection) {
+      try {
+        await transportTelemetry.measure(
+          'TEMPORAL_CONNECTION_SHUTDOWN',
+          'Temporal connection shutdown',
+          () => connection.close(),
+        );
+      } catch (closeError) {
+        routedError ||= closeError;
+      }
+    }
+  }
+
+  const transportSnapshot = {
+    ...transportTelemetry.snapshot(),
+    processUptimeAtStartMs: transportStartedUptimeMs,
+    processUptimeAtCompleteMs: process.uptime() * 1000,
+  };
+  if (routedError) {
+    routedError.transportTelemetry = transportSnapshot;
+    throw routedError;
+  }
+
+  return {
+    ...routedResult,
+    transportTelemetry: transportSnapshot,
+  };
+}
+
+async function executeMainMergeRouted(args = []) {
+  if ((isDockerRuntime() || isDockerLocalProfile()) && toBoolean(process.env.SKYCOMMAND_HOST_AGENT_ENABLED)) {
+    return executeMainMergeViaHostAgent(args);
+  }
+
+  return executeMainMerge(args);
+}
+
+async function executeMainMerge(args = [], options = {}) {
   const startedAt = new Date().toISOString();
   const telemetry = createGitPerformanceTelemetry();
+  const remoteOnly = options.remoteOnly === true || isDockerLocalProfile();
+  const executionTarget = String(options.executionTarget || (isDockerLocalProfile() ? 'DOCKER' : 'HOST'));
+  const transport = String(options.transport || 'git_cli');
   const [repoName, rawTagName] = (Array.isArray(args) ? args : [])
     .map(String)
     .filter((arg) => !arg.startsWith('--'));
@@ -440,11 +588,11 @@ async function executeMainMerge(args = []) {
   console.log(`🌿 Dev branch: ${repo.devBranch}`);
   console.log('');
 
-  if (isDockerLocalProfile()) {
-    // Docker-local Main Merge is deliberately remote-only: it never checks out a
-    // branch or advances host-owned refs/heads/*. A full `git status` scan across
-    // the Windows bind mount adds latency without protecting any local mutation.
-    console.log('🛡️ Docker remote-only mode: skipping unnecessary working-tree status scan.');
+  if (remoteOnly) {
+    // Remote-only Main Merge deliberately never checks out a
+    // branch or advances host-owned refs/heads/*. A full `git status` scan adds
+    // latency without protecting any local mutation.
+    console.log('🛡️ Remote-only mode: skipping unnecessary working-tree status scan.');
   } else {
     telemetry.measureSync('WORKING_TREE_PREFLIGHT', 'Working-tree preflight', () => {
       assertCleanWorkingTree(repo.rootPath);
@@ -473,10 +621,10 @@ async function executeMainMerge(args = []) {
   let remoteDevHeadBeforeSha;
   let dockerRemoteUrl = null;
 
-  if (isDockerLocalProfile()) {
-    // Remote-tracking refs inside this repository belong to the Windows host.
-    // Read authoritative branch heads directly from the remote, then transfer
-    // only the referenced Git objects required for local graph calculations.
+  if (remoteOnly) {
+    // Remote-only execution reads authoritative branch heads directly from the remote.
+    // Transfer only the referenced Git objects required for local graph calculations
+    // without changing host-owned refs/remotes/* or refs/heads/*.
     dockerRemoteUrl = telemetry.measureSync('REMOTE_CONFIGURATION', 'Remote URL resolution', () =>
       getRemoteUrl('origin', repo.rootPath),
     );
@@ -493,6 +641,7 @@ async function executeMainMerge(args = []) {
         branches: [repo.mainBranch, repo.devBranch],
         cwd: repo.rootPath,
         remoteUrl: dockerRemoteUrl,
+        remoteOnly,
       });
     });
   } else {
@@ -556,6 +705,7 @@ async function executeMainMerge(args = []) {
         refspec: `${mainHeadSha}:refs/heads/${repo.devBranch}`,
         cwd: repo.rootPath,
         remoteUrl: dockerRemoteUrl,
+        remoteOnly,
       });
     });
   } else {
@@ -567,12 +717,13 @@ async function executeMainMerge(args = []) {
   if (tagName) {
     console.log(`\n🏷️ Creating tag ${tagName} at ${mainHeadSha}...`);
     telemetry.measureSync('TAG_PUSH', 'Tag creation / push', () => {
-      if (isDockerLocalProfile()) {
+      if (remoteOnly) {
         pushRemoteRef({
           remote: 'origin',
           refspec: `${mainHeadSha}:refs/tags/${tagName}`,
           cwd: repo.rootPath,
           remoteUrl: dockerRemoteUrl,
+          remoteOnly,
         });
       } else {
         runGit(['tag', tagName, mainHeadSha], repo.rootPath);
@@ -604,11 +755,10 @@ async function executeMainMerge(args = []) {
   let devRefUpdate;
   let deferredLocalBranches = [];
 
-  if (isDockerLocalProfile()) {
-    // The host working copy owns refs/heads/*. Updating those refs from Linux can
-    // race Windows Git/VS Code and surface as "couldn't set refs/heads/..." even
-    // after the remote synchronization has already succeeded. Keep Docker's Git
-    // responsibility remote-only and let the host refresh its checked-out branch.
+  if (remoteOnly) {
+    // Remote-only synchronization intentionally leaves refs/heads/* unchanged;
+    // the guarded Local Repository Sync node remains solely responsible for host
+    // local main/dev mutation after the authoritative remote is synchronized.
     ({ mainRefUpdate, devRefUpdate } = telemetry.measureSync(
       'LOCAL_SYNC_DEFERRAL',
       'Host local-sync deferral analysis',
@@ -665,20 +815,20 @@ async function executeMainMerge(args = []) {
   const localWorkspaceUpdated =
     mainRefUpdate.workspaceUpdated || devRefUpdate.workspaceUpdated;
   const localRefreshCommand =
-    !isDockerLocalProfile() && localWorkspaceRefreshRequired
+    !remoteOnly && localWorkspaceRefreshRequired
       ? createLocalRefreshCommand(repo)
       : null;
   const localSyncCommandTemplate = localHostSyncRequired
     ? `npm run repository:sync:local -- ${repo.repoCode} <expectedLocalDevSha> ${remoteDevHeadAfterSha}`
     : null;
 
-  if (!isDockerLocalProfile() && localWorkspaceRefreshRequired) {
+  if (!remoteOnly && localWorkspaceRefreshRequired) {
     warnings.push(
       `Remote branches are synchronized, but the checked-out workspace contains a different tree. After the workflow completes, run: ${localRefreshCommand}`,
     );
   }
 
-  const localHeadAfterSha = isDockerLocalProfile()
+  const localHeadAfterSha = remoteOnly
     ? localHeadBeforeSha
     : telemetry.measureSync('FINAL_HEAD_READ', 'Final local head read', () =>
         getGitOutput(['rev-parse', 'HEAD'], repo.rootPath),
@@ -701,7 +851,7 @@ async function executeMainMerge(args = []) {
     console.log(`   Template: ${localSyncCommandTemplate}`);
   } else if (localWorkspaceRefreshRequired) {
     console.log(`⚠️ Local workspace refresh required after workflow completion: ${localRefreshCommand}`);
-  } else if (isDockerLocalProfile()) {
+  } else if (remoteOnly) {
     console.log('✅ Remote synchronization verified; host-owned local refs already match the synchronized head.');
   } else {
     console.log('✅ Local branch references were synchronized without rewriting watched files.');
@@ -761,8 +911,8 @@ async function executeMainMerge(args = []) {
     tagsPushed: tagCreated,
     warnings,
     profileCode: PROFILE_CODE,
-    executionTarget: isDockerLocalProfile() ? 'DOCKER' : 'HOST',
-    transport: 'git_cli',
+    executionTarget,
+    transport,
     performanceTelemetry: telemetry.snapshot(),
   };
 }
@@ -795,7 +945,7 @@ async function main(args = process.argv.slice(2)) {
       toolCode: TOOL_CODE,
       outputType: OUTPUT_TYPE,
       args,
-      execute: executeMainMerge,
+      execute: executeMainMergeRouted,
       createToolResult: createGitBranchSyncToolResult,
       createFailureToolResult: (error) =>
         createGitBranchSyncFailureToolResult({
@@ -817,6 +967,8 @@ module.exports = {
   TOOL_CODE,
   createDeferredLocalBranchRefState,
   executeMainMerge,
+  executeMainMergeRouted,
+  executeMainMergeViaHostAgent,
   fetchRemoteBranchObjects,
   getRemoteBranchSha,
   getRemoteBranchShas,

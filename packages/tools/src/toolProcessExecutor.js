@@ -44,6 +44,53 @@ function getBusinessFailureDiagnostic(toolResult) {
   return `[SkyCommand ToolResult] Business result reported failure: ${message}`;
 }
 
+
+function buildProcessEnvelopeTelemetry(toolResult, childProcessDurationMs) {
+  const output = toolResult?.output;
+  const transport = output && typeof output === 'object' && !Array.isArray(output)
+    ? output.transportTelemetry
+    : null;
+  if (!transport || typeof transport !== 'object' || Array.isArray(transport)) {
+    return null;
+  }
+
+  const childDuration = Number(childProcessDurationMs);
+  const transportDuration = Number(transport.instrumentedTotalMs);
+  const transportStartUptime = Number(transport.processUptimeAtStartMs);
+  const transportCompleteUptime = Number(transport.processUptimeAtCompleteMs);
+  if (!Number.isFinite(childDuration) || !Number.isFinite(transportDuration)) {
+    return null;
+  }
+
+  const preTransportMs = Number.isFinite(transportStartUptime)
+    ? Math.max(0, transportStartUptime)
+    : null;
+  const postTransportMs = Number.isFinite(transportCompleteUptime)
+    ? Math.max(0, childDuration - transportCompleteUptime)
+    : null;
+
+  return {
+    childProcessDurationMs: Math.max(0, childDuration),
+    transportInstrumentedTotalMs: Math.max(0, transportDuration),
+    processStartToTransportStartMs: preTransportMs,
+    transportCompleteToProcessCloseMs: postTransportMs,
+    uninstrumentedProcessEnvelopeMs: Math.max(0, childDuration - transportDuration),
+  };
+}
+
+function attachProcessEnvelopeTelemetry(toolResult, childProcessDurationMs) {
+  const telemetry = buildProcessEnvelopeTelemetry(toolResult, childProcessDurationMs);
+  if (!telemetry || !toolResult) return toolResult;
+
+  return {
+    ...toolResult,
+    metadata: {
+      ...(toolResult.metadata || {}),
+      processEnvelopeTelemetry: telemetry,
+    },
+  };
+}
+
 async function executeToolProcess({
   command,
   commandArgs = [],
@@ -167,7 +214,10 @@ async function executeToolProcess({
       readResult = resultTransport.readResult();
     }
 
-    const toolResult = readResult?.toolResult || null;
+    const toolResult = attachProcessEnvelopeTelemetry(
+      readResult?.toolResult || null,
+      processResult.durationMs,
+    );
     const businessResultFailed = toolResult?.success === false;
     const finalStatus =
       processResult.processStatus === 'SUCCESS' && !businessResultFailed

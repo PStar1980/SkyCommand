@@ -231,6 +231,7 @@ async function loadRepository(repoName) {
 }
 
 async function executeDevCommitViaHostAgent(args = []) {
+  const transportStartedUptimeMs = process.uptime() * 1000;
   const transportTelemetry = createGitPerformanceTelemetry();
   const positional = (Array.isArray(args) ? args : [])
     .map(String)
@@ -324,7 +325,11 @@ async function executeDevCommitViaHostAgent(args = []) {
     }
   }
 
-  const transportSnapshot = transportTelemetry.snapshot();
+  const transportSnapshot = {
+    ...transportTelemetry.snapshot(),
+    processUptimeAtStartMs: transportStartedUptimeMs,
+    processUptimeAtCompleteMs: process.uptime() * 1000,
+  };
   if (routedError) {
     routedError.transportTelemetry = transportSnapshot;
     throw routedError;
