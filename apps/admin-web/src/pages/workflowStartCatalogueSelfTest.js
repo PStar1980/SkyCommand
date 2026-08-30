@@ -131,6 +131,12 @@ assert(
 );
 
 assert(
+  workflowSource.includes('TransportTelemetryTable') &&
+    (workflowSource.match(/<TransportTelemetryTable telemetry=\{output\.transportTelemetry\} \/>/g) || []).length >= 2,
+  'Dev Commit and Local Repository Sync must render transport / dispatch telemetry in focused node output.',
+);
+
+assert(
   !workflowSource.includes('Start workflow with parameters') &&
     workflowSource.includes("{starting ? 'Running workflow...' : 'Start Workflow'}"),
   'Start Workflow must use one consistent launch button label for every workflow.',

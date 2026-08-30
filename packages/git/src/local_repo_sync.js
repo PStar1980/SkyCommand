@@ -526,6 +526,7 @@ function updateCheckedOutBranch({ branch, targetSha, cwd }) {
 }
 
 async function executeLocalRepositorySyncViaHostAgent(args = []) {
+  const transportTelemetry = createGitPerformanceTelemetry();
   const positional = (Array.isArray(args) ? args : [])
     .map(String)
     .filter((arg) => !arg.startsWith('--'));
@@ -552,15 +553,25 @@ async function executeLocalRepositorySyncViaHostAgent(args = []) {
     );
   }
 
-  const temporal = getTemporalConfig();
-  const hostTaskQueue = getHostAgentTaskQueue();
-  const workflowId = [
-    'skycommand-host-local-sync',
-    String(repoName || 'repository').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80),
-    expectedSynchronizedHeadSha.slice(0, 12),
-    randomUUID().slice(0, 8),
-  ].join('-');
-  const { Connection, Client } = require('@temporalio/client');
+  const { temporal, hostTaskQueue, workflowId } = transportTelemetry.measureSync(
+    'TEMPORAL_DISPATCH_SETUP',
+    'Temporal configuration / dispatch setup',
+    () => ({
+      temporal: getTemporalConfig(),
+      hostTaskQueue: getHostAgentTaskQueue(),
+      workflowId: [
+        'skycommand-host-local-sync',
+        String(repoName || 'repository').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80),
+        expectedSynchronizedHeadSha.slice(0, 12),
+        randomUUID().slice(0, 8),
+      ].join('-'),
+    }),
+  );
+  const { Connection, Client } = transportTelemetry.measureSync(
+    'TEMPORAL_CLIENT_LOAD',
+    'Temporal client module load',
+    () => require('@temporalio/client'),
+  );
 
   console.log('');
   console.log(`[SkyCommand Host Agent] Dispatching ${TOOL_CODE} to host task queue ${hostTaskQueue}`);
@@ -568,25 +579,37 @@ async function executeLocalRepositorySyncViaHostAgent(args = []) {
   console.log(`[SkyCommand Host Agent] workflowId=${workflowId}`);
 
   let connection = null;
+  let routedResult = null;
+  let routedError = null;
+
   try {
-    connection = await Connection.connect({ address: temporal.address });
+    connection = await transportTelemetry.measure(
+      'TEMPORAL_CONNECTION',
+      'Temporal connection',
+      () => Connection.connect({ address: temporal.address }),
+    );
     const client = new Client({
       connection,
       namespace: temporal.namespace,
     });
-    const response = await client.workflow.execute('skyCommandHostAgentToolWorkflow', {
-      taskQueue: temporal.taskQueue,
-      workflowId,
-      args: [
-        {
-          toolCode: TOOL_CODE,
-          repoName,
-          expectedLocalDevSha,
-          expectedSynchronizedHeadSha,
-          hostTaskQueue,
-        },
-      ],
-    });
+    const response = await transportTelemetry.measure(
+      'HOST_WORKFLOW_DISPATCH_WAIT',
+      'Host workflow dispatch + wait',
+      () =>
+        client.workflow.execute('skyCommandHostAgentToolWorkflow', {
+          taskQueue: temporal.taskQueue,
+          workflowId,
+          args: [
+            {
+              toolCode: TOOL_CODE,
+              repoName,
+              expectedLocalDevSha,
+              expectedSynchronizedHeadSha,
+              hostTaskQueue,
+            },
+          ],
+        }),
+    );
 
     if (!response?.ok) {
       const remoteError = response?.error || {};
@@ -604,33 +627,70 @@ async function executeLocalRepositorySyncViaHostAgent(args = []) {
       throw error;
     }
 
-    return {
+    routedResult = {
       ...(response.result || {}),
       transport: 'temporal_host_agent',
     };
   } catch (error) {
     if (error?.code && String(error.code).startsWith('LOCAL_REPOSITORY_SYNC_')) {
-      throw error;
+      routedError = error;
+    } else {
+      routedError = createSyncError(
+        'LOCAL_REPOSITORY_SYNC_HOST_AGENT_UNAVAILABLE',
+        `SkyCommand Host Agent dispatch failed: ${error?.message || String(error)}`,
+        {
+          ok: false,
+          outcome: 'FAILED',
+          repositoryCode: repoName || null,
+          expectedLocalDevSha,
+          expectedSynchronizedHeadSha,
+          profileCode: PROFILE_CODE,
+          transport: 'temporal_host_agent',
+        },
+      );
     }
-
-    throw createSyncError(
-      'LOCAL_REPOSITORY_SYNC_HOST_AGENT_UNAVAILABLE',
-      `SkyCommand Host Agent dispatch failed: ${error?.message || String(error)}`,
-      {
-        ok: false,
-        outcome: 'FAILED',
-        repositoryCode: repoName || null,
-        expectedLocalDevSha,
-        expectedSynchronizedHeadSha,
-        profileCode: PROFILE_CODE,
-        transport: 'temporal_host_agent',
-      },
-    );
   } finally {
     if (connection) {
-      await connection.close();
+      try {
+        await transportTelemetry.measure(
+          'TEMPORAL_CONNECTION_SHUTDOWN',
+          'Temporal connection shutdown',
+          () => connection.close(),
+        );
+      } catch (closeError) {
+        if (!routedError) {
+          routedError = createSyncError(
+            'LOCAL_REPOSITORY_SYNC_HOST_AGENT_UNAVAILABLE',
+            `SkyCommand Host Agent connection shutdown failed: ${closeError?.message || String(closeError)}`,
+            {
+              ok: false,
+              outcome: 'FAILED',
+              repositoryCode: repoName || null,
+              expectedLocalDevSha,
+              expectedSynchronizedHeadSha,
+              profileCode: PROFILE_CODE,
+              transport: 'temporal_host_agent',
+            },
+          );
+        }
+      }
     }
   }
+
+  const transportSnapshot = transportTelemetry.snapshot();
+  if (routedError) {
+    routedError.transportTelemetry = transportSnapshot;
+    routedError.syncResult = {
+      ...(routedError.syncResult || {}),
+      transportTelemetry: transportSnapshot,
+    };
+    throw routedError;
+  }
+
+  return {
+    ...routedResult,
+    transportTelemetry: transportSnapshot,
+  };
 }
 
 async function executeLocalRepositorySyncRouted(args = []) {

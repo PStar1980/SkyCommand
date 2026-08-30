@@ -113,7 +113,11 @@ function formatTelemetryShare(durationMs, totalMs) {
   return `${((duration / total) * 100).toFixed(1)}%`;
 }
 
-export function PerformanceTelemetryTable({ telemetry }) {
+export function PerformanceTelemetryTable({
+  telemetry,
+  title = 'Performance telemetry',
+  note = 'Instrumented total covers tool internals. Workflow node duration can also include process-wrapper, structured-result transport, and orchestration overhead.',
+}) {
   const data = getSafeObject(telemetry);
   const phases = getSafeArray(data.phases);
   const instrumentedTotalMs = Number(data.instrumentedTotalMs);
@@ -124,7 +128,7 @@ export function PerformanceTelemetryTable({ telemetry }) {
 
   return (
     <>
-      <div className="sky-page-kicker mb-2">Performance telemetry</div>
+      <div className="sky-page-kicker mb-2">{title}</div>
       <div className="table-responsive sky-table-card">
         <table className="table table-sm sky-table align-middle mb-0">
           <thead>
@@ -150,11 +154,18 @@ export function PerformanceTelemetryTable({ telemetry }) {
           </tbody>
         </table>
       </div>
-      <div className="small sky-muted mt-2 mb-3">
-        Instrumented total covers tool internals. Workflow node duration can also include
-        process-wrapper, structured-result transport, and orchestration overhead.
-      </div>
+      <div className="small sky-muted mt-2 mb-3">{note}</div>
     </>
+  );
+}
+
+export function TransportTelemetryTable({ telemetry }) {
+  return (
+    <PerformanceTelemetryTable
+      telemetry={telemetry}
+      title="Transport / dispatch telemetry"
+      note="Instrumented total covers the Docker-to-Host-Agent Temporal dispatch envelope, including client setup, connection, workflow wait, and connection shutdown. Compare it with the host tool telemetry and workflow node duration to isolate wrapper overhead."
+    />
   );
 }
 
@@ -1070,6 +1081,7 @@ function GitCommitOutput({ toolResult }) {
         </table>
       </div>
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <TransportTelemetryTable telemetry={output.transportTelemetry} />
       <div className="sky-page-kicker mb-2">Change set</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -1191,6 +1203,7 @@ function GitLocalSyncOutput({ toolResult }) {
       </div>
 
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <TransportTelemetryTable telemetry={output.transportTelemetry} />
 
       <div className="sky-page-kicker mb-2">Safety guardrails</div>
       <div className="table-responsive sky-table-card mb-3">

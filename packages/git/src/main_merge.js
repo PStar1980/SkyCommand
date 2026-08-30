@@ -256,16 +256,6 @@ function tryGetGitOutput(args, cwd) {
   return result.status === 0 ? String(result.stdout || '').trim() : null;
 }
 
-function isGitAncestor(ancestorRef, descendantRef, cwd) {
-  const result = executeGit(['merge-base', '--is-ancestor', ancestorRef, descendantRef], cwd, {
-    capture: true,
-    printCommand: false,
-    allowedStatuses: [0, 1],
-  });
-
-  return result.status === 0;
-}
-
 function getTreeSha(ref, cwd) {
   return getGitOutput(['rev-parse', `${ref}^{tree}`], cwd);
 }
@@ -523,20 +513,37 @@ async function executeMainMerge(args = []) {
     }
   }
 
-  const commitsApplied = telemetry.measureSync('LINEAGE_ANALYSIS', 'Fast-forward lineage analysis', () => {
-    if (!isGitAncestor(remoteDevHeadBeforeSha, mainHeadSha, repo.rootPath)) {
-      fail(
-        `origin/${repo.devBranch} cannot be fast-forwarded to origin/${repo.mainBranch}. The branches have diverged and require manual reconciliation.`,
-      );
-    }
-
-    return Number(
-      getGitOutput(
-        ['rev-list', '--count', `${remoteDevHeadBeforeSha}..${mainHeadSha}`],
+  const commitsApplied = telemetry.measureSync(
+    'LINEAGE_ANALYSIS',
+    'Fast-forward lineage analysis',
+    () => {
+      // One symmetric-difference graph walk proves fast-forward safety and returns
+      // the commit count at the same time. `left` is commits unique to dev; any
+      // non-zero value means dev cannot be fast-forwarded to main. `right` is the
+      // exact number of main commits that will advance dev.
+      const output = getGitOutput(
+        ['rev-list', '--left-right', '--count', `${remoteDevHeadBeforeSha}...${mainHeadSha}`],
         repo.rootPath,
-      ) || 0,
-    );
-  });
+      );
+      const [leftRaw, rightRaw] = String(output || '').trim().split(/\s+/);
+      const devOnlyCommits = Number.parseInt(leftRaw, 10);
+      const mainOnlyCommits = Number.parseInt(rightRaw, 10);
+
+      if (!Number.isFinite(devOnlyCommits) || !Number.isFinite(mainOnlyCommits)) {
+        fail(
+          `Unable to calculate fast-forward lineage for origin/${repo.devBranch} and origin/${repo.mainBranch}.`,
+        );
+      }
+
+      if (devOnlyCommits > 0) {
+        fail(
+          `origin/${repo.devBranch} cannot be fast-forwarded to origin/${repo.mainBranch}. The branches have diverged and require manual reconciliation.`,
+        );
+      }
+
+      return mainOnlyCommits;
+    },
+  );
   const devAdvanced = remoteDevHeadBeforeSha !== mainHeadSha;
 
   if (devAdvanced) {

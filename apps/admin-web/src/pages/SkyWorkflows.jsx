@@ -9,6 +9,7 @@ import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import {
   ArchiveBuildBreakdownTable,
   PerformanceTelemetryTable,
+  TransportTelemetryTable,
 } from '../components/tools/StructuredToolResultDisplay.jsx';
 import workflowService from '../services/workflowService';
 import {
@@ -2323,6 +2324,7 @@ function GitCommitOutput({ toolResult }) {
         </table>
       </div>
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <TransportTelemetryTable telemetry={output.transportTelemetry} />
       <div className="sky-page-kicker mb-2">Change set</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -2445,6 +2447,7 @@ function GitLocalSyncOutput({ toolResult }) {
       </div>
 
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <TransportTelemetryTable telemetry={output.transportTelemetry} />
 
       <div className="sky-page-kicker mb-2">Safety guardrails</div>
       <div className="table-responsive sky-table-card mb-3">
