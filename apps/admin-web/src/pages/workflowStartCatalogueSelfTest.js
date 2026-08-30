@@ -132,8 +132,14 @@ assert(
 
 assert(
   workflowSource.includes('TransportTelemetryTable') &&
-    (workflowSource.match(/<TransportTelemetryTable telemetry=\{output\.transportTelemetry\} \/>/g) || []).length >= 2,
-  'Dev Commit and Local Repository Sync must render transport / dispatch telemetry in focused node output.',
+    (workflowSource.match(/<TransportTelemetryTable telemetry=\{output\.transportTelemetry\} \/>/g) || []).length >= 3,
+  'Dev Commit, Repo Merge / Sync, and Local Repository Sync must render transport / dispatch telemetry in focused node output.',
+)
+
+assert(
+  workflowSource.includes('ProcessEnvelopeTelemetryTable') &&
+    (workflowSource.match(/<ProcessEnvelopeTelemetryTable toolResult=\{toolResult\} \/>/g) || []).length >= 3,
+  'Host-routed Git tools must render process-envelope telemetry in focused node output.',
 );
 
 assert(

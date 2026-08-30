@@ -8,7 +8,7 @@ function normalizeDurationMs(value) {
 function normalizePerformanceTelemetry(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
 
-  return {
+  const normalized = {
     instrumentedTotalMs: normalizeDurationMs(value.instrumentedTotalMs),
     phases: Array.isArray(value.phases)
       ? value.phases
@@ -20,6 +20,15 @@ function normalizePerformanceTelemetry(value) {
           }))
       : [],
   };
+
+  if (Number.isFinite(Number(value.processUptimeAtStartMs))) {
+    normalized.processUptimeAtStartMs = normalizeDurationMs(value.processUptimeAtStartMs);
+  }
+  if (Number.isFinite(Number(value.processUptimeAtCompleteMs))) {
+    normalized.processUptimeAtCompleteMs = normalizeDurationMs(value.processUptimeAtCompleteMs);
+  }
+
+  return normalized;
 }
 
 function createGitPerformanceTelemetry() {

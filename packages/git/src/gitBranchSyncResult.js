@@ -27,6 +27,7 @@ function normalizeError(error) {
 function createGitBranchSyncToolResult(result = {}) {
   const success = result.ok !== false;
   const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
+  const transportTelemetry = normalizePerformanceTelemetry(result.transportTelemetry);
   const outcome = String(
     result.outcome || (success ? 'SYNCHRONIZED' : 'FAILED'),
   ).toUpperCase();
@@ -90,6 +91,7 @@ function createGitBranchSyncToolResult(result = {}) {
       completedAt: nullable(result.completedAt),
       durationMs: normalizeNumber(result.durationMs),
       ...(performanceTelemetry ? { performanceTelemetry } : {}),
+      ...(transportTelemetry ? { transportTelemetry } : {}),
       steps: {
         fetched: Boolean(result.fetched),
         mainBranchSelected: Boolean(result.mainBranchSelected),
@@ -128,6 +130,7 @@ function createGitBranchSyncFailureToolResult({ error, startedAt, completedAt } 
     completedAt: finishedAt,
     durationMs: Math.max(0, new Date(finishedAt).getTime() - new Date(beganAt).getTime()),
     error,
+    transportTelemetry: error?.transportTelemetry,
   });
 }
 

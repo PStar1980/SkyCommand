@@ -526,6 +526,7 @@ function updateCheckedOutBranch({ branch, targetSha, cwd }) {
 }
 
 async function executeLocalRepositorySyncViaHostAgent(args = []) {
+  const transportStartedUptimeMs = process.uptime() * 1000;
   const transportTelemetry = createGitPerformanceTelemetry();
   const positional = (Array.isArray(args) ? args : [])
     .map(String)
@@ -677,7 +678,11 @@ async function executeLocalRepositorySyncViaHostAgent(args = []) {
     }
   }
 
-  const transportSnapshot = transportTelemetry.snapshot();
+  const transportSnapshot = {
+    ...transportTelemetry.snapshot(),
+    processUptimeAtStartMs: transportStartedUptimeMs,
+    processUptimeAtCompleteMs: process.uptime() * 1000,
+  };
   if (routedError) {
     routedError.transportTelemetry = transportSnapshot;
     routedError.syncResult = {

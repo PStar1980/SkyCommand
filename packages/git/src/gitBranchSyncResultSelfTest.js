@@ -66,6 +66,14 @@ function run() {
         { code: 'REMOTE_DEV_PUSH', label: 'Remote development fast-forward', durationMs: 80 },
       ],
     },
+    transportTelemetry: {
+      instrumentedTotalMs: 150,
+      processUptimeAtStartMs: 20,
+      processUptimeAtCompleteMs: 170,
+      phases: [
+        { code: 'HOST_WORKFLOW_DISPATCH_WAIT', label: 'Host workflow dispatch + wait', durationMs: 150 },
+      ],
+    },
   });
 
   assert.equal(synchronized.outputType, GIT_BRANCH_SYNC_OUTPUT_TYPE);
@@ -79,6 +87,8 @@ function run() {
   assert.equal(synchronized.output.synchronizedHeadSha, '2'.repeat(40));
   assert.equal(synchronized.output.performanceTelemetry.instrumentedTotalMs, 120);
   assert.equal(synchronized.output.performanceTelemetry.phases.length, 2);
+  assert.equal(synchronized.output.transportTelemetry.instrumentedTotalMs, 150);
+  assert.equal(synchronized.output.transportTelemetry.processUptimeAtStartMs, 20);
   assert.equal(synchronized.metadata.executionTarget, 'DOCKER');
   assert.equal(synchronized.metadata.transport, 'git_cli');
   validateToolResult(synchronized, {
@@ -131,6 +141,8 @@ function run() {
 
   const mainMergeSource = fs.readFileSync(path.resolve(__dirname, 'main_merge.js'), 'utf8');
   assert.match(mainMergeSource, /rev-list', '--left-right', '--count'/);
+  assert.match(mainMergeSource, /executeMainMergeViaHostAgent/);
+  assert.match(mainMergeSource, /executeMainMergeRouted/);
   assert.doesNotMatch(mainMergeSource, /merge-base', '--is-ancestor'/);
   assert.doesNotMatch(mainMergeSource, /rev-list', '--count'/);
 

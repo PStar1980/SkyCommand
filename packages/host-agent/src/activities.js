@@ -1,6 +1,7 @@
 const os = require('node:os');
 
 const { executeDevCommit } = require('../../git/src/dev_commit');
+const { executeMainMerge } = require('../../git/src/main_merge');
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
 const {
@@ -22,6 +23,7 @@ const {
 
 const HOST_AGENT_HEALTH_TOOL_CODE = '__health';
 const DEV_COMMIT_TOOL_CODE = 'dev_commit';
+const MAIN_MERGE_TOOL_CODE = 'main_merge';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 
@@ -232,6 +234,35 @@ async function executeSkyCommandHostToolActivity(input = {}) {
     }
   }
 
+  if (toolCode === MAIN_MERGE_TOOL_CODE) {
+    try {
+      const result = await executeMainMerge(
+        [normalizeText(input.repoName), normalizeText(input.tagName)],
+        {
+          remoteOnly: true,
+          executionTarget: 'HOST',
+          transport: 'temporal_host_agent',
+        },
+      );
+
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+          executionTarget: 'HOST',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
   if (toolCode !== LOCAL_REPOSITORY_SYNC_TOOL_CODE) {
     return {
       ok: false,
@@ -278,6 +309,7 @@ module.exports = {
   DEV_COMMIT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
   LOCAL_REPOSITORY_SYNC_TOOL_CODE,
+  MAIN_MERGE_TOOL_CODE,
   executeSkyCommandHostToolActivity,
   serializeError,
 };

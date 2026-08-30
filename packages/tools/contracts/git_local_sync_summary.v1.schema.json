@@ -401,6 +401,14 @@
               }
             }
           }
+        },
+        "processUptimeAtStartMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "processUptimeAtCompleteMs": {
+          "type": "number",
+          "minimum": 0
         }
       }
     }

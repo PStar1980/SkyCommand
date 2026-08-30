@@ -169,6 +169,48 @@ export function TransportTelemetryTable({ telemetry }) {
   );
 }
 
+export function ProcessEnvelopeTelemetryTable({ toolResult }) {
+  const metadata = getSafeObject(toolResult?.metadata);
+  const telemetry = getSafeObject(metadata.processEnvelopeTelemetry);
+  const rows = [
+    ['Child process wall clock', telemetry.childProcessDurationMs],
+    ['Process start → transport start', telemetry.processStartToTransportStartMs],
+    ['Transport instrumented total', telemetry.transportInstrumentedTotalMs],
+    ['Transport complete → process close', telemetry.transportCompleteToProcessCloseMs],
+    ['Uninstrumented process envelope', telemetry.uninstrumentedProcessEnvelopeMs],
+  ].filter(([, value]) => Number.isFinite(Number(value)));
+
+  if (rows.length === 0) return null;
+
+  return (
+    <>
+      <div className="sky-page-kicker mb-2">Process envelope telemetry</div>
+      <div className="table-responsive sky-table-card">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, value]) => (
+              <tr key={label}>
+                <td>{label}</td>
+                <td>{formatDuration(value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="small sky-muted mt-2 mb-3">
+        Child-process timing is measured by the SkyCommand process wrapper. The pre/post rows isolate
+        startup and shutdown time outside the instrumented Host Agent transport envelope.
+      </div>
+    </>
+  );
+}
+
 export function ArchiveBuildBreakdownTable({ telemetry }) {
   const data = getSafeObject(telemetry);
   const breakdown = getSafeObject(data.archiveBuildBreakdown);
@@ -1082,6 +1124,7 @@ function GitCommitOutput({ toolResult }) {
       </div>
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
       <TransportTelemetryTable telemetry={output.transportTelemetry} />
+      <ProcessEnvelopeTelemetryTable toolResult={toolResult} />
       <div className="sky-page-kicker mb-2">Change set</div>
       <div className="table-responsive sky-table-card mb-3">
         <table className="table table-sm sky-table align-middle mb-0">
@@ -1204,6 +1247,7 @@ function GitLocalSyncOutput({ toolResult }) {
 
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
       <TransportTelemetryTable telemetry={output.transportTelemetry} />
+      <ProcessEnvelopeTelemetryTable toolResult={toolResult} />
 
       <div className="sky-page-kicker mb-2">Safety guardrails</div>
       <div className="table-responsive sky-table-card mb-3">
@@ -1367,6 +1411,8 @@ function GitBranchSyncOutput({ toolResult }) {
       </div>
 
       <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <TransportTelemetryTable telemetry={output.transportTelemetry} />
+      <ProcessEnvelopeTelemetryTable toolResult={toolResult} />
 
       <div className="sky-page-kicker mb-2">Branch head movement</div>
       <div className="table-responsive sky-table-card mb-3">
