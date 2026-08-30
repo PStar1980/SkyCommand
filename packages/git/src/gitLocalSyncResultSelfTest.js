@@ -133,6 +133,14 @@ function run() {
   assert.match(source, /HOST_WORKFLOW_DISPATCH_WAIT/);
   assert.match(source, /TEMPORAL_CONNECTION_SHUTDOWN/);
   assert.match(source, /transportTelemetry: transportSnapshot/);
+  assert.match(source, /APPROVED_OBJECT_AVAILABILITY/);
+  assert.match(source, /skipping redundant fetch/i);
+  assert.match(source, /hasCommitObject\(expectedSynchronizedHeadSha/);
+  assert.match(source, /state\.remoteMainBeforeSha \|\|= remoteMainImmediatelyBeforeMutation/);
+  assert.match(source, /state\.safeguards\.remoteTargetMatched = true/);
+  assert.match(source, /async function runCliEntrypoint/);
+  assert.match(source, /process\.exit\(process\.exitCode \|\| 0\)/);
+  assert.match(source, /flushWritableStream\(process\.stdout\)/);
 
   console.log('[SkyCommand] Guarded host Git local synchronization self-test passed.');
 }

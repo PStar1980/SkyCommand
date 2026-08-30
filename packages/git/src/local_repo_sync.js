@@ -199,6 +199,15 @@ function isGitAncestor(ancestorRef, descendantRef, cwd) {
   return result.status === 0;
 }
 
+function hasCommitObject(commitSha, cwd) {
+  const result = executeGit(['cat-file', '-e', `${commitSha}^{commit}`], cwd, {
+    capture: true,
+    allowedStatuses: [0, 1, 128],
+    printCommand: false,
+  });
+  return result.status === 0;
+}
+
 function getRemoteBranchShas(remote, branches, cwd) {
   const normalizedBranches = [...new Set((branches || [])
     .map((branch) => String(branch || '').trim())
@@ -826,48 +835,62 @@ async function executeLocalRepositorySync(args = []) {
       block('LOCAL_DEV_MISSING', `Local ${repo.devBranch} branch does not exist.`, state);
     }
 
-    // Fetch is the first remote operation and does not mutate local main/dev. The
-    // resulting origin/* refs therefore serve as the authoritative initial remote
-    // snapshot. A separate pre-fetch ls-remote round trip was redundant; we still
-    // re-verify the remote immediately before mutation and again after mutation.
-    telemetry.measureSync('REMOTE_FETCH', 'Remote fetch / prune', () => {
-      executeGit(['fetch', '--prune', '--no-tags', 'origin'], repo.rootPath, {
-        capture: true,
-        echoOutput: true,
-      });
-    });
-    state.steps.fetched = true;
-
-    const { trackingMainSha, trackingDevSha } = telemetry.measureSync(
-      'REMOTE_TRACKING_INSPECTION',
-      'Fetched remote-tracking ref inspection',
-      () => {
-        const mainRef = `refs/remotes/origin/${repo.mainBranch}`;
-        const devRef = `refs/remotes/origin/${repo.devBranch}`;
-        const trackingRefs = getRefShas([mainRef, devRef], repo.rootPath);
-        return {
-          trackingMainSha: trackingRefs[mainRef],
-          trackingDevSha: trackingRefs[devRef],
-        };
-      },
+    // Main Merge now runs through the Host Agent in remote-only mode immediately
+    // before this node. That operation transfers the approved Git objects into the
+    // host repository object database without rewriting refs/remotes/*. Re-fetching
+    // the same objects here is therefore unnecessary in the normal promotion path.
+    // Standalone/retry execution remains safe: if the approved commit object is not
+    // present, fall back to the original fetch + tracking-ref verification path.
+    const approvedObjectAvailable = telemetry.measureSync(
+      'APPROVED_OBJECT_AVAILABILITY',
+      'Approved commit object availability',
+      () => hasCommitObject(expectedSynchronizedHeadSha, repo.rootPath),
     );
-    if (!trackingMainSha || !trackingDevSha) {
-      block('REMOTE_TRACKING_MISSING', 'Fetched origin/main or origin/dev tracking ref is missing.', state);
-    }
-    state.remoteMainBeforeSha = trackingMainSha;
-    state.remoteDevBeforeSha = trackingDevSha;
-    state.steps.remoteInspected = true;
-    if (
-      trackingMainSha !== expectedSynchronizedHeadSha ||
-      trackingDevSha !== expectedSynchronizedHeadSha
-    ) {
-      block(
-        'REMOTE_TRACKING_MISMATCH',
-        `Fetched remote-tracking refs do not match approved head ${expectedSynchronizedHeadSha}. origin/${repo.mainBranch}=${trackingMainSha}; origin/${repo.devBranch}=${trackingDevSha}.`,
-        state,
+
+    if (!approvedObjectAvailable) {
+      telemetry.measureSync('REMOTE_FETCH', 'Remote fetch / prune', () => {
+        executeGit(['fetch', '--prune', '--no-tags', 'origin'], repo.rootPath, {
+          capture: true,
+          echoOutput: true,
+        });
+      });
+      state.steps.fetched = true;
+
+      const { trackingMainSha, trackingDevSha } = telemetry.measureSync(
+        'REMOTE_TRACKING_INSPECTION',
+        'Fetched remote-tracking ref inspection',
+        () => {
+          const mainRef = `refs/remotes/origin/${repo.mainBranch}`;
+          const devRef = `refs/remotes/origin/${repo.devBranch}`;
+          const trackingRefs = getRefShas([mainRef, devRef], repo.rootPath);
+          return {
+            trackingMainSha: trackingRefs[mainRef],
+            trackingDevSha: trackingRefs[devRef],
+          };
+        },
+      );
+      if (!trackingMainSha || !trackingDevSha) {
+        block('REMOTE_TRACKING_MISSING', 'Fetched origin/main or origin/dev tracking ref is missing.', state);
+      }
+      state.remoteMainBeforeSha = trackingMainSha;
+      state.remoteDevBeforeSha = trackingDevSha;
+      state.steps.remoteInspected = true;
+      if (
+        trackingMainSha !== expectedSynchronizedHeadSha ||
+        trackingDevSha !== expectedSynchronizedHeadSha
+      ) {
+        block(
+          'REMOTE_TRACKING_MISMATCH',
+          `Fetched remote-tracking refs do not match approved head ${expectedSynchronizedHeadSha}. origin/${repo.mainBranch}=${trackingMainSha}; origin/${repo.devBranch}=${trackingDevSha}.`,
+          state,
+        );
+      }
+      state.safeguards.remoteTargetMatched = true;
+    } else {
+      console.log(
+        '⚡ Approved synchronized commit is already available locally; skipping redundant fetch and deferring authoritative remote-head verification to the compare-and-swap boundary.',
       );
     }
-    state.safeguards.remoteTargetMatched = true;
 
     const devBaseline = telemetry.measureSync('LINEAGE_VALIDATION', 'Approved lineage validation', () => {
       assertCommitExists(expectedLocalDevSha, repo.rootPath, 'Trusted local-dev baseline', state);
@@ -964,6 +987,9 @@ async function executeLocalRepositorySync(args = []) {
     const remoteDevImmediatelyBeforeMutation =
       remoteHeadsImmediatelyBeforeMutation[repo.devBranch];
     state.steps.remoteReverified = true;
+    state.steps.remoteInspected = true;
+    state.remoteMainBeforeSha ||= remoteMainImmediatelyBeforeMutation;
+    state.remoteDevBeforeSha ||= remoteDevImmediatelyBeforeMutation;
     if (
       remoteMainImmediatelyBeforeMutation !== expectedSynchronizedHeadSha ||
       remoteDevImmediatelyBeforeMutation !== expectedSynchronizedHeadSha
@@ -975,6 +1001,7 @@ async function executeLocalRepositorySync(args = []) {
       );
     }
     state.safeguards.remoteReverifiedBeforeMutation = true;
+    state.safeguards.remoteTargetMatched = true;
 
     const alreadySynchronized =
       state.localMainBeforeSha === expectedSynchronizedHeadSha &&
@@ -1131,7 +1158,35 @@ async function main(args = process.argv.slice(2)) {
   }
 }
 
-if (require.main === module) main();
+async function flushWritableStream(stream) {
+  if (!stream || stream.destroyed || stream.writableEnded) return;
+  await new Promise((resolve) => {
+    stream.write('', () => resolve());
+  });
+}
+
+async function runCliEntrypoint(args = process.argv.slice(2)) {
+  try {
+    await main(args);
+  } catch (error) {
+    console.error(error?.stack || error?.message || String(error));
+    process.exitCode = 1;
+  }
+
+  if (!isDockerRuntime()) return;
+
+  // The routed Docker CLI has no work left after ToolResult emission, DB-pool
+  // shutdown, and stdout/stderr flush. Explicitly terminate here instead of
+  // waiting for unrelated native/module handles to drain the event loop. The
+  // Host Agent itself is unaffected because it imports executeLocalRepositorySync
+  // and never executes this CLI entrypoint.
+  await Promise.all([flushWritableStream(process.stdout), flushWritableStream(process.stderr)]);
+  process.exit(process.exitCode || 0);
+}
+
+if (require.main === module) {
+  void runCliEntrypoint();
+}
 
 module.exports = {
   OUTPUT_TYPE,
@@ -1140,7 +1195,9 @@ module.exports = {
   executeLocalRepositorySyncRouted,
   executeLocalRepositorySyncViaHostAgent,
   main,
+  runCliEntrypoint,
   getRemoteBranchShas,
+  hasCommitObject,
   normalizeSha,
   printLocalRepositorySyncResult,
 };
