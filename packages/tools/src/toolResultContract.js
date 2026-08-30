@@ -268,6 +268,9 @@ function createLegacyToolResult({
   toolCode = null,
   status = null,
   durationMs = null,
+  structuredOutputStatus = null,
+  structuredOutputExpectedType = null,
+  structuredOutputError = null,
 } = {}) {
   return validateToolResult({
     schemaVersion: TOOL_RESULT_SCHEMA_VERSION,
@@ -280,6 +283,11 @@ function createLegacyToolResult({
       status,
       durationMs,
       structuredOutputAvailable: false,
+      ...(structuredOutputStatus ? { structuredOutputStatus: String(structuredOutputStatus) } : {}),
+      ...(structuredOutputExpectedType
+        ? { structuredOutputExpectedType: String(structuredOutputExpectedType) }
+        : {}),
+      ...(structuredOutputError ? { structuredOutputError: String(structuredOutputError) } : {}),
     },
     warnings: [],
     error: success

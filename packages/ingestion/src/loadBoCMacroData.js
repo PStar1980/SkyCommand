@@ -10,7 +10,10 @@ const {
   getRunId,
   printPipelineResult,
 } = require('./core/cliOptions');
-const { runMacroIngestionCli } = require('./core/macroIngestionCli');
+const {
+  runMacroIngestionCli,
+  runMacroIngestionEntrypoint,
+} = require('./core/macroIngestionCli');
 const { executeProductionRecovery } = require('./recovery/productionRecovery');
 const bocAdapter = require('./adapters/bocAdapter');
 
@@ -51,7 +54,7 @@ function main(args = process.argv.slice(2), options = {}) {
 }
 
 if (require.main === module) {
-  main();
+  runMacroIngestionEntrypoint(() => main());
 }
 
 module.exports = {

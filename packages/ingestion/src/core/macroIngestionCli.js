@@ -11,6 +11,35 @@ const { writeToolResult } = require('../../../tools/src/toolResultTransport');
 
 const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
 
+const MACRO_CLI_KEEPALIVE_MS = 2_147_483_647;
+
+/**
+ * Keeps the short-lived ingestion CLI alive until its asynchronous ToolResult
+ * lifecycle has fully settled. Macro ingestion finishes with ledger/freshness
+ * work that can run on unref'ed PostgreSQL sockets (allowExitOnIdle=true).
+ * A bare top-level `main()` promise does not itself keep Node alive, so the
+ * process can otherwise report exit code 0 before the structured-result sidecar
+ * is emitted. The wrapper timeout remains the authoritative hang guard.
+ */
+function runMacroIngestionEntrypoint(run, { logger = console.error } = {}) {
+  if (typeof run !== 'function') {
+    throw new TypeError('runMacroIngestionEntrypoint requires a run function.');
+  }
+
+  const keepAlive = setTimeout(() => {}, MACRO_CLI_KEEPALIVE_MS);
+
+  return Promise.resolve()
+    .then(run)
+    .catch((error) => {
+      logger(`[Macro Ingestion] Unexpected CLI lifecycle failure: ${error?.stack || error?.message || String(error)}`);
+      process.exitCode = 1;
+      return null;
+    })
+    .finally(() => {
+      clearTimeout(keepAlive);
+    });
+}
+
 function hasFlag(args = [], name) {
   return args.includes(`--${name}`);
 }
@@ -130,4 +159,5 @@ module.exports = {
   getMacroToolCode,
   hasFlag,
   runMacroIngestionCli,
+  runMacroIngestionEntrypoint,
 };
