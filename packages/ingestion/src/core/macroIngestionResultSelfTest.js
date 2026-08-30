@@ -82,6 +82,26 @@ function run() {
       selectedIndicators: true,
       concurrency: 3,
       batchCount: 1,
+      performanceTelemetry: {
+        instrumentedTotalMs: 3000,
+        phases: [
+          { code: 'SOURCE_INGESTION_EXECUTION', label: 'Source ingestion execution', durationMs: 2800 },
+          { code: 'LEDGER_FRESHNESS_PERSISTENCE', label: 'Ingestion ledger / freshness persistence', durationMs: 200 },
+        ],
+        workloadBreakdown: {
+          instrumentedTotalMs: 2750,
+          concurrency: 3,
+          batchCount: 1,
+          phases: [
+            { code: 'SOURCE_REQUEST_POLICY_RESOLUTION', label: 'Source request policy resolution', durationMs: 25 },
+            { code: 'BATCH_EXECUTION', label: 'Concurrent indicator batch execution', durationMs: 2700 },
+          ],
+          cumulativeStageMs: { fetchMs: 1500, normalizeMs: 250, loadMs: 1000, cleanupMs: 50 },
+          slowestIndicators: [
+            { indicatorCode: 'CPIAUCSL', durationMs: 1200, fetchMs: 600, normalizeMs: 100, loadMs: 480, cleanupMs: 20 },
+          ],
+        },
+      },
       results,
     },
   });
@@ -93,6 +113,10 @@ function run() {
   assert.strictEqual(toolResult.output.indicators[0].outcome, 'UPDATED');
   assert.strictEqual(toolResult.output.indicators[1].outcome, 'UNCHANGED');
   assert.strictEqual(toolResult.output.indicators[2].outcome, 'FAILED');
+  assert.strictEqual(toolResult.output.performanceTelemetry.instrumentedTotalMs, 3000);
+  assert.strictEqual(toolResult.output.performanceTelemetry.phases.length, 2);
+  assert.strictEqual(toolResult.output.performanceTelemetry.workloadBreakdown.concurrency, 3);
+  assert.strictEqual(toolResult.output.performanceTelemetry.workloadBreakdown.slowestIndicators[0].indicatorCode, 'CPIAUCSL');
   assert.ok(!Object.prototype.hasOwnProperty.call(toolResult, 'stdoutPreview'));
 
   console.log('[SkyCommand] Macro ingestion result self-test passed.');

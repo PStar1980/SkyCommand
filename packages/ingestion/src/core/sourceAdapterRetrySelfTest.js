@@ -133,6 +133,13 @@ async function testSyntheticAdapter() {
     assert.strictEqual(result.summary.total, 1);
     assert.strictEqual(result.results[0].outcome, 'UPDATED');
     assert.strictEqual(result.results[0].attempts.length, 1);
+    assert.ok(result.performanceTelemetry.workloadBreakdown.instrumentedTotalMs >= 0);
+    assert.strictEqual(result.performanceTelemetry.workloadBreakdown.concurrency, 1);
+    assert.strictEqual(result.performanceTelemetry.workloadBreakdown.batchCount, 1);
+    assert.strictEqual(result.performanceTelemetry.workloadBreakdown.phases[0].code, 'SOURCE_REQUEST_POLICY_RESOLUTION');
+    assert.ok(result.performanceTelemetry.workloadBreakdown.cumulativeStageMs.fetchMs >= 0);
+    assert.ok(result.performanceTelemetry.workloadBreakdown.cumulativeStageMs.loadMs >= 0);
+    assert.strictEqual(result.performanceTelemetry.workloadBreakdown.slowestIndicators[0].indicatorCode, 'ASSET_A');
 
     const generic = fromAdapterBatchResult(result, {
       domainCode: 'TEST_DOMAIN',

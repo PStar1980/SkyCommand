@@ -2,6 +2,7 @@ const {
   TOOL_RESULT_SCHEMA_VERSION,
   validateToolResult,
 } = require('../../../tools/src/toolResultContract');
+const { normalizeMacroPerformanceTelemetry } = require('./macroIngestionPerformance');
 
 const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
 const MACRO_INGESTION_OUTCOMES = new Set(['UPDATED', 'UNCHANGED', 'FAILED', 'PARTIAL']);
@@ -139,6 +140,7 @@ function getBatchDurationMs(startedAt, completedAt) {
 
 function createMacroIngestionToolResult({ sourceCode, batchResult = {}, message } = {}) {
   const { indicators, totals } = summarizeMacroIngestionResults(batchResult.results || []);
+  const performanceTelemetry = normalizeMacroPerformanceTelemetry(batchResult.performanceTelemetry);
   const outcome = determineBatchOutcome(totals);
   const failedIndicators = indicators
     .filter((indicator) => indicator.outcome === 'FAILED')
@@ -165,6 +167,7 @@ function createMacroIngestionToolResult({ sourceCode, batchResult = {}, message 
       startedAt,
       completedAt,
       durationMs: getBatchDurationMs(startedAt, completedAt),
+      ...(performanceTelemetry ? { performanceTelemetry } : {}),
       totals,
       indicators,
     },
@@ -185,8 +188,15 @@ function createMacroIngestionToolResult({ sourceCode, batchResult = {}, message 
   });
 }
 
-function createMacroIngestionFailureToolResult({ sourceCode, error, startedAt, completedAt } = {}) {
+function createMacroIngestionFailureToolResult({
+  sourceCode,
+  error,
+  startedAt,
+  completedAt,
+  performanceTelemetry,
+} = {}) {
   const normalizedSourceCode = String(sourceCode || 'UNKNOWN').toUpperCase();
+  const normalizedPerformanceTelemetry = normalizeMacroPerformanceTelemetry(performanceTelemetry);
   const safeError = normalizeError(error);
   const finishedAt = completedAt || new Date().toISOString();
   const beganAt = startedAt || finishedAt;
@@ -203,6 +213,7 @@ function createMacroIngestionFailureToolResult({ sourceCode, error, startedAt, c
       startedAt: beganAt,
       completedAt: finishedAt,
       durationMs: getBatchDurationMs(beganAt, finishedAt),
+      ...(normalizedPerformanceTelemetry ? { performanceTelemetry: normalizedPerformanceTelemetry } : {}),
       totals: {
         indicatorsRequested: 0,
         indicatorsSucceeded: 0,

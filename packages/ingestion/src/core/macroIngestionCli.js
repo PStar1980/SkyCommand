@@ -8,6 +8,7 @@ const {
   persistMacroToolResultSafely,
 } = require('../ledger/ingestionLedgerIntegration');
 const { writeToolResult } = require('../../../tools/src/toolResultTransport');
+const { createMacroPerformanceTelemetry } = require('./macroIngestionPerformance');
 
 const MACRO_INGESTION_OUTPUT_TYPE = 'macro_ingestion_summary.v1';
 
@@ -84,35 +85,56 @@ function runMacroIngestionCli({
 
   const toolCode = getMacroToolCode(normalizedSourceCode, explicitToolCode);
   let ledgerReference = null;
+  let failurePerformanceTelemetry = null;
   const executeWithLedger = async (executionArgs, toolContext) => {
+    const telemetry = createMacroPerformanceTelemetry();
     try {
-      const batchResult = await execute(executionArgs, toolContext);
-      if (batchResult?.recoveryLedgerReference?.persisted) {
-        ledgerReference = batchResult.recoveryLedgerReference;
-      } else {
-        ledgerReference = await persistMacroBatchResultSafely({
-          sourceCode: normalizedSourceCode,
-          toolCode,
-          batchResult,
-        }, logger);
-      }
+      const batchResult = await telemetry.measure(
+        'SOURCE_INGESTION_EXECUTION',
+        'Source ingestion execution',
+        () => execute(executionArgs, toolContext),
+      );
+      await telemetry.measure(
+        'LEDGER_FRESHNESS_PERSISTENCE',
+        'Ingestion ledger / freshness persistence',
+        async () => {
+          if (batchResult?.recoveryLedgerReference?.persisted) {
+            ledgerReference = batchResult.recoveryLedgerReference;
+          } else {
+            ledgerReference = await persistMacroBatchResultSafely({
+              sourceCode: normalizedSourceCode,
+              toolCode,
+              batchResult,
+            }, logger);
+          }
+        },
+      );
 
+      batchResult.performanceTelemetry = telemetry.snapshot({
+        workloadBreakdown: batchResult?.performanceTelemetry?.workloadBreakdown,
+      });
       return batchResult;
     } catch (error) {
-      const failureToolResult = createMacroIngestionFailureToolResult({
-        sourceCode: normalizedSourceCode,
-        error,
-        startedAt,
-        completedAt: new Date().toISOString(),
-      });
+      await telemetry.measure(
+        'LEDGER_FRESHNESS_PERSISTENCE',
+        'Ingestion ledger / freshness persistence',
+        async () => {
+          const failureToolResult = createMacroIngestionFailureToolResult({
+            sourceCode: normalizedSourceCode,
+            error,
+            startedAt,
+            completedAt: new Date().toISOString(),
+          });
 
-      ledgerReference = await persistMacroToolResultSafely({
-        sourceCode: normalizedSourceCode,
-        toolCode,
-        toolResult: failureToolResult,
-        refreshFreshness: true,
-      }, logger);
-
+          ledgerReference = await persistMacroToolResultSafely({
+            sourceCode: normalizedSourceCode,
+            toolCode,
+            toolResult: failureToolResult,
+            refreshFreshness: true,
+          }, logger);
+        },
+      );
+      failurePerformanceTelemetry = telemetry.snapshot();
       throw error;
     }
   };
@@ -135,6 +157,7 @@ function runMacroIngestionCli({
         error,
         startedAt,
         completedAt: new Date().toISOString(),
+        performanceTelemetry: failurePerformanceTelemetry,
       });
 
       return {
