@@ -138,6 +138,10 @@
         "rowsInserted": {
           "type": "number",
           "minimum": 0
+        },
+        "rowsUpdated": {
+          "type": "number",
+          "minimum": 0
         }
       }
     },
@@ -213,6 +217,10 @@
           "minimum": 0
         },
         "rowsInserted": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rowsUpdated": {
           "type": "number",
           "minimum": 0
         },

@@ -122,6 +122,7 @@ function printPipelineResult(result, args = []) {
   console.log(`  updated: ${summary.updated ?? 0}`);
   console.log(`  unchanged: ${summary.unchanged ?? 0}`);
   console.log(`  rows inserted: ${summary.rowsInserted ?? 0}`);
+  console.log(`  rows updated: ${summary.rowsUpdated ?? 0}`);
   if (result.recoveryExecution?.request) {
     console.log(`  recovery request: ${result.recoveryExecution.request.recoveryRequestId}`);
     console.log(`  resumed from run: ${result.recoveryExecution.request.originalRunId}`);

@@ -15,6 +15,7 @@ const {
 function macroResult({
   sourceCode,
   rowsInserted = 0,
+  rowsUpdated = 0,
   updated = 0,
   unchanged = 1,
   failed = 0,
@@ -27,7 +28,8 @@ function macroResult({
     outputType: 'macro_ingestion_summary.v1',
     output: {
       sourceCode,
-      outcome: failed > 0 ? 'PARTIAL' : rowsInserted > 0 ? 'UPDATED' : 'UNCHANGED',
+      outcome:
+        failed > 0 ? 'PARTIAL' : rowsInserted > 0 || rowsUpdated > 0 ? 'UPDATED' : 'UNCHANGED',
       selectedIndicators: false,
       durationMs,
       totals: {
@@ -39,6 +41,7 @@ function macroResult({
         rowsStaged: 100,
         rowsDetectedAsNew: rowsInserted,
         rowsInserted,
+        rowsUpdated,
       },
       indicators: [],
     },
@@ -609,6 +612,7 @@ function run() {
     fred_ingestion: macroResult({
       sourceCode: 'FRED',
       rowsInserted: 8,
+      rowsUpdated: 3,
       updated: 8,
       unchanged: 45,
       durationMs: 14000,
@@ -624,6 +628,7 @@ function run() {
   });
 
   assert.equal(canonical.output.totals.rowsInserted, 8);
+  assert.equal(canonical.output.totals.rowsUpdated, 3);
   assert.equal(canonical.result.outputType, 'macro_ingestion_summary.v1');
   assert.equal(canonical.status, 'COMPLETED');
 
@@ -642,6 +647,7 @@ function run() {
   assert.equal(rollup.totals.indicatorsUpdated, 8);
   assert.equal(rollup.totals.indicatorsUnchanged, 61);
   assert.equal(rollup.totals.rowsInserted, 8);
+  assert.equal(rollup.totals.rowsUpdated, 3);
   assert.equal(rollup.outcome, 'UPDATED');
 
   const keyOutputs = buildSummaryKeyOutputs(results);
@@ -652,6 +658,7 @@ function run() {
   ]);
   assert.equal(keyOutputs.boc_ingestion.output.sourceCode, 'BOC');
   assert.equal(keyOutputs.fred_ingestion.output.totals.rowsInserted, 8);
+  assert.equal(keyOutputs.fred_ingestion.output.totals.rowsUpdated, 3);
   assert.equal(
     Object.prototype.hasOwnProperty.call(keyOutputs.fred_ingestion.output, 'indicators'),
     false,

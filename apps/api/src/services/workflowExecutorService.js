@@ -6217,7 +6217,7 @@ function buildWorkflowRunSummaryOutput({ node = {}, parameters = {}, context = {
   }
 
   const macroSummary = macroIngestion
-    ? ` Macro ingestion: ${macroIngestion.sourceCount} source(s), ${macroIngestion.totals.indicatorsRequested} indicator(s), ${macroIngestion.totals.indicatorsUpdated} updated, ${macroIngestion.totals.indicatorsUnchanged} unchanged, ${macroIngestion.totals.indicatorsFailed} failed, ${macroIngestion.totals.rowsInserted} row(s) inserted.`
+    ? ` Macro ingestion: ${macroIngestion.sourceCount} source(s), ${macroIngestion.totals.indicatorsRequested} indicator(s), ${macroIngestion.totals.indicatorsUpdated} updated, ${macroIngestion.totals.indicatorsUnchanged} unchanged, ${macroIngestion.totals.indicatorsFailed} failed, ${macroIngestion.totals.rowsInserted} row(s) inserted, ${macroIngestion.totals.rowsUpdated} row(s) updated.`
     : '';
   const promotionApproval = gitPromotion?.approval?.decision
     ? ` Approval ${String(gitPromotion.approval.decision).toLowerCase()}${gitPromotion.approval.decidedByDisplayName ? ` by ${gitPromotion.approval.decidedByDisplayName}` : ''}.`

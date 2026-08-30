@@ -532,6 +532,7 @@ function MacroIngestionOutput({ toolResult }) {
               <th>Rows staged</th>
               <th>New rows</th>
               <th>Rows inserted</th>
+              <th>Rows updated</th>
             </tr>
           </thead>
           <tbody>
@@ -544,6 +545,7 @@ function MacroIngestionOutput({ toolResult }) {
               <td>{Number(totals.rowsStaged || 0).toLocaleString()}</td>
               <td>{Number(totals.rowsDetectedAsNew || 0).toLocaleString()}</td>
               <td className="fw-semibold">{Number(totals.rowsInserted || 0).toLocaleString()}</td>
+              <td className="fw-semibold">{Number(totals.rowsUpdated || 0).toLocaleString()}</td>
             </tr>
           </tbody>
         </table>
@@ -567,6 +569,7 @@ function MacroIngestionOutput({ toolResult }) {
                 <th>Indicator</th>
                 <th>Outcome</th>
                 <th>Rows inserted</th>
+                <th>Rows updated</th>
                 <th>New rows</th>
                 <th>Staging rows</th>
                 <th>Previous max</th>
@@ -586,6 +589,7 @@ function MacroIngestionOutput({ toolResult }) {
                     </span>
                   </td>
                   <td>{Number(indicator.rowsInserted || 0).toLocaleString()}</td>
+                  <td>{Number(indicator.rowsUpdated || 0).toLocaleString()}</td>
                   <td>{Number(indicator.newRowsDetected || 0).toLocaleString()}</td>
                   <td>{Number(indicator.stagingRows || 0).toLocaleString()}</td>
                   <td>

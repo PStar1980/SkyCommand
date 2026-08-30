@@ -10,6 +10,10 @@ const workflowSource = fs.readFileSync(
   path.join(repoRoot, 'apps/admin-web/src/pages/SkyWorkflows.jsx'),
   'utf8',
 );
+const structuredToolResultSource = fs.readFileSync(
+  path.join(repoRoot, 'apps/admin-web/src/components/tools/StructuredToolResultDisplay.jsx'),
+  'utf8',
+);
 const cssSource = fs.readFileSync(
   path.join(repoRoot, 'apps/admin-web/src/App.css'),
   'utf8',
@@ -133,6 +137,15 @@ assert(
   workflowSource.includes('MacroIngestionWorkloadTelemetryTable,') &&
     workflowSource.includes('<MacroIngestionWorkloadTelemetryTable telemetry={output.performanceTelemetry} />'),
   'Macro ingestion focused output must render source workload and slow-indicator telemetry.',
+);
+assert(
+  workflowSource.includes('totals.rowsUpdated') &&
+    workflowSource.includes('indicator.rowsUpdated') &&
+    workflowSource.includes('source.totals?.rowsUpdated') &&
+    workflowSource.includes('macroTotals.rowsUpdated') &&
+    structuredToolResultSource.includes('totals.rowsUpdated') &&
+    structuredToolResultSource.includes('indicator.rowsUpdated'),
+  'Macro ingestion tool and workflow summary structured output must expose row-level revision updates.',
 );
 
 assert(

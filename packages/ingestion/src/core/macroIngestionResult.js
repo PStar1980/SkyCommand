@@ -49,7 +49,9 @@ function determineIndicatorOutcome(result = {}) {
     return 'FAILED';
   }
 
-  return normalizeNumber(result.rowsInserted) > 0 ? 'UPDATED' : 'UNCHANGED';
+  return normalizeNumber(result.rowsInserted) > 0 || normalizeNumber(result.rowsUpdated) > 0
+    ? 'UPDATED'
+    : 'UNCHANGED';
 }
 
 function normalizeIndicatorResult(result = {}) {
@@ -63,6 +65,7 @@ function normalizeIndicatorResult(result = {}) {
     stagingMaxDate: normalizeNullableString(result.stagingMaxDate),
     newRowsDetected: normalizeNumber(result.newRowsDetected),
     rowsInserted: normalizeNumber(result.rowsInserted),
+    rowsUpdated: normalizeNumber(result.rowsUpdated),
     previousTargetMaxDate: normalizeNullableString(result.previousTargetMaxDate),
     sourceMaxDate: normalizeNullableString(result.sourceMaxDate || result.stagingMaxDate),
     currentTargetMaxDate: normalizeNullableString(result.currentTargetMaxDate),
@@ -95,6 +98,7 @@ function summarizeMacroIngestionResults(results = []) {
     summary.rowsStaged += indicator.stagingRows;
     summary.rowsDetectedAsNew += indicator.newRowsDetected;
     summary.rowsInserted += indicator.rowsInserted;
+    summary.rowsUpdated += indicator.rowsUpdated;
 
     return summary;
   }, {
@@ -106,6 +110,7 @@ function summarizeMacroIngestionResults(results = []) {
     rowsStaged: 0,
     rowsDetectedAsNew: 0,
     rowsInserted: 0,
+    rowsUpdated: 0,
   });
 
   return { indicators, totals };
@@ -223,6 +228,7 @@ function createMacroIngestionFailureToolResult({
         rowsStaged: 0,
         rowsDetectedAsNew: 0,
         rowsInserted: 0,
+        rowsUpdated: 0,
       },
       indicators: [],
     },
@@ -248,6 +254,7 @@ function toLegacyPipelineSummary(results = []) {
     rowsStaged: totals.rowsStaged,
     rowsDetectedAsNew: totals.rowsDetectedAsNew,
     rowsInserted: totals.rowsInserted,
+    rowsUpdated: totals.rowsUpdated,
   };
 }
 

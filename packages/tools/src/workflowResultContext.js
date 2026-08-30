@@ -170,6 +170,7 @@ function normalizeMacroTotals(value = {}) {
     rowsStaged: normalizeNonNegativeNumber(totals.rowsStaged),
     rowsDetectedAsNew: normalizeNonNegativeNumber(totals.rowsDetectedAsNew),
     rowsInserted: normalizeNonNegativeNumber(totals.rowsInserted),
+    rowsUpdated: normalizeNonNegativeNumber(totals.rowsUpdated),
   };
 }
 
@@ -190,7 +191,11 @@ function getMacroOutcome({ totals = {}, sourceOutcomes = [] } = {}) {
     return succeeded > 0 || failedSourceCount < outcomes.length ? 'PARTIAL' : 'FAILED';
   }
 
-  if (normalizedTotals.rowsInserted > 0 || normalizedTotals.indicatorsUpdated > 0) {
+  if (
+    normalizedTotals.rowsInserted > 0 ||
+    normalizedTotals.rowsUpdated > 0 ||
+    normalizedTotals.indicatorsUpdated > 0
+  ) {
     return 'UPDATED';
   }
 

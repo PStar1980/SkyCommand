@@ -1640,6 +1640,7 @@ function MacroIngestionOutput({ toolResult }) {
               <th>Rows staged</th>
               <th>New rows</th>
               <th>Rows inserted</th>
+              <th>Rows updated</th>
             </tr>
           </thead>
           <tbody>
@@ -1652,6 +1653,7 @@ function MacroIngestionOutput({ toolResult }) {
               <td>{Number(totals.rowsStaged || 0).toLocaleString()}</td>
               <td>{Number(totals.rowsDetectedAsNew || 0).toLocaleString()}</td>
               <td className="fw-semibold">{Number(totals.rowsInserted || 0).toLocaleString()}</td>
+              <td className="fw-semibold">{Number(totals.rowsUpdated || 0).toLocaleString()}</td>
             </tr>
           </tbody>
         </table>
@@ -1675,6 +1677,7 @@ function MacroIngestionOutput({ toolResult }) {
                 <th>Indicator</th>
                 <th>Outcome</th>
                 <th>Rows inserted</th>
+                <th>Rows updated</th>
                 <th>New rows</th>
                 <th>Staging rows</th>
                 <th>Previous max</th>
@@ -1694,6 +1697,7 @@ function MacroIngestionOutput({ toolResult }) {
                     </span>
                   </td>
                   <td>{Number(indicator.rowsInserted || 0).toLocaleString()}</td>
+                  <td>{Number(indicator.rowsUpdated || 0).toLocaleString()}</td>
                   <td>{Number(indicator.newRowsDetected || 0).toLocaleString()}</td>
                   <td>{Number(indicator.stagingRows || 0).toLocaleString()}</td>
                   <td>
@@ -4076,6 +4080,7 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
                   <th>Unchanged</th>
                   <th>Failed</th>
                   <th>Rows inserted</th>
+                  <th>Rows updated</th>
                   <th>Duration</th>
                 </tr>
               </thead>
@@ -4096,6 +4101,9 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
                     <td className="fw-semibold">
                       {Number(source.totals?.rowsInserted || 0).toLocaleString()}
                     </td>
+                    <td className="fw-semibold">
+                      {Number(source.totals?.rowsUpdated || 0).toLocaleString()}
+                    </td>
                     <td>{formatDuration(source.durationMs)}</td>
                   </tr>
                 ))}
@@ -4112,6 +4120,7 @@ function WorkflowSummaryNodeOutput({ summaryResult }) {
                   <td>{Number(macroTotals.indicatorsUnchanged || 0).toLocaleString()}</td>
                   <td>{Number(macroTotals.indicatorsFailed || 0).toLocaleString()}</td>
                   <td>{Number(macroTotals.rowsInserted || 0).toLocaleString()}</td>
+                  <td>{Number(macroTotals.rowsUpdated || 0).toLocaleString()}</td>
                   <td>{formatDuration(macroIngestion.durationMs)}</td>
                 </tr>
               </tbody>
