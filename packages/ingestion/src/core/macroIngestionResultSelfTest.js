@@ -53,6 +53,7 @@ function run() {
       ok: true,
       indicatorCode: 'UNRATE',
       rowsInserted: 0,
+      rowsUpdated: 1,
       newRowsDetected: 0,
       stagingRows: 90,
       currentTargetMaxDate: '2026-06-01',
@@ -70,9 +71,10 @@ function run() {
   assert.strictEqual(totals.indicatorsRequested, 3);
   assert.strictEqual(totals.indicatorsSucceeded, 2);
   assert.strictEqual(totals.indicatorsFailed, 1);
-  assert.strictEqual(totals.indicatorsUpdated, 1);
-  assert.strictEqual(totals.indicatorsUnchanged, 1);
+  assert.strictEqual(totals.indicatorsUpdated, 2);
+  assert.strictEqual(totals.indicatorsUnchanged, 0);
   assert.strictEqual(totals.rowsInserted, 2);
+  assert.strictEqual(totals.rowsUpdated, 1);
 
   const toolResult = createMacroIngestionToolResult({
     sourceCode: 'FRED',
@@ -111,7 +113,9 @@ function run() {
   assert.strictEqual(toolResult.output.outcome, 'PARTIAL');
   assert.strictEqual(toolResult.output.durationMs, 3000);
   assert.strictEqual(toolResult.output.indicators[0].outcome, 'UPDATED');
-  assert.strictEqual(toolResult.output.indicators[1].outcome, 'UNCHANGED');
+  assert.strictEqual(toolResult.output.indicators[1].outcome, 'UPDATED');
+  assert.strictEqual(toolResult.output.indicators[1].rowsUpdated, 1);
+  assert.strictEqual(toolResult.output.totals.rowsUpdated, 1);
   assert.strictEqual(toolResult.output.indicators[2].outcome, 'FAILED');
   assert.strictEqual(toolResult.output.performanceTelemetry.instrumentedTotalMs, 3000);
   assert.strictEqual(toolResult.output.performanceTelemetry.phases.length, 2);

@@ -23,6 +23,7 @@ function createSuccessfulBatch(source) {
         ok: true,
         indicatorCode: `${source}_UPDATED`,
         rowsInserted: 3,
+        rowsUpdated: 2,
         newRowsDetected: 3,
         stagingRows: 10,
         stagingMaxDate: '2026-06-01',
@@ -33,6 +34,7 @@ function createSuccessfulBatch(source) {
         ok: true,
         indicatorCode: `${source}_UNCHANGED`,
         rowsInserted: 0,
+        rowsUpdated: 0,
         newRowsDetected: 0,
         stagingRows: 8,
         stagingMaxDate: '2026-05-01',
@@ -70,6 +72,7 @@ async function runSourceSuccessCase(sourceCode) {
   assert.strictEqual(response.toolResult.output.totals.indicatorsUpdated, 1);
   assert.strictEqual(response.toolResult.output.totals.indicatorsUnchanged, 1);
   assert.strictEqual(response.toolResult.output.totals.rowsInserted, 3);
+  assert.strictEqual(response.toolResult.output.totals.rowsUpdated, 2);
   assert.ok(response.toolResult.output.performanceTelemetry.instrumentedTotalMs >= 0);
   assert.strictEqual(response.toolResult.output.performanceTelemetry.phases.length, 2);
   assert.strictEqual(response.toolResult.output.performanceTelemetry.phases[0].code, 'SOURCE_INGESTION_EXECUTION');
