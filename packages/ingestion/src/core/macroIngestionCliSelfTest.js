@@ -1,5 +1,12 @@
 const assert = require('assert');
-const { runMacroIngestionCli } = require('./macroIngestionCli');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { executeToolProcess } = require('../../../tools/src/toolProcessExecutor');
+const {
+  runMacroIngestionCli,
+  runMacroIngestionEntrypoint,
+} = require('./macroIngestionCli');
 
 function createSuccessfulBatch(source) {
   return {
@@ -130,12 +137,79 @@ async function runPartialAllowFailuresCase() {
   assert.deepStrictEqual(exitCodes, []);
 }
 
+
+
+async function runUnrefedLifecycleTransportCase() {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skycommand-macro-cli-lifecycle-'));
+  const fixturePath = path.join(temporaryRoot, 'macro-lifecycle-fixture.js');
+  const macroCliPath = require.resolve('./macroIngestionCli');
+  const schemaPath = path.resolve(__dirname, '../../../tools/contracts/macro_ingestion_summary.v1.schema.json');
+  const outputSchema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+
+  try {
+    fs.writeFileSync(
+      fixturePath,
+      [
+        `const { runMacroIngestionCli, runMacroIngestionEntrypoint } = require(${JSON.stringify(macroCliPath)});`,
+        'runMacroIngestionEntrypoint(() => runMacroIngestionCli({',
+        "  sourceCode: 'FRED',",
+        "  toolCode: 'ingestion_fred',",
+        '  args: [],',
+        '  execute: async () => {',
+        '    await new Promise((resolve) => {',
+        '      const timer = setTimeout(resolve, 75);',
+        '      timer.unref();',
+        '    });',
+        '    return {',
+        '      ok: true,',
+        "      source: 'FRED',",
+        "      mode: 'indicator_batch',",
+        '      selectedIndicators: false,',
+        '      concurrency: 1,',
+        '      batchCount: 1,',
+        "      startedAt: '2026-08-30T00:00:00.000Z',",
+        "      completedAt: '2026-08-30T00:00:01.000Z',",
+        "      recoveryLedgerReference: { persisted: true, ingestionRunId: 'lifecycle-self-test' },",
+        '      results: [],',
+        '    };',
+        '  },',
+        '  printResult: () => {},',
+        '  logger: () => {},',
+        '}));',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const processResult = await executeToolProcess({
+      command: process.execPath,
+      commandArgs: [fixturePath],
+      cwd: temporaryRoot,
+      env: process.env,
+      timeoutMs: 5000,
+      executionId: 'macro-lifecycle-self-test',
+      toolCode: 'ingestion_fred',
+      toolResultExpectedOutputType: 'macro_ingestion_summary.v1',
+      toolResultOutputSchema: outputSchema,
+      rootDirectory: temporaryRoot,
+    });
+
+    assert.strictEqual(processResult.status, 'SUCCESS');
+    assert.strictEqual(processResult.toolResultContract.status, 'VALID');
+    assert.strictEqual(processResult.toolResult?.outputType, 'macro_ingestion_summary.v1');
+    assert.strictEqual(processResult.toolResult?.output?.sourceCode, 'FRED');
+  } finally {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
 async function run() {
   await runSourceSuccessCase('FRED');
   await runSourceSuccessCase('BOC');
   await runSourceSuccessCase('STATCAN');
   await runFailureCase();
   await runPartialAllowFailuresCase();
+  await runUnrefedLifecycleTransportCase();
 
   console.log('[SkyCommand] Macro ingestion CLI adapter self-test passed.');
 }

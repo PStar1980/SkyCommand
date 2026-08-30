@@ -90,8 +90,17 @@ async function runSelfTest() {
       executionId: 'legacy-execution',
       toolCode: 'legacy-tool',
       status: 'SUCCESS',
+      structuredOutputStatus: 'NOT_EMITTED',
+      structuredOutputExpectedType: 'fixture_result.v1',
+      structuredOutputError: 'Fixture did not emit a structured result.',
     });
     assert.equal(legacyResult.output.structuredOutputAvailable, false);
+    assert.equal(legacyResult.output.structuredOutputStatus, 'NOT_EMITTED');
+    assert.equal(legacyResult.output.structuredOutputExpectedType, 'fixture_result.v1');
+    assert.equal(
+      legacyResult.output.structuredOutputError,
+      'Fixture did not emit a structured result.',
+    );
 
     const fixturePath = path.join(temporaryRoot, 'structured-result-fixture.js');
     const sdkPath = path.resolve(__dirname, 'index.js');

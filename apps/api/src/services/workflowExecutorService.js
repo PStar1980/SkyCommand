@@ -3410,6 +3410,12 @@ async function runToolNode({ node, parameters, user, session, permissions, conte
       toolCode: node.targetCode,
       status: result.status,
       durationMs: result.durationMs,
+      structuredOutputStatus: result.toolResultContract?.status || null,
+      structuredOutputExpectedType: result.toolResultContract?.expectedOutputType || null,
+      structuredOutputError:
+        result.toolResultContract?.error?.message ||
+        result.toolResultContract?.configurationWarning?.message ||
+        null,
     });
   const output = {
     ...toolResult,
