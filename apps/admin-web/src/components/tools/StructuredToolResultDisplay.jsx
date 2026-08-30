@@ -159,6 +159,103 @@ export function PerformanceTelemetryTable({
   );
 }
 
+export function MacroIngestionWorkloadTelemetryTable({ telemetry }) {
+  const data = getSafeObject(telemetry);
+  const workload = getSafeObject(data.workloadBreakdown);
+  const cumulative = getSafeObject(workload.cumulativeStageMs);
+  const slowestIndicators = getSafeArray(workload.slowestIndicators);
+  const cumulativeRows = [
+    ['Source fetch / download', cumulative.fetchMs],
+    ['Normalization', cumulative.normalizeMs],
+    ['Database / quality-aware load', cumulative.loadMs],
+    ['Per-indicator temp cleanup', cumulative.cleanupMs],
+  ].filter(([, value]) => Number.isFinite(Number(value)));
+  const cumulativeTotalMs = cumulativeRows.reduce((sum, [, value]) => sum + Number(value || 0), 0);
+  const hasWorkload = getSafeArray(workload.phases).length > 0
+    || cumulativeRows.length > 0
+    || slowestIndicators.length > 0;
+
+  if (!hasWorkload) return null;
+
+  return (
+    <>
+      <PerformanceTelemetryTable
+        telemetry={workload}
+        title="Source workload telemetry"
+        note="Workload total is wall-clock time inside the source adapter. Batch execution overlaps indicator work according to the configured concurrency."
+      />
+
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div className="sky-page-kicker">Cumulative indicator stage time</div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className="sky-pill sky-pill-info">Concurrency {Number(workload.concurrency || 0)}</span>
+          <span className="sky-pill sky-pill-info">{Number(workload.batchCount || 0)} batch(es)</span>
+        </div>
+      </div>
+      <div className="table-responsive sky-table-card mb-3">
+        <table className="table table-sm sky-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Indicator stage</th>
+              <th>Cumulative worker time</th>
+              <th>Share of cumulative stage time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cumulativeRows.map(([label, value]) => (
+              <tr key={label}>
+                <td>{label}</td>
+                <td>{formatDuration(value)}</td>
+                <td>{formatTelemetryShare(value, cumulativeTotalMs)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td className="fw-semibold">Cumulative stage total</td>
+              <td className="fw-semibold">{formatDuration(cumulativeTotalMs)}</td>
+              <td className="fw-semibold">100.0%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="small sky-muted mb-3">
+        Cumulative worker time intentionally adds overlapping indicator work, so it can exceed wall-clock duration. It shows where concurrent ingestion workers spend their time.
+      </div>
+
+      {slowestIndicators.length > 0 ? (
+        <>
+          <div className="sky-page-kicker mb-2">Slowest indicators</div>
+          <div className="table-responsive sky-table-card mb-3">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Indicator</th>
+                  <th>Total</th>
+                  <th>Fetch</th>
+                  <th>Normalize</th>
+                  <th>Load</th>
+                  <th>Cleanup</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slowestIndicators.map((indicator, index) => (
+                  <tr key={`${indicator?.indicatorCode || 'indicator'}-${index}`}>
+                    <td className="fw-semibold sky-mono">{indicator?.indicatorCode || '—'}</td>
+                    <td>{formatDuration(indicator?.durationMs)}</td>
+                    <td>{formatDuration(indicator?.fetchMs)}</td>
+                    <td>{formatDuration(indicator?.normalizeMs)}</td>
+                    <td>{formatDuration(indicator?.loadMs)}</td>
+                    <td>{formatDuration(indicator?.cleanupMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 export function TransportTelemetryTable({ telemetry }) {
   return (
     <PerformanceTelemetryTable
@@ -451,6 +548,9 @@ function MacroIngestionOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <MacroIngestionWorkloadTelemetryTable telemetry={output.performanceTelemetry} />
 
       <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
         <div className="sky-page-kicker">Indicator results</div>

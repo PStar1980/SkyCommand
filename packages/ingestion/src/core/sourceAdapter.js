@@ -1,3 +1,4 @@
+const { performance } = require('node:perf_hooks');
 const { getSourceRequestPolicy } = require('./sourceRequestPolicy');
 const { runPipeline, runPipelineItem } = require('./runPipeline');
 
@@ -132,10 +133,13 @@ function createAdapterCallbacks(adapter, requestPolicy) {
 
 async function runSourceAdapter(adapter, options = {}) {
   validateSourceAdapter(adapter);
+  const instrumentationStartedAt = performance.now();
+  let phaseStartedAt = performance.now();
   const requestPolicy = await resolveAdapterPolicy(adapter, options);
+  const requestPolicyResolutionMs = performance.now() - phaseStartedAt;
   const callbacks = createAdapterCallbacks(adapter, requestPolicy);
 
-  return runPipeline({
+  const pipelineResult = await runPipeline({
     name: adapter.name,
     getIndicators: adapter.getAssets,
     download: callbacks.download,
@@ -150,6 +154,26 @@ async function runSourceAdapter(adapter, options = {}) {
     cleanupQuiet: options.cleanupQuiet,
     onBatchComplete: options.onBatchComplete,
   });
+
+  const pipelineBreakdown = pipelineResult?.performanceTelemetry?.workloadBreakdown || {};
+  return {
+    ...pipelineResult,
+    performanceTelemetry: {
+      ...(pipelineResult.performanceTelemetry || {}),
+      workloadBreakdown: {
+        ...pipelineBreakdown,
+        instrumentedTotalMs: Math.max(0, performance.now() - instrumentationStartedAt),
+        phases: [
+          {
+            code: 'SOURCE_REQUEST_POLICY_RESOLUTION',
+            label: 'Source request policy resolution',
+            durationMs: requestPolicyResolutionMs,
+          },
+          ...(Array.isArray(pipelineBreakdown.phases) ? pipelineBreakdown.phases : []),
+        ],
+      },
+    },
+  };
 }
 
 async function runSourceAdapterItem(adapter, item, options = {}) {

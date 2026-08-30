@@ -574,6 +574,7 @@ SkyCommand/
 │   │       │   ├── httpSourceClient.js
 │   │       │   ├── macroIngestionCli.js
 │   │       │   ├── macroIngestionCliSelfTest.js
+│   │       │   ├── macroIngestionPerformance.js
 │   │       │   ├── macroIngestionResult.js
 │   │       │   ├── macroIngestionResultSelfTest.js
 │   │       │   ├── phase16AdapterOnboardingClosure.js

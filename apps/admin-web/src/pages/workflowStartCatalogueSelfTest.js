@@ -126,8 +126,13 @@ assert(
     workflowSource.match(
       /<PerformanceTelemetryTable telemetry=\{output\.performanceTelemetry\} \/>/g,
     ) || []
-  ).length >= 5,
-  'Repository Map, Repository Zip, Dev Commit, Repo Merge / Sync, and Local Repository Sync must all render performance telemetry in focused node output.',
+  ).length >= 6,
+  'Macro ingestion, Repository Map, Repository Zip, Dev Commit, Repo Merge / Sync, and Local Repository Sync must all render performance telemetry in focused node output.',
+);
+assert(
+  workflowSource.includes('MacroIngestionWorkloadTelemetryTable,') &&
+    workflowSource.includes('<MacroIngestionWorkloadTelemetryTable telemetry={output.performanceTelemetry} />'),
+  'Macro ingestion focused output must render source workload and slow-indicator telemetry.',
 );
 
 assert(

@@ -8,6 +8,7 @@ import WorkflowApprovalOverlay from '../components/WorkflowApprovalOverlay.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import {
   ArchiveBuildBreakdownTable,
+  MacroIngestionWorkloadTelemetryTable,
   PerformanceTelemetryTable,
   ProcessEnvelopeTelemetryTable,
   TransportTelemetryTable,
@@ -1655,6 +1656,9 @@ function MacroIngestionOutput({ toolResult }) {
           </tbody>
         </table>
       </div>
+
+      <PerformanceTelemetryTable telemetry={output.performanceTelemetry} />
+      <MacroIngestionWorkloadTelemetryTable telemetry={output.performanceTelemetry} />
 
       <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
         <div className="sky-page-kicker">Indicator results</div>

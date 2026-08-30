@@ -70,6 +70,10 @@ async function runSourceSuccessCase(sourceCode) {
   assert.strictEqual(response.toolResult.output.totals.indicatorsUpdated, 1);
   assert.strictEqual(response.toolResult.output.totals.indicatorsUnchanged, 1);
   assert.strictEqual(response.toolResult.output.totals.rowsInserted, 3);
+  assert.ok(response.toolResult.output.performanceTelemetry.instrumentedTotalMs >= 0);
+  assert.strictEqual(response.toolResult.output.performanceTelemetry.phases.length, 2);
+  assert.strictEqual(response.toolResult.output.performanceTelemetry.phases[0].code, 'SOURCE_INGESTION_EXECUTION');
+  assert.strictEqual(response.toolResult.output.performanceTelemetry.phases[1].code, 'LEDGER_FRESHNESS_PERSISTENCE');
   assert.strictEqual(emitted.length, 1);
   assert.strictEqual(printed.length, 1);
   assert.deepStrictEqual(exitCodes, []);

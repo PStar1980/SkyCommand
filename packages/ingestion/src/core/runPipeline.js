@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
+const { performance } = require('node:perf_hooks');
 const { toLegacyPipelineSummary } = require('./macroIngestionResult');
 
 const DEFAULT_CONCURRENCY = 3;
@@ -252,26 +253,49 @@ async function runPipelineItem({
   cleanupQuiet,
 }) {
   const startedAt = new Date();
+  const itemInstrumentationStartedAt = performance.now();
   const code = normalizeCode(getItemCode(item, getCode), name);
   const tempDir = path.join(tempRoot, runId, getSafePathPart(code));
   let requestAttempts = [];
+  let finalResult = null;
+  let fetchMs = 0;
+  let normalizeMs = 0;
+  let loadMs = 0;
+  let cleanupMs = 0;
 
   console.log(`🔥 [${name}] Processing ${code}`);
 
   ensureDir(tempDir);
 
   try {
-    const downloadResult = normalizeDownloadResult(await download(code, tempDir, item));
+    let phaseStartedAt = performance.now();
+    let downloadResult;
+    try {
+      downloadResult = normalizeDownloadResult(await download(code, tempDir, item));
+    } finally {
+      fetchMs = performance.now() - phaseStartedAt;
+    }
     const filePath = downloadResult.filePath;
     requestAttempts = downloadResult.requestAttempts;
 
     if (normalize) {
-      await normalize(filePath, code, item);
+      phaseStartedAt = performance.now();
+      try {
+        await normalize(filePath, code, item);
+      } finally {
+        normalizeMs = performance.now() - phaseStartedAt;
+      }
     }
 
-    const loadResult = await load(code, filePath, item);
+    phaseStartedAt = performance.now();
+    let loadResult;
+    try {
+      loadResult = await load(code, filePath, item);
+    } finally {
+      loadMs = performance.now() - phaseStartedAt;
+    }
     const finishedAt = new Date();
-    const result = {
+    finalResult = {
       ok: true,
       source: name,
       indicatorCode: code,
@@ -298,10 +322,9 @@ async function runPipelineItem({
       completedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
-    result.attempts = materializeItemAttempts(requestAttempts, result);
+    finalResult.attempts = materializeItemAttempts(requestAttempts, finalResult);
 
     console.log(`✅ [${name}] Loaded ${code}`);
-    return result;
   } catch (error) {
     const completedAt = new Date();
     const message = error.message || String(error);
@@ -312,7 +335,7 @@ async function runPipelineItem({
     const evidence = error.ingestionEvidence && typeof error.ingestionEvidence === 'object'
       ? error.ingestionEvidence
       : {};
-    const result = {
+    finalResult = {
       ok: false,
       source: name,
       indicatorCode: code,
@@ -346,15 +369,75 @@ async function runPipelineItem({
         message,
       },
     };
-    result.attempts = materializeItemAttempts(requestAttempts, result);
-    return result;
+    finalResult.attempts = materializeItemAttempts(requestAttempts, finalResult);
   } finally {
+    const cleanupStartedAt = performance.now();
     await cleanupTempDir(tempDir, { quiet: cleanupQuiet });
+    cleanupMs = performance.now() - cleanupStartedAt;
   }
+
+  finalResult.performanceTelemetry = {
+    instrumentedTotalMs: Math.max(0, performance.now() - itemInstrumentationStartedAt),
+    fetchMs: Math.max(0, fetchMs),
+    normalizeMs: Math.max(0, normalizeMs),
+    loadMs: Math.max(0, loadMs),
+    cleanupMs: Math.max(0, cleanupMs),
+  };
+
+  return finalResult;
 }
 
 function summarizeResults(results = []) {
   return toLegacyPipelineSummary(results);
+}
+
+function createPipelineWorkloadBreakdown(results = [], {
+  instrumentedTotalMs = 0,
+  concurrency = 0,
+  batchCount = 0,
+  phases = [],
+} = {}) {
+  const cumulativeStageMs = results.reduce((summary, result) => {
+    const telemetry = result?.performanceTelemetry || {};
+    summary.fetchMs += Number(telemetry.fetchMs) || 0;
+    summary.normalizeMs += Number(telemetry.normalizeMs) || 0;
+    summary.loadMs += Number(telemetry.loadMs) || 0;
+    summary.cleanupMs += Number(telemetry.cleanupMs) || 0;
+    return summary;
+  }, {
+    fetchMs: 0,
+    normalizeMs: 0,
+    loadMs: 0,
+    cleanupMs: 0,
+  });
+
+  const slowestIndicators = results
+    .map((result) => {
+      const telemetry = result?.performanceTelemetry || {};
+      return {
+        indicatorCode: String(result?.indicatorCode || 'UNKNOWN'),
+        durationMs: Number(telemetry.instrumentedTotalMs) || Number(result?.durationMs) || 0,
+        fetchMs: Number(telemetry.fetchMs) || 0,
+        normalizeMs: Number(telemetry.normalizeMs) || 0,
+        loadMs: Number(telemetry.loadMs) || 0,
+        cleanupMs: Number(telemetry.cleanupMs) || 0,
+      };
+    })
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .slice(0, 10);
+
+  return {
+    instrumentedTotalMs: Math.max(0, Number(instrumentedTotalMs) || 0),
+    concurrency: Math.max(0, Number.parseInt(concurrency, 10) || 0),
+    batchCount: Math.max(0, Number.parseInt(batchCount, 10) || 0),
+    phases: phases.map((phase) => ({
+      code: String(phase.code || 'UNKNOWN'),
+      label: String(phase.label || phase.code || 'Phase'),
+      durationMs: Math.max(0, Number(phase.durationMs) || 0),
+    })),
+    cumulativeStageMs,
+    slowestIndicators,
+  };
 }
 
 const runPipeline = async ({
@@ -372,10 +455,13 @@ const runPipeline = async ({
   cleanupQuiet = false,
   onBatchComplete,
 }) => {
+  const instrumentationStartedAt = performance.now();
   ensureDir(tempDir);
 
   const startedAt = new Date().toISOString();
+  let phaseStartedAt = performance.now();
   const configuredItems = await getIndicators();
+  const catalogueResolutionMs = performance.now() - phaseStartedAt;
   const resolved = resolveItems({
     items: configuredItems,
     indicators,
@@ -394,6 +480,7 @@ const runPipeline = async ({
   console.log(`⚙️ [${name}] Concurrency: ${safeConcurrency}`);
   console.log(`🧺 [${name}] Batches: ${batches.length}`);
 
+  phaseStartedAt = performance.now();
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
     const batch = batches[batchIndex];
     const batchCodes = batch.map((item) => normalizeCode(getItemCode(item, getCode), name));
@@ -424,11 +511,39 @@ const runPipeline = async ({
       });
     }
   }
+  const batchExecutionMs = performance.now() - phaseStartedAt;
 
+  phaseStartedAt = performance.now();
   await cleanupTempDir(path.join(tempDir, safeRunId), { quiet: cleanupQuiet });
+  const finalCleanupMs = performance.now() - phaseStartedAt;
 
   const summary = summarizeResults(results);
   const completedAt = new Date().toISOString();
+  const instrumentedTotalMs = performance.now() - instrumentationStartedAt;
+  const performanceTelemetry = {
+    workloadBreakdown: createPipelineWorkloadBreakdown(results, {
+      instrumentedTotalMs,
+      concurrency: safeConcurrency,
+      batchCount: batches.length,
+      phases: [
+        {
+          code: 'INDICATOR_CATALOGUE_RESOLUTION',
+          label: 'Indicator catalogue resolution',
+          durationMs: catalogueResolutionMs,
+        },
+        {
+          code: 'BATCH_EXECUTION',
+          label: 'Concurrent indicator batch execution',
+          durationMs: batchExecutionMs,
+        },
+        {
+          code: 'FINAL_TEMP_CLEANUP',
+          label: 'Final temporary-file cleanup',
+          durationMs: finalCleanupMs,
+        },
+      ],
+    }),
+  };
 
   console.log('');
   console.log(`🎯 [${name}] Complete: ${summary.succeeded}/${summary.total} succeeded`);
@@ -448,6 +563,7 @@ const runPipeline = async ({
     completedAt,
     summary,
     results,
+    performanceTelemetry,
   };
 };
 
@@ -455,6 +571,7 @@ module.exports = {
   DEFAULT_CONCURRENCY,
   MAX_CONCURRENCY,
   cleanupTempDir,
+  createPipelineWorkloadBreakdown,
   chunkItems,
   normalizeCodes,
   parsePositiveInteger,
