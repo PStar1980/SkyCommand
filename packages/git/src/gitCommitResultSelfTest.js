@@ -57,12 +57,21 @@ function run() {
         { code: 'REMOTE_PUSH', label: 'Remote push', durationMs: 5 },
       ],
     },
+    transportTelemetry: {
+      instrumentedTotalMs: 12,
+      phases: [
+        { code: 'TEMPORAL_CONNECTION', label: 'Temporal connection', durationMs: 2 },
+        { code: 'HOST_WORKFLOW_DISPATCH_WAIT', label: 'Host workflow dispatch + wait', durationMs: 10 },
+      ],
+    },
   });
   assert.equal(result.outputType, GIT_COMMIT_OUTPUT_TYPE);
   assert.equal(result.output.outcome, 'PUSHED');
   assert.equal(result.output.changedFiles, 5);
   assert.equal(result.output.performanceTelemetry.instrumentedTotalMs, 9.5);
   assert.equal(result.output.performanceTelemetry.phases.length, 2);
+  assert.equal(result.output.transportTelemetry.instrumentedTotalMs, 12);
+  assert.equal(result.output.transportTelemetry.phases.length, 2);
   assert.equal(result.metadata.executionTarget, 'HOST');
   assert.equal(result.metadata.transport, 'temporal_host_agent');
   validateToolResult(result, {
@@ -77,6 +86,10 @@ function run() {
   });
   assert.equal(noChanges.success, true);
   assert.equal(noChanges.output.commitSha, null);
+  const source = fs.readFileSync(path.resolve(__dirname, 'dev_commit.js'), 'utf8');
+  assert.match(source, /HOST_WORKFLOW_DISPATCH_WAIT/);
+  assert.match(source, /TEMPORAL_CONNECTION_SHUTDOWN/);
+  assert.match(source, /transportTelemetry: transportSnapshot/);
   console.log('[SkyCommand] Git commit result self-test passed.');
 }
 if (require.main === module) run();

@@ -50,6 +50,7 @@ function parseGitStatusPorcelain(status = '') {
 function createGitCommitToolResult(result = {}) {
   const success = result.ok !== false;
   const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
+  const transportTelemetry = normalizePerformanceTelemetry(result.transportTelemetry);
   const outcome = String(result.outcome || (success ? 'PUSHED' : 'FAILED')).toUpperCase();
   const repositoryLabel = result.repositoryCode || result.repositoryName || 'repository';
   const message =
@@ -82,6 +83,7 @@ function createGitCommitToolResult(result = {}) {
       changedFiles: normalizeNumber(result.changedFiles),
       changes: normalizeChanges(result.changes),
       ...(performanceTelemetry ? { performanceTelemetry } : {}),
+      ...(transportTelemetry ? { transportTelemetry } : {}),
       steps: {
         fetched: Boolean(result.fetched),
         switchedBranch: Boolean(result.switchedBranch),
@@ -110,6 +112,7 @@ function createGitCommitFailureToolResult({ error, startedAt, completedAt } = {}
     startedAt: beganAt,
     completedAt: finishedAt,
     durationMs: Math.max(0, new Date(finishedAt).getTime() - new Date(beganAt).getTime()),
+    transportTelemetry: error?.transportTelemetry,
     error,
   });
 }

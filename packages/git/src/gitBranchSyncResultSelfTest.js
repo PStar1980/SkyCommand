@@ -129,6 +129,11 @@ function run() {
   assert.equal(tagged.output.tagCreated, true);
   assert.match(tagged.message, /v1\.0\.0/);
 
+  const mainMergeSource = fs.readFileSync(path.resolve(__dirname, 'main_merge.js'), 'utf8');
+  assert.match(mainMergeSource, /rev-list', '--left-right', '--count'/);
+  assert.doesNotMatch(mainMergeSource, /merge-base', '--is-ancestor'/);
+  assert.doesNotMatch(mainMergeSource, /rev-list', '--count'/);
+
   const failure = createGitBranchSyncFailureToolResult({
     error: new Error('Fast-forward failed.'),
     startedAt: '2026-07-17T20:00:00.000Z',

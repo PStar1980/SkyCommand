@@ -53,6 +53,7 @@ function normalizeSteps(value = {}) {
 function createGitLocalSyncToolResult(result = {}) {
   const success = result.ok !== false;
   const performanceTelemetry = normalizePerformanceTelemetry(result.performanceTelemetry);
+  const transportTelemetry = normalizePerformanceTelemetry(result.transportTelemetry);
   const outcome = String(
     result.outcome || (success ? 'SYNCHRONIZED' : 'FAILED'),
   ).toUpperCase();
@@ -106,6 +107,7 @@ function createGitLocalSyncToolResult(result = {}) {
       completedAt: nullable(result.completedAt),
       durationMs: normalizeNumber(result.durationMs),
       ...(performanceTelemetry ? { performanceTelemetry } : {}),
+      ...(transportTelemetry ? { transportTelemetry } : {}),
     },
     warnings: Array.isArray(result.warnings) ? result.warnings.map(String) : [],
     error: success ? null : normalizeError(result.error),
@@ -129,6 +131,7 @@ function createGitLocalSyncFailureToolResult({ error, startedAt, completedAt } =
     startedAt: state.startedAt || beganAt,
     completedAt: finishedAt,
     durationMs: Math.max(0, new Date(finishedAt).getTime() - new Date(beganAt).getTime()),
+    transportTelemetry: state.transportTelemetry || error?.transportTelemetry,
     error,
   });
 }

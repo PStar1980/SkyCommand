@@ -73,6 +73,13 @@ function run() {
         { code: 'POST_SYNC_REMOTE_VERIFICATION', label: 'Post-sync remote main/dev verification', durationMs: 30 },
       ],
     },
+    transportTelemetry: {
+      instrumentedTotalMs: 140,
+      phases: [
+        { code: 'TEMPORAL_CONNECTION', label: 'Temporal connection', durationMs: 10 },
+        { code: 'HOST_WORKFLOW_DISPATCH_WAIT', label: 'Host workflow dispatch + wait', durationMs: 130 },
+      ],
+    },
   });
 
   assert.equal(result.outputType, GIT_LOCAL_SYNC_OUTPUT_TYPE);
@@ -82,6 +89,8 @@ function run() {
   assert.equal(result.output.devBaselineState, 'APPROVED_LINEAGE_INTERMEDIATE');
   assert.equal(result.output.performanceTelemetry.instrumentedTotalMs, 85);
   assert.equal(result.output.performanceTelemetry.phases.length, 2);
+  assert.equal(result.output.transportTelemetry.instrumentedTotalMs, 140);
+  assert.equal(result.output.transportTelemetry.phases.length, 2);
   validateToolResult(result, {
     expectedOutputType: GIT_LOCAL_SYNC_OUTPUT_TYPE,
     outputSchema,
@@ -121,6 +130,9 @@ function run() {
   assert.doesNotMatch(source, /reset', '--hard'/);
   assert.doesNotMatch(source, /clean', '-f/);
   assert.doesNotMatch(source, /branch', '-f/);
+  assert.match(source, /HOST_WORKFLOW_DISPATCH_WAIT/);
+  assert.match(source, /TEMPORAL_CONNECTION_SHUTDOWN/);
+  assert.match(source, /transportTelemetry: transportSnapshot/);
 
   console.log('[SkyCommand] Guarded host Git local synchronization self-test passed.');
 }
