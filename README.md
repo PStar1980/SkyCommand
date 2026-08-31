@@ -1,22 +1,56 @@
-<p align="center">
-  <img src="apps/admin-web/public/brand/skycommand-logo-lockup.png" alt="SkyCommand" width="520" />
-</p>
+<div align="center">
 
-<p align="center">
-  <strong>Deterministic workflow automation with controlled execution, durable orchestration, and inspectable evidence.</strong>
-</p>
+<img src="apps/admin-web/public/brand/skycommand-logo-lockup.png" alt="SkyCommand" width="520" />
 
-<p align="center">
-  Build developer workflows that are safe to run, retry, approve, observe, and extend.
-</p>
+<br>
 
-<p align="center">
-  Node.js · React · PostgreSQL · Temporal · Docker
-</p>
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=22&duration=2600&pause=1100&color=D4AF37&center=true&vCenter=true&width=900&lines=Deterministic+Workflow+Automation;Durable+Execution+with+Temporal;Structured+Tool+Results;Human-in-the-Loop+Approvals;Git+%2B+Docker+Operations;Telemetry-First+Performance+Tuning" alt="Animated SkyCommand capability statement" />
+
+<br>
+
+<strong>Deterministic workflow automation with controlled execution, durable orchestration, and inspectable evidence.</strong>
+
+<br><br>
+
+Build developer workflows that are safe to run, retry, approve, observe, and extend.
+
+<br><br>
+
+![Workflow Automation](https://img.shields.io/badge/Workflow_Automation-Deterministic-D4AF37?style=flat-square&labelColor=111111)
+![Execution](https://img.shields.io/badge/Execution-Durable-36C98F?style=flat-square&labelColor=111111)
+![Tool Results](https://img.shields.io/badge/Tool_Results-Structured-4EA1FF?style=flat-square&labelColor=111111)
+![Observability](https://img.shields.io/badge/Observability-Telemetry--First-C084FC?style=flat-square&labelColor=111111)
+
+<br><br>
+
+<a href="https://skillicons.dev">
+  <img src="https://skillicons.dev/icons?i=nodejs,react,postgres,docker,git,js&theme=dark&perline=6" alt="SkyCommand core technology stack" />
+</a>
+
+<br><br>
+
+![Temporal](https://img.shields.io/badge/Temporal-Durable_Workflows-111111?style=for-the-badge&logo=temporal&logoColor=white)
+![Express](https://img.shields.io/badge/Express-API_Runtime-111111?style=for-the-badge&logo=express&logoColor=white)
+![ECharts](https://img.shields.io/badge/Apache-ECharts-AA344D?style=for-the-badge&logo=apacheecharts&logoColor=white)
+
+<br><br>
+
+<a href="#-overview">Overview</a> ·
+<a href="#-screenshots">Screenshots</a> ·
+<a href="#-core-capabilities">Capabilities</a> ·
+<a href="#-architecture">Architecture</a> ·
+<a href="#-deterministic-execution-model">Execution Model</a> ·
+<a href="#-structured-results-and-telemetry">Telemetry</a> ·
+<a href="#-reference-workflows">Reference Workflows</a> ·
+<a href="#-extending-skycommand">Extending</a> ·
+<a href="#-quick-start">Quick Start</a> ·
+<a href="#-roadmap">Roadmap</a>
+
+</div>
 
 ---
 
-## Overview
+## ⚙️ Overview
 
 **SkyCommand** is a developer-focused workflow automation platform for building, running, and observing **controlled deterministic workflows**. It is designed for automation that must be durable, permission-aware, safe to retry, and easy to inspect after execution.
 
@@ -33,61 +67,45 @@ SkyCommand can be used as a standalone workflow control plane: register tools, c
 - operational telemetry that shows both **what happened** and **where the time went**;
 - guarded automation across local tools, Git repositories, data pipelines, and Docker infrastructure.
 
-## Highlights
+### Highlights
 
-- **Deterministic workflow orchestration** with versioned workflow definitions, Temporal-backed durability, conditions, waits, approvals, retries, summaries, and node-level recovery.
-- **Managed tool execution** with dynamic parameters, RBAC, risk levels, confirmation controls, timeouts, retry policy, concurrency controls, and execution history.
-- **Structured tool results** with versioned output contracts, typed workflow bindings, focused result views, workflow summaries, and domain-specific performance telemetry.
-- **Visual workflow operations** with runtime graphs, active-node focus, retry controls, approval state, node output history, and durable execution evidence.
-- **Repository automation** for repository intelligence, map/ZIP artifacts, development commits, remote synchronization, and guarded four-way local/remote Git synchronization.
-- **Docker infrastructure operations** with inventory, lifecycle controls, live telemetry, logs/events, diagnostics, self-protection, and durable Docker Operations history.
-- **Host-native execution** through a narrowly scoped Windows Host Agent for operations that should not run against host-owned resources through Docker bind mounts.
-- **Reference ingestion workflows** for FRED, Bank of Canada, and Statistics Canada with quality-aware loading, revision tracking, freshness, retries, row-level effects, and source telemetry.
-- **Operational analytics** using Apache ECharts and D3 across workflows, tools, ingestion, API activity, workers, readiness, and Docker surfaces.
+- **Durable deterministic workflows** — Temporal-backed retries, waits, approvals, branching, summaries, and recovery.
+- **Controlled tool execution** — typed parameters, RBAC, risk controls, concurrency, timeouts, and execution history.
+- **Structured execution evidence** — versioned ToolResult contracts, typed workflow bindings, focused output, and summaries.
+- **Telemetry-first observability** — phase timing, workflow/tool diagnostics, runtime analytics, and execution history.
+- **Guarded Git & Docker automation** — repository promotion, host-native synchronization, infrastructure operations, and durable audit evidence.
+- **Extensible architecture** — script-based tools, reusable workflows, schedules, listeners, and optional Host Agent execution.
 
-## Screenshots
+<div align="center">
+  <a href="docs/images/readme/Dashboard.png">
+    <img src="docs/images/readme/Dashboard.png" alt="SkyCommand Command Center dashboard" width="48%" />
+  </a>
+  <a href="docs/images/readme/Workflow_Running.png">
+    <img src="docs/images/readme/Workflow_Running.png" alt="SkyCommand workflow runtime" width="48%" />
+  </a>
+  <br>
+  <sub><strong>Command Center Dashboard</strong> · <strong>Workflow Runtime</strong></sub>
+</div>
+
+---
+
+## 🖥️ Screenshots
 
 A quick visual tour of the current SkyCommand experience. Click any thumbnail to open the full-size image.
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <a href="docs/images/readme/Login_Page.png">
-        <img src="docs/images/readme/Login_Page.png" alt="SkyCommand login page" width="100%" />
-      </a>
-      <br /><sub><strong>Login</strong></sub>
-    </td>
-    <td width="50%" align="center">
-      <strong>Gold-and-black operational UI</strong><br />
-      <sub>Deterministic workflow control, structured evidence, guarded automation, and infrastructure operations in one cohesive command surface.</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center">
-      <a href="docs/images/readme/Dashboard.png">
-        <img src="docs/images/readme/Dashboard.png" alt="SkyCommand Command Center dashboard" width="100%" />
-      </a>
-      <br /><sub><strong>Command Center Dashboard</strong></sub>
-    </td>
-    <td width="50%" align="center">
       <a href="docs/images/readme/Run_Tools.png">
         <img src="docs/images/readme/Run_Tools.png" alt="SkyCommand Run Tools screen" width="100%" />
       </a>
       <br /><sub><strong>Run Tools</strong></sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%" align="center">
       <a href="docs/images/readme/Start_Workflow.png">
         <img src="docs/images/readme/Start_Workflow.png" alt="SkyCommand Start Workflow screen" width="100%" />
       </a>
       <br /><sub><strong>Start Workflow</strong></sub>
-    </td>
-    <td width="50%" align="center">
-      <a href="docs/images/readme/Workflow_Running.png">
-        <img src="docs/images/readme/Workflow_Running.png" alt="SkyCommand workflow runtime view" width="100%" />
-      </a>
-      <br /><sub><strong>Workflow Runtime</strong></sub>
     </td>
   </tr>
   <tr>
@@ -104,9 +122,23 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
       <br /><sub><strong>Docker Containers</strong></sub>
     </td>
   </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Login_Page.png">
+        <img src="docs/images/readme/Login_Page.png" alt="SkyCommand login page" width="100%" />
+      </a>
+      <br /><sub><strong>Login</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <strong>Gold-and-black operational UI</strong><br />
+      <sub>Deterministic workflow control, structured evidence, guarded automation, and infrastructure operations in one cohesive command surface.</sub>
+    </td>
+  </tr>
 </table>
 
-## Core Capabilities
+---
+
+## 🧩 Core Capabilities
 
 | Area                 | What SkyCommand provides                                                                                                                                                                              |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -120,7 +152,9 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
 | **Access control**   | Authentication, users, roles, privileges, sessions, audit trails, and permission-separated operational controls                                                                                       |
 | **Extensibility**    | Script-based tools, versioned ToolResult contracts, typed workflow bindings, reusable workflow templates, and optional host-native execution paths                                                    |
 
-## Architecture
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
@@ -163,7 +197,9 @@ SkyCommand uses a six-service Docker Compose runtime for **PostgreSQL, Admin-Web
 
 Docker provides the runtime boundary. Temporal makes workflow execution durable. PostgreSQL preserves operational evidence. The Host Agent owns narrowly scoped host-native actions.
 
-## Deterministic Execution Model
+---
+
+## 🔁 Deterministic Execution Model
 
 SkyCommand treats workflow control and external side effects as separate concerns.
 
@@ -185,7 +221,9 @@ Workflow definitions control ordering, branching, waits, retry behavior, approva
 
 This does **not** mean external systems always return identical data. It means workflow control is explicit, versioned, inspectable, and reproducible from its recorded execution history rather than depending on hidden process state.
 
-## Structured Results and Telemetry
+---
+
+## 📊 Structured Results and Telemetry
 
 SkyCommand separates **human-readable process logs** from **machine-readable workflow results**.
 
@@ -212,7 +250,9 @@ The result contract keeps workflow integration generic while allowing each tool 
 
 > **SkyCommand performance rule:** optimize only after telemetry shows where the time actually went.
 
-## Reference Workflows
+---
+
+## 🧪 Reference Workflows
 
 SkyCommand ships with working examples that demonstrate controlled automation patterns rather than toy tasks.
 
@@ -242,7 +282,9 @@ The macro refresh workflow runs FRED, Bank of Canada, and Statistics Canada inge
 
 Ingestion results can report source/indicator outcomes, staging rows, new observations, inserted rows, **updated rows**, freshness, revisions, retries, and performance telemetry.
 
-## Docker Infrastructure Operations
+---
+
+## 🐳 Docker Infrastructure Operations
 
 SkyCommand can operate Docker as a guarded infrastructure provider rather than exposing raw daemon or shell access to the browser.
 
@@ -257,7 +299,9 @@ The Docker domain includes:
 - control-plane self-protection and explicit stale/error semantics;
 - a provider/target seam intended to support additional infrastructure providers in the future.
 
-## Extending SkyCommand
+---
+
+## 🧰 Extending SkyCommand
 
 The normal tool-authoring path is intentionally small:
 
@@ -274,7 +318,9 @@ Use a Host Agent execution path only when a tool genuinely needs native access t
 
 For detailed conventions, see the [Tool Authoring Guide](docs/SkyCommand_Tool_Authoring_Guide.md).
 
-## Tech Stack
+---
+
+## 🛠️ Tech Stack
 
 | Layer                  | Technology                                                             |
 | ---------------------- | ---------------------------------------------------------------------- |
@@ -288,7 +334,9 @@ For detailed conventions, see the [Tool Authoring Guide](docs/SkyCommand_Tool_Au
 | Auth and security      | Bearer sessions, hashed session tokens, RBAC, audit events             |
 | Engineering quality    | ESLint, Prettier, Husky, repository self-tests and validation scripts  |
 
-## Quick Start
+---
+
+## ⚡ Quick Start
 
 > SkyCommand is currently optimized for local development with Docker Desktop. Host-native Git and Docker operations use the optional Windows Host Agent.
 
@@ -332,7 +380,7 @@ npm run host-agent:check
 
 For first-time database setup, Docker cutover, Host Agent configuration, and detailed local setup, use the documentation links below rather than treating this README as an operations manual.
 
-## Local URLs
+### Local URLs
 
 | Surface         | URL                                |
 | --------------- | ---------------------------------- |
@@ -341,7 +389,7 @@ For first-time database setup, Docker cutover, Host Agent configuration, and det
 | Database health | `http://localhost:7171/_db/health` |
 | Temporal Web UI | `http://localhost:8600`            |
 
-## Common Commands
+### Common Commands
 
 | Command                             | Purpose                                                                    |
 | ----------------------------------- | -------------------------------------------------------------------------- |
@@ -357,7 +405,9 @@ For first-time database setup, Docker cutover, Host Agent configuration, and det
 
 The complete command catalogue lives in [`package.json`](package.json).
 
-## Repository Layout
+---
+
+## 🗂️ Repository Layout
 
 ```text
 SkyCommand/
@@ -378,7 +428,9 @@ SkyCommand/
 
 For the generated file-level structure, see [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md).
 
-## Documentation
+---
+
+## 📚 Documentation
 
 The README is intentionally the **front door**, not the complete operations manual. Deeper implementation and setup material lives under `docs/`.
 
@@ -409,7 +461,9 @@ The README is intentionally the **front door**, not the complete operations manu
 - [`docs/SkyCommand_RepoMap.md`](docs/SkyCommand_RepoMap.md) — generated repository structure
 - [`docs/SkyCommand_Phase_16_Closure_Report.md`](docs/SkyCommand_Phase_16_Closure_Report.md) — ingestion/data-contract closure evidence
 
-## Roadmap
+---
+
+## 🗺️ Roadmap
 
 | Phase      | Status | Objective                                                                                                         |
 | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -434,7 +488,9 @@ The README is intentionally the **front door**, not the complete operations manu
 
 The Phase 17 provider/target boundary intentionally leaves room for a future **Kubernetes** sibling provider; no Kubernetes runtime is currently implemented in SkyCommand.
 
-## Design Principles
+---
+
+## 🧭 Design Principles
 
 > **Automation should feel like intelligence — quiet, precise, and always one step ahead.**
 
@@ -447,7 +503,9 @@ The Phase 17 provider/target boundary intentionally leaves room for a future **K
 - Preserve durable evidence for important execution decisions.
 - Optimize only after telemetry shows where the time actually went.
 
-## Repository
+---
+
+## 📦 Repository
 
 - **GitHub:** https://github.com/PStar1980/SkyCommand
 - **Primary development branch:** `dev`
