@@ -1,13 +1,9 @@
 <p align="center">
-  <img src="apps/admin-web/public/brand/skycommand-mark-gold.png" alt="SkyCommand mark" width="84" />
-</p>
-
-<p align="center">
   <img src="apps/admin-web/public/brand/skycommand-logo-lockup.png" alt="SkyCommand" width="520" />
 </p>
 
 <p align="center">
-  <strong>Workflow automation, operational control, and proof-driven observability.</strong>
+  <strong>Workflow automation, operational control, and evidence-driven observability.</strong>
 </p>
 
 <p align="center">
@@ -98,16 +94,16 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
 
 ## Core Capabilities
 
-| Area | What SkyCommand provides |
-| --- | --- |
-| **Workflows** | Versioned workflow definitions, visual graph editing, runtime parameters, conditions, waits, approvals, retries, nested execution, summaries, node output history, and run control |
-| **Tools** | Managed catalogue, dynamic parameters, permission-aware execution, structured contracts, execution history, telemetry, retry policy, concurrency, and timeout controls |
-| **Automation** | Scheduler and listener control surfaces, worker-backed execution, future-dated and recurring schedules, and workflow/tool automation |
-| **Data** | FRED, Bank of Canada, Statistics Canada, and manual ingestion with staging, freshness, quality policies, recovery, row revisions, and diagnostics |
-| **Git repositories** | Repository catalogue, intelligence, repo map/ZIP artifacts, development promotion, watcher-safe synchronization, and guarded Host Agent Git operations |
-| **Docker** | Projects, containers, images, storage, networks, lifecycle operations, cleanup controls, live metrics, events, bounded logs, diagnostics, and application-stack observability |
-| **Access control** | Authentication, users, roles, privileges, sessions, audit trails, and permission-separated operational controls |
-| **Observability** | Command dashboards, API request evidence, workflow/tool statistics, ingestion health, worker state, readiness, notifications, and structured performance telemetry |
+| Area                 | What SkyCommand provides                                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Workflows**        | Versioned workflow definitions, visual graph editing, runtime parameters, conditions, waits, approvals, retries, nested execution, summaries, node output history, and run control |
+| **Tools**            | Managed catalogue, dynamic parameters, permission-aware execution, structured contracts, execution history, telemetry, retry policy, concurrency, and timeout controls             |
+| **Automation**       | Scheduler and listener control surfaces, worker-backed execution, future-dated and recurring schedules, and workflow/tool automation                                               |
+| **Data**             | FRED, Bank of Canada, Statistics Canada, and manual ingestion with staging, freshness, quality policies, recovery, row revisions, and diagnostics                                  |
+| **Git repositories** | Repository catalogue, intelligence, repo map/ZIP artifacts, development promotion, watcher-safe synchronization, and guarded Host Agent Git operations                             |
+| **Docker**           | Projects, containers, images, storage, networks, lifecycle operations, cleanup controls, live metrics, events, bounded logs, diagnostics, and application-stack observability      |
+| **Access control**   | Authentication, users, roles, privileges, sessions, audit trails, and permission-separated operational controls                                                                    |
+| **Observability**    | Command dashboards, API request evidence, workflow/tool statistics, ingestion health, worker state, readiness, notifications, and structured performance telemetry                 |
 
 ## Architecture
 
@@ -225,28 +221,28 @@ Raw Docker daemon and shell access are never exposed directly to the browser.
 
 SkyCommand currently supports:
 
-| Source | Coverage |
-| --- | --- |
-| **FRED** | Configured U.S. macroeconomic indicators with concurrent ingestion and incremental loading |
-| **Bank of Canada** | Configured Canadian series with source-specific normalization |
-| **Statistics Canada** | Vector-based Canadian statistical series with retries and quality-aware loading |
-| **Manual** | CSV/spreadsheet-oriented ingestion paths for controlled operational imports |
+| Source                | Coverage                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| **FRED**              | Configured U.S. macroeconomic indicators with concurrent ingestion and incremental loading |
+| **Bank of Canada**    | Configured Canadian series with source-specific normalization                              |
+| **Statistics Canada** | Vector-based Canadian statistical series with retries and quality-aware loading            |
+| **Manual**            | CSV/spreadsheet-oriented ingestion paths for controlled operational imports                |
 
 Ingestion output records source/indicator outcomes, staging rows, new observations, inserted rows, **updated rows**, freshness, revisions, retry evidence, and performance telemetry.
 
 ## Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Admin-Web | React, Vite, React Router, Bootstrap, Axios, Apache ECharts, D3, NGINX |
-| API | Node.js, Express |
-| Database | PostgreSQL, `pg`, SQL migrations/seeds |
-| Durable workflows | Temporal |
-| Scheduled automation | Node worker daemon |
-| Host-native operations | SkyCommand Host Agent / Temporal activity worker |
-| Infrastructure | Docker Desktop, Docker Compose |
-| Auth and security | Bearer sessions, hashed session tokens, RBAC, audit events |
-| Engineering quality | ESLint, Prettier, Husky, repository self-tests and validation scripts |
+| Layer                  | Technology                                                             |
+| ---------------------- | ---------------------------------------------------------------------- |
+| Admin-Web              | React, Vite, React Router, Bootstrap, Axios, Apache ECharts, D3, NGINX |
+| API                    | Node.js, Express                                                       |
+| Database               | PostgreSQL, `pg`, SQL migrations/seeds                                 |
+| Durable workflows      | Temporal                                                               |
+| Scheduled automation   | Node worker daemon                                                     |
+| Host-native operations | SkyCommand Host Agent / Temporal activity worker                       |
+| Infrastructure         | Docker Desktop, Docker Compose                                         |
+| Auth and security      | Bearer sessions, hashed session tokens, RBAC, audit events             |
+| Engineering quality    | ESLint, Prettier, Husky, repository self-tests and validation scripts  |
 
 ## Quick Start
 
@@ -287,26 +283,26 @@ For first-time database setup, Docker cutover, Host Agent configuration, and det
 
 ## Local URLs
 
-| Surface | URL |
-| --- | --- |
-| Admin-Web | `http://localhost:15171` |
-| API health | `http://localhost:7171/_health` |
+| Surface         | URL                                |
+| --------------- | ---------------------------------- |
+| Admin-Web       | `http://localhost:15171`           |
+| API health      | `http://localhost:7171/_health`    |
 | Database health | `http://localhost:7171/_db/health` |
-| Temporal Web UI | `http://localhost:8600` |
+| Temporal Web UI | `http://localhost:8600`            |
 
 ## Common Commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run skycommand:docker:up` | Build/start the complete six-container runtime |
+| Command                             | Purpose                                                                    |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| `npm run skycommand:docker:up`      | Build/start the complete six-container runtime                             |
 | `npm run skycommand:docker:restart` | Rebuild and force-recreate the runtime while preserving persistent volumes |
-| `npm run skycommand:docker:status` | Show runtime container status |
-| `npm run skycommand:docker:logs` | Follow logs across the SkyCommand runtime |
-| `npm run host-agent:check` | Verify Docker/Temporal → Host Agent routing |
-| `npm run validate` | Run repository validation |
-| `npm run validate:syntax` | Run JavaScript syntax validation |
-| `npm run validate:self-tests` | Run repository self-tests |
-| `npm run validate:release` | Run validation plus the Admin-Web production build |
+| `npm run skycommand:docker:status`  | Show runtime container status                                              |
+| `npm run skycommand:docker:logs`    | Follow logs across the SkyCommand runtime                                  |
+| `npm run host-agent:check`          | Verify Docker/Temporal → Host Agent routing                                |
+| `npm run validate`                  | Run repository validation                                                  |
+| `npm run validate:syntax`           | Run JavaScript syntax validation                                           |
+| `npm run validate:self-tests`       | Run repository self-tests                                                  |
+| `npm run validate:release`          | Run validation plus the Admin-Web production build                         |
 
 The complete command catalogue lives in [`package.json`](package.json).
 
@@ -364,26 +360,26 @@ The README is intentionally the **front door**, not the complete operations manu
 
 ## Roadmap
 
-| Phase | Status | Objective |
-| --- | --- | --- |
-| Phase 1 | ✅ Complete | Bootstrap the Node.js application and npm tooling. |
-| Phase 2 | ✅ Complete | Add ESLint, Prettier, Husky, and automated code-quality checks. |
-| Phase 3 | ✅ Complete | Establish PostgreSQL schemas, migrations, seeds, registry metadata, and core views. |
-| Phase 4 | ✅ Complete | Build FRED, Bank of Canada, Statistics Canada, and manual ingestion pipelines. |
-| Phase 5 | ✅ Complete | Introduce SkyCommand Core for controlled tool and workflow launching. |
-| Phase 6 | ✅ Complete | Add Admin-Web, authentication, RBAC, tool management, execution logging, and safety controls. |
-| Phase 7 | ✅ Complete | Add macro operations, ingestion monitoring, admin APIs, access control, and dashboards. |
-| Phase 8 | ✅ Complete | Establish scheduled tools, listeners, worker APIs, and health monitoring. |
-| Phase 9 | ✅ Complete | Integrate analytics-facing macro, preference, dashboard, alert, and Signal Center support. |
-| Phase 10 | ✅ Complete | Add Temporal workflows with visual editing, approvals, branching, retries, and diagnostics. |
-| Phase 11 | ✅ Complete | Modernize Admin-Web into the branded SkyCommand shell and reusable UI system. |
-| Phase 12 | ✅ Complete | Add ECharts/D3 operational analytics and full-screen chart inspection. |
-| Phase 13 | ✅ Complete | Add live workflow telemetry, durable context/output, conditions, and summary nodes. |
-| Phase 14 | ✅ Complete | Establish structured tool results, output contracts, typed bindings, and repository evidence. |
-| Phase 15 | ✅ Complete | Add managed tool onboarding, contract validation, controlled execution, and recovery proof. |
-| Phase 16 | ✅ Complete | Build portable ingestion/data contracts with quality, freshness, recovery, and consumer contracts. |
-| Phase 17 | ✅ Complete | Operate Docker infrastructure with guarded controls, deep observability, diagnostics, and durable audit evidence. |
-| Continuous | 🔄 Ongoing | Expand reusable tools, workflows, diagnostics, tests, documentation, and UI polish. |
+| Phase      | Status | Objective                                                                                                         |
+| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| Phase 1    | ✅     | Bootstrap the Node.js application and npm tooling.                                                                |
+| Phase 2    | ✅     | Add ESLint, Prettier, Husky, and automated code-quality checks.                                                   |
+| Phase 3    | ✅     | Establish PostgreSQL schemas, migrations, seeds, registry metadata, and core views.                               |
+| Phase 4    | ✅     | Build FRED, Bank of Canada, Statistics Canada, and manual ingestion pipelines.                                    |
+| Phase 5    | ✅     | Introduce SkyCommand Core for controlled tool and workflow launching.                                             |
+| Phase 6    | ✅     | Add Admin-Web, authentication, RBAC, tool management, execution logging, and safety controls.                     |
+| Phase 7    | ✅     | Add macro operations, ingestion monitoring, admin APIs, access control, and dashboards.                           |
+| Phase 8    | ✅     | Establish scheduled tools, listeners, worker APIs, and health monitoring.                                         |
+| Phase 9    | ✅     | Integrate analytics-facing macro, preference, dashboard, alert, and Signal Center support.                        |
+| Phase 10   | ✅     | Add Temporal workflows with visual editing, approvals, branching, retries, and diagnostics.                       |
+| Phase 11   | ✅     | Modernize Admin-Web into the branded SkyCommand shell and reusable UI system.                                     |
+| Phase 12   | ✅     | Add ECharts/D3 operational analytics and full-screen chart inspection.                                            |
+| Phase 13   | ✅     | Add live workflow telemetry, durable context/output, conditions, and summary nodes.                               |
+| Phase 14   | ✅     | Establish structured tool results, output contracts, typed bindings, and repository evidence.                     |
+| Phase 15   | ✅     | Add managed tool onboarding, contract validation, controlled execution, and recovery proof.                       |
+| Phase 16   | ✅     | Build portable ingestion/data contracts with quality, freshness, recovery, and consumer contracts.                |
+| Phase 17   | ✅     | Operate Docker infrastructure with guarded controls, deep observability, diagnostics, and durable audit evidence. |
+| Continuous | 🔄     | Expand reusable tools, workflows, diagnostics, tests, documentation, and UI polish.                               |
 
 The Phase 17 provider/target boundary intentionally leaves room for a future **Kubernetes** sibling provider; no Kubernetes runtime is currently implemented in SkyCommand.
 
@@ -401,11 +397,11 @@ The Phase 17 provider/target boundary intentionally leaves room for a future **K
 
 ## Companion Projects
 
-| Project | Role |
-| --- | --- |
-| **SkyCommand** | Workflow automation, operational control plane, orchestration, infrastructure, and evidence |
-| **MacroAnalyzer** | Macroeconomic analytics, visualization, and financial/macro interpretation surfaces |
-| **SkyData Studio** | Data engineering, ETL, modeling, lineage, and post-ingestion data workflows |
+| Project            | Role                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| **SkyCommand**     | Workflow automation, operational control plane, orchestration, infrastructure, and evidence |
+| **MacroAnalyzer**  | Macroeconomic analytics, visualization, and financial/macro interpretation surfaces         |
+| **SkyData Studio** | Data engineering, ETL, modeling, lineage, and post-ingestion data workflows                 |
 
 ## Repository
 
