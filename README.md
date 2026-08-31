@@ -70,20 +70,6 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
       <br /><sub><strong>Command Center Dashboard</strong></sub>
     </td>
     <td width="50%" align="center">
-      <a href="docs/images/readme/Start_Workflow.png">
-        <img src="docs/images/readme/Start_Workflow.png" alt="SkyCommand Start Workflow screen" width="100%" />
-      </a>
-      <br /><sub><strong>Start Workflow</strong></sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center">
-      <a href="docs/images/readme/Workflow_Running.png">
-        <img src="docs/images/readme/Workflow_Running.png" alt="SkyCommand workflow runtime view" width="100%" />
-      </a>
-      <br /><sub><strong>Workflow Runtime</strong></sub>
-    </td>
-    <td width="50%" align="center">
       <a href="docs/images/readme/Run_Tools.png">
         <img src="docs/images/readme/Run_Tools.png" alt="SkyCommand Run Tools screen" width="100%" />
       </a>
@@ -92,16 +78,30 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
   </tr>
   <tr>
     <td width="50%" align="center">
-      <a href="docs/images/readme/Docker_Containers.png">
-        <img src="docs/images/readme/Docker_Containers.png" alt="SkyCommand Docker Containers screen" width="100%" />
+      <a href="docs/images/readme/Start_Workflow.png">
+        <img src="docs/images/readme/Start_Workflow.png" alt="SkyCommand Start Workflow screen" width="100%" />
       </a>
-      <br /><sub><strong>Docker Containers</strong></sub>
+      <br /><sub><strong>Start Workflow</strong></sub>
     </td>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Workflow_Running.png">
+        <img src="docs/images/readme/Workflow_Running.png" alt="SkyCommand workflow runtime view" width="100%" />
+      </a>
+      <br /><sub><strong>Workflow Runtime</strong></sub>
+    </td>
+  </tr>
+  <tr>
     <td width="50%" align="center">
       <a href="docs/images/readme/Approval_Prompt.png">
         <img src="docs/images/readme/Approval_Prompt.png" alt="SkyCommand workflow approval prompt" width="100%" />
       </a>
       <br /><sub><strong>Human Approval Prompt</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Docker_Containers.png">
+        <img src="docs/images/readme/Docker_Containers.png" alt="SkyCommand Docker Containers screen" width="100%" />
+      </a>
+      <br /><sub><strong>Docker Containers</strong></sub>
     </td>
   </tr>
 </table>
