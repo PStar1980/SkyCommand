@@ -10,30 +10,30 @@
 
 <strong>Deterministic workflow automation with controlled execution, durable orchestration, and inspectable evidence.</strong>
 
-<br><br>
+<br>
 
 Build developer workflows that are safe to run, retry, approve, observe, and extend.
 
-<br><br>
+<br>
 
 ![Workflow Automation](https://img.shields.io/badge/Workflow_Automation-Deterministic-D4AF37?style=flat-square&labelColor=111111)
 ![Execution](https://img.shields.io/badge/Execution-Durable-36C98F?style=flat-square&labelColor=111111)
 ![Tool Results](https://img.shields.io/badge/Tool_Results-Structured-4EA1FF?style=flat-square&labelColor=111111)
 ![Observability](https://img.shields.io/badge/Observability-Telemetry--First-C084FC?style=flat-square&labelColor=111111)
 
-<br><br>
+<br>
 
 <a href="https://skillicons.dev">
   <img src="https://skillicons.dev/icons?i=nodejs,react,postgres,docker,git,js&theme=dark&perline=6" alt="SkyCommand core technology stack" />
 </a>
 
-<br><br>
+<br>
 
 ![Temporal](https://img.shields.io/badge/Temporal-Durable_Workflows-111111?style=for-the-badge&logo=temporal&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-API_Runtime-111111?style=for-the-badge&logo=express&logoColor=white)
 ![ECharts](https://img.shields.io/badge/Apache-ECharts-AA344D?style=for-the-badge&logo=apacheecharts&logoColor=white)
 
-<br><br>
+<br>
 
 <a href="#-overview">Overview</a> ·
 <a href="#-screenshots">Screenshots</a> ·
@@ -100,7 +100,7 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
         <img src="docs/images/readme/Run_Tools.png" alt="SkyCommand Run Tools screen" width="100%" />
       </a>
       <br /><sub><strong>Run Tools</strong></sub>
-    </td>
+    </td>&nbsp;
     <td width="50%" align="center">
       <a href="docs/images/readme/Start_Workflow.png">
         <img src="docs/images/readme/Start_Workflow.png" alt="SkyCommand Start Workflow screen" width="100%" />
@@ -114,7 +114,7 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
         <img src="docs/images/readme/Approval_Prompt.png" alt="SkyCommand workflow approval prompt" width="100%" />
       </a>
       <br /><sub><strong>Human Approval Prompt</strong></sub>
-    </td>
+    </td>&nbsp;
     <td width="50%" align="center">
       <a href="docs/images/readme/Docker_Containers.png">
         <img src="docs/images/readme/Docker_Containers.png" alt="SkyCommand Docker Containers screen" width="100%" />
@@ -128,7 +128,7 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
         <img src="docs/images/readme/Login_Page.png" alt="SkyCommand login page" width="100%" />
       </a>
       <br /><sub><strong>Login</strong></sub>
-    </td>
+    </td>&nbsp;
     <td width="50%" align="center">
       <strong>Gold-and-black operational UI</strong><br />
       <sub>Deterministic workflow control, structured evidence, guarded automation, and infrastructure operations in one cohesive command surface.</sub>
