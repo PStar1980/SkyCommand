@@ -37,29 +37,64 @@ SkyCommand is the control plane. **MacroAnalyzer** owns analytical presentation,
 
 ## Screenshots
 
-### Workflow Operations
+A quick visual tour of the current SkyCommand experience. Click any thumbnail to open the full-size image.
 
-Search, filter, inspect, and compare durable workflow runs from a unified operations surface.
-
-![SkyCommand Workflow Operations](docs/images/readme/workflow-operations.png)
-
-### Visual workflow runtime + structured summary
-
-Workflow nodes expose runtime state while completed runs preserve deliberate, domain-specific structured output.
-
-![SkyCommand Macro Refresh Workflow](docs/images/readme/macro-refresh-workflow.png)
-
-### Structured performance telemetry
-
-Performance telemetry is part of the result contract for key tools, making bottlenecks observable instead of anecdotal.
-
-![SkyCommand Performance Telemetry](docs/images/readme/local-sync-telemetry.png)
-
-### Ingestion telemetry and row-level outcomes
-
-Macro ingestion output separates indicator outcomes, rows inserted, rows updated, workload phases, source latency, and slowest indicators.
-
-![SkyCommand Macro Ingestion Telemetry](docs/images/readme/macro-ingestion-telemetry.png)
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Dashboard.png">
+        <img src="docs/images/readme/Dashboard.png" alt="SkyCommand Command Center dashboard" width="100%" />
+      </a>
+      <br /><sub><strong>Command Center Dashboard</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Start_Workflow.png">
+        <img src="docs/images/readme/Start_Workflow.png" alt="SkyCommand Start Workflow screen" width="100%" />
+      </a>
+      <br /><sub><strong>Start Workflow</strong></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Workflow_Running.png">
+        <img src="docs/images/readme/Workflow_Running.png" alt="SkyCommand workflow runtime view" width="100%" />
+      </a>
+      <br /><sub><strong>Workflow Runtime</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Run_Tools.png">
+        <img src="docs/images/readme/Run_Tools.png" alt="SkyCommand Run Tools screen" width="100%" />
+      </a>
+      <br /><sub><strong>Run Tools</strong></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Docker_Containers.png">
+        <img src="docs/images/readme/Docker_Containers.png" alt="SkyCommand Docker Containers screen" width="100%" />
+      </a>
+      <br /><sub><strong>Docker Containers</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Approval_Prompt.png">
+        <img src="docs/images/readme/Approval_Prompt.png" alt="SkyCommand workflow approval prompt" width="100%" />
+      </a>
+      <br /><sub><strong>Human Approval Prompt</strong></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Login_Page.png">
+        <img src="docs/images/readme/Login_Page.png" alt="SkyCommand login page" width="100%" />
+      </a>
+      <br /><sub><strong>Login</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <strong>Gold-and-black operational UI</strong><br />
+      <sub>Workflow orchestration, structured evidence, guarded automation, and infrastructure control in one cohesive command surface.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Core Capabilities
 

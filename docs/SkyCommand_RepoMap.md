@@ -346,6 +346,13 @@ SkyCommand/
 │   ├── audits/
 │   └── images/
 │       └── readme/
+│           ├── Approval_Prompt.png
+│           ├── Dashboard.png
+│           ├── Docker_Containers.png
+│           ├── Login_Page.png
+│           ├── Run_Tools.png
+│           ├── Start_Workflow.png
+│           └── Workflow_Running.png
 ├── packages/
 │   ├── auth/
 │   │   └── src/
