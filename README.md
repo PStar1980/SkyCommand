@@ -3,7 +3,11 @@
 </p>
 
 <p align="center">
-  <strong>Workflow automation, operational control, and evidence-driven observability.</strong>
+  <strong>Deterministic workflow automation with controlled execution, durable orchestration, and inspectable evidence.</strong>
+</p>
+
+<p align="center">
+  Build developer workflows that are safe to run, retry, approve, observe, and extend.
 </p>
 
 <p align="center">
@@ -14,21 +18,31 @@
 
 ## Overview
 
-**SkyCommand** is the private operational control plane for the Sky ecosystem. It combines workflow orchestration, controlled tool execution, data ingestion, repository automation, infrastructure operations, access control, and deep observability inside one cohesive admin experience.
+**SkyCommand** is a developer-focused workflow automation platform for building, running, and observing **controlled deterministic workflows**. It is designed for automation that must be durable, permission-aware, safe to retry, and easy to inspect after execution.
 
-The project is built around a simple idea: automation should not merely run — it should produce **evidence**. Tool results, workflow outcomes, retries, approvals, performance telemetry, audit records, and infrastructure state are all designed to be inspectable after execution.
+Temporal provides the durable orchestration layer, Node.js tools perform bounded side effects, PostgreSQL preserves runtime metadata and evidence, and the React Admin-Web provides a visual control surface for authoring, execution, approvals, recovery, and diagnostics.
 
-SkyCommand is the control plane. **MacroAnalyzer** owns analytical presentation, while **SkyData Studio** focuses on data-engineering workflows and post-ingestion transformation.
+SkyCommand can be used as a standalone workflow control plane: register tools, compose workflows, add runtime parameters and approval gates, schedule execution, inspect structured results, and trace exactly what happened when a workflow ran.
+
+### Use SkyCommand when you need
+
+- deterministic workflow control rather than opaque scripting chains;
+- durable execution with retries, waits, approvals, and recovery;
+- controlled tool launching with RBAC, risk levels, validation, and audit evidence;
+- structured machine-readable outputs that can drive downstream workflow decisions;
+- operational telemetry that shows both **what happened** and **where the time went**;
+- guarded automation across local tools, Git repositories, data pipelines, and Docker infrastructure.
 
 ## Highlights
 
-- **Durable workflow orchestration** with Temporal-backed execution, approvals, conditions, waits, retries, summaries, and node-level recovery.
-- **Structured tool results** with versioned output contracts, typed workflow bindings, focused result views, and performance telemetry.
-- **Controlled tool execution** with RBAC, risk levels, parameter validation, confirmation controls, timeouts, execution history, and audit evidence.
-- **Macroeconomic ingestion** for FRED, Bank of Canada, and Statistics Canada with quality-aware loading, revision tracking, freshness, retries, and source-level diagnostics.
-- **Repository automation** for repo intelligence, map/ZIP generation, development commits, remote synchronization, and guarded four-way local/remote Git synchronization.
-- **Docker infrastructure control** with inventory, lifecycle operations, live telemetry, logs/events, diagnostics, self-protection, and durable Docker Operations history.
+- **Deterministic workflow orchestration** with versioned workflow definitions, Temporal-backed durability, conditions, waits, approvals, retries, summaries, and node-level recovery.
+- **Managed tool execution** with dynamic parameters, RBAC, risk levels, confirmation controls, timeouts, retry policy, concurrency controls, and execution history.
+- **Structured tool results** with versioned output contracts, typed workflow bindings, focused result views, workflow summaries, and domain-specific performance telemetry.
+- **Visual workflow operations** with runtime graphs, active-node focus, retry controls, approval state, node output history, and durable execution evidence.
+- **Repository automation** for repository intelligence, map/ZIP artifacts, development commits, remote synchronization, and guarded four-way local/remote Git synchronization.
+- **Docker infrastructure operations** with inventory, lifecycle controls, live telemetry, logs/events, diagnostics, self-protection, and durable Docker Operations history.
 - **Host-native execution** through a narrowly scoped Windows Host Agent for operations that should not run against host-owned resources through Docker bind mounts.
+- **Reference ingestion workflows** for FRED, Bank of Canada, and Statistics Canada with quality-aware loading, revision tracking, freshness, retries, row-level effects, and source telemetry.
 - **Operational analytics** using Apache ECharts and D3 across workflows, tools, ingestion, API activity, workers, readiness, and Docker surfaces.
 
 ## Screenshots
@@ -36,6 +50,18 @@ SkyCommand is the control plane. **MacroAnalyzer** owns analytical presentation,
 A quick visual tour of the current SkyCommand experience. Click any thumbnail to open the full-size image.
 
 <table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="docs/images/readme/Login_Page.png">
+        <img src="docs/images/readme/Login_Page.png" alt="SkyCommand login page" width="100%" />
+      </a>
+      <br /><sub><strong>Login</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <strong>Gold-and-black operational UI</strong><br />
+      <sub>Deterministic workflow control, structured evidence, guarded automation, and infrastructure operations in one cohesive command surface.</sub>
+    </td>
+  </tr>
   <tr>
     <td width="50%" align="center">
       <a href="docs/images/readme/Dashboard.png">
@@ -78,45 +104,34 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
       <br /><sub><strong>Human Approval Prompt</strong></sub>
     </td>
   </tr>
-  <tr>
-    <td width="50%" align="center">
-      <a href="docs/images/readme/Login_Page.png">
-        <img src="docs/images/readme/Login_Page.png" alt="SkyCommand login page" width="100%" />
-      </a>
-      <br /><sub><strong>Login</strong></sub>
-    </td>
-    <td width="50%" align="center">
-      <strong>Gold-and-black operational UI</strong><br />
-      <sub>Workflow orchestration, structured evidence, guarded automation, and infrastructure control in one cohesive command surface.</sub>
-    </td>
-  </tr>
 </table>
 
 ## Core Capabilities
 
-| Area                 | What SkyCommand provides                                                                                                                                                           |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Workflows**        | Versioned workflow definitions, visual graph editing, runtime parameters, conditions, waits, approvals, retries, nested execution, summaries, node output history, and run control |
-| **Tools**            | Managed catalogue, dynamic parameters, permission-aware execution, structured contracts, execution history, telemetry, retry policy, concurrency, and timeout controls             |
-| **Automation**       | Scheduler and listener control surfaces, worker-backed execution, future-dated and recurring schedules, and workflow/tool automation                                               |
-| **Data**             | FRED, Bank of Canada, Statistics Canada, and manual ingestion with staging, freshness, quality policies, recovery, row revisions, and diagnostics                                  |
-| **Git repositories** | Repository catalogue, intelligence, repo map/ZIP artifacts, development promotion, watcher-safe synchronization, and guarded Host Agent Git operations                             |
-| **Docker**           | Projects, containers, images, storage, networks, lifecycle operations, cleanup controls, live metrics, events, bounded logs, diagnostics, and application-stack observability      |
-| **Access control**   | Authentication, users, roles, privileges, sessions, audit trails, and permission-separated operational controls                                                                    |
-| **Observability**    | Command dashboards, API request evidence, workflow/tool statistics, ingestion health, worker state, readiness, notifications, and structured performance telemetry                 |
+| Area                 | What SkyCommand provides                                                                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Workflows**        | Versioned definitions, visual graph editing, runtime parameters, deterministic control flow, conditions, waits, approvals, retries, nested execution, summaries, node output history, and run control |
+| **Tools**            | Managed catalogue, dynamic parameters, permission-aware execution, structured contracts, telemetry, execution history, retry policy, concurrency, and timeout controls                                |
+| **Automation**       | Scheduled and listener-driven execution, worker-backed dispatch, future-dated and recurring schedules, and workflow/tool automation                                                                   |
+| **Observability**    | Command dashboards, workflow/tool statistics, focused node output, API evidence, worker state, readiness, notifications, and structured performance telemetry                                         |
+| **Git repositories** | Repository catalogue, intelligence, map/ZIP artifacts, development promotion, watcher-safe synchronization, and guarded Host Agent Git operations                                                     |
+| **Docker**           | Projects, containers, images, storage, networks, lifecycle operations, cleanup controls, live metrics, events, bounded logs, diagnostics, and application-stack observability                         |
+| **Data**             | FRED, Bank of Canada, Statistics Canada, and manual ingestion with staging, freshness, quality policies, recovery, inserted/updated rows, revisions, and diagnostics                                  |
+| **Access control**   | Authentication, users, roles, privileges, sessions, audit trails, and permission-separated operational controls                                                                                       |
+| **Extensibility**    | Script-based tools, versioned ToolResult contracts, typed workflow bindings, reusable workflow templates, and optional host-native execution paths                                                    |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Operator["Operator<br/>Browser / Core CLI"]
-    Macro["MacroAnalyzer<br/>analytics consumer"]
-    Sources["FRED / BoC / StatCan"]
+    Developer["Developer / Operator<br/>Browser · CLI · API"]
+    Systems["External APIs / Services"]
+    Sources["Reference Data Sources<br/>FRED · BoC · StatCan"]
 
     subgraph Docker["Docker Compose Runtime"]
         Web["Admin-Web<br/>React + Vite + NGINX"]
         API["SkyCommand API<br/>Node.js + Express"]
-        PG[("PostgreSQL<br/>auth · core · macro · skyweb · worker")]
+        PG[("PostgreSQL<br/>auth · core · macro · worker")]
         Temporal["Temporal Server"]
         TWorker["Temporal Worker<br/>durable workflows"]
         NWorker["Node Worker<br/>schedules + listeners"]
@@ -126,44 +141,49 @@ flowchart LR
     Git["Host Git worktrees"]
     Engine["Docker Desktop / Engine"]
 
-    Operator --> Web
-    Operator --> API
+    Developer --> Web
+    Developer --> API
     Web --> API
     API --> PG
     API --> Temporal
     Temporal --> TWorker
     TWorker --> PG
+    TWorker --> Systems
     TWorker --> Sources
     NWorker --> PG
     NWorker --> Temporal
     TWorker -->|dedicated host activity queue| Host
     Host --> Git
     Host --> Engine
-    Macro -->|macro / control APIs| API
 ```
 
 ### Runtime boundary
 
 SkyCommand uses a six-service Docker Compose runtime for **PostgreSQL, Admin-Web, API, Node worker, Temporal worker, and Temporal server**. The intentional exception is the **Host Agent**, which remains native to Windows so guarded operations can interact safely and efficiently with host-owned Git worktrees and Docker Desktop resources.
 
-Docker orchestrates. Temporal makes work durable. PostgreSQL preserves operational evidence. The Host Agent owns narrowly scoped host-native actions.
+Docker provides the runtime boundary. Temporal makes workflow execution durable. PostgreSQL preserves operational evidence. The Host Agent owns narrowly scoped host-native actions.
 
-## Workflow Model
+## Deterministic Execution Model
 
-A typical repository promotion workflow demonstrates the orchestration model end to end:
+SkyCommand treats workflow control and external side effects as separate concerns.
 
 ```text
-Repository Intelligence
-  → Repository Map
-  → Repository ZIP
-  → Dev Commit
-  → Human Merge Approval
-  → Remote Main/Development Sync
-  → Local Repository Sync
-  → Structured Summary
+Workflow definition + runtime parameters
+        ↓
+Deterministic workflow control
+        ↓
+Tool / activity execution
+        ↓
+Structured ToolResult
+        ↓
+Conditions · approvals · retries · summaries
+        ↓
+Durable workflow evidence
 ```
 
-The workflow keeps remote synchronization separate from host-local branch mutation. Under Docker, Git operations that touch the Windows repository are delegated to the Host Agent while the Temporal workflow remains the durable orchestration authority.
+Workflow definitions control ordering, branching, waits, retry behavior, approvals, and state transitions. External I/O is isolated inside tool/activity nodes, while Temporal preserves the durable event history required for replay, recovery, and long-running execution.
+
+This does **not** mean external systems always return identical data. It means workflow control is explicit, versioned, inspectable, and reproducible from its recorded execution history rather than depending on hidden process state.
 
 ## Structured Results and Telemetry
 
@@ -178,33 +198,55 @@ Tool script
                                       → Focused Node Output
 ```
 
-Structured results can include domain-specific telemetry such as:
+Structured results can expose domain-specific evidence such as:
 
 - phase-level duration and share of total runtime;
-- source/workload timing;
-- cumulative concurrent worker time;
+- source/workload timing and concurrency;
+- cumulative worker-stage time;
 - slowest indicators or operations;
 - Host Agent dispatch timing;
 - child-process envelope timing;
-- rows inserted, rows updated, revisions, retries, and other domain evidence.
+- inserted rows, updated rows, revisions, retries, and other domain outcomes.
 
-This pattern keeps workflow integration generic while allowing each tool to expose the evidence that matters to its domain.
+The result contract keeps workflow integration generic while allowing each tool to describe the evidence that matters to its domain.
 
-## Development Promotion and Git Safety
+> **SkyCommand performance rule:** optimize only after telemetry shows where the time actually went.
 
-Repository automation is designed around guarded, watcher-safe synchronization rather than blind branch mutation.
+## Reference Workflows
 
-The promotion path can prove that:
+SkyCommand ships with working examples that demonstrate controlled automation patterns rather than toy tasks.
+
+### Development Promotion
+
+```text
+Repository Map
+  → Repository ZIP
+  → Dev Commit
+  → Human Merge Approval
+  → Remote Main/Development Sync
+  → Local Repository Sync
+  → Structured Summary
+```
+
+The promotion path keeps remote synchronization separate from host-local mutation and can prove:
 
 ```text
 local main = local dev = origin/main = origin/dev = approved SHA
 ```
 
-Key protections include clean-worktree checks, branch-lineage validation, compare-and-swap preflight, authoritative remote re-verification, fast-forward-only local updates, repository locking, and post-sync four-way verification.
+Key protections include clean-worktree checks, branch-lineage validation, compare-and-swap preflight, authoritative remote re-verification, repository locking, fast-forward-only local updates, and post-sync four-way verification.
 
-## Docker Infrastructure Control Plane
+### Macro Refresh
 
-Phase 17 expanded SkyCommand from a Dockerized application into a guarded Docker operations surface. The Docker domain provides:
+The macro refresh workflow runs FRED, Bank of Canada, and Statistics Canada ingestion as controlled tool nodes and produces a structured summary across all sources.
+
+Ingestion results can report source/indicator outcomes, staging rows, new observations, inserted rows, **updated rows**, freshness, revisions, retries, and performance telemetry.
+
+## Docker Infrastructure Operations
+
+SkyCommand can operate Docker as a guarded infrastructure provider rather than exposing raw daemon or shell access to the browser.
+
+The Docker domain includes:
 
 - Engine, Compose project, container, image, volume, and network inventory;
 - permission-separated lifecycle and cleanup operations;
@@ -213,22 +255,24 @@ Phase 17 expanded SkyCommand from a Dockerized application into a guarded Docker
 - application-stack status and failure-domain diagnostics;
 - durable Docker Operations audit evidence;
 - control-plane self-protection and explicit stale/error semantics;
-- a provider/target seam intended to support a future Kubernetes sibling provider.
+- a provider/target seam intended to support additional infrastructure providers in the future.
 
-Raw Docker daemon and shell access are never exposed directly to the browser.
+## Extending SkyCommand
 
-## Macro Ingestion
+The normal tool-authoring path is intentionally small:
 
-SkyCommand currently supports:
+```text
+Tool script
+  → tool registration / parameters
+  → versioned ToolResult contract
+  → workflow node
+```
 
-| Source                | Coverage                                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------------ |
-| **FRED**              | Configured U.S. macroeconomic indicators with concurrent ingestion and incremental loading |
-| **Bank of Canada**    | Configured Canadian series with source-specific normalization                              |
-| **Statistics Canada** | Vector-based Canadian statistical series with retries and quality-aware loading            |
-| **Manual**            | CSV/spreadsheet-oriented ingestion paths for controlled operational imports                |
+Most tools do **not** require Host Agent or Dockerfile changes. A standard tool can run inside the normal SkyCommand execution runtime as long as its dependencies are already available there.
 
-Ingestion output records source/indicator outcomes, staging rows, new observations, inserted rows, **updated rows**, freshness, revisions, retry evidence, and performance telemetry.
+Use a Host Agent execution path only when a tool genuinely needs native access to host-owned resources, such as guarded Windows Git worktrees or Docker Desktop operations. Host-native tools remain explicitly allow-listed rather than inheriting host authority automatically.
+
+For detailed conventions, see the [Tool Authoring Guide](docs/SkyCommand_Tool_Authoring_Guide.md).
 
 ## Tech Stack
 
@@ -246,25 +290,32 @@ Ingestion output records source/indicator outcomes, staging rows, new observatio
 
 ## Quick Start
 
-> SkyCommand is currently optimized for local development with Docker Desktop. Host-native repository and Docker operations use the optional Windows Host Agent.
+> SkyCommand is currently optimized for local development with Docker Desktop. Host-native Git and Docker operations use the optional Windows Host Agent.
 
-### 1. Install dependencies
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/PStar1980/SkyCommand.git
+cd SkyCommand
+```
+
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Configure the environment
+### 3. Configure the environment
 
 Create `.env` from `.env.example` and provide the required local database, Temporal, authentication, GitHub, and runtime settings.
 
-### 3. Start the Docker runtime
+### 4. Start the Docker runtime
 
 ```bash
 npm run skycommand:docker:up
 ```
 
-### 4. Optional: enable the Host Agent
+### 5. Optional: enable the Host Agent
 
 For host-native Git/Docker operations, enable the bridge in `.env`:
 
@@ -387,21 +438,14 @@ The Phase 17 provider/target boundary intentionally leaves room for a future **K
 
 > **Automation should feel like intelligence — quiet, precise, and always one step ahead.**
 
+- Make workflow control deterministic, explicit, and inspectable.
 - Prefer reusable contracts over one-off integrations.
-- Keep operational mutations permission-aware, observable, and reversible.
-- Separate human logs from machine-readable workflow results.
+- Keep operational mutations permission-aware, observable, and recoverable.
+- Separate human-readable logs from machine-readable workflow results.
 - Keep ingestion idempotent and database builds deterministic.
 - Put host-owned work on the host and orchestration in the control plane.
 - Preserve durable evidence for important execution decisions.
 - Optimize only after telemetry shows where the time actually went.
-
-## Companion Projects
-
-| Project            | Role                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| **SkyCommand**     | Workflow automation, operational control plane, orchestration, infrastructure, and evidence |
-| **MacroAnalyzer**  | Macroeconomic analytics, visualization, and financial/macro interpretation surfaces         |
-| **SkyData Studio** | Data engineering, ETL, modeling, lineage, and post-ingestion data workflows                 |
 
 ## Repository
 
