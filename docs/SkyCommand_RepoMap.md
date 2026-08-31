@@ -343,7 +343,9 @@ SkyCommand/
 │   │   ├── core_schema_ERD.png
 │   │   ├── skyweb_schema_ERD.png
 │   │   └── worker_schema_ERD.png
-│   └── audits/
+│   ├── audits/
+│   └── images/
+│       └── readme/
 ├── packages/
 │   ├── auth/
 │   │   └── src/
