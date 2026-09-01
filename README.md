@@ -17,6 +17,8 @@
 
 <br>
 
+<strong>Core Technologies:</strong>
+
 <a href="https://skillicons.dev">
   <img src="https://skillicons.dev/icons?i=nodejs,react,postgres,docker,git,js&theme=dark&perline=6" alt="SkyCommand core technology stack" />
 </a>
