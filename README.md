@@ -75,7 +75,7 @@ SkyCommand can be used as a standalone workflow control plane: register tools, c
 <div align="center">
   <a href="docs/images/readme/Dashboard.png">
     <img src="docs/images/readme/Dashboard.png" alt="SkyCommand Command Center dashboard" width="48%" />
-  </a>
+  </a>&nbsp;
   <a href="docs/images/readme/Workflow_Running.png">
     <img src="docs/images/readme/Workflow_Running.png" alt="SkyCommand workflow runtime" width="48%" />
   </a>
