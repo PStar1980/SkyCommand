@@ -10,12 +10,6 @@
 
 <strong>Deterministic workflow automation with controlled execution, durable orchestration, and inspectable evidence.</strong>
 
-<br>
-
-Build developer workflows that are safe to run, retry, approve, observe, and extend.
-
-<br>
-
 ![Workflow Automation](https://img.shields.io/badge/Workflow_Automation-Deterministic-D4AF37?style=flat-square&labelColor=111111)
 ![Execution](https://img.shields.io/badge/Execution-Durable-36C98F?style=flat-square&labelColor=111111)
 ![Tool Results](https://img.shields.io/badge/Tool_Results-Structured-4EA1FF?style=flat-square&labelColor=111111)
