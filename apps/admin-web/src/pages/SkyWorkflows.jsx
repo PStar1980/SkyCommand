@@ -5774,7 +5774,7 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
-  async function scrollRuntimeStatusOverlayIntoView() {
+  async function scrollRuntimeStatusOverlayIntoView({ settleFrames = 1 } = {}) {
     // The submit button remains focused while React commits the "starting" state.
     // Release that focus so the browser does not try to keep the launch controls
     // visible while we deliberately move the viewport to the live runtime surface.
@@ -5783,28 +5783,38 @@ function SkyWorkflows({ mode = 'start' }) {
       activeElement.blur();
     }
 
-    // Yield one frame so the pending React state update is committed and layout is
-    // stable before calculating the overlay position. The workflow is not dispatched
-    // until this anchor has been applied.
-    await new Promise((resolve) => {
-      window.requestAnimationFrame(() => {
-        const overlay = runtimeStatusOverlayRef.current;
+    // A launch can add enough runtime content below the overlay to make a top alignment
+    // possible only after React paints the first run state. Waiting one or two frames lets
+    // the caller target the post-render geometry rather than the shorter pre-run page.
+    const frameCount = Math.max(1, Number(settleFrames) || 1);
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    }
 
-        if (overlay) {
-          const topbarHeight =
-            document.querySelector('.sky-topbar')?.getBoundingClientRect().height || 0;
-          const overlayTop = overlay.getBoundingClientRect().top + window.scrollY;
+    const overlay = runtimeStatusOverlayRef.current;
+    if (!overlay) {
+      return { aligned: false, clampedByDocumentEnd: false };
+    }
 
-          window.scrollTo({
-            top: Math.max(0, overlayTop - topbarHeight - 8),
-            left: window.scrollX,
-            behavior: 'auto',
-          });
-        }
+    const topbarHeight =
+      document.querySelector('.sky-topbar')?.getBoundingClientRect().height || 0;
+    const overlayTop = overlay.getBoundingClientRect().top + window.scrollY;
+    const requestedTop = Math.max(0, overlayTop - topbarHeight - 8);
+    const scrollingElement = document.scrollingElement || document.documentElement;
+    const maxScrollTop = Math.max(0, scrollingElement.scrollHeight - window.innerHeight);
+    const targetTop = Math.min(requestedTop, maxScrollTop);
+    const clampedByDocumentEnd = targetTop < requestedTop - 1;
 
-        resolve();
-      });
+    window.scrollTo({
+      top: targetTop,
+      left: window.scrollX,
+      behavior: 'auto',
     });
+
+    return {
+      aligned: !clampedByDocumentEnd,
+      clampedByDocumentEnd,
+    };
   }
 
   async function handleStartWorkflow(event) {
@@ -5824,6 +5834,8 @@ function SkyWorkflows({ mode = 'start' }) {
     try {
       const params = parseRuntimeParameterValues(runtimeParameters, runtimeParameterValues);
 
+      // First move immediately. On a short pre-run page the browser may clamp at the
+      // document bottom; the post-launch pass below corrects that once runtime content exists.
       await scrollRuntimeStatusOverlayIntoView();
 
       const result = await workflowService.startWorkflow(selectedDefinitionDetail.workflowCode, {
@@ -5848,11 +5860,17 @@ function SkyWorkflows({ mode = 'start' }) {
             ? result.run?.summary || 'Workflow completed.'
             : result.error || 'Workflow failed.',
       );
+      const startedRunId = result.run?.workflowRunRecordId || null;
       setSelectedRunDetail({ run: result.run, nodeRuns: result.nodeRuns || [] });
       await loadRuns(filters, { keepSelection: false });
-      if (result.run?.workflowRunRecordId) {
-        await loadRunDetail(result.run.workflowRunRecordId, { telemetry: true });
+      if (startedRunId) {
+        await loadRunDetail(startedRunId, { telemetry: true });
       }
+
+      // Re-anchor after the live run surface has rendered. This is the important second
+      // pass: before dispatch there may not be enough document height to place the card
+      // beneath the fixed topbar, so the browser can only scroll as far as the page bottom.
+      await scrollRuntimeStatusOverlayIntoView({ settleFrames: 2 });
     } catch (startError) {
       const messageText = formatApiError(startError, 'Failed to start workflow.');
       setRuntimeParameterError(messageText);

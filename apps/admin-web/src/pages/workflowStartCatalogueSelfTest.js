@@ -94,7 +94,9 @@ assert(
   'Start Workflow must remove the full node inspector while retaining lightweight graph navigation.',
 );
 assert(
-  workflowSource.includes('className="sky-workflow-start-detail-stack"') &&
+  workflowSource.includes(
+    'className="sky-workflow-start-detail-stack sky-table-browser-anchor"',
+  ) &&
     cssSource.includes('.sky-workflow-start-detail-stack .sky-workflow-visual-map') &&
     cssSource.includes('overflow-x: auto;'),
   'Start Workflow graph must stay page-width and scroll horizontally like Workflow Operations.',
@@ -173,24 +175,39 @@ const workflowDispatchIndex = workflowSource.indexOf(
   'workflowService.startWorkflow',
   runtimeStatusAnchorIndex,
 );
+const runtimeDetailLoadIndex = workflowSource.indexOf(
+  'await loadRunDetail(startedRunId, { telemetry: true });',
+  workflowDispatchIndex,
+);
+const runtimeStatusPostLaunchAnchorIndex = workflowSource.indexOf(
+  'await scrollRuntimeStatusOverlayIntoView({ settleFrames: 2 });',
+  workflowDispatchIndex,
+);
 assert(
   workflowSource.includes('const runtimeStatusOverlayRef = useRef(null);') &&
     workflowSource.includes('ref={runtimeStatusOverlayRef}') &&
     workflowSource.includes(
       'className="sky-workflow-start-detail-stack sky-table-browser-anchor"',
     ) &&
-    workflowSource.includes('async function scrollRuntimeStatusOverlayIntoView()') &&
+    workflowSource.includes(
+      'async function scrollRuntimeStatusOverlayIntoView({ settleFrames = 1 } = {})',
+    ) &&
     workflowSource.includes(
       "document.querySelector('.sky-topbar')?.getBoundingClientRect().height || 0",
     ) &&
     workflowSource.includes('overlay.getBoundingClientRect().top + window.scrollY') &&
-    workflowSource.includes('window.requestAnimationFrame(() => {') &&
+    workflowSource.includes('document.scrollingElement || document.documentElement') &&
+    workflowSource.includes('scrollingElement.scrollHeight - window.innerHeight') &&
+    workflowSource.includes('const targetTop = Math.min(requestedTop, maxScrollTop);') &&
+    workflowSource.includes('window.requestAnimationFrame(resolve)') &&
     workflowSource.includes('window.scrollTo({') &&
     workflowSource.includes("behavior: 'auto'") &&
     !workflowSource.includes('runtimeStatusOverlayRef.current?.scrollIntoView') &&
     runtimeStatusAnchorIndex >= 0 &&
-    workflowDispatchIndex > runtimeStatusAnchorIndex,
-  'Start Workflow must synchronously anchor the Runtime Status Overlay below the fixed topbar before dispatching execution.',
+    workflowDispatchIndex > runtimeStatusAnchorIndex &&
+    runtimeDetailLoadIndex > workflowDispatchIndex &&
+    runtimeStatusPostLaunchAnchorIndex > runtimeDetailLoadIndex,
+  'Start Workflow must anchor immediately, then re-anchor the Runtime Status Overlay after live run content renders so it reaches the fixed-topbar alignment whenever document height allows.',
 );
 
 assert(
