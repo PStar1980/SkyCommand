@@ -166,6 +166,24 @@ assert(
   'Start Workflow must use one consistent launch button label for every workflow.',
 );
 
+const runtimeStatusAnchorIndex = workflowSource.indexOf(
+  'runtimeStatusOverlayRef.current?.scrollIntoView',
+);
+const workflowDispatchIndex = workflowSource.indexOf(
+  'workflowService.startWorkflow',
+  runtimeStatusAnchorIndex,
+);
+assert(
+  workflowSource.includes('const runtimeStatusOverlayRef = useRef(null);') &&
+    workflowSource.includes('ref={runtimeStatusOverlayRef}') &&
+    workflowSource.includes(
+      'className="sky-workflow-start-detail-stack sky-table-browser-anchor"',
+    ) &&
+    runtimeStatusAnchorIndex >= 0 &&
+    workflowDispatchIndex > runtimeStatusAnchorIndex,
+  'Start Workflow must anchor to the Runtime Status Overlay before dispatching execution.',
+);
+
 assert(
   workflowSource.includes('function getClearedRuntimeParameterValues(parameters = [])') &&
     workflowSource.includes('setRuntimeParameterValues(getClearedRuntimeParameterValues(runtimeParameters));'),

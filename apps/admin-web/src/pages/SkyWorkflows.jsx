@@ -5220,6 +5220,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const telemetryPollingRef = useRef(false);
   const historyBrowserRef = useRef(null);
   const startWorkflowBrowserRef = useRef(null);
+  const runtimeStatusOverlayRef = useRef(null);
   const completionFocusRef = useRef({
     applied: false,
     runId: null,
@@ -5789,6 +5790,11 @@ function SkyWorkflows({ mode = 'start' }) {
 
     try {
       const params = parseRuntimeParameterValues(runtimeParameters, runtimeParameterValues);
+
+      // Keep the live execution surface in view before dispatching the workflow so the
+      // operator immediately sees runtime state instead of launching below the fold.
+      runtimeStatusOverlayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
       const result = await workflowService.startWorkflow(selectedDefinitionDetail.workflowCode, {
         input: {
           runSource: 'manual',
@@ -7623,7 +7629,10 @@ function SkyWorkflows({ mode = 'start' }) {
                 </form>
               </section>
 
-              <div className="sky-workflow-start-detail-stack">
+              <div
+                className="sky-workflow-start-detail-stack sky-table-browser-anchor"
+                ref={runtimeStatusOverlayRef}
+              >
                 <WorkflowVisualGraph
                   approvals={selectedApprovals}
                   followActiveNode={followActiveRuntimeNode}
