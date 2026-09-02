@@ -482,7 +482,7 @@ The README is intentionally the **front door**, not the complete operations manu
 | Phase 17   | ✅     | Operate Docker infrastructure with guarded controls, deep observability, diagnostics, and durable audit evidence. |
 | Continuous | 🔄     | Expand reusable tools, workflows, diagnostics, tests, documentation, and UI polish.                               |
 
-The Phase 17 provider/target boundary intentionally leaves room for a future **Kubernetes** sibling provider; no Kubernetes runtime is currently implemented in SkyCommand.
+The Phase 1 7 provider/target boundary intentionally leaves room for a future **Kubernetes** sibling provider; no Kubernetes runtime is currently implemented in SkyCommand.
 
 ---
 
