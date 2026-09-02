@@ -5335,7 +5335,6 @@ function SkyWorkflows({ mode = 'start' }) {
 
     setApprovalResumePollingUntil(Date.now() + APPROVAL_RESUME_FAST_WINDOW_MS);
     setFollowActiveRuntimeNode(true);
-    setMessage(result?.message || `Approval ${String(resolvedApproval.status || 'approved').toLowerCase()}.`);
     setSelectedRunDetail((current) => {
       if (!current) {
         return current;

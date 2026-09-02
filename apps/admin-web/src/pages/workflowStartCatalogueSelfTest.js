@@ -305,12 +305,19 @@ assert(
     workflowSource.includes('approvalFocusAlreadyApplied') &&
     workflowSource.includes('setSelectedRuntimeNodeIndex(approvalNodeIndex)') &&
     workflowSource.includes('onApprovalReview={handleApprovalReview}') &&
-    approvalOverlaySource.includes('Approve and continue') &&
+    approvalOverlaySource.includes("deciding === 'APPROVED' ? 'Approving…' : 'Approve'") &&
+    !approvalOverlaySource.includes('Approve and continue') &&
+    approvalOverlaySource.includes('const decisionNoteRef = useRef(null);') &&
+    approvalOverlaySource.includes('const approveButtonRef = useRef(null);') &&
+    approvalOverlaySource.includes('decisionNoteRef.current?.focus({ preventScroll: true })') &&
+    approvalOverlaySource.includes("event.key === 'Enter'") &&
+    approvalOverlaySource.includes('approveButtonRef.current?.click()') &&
+    !workflowSource.includes("setMessage(result?.message || `Approval ${String(resolvedApproval.status || 'approved').toLowerCase()}.`);") &&
     approvalOverlaySource.includes('workflowService.decideApproval') &&
     cssSource.includes('.sky-workflow-approval-node-action') &&
     cssSource.includes('.sky-card .alert-info,') &&
     cssSource.includes('.sky-workflow-visual-node.is-selection-locked {'),
-  'Active execution must lock inspection, pending approvals must unlock the graph and focus the approval node once, and approval decisions must be available from the approval node.',
+  'Active execution must lock inspection, pending approvals must unlock the graph and focus the approval node once, and approval overlay decisions must autofocus the note, support Enter-to-approve, use the compact Approve label, and avoid redundant post-decision success banners.',
 );
 
 

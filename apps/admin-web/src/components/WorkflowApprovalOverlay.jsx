@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import workflowService from '../services/workflowService.js';
 
@@ -59,6 +59,8 @@ function WorkflowApprovalOverlay({
   const [decisionNote, setDecisionNote] = useState('');
   const [deciding, setDeciding] = useState('');
   const [error, setError] = useState('');
+  const decisionNoteRef = useRef(null);
+  const approveButtonRef = useRef(null);
 
   const open = Boolean(approval);
   const pending = String(approval?.status || '').toUpperCase() === 'PENDING';
@@ -79,6 +81,18 @@ function WorkflowApprovalOverlay({
     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && !deciding) {
         onClose?.();
+        return;
+      }
+
+      if (
+        event.key === 'Enter' &&
+        !event.shiftKey &&
+        authorized &&
+        !deciding &&
+        !(event.target instanceof HTMLButtonElement)
+      ) {
+        event.preventDefault();
+        approveButtonRef.current?.click();
       }
     };
 
@@ -89,7 +103,19 @@ function WorkflowApprovalOverlay({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [deciding, onClose, open]);
+  }, [authorized, deciding, onClose, open]);
+
+  useEffect(() => {
+    if (!open || !authorized) {
+      return;
+    }
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      decisionNoteRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [approval?.approvalRequestId, authorized, open]);
 
   async function decide(decision) {
     if (!approval?.approvalRequestId || !authorized || deciding) {
@@ -228,6 +254,7 @@ function WorkflowApprovalOverlay({
               maxLength={4000}
               onChange={(event) => setDecisionNote(event.target.value)}
               placeholder="Optional note stored with the approval decision"
+              ref={decisionNoteRef}
               rows={4}
               value={decisionNote}
             />
@@ -251,9 +278,10 @@ function WorkflowApprovalOverlay({
                 className="btn sky-btn-primary"
                 disabled={!authorized || Boolean(deciding)}
                 onClick={() => decide('APPROVED')}
+                ref={approveButtonRef}
                 type="button"
               >
-                {deciding === 'APPROVED' ? 'Approving…' : 'Approve and continue'}
+                {deciding === 'APPROVED' ? 'Approving…' : 'Approve'}
               </button>
             </div>
           </div>
