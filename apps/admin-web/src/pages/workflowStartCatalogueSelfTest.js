@@ -167,7 +167,7 @@ assert(
 );
 
 const runtimeStatusAnchorIndex = workflowSource.indexOf(
-  'runtimeStatusOverlayRef.current?.scrollIntoView',
+  'await scrollRuntimeStatusOverlayIntoView();',
 );
 const workflowDispatchIndex = workflowSource.indexOf(
   'workflowService.startWorkflow',
@@ -179,9 +179,18 @@ assert(
     workflowSource.includes(
       'className="sky-workflow-start-detail-stack sky-table-browser-anchor"',
     ) &&
+    workflowSource.includes('async function scrollRuntimeStatusOverlayIntoView()') &&
+    workflowSource.includes(
+      "document.querySelector('.sky-topbar')?.getBoundingClientRect().height || 0",
+    ) &&
+    workflowSource.includes('overlay.getBoundingClientRect().top + window.scrollY') &&
+    workflowSource.includes('window.requestAnimationFrame(() => {') &&
+    workflowSource.includes('window.scrollTo({') &&
+    workflowSource.includes("behavior: 'auto'") &&
+    !workflowSource.includes('runtimeStatusOverlayRef.current?.scrollIntoView') &&
     runtimeStatusAnchorIndex >= 0 &&
     workflowDispatchIndex > runtimeStatusAnchorIndex,
-  'Start Workflow must anchor to the Runtime Status Overlay before dispatching execution.',
+  'Start Workflow must synchronously anchor the Runtime Status Overlay below the fixed topbar before dispatching execution.',
 );
 
 assert(

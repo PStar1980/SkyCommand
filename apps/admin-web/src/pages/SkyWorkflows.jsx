@@ -5774,6 +5774,39 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
+  async function scrollRuntimeStatusOverlayIntoView() {
+    // The submit button remains focused while React commits the "starting" state.
+    // Release that focus so the browser does not try to keep the launch controls
+    // visible while we deliberately move the viewport to the live runtime surface.
+    const activeElement = document.activeElement;
+    if (typeof activeElement?.blur === 'function') {
+      activeElement.blur();
+    }
+
+    // Yield one frame so the pending React state update is committed and layout is
+    // stable before calculating the overlay position. The workflow is not dispatched
+    // until this anchor has been applied.
+    await new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        const overlay = runtimeStatusOverlayRef.current;
+
+        if (overlay) {
+          const topbarHeight =
+            document.querySelector('.sky-topbar')?.getBoundingClientRect().height || 0;
+          const overlayTop = overlay.getBoundingClientRect().top + window.scrollY;
+
+          window.scrollTo({
+            top: Math.max(0, overlayTop - topbarHeight - 8),
+            left: window.scrollX,
+            behavior: 'auto',
+          });
+        }
+
+        resolve();
+      });
+    });
+  }
+
   async function handleStartWorkflow(event) {
     event.preventDefault();
 
@@ -5791,9 +5824,7 @@ function SkyWorkflows({ mode = 'start' }) {
     try {
       const params = parseRuntimeParameterValues(runtimeParameters, runtimeParameterValues);
 
-      // Keep the live execution surface in view before dispatching the workflow so the
-      // operator immediately sees runtime state instead of launching below the fold.
-      runtimeStatusOverlayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      await scrollRuntimeStatusOverlayIntoView();
 
       const result = await workflowService.startWorkflow(selectedDefinitionDetail.workflowCode, {
         input: {
