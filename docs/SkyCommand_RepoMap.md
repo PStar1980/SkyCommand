@@ -699,6 +699,8 @@ SkyCommand/
 │       │       └── src/
 │       │           └── tool.js
 │       └── src/
+│           ├── gitDevPullPromotionRollup.js
+│           ├── gitDevPullPromotionRollupSelfTest.js
 │           ├── index.js
 │           ├── jsonSchemaValidator.js
 │           ├── toolCliAdapter.js
@@ -906,6 +908,7 @@ SkyCommand/
 │   │   ├── Clean-FrontendCache.ps1
 │   │   ├── hostAgentTaskSelfTest.js
 │   │   ├── SkyCommand-HostAgentTask.ps1
-│   │   └── Start-SkyCommandHostAgent.ps1
+│   │   ├── Start-SkyCommandHostAgent.ps1
+│   │   └── Start-SkyCommandHostAgentHidden.vbs
 │   └── python/
 └── tests/

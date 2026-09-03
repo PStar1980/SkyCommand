@@ -13,6 +13,7 @@ if ($env:OS -ne 'Windows_NT') {
 
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $runnerScript = Join-Path $repositoryRoot 'scripts\powershell\Start-SkyCommandHostAgent.ps1'
+$hiddenLauncherScript = Join-Path $repositoryRoot 'scripts\powershell\Start-SkyCommandHostAgentHidden.vbs'
 $envPath = Join-Path $repositoryRoot '.env'
 $workerScript = Join-Path $repositoryRoot 'packages\host-agent\src\worker.js'
 $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -41,6 +42,10 @@ function Assert-HostAgentEnvironment {
 
     if (-not (Test-Path -LiteralPath $workerScript -PathType Leaf)) {
         throw "Host Agent worker script was not found at $workerScript"
+    }
+
+    if (-not (Test-Path -LiteralPath $hiddenLauncherScript -PathType Leaf)) {
+        throw "Host Agent hidden launcher script was not found at $hiddenLauncherScript"
     }
 }
 
@@ -76,6 +81,7 @@ switch ($Action) {
         Assert-HostAgentEnvironment
         $nodePath = Get-NodeExecutable
         $powershellPath = (Get-Command powershell.exe -ErrorAction Stop).Source
+        $wscriptPath = (Get-Command wscript.exe -ErrorAction Stop).Source
         $existingTask = Get-HostAgentTask
 
         if ($existingTask -and $existingTask.State -eq 'Running') {
@@ -94,18 +100,23 @@ switch ($Action) {
             throw "A host-native SkyCommand Host Agent is already running (PID(s): $processIds). Stop the manual 'npm run host-agent' process before installing automatic startup."
         }
 
+        # Keep the task in the current interactive user security context so host Git
+        # operations retain the user's normal network/Git credential access. The task
+        # itself launches wscript.exe (a GUI-subsystem process), which then starts the
+        # long-running PowerShell -> Node worker chain hidden. This suppresses the
+        # Windows Terminal surface without moving the Host Agent into an S4U session.
         $arguments = @(
-            '-NoProfile',
-            '-NonInteractive',
-            '-WindowStyle', 'Hidden',
-            '-ExecutionPolicy', 'Bypass',
-            '-File', ('"{0}"' -f $runnerScript),
-            '-RepositoryRoot', ('"{0}"' -f $repositoryRoot),
-            '-NodePath', ('"{0}"' -f $nodePath)
+            '//B',
+            '//Nologo',
+            ('"{0}"' -f $hiddenLauncherScript),
+            ('"{0}"' -f $powershellPath),
+            ('"{0}"' -f $runnerScript),
+            ('"{0}"' -f $repositoryRoot),
+            ('"{0}"' -f $nodePath)
         ) -join ' '
 
         $taskAction = New-ScheduledTaskAction `
-            -Execute $powershellPath `
+            -Execute $wscriptPath `
             -Argument $arguments `
             -WorkingDirectory $repositoryRoot
 
@@ -134,6 +145,7 @@ switch ($Action) {
 
         Start-ScheduledTask -TaskName $TaskName
         Write-Host "[SkyCommand Host Agent] Automatic startup installed and started: $TaskName"
+        Write-Host "[SkyCommand Host Agent] Logon type: Interactive (hidden GUI launcher)"
         Write-Host "[SkyCommand Host Agent] Repository: $repositoryRoot"
         Write-Host "[SkyCommand Host Agent] Log: $(Join-Path $repositoryRoot 'logs\host-agent\scheduled-task.log')"
     }
@@ -154,6 +166,9 @@ switch ($Action) {
         $task = Get-HostAgentTask
         if (-not $task) {
             throw "Scheduled task is not installed: $TaskName"
+        }
+        if ([string]$task.Principal.LogonType -ne 'Interactive') {
+            throw "Scheduled task registration is stale (LogonType=$($task.Principal.LogonType)). Run 'npm run host-agent:auto-start:install' once to restore the interactive-token registration with the hidden GUI launcher before starting the Host Agent."
         }
         Start-ScheduledTask -TaskName $TaskName
         Write-Host "[SkyCommand Host Agent] Start requested: $TaskName"
@@ -226,6 +241,7 @@ switch ($Action) {
         Write-Host "[SkyCommand Host Agent] Automatic startup: INSTALLED"
         Write-Host "[SkyCommand Host Agent] Task: $TaskName"
         Write-Host "[SkyCommand Host Agent] Task state: $($task.State)"
+        Write-Host "[SkyCommand Host Agent] Logon type: $($task.Principal.LogonType)"
         Write-Host "[SkyCommand Host Agent] Operational state: $operationalState"
         Write-Host "[SkyCommand Host Agent] Host process count: $processCount"
         Write-Host "[SkyCommand Host Agent] Host process PID(s): $processIds"
@@ -236,6 +252,10 @@ switch ($Action) {
         Write-Host "[SkyCommand Host Agent] Next run: $($info.NextRunTime)"
         Write-Host "[SkyCommand Host Agent] Log: $scheduledTaskLogPath"
         Write-Host "[SkyCommand Host Agent] Health proof: npm run host-agent:check"
+
+        if ([string]$task.Principal.LogonType -ne 'Interactive') {
+            Write-Host "[SkyCommand Host Agent] Registration drift: expected Interactive logon with the hidden GUI launcher. Run 'npm run host-agent:auto-start:install' to replace the existing task registration."
+        }
 
         if ($taskIsRunning -and $processCount -eq 0) {
             Write-Host "[SkyCommand Host Agent] Node process discovery is advisory on Windows; Task Scheduler still reports the registered runner as active. Use the health proof for end-to-end confirmation."

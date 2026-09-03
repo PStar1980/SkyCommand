@@ -13,18 +13,31 @@ const runnerScript = fs.readFileSync(
   path.join(root, 'scripts/powershell/Start-SkyCommandHostAgent.ps1'),
   'utf8',
 );
+const hiddenLauncherScript = fs.readFileSync(
+  path.join(root, 'scripts/powershell/Start-SkyCommandHostAgentHidden.vbs'),
+  'utf8',
+);
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 assert.match(taskScript, /New-ScheduledTaskTrigger -AtLogOn/);
 assert.match(taskScript, /SKYCOMMAND_HOST_AGENT_ENABLED=true/);
 assert.match(taskScript, /RestartCount 60/);
 assert.match(taskScript, /MultipleInstances IgnoreNew/);
+assert.match(taskScript, /-LogonType Interactive/);
+assert.doesNotMatch(taskScript, /-LogonType S4U/);
+assert.match(taskScript, /Interactive \(hidden GUI launcher\)/);
+assert.match(taskScript, /Logon type:/);
+assert.match(taskScript, /registration is stale/);
+assert.match(taskScript, /Registration drift: expected Interactive logon with the hidden GUI launcher/);
 assert.match(taskScript, /RunLevel Limited/);
 assert.match(taskScript, /Get-CimInstance Win32_Process/);
 assert.match(taskScript, /Stop the manual 'npm run host-agent' process/);
 assert.match(taskScript, /Start-ScheduledTask/);
 assert.match(taskScript, /Unregister-ScheduledTask/);
-assert.match(taskScript, /-WindowStyle', 'Hidden'/);
+assert.match(taskScript, /Get-Command wscript\.exe/);
+assert.match(taskScript, /Start-SkyCommandHostAgentHidden\.vbs/);
+assert.match(taskScript, /'\/\/B'/);
+assert.match(taskScript, /'\/\/Nologo'/);
 assert.match(runnerScript, /packages\\host-agent\\src\\worker\.js/);
 assert.match(runnerScript, /logs\\host-agent/);
 assert.match(runnerScript, /5MB/);
@@ -34,6 +47,9 @@ assert.match(runnerScript, /function Hide-HostAgentConsoleWindow/);
 assert.match(runnerScript, /GetConsoleWindow/);
 assert.match(runnerScript, /ShowWindow/);
 assert.match(runnerScript, /ShowWindow\(\$consoleWindow, 0\)/);
+assert.match(hiddenLauncherScript, /CreateObject\("WScript\.Shell"\)/);
+assert.match(hiddenLauncherScript, /shell\.Run\(commandLine, 0, True\)/);
+assert.match(hiddenLauncherScript, /-WindowStyle Hidden/);
 assert.match(runnerScript, /visual polish only/);
 assert.match(taskScript, /Operational state:/);
 assert.match(taskScript, /Host process count:/);
