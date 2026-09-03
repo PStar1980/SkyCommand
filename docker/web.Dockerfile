@@ -12,9 +12,12 @@ RUN npm install --package-lock=false --no-audit --no-fund
 
 FROM node:20-bookworm-slim AS web-builder
 
+ARG VITE_SUPERVISOR_BASE_URL=http://127.0.0.1:17170
+
 ENV NODE_ENV=production \
     HUSKY=0 \
-    VITE_API_BASE_URL=""
+    VITE_API_BASE_URL="" \
+    VITE_SUPERVISOR_BASE_URL=${VITE_SUPERVISOR_BASE_URL}
 
 WORKDIR /app
 

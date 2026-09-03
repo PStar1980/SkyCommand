@@ -237,11 +237,13 @@ services:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
+      args:
+        VITE_SUPERVISOR_BASE_URL: ${SKYCOMMAND_SUPERVISOR_BROWSER_URL:-http://127.0.0.1:17170}
     image: skycommand-web:local
     container_name: skycommand-web
-    depends_on:
-      api:
-        condition: service_healthy
+    # The static control shell intentionally does not depend on the API. It remains
+    # available while the SkyCommand runtime is stopped so a future login bootstrap
+    # surface can start the runtime through the host-native Supervisor.
     ports:
       - "127.0.0.1:${SKYCOMMAND_WEB_PORT:-15171}:8080"
     healthcheck:

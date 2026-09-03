@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import SkyCommandMark from '../components/ui/SkyCommandMark.jsx';
 import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
+import supervisorService from '../services/supervisorService.js';
 
 const LOGIN_REDIRECT_PATH = '/dashboard';
 const REMEMBERED_EMAIL_KEY = 'skycommand.rememberedEmail';
+const SUPERVISOR_POLL_MS = 2000;
 
 function Login() {
   const navigate = useNavigate();
@@ -17,6 +19,9 @@ function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [authPath, setAuthPath] = useState('login');
+  const [runtimeStatus, setRuntimeStatus] = useState(null);
+  const [runtimeError, setRuntimeError] = useState('');
+  const [startingRuntime, setStartingRuntime] = useState(false);
 
   useEffect(() => {
     const rememberedEmail = window.localStorage.getItem(REMEMBERED_EMAIL_KEY);
@@ -32,6 +37,53 @@ function Login() {
       clearAuthNotice();
     };
   }, [clearAuthNotice]);
+
+  useEffect(() => {
+    let active = true;
+    let timerId = null;
+    let controller = null;
+
+    async function refreshRuntimeStatus() {
+      controller?.abort();
+      controller = new AbortController();
+
+      try {
+        const status = await supervisorService.getRuntimeStatus({ signal: controller.signal });
+        if (!active) return;
+        setRuntimeStatus(status);
+        setRuntimeError('');
+        if (status.runtimeStatus === 'ONLINE') setStartingRuntime(false);
+      } catch (statusError) {
+        if (!active || statusError?.name === 'AbortError') return;
+        // Supervisor support is optional during rollout. If it is not installed yet,
+        // preserve the ordinary login experience rather than blocking access.
+        setRuntimeStatus(null);
+        setRuntimeError('');
+      } finally {
+        if (active) timerId = window.setTimeout(refreshRuntimeStatus, SUPERVISOR_POLL_MS);
+      }
+    }
+
+    refreshRuntimeStatus();
+
+    return () => {
+      active = false;
+      controller?.abort();
+      if (timerId) window.clearTimeout(timerId);
+    };
+  }, []);
+
+  async function handleStartRuntime() {
+    setRuntimeError('');
+    setStartingRuntime(true);
+
+    try {
+      await supervisorService.startRuntime();
+    } catch (startError) {
+      setStartingRuntime(false);
+      setRuntimeError(startError.message || 'SkyCommand runtime start failed.');
+    }
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -61,6 +113,9 @@ function Login() {
     setError('');
     clearAuthNotice();
   }
+
+  const runtimeOffline = runtimeStatus && runtimeStatus.runtimeStatus !== 'ONLINE';
+  const runtimeServices = Array.isArray(runtimeStatus?.services) ? runtimeStatus.services : [];
 
   return (
     <div className="sky-login-wrap">
@@ -103,7 +158,62 @@ function Login() {
             ) : null}
           </div>
 
-          <form className="sky-login-form" onSubmit={handleSubmit}>
+          {runtimeOffline ? (
+            <div className="sky-runtime-bootstrap-panel" role="status">
+              <div className="sky-page-kicker">Runtime control</div>
+              <div className="sky-runtime-bootstrap-heading">
+                <span className="sky-runtime-bootstrap-indicator" aria-hidden="true" />
+                SkyCommand runtime offline
+              </div>
+              <p className="sky-muted mb-0">
+                The control shell and Supervisor are online. Start the local Docker runtime to
+                restore authentication, workflows, tools, and operational services.
+              </p>
+
+              <div className="sky-runtime-bootstrap-summary">
+                <span>Docker Engine</span>
+                <strong>{runtimeStatus.engineStatus || 'UNKNOWN'}</strong>
+                <span>Runtime</span>
+                <strong>{runtimeStatus.runtimeStatus || 'UNKNOWN'}</strong>
+              </div>
+
+              {runtimeServices.length > 0 && (
+                <div className="sky-runtime-bootstrap-services">
+                  {runtimeServices.map((service) => (
+                    <span
+                      className={`sky-runtime-bootstrap-service${service.running ? ' is-running' : ''}`}
+                      key={service.service}
+                    >
+                      {service.service}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {runtimeError && (
+                <DismissibleAlert
+                  className="sky-auth-alert sky-auth-alert-danger mt-3"
+                  dismissLabel="Dismiss runtime start error"
+                  onDismiss={() => setRuntimeError('')}
+                >
+                  {runtimeError}
+                </DismissibleAlert>
+              )}
+
+              <button
+                className="btn sky-btn-primary sky-runtime-bootstrap-start w-100"
+                disabled={startingRuntime || runtimeStatus.engineStatus !== 'ONLINE'}
+                onClick={handleStartRuntime}
+                type="button"
+              >
+                {startingRuntime ? 'Starting SkyCommand...' : 'Start SkyCommand'}
+              </button>
+              <div className="sky-runtime-bootstrap-footnote">
+                Login becomes available automatically when the API reports healthy.
+              </div>
+            </div>
+          ) : (
+            <form className="sky-login-form" onSubmit={handleSubmit}>
             <div className="mb-3 text-start">
               <label className="form-label" htmlFor="email">
                 Email
@@ -166,8 +276,10 @@ function Login() {
             >
               {submitting ? 'Opening console...' : 'Login'}
             </button>
-          </form>
+            </form>
+          )}
 
+          {!runtimeOffline && (
           <div className="sky-login-access-row" aria-label="Access options">
             <button
               className={`sky-login-access-button${authPath === 'forgot' ? ' is-active' : ''}`}
@@ -196,8 +308,9 @@ function Login() {
               </span>
             </button>
           </div>
+          )}
 
-          {authPath !== 'login' && (
+          {!runtimeOffline && authPath !== 'login' && (
             <div className="sky-login-support-panel" role="status">
               {authPath === 'forgot' ? (
                 <>
