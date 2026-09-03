@@ -5,6 +5,7 @@ const {
 const { WorkflowServiceError } = require('./workflowServiceError');
 
 const HOST_EXECUTION_TARGETS = new Set(['HOST', 'HOST_AGENT']);
+const HOST_AGENT_TOOL_CODES = new Set(['local_repo_sync', 'local_dev_pull']);
 const HOST_AGENT_RECENT_HEARTBEAT_SECONDS = 60;
 const HOST_AGENT_LIVE_PROBE_TIMEOUT = '6 seconds';
 
@@ -35,13 +36,27 @@ function normalizeExecutionTarget(value) {
 function getNodeExecutionTarget(node = {}) {
   const config = getSafeObject(node.config);
   const targetConfig = getSafeObject(node.targetConfig);
-
-  return normalizeExecutionTarget(
+  const explicitTarget = normalizeExecutionTarget(
     config.executionTarget ||
       config.execution_target ||
       targetConfig.executionTarget ||
       targetConfig.execution_target,
   );
+
+  if (explicitTarget) {
+    return explicitTarget;
+  }
+
+  // Host-only Git tools route through the Host Agent from their CLI process. Infer
+  // that requirement from the stable tool code as a safety backstop because cloned
+  // or UI-edited workflow graphs may not preserve legacy target_config metadata.
+  const nodeTypeCode = normalizeExecutionTarget(node.nodeTypeCode || node.node_type_code);
+  const targetCode = String(node.targetCode || node.target_code || '').trim().toLowerCase();
+  if ((!nodeTypeCode || nodeTypeCode === 'TOOL') && HOST_AGENT_TOOL_CODES.has(targetCode)) {
+    return 'HOST_AGENT';
+  }
+
+  return '';
 }
 
 function getHostExecutionNodes(definition = {}) {
