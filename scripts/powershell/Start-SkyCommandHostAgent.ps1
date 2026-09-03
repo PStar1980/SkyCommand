@@ -55,6 +55,7 @@ $nodeExecutable = [System.IO.Path]::GetFullPath($NodePath)
 $workerScript = Join-Path $repositoryPath 'packages\host-agent\src\worker.js'
 $logDirectory = Join-Path $repositoryPath 'logs\host-agent'
 $logPath = Join-Path $logDirectory 'scheduled-task.log'
+$runnerPidPath = Join-Path $logDirectory 'scheduled-task.runner.pid'
 
 if (-not (Test-Path -LiteralPath $repositoryPath -PathType Container)) {
     throw "SkyCommand repository root does not exist: $repositoryPath"
@@ -79,7 +80,12 @@ if (Test-Path -LiteralPath $logPath -PathType Leaf) {
 }
 
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ssK'
-Add-Content -LiteralPath $logPath -Value "[$timestamp] SkyCommand Host Agent scheduled task starting."
+Add-Content -LiteralPath $logPath -Value "[$timestamp] SkyCommand Host Agent scheduled task starting (runner PID $PID)."
+
+# Persist the PowerShell runner PID so the lifecycle helper can terminate the exact
+# hidden PowerShell -> Node process tree. Stop-ScheduledTask owns wscript.exe, but
+# Windows can otherwise leave its descendants alive after the GUI launcher exits.
+[System.IO.File]::WriteAllText($runnerPidPath, [string]$PID)
 
 # Windows PowerShell 5.1 can promote redirected stderr from a native command into
 # PowerShell ErrorRecord objects. Temporal emits normal worker lifecycle messages on
@@ -101,6 +107,15 @@ catch {
 }
 finally {
     $ErrorActionPreference = $wrapperErrorActionPreference
+
+    # Remove only our own marker. A rapid restart may already have replaced the PID
+    # file with a newer runner value, and the older process must never delete it.
+    if (Test-Path -LiteralPath $runnerPidPath -PathType Leaf) {
+        $recordedPid = (Get-Content -LiteralPath $runnerPidPath -ErrorAction SilentlyContinue | Select-Object -First 1)
+        if ($recordedPid -and $recordedPid.Trim() -eq [string]$PID) {
+            Remove-Item -LiteralPath $runnerPidPath -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 if ($null -eq $exitCode) {

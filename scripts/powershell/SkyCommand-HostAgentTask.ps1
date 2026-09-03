@@ -18,6 +18,7 @@ $envPath = Join-Path $repositoryRoot '.env'
 $workerScript = Join-Path $repositoryRoot 'packages\host-agent\src\worker.js'
 $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $scheduledTaskLogPath = Join-Path $repositoryRoot 'logs\host-agent\scheduled-task.log'
+$runnerPidPath = Join-Path $repositoryRoot 'logs\host-agent\scheduled-task.runner.pid'
 
 function Get-NodeExecutable {
     $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
@@ -66,6 +67,130 @@ function Get-HostAgentProcesses {
     )
 }
 
+
+function Remove-StaleRunnerPidFile {
+    if (-not (Test-Path -LiteralPath $runnerPidPath -PathType Leaf)) {
+        return
+    }
+
+    $rawPid = (Get-Content -LiteralPath $runnerPidPath -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $runnerProcessId = 0
+    if (-not $rawPid -or -not [int]::TryParse($rawPid.Trim(), [ref]$runnerProcessId)) {
+        Remove-Item -LiteralPath $runnerPidPath -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $runnerProcessId" -ErrorAction SilentlyContinue
+    if (-not $process) {
+        Remove-Item -LiteralPath $runnerPidPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-RecordedHostAgentRunnerProcess {
+    Remove-StaleRunnerPidFile
+
+    if (-not (Test-Path -LiteralPath $runnerPidPath -PathType Leaf)) {
+        return $null
+    }
+
+    $rawPid = (Get-Content -LiteralPath $runnerPidPath -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $runnerProcessId = 0
+    if (-not $rawPid -or -not [int]::TryParse($rawPid.Trim(), [ref]$runnerProcessId)) {
+        return $null
+    }
+
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $runnerProcessId" -ErrorAction SilentlyContinue
+    if (-not $process) {
+        Remove-Item -LiteralPath $runnerPidPath -Force -ErrorAction SilentlyContinue
+        return $null
+    }
+
+    $runnerPattern = [regex]::Escape($runnerScript)
+    $repositoryPattern = [regex]::Escape($repositoryRoot)
+    $isExpectedExecutable = $process.Name -and $process.Name -match '^(powershell|pwsh)\.exe$'
+    $isExpectedCommand = $process.CommandLine -and
+        $process.CommandLine -match $runnerPattern -and
+        $process.CommandLine -match $repositoryPattern
+
+    if (-not ($isExpectedExecutable -and $isExpectedCommand)) {
+        throw "Refusing to use recorded Host Agent runner PID $runnerProcessId because it does not belong to the expected SkyCommand runner. Remove $runnerPidPath only after verifying the recorded process manually."
+    }
+
+    return $process
+}
+
+function Stop-ValidatedHostAgentRunnerTree {
+    param(
+        [Parameter(Mandatory = $true)]
+        $RunnerProcess
+    )
+
+    $runnerProcessId = [int]$RunnerProcess.ProcessId
+    $taskKillPath = (Get-Command taskkill.exe -ErrorAction Stop).Source
+
+    # taskkill /T is intentional here: the hidden PowerShell runner owns the Node
+    # Host Agent as its child, and stopping only the scheduled wscript.exe parent can
+    # leave that descendant alive. The caller validates the exact SkyCommand runner
+    # command line before this function is reached.
+    & $taskKillPath /PID $runnerProcessId /T /F *> $null
+
+    for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
+        Start-Sleep -Milliseconds 100
+        $remaining = Get-CimInstance Win32_Process -Filter "ProcessId = $runnerProcessId" -ErrorAction SilentlyContinue
+        if (-not $remaining) {
+            return
+        }
+    }
+
+    throw "SkyCommand Host Agent runner PID $runnerProcessId did not terminate after the guarded process-tree stop request."
+}
+
+function Stop-HostAgentScheduledRuntime {
+    param(
+        $Task
+    )
+
+    # Snapshot the validated runner before stopping Task Scheduler. This closes the
+    # race where Windows terminates the wscript.exe launcher (or its PowerShell parent)
+    # before we can identify the Node descendant that must be stopped with it.
+    $runnerProcesses = @()
+    $recordedRunner = Get-RecordedHostAgentRunnerProcess
+    if ($recordedRunner) {
+        $runnerProcesses += $recordedRunner
+    }
+
+    foreach ($runner in (Get-HostAgentRunnerProcesses)) {
+        if (-not ($runnerProcesses | Where-Object { $_.ProcessId -eq $runner.ProcessId })) {
+            $runnerProcesses += $runner
+        }
+    }
+
+    if ($Task -and $Task.State -eq 'Running') {
+        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    }
+
+    # The hidden GUI launcher is the Task Scheduler-owned process. Windows can detach
+    # its PowerShell -> Node descendants when the launcher is stopped, so terminate the
+    # validated runner tree explicitly as part of the lifecycle contract.
+    Start-Sleep -Milliseconds 150
+
+    foreach ($runner in $runnerProcesses) {
+        $stillRunning = Get-CimInstance Win32_Process -Filter "ProcessId = $($runner.ProcessId)" -ErrorAction SilentlyContinue
+        if ($stillRunning) {
+            Stop-ValidatedHostAgentRunnerTree -RunnerProcess $runner
+        }
+    }
+
+    Remove-StaleRunnerPidFile
+    Remove-Item -LiteralPath $runnerPidPath -Force -ErrorAction SilentlyContinue
+
+    $remainingRunners = Get-HostAgentRunnerProcesses
+    if ($remainingRunners.Count -gt 0) {
+        $remainingIds = ($remainingRunners | ForEach-Object { $_.ProcessId }) -join ', '
+        throw "SkyCommand Host Agent scheduled runner is still active after stop (PID(s): $remainingIds)."
+    }
+}
+
 function Get-HostAgentRunnerProcesses {
     $runnerPattern = [regex]::Escape($runnerScript)
     return @(
@@ -84,14 +209,8 @@ switch ($Action) {
         $wscriptPath = (Get-Command wscript.exe -ErrorAction Stop).Source
         $existingTask = Get-HostAgentTask
 
-        if ($existingTask -and $existingTask.State -eq 'Running') {
-            Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-            for ($attempt = 0; $attempt -lt 10; $attempt += 1) {
-                Start-Sleep -Milliseconds 250
-                if ((Get-HostAgentProcesses).Count -eq 0) {
-                    break
-                }
-            }
+        if ($existingTask) {
+            Stop-HostAgentScheduledRuntime -Task $existingTask
         }
 
         $existingProcesses = Get-HostAgentProcesses
@@ -157,7 +276,7 @@ switch ($Action) {
             break
         }
 
-        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        Stop-HostAgentScheduledRuntime -Task $task
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
         Write-Host "[SkyCommand Host Agent] Automatic startup removed: $TaskName"
     }
@@ -170,6 +289,20 @@ switch ($Action) {
         if ([string]$task.Principal.LogonType -ne 'Interactive') {
             throw "Scheduled task registration is stale (LogonType=$($task.Principal.LogonType)). Run 'npm run host-agent:auto-start:install' once to restore the interactive-token registration with the hidden GUI launcher before starting the Host Agent."
         }
+        $recordedRunner = Get-RecordedHostAgentRunnerProcess
+        $runnerProcesses = Get-HostAgentRunnerProcesses
+        if ($task.State -eq 'Running' -or $recordedRunner -or $runnerProcesses.Count -gt 0) {
+            Write-Host "[SkyCommand Host Agent] Host Agent is already running; start request not required: $TaskName"
+            break
+        }
+
+        $existingProcesses = Get-HostAgentProcesses
+        if ($existingProcesses.Count -gt 0) {
+            $processIds = ($existingProcesses | ForEach-Object { $_.ProcessId }) -join ', '
+            throw "A host-native SkyCommand Host Agent is already running outside the scheduled runner (PID(s): $processIds). Stop the manual process before starting automatic startup."
+        }
+
+        Remove-StaleRunnerPidFile
         Start-ScheduledTask -TaskName $TaskName
         Write-Host "[SkyCommand Host Agent] Start requested: $TaskName"
     }
@@ -179,8 +312,8 @@ switch ($Action) {
         if (-not $task) {
             throw "Scheduled task is not installed: $TaskName"
         }
-        Stop-ScheduledTask -TaskName $TaskName
-        Write-Host "[SkyCommand Host Agent] Stop requested: $TaskName"
+        Stop-HostAgentScheduledRuntime -Task $task
+        Write-Host "[SkyCommand Host Agent] Stop completed: $TaskName"
     }
 
     'Status' {
@@ -192,6 +325,7 @@ switch ($Action) {
 
         $info = Get-ScheduledTaskInfo -TaskName $TaskName
         $processes = Get-HostAgentProcesses
+        $recordedRunner = Get-RecordedHostAgentRunnerProcess
         $runnerProcesses = Get-HostAgentRunnerProcesses
         $processCount = $processes.Count
         $runnerProcessCount = $runnerProcesses.Count
@@ -247,6 +381,12 @@ switch ($Action) {
         Write-Host "[SkyCommand Host Agent] Host process PID(s): $processIds"
         Write-Host "[SkyCommand Host Agent] Runner process count: $runnerProcessCount"
         Write-Host "[SkyCommand Host Agent] Runner process PID(s): $runnerProcessIds"
+        Write-Host "[SkyCommand Host Agent] Runner PID file: $runnerPidPath"
+        if ($recordedRunner) {
+            Write-Host "[SkyCommand Host Agent] Recorded runner PID: $($recordedRunner.ProcessId)"
+        } else {
+            Write-Host "[SkyCommand Host Agent] Recorded runner PID: -"
+        }
         Write-Host "[SkyCommand Host Agent] Last run: $($info.LastRunTime)"
         Write-Host "[SkyCommand Host Agent] Last result: $($info.LastTaskResult) ($lastTaskResultHex)"
         Write-Host "[SkyCommand Host Agent] Next run: $($info.NextRunTime)"
