@@ -150,6 +150,7 @@ SkyCommand/
 │   │       │   ├── ingestionOperationsSurfaceSelfTest.js
 │   │       │   ├── IngestionStatus.jsx
 │   │       │   ├── Login.jsx
+│   │       │   ├── loginRuntimeBootstrapSelfTest.js
 │   │       │   ├── ManageRepositories.jsx
 │   │       │   ├── ManageTools.jsx
 │   │       │   ├── manageToolsVerificationNavigationSelfTest.js
@@ -188,6 +189,7 @@ SkyCommand/
 │   │       │   ├── infrastructureService.js
 │   │       │   ├── ingestionService.js
 │   │       │   ├── notificationService.js
+│   │       │   ├── supervisorService.js
 │   │       │   ├── temporalService.js
 │   │       │   ├── toolService.js
 │   │       │   ├── workerService.js
@@ -335,6 +337,7 @@ SkyCommand/
 │   ├── SkyCommand_Phase_16_Closure_Report.md
 │   ├── SkyCommand_PostgreSQL_Docker_Migration.md
 │   ├── SkyCommand_RepoMap.md
+│   ├── SkyCommand_Supervisor.md
 │   ├── SkyCommand_Temporal_Local_Setup.md
 │   ├── SkyCommand_Temporal_Workflow_Architecture_Plan.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
@@ -662,6 +665,13 @@ SkyCommand/
 │   ├── skyweb/
 │   │   └── src/
 │   │       └── evaluateSkyWebAlerts.js
+│   ├── supervisor/
+│   │   └── src/
+│   │       ├── config.js
+│   │       ├── health.js
+│   │       ├── runtimeLifecycle.js
+│   │       ├── server.js
+│   │       └── supervisorSelfTest.js
 │   ├── temporal/
 │   │   └── src/
 │   │       ├── config.js
@@ -908,7 +918,11 @@ SkyCommand/
 │   │   ├── Clean-FrontendCache.ps1
 │   │   ├── hostAgentTaskSelfTest.js
 │   │   ├── SkyCommand-HostAgentTask.ps1
+│   │   ├── SkyCommand-SupervisorTask.ps1
 │   │   ├── Start-SkyCommandHostAgent.ps1
-│   │   └── Start-SkyCommandHostAgentHidden.vbs
+│   │   ├── Start-SkyCommandHostAgentHidden.vbs
+│   │   ├── Start-SkyCommandSupervisor.ps1
+│   │   ├── Start-SkyCommandSupervisorHidden.vbs
+│   │   └── supervisorTaskSelfTest.js
 │   └── python/
 └── tests/
