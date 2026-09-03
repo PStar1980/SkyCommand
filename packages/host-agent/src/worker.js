@@ -25,9 +25,10 @@ const HOST_AGENT_PROFILE_CODE = (
   .trim()
   .toUpperCase();
 
-// local_repo_sync resolves its repository profile when the module is loaded. Pin the
-// host-agent activity implementation to the explicitly selected host profile before
-// loading any activity handlers.
+// Host-side Git tools resolve their repository profiles when their modules are loaded.
+// Pin every Host Agent activity implementation to the explicitly selected host profile
+// before loading any activity handlers.
+process.env.SKYCOMMAND_LOCAL_DEV_PULL_PROFILE = HOST_AGENT_PROFILE_CODE;
 process.env.SKYCOMMAND_LOCAL_SYNC_PROFILE = HOST_AGENT_PROFILE_CODE;
 process.env.SKYCOMMAND_DEV_COMMIT_PROFILE = HOST_AGENT_PROFILE_CODE;
 process.env.SKYCOMMAND_MAIN_MERGE_PROFILE = HOST_AGENT_PROFILE_CODE;

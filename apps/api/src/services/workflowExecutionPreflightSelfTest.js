@@ -39,6 +39,14 @@ async function expectWorkflowError(promise, expectedCode, expectedStatusCode) {
 async function main() {
   assert.equal(getNodeExecutionTarget({ config: { executionTarget: 'host_agent' } }), 'HOST_AGENT');
   assert.equal(getNodeExecutionTarget({ targetConfig: { executionTarget: 'HOST' } }), 'HOST');
+  assert.equal(
+    getNodeExecutionTarget({ nodeTypeCode: 'TOOL', targetCode: 'local_repo_sync' }),
+    'HOST_AGENT',
+  );
+  assert.equal(
+    getNodeExecutionTarget({ nodeTypeCode: 'TOOL', targetCode: 'local_dev_pull' }),
+    'HOST_AGENT',
+  );
   assert.deepEqual(
     getHostExecutionNodes(hostWorkflow()).map((node) => node.nodeKey),
     ['local_repo_sync_node'],
@@ -46,7 +54,12 @@ async function main() {
 
   let loaderCalled = false;
   const noHostResult = await assertWorkflowExecutionTargetsAvailable(
-    { workflowCode: 'plain-workflow', nodes: [{ nodeKey: 'tool', config: {} }] },
+    {
+      workflowCode: 'plain-workflow',
+      nodes: [
+        { nodeKey: 'tool', nodeTypeCode: 'TOOL', targetCode: 'repo_map_generate', config: {} },
+      ],
+    },
     {
       availabilityLoader: async () => {
         loaderCalled = true;

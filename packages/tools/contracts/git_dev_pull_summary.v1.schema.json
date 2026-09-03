@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/git_dev_pull_summary.v1.schema.json",
+  "title": "Git Local Dev Pull Summary v1 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationKind",
+    "executionTarget",
+    "outcome",
+    "repositoryCode",
+    "repositoryName",
+    "repositoryRoot",
+    "profileCode",
+    "remote",
+    "devBranch",
+    "currentBranch",
+    "localDevBeforeSha",
+    "remoteDevBeforeSha",
+    "fetchedRemoteDevSha",
+    "localDevAfterSha",
+    "remoteDevAfterSha",
+    "currentHeadSha",
+    "commitsPulled",
+    "commits",
+    "stashCount",
+    "workingTreeCleanBefore",
+    "workingTreeCleanAfter",
+    "synchronized",
+    "safeguards",
+    "steps",
+    "startedAt",
+    "completedAt",
+    "durationMs"
+  ],
+  "properties": {
+    "operationKind": { "const": "LOCAL_DEV_PULL" },
+    "executionTarget": { "const": "HOST" },
+    "outcome": {
+      "type": "string",
+      "enum": ["SYNCHRONIZED", "BLOCKED", "FAILED"]
+    },
+    "repositoryCode": { "type": ["string", "null"], "maxLength": 200 },
+    "repositoryName": { "type": ["string", "null"], "maxLength": 240 },
+    "repositoryRoot": { "type": ["string", "null"], "maxLength": 4000 },
+    "profileCode": { "type": ["string", "null"], "maxLength": 200 },
+    "remote": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "devBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "currentBranch": { "type": ["string", "null"], "maxLength": 500 },
+    "localDevBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "remoteDevBeforeSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "fetchedRemoteDevSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "localDevAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "remoteDevAfterSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "currentHeadSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+    "commitsPulled": { "type": "number", "minimum": 0 },
+    "commits": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha", "subject"],
+        "properties": {
+          "sha": { "type": "string", "pattern": "^[a-fA-F0-9]{7,64}$" },
+          "subject": { "type": "string", "maxLength": 500 }
+        }
+      }
+    },
+    "stashCount": { "type": "number", "minimum": 0 },
+    "workingTreeCleanBefore": { "type": "boolean" },
+    "workingTreeCleanAfter": { "type": "boolean" },
+    "synchronized": { "type": "boolean" },
+    "safeguards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hostProfileVerified",
+        "repositoryLockAcquired",
+        "gitOperationClear",
+        "workingTreeClean",
+        "devBranchCheckedOut",
+        "worktreeOwnershipSafe",
+        "remoteDevAhead",
+        "fastForwardSafe",
+        "localStateReverifiedBeforeMutation",
+        "remoteReverifiedBeforeMutation",
+        "finalRemoteEqualityVerified"
+      ],
+      "properties": {
+        "hostProfileVerified": { "type": "boolean" },
+        "repositoryLockAcquired": { "type": "boolean" },
+        "gitOperationClear": { "type": "boolean" },
+        "workingTreeClean": { "type": "boolean" },
+        "devBranchCheckedOut": { "type": "boolean" },
+        "worktreeOwnershipSafe": { "type": "boolean" },
+        "remoteDevAhead": { "type": "boolean" },
+        "fastForwardSafe": { "type": "boolean" },
+        "localStateReverifiedBeforeMutation": { "type": "boolean" },
+        "remoteReverifiedBeforeMutation": { "type": "boolean" },
+        "finalRemoteEqualityVerified": { "type": "boolean" }
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remoteInspected",
+        "fetched",
+        "lineageVerified",
+        "remoteReverified",
+        "fastForwardMerged",
+        "postVerified"
+      ],
+      "properties": {
+        "remoteInspected": { "type": "boolean" },
+        "fetched": { "type": "boolean" },
+        "lineageVerified": { "type": "boolean" },
+        "remoteReverified": { "type": "boolean" },
+        "fastForwardMerged": { "type": "boolean" },
+        "postVerified": { "type": "boolean" }
+      }
+    },
+    "startedAt": { "type": ["string", "null"], "format": "date-time" },
+    "completedAt": { "type": ["string", "null"], "format": "date-time" },
+    "durationMs": { "type": "number", "minimum": 0 },
+    "performanceTelemetry": { "type": "object" },
+    "transportTelemetry": { "type": "object" }
+  }
+}

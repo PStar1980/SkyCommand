@@ -3,6 +3,7 @@ const os = require('node:os');
 const { executeDevCommit } = require('../../git/src/dev_commit');
 const { executeMainMerge } = require('../../git/src/main_merge');
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
+const { executeLocalDevPull } = require('../../git/src/local_dev_pull');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
 const {
   DOCKER_COMPOSE_CONTROL_TOOL_CODE,
@@ -25,6 +26,7 @@ const HOST_AGENT_HEALTH_TOOL_CODE = '__health';
 const DEV_COMMIT_TOOL_CODE = 'dev_commit';
 const MAIN_MERGE_TOOL_CODE = 'main_merge';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
+const LOCAL_DEV_PULL_TOOL_CODE = 'local_dev_pull';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 
 function normalizeText(value) {
@@ -263,6 +265,28 @@ async function executeSkyCommandHostToolActivity(input = {}) {
     }
   }
 
+  if (toolCode === LOCAL_DEV_PULL_TOOL_CODE) {
+    try {
+      const result = await executeLocalDevPull([normalizeText(input.repoName)]);
+
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+          executionTarget: 'HOST',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
   if (toolCode !== LOCAL_REPOSITORY_SYNC_TOOL_CODE) {
     return {
       ok: false,
@@ -308,6 +332,7 @@ module.exports = {
   DOCKER_SNAPSHOT_TOOL_CODE,
   DEV_COMMIT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
+  LOCAL_DEV_PULL_TOOL_CODE,
   LOCAL_REPOSITORY_SYNC_TOOL_CODE,
   MAIN_MERGE_TOOL_CODE,
   executeSkyCommandHostToolActivity,

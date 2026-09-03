@@ -36,6 +36,7 @@ const routineSelfTests = [
   'git-commit:self-test',
   'git-branch-sync:self-test',
   'git-local-sync:self-test',
+  'git-dev-pull:self-test',
   'git-local-sync-lineage:self-test',
   'host-agent:self-test',
   'docker-integration:self-test',

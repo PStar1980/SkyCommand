@@ -440,7 +440,8 @@ SkyCommand/
 │   │       │   ├── 00106__user_notification_foundation.sql
 │   │       │   ├── 00107__workflow_category_foundation.sql
 │   │       │   ├── 00109__workflow_run_category_projection.sql
-│   │       │   └── 00110__workflow_approval_category_projection.sql
+│   │       │   ├── 00110__workflow_approval_category_projection.sql
+│   │       │   └── 00111__local_dev_pull_tool.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -508,12 +509,15 @@ SkyCommand/
 │   │       ├── gitBranchSyncResultSelfTest.js
 │   │       ├── gitCommitResult.js
 │   │       ├── gitCommitResultSelfTest.js
+│   │       ├── gitDevPullResult.js
+│   │       ├── gitDevPullResultSelfTest.js
 │   │       ├── gitLocalSyncResult.js
 │   │       ├── gitLocalSyncResultSelfTest.js
 │   │       ├── gitPerformanceTelemetry.js
 │   │       ├── gitRepositoryStatusInspector.js
 │   │       ├── gitRepositoryStatusResult.js
 │   │       ├── gitRepositoryStatusSelfTest.js
+│   │       ├── local_dev_pull.js
 │   │       ├── local_repo_sync.js
 │   │       ├── localRepoSyncLineage.js
 │   │       ├── localRepoSyncLineageSelfTest.js
@@ -679,6 +683,7 @@ SkyCommand/
 │       │   ├── database_health_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
+│       │   ├── git_dev_pull_summary.v1.schema.json
 │       │   ├── git_local_sync_summary.v1.schema.json
 │       │   ├── git_repository_status.v1.schema.json
 │       │   ├── ingestion_run_summary.v1.schema.json
