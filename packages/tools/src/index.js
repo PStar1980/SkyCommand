@@ -5,4 +5,5 @@ module.exports = {
   ...require('./toolProcessExecutor'),
   ...require('./toolCliAdapter'),
   ...require('./workflowResultContext'),
+  ...require('./gitDevPullPromotionRollup'),
 };
