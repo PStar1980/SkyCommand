@@ -17,7 +17,7 @@ function ServerStatusPanel({ footer = null, items = [] }) {
           <div className="sky-page-kicker">Platform availability</div>
           <h2 className="h5 mb-0">Server Status</h2>
           <div className="small sky-muted mt-1">
-            Live availability of the web, database, API, Node worker, Temporal server, Temporal worker, and host execution agent.
+            Live availability of the Supervisor, web shell, database, API, Node worker, Temporal server, Temporal worker, and host execution agent.
           </div>
         </div>
         <span className="sky-pill sky-pill-info">{items.length} services</span>

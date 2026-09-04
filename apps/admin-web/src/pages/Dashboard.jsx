@@ -65,6 +65,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshingAt, setRefreshingAt] = useState(null);
   const [identityDays, setIdentityDays] = useState(7);
+  const [supervisorStatus, setSupervisorStatus] = useState(undefined);
   const [summary, setSummary] = useState({
     apiHealth: null,
     apiTelemetry: null,
@@ -271,9 +272,31 @@ function Dashboard() {
           <SkyCommandRuntimeControls
             canControl={hasPermission('INFRASTRUCTURE_DOCKER_CONTROL')}
             compact
+            onStatusChange={setSupervisorStatus}
           />
         }
         items={[
+          {
+            label: 'Supervisor',
+            value:
+              supervisorStatus === undefined
+                ? 'Checking'
+                : supervisorStatus?.supervisor === 'ONLINE'
+                  ? 'Online'
+                  : 'Offline',
+            status:
+              supervisorStatus === undefined
+                ? 'PENDING'
+                : supervisorStatus?.supervisor === 'ONLINE'
+                  ? 'ONLINE'
+                  : 'OFFLINE',
+            helper:
+              supervisorStatus === undefined
+                ? 'Checking host-native lifecycle control'
+                : supervisorStatus?.supervisor === 'ONLINE'
+                  ? `Host-native lifecycle control · Docker engine ${String(supervisorStatus.engineStatus || 'unknown').toUpperCase()}`
+                  : 'Host-native lifecycle control endpoint unavailable',
+          },
           {
             label: 'Web server',
             value: 'Online',

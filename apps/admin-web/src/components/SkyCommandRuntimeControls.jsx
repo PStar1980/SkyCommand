@@ -23,7 +23,7 @@ function confirmationMessage(action) {
   return 'Restart the SkyCommand backend runtime? The web shell and Supervisor will stay online while PostgreSQL, Temporal, workers, and the API restart. Your current session will end and you will sign in again when the runtime is healthy.';
 }
 
-function SkyCommandRuntimeControls({ canControl = false, compact = false }) {
+function SkyCommandRuntimeControls({ canControl = false, compact = false, onStatusChange = null }) {
   const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [runtimeError, setRuntimeError] = useState('');
   const [busyAction, setBusyAction] = useState('');
@@ -32,15 +32,17 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false }) {
     try {
       const status = await supervisorService.getRuntimeStatus({ signal });
       setRuntimeStatus(status);
+      onStatusChange?.(status);
       setRuntimeError('');
       return status;
     } catch (error) {
       if (error?.name === 'AbortError') return null;
       setRuntimeStatus(null);
+      onStatusChange?.(null);
       setRuntimeError('SkyCommand Supervisor status is unavailable.');
       return null;
     }
-  }, []);
+  }, [onStatusChange]);
 
   useEffect(() => {
     let active = true;
