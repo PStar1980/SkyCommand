@@ -218,6 +218,8 @@ assert.match(appShellSource, /\[location\.pathname\]/);
 const dashboardSource = fs.readFileSync(path.join(sourceRoot, 'pages/Dashboard.jsx'), 'utf8');
 assert.match(dashboardSource, /showRouteTable=\{false\}/);
 assert.match(dashboardSource, /<ServerStatusPanel/);
+assert.match(dashboardSource, /label: 'Supervisor'/);
+assert.match(dashboardSource, /onStatusChange=\{setSupervisorStatus\}/);
 assert.match(dashboardSource, /label: 'Web server'/);
 assert.match(dashboardSource, /label: 'Temporal worker'/);
 assert.match(dashboardSource, /label: 'Host agent'/);
@@ -314,12 +316,13 @@ const serverStatusPanelSource = fs.readFileSync(
   'utf8',
 );
 assert.match(serverStatusPanelSource, /ONLINE_STATUSES/);
+assert.match(serverStatusPanelSource, /Supervisor, web shell/);
 assert.match(serverStatusPanelSource, /host execution agent/);
 assert.match(serverStatusPanelSource, /isOnlineService\(item\) \? 'is-online' : ''/);
 
 assert.match(cssSource, /route-contained workflow graph/);
 assert.match(cssSource, /\.sky-workflow-history-detail-stack \.sky-workflow-visual-map \{[\s\S]*?overflow-x: auto;/);
-assert.match(cssSource, /\.sky-server-status-grid \{[\s\S]*?repeat\(7, minmax\(0, 1fr\)\)/);
+assert.match(cssSource, /\.sky-server-status-grid \{[\s\S]*?repeat\(8, minmax\(0, 1fr\)\)/);
 assert.match(cssSource, /\.sky-server-status-card\.is-online \{[\s\S]*?rgba\(255, 210, 97, 0\.78\)/);
 
 console.log('[SkyCommand] Dashboard header and page typography self-test passed.');
