@@ -6,13 +6,13 @@ It is intentionally separate from the Docker Compose project and from the Tempor
 ## Why it exists
 
 SkyCommand's generic Docker controls protect the `skycommand` Compose project from synchronous self-control.
-That guardrail remains correct: the API should not issue a blocking command that removes the API while the
-request is still in flight.
+That guardrail remains correct: the API should not issue a blocking Docker command that removes the API while
+its own request is still in flight.
 
 The Supervisor creates a narrow self-management lane instead:
 
 - the `web` static control shell remains running;
-- runtime services (`postgres`, `temporal`, `temporal-worker`, `node-worker`, `api`) can be started/stopped/restarted;
+- runtime services (`postgres`, `temporal`, `temporal-worker`, `node-worker`, `api`) can be started, stopped, or restarted;
 - the Supervisor survives those actions because it runs directly on the Windows host;
 - the Supervisor does not depend on Temporal or PostgreSQL;
 - only runtime lifecycle actions are implemented; arbitrary Docker commands and destructive cleanup are not exposed.
@@ -39,8 +39,37 @@ Default endpoint: `http://127.0.0.1:17170`
 - `POST /runtime/stop`
 - `POST /runtime/restart`
 
-`START` accepts the configured local bootstrap origin plus the `X-SkyCommand-Bootstrap: start` header. `STOP` and
-`RESTART` require `X-SkyCommand-Supervisor-Token` matching `SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN`.
+`START` accepts the configured local bootstrap origin plus `X-SkyCommand-Bootstrap: start`, allowing the static
+login shell to wake the backend while authentication is unavailable.
+
+Authenticated `STOP` and `RESTART` use a different lane. A user with `INFRASTRUCTURE_DOCKER_CONTROL` explicitly
+confirms the action through the API. The API records the authorization audit event and returns a short-lived,
+one-time HMAC-signed lifecycle grant. The browser hands only that grant to the localhost Supervisor using
+`X-SkyCommand-Supervisor-Grant`; the signing secret never enters browser code or storage.
+
+The optional `SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN` remains available as a local break-glass control path.
+
+## Lifecycle grant configuration
+
+Set a long random local secret in `.env` and restart both the Supervisor and API:
+
+```text
+SKYCOMMAND_SUPERVISOR_GRANT_SECRET=<long-random-local-secret>
+SKYCOMMAND_SUPERVISOR_GRANT_TTL_SECONDS=45
+```
+
+For compatibility, grant signing falls back to `SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN` when the dedicated grant
+secret is blank. A dedicated grant secret is preferred.
+
+Lifecycle grants are restricted to `STOP` and `RESTART`, expire quickly, are action-bound, carry a unique nonce,
+and are rejected if replayed by the same Supervisor process.
+
+## UI behavior
+
+- When the backend runtime is stopped, `/login` remains available through the static `web` container and offers **Start SkyCommand**.
+- The Docker Projects workspace exposes **Restart Runtime** and **Stop Runtime** for the protected SkyCommand project instead of bypassing generic self-control guardrails.
+- Command Center surfaces the same authenticated controls beneath Platform Availability.
+- After `STOP` or `RESTART` is accepted, the current browser session is cleared and the browser returns to `/login`. The login shell shows runtime progress and restores the ordinary login form when the backend reports online again.
 
 ## Runtime boundary
 

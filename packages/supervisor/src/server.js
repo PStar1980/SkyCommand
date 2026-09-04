@@ -5,12 +5,14 @@ require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
 const http = require('node:http');
 const { timingSafeEqual } = require('node:crypto');
+const { verifyLifecycleGrant } = require('./lifecycleGrant');
 const { getSupervisorConfig } = require('./config');
 const { controlRuntime, getRuntimeStatus } = require('./runtimeLifecycle');
 
 const repositoryRoot = path.resolve(__dirname, '../../..');
 const config = getSupervisorConfig(repositoryRoot);
 let activeOperation = null;
+const consumedGrantNonces = new Map();
 
 function json(res, statusCode, payload, headers = {}) {
   const body = JSON.stringify(payload);
@@ -35,7 +37,7 @@ function getCorsHeaders(req) {
     'Access-Control-Allow-Origin': origin,
     Vary: 'Origin',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-SkyCommand-Bootstrap,X-SkyCommand-Supervisor-Token',
+    'Access-Control-Allow-Headers': 'Content-Type,X-SkyCommand-Bootstrap,X-SkyCommand-Supervisor-Token,X-SkyCommand-Supervisor-Grant',
     'Access-Control-Allow-Private-Network': 'true',
     'Access-Control-Max-Age': '600',
   };
@@ -57,6 +59,40 @@ function tokenMatches(candidate) {
 
 function requireControlToken(req) {
   return tokenMatches(req.headers['x-skycommand-supervisor-token']);
+}
+
+function pruneConsumedGrants(nowSeconds = Math.floor(Date.now() / 1000)) {
+  for (const [nonce, expiresAt] of consumedGrantNonces.entries()) {
+    if (Number(expiresAt) < nowSeconds - 5) consumedGrantNonces.delete(nonce);
+  }
+}
+
+function authorizeLifecycleGrant(req, action) {
+  const token = String(req.headers['x-skycommand-supervisor-grant'] || '').trim();
+  if (!token) return null;
+
+  const payload = verifyLifecycleGrant(token, {
+    secret: config.grantSecret,
+    action,
+  });
+
+  pruneConsumedGrants();
+  if (consumedGrantNonces.has(payload.nonce)) {
+    const error = new Error('SkyCommand Supervisor lifecycle grant has already been used.');
+    error.code = 'SKYCOMMAND_SUPERVISOR_GRANT_REPLAYED';
+    throw error;
+  }
+
+  consumedGrantNonces.set(payload.nonce, payload.exp);
+  return {
+    method: 'SIGNED_GRANT',
+    grantId: payload.nonce,
+  };
+}
+
+function authorizeControlRequest(req, action) {
+  if (requireControlToken(req)) return { method: 'CONTROL_TOKEN' };
+  return authorizeLifecycleGrant(req, action);
 }
 
 async function handleStatus(req, res) {
@@ -90,13 +126,27 @@ async function handleControl(req, res, action) {
       }, getCorsHeaders(req));
       return;
     }
-  } else if (!requireControlToken(req)) {
-    json(res, 403, {
-      ok: false,
-      code: 'SKYCOMMAND_SUPERVISOR_CONTROL_DENIED',
-      error: 'SkyCommand runtime stop/restart requires the supervisor control token.',
-    }, getCorsHeaders(req));
-    return;
+  } else {
+    let authorization = null;
+    try {
+      authorization = authorizeControlRequest(req, action);
+    } catch (authorizationError) {
+      json(res, 403, {
+        ok: false,
+        code: authorizationError?.code || 'SKYCOMMAND_SUPERVISOR_CONTROL_DENIED',
+        error: authorizationError?.message || 'SkyCommand runtime control authorization failed.',
+      }, getCorsHeaders(req));
+      return;
+    }
+
+    if (!authorization) {
+      json(res, 403, {
+        ok: false,
+        code: 'SKYCOMMAND_SUPERVISOR_CONTROL_DENIED',
+        error: 'SkyCommand runtime stop/restart requires an authenticated lifecycle grant.',
+      }, getCorsHeaders(req));
+      return;
+    }
   }
 
   const operation = {

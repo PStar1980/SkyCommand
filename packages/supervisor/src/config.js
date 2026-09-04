@@ -70,6 +70,10 @@ function getSupervisorConfig(repositoryRoot) {
         .filter(Boolean),
     ),
     controlToken: normalizeText(process.env.SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN),
+    grantSecret: normalizeText(
+      process.env.SKYCOMMAND_SUPERVISOR_GRANT_SECRET,
+      process.env.SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN,
+    ),
     startupTimeoutMs: normalizePositiveNumber(
       process.env.SKYCOMMAND_SUPERVISOR_STARTUP_TIMEOUT_MS,
       DEFAULT_STARTUP_TIMEOUT_MS,

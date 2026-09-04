@@ -33,7 +33,29 @@ async function startRuntime() {
   return parseResponse(response);
 }
 
+async function controlRuntime(action, grant) {
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  if (!['stop', 'restart'].includes(normalizedAction)) {
+    throw new Error(`Unsupported SkyCommand runtime action '${normalizedAction || 'blank'}'.`);
+  }
+  if (!grant) {
+    throw new Error('SkyCommand runtime lifecycle grant is required.');
+  }
+
+  const response = await fetch(`${SUPERVISOR_BASE_URL}/runtime/${normalizedAction}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-SkyCommand-Supervisor-Grant': grant,
+    },
+    body: '{}',
+  });
+  return parseResponse(response);
+}
+
 export default {
+  controlRuntime,
   getRuntimeStatus,
   startRuntime,
 };

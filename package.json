@@ -1,7 +1,7 @@
 {
   "name": "skycommand",
   "version": "1.0.0",
-  "description": "SkyCommand workflow automation control plane for the Sky ecosystem.",
+  "description": "SkyCommand deterministic workflow automation control plane.",
   "main": "index.js",
   "scripts": {
     "prepare": "husky",
@@ -54,6 +54,9 @@
     "supervisor": "node packages/supervisor/src/server.js",
     "supervisor:check": "node packages/supervisor/src/health.js",
     "supervisor:self-test": "node packages/supervisor/src/supervisorSelfTest.js",
+    "supervisor-grant:self-test": "node packages/supervisor/src/lifecycleGrantSelfTest.js",
+    "supervisor-lifecycle-auth:self-test": "node apps/api/src/services/supervisorLifecycleGrantServiceSelfTest.js",
+    "supervisor-runtime-ui:self-test": "node apps/admin-web/src/pages/supervisorRuntimeControlSelfTest.js",
     "supervisor:auto-start:install": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/SkyCommand-SupervisorTask.ps1 -Action Install",
     "supervisor:auto-start:uninstall": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/SkyCommand-SupervisorTask.ps1 -Action Uninstall",
     "supervisor:auto-start:status": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/SkyCommand-SupervisorTask.ps1 -Action Status",

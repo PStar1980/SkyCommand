@@ -33,6 +33,17 @@ async function controlDockerComposeProject(projectName, action) {
 
 
 
+
+async function authorizeSkyCommandRuntimeControl(action) {
+  return api.post(
+    '/api/infrastructure/providers/docker/skycommand-runtime/authorizations',
+    {
+      action,
+      confirmed: true,
+    },
+  );
+}
+
 async function getDockerResourceDetail(resourceType, reference) {
   const pathByType = {
     IMAGE: 'images',
@@ -67,6 +78,7 @@ async function listDockerOperations(filters = {}) {
 }
 
 export default {
+  authorizeSkyCommandRuntimeControl,
   controlDockerComposeProject,
   controlDockerContainer,
   controlDockerResource,

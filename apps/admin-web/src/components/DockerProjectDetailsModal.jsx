@@ -4,6 +4,7 @@ import useDockerTelemetryStream from '../hooks/useDockerTelemetryStream.js';
 import TrendAreaChart from './charts/TrendAreaChart.jsx';
 import { CHART_COLORS } from './charts/chartTheme.js';
 import StatusPill from './ui/StatusPill.jsx';
+import SkyCommandRuntimeControls from './SkyCommandRuntimeControls.jsx';
 import { buildDockerStaleDataMessage, getDockerLiveLaneState } from '../utils/dockerLiveStatus.js';
 
 import DismissibleAlert from './ui/DismissibleAlert.jsx';
@@ -114,11 +115,14 @@ function ProjectControls({ canControl, controlling, onControl, project }) {
 
   if (selfManaged) {
     return (
-      <div className="d-flex flex-wrap align-items-center gap-2">
-        <StatusPill label="Self-managed" status="BLOCKED" />
-        <span className="small sky-muted">
-          SkyCommand protects its own Compose project from synchronous lifecycle writes.
-        </span>
+      <div>
+        <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+          <StatusPill label="Self-managed" status="INFO" />
+          <span className="small sky-muted">
+            Generic Host Agent self-control remains blocked; the dedicated Supervisor lifecycle lane is available below.
+          </span>
+        </div>
+        <SkyCommandRuntimeControls canControl={canControl} />
       </div>
     );
   }
@@ -337,7 +341,9 @@ function DockerProjectDetailsModal({
                 <div className="sky-page-kicker">Workload control</div>
                 <h3 className="h5 mb-1">Compose Lifecycle</h3>
                 <div className="small sky-muted">
-                  Project-scoped Start, Stop, and Restart remain routed through the guarded Host Agent control lane.
+                  {project?.control?.mode === 'SELF_MANAGED_PROTECTED'
+                    ? 'SkyCommand self-lifecycle control uses the host-native Supervisor while ordinary project controls remain protected from synchronous self-termination.'
+                    : 'Project-scoped Start, Stop, and Restart remain routed through the guarded Host Agent control lane.'}
                 </div>
               </div>
               <div className="d-flex flex-wrap gap-2">
