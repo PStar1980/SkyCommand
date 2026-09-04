@@ -85,6 +85,13 @@ router.post(
   infrastructureController.controlDockerContainer,
 );
 
+
+router.post(
+  '/providers/docker/skycommand-runtime/authorizations',
+  requirePermission('INFRASTRUCTURE_DOCKER_CONTROL'),
+  infrastructureController.authorizeSkyCommandRuntimeControl,
+);
+
 router.post(
   '/providers/docker/projects/:projectName/actions',
   requirePermission('INFRASTRUCTURE_DOCKER_CONTROL'),

@@ -383,7 +383,7 @@ function ProjectTable({ loading, onSelect, onSort, projects, selectedProjectName
                   <td>
                     <div className="fw-bold">{project.name}</div>
                     {selfManaged && (
-                      <div className="small sky-muted">Protected control-plane project</div>
+                      <div className="small sky-muted">Supervisor-managed control-plane project</div>
                     )}
                   </td>
                   <td><StatusPill status={project.state} /></td>

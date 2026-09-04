@@ -62,6 +62,7 @@ SkyCommand/
 │   │       │   ├── ProtectedRoute.jsx
 │   │       │   ├── RepositoryForm.jsx
 │   │       │   ├── RuntimeParameterSchemaEditor.jsx
+│   │       │   ├── SkyCommandRuntimeControls.jsx
 │   │       │   ├── SummaryParameterEditor.jsx
 │   │       │   ├── ToolParameterEditor.jsx
 │   │       │   ├── WaitParameterEditor.jsx
@@ -164,6 +165,7 @@ SkyCommand/
 │   │       │   ├── schedulerPageSplitSelfTest.js
 │   │       │   ├── ScriptExecutions.jsx
 │   │       │   ├── SkyWorkflows.jsx
+│   │       │   ├── supervisorRuntimeControlSelfTest.js
 │   │       │   ├── TemporalWorkflows.jsx
 │   │       │   ├── toolHistoryCatalogueSelfTest.js
 │   │       │   ├── toolOperationsSortingSelfTest.js
@@ -267,6 +269,8 @@ SkyCommand/
 │   │       │   ├── skywebProfileService.js
 │   │       │   ├── skywebSavedViewsService.js
 │   │       │   ├── structuredToolContractAssociationSelfTest.js
+│   │       │   ├── supervisorLifecycleGrantService.js
+│   │       │   ├── supervisorLifecycleGrantServiceSelfTest.js
 │   │       │   ├── tableSortUtils.js
 │   │       │   ├── tableSortUtilsSelfTest.js
 │   │       │   ├── temporalService.js
@@ -669,6 +673,8 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── config.js
 │   │       ├── health.js
+│   │       ├── lifecycleGrant.js
+│   │       ├── lifecycleGrantSelfTest.js
 │   │       ├── runtimeLifecycle.js
 │   │       ├── server.js
 │   │       └── supervisorSelfTest.js

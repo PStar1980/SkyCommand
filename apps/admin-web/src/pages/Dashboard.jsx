@@ -4,6 +4,7 @@ import ApplicationUserSummaryRow from '../components/charts/ApplicationUserSumma
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
 import ServerStatusPanel from '../components/ui/ServerStatusPanel.jsx';
+import SkyCommandRuntimeControls from '../components/SkyCommandRuntimeControls.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useSmartPolling, {
@@ -266,6 +267,12 @@ function Dashboard() {
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
       <ServerStatusPanel
+        footer={
+          <SkyCommandRuntimeControls
+            canControl={hasPermission('INFRASTRUCTURE_DOCKER_CONTROL')}
+            compact
+          />
+        }
         items={[
           {
             label: 'Web server',

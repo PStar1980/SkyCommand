@@ -2,6 +2,7 @@ const infrastructureService = require('../services/infrastructureService');
 const authService = require('../services/authService');
 const dockerEventStreamService = require('../services/dockerEventStreamService');
 const dockerTelemetryStreamService = require('../services/dockerTelemetryStreamService');
+const supervisorLifecycleGrantService = require('../services/supervisorLifecycleGrantService');
 
 
 function assertInternalServiceRequest(req) {
@@ -167,6 +168,26 @@ async function controlDockerComposeProject(req, res, next) {
   }
 }
 
+
+async function authorizeSkyCommandRuntimeControl(req, res, next) {
+  try {
+    const result = await supervisorLifecycleGrantService.authorizeRuntimeControl({
+      action: req.body?.action,
+      confirmed: req.body?.confirmed === true,
+      actor: req.user,
+      session: req.session,
+      requestContext: authService.getRequestContext(req),
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function listDockerOperations(req, res, next) {
   try {
     const result = await infrastructureService.listDockerOperations(req.query || {});
@@ -182,6 +203,7 @@ async function listDockerOperations(req, res, next) {
 module.exports = {
   ingestDockerEvent,
   ingestDockerTelemetry,
+  authorizeSkyCommandRuntimeControl,
   streamDockerEvents,
   streamDockerTelemetry,
   controlDockerComposeProject,

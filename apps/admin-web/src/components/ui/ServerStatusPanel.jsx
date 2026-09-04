@@ -9,7 +9,7 @@ function isOnlineService(item = {}) {
   return ONLINE_STATUSES.has(normalizedStatus) || normalizedValue === 'ONLINE';
 }
 
-function ServerStatusPanel({ items = [] }) {
+function ServerStatusPanel({ footer = null, items = [] }) {
   return (
     <section className="sky-card sky-server-status-panel mb-3">
       <div className="sky-card-header sky-dashboard-section-heading">
@@ -40,6 +40,7 @@ function ServerStatusPanel({ items = [] }) {
             </article>
           ))}
         </div>
+        {footer && <div className="mt-3 pt-3 border-top">{footer}</div>}
       </div>
     </section>
   );
