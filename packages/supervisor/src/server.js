@@ -12,6 +12,7 @@ const { controlRuntime, getRuntimeStatus } = require('./runtimeLifecycle');
 const repositoryRoot = path.resolve(__dirname, '../../..');
 const config = getSupervisorConfig(repositoryRoot);
 let activeOperation = null;
+let lastOperation = null;
 const consumedGrantNonces = new Map();
 
 function json(res, statusCode, payload, headers = {}) {
@@ -102,6 +103,7 @@ async function handleStatus(req, res) {
     service: 'SkyCommand Supervisor',
     supervisor: 'ONLINE',
     operation: activeOperation,
+    lastOperation,
     ...status,
   }, getCorsHeaders(req));
 }
@@ -164,8 +166,21 @@ async function handleControl(req, res, action) {
   setImmediate(async () => {
     try {
       const result = await controlRuntime(config, action);
+      lastOperation = {
+        ...operation,
+        status: 'SUCCEEDED',
+        completedAt: new Date().toISOString(),
+        runtimeStatus: result?.status?.runtimeStatus || null,
+      };
       console.log(`[SkyCommand Supervisor] ${action} completed: ${result.status.runtimeStatus}`);
     } catch (error) {
+      lastOperation = {
+        ...operation,
+        status: 'FAILED',
+        completedAt: new Date().toISOString(),
+        code: error?.code || 'SKYCOMMAND_SUPERVISOR_ERROR',
+        error: error?.message || 'SkyCommand Supervisor action failed.',
+      };
       console.error(`[SkyCommand Supervisor] ${action} failed:`, error?.message || error);
     } finally {
       activeOperation = null;
@@ -214,6 +229,11 @@ async function requestHandler(req, res) {
 
     if (req.method === 'POST' && req.url === '/runtime/restart') {
       await handleControl(req, res, 'RESTART');
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/runtime/rebuild-web') {
+      await handleControl(req, res, 'REBUILD_WEB');
       return;
     }
 

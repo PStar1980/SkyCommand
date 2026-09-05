@@ -5,7 +5,7 @@ const GRANT_ISSUER = 'skycommand-api';
 const GRANT_VERSION = 1;
 const DEFAULT_GRANT_TTL_SECONDS = 45;
 const MAX_GRANT_TTL_SECONDS = 120;
-const ALLOWED_GRANT_ACTIONS = new Set(['STOP', 'RESTART']);
+const ALLOWED_GRANT_ACTIONS = new Set(['STOP', 'RESTART', 'REBUILD_WEB']);
 
 class SupervisorGrantError extends Error {
   constructor(message, code = 'SKYCOMMAND_SUPERVISOR_GRANT_INVALID') {

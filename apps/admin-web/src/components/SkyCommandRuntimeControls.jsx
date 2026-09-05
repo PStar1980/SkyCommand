@@ -20,6 +20,10 @@ function confirmationMessage(action) {
     return 'Stop the SkyCommand backend runtime? The web shell and Supervisor will stay online, but your current session will end and the login page will switch to Runtime Control.';
   }
 
+  if (action === 'REBUILD_WEB') {
+    return 'Rebuild the SkyCommand frontend from the current local source? The Supervisor will run docker compose up -d --build web, replace the web shell, and reload this page when the rebuild finishes. The backend runtime will stay online.';
+  }
+
   return 'Restart the SkyCommand backend runtime? The web shell and Supervisor will stay online while PostgreSQL, Temporal, workers, and the API restart. Your current session will end and you will sign in again when the runtime is healthy.';
 }
 
@@ -77,7 +81,16 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false, onStat
       const grant = authorizationResult?.authorization?.grant;
       if (!grant) throw new Error('SkyCommand runtime lifecycle authorization did not return a grant.');
 
-      await supervisorService.controlRuntime(action, grant);
+      const accepted = await supervisorService.controlRuntime(action, grant);
+
+      if (action === 'REBUILD_WEB') {
+        await supervisorService.waitForOperationCompletion({
+          action,
+          requestedAt: accepted?.operation?.requestedAt,
+        });
+        window.setTimeout(() => window.location.reload(), 750);
+        return;
+      }
 
       // The API is intentionally part of the controlled runtime. Hand the browser back
       // to the static shell before the current authenticated session becomes invalid.
@@ -123,6 +136,14 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false, onStat
             <StatusPill label="Read only" status="INFO" />
           ) : (
             <>
+              <button
+                className="btn btn-sm sky-btn-primary"
+                disabled={Boolean(busyAction) || !runtimeActive}
+                onClick={() => controlRuntime('REBUILD_WEB')}
+                type="button"
+              >
+                {busyAction === 'REBUILD_WEB' ? 'Rebuilding…' : 'Rebuild Frontend'}
+              </button>
               <button
                 className="btn btn-sm sky-btn-ghost"
                 disabled={Boolean(busyAction) || !runtimeOnline}

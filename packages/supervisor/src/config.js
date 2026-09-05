@@ -12,6 +12,8 @@ const DEFAULT_RUNTIME_SERVICES = [
 ];
 const DEFAULT_STARTUP_TIMEOUT_MS = 180000;
 const DEFAULT_CONTROL_TIMEOUT_MS = 180000;
+const DEFAULT_REBUILD_TIMEOUT_MS = 300000;
+const DEFAULT_WEB_SERVICE = 'web';
 
 function normalizeText(value, fallback = '') {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
@@ -60,6 +62,7 @@ function getSupervisorConfig(repositoryRoot) {
     host: normalizeText(process.env.SKYCOMMAND_SUPERVISOR_HOST, DEFAULT_SUPERVISOR_HOST),
     port: normalizePort(process.env.SKYCOMMAND_SUPERVISOR_PORT),
     runtimeServices: parseRuntimeServices(process.env.SKYCOMMAND_SUPERVISOR_RUNTIME_SERVICES),
+    webService: normalizeText(process.env.SKYCOMMAND_SUPERVISOR_WEB_SERVICE, DEFAULT_WEB_SERVICE),
     bootstrapOrigins: new Set(
       normalizeText(
         process.env.SKYCOMMAND_SUPERVISOR_BOOTSTRAP_ORIGINS,
@@ -82,16 +85,22 @@ function getSupervisorConfig(repositoryRoot) {
       process.env.SKYCOMMAND_SUPERVISOR_CONTROL_TIMEOUT_MS,
       DEFAULT_CONTROL_TIMEOUT_MS,
     ),
+    rebuildTimeoutMs: normalizePositiveNumber(
+      process.env.SKYCOMMAND_SUPERVISOR_REBUILD_TIMEOUT_MS,
+      DEFAULT_REBUILD_TIMEOUT_MS,
+    ),
   };
 }
 
 module.exports = {
   DEFAULT_CONTROL_TIMEOUT_MS,
+  DEFAULT_REBUILD_TIMEOUT_MS,
   DEFAULT_RUNTIME_SERVICES,
   DEFAULT_STARTUP_TIMEOUT_MS,
   DEFAULT_SUPERVISOR_HOST,
   DEFAULT_SUPERVISOR_PORT,
   DEFAULT_SUPERVISOR_PROJECT_NAME,
+  DEFAULT_WEB_SERVICE,
   getSupervisorConfig,
   normalizePort,
   parseRuntimeServices,

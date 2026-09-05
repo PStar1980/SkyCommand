@@ -27,13 +27,16 @@ const routes = fs.readFileSync(
   'utf8',
 );
 
+assert.match(component, /Rebuild Frontend/);
+assert.match(component, /REBUILD_WEB/);
 assert.match(component, /Restart Runtime/);
 assert.match(component, /Stop Runtime/);
 assert.match(component, /authorizeSkyCommandRuntimeControl/);
 assert.match(component, /supervisorService\.controlRuntime/);
 assert.match(component, /api\.clearSessionToken/);
 assert.match(supervisorService, /X-SkyCommand-Supervisor-Grant/);
-assert.match(supervisorService, /\/runtime\/\$\{normalizedAction\}/);
+assert.match(supervisorService, /rebuild-web/);
+assert.match(supervisorService, /waitForOperationCompletion/);
 assert.match(infrastructureService, /skycommand-runtime\/authorizations/);
 assert.match(routes, /INFRASTRUCTURE_DOCKER_CONTROL/);
 assert.match(routes, /authorizeSkyCommandRuntimeControl/);

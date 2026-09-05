@@ -11,6 +11,7 @@ const {
   buildComposeArgs,
   getRuntimeStatus,
   parseComposePsOutput,
+  rebuildWeb,
 } = require('./runtimeLifecycle');
 
 assert.deepEqual(parseRuntimeServices(''), DEFAULT_RUNTIME_SERVICES);
@@ -49,7 +50,22 @@ getRuntimeStatus(config, { executor: fakeExecutor })
     assert.equal(status.engineStatus, 'ONLINE');
     assert.equal(status.runtimeStatus, 'ONLINE');
     assert.equal(status.runningCount, config.runtimeServices.length);
-    console.log('✅ SkyCommand Supervisor self-test passed.');
+
+    let rebuildObserved = false;
+    const rebuildExecutor = async (_command, dockerArgs) => {
+      if (dockerArgs.includes('--build')) {
+        rebuildObserved = true;
+        assert.deepEqual(dockerArgs.slice(-4), ['up', '-d', '--build', config.webService]);
+        return { stdout: 'web rebuilt', stderr: '' };
+      }
+      return fakeExecutor(_command, dockerArgs);
+    };
+
+    return rebuildWeb(config, { executor: rebuildExecutor }).then((result) => {
+      assert.equal(result.action, 'REBUILD_WEB');
+      assert.equal(rebuildObserved, true);
+      console.log('✅ SkyCommand Supervisor self-test passed.');
+    });
   })
   .catch((error) => {
     console.error(error);

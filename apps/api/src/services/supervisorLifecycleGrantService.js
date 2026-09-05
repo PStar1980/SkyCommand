@@ -66,7 +66,7 @@ async function authorizeRuntimeControl({
     throw createServiceError(
       400,
       'SKYCOMMAND_RUNTIME_CONTROL_CONFIRMATION_REQUIRED',
-      'SkyCommand runtime stop/restart requires explicit confirmation.',
+      'SkyCommand runtime lifecycle control requires explicit confirmation.',
     );
   }
 
@@ -88,7 +88,8 @@ async function authorizeRuntimeControl({
     nowMs,
   });
 
-  const message = `${normalizedAction} authorized for the SkyCommand backend runtime through the host-native Supervisor.`;
+  const resourceLabel = normalizedAction === 'REBUILD_WEB' ? 'SkyCommand web frontend' : 'SkyCommand backend runtime';
+  const message = `${normalizedAction} authorized for the ${resourceLabel} through the host-native Supervisor.`;
 
   // High-risk self-lifecycle control fails closed if the authorization audit cannot be persisted.
   await auditRecorder({

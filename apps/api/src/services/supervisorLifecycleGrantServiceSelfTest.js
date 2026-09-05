@@ -40,6 +40,25 @@ authorizeRuntimeControl({
     assert.equal(claims.sub, 'user-1');
     assert.equal(claims.sid, 'session-1');
 
+    return authorizeRuntimeControl({
+      action: 'REBUILD_WEB',
+      confirmed: true,
+      actor: { userId: 'user-1', username: 'paul' },
+      session: { sessionId: 'session-1', appCode: 'SKYSERVER_ADMIN' },
+      requestContext: { ipAddress: '127.0.0.1', userAgent: 'self-test' },
+      auditRecorder: async (event) => auditEvents.push(event),
+      nowMs: nowMs + 1000,
+    });
+  })
+  .then((rebuildResult) => {
+    assert.equal(rebuildResult.authorization.action, 'REBUILD_WEB');
+    verifyLifecycleGrant(rebuildResult.authorization.grant, {
+      secret: process.env.SKYCOMMAND_SUPERVISOR_GRANT_SECRET,
+      action: 'REBUILD_WEB',
+      nowMs: nowMs + 5_000,
+    });
+    assert.equal(auditEvents.length, 2);
+
     return assert.rejects(
       () => authorizeRuntimeControl({ action: 'STOP', confirmed: false }),
       /explicit confirmation/i,
