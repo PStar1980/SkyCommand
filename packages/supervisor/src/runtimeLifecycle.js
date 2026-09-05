@@ -3,7 +3,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
-const ALLOWED_ACTIONS = new Set(['START', 'STOP', 'RESTART']);
+const ALLOWED_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'REBUILD_WEB']);
 
 class SupervisorRuntimeError extends Error {
   constructor(message, code = 'SKYCOMMAND_SUPERVISOR_RUNTIME_FAILED', details = {}) {
@@ -37,6 +37,13 @@ function assertConfig(config = {}) {
     throw new SupervisorRuntimeError(
       'SkyCommand Supervisor runtime service list is empty.',
       'SKYCOMMAND_SUPERVISOR_SERVICES_MISSING',
+    );
+  }
+
+  if (!normalizeText(config.webService)) {
+    throw new SupervisorRuntimeError(
+      'SkyCommand Supervisor web service name is missing.',
+      'SKYCOMMAND_SUPERVISOR_WEB_SERVICE_MISSING',
     );
   }
 }
@@ -218,6 +225,20 @@ async function restartRuntime(config, options = {}) {
   };
 }
 
+async function rebuildWeb(config, options = {}) {
+  const result = await executeDocker(
+    config,
+    ['up', '-d', '--build', config.webService],
+    { ...options, timeout: config.rebuildTimeoutMs || config.controlTimeoutMs },
+  );
+
+  return {
+    action: 'REBUILD_WEB',
+    stdout: normalizeText(result.stdout),
+    status: await getRuntimeStatus(config, options),
+  };
+}
+
 async function controlRuntime(config, action, options = {}) {
   const normalized = normalizeText(action).toUpperCase();
   if (!ALLOWED_ACTIONS.has(normalized)) {
@@ -230,6 +251,7 @@ async function controlRuntime(config, action, options = {}) {
 
   if (normalized === 'START') return startRuntime(config, options);
   if (normalized === 'STOP') return stopRuntime(config, options);
+  if (normalized === 'REBUILD_WEB') return rebuildWeb(config, options);
   return restartRuntime(config, options);
 }
 
@@ -240,6 +262,7 @@ module.exports = {
   controlRuntime,
   getRuntimeStatus,
   parseComposePsOutput,
+  rebuildWeb,
   restartRuntime,
   startRuntime,
   stopRuntime,

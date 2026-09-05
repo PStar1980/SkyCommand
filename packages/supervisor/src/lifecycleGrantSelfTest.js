@@ -31,6 +31,22 @@ const verified = verifyLifecycleGrant(issued.token, {
 });
 assert.equal(verified.nonce, 'grant-test-nonce');
 
+const rebuildGrant = issueLifecycleGrant({
+  secret,
+  action: 'rebuild_web',
+  subject: 'user-123',
+  sessionId: 'session-456',
+  ttlSeconds: 45,
+  nowMs,
+  nonce: 'grant-rebuild-web-nonce',
+});
+assert.equal(rebuildGrant.payload.action, 'REBUILD_WEB');
+verifyLifecycleGrant(rebuildGrant.token, {
+  secret,
+  action: 'REBUILD_WEB',
+  nowMs: nowMs + 10_000,
+});
+
 assert.throws(
   () => verifyLifecycleGrant(issued.token, { secret: 'wrong-secret', action: 'RESTART', nowMs }),
   /signature is invalid/i,
