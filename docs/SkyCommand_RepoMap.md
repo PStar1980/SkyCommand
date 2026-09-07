@@ -76,7 +76,6 @@ SkyCommand/
 │   │       │   │   ├── ChartFullscreenOverlay.jsx
 │   │       │   │   ├── chartOptions.js
 │   │       │   │   ├── chartTheme.js
-│   │       │   │   ├── chartTypographySelfTest.js
 │   │       │   │   ├── DashboardVisuals.jsx
 │   │       │   │   ├── DockerTelemetryVisuals.jsx
 │   │       │   │   ├── DurationTrendChart.jsx
@@ -85,7 +84,6 @@ SkyCommand/
 │   │       │   │   ├── EmptyChartState.jsx
 │   │       │   │   ├── IdentityHorizontalBarChart.jsx
 │   │       │   │   ├── IngestionStatusVisuals.jsx
-│   │       │   │   ├── liveChartUpdateSelfTest.js
 │   │       │   │   ├── OutcomeBarChart.jsx
 │   │       │   │   ├── ProductionReadinessVisuals.jsx
 │   │       │   │   ├── StatusDonut.jsx
@@ -97,23 +95,17 @@ SkyCommand/
 │   │       │   │   ├── StructuredToolResultDisplay.jsx
 │   │       │   │   └── ToolExecutionOutputPanels.jsx
 │   │       │   └── ui/
-│   │       │       ├── brandThemeSelfTest.js
-│   │       │       ├── commandSearchSelfTest.js
 │   │       │       ├── DashboardFilterCard.jsx
 │   │       │       ├── DashboardRefreshActions.jsx
-│   │       │       ├── dashboardUiConsistencySelfTest.js
 │   │       │       ├── DismissibleAlert.jsx
 │   │       │       ├── PageHeader.jsx
 │   │       │       ├── Panel.jsx
 │   │       │       ├── ServerStatusPanel.jsx
-│   │       │       ├── sidebarAccordionSelfTest.js
 │   │       │       ├── SidebarNav.jsx
 │   │       │       ├── SkyCommandMark.jsx
 │   │       │       ├── SmartPollingStatus.jsx
 │   │       │       ├── StatCard.jsx
-│   │       │       ├── StatusPill.jsx
-│   │       │       ├── surfaceRhythmSelfTest.js
-│   │       │       └── transientAlertSelfTest.js
+│   │       │       └── StatusPill.jsx
 │   │       ├── context/
 │   │       │   └── AuthContext.jsx
 │   │       ├── hooks/
@@ -125,68 +117,43 @@ SkyCommand/
 │   │       │   ├── AddRepository.jsx
 │   │       │   ├── AddTool.jsx
 │   │       │   ├── AdminPrivileges.jsx
-│   │       │   ├── adminPrivilegesSurfaceSelfTest.js
 │   │       │   ├── AdminRepositories.jsx
 │   │       │   ├── AdminRoles.jsx
-│   │       │   ├── adminRolesSurfaceSelfTest.js
 │   │       │   ├── AdminSessions.jsx
-│   │       │   ├── adminSessionsSurfaceSelfTest.js
-│   │       │   ├── adminUserHistorySurfaceSelfTest.js
 │   │       │   ├── AdminUsers.jsx
-│   │       │   ├── adminUsersSurfaceSelfTest.js
 │   │       │   ├── ApiDashboard.jsx
-│   │       │   ├── apiDashboardSelfTest.js
-│   │       │   ├── approvalHistorySelfTest.js
 │   │       │   ├── AuditEvents.jsx
 │   │       │   ├── AutomationDashboard.jsx
 │   │       │   ├── AutomationListeners.jsx
 │   │       │   ├── Dashboard.jsx
 │   │       │   ├── DataStatus.jsx
-│   │       │   ├── dockerInfrastructureSurfaceSelfTest.js
 │   │       │   ├── DockerInventory.jsx
 │   │       │   ├── DockerOperations.jsx
 │   │       │   ├── DockerOverview.jsx
 │   │       │   ├── Home.jsx
 │   │       │   ├── IngestionOperations.jsx
-│   │       │   ├── ingestionOperationsSurfaceSelfTest.js
 │   │       │   ├── IngestionStatus.jsx
 │   │       │   ├── Login.jsx
-│   │       │   ├── loginRuntimeBootstrapSelfTest.js
 │   │       │   ├── ManageRepositories.jsx
 │   │       │   ├── ManageTools.jsx
-│   │       │   ├── manageToolsVerificationNavigationSelfTest.js
-│   │       │   ├── operationsTableBatchRefinementSelfTest.js
 │   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── ReadinessDashboard.jsx
 │   │       │   ├── repositoryAdminUtils.js
-│   │       │   ├── repositoryPageSplitSelfTest.js
-│   │       │   ├── runToolsCatalogueSelfTest.js
 │   │       │   ├── SchedulerControl.jsx
-│   │       │   ├── schedulerPageSplitSelfTest.js
 │   │       │   ├── ScriptExecutions.jsx
 │   │       │   ├── SkyWorkflows.jsx
-│   │       │   ├── supervisorRuntimeControlSelfTest.js
 │   │       │   ├── TemporalWorkflows.jsx
-│   │       │   ├── toolHistoryCatalogueSelfTest.js
-│   │       │   ├── toolOperationsSortingSelfTest.js
-│   │       │   ├── toolOperationsTableRefinementSelfTest.js
 │   │       │   ├── Tools.jsx
 │   │       │   ├── ToolsDashboard.jsx
 │   │       │   ├── WorkerControl.jsx
 │   │       │   ├── WorkflowApprovals.jsx
 │   │       │   ├── WorkflowBuilder.jsx
-│   │       │   ├── workflowCategoryUiSelfTest.js
-│   │       │   ├── workflowDatabaseOutputSelfTest.js
-│   │       │   ├── workflowEditorGraphParitySelfTest.js
 │   │       │   ├── WorkflowManager.jsx
-│   │       │   ├── workflowOperationsTableRefinementSelfTest.js
 │   │       │   ├── WorkflowsDashboard.jsx
-│   │       │   ├── workflowStartCatalogueSelfTest.js
 │   │       │   └── WorkflowWorkerHealth.jsx
 │   │       ├── services/
 │   │       │   ├── adminService.js
 │   │       │   ├── api.js
-│   │       │   ├── authExpiryRefreshSelfTest.js
 │   │       │   ├── authService.js
 │   │       │   ├── infrastructureService.js
 │   │       │   ├── ingestionService.js
@@ -240,27 +207,18 @@ SkyCommand/
 │   │       │   ├── adminReadService.js
 │   │       │   ├── apiDockerPreflight.js
 │   │       │   ├── apiTelemetryPolicy.js
-│   │       │   ├── apiTelemetryPolicySelfTest.js
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
 │   │       │   ├── dockerEventStreamService.js
-│   │       │   ├── dockerEventStreamServiceSelfTest.js
 │   │       │   ├── dockerTelemetryStreamService.js
-│   │       │   ├── dockerTelemetryStreamServiceSelfTest.js
 │   │       │   ├── infrastructureService.js
-│   │       │   ├── infrastructureServiceSelfTest.js
 │   │       │   ├── ingestionStatusService.js
 │   │       │   ├── legacyMacroFreshnessAdapter.js
-│   │       │   ├── legacyMacroFreshnessAdapterSelfTest.js
 │   │       │   ├── macroReadService.js
-│   │       │   ├── notificationFoundationSelfTest.js
 │   │       │   ├── notificationService.js
-│   │       │   ├── phase15ClosureReadinessSelfTest.js
 │   │       │   ├── productionReadinessService.js
 │   │       │   ├── publicMacroService.js
-│   │       │   ├── schedulerWorkflowParametersSelfTest.js
 │   │       │   ├── scriptExecutionService.js
-│   │       │   ├── skycommandRepositorySelfTest.js
 │   │       │   ├── skycommandRepositoryService.js
 │   │       │   ├── skywebAlertPreferencesService.js
 │   │       │   ├── skywebAlertsService.js
@@ -268,37 +226,21 @@ SkyCommand/
 │   │       │   ├── skywebPreferencesService.js
 │   │       │   ├── skywebProfileService.js
 │   │       │   ├── skywebSavedViewsService.js
-│   │       │   ├── structuredToolContractAssociationSelfTest.js
 │   │       │   ├── supervisorLifecycleGrantService.js
-│   │       │   ├── supervisorLifecycleGrantServiceSelfTest.js
 │   │       │   ├── tableSortUtils.js
-│   │       │   ├── tableSortUtilsSelfTest.js
 │   │       │   ├── temporalService.js
 │   │       │   ├── toolAdminService.js
 │   │       │   ├── toolExecutionHttpResponse.js
-│   │       │   ├── toolExecutionHttpResponseSelfTest.js
-│   │       │   ├── toolExecutionOutputWorkspaceSelfTest.js
 │   │       │   ├── toolManifestService.js
-│   │       │   ├── toolOnboardingSelfTest.js
 │   │       │   ├── toolOnboardingService.js
-│   │       │   ├── toolVerificationSelfTest.js
 │   │       │   ├── toolVerificationService.js
 │   │       │   ├── workerService.js
-│   │       │   ├── workflowApprovalBranchSelfTest.js
-│   │       │   ├── workflowCategoryFoundationSelfTest.js
-│   │       │   ├── workflowCloneParitySelfTest.js
-│   │       │   ├── workflowConditionSelfTest.js
 │   │       │   ├── workflowConditionService.js
-│   │       │   ├── workflowExecutionPreflightSelfTest.js
 │   │       │   ├── workflowExecutionPreflightService.js
 │   │       │   ├── workflowExecutorService.js
 │   │       │   ├── workflowHealthService.js
-│   │       │   ├── workflowNodeRecoverySelfTest.js
 │   │       │   ├── workflowParameterUtils.js
-│   │       │   ├── workflowParameterUtilsSelfTest.js
-│   │       │   ├── workflowServiceError.js
-│   │       │   ├── workflowToolConfirmationPolicySelfTest.js
-│   │       │   └── workflowToolVisibilitySelfTest.js
+│   │       │   └── workflowServiceError.js
 │   │       └── utils/
 │   │           └── liveTelemetryEnvelope.js
 │   └── worker/
@@ -368,22 +310,17 @@ SkyCommand/
 │   ├── core/
 │   │   └── src/
 │   │       ├── runtimePathResolver.js
-│   │       ├── runtimePathResolverSelfTest.js
 │   │       ├── SkyCommand_Core.js
-│   │       ├── skyCommandIdentitySelfTest.js
 │   │       ├── skyCommandIdentityVerification.js
-│   │       ├── workflowCliRuntimeParameters.js
-│   │       └── workflowCliRuntimeParametersSelfTest.js
+│   │       └── workflowCliRuntimeParameters.js
 │   ├── db/
 │   │   └── src/
 │   │       ├── connection.js
-│   │       ├── db_health.js
-│   │       └── dbHealthResultSelfTest.js
+│   │       └── db_health.js
 │   ├── db_build/
 │   │   └── src/
 │   │       ├── databaseBuildResult.js
 │   │       ├── db_build.js
-│   │       ├── dbBuildResultSelfTest.js
 │   │       ├── migrations/
 │   │       │   ├── 00002__schema_macro.sql
 │   │       │   ├── 00003__table_indicators.sql
@@ -503,50 +440,34 @@ SkyCommand/
 │   │       ├── generateRepoMap.js
 │   │       ├── generateRepoZip.js
 │   │       ├── repositoryArtifactConfiguration.js
-│   │       ├── repositoryArtifactConfigurationSelfTest.js
 │   │       ├── repositoryMapResult.js
-│   │       ├── repositoryMapResultSelfTest.js
-│   │       ├── repositoryPackageResult.js
-│   │       └── repositoryPackageResultSelfTest.js
+│   │       └── repositoryPackageResult.js
 │   ├── git/
 │   │   └── src/
 │   │       ├── dev_commit.js
 │   │       ├── git_repo_status.js
 │   │       ├── gitBranchSyncResult.js
-│   │       ├── gitBranchSyncResultSelfTest.js
 │   │       ├── gitCommitResult.js
-│   │       ├── gitCommitResultSelfTest.js
 │   │       ├── gitDevPullResult.js
-│   │       ├── gitDevPullResultSelfTest.js
 │   │       ├── gitLocalSyncResult.js
-│   │       ├── gitLocalSyncResultSelfTest.js
 │   │       ├── gitPerformanceTelemetry.js
 │   │       ├── gitRepositoryStatusInspector.js
 │   │       ├── gitRepositoryStatusResult.js
-│   │       ├── gitRepositoryStatusSelfTest.js
 │   │       ├── local_dev_pull.js
 │   │       ├── local_repo_sync.js
 │   │       ├── localRepoSyncLineage.js
-│   │       ├── localRepoSyncLineageSelfTest.js
 │   │       └── main_merge.js
 │   ├── host-agent/
 │   │   └── src/
 │   │       ├── activities.js
 │   │       ├── config.js
 │   │       ├── dockerContainer.js
-│   │       ├── dockerContainerSelfTest.js
 │   │       ├── dockerControl.js
-│   │       ├── dockerControlSelfTest.js
 │   │       ├── dockerEventBridge.js
-│   │       ├── dockerEventBridgeSelfTest.js
 │   │       ├── dockerResource.js
-│   │       ├── dockerResourceSelfTest.js
 │   │       ├── dockerSnapshot.js
-│   │       ├── dockerSnapshotSelfTest.js
 │   │       ├── dockerTelemetryBridge.js
-│   │       ├── dockerTelemetryBridgeSelfTest.js
 │   │       ├── health.js
-│   │       ├── hostAgentSelfTest.js
 │   │       └── worker.js
 │   ├── ingestion/
 │   │   └── src/
@@ -563,40 +484,30 @@ SkyCommand/
 │   │       │   └── phase16BaselineAudit.js
 │   │       ├── catalogue/
 │   │       │   ├── dataCatalogueAdminService.js
-│   │       │   ├── dataCatalogueAdminServiceSelfTest.js
 │   │       │   ├── dataCatalogueService.js
-│   │       │   ├── dataCatalogueServiceSelfTest.js
 │   │       │   ├── ingestionCatalogueService.js
 │   │       │   ├── phase16AssetMetricCatalogue.js
 │   │       │   ├── phase16CatalogueAdministration.js
 │   │       │   ├── phase16IngestionIdentity.js
-│   │       │   ├── phase16IngestionIdentitySelfTest.js
 │   │       │   ├── phase16IngestionProfileGuardrails.js
-│   │       │   ├── phase16IngestionProfileGuardrailsSelfTest.js
 │   │       │   ├── phase16PortabilityProof.js
-│   │       │   ├── phase16PortabilityProofSelfTest.js
 │   │       │   └── phase16SecondDomainProof.js
 │   │       ├── closure/
 │   │       │   ├── phase16ClosureStabilization.js
-│   │       │   ├── phase16ClosureStabilizationSelfTest.js
-│   │       │   ├── phase16PortabilityClosure.js
-│   │       │   └── phase16PortabilityClosureSelfTest.js
+│   │       │   └── phase16PortabilityClosure.js
 │   │       ├── config/
 │   │       │   ├── manualIngestion.json
 │   │       │   ├── statcanIndicators.js
 │   │       │   └── statcanVectors.js
 │   │       ├── consumer/
 │   │       │   ├── dataConsumerService.js
-│   │       │   ├── dataConsumerServiceSelfTest.js
 │   │       │   └── phase16ConsumerContracts.js
 │   │       ├── core/
 │   │       │   ├── cliOptions.js
 │   │       │   ├── httpSourceClient.js
 │   │       │   ├── macroIngestionCli.js
-│   │       │   ├── macroIngestionCliSelfTest.js
 │   │       │   ├── macroIngestionPerformance.js
 │   │       │   ├── macroIngestionResult.js
-│   │       │   ├── macroIngestionResultSelfTest.js
 │   │       │   ├── phase16AdapterOnboardingClosure.js
 │   │       │   ├── phase16AdapterRetryFramework.js
 │   │       │   ├── phase16ControlledRetryProof.js
@@ -604,8 +515,6 @@ SkyCommand/
 │   │       │   ├── runPipeline.js
 │   │       │   ├── sourceAdapter.js
 │   │       │   ├── sourceAdapterRegistry.js
-│   │       │   ├── sourceAdapterRegistrySelfTest.js
-│   │       │   ├── sourceAdapterRetrySelfTest.js
 │   │       │   └── sourceRequestPolicy.js
 │   │       ├── discovery/
 │   │       │   ├── discoverStatCanMetadata.js
@@ -615,7 +524,6 @@ SkyCommand/
 │   │       ├── freshness/
 │   │       │   ├── freshnessAdminService.js
 │   │       │   ├── freshnessService.js
-│   │       │   ├── freshnessServiceSelfTest.js
 │   │       │   ├── phase16ExplainableFreshness.js
 │   │       │   ├── phase16FreshnessIntegration.js
 │   │       │   └── phase16FreshnessPortabilityProof.js
@@ -623,7 +531,6 @@ SkyCommand/
 │   │       │   ├── ingestionLedgerIntegration.js
 │   │       │   ├── ingestionLedgerService.js
 │   │       │   ├── ingestionRunResult.js
-│   │       │   ├── ingestionRunResultSelfTest.js
 │   │       │   ├── phase16IngestionLedger.js
 │   │       │   ├── phase16IngestionLedgerProof.js
 │   │       │   ├── phase16ProductionLedgerIntegration.js
@@ -642,22 +549,16 @@ SkyCommand/
 │   │       │   ├── phase16RevisionQualityProof.js
 │   │       │   ├── qualityEvidenceService.js
 │   │       │   ├── qualityPolicy.js
-│   │       │   ├── qualityPolicyAdminSelfTest.js
-│   │       │   ├── qualityPolicyAdminService.js
-│   │       │   ├── qualityPolicySelfTest.js
-│   │       │   └── revisionQualitySelfTest.js
+│   │       │   └── qualityPolicyAdminService.js
 │   │       ├── recovery/
-│   │       │   ├── ingestionRecoverySelfTest.js
 │   │       │   ├── ingestionRecoveryService.js
 │   │       │   ├── phase16LiveRecoveryClosure.js
-│   │       │   ├── phase16LiveRecoverySelfTest.js
 │   │       │   ├── phase16ProductionRecoveryIntegration.js
 │   │       │   ├── phase16ProductionRecoveryProof.js
 │   │       │   ├── phase16RecoveryFoundation.js
 │   │       │   ├── phase16RecoveryProof.js
 │   │       │   ├── phase16WorkflowRecoveryClosure.js
-│   │       │   ├── productionRecovery.js
-│   │       │   └── productionRecoverySelfTest.js
+│   │       │   └── productionRecovery.js
 │   │       ├── sources/
 │   │       │   ├── boc.js
 │   │       │   ├── fred.js
@@ -674,10 +575,8 @@ SkyCommand/
 │   │       ├── config.js
 │   │       ├── health.js
 │   │       ├── lifecycleGrant.js
-│   │       ├── lifecycleGrantSelfTest.js
 │   │       ├── runtimeLifecycle.js
-│   │       ├── server.js
-│   │       └── supervisorSelfTest.js
+│   │       └── server.js
 │   ├── temporal/
 │   │   └── src/
 │   │       ├── config.js
@@ -716,16 +615,13 @@ SkyCommand/
 │       │           └── tool.js
 │       └── src/
 │           ├── gitDevPullPromotionRollup.js
-│           ├── gitDevPullPromotionRollupSelfTest.js
 │           ├── index.js
 │           ├── jsonSchemaValidator.js
 │           ├── toolCliAdapter.js
 │           ├── toolProcessExecutor.js
 │           ├── toolResultContract.js
-│           ├── toolResultSelfTest.js
 │           ├── toolResultTransport.js
-│           ├── workflowResultContext.js
-│           └── workflowResultContextSelfTest.js
+│           └── workflowResultContext.js
 ├── scripts/
 │   ├── validate.js
 │   ├── db/
@@ -895,25 +791,16 @@ SkyCommand/
 │   │       └── worker.vw_workflow_run_records.sql
 │   ├── docker/
 │   │   ├── apiDocker.js
-│   │   ├── apiDockerSelfTest.js
-│   │   ├── coreDockerCompatibilitySelfTest.js
 │   │   ├── coreDockerDb.js
 │   │   ├── coreDockerDbCheck.js
 │   │   ├── developmentPromotionHostSyncCheck.js
-│   │   ├── dockerIntegrationClosureSelfTest.js
-│   │   ├── dockerIntegrationSelfTest.js
 │   │   ├── nodeWorkerDocker.js
-│   │   ├── nodeWorkerDockerSelfTest.js
 │   │   ├── postgresCutoverCheck.js
 │   │   ├── postgresDocker.js
-│   │   ├── postgresDockerSelfTest.js
 │   │   ├── postgresParity.js
-│   │   ├── temporalDockerSelfTest.js
 │   │   ├── temporalWorkerDocker.js
-│   │   ├── temporalWorkerDockerSelfTest.js
 │   │   ├── temporalWorkerGitCheck.js
-│   │   ├── webDocker.js
-│   │   └── webDockerSelfTest.js
+│   │   └── webDocker.js
 │   ├── node/
 │   │   └── util/
 │   │       ├── bootstrap.js
@@ -922,13 +809,171 @@ SkyCommand/
 │   │   ├── Build-SkyOne-Bootloader.ps1
 │   │   ├── Clean-BackendCache.ps1
 │   │   ├── Clean-FrontendCache.ps1
-│   │   ├── hostAgentTaskSelfTest.js
 │   │   ├── SkyCommand-HostAgentTask.ps1
 │   │   ├── SkyCommand-SupervisorTask.ps1
 │   │   ├── Start-SkyCommandHostAgent.ps1
 │   │   ├── Start-SkyCommandHostAgentHidden.vbs
 │   │   ├── Start-SkyCommandSupervisor.ps1
-│   │   ├── Start-SkyCommandSupervisorHidden.vbs
-│   │   └── supervisorTaskSelfTest.js
+│   │   └── Start-SkyCommandSupervisorHidden.vbs
 │   └── python/
 └── tests/
+    ├── README.md
+    ├── _support/
+    │   └── sourceTestBootstrap.js
+    └── self/
+        ├── apps/
+        │   ├── admin-web/
+        │   │   └── src/
+        │   │       ├── components/
+        │   │       │   ├── charts/
+        │   │       │   │   ├── chartTypographySelfTest.js
+        │   │       │   │   └── liveChartUpdateSelfTest.js
+        │   │       │   └── ui/
+        │   │       │       ├── brandThemeSelfTest.js
+        │   │       │       ├── commandSearchSelfTest.js
+        │   │       │       ├── dashboardUiConsistencySelfTest.js
+        │   │       │       ├── sidebarAccordionSelfTest.js
+        │   │       │       ├── surfaceRhythmSelfTest.js
+        │   │       │       └── transientAlertSelfTest.js
+        │   │       ├── pages/
+        │   │       │   ├── adminPrivilegesSurfaceSelfTest.js
+        │   │       │   ├── adminRolesSurfaceSelfTest.js
+        │   │       │   ├── adminSessionsSurfaceSelfTest.js
+        │   │       │   ├── adminUserHistorySurfaceSelfTest.js
+        │   │       │   ├── adminUsersSurfaceSelfTest.js
+        │   │       │   ├── apiDashboardSelfTest.js
+        │   │       │   ├── approvalHistorySelfTest.js
+        │   │       │   ├── dockerInfrastructureSurfaceSelfTest.js
+        │   │       │   ├── ingestionOperationsSurfaceSelfTest.js
+        │   │       │   ├── loginRuntimeBootstrapSelfTest.js
+        │   │       │   ├── manageToolsVerificationNavigationSelfTest.js
+        │   │       │   ├── operationsTableBatchRefinementSelfTest.js
+        │   │       │   ├── repositoryPageSplitSelfTest.js
+        │   │       │   ├── runToolsCatalogueSelfTest.js
+        │   │       │   ├── schedulerPageSplitSelfTest.js
+        │   │       │   ├── supervisorRuntimeControlSelfTest.js
+        │   │       │   ├── toolHistoryCatalogueSelfTest.js
+        │   │       │   ├── toolOperationsSortingSelfTest.js
+        │   │       │   ├── toolOperationsTableRefinementSelfTest.js
+        │   │       │   ├── workflowCategoryUiSelfTest.js
+        │   │       │   ├── workflowDatabaseOutputSelfTest.js
+        │   │       │   ├── workflowEditorGraphParitySelfTest.js
+        │   │       │   ├── workflowOperationsTableRefinementSelfTest.js
+        │   │       │   └── workflowStartCatalogueSelfTest.js
+        │   │       └── services/
+        │   │           └── authExpiryRefreshSelfTest.js
+        │   └── api/
+        │       └── src/
+        │           └── services/
+        │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── dockerEventStreamServiceSelfTest.js
+        │               ├── dockerTelemetryStreamServiceSelfTest.js
+        │               ├── infrastructureServiceSelfTest.js
+        │               ├── legacyMacroFreshnessAdapterSelfTest.js
+        │               ├── notificationFoundationSelfTest.js
+        │               ├── phase15ClosureReadinessSelfTest.js
+        │               ├── schedulerWorkflowParametersSelfTest.js
+        │               ├── skycommandRepositorySelfTest.js
+        │               ├── structuredToolContractAssociationSelfTest.js
+        │               ├── supervisorLifecycleGrantServiceSelfTest.js
+        │               ├── tableSortUtilsSelfTest.js
+        │               ├── toolExecutionHttpResponseSelfTest.js
+        │               ├── toolExecutionOutputWorkspaceSelfTest.js
+        │               ├── toolOnboardingSelfTest.js
+        │               ├── toolVerificationSelfTest.js
+        │               ├── workflowApprovalBranchSelfTest.js
+        │               ├── workflowCategoryFoundationSelfTest.js
+        │               ├── workflowCloneParitySelfTest.js
+        │               ├── workflowConditionSelfTest.js
+        │               ├── workflowExecutionPreflightSelfTest.js
+        │               ├── workflowNodeRecoverySelfTest.js
+        │               ├── workflowParameterUtilsSelfTest.js
+        │               ├── workflowToolConfirmationPolicySelfTest.js
+        │               └── workflowToolVisibilitySelfTest.js
+        ├── packages/
+        │   ├── core/
+        │   │   └── src/
+        │   │       ├── runtimePathResolverSelfTest.js
+        │   │       ├── skyCommandIdentitySelfTest.js
+        │   │       └── workflowCliRuntimeParametersSelfTest.js
+        │   ├── db/
+        │   │   └── src/
+        │   │       └── dbHealthResultSelfTest.js
+        │   ├── db_build/
+        │   │   └── src/
+        │   │       └── dbBuildResultSelfTest.js
+        │   ├── files/
+        │   │   └── src/
+        │   │       ├── repositoryArtifactConfigurationSelfTest.js
+        │   │       ├── repositoryMapResultSelfTest.js
+        │   │       └── repositoryPackageResultSelfTest.js
+        │   ├── git/
+        │   │   └── src/
+        │   │       ├── gitBranchSyncResultSelfTest.js
+        │   │       ├── gitCommitResultSelfTest.js
+        │   │       ├── gitDevPullResultSelfTest.js
+        │   │       ├── gitLocalSyncResultSelfTest.js
+        │   │       ├── gitRepositoryStatusSelfTest.js
+        │   │       └── localRepoSyncLineageSelfTest.js
+        │   ├── host-agent/
+        │   │   └── src/
+        │   │       ├── dockerContainerSelfTest.js
+        │   │       ├── dockerControlSelfTest.js
+        │   │       ├── dockerEventBridgeSelfTest.js
+        │   │       ├── dockerResourceSelfTest.js
+        │   │       ├── dockerSnapshotSelfTest.js
+        │   │       ├── dockerTelemetryBridgeSelfTest.js
+        │   │       └── hostAgentSelfTest.js
+        │   ├── ingestion/
+        │   │   └── src/
+        │   │       ├── catalogue/
+        │   │       │   ├── dataCatalogueAdminServiceSelfTest.js
+        │   │       │   ├── dataCatalogueServiceSelfTest.js
+        │   │       │   ├── phase16IngestionIdentitySelfTest.js
+        │   │       │   ├── phase16IngestionProfileGuardrailsSelfTest.js
+        │   │       │   └── phase16PortabilityProofSelfTest.js
+        │   │       ├── closure/
+        │   │       │   ├── phase16ClosureStabilizationSelfTest.js
+        │   │       │   └── phase16PortabilityClosureSelfTest.js
+        │   │       ├── consumer/
+        │   │       │   └── dataConsumerServiceSelfTest.js
+        │   │       ├── core/
+        │   │       │   ├── macroIngestionCliSelfTest.js
+        │   │       │   ├── macroIngestionResultSelfTest.js
+        │   │       │   ├── sourceAdapterRegistrySelfTest.js
+        │   │       │   └── sourceAdapterRetrySelfTest.js
+        │   │       ├── freshness/
+        │   │       │   └── freshnessServiceSelfTest.js
+        │   │       ├── ledger/
+        │   │       │   └── ingestionRunResultSelfTest.js
+        │   │       ├── quality/
+        │   │       │   ├── qualityPolicyAdminSelfTest.js
+        │   │       │   ├── qualityPolicySelfTest.js
+        │   │       │   └── revisionQualitySelfTest.js
+        │   │       └── recovery/
+        │   │           ├── ingestionRecoverySelfTest.js
+        │   │           ├── phase16LiveRecoverySelfTest.js
+        │   │           └── productionRecoverySelfTest.js
+        │   ├── supervisor/
+        │   │   └── src/
+        │   │       ├── lifecycleGrantSelfTest.js
+        │   │       └── supervisorSelfTest.js
+        │   └── tools/
+        │       └── src/
+        │           ├── gitDevPullPromotionRollupSelfTest.js
+        │           ├── toolResultSelfTest.js
+        │           └── workflowResultContextSelfTest.js
+        └── scripts/
+            ├── docker/
+            │   ├── apiDockerSelfTest.js
+            │   ├── coreDockerCompatibilitySelfTest.js
+            │   ├── dockerIntegrationClosureSelfTest.js
+            │   ├── dockerIntegrationSelfTest.js
+            │   ├── nodeWorkerDockerSelfTest.js
+            │   ├── postgresDockerSelfTest.js
+            │   ├── temporalDockerSelfTest.js
+            │   ├── temporalWorkerDockerSelfTest.js
+            │   └── webDockerSelfTest.js
+            └── powershell/
+                ├── hostAgentTaskSelfTest.js
+                └── supervisorTaskSelfTest.js

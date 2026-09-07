@@ -151,6 +151,7 @@ function runSyntaxChecks() {
     path.join(repositoryRoot, 'apps'),
     path.join(repositoryRoot, 'packages'),
     path.join(repositoryRoot, 'scripts'),
+    path.join(repositoryRoot, 'tests'),
     path.join(repositoryRoot, 'eslint.config.mjs'),
   ];
 

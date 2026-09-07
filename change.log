@@ -1,3 +1,11 @@
+2026-09-07 - Centralized self-test layout and compact repository packaging
+- Moved all 115 existing `*SelfTest.js` files out of production source directories into the top-level `tests/self/` tree while preserving their former source hierarchy for ownership and traceability.
+- Added a small self-test bootstrap that preserves existing relative module resolution and source-directory assumptions, allowing the migrated tests to continue validating the same production files without compatibility shims in `apps/`, `packages/`, or `scripts/`.
+- Updated npm self-test registrations and repository validation so the centralized test tree remains syntax-checked and executable through the existing `*:self-test` and `npm run validate` entry points.
+- Added `tests/` to `.dockerignore` so test code is not copied into production Docker build contexts.
+- Updated `generateRepoZip` so the top-level `tests/` directory is excluded by default and can be restored explicitly with `--include-tests`; structured repository-package output now reports whether tests were included.
+- Extended repository-package regression coverage for default test exclusion and explicit test inclusion, and refreshed the generated repository map for the centralized layout.
+
 2026-08-24 - Tool Operations multi-column server-side sorting
 - Added sortable Tool Operations headers for Tool, Category, Status, Started, Duration, and Completed while keeping Actions non-sortable.
 - Normal click establishes/toggles a primary sort; Shift+click adds, toggles, or removes secondary/tertiary sorts. Active headers show direction plus numeric priority, unsorted headers show a neutral bidirectional indicator, and custom sorting exposes a Clear sorting control that restores the default newest-first Started ordering.

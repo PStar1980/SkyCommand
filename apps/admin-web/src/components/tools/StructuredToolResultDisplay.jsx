@@ -706,6 +706,7 @@ function RepositoryPackageOutput({ toolResult }) {
             <tr>
               <th>Node modules</th>
               <th>Images</th>
+              <th>Tests</th>
               <th>Sensitive environment files</th>
               <th>Generated artifacts</th>
             </tr>
@@ -714,6 +715,13 @@ function RepositoryPackageOutput({ toolResult }) {
             <tr>
               <td>{options.nodeModulesIncluded ? 'Included' : 'Excluded'}</td>
               <td>{options.imagesIncluded ? 'Included' : 'Excluded'}</td>
+              <td>
+                {options.testsIncluded === true
+                  ? 'Included'
+                  : options.testsIncluded === false
+                    ? 'Excluded'
+                    : 'Legacy / unspecified'}
+              </td>
               <td>{options.sensitiveEnvironmentFilesExcluded ? 'Excluded' : 'Included'}</td>
               <td>{options.generatedArtifactsExcluded ? 'Excluded' : 'Included'}</td>
             </tr>

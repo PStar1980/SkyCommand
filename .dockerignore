@@ -12,3 +12,4 @@ coverage
 *.zip
 *.patch
 *.log
+tests

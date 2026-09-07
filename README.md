@@ -328,7 +328,7 @@ For detailed conventions, see the [Tool Authoring Guide](docs/SkyCommand_Tool_Au
 | Host-native operations | SkyCommand Host Agent / Temporal activity worker                       |
 | Infrastructure         | Docker Desktop, Docker Compose                                         |
 | Auth and security      | Bearer sessions, hashed session tokens, RBAC, audit events             |
-| Engineering quality    | ESLint, Prettier, Husky, repository self-tests and validation scripts  |
+| Engineering quality    | ESLint, Prettier, Husky, centralized repository self-tests and validation scripts |
 
 ---
 
@@ -416,6 +416,7 @@ SkyCommand/
 │  ├─ git/                # repository automation
 │  └─ ...                 # shared domain/runtime packages
 ├─ scripts/               # validation, Docker, migration, and operational scripts
+├─ tests/                 # centralized self-tests and future automated test suites
 ├─ sql/                   # PostgreSQL migrations, seeds, and database assets
 ├─ docs/                  # architecture, setup, authoring, and closure documentation
 ├─ compose.yaml           # six-service Docker runtime
