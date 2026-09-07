@@ -32,6 +32,7 @@ const OUTPUT_TYPE = 'repository_package_summary.v1';
 const ZIP32_MAX_VALUE = 0xffffffff;
 const ZIP32_MAX_ENTRY_COUNT = 0xffff;
 const DEPENDENCY_FOLDER_NAME = 'node_modules';
+const TESTS_DIRECTORY_NAME = 'tests';
 const DEFAULT_ZIP_IO_CONCURRENCY = 16;
 const MAX_ZIP_IO_CONCURRENCY = 64;
 
@@ -39,6 +40,7 @@ const SUPPORTED_OPTIONS = new Set([
   '--include-node-modules',
   '--exclude-node-modules',
   '--include-images',
+  '--include-tests',
   '--slim',
 ]);
 
@@ -198,6 +200,7 @@ async function parseRepositoryZipArgs(args = [], dependencies = {}) {
     outputFilePath: path.resolve(outputPath, fileName),
     includeNodeModules: optionArgs.includes('--include-node-modules'),
     includeImages: optionArgs.includes('--include-images'),
+    includeTests: optionArgs.includes('--include-tests'),
     ioConcurrency: resolveZipIoConcurrency(dependencies.environment || process.env),
   };
 }
@@ -226,6 +229,20 @@ function isWithinNodeModules(fullPath, location) {
 
 function shouldIgnoreDirectory(entryName, fullPath, options) {
   const lowerName = entryName.toLowerCase();
+  const relativePath = path.relative(options.location, fullPath);
+  const isTopLevelDirectory =
+    relativePath &&
+    !relativePath.startsWith('..') &&
+    !path.isAbsolute(relativePath) &&
+    relativePath.split(path.sep).length === 1;
+
+  if (
+    isTopLevelDirectory &&
+    lowerName === TESTS_DIRECTORY_NAME &&
+    !options.includeTests
+  ) {
+    return true;
+  }
 
   if (lowerName === DEPENDENCY_FOLDER_NAME) {
     return !options.includeNodeModules;
@@ -681,6 +698,7 @@ async function executeRepositoryZip(args = [], dependencies = {}) {
     },
     nodeModulesIncluded: options.includeNodeModules,
     imagesIncluded: options.includeImages,
+    testsIncluded: options.includeTests,
     sensitiveEnvironmentFilesExcluded: true,
     generatedArtifactsExcluded: true,
   };
@@ -692,6 +710,7 @@ function printRepositoryZipResult(result) {
   console.log(`📄 Files included: ${result.filesIncluded}`);
   console.log(`📦 node_modules included: ${result.nodeModulesIncluded ? 'yes' : 'no'}`);
   console.log(`🖼️  images included: ${result.imagesIncluded ? 'yes' : 'no'}`);
+  console.log(`🧪 tests included: ${result.testsIncluded ? 'yes' : 'no'}`);
   console.log(`📥 Source bytes: ${result.sourceBytes}`);
   console.log(`📤 Zip bytes: ${result.archiveBytes}\n`);
 }

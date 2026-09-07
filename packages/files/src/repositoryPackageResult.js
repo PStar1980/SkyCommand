@@ -98,6 +98,7 @@ function createRepositoryPackageToolResult(result = {}) {
       options: {
         nodeModulesIncluded: Boolean(result.nodeModulesIncluded),
         imagesIncluded: Boolean(result.imagesIncluded),
+        testsIncluded: Boolean(result.testsIncluded),
         sensitiveEnvironmentFilesExcluded: result.sensitiveEnvironmentFilesExcluded !== false,
         generatedArtifactsExcluded: result.generatedArtifactsExcluded !== false,
       },
@@ -129,6 +130,7 @@ function createRepositoryPackageFailureToolResult({ error, startedAt, completedA
     archiveBytes: 0,
     nodeModulesIncluded: false,
     imagesIncluded: false,
+    testsIncluded: false,
     error,
   });
 }
