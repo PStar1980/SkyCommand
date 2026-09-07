@@ -133,6 +133,8 @@ function createForm(analysis, catalogueOptions = {}) {
       required: Boolean(parameter.required),
       defaultValue: parameter.defaultValue ?? '',
       optionSourceCode: parameter.optionSourceCode || '',
+      argumentMode: parameter.argumentMode || 'POSITIONAL',
+      cliFlag: parameter.cliFlag || '',
       displayOrder: parameter.position || index + 1,
       enabled: true,
       optionText: serializeOptions(parameter.options || []),
@@ -153,6 +155,8 @@ function createEmptyParameter(index, catalogueOptions = {}) {
     required: false,
     defaultValue: '',
     optionSourceCode: '',
+    argumentMode: 'POSITIONAL',
+    cliFlag: '',
     displayOrder: index + 1,
     enabled: true,
     optionText: '',
@@ -168,6 +172,8 @@ function buildConfiguration(form, catalogueOptions = {}) {
     required: Boolean(parameter.required),
     defaultValue: parameter.defaultValue === '' ? null : String(parameter.defaultValue),
     optionSourceCode: parameter.optionSourceCode || null,
+    argumentMode: parameter.argumentMode || 'POSITIONAL',
+    cliFlag: parameter.argumentMode === 'FLAG' ? parameter.cliFlag.trim() || null : null,
     displayOrder: Number(parameter.displayOrder),
     enabled: Boolean(parameter.enabled),
     options: parameter.optionSourceCode ? [] : parseOptions(parameter.optionText),
@@ -358,9 +364,29 @@ function AddTool() {
   function updateParameter(index, key, value) {
     setForm((current) => ({
       ...current,
-      parameters: current.parameters.map((parameter, parameterIndex) =>
-        parameterIndex === index ? { ...parameter, [key]: value } : parameter,
-      ),
+      parameters: current.parameters.map((parameter, parameterIndex) => {
+        if (parameterIndex !== index) return parameter;
+
+        if (key === 'argumentMode') {
+          if (value === 'FLAG') {
+            return {
+              ...parameter,
+              argumentMode: 'FLAG',
+              paramTypeCode: 'boolean',
+              defaultValue: parameter.defaultValue === '' ? 'false' : parameter.defaultValue,
+              optionSourceCode: '',
+              optionText: '',
+            };
+          }
+          return { ...parameter, argumentMode: 'POSITIONAL', cliFlag: '' };
+        }
+
+        if (key === 'paramTypeCode' && value !== 'boolean' && parameter.argumentMode === 'FLAG') {
+          return { ...parameter, paramTypeCode: value, argumentMode: 'POSITIONAL', cliFlag: '' };
+        }
+
+        return { ...parameter, [key]: value };
+      }),
     }));
     invalidatePreview();
   }
@@ -823,7 +849,7 @@ function AddTool() {
                   </div>
 
                   <div className="d-flex justify-content-between align-items-center mt-4 mb-2">
-                    <h3 className="h6 mb-0">Positional parameters</h3>
+                    <h3 className="h6 mb-0">Command-line parameters</h3>
                     <button
                       className="btn btn-outline-secondary btn-sm"
                       onClick={addParameter}
@@ -933,6 +959,7 @@ function AddTool() {
                               <label className="form-label">Option source</label>
                               <select
                                 className="form-select"
+                                disabled={parameter.argumentMode === 'FLAG'}
                                 onChange={(e) =>
                                   updateParameter(index, 'optionSourceCode', e.target.value)
                                 }
@@ -946,7 +973,36 @@ function AddTool() {
                                 ))}
                               </select>
                             </div>
-                            {!parameter.optionSourceCode &&
+                            <div className="col-md-3">
+                              <label className="form-label">Argument mode</label>
+                              <select
+                                className="form-select"
+                                onChange={(e) =>
+                                  updateParameter(index, 'argumentMode', e.target.value)
+                                }
+                                value={parameter.argumentMode || 'POSITIONAL'}
+                              >
+                                <option value="POSITIONAL">Positional</option>
+                                <option value="FLAG">Boolean flag</option>
+                              </select>
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">CLI flag</label>
+                              <input
+                                className="form-control font-monospace"
+                                disabled={parameter.argumentMode !== 'FLAG'}
+                                onChange={(e) => updateParameter(index, 'cliFlag', e.target.value)}
+                                placeholder="--include-tests"
+                                value={parameter.cliFlag || ''}
+                              />
+                              {parameter.argumentMode === 'FLAG' && (
+                                <div className="small sky-muted mt-1">
+                                  Boolean only. True emits the flag; false omits it.
+                                </div>
+                              )}
+                            </div>
+                            {parameter.argumentMode !== 'FLAG' &&
+                              !parameter.optionSourceCode &&
                               parameter.paramTypeCode === 'select' && (
                                 <div className="col-12">
                                   <label className="form-label">Static choices</label>

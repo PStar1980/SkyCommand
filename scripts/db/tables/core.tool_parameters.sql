@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS core.tool_parameters (
   option_source_code TEXT REFERENCES core.option_sources(option_source_code),
   display_order INTEGER NOT NULL DEFAULT 999,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  argument_mode TEXT NOT NULL DEFAULT 'POSITIONAL',
+  cli_flag TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (tool_id, parameter_name)
@@ -21,3 +23,6 @@ CREATE TABLE IF NOT EXISTS core.tool_parameters (
 ALTER TABLE core.tool_parameters OWNER TO postgres;
 
 COMMENT ON TABLE core.tool_parameters IS 'Parameter definitions for configured tools/scripts.';
+
+COMMENT ON COLUMN core.tool_parameters.argument_mode IS 'Command-line binding mode: POSITIONAL or FLAG.';
+COMMENT ON COLUMN core.tool_parameters.cli_flag IS 'CLI switch emitted when a FLAG-bound Boolean parameter resolves true.';

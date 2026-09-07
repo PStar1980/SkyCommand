@@ -432,6 +432,8 @@ function sanitizeParameter(row) {
     required: parameter.required,
     defaultValue: parameter.defaultValue,
     optionSourceCode: parameter.optionSourceCode,
+    argumentMode: parameter.argumentMode || 'POSITIONAL',
+    cliFlag: parameter.cliFlag || null,
     displayOrder: parameter.displayOrder,
     enabled: parameter.enabled,
   };
@@ -583,7 +585,9 @@ async function listWorkerTools() {
         default_value,
         option_source_code,
         display_order,
-        enabled
+        enabled,
+        argument_mode,
+        cli_flag
       FROM core.vw_tool_parameters
       WHERE tool_code = ANY($1::text[])
       ORDER BY tool_code, display_order, parameter_name

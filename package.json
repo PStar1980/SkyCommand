@@ -277,7 +277,8 @@
     "db:docker:rollback": "node scripts/docker/postgresDocker.js rollback",
     "db:docker:persistence": "node scripts/docker/postgresDocker.js persistence",
     "db:docker:finalize": "node scripts/docker/postgresDocker.js finalize",
-    "operations-table-batch:self-test": "node tests/self/apps/admin-web/src/pages/operationsTableBatchRefinementSelfTest.js"
+    "operations-table-batch:self-test": "node tests/self/apps/admin-web/src/pages/operationsTableBatchRefinementSelfTest.js",
+    "tool-argument-binding:self-test": "node tests/self/packages/tools/src/toolArgumentBindingSelfTest.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

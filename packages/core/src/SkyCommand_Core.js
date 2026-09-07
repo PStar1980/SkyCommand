@@ -47,6 +47,7 @@ const ENV_PATH = path.join(SKYCOMMAND_ROOT, '.env');
 dotenv.config({ path: ENV_PATH });
 
 const { pool } = require('../../db/src/connection');
+const { bindParameterArgument } = require('../../tools/src/toolArgumentBinding');
 const workflowExecutorService = require('../../../apps/api/src/services/workflowExecutorService');
 const {
   coerceWorkflowRuntimeParameterValue,
@@ -221,6 +222,8 @@ function mapParameter(row) {
     required: toBoolean(row.required),
     defaultValue: row.default_value,
     optionSourceCode: row.option_source_code,
+    argumentMode: row.argument_mode || 'POSITIONAL',
+    cliFlag: row.cli_flag || null,
     optionsSource: row.option_source_code,
     displayOrder: row.display_order,
     enabled: row.enabled,
@@ -381,6 +384,8 @@ async function loadParameters() {
         p.required,
         p.default_value,
         p.option_source_code,
+        p.argument_mode,
+        p.cli_flag,
         p.display_order,
         p.enabled
       FROM core.tool_parameters p
@@ -1553,7 +1558,7 @@ async function collectScriptArgs(scriptDef, config) {
         throw new Error(`Invalid selection for ${param.name}`);
       }
 
-      args.push(options[index - 1].value);
+      args.push(...bindParameterArgument(param, options[index - 1].value));
       continue;
     }
 
@@ -1567,7 +1572,7 @@ async function collectScriptArgs(scriptDef, config) {
       continue;
     }
 
-    args.push(answer === '' ? param.defaultValue : answer);
+    args.push(...bindParameterArgument(param, answer === '' ? param.defaultValue : answer));
   }
 
   return args.filter((arg) => arg !== undefined && arg !== null);

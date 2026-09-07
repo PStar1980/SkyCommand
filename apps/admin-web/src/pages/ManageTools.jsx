@@ -141,6 +141,8 @@ function createEmptyParameter(index, options = {}) {
     required: false,
     defaultValue: '',
     optionSourceCode: '',
+    argumentMode: 'POSITIONAL',
+    cliFlag: '',
     displayOrder: index + 1,
     enabled: true,
     optionText: '',
@@ -207,6 +209,8 @@ function populateToolForm(tool, options = {}) {
       required: Boolean(parameter.required),
       defaultValue: parameter.defaultValue ?? '',
       optionSourceCode: parameter.optionSourceCode || '',
+      argumentMode: parameter.argumentMode || 'POSITIONAL',
+      cliFlag: parameter.cliFlag || '',
       displayOrder: parameter.displayOrder ?? 999,
       enabled: parameter.enabled !== false,
       optionText: serializeOptions(parameter.options),
@@ -231,6 +235,8 @@ function buildToolPayload(form, options = {}) {
     required: Boolean(parameter.required),
     defaultValue: parameter.defaultValue === '' ? null : String(parameter.defaultValue),
     optionSourceCode: parameter.optionSourceCode || null,
+    argumentMode: parameter.argumentMode || 'POSITIONAL',
+    cliFlag: parameter.argumentMode === 'FLAG' ? parameter.cliFlag.trim() || null : null,
     displayOrder: Number(parameter.displayOrder),
     enabled: Boolean(parameter.enabled),
     options: parameter.optionSourceCode ? [] : parseOptions(parameter.optionText),
@@ -983,9 +989,29 @@ function ManageTools() {
   function updateParameter(index, key, value) {
     setForm((current) => ({
       ...current,
-      parameters: current.parameters.map((parameter, parameterIndex) =>
-        parameterIndex === index ? { ...parameter, [key]: value } : parameter,
-      ),
+      parameters: current.parameters.map((parameter, parameterIndex) => {
+        if (parameterIndex !== index) return parameter;
+
+        if (key === 'argumentMode') {
+          if (value === 'FLAG') {
+            return {
+              ...parameter,
+              argumentMode: 'FLAG',
+              paramTypeCode: 'boolean',
+              defaultValue: parameter.defaultValue === '' ? 'false' : parameter.defaultValue,
+              optionSourceCode: '',
+              optionText: '',
+            };
+          }
+          return { ...parameter, argumentMode: 'POSITIONAL', cliFlag: '' };
+        }
+
+        if (key === 'paramTypeCode' && value !== 'boolean' && parameter.argumentMode === 'FLAG') {
+          return { ...parameter, paramTypeCode: value, argumentMode: 'POSITIONAL', cliFlag: '' };
+        }
+
+        return { ...parameter, [key]: value };
+      }),
     }));
   }
 
@@ -1827,9 +1853,9 @@ function ManageTools() {
                   <div className="col-12">
                     <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
                       <div>
-                        <div className="sky-subsection-title">Positional parameters</div>
+                        <div className="sky-subsection-title">Command-line parameters</div>
                         <div className="small sky-muted">
-                          Enabled parameters are appended to the command line in display order.
+                          Bind values as positional arguments or Boolean CLI flags in display order.
                         </div>
                       </div>
                       {canWrite && (
@@ -1846,7 +1872,7 @@ function ManageTools() {
 
                     {form.parameters.length === 0 ? (
                       <div className="sky-empty-state sky-tool-parameter-empty">
-                        This tool has no configured positional parameters.
+                        This tool has no configured command-line parameters.
                       </div>
                     ) : (
                       <div className="d-grid gap-3">
@@ -1948,12 +1974,43 @@ function ManageTools() {
                                 />
                               </div>
                               <div className="col-md-4">
+                                <label className="form-label sky-form-label">Argument mode</label>
+                                <select
+                                  className="form-select sky-form-control"
+                                  disabled={!canWrite || saving}
+                                  onChange={(event) =>
+                                    updateParameter(index, 'argumentMode', event.target.value)
+                                  }
+                                  value={parameter.argumentMode || 'POSITIONAL'}
+                                >
+                                  <option value="POSITIONAL">Positional</option>
+                                  <option value="FLAG">Boolean flag</option>
+                                </select>
+                              </div>
+                              <div className="col-md-4">
+                                <label className="form-label sky-form-label">CLI flag</label>
+                                <input
+                                  className="form-control sky-form-control sky-mono"
+                                  disabled={!canWrite || saving || parameter.argumentMode !== 'FLAG'}
+                                  onChange={(event) =>
+                                    updateParameter(index, 'cliFlag', event.target.value)
+                                  }
+                                  placeholder="--include-tests"
+                                  value={parameter.cliFlag || ''}
+                                />
+                                {parameter.argumentMode === 'FLAG' && (
+                                  <div className="small sky-muted mt-1">
+                                    Boolean only. True emits the flag; false omits it.
+                                  </div>
+                                )}
+                              </div>
+                              <div className="col-md-4">
                                 <label className="form-label sky-form-label">
                                   Dynamic option source
                                 </label>
                                 <select
                                   className="form-select sky-form-control"
-                                  disabled={!canWrite || saving}
+                                  disabled={!canWrite || saving || parameter.argumentMode === 'FLAG'}
                                   onChange={(event) =>
                                     updateParameter(index, 'optionSourceCode', event.target.value)
                                   }
@@ -1977,7 +2034,7 @@ function ManageTools() {
                                 <textarea
                                   className="form-control sky-form-control sky-mono"
                                   disabled={
-                                    !canWrite || saving || Boolean(parameter.optionSourceCode)
+                                    !canWrite || saving || Boolean(parameter.optionSourceCode) || parameter.argumentMode === 'FLAG'
                                   }
                                   onChange={(event) =>
                                     updateParameter(index, 'optionText', event.target.value)

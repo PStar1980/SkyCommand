@@ -385,7 +385,8 @@ SkyCommand/
 │   │       │   ├── 00107__workflow_category_foundation.sql
 │   │       │   ├── 00109__workflow_run_category_projection.sql
 │   │       │   ├── 00110__workflow_approval_category_projection.sql
-│   │       │   └── 00111__local_dev_pull_tool.sql
+│   │       │   ├── 00111__local_dev_pull_tool.sql
+│   │       │   └── 00112__tool_parameter_cli_binding.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -617,6 +618,7 @@ SkyCommand/
 │           ├── gitDevPullPromotionRollup.js
 │           ├── index.js
 │           ├── jsonSchemaValidator.js
+│           ├── toolArgumentBinding.js
 │           ├── toolCliAdapter.js
 │           ├── toolProcessExecutor.js
 │           ├── toolResultContract.js
@@ -961,6 +963,7 @@ SkyCommand/
         │   └── tools/
         │       └── src/
         │           ├── gitDevPullPromotionRollupSelfTest.js
+        │           ├── toolArgumentBindingSelfTest.js
         │           ├── toolResultSelfTest.js
         │           └── workflowResultContextSelfTest.js
         └── scripts/

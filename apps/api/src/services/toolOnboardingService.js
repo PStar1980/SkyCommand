@@ -670,6 +670,10 @@ function normalizeDescriptorParameters(parameters, findings) {
         .trim()
         .toLowerCase();
       const position = Number(parameter.position ?? index + 1);
+      const argumentMode = String(parameter.argumentMode || 'POSITIONAL').trim().toUpperCase();
+      const cliFlag = parameter.cliFlag === undefined || parameter.cliFlag === null
+        ? null
+        : String(parameter.cliFlag).trim();
 
       if (!PARAMETER_NAME_PATTERN.test(name)) {
         addFinding(
@@ -736,6 +740,37 @@ function normalizeDescriptorParameters(parameters, findings) {
 
       seenPositions.add(position);
 
+      if (!['POSITIONAL', 'FLAG'].includes(argumentMode)) {
+        addFinding(
+          findings,
+          'ERROR',
+          'DESCRIPTOR_PARAMETER_ARGUMENT_MODE_INVALID',
+          `Descriptor parameter ${name || index + 1} uses unsupported argumentMode ${argumentMode}.`,
+          { fileKind: 'descriptor', confidence: 'high' },
+        );
+      }
+
+      if (argumentMode === 'FLAG') {
+        if (type !== 'boolean') {
+          addFinding(
+            findings,
+            'ERROR',
+            'DESCRIPTOR_PARAMETER_FLAG_TYPE_INVALID',
+            `Descriptor parameter ${name || index + 1} must use Boolean type when argumentMode is FLAG.`,
+            { fileKind: 'descriptor', confidence: 'high' },
+          );
+        }
+        if (!cliFlag || !/^--[A-Za-z0-9][A-Za-z0-9-]*$/.test(cliFlag)) {
+          addFinding(
+            findings,
+            'ERROR',
+            'DESCRIPTOR_PARAMETER_CLI_FLAG_INVALID',
+            `Descriptor parameter ${name || index + 1} requires a CLI flag such as --include-tests.`,
+            { fileKind: 'descriptor', confidence: 'high' },
+          );
+        }
+      }
+
       return {
         name,
         label: String(parameter.label || name).trim(),
@@ -748,6 +783,8 @@ function normalizeDescriptorParameters(parameters, findings) {
         defaultValue: parameter.defaultValue ?? null,
         position,
         optionSourceCode: parameter.optionSourceCode || null,
+        argumentMode,
+        cliFlag: argumentMode === 'FLAG' ? cliFlag : null,
         options: Array.isArray(parameter.options) ? parameter.options : [],
         confidence: 'high',
         source: 'descriptor',
@@ -1930,7 +1967,11 @@ function buildRegistrationPlan({
   const argumentPreview = payload.parameters
     .filter((parameter) => parameter.enabled)
     .sort((left, right) => left.displayOrder - right.displayOrder)
-    .map((parameter) => `<${parameter.parameterName}${parameter.required ? '' : '?'}>`);
+    .map((parameter) =>
+      parameter.argumentMode === 'FLAG'
+        ? `${parameter.cliFlag || `<${parameter.parameterName}>`}${parameter.required ? '' : '?'}`
+        : `<${parameter.parameterName}${parameter.required ? '' : '?'}>`,
+    );
   const blockers = [];
 
   if ((session.metadata.findings || []).some((finding) => finding.severity === 'ERROR')) {
