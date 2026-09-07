@@ -240,6 +240,86 @@ function getClearedRuntimeParameterValues(parameters = []) {
   }, {});
 }
 
+function getWorkflowRunParameterSnapshot(run = {}, contextValues = []) {
+  const input = getSafeObject(run.input);
+  const inputCandidates = [
+    input.params,
+    input.runtimeParameters,
+    input.workflowParameters,
+    input.parameters,
+  ];
+  let emptyInputSnapshot = null;
+
+  for (const candidate of inputCandidates) {
+    const safeCandidate = getSafeObject(candidate, null);
+
+    if (!safeCandidate) {
+      continue;
+    }
+
+    if (Object.keys(safeCandidate).length > 0) {
+      return { parameters: safeCandidate, source: 'RUN INPUT' };
+    }
+
+    emptyInputSnapshot = safeCandidate;
+  }
+
+  const contextParams = getSafeObject(
+    getSafeArray(contextValues).find((item) => item?.contextKey === 'params')?.value,
+    null,
+  );
+
+  if (contextParams && Object.keys(contextParams).length > 0) {
+    return { parameters: contextParams, source: 'RUNTIME CONTEXT' };
+  }
+
+  const contextWorkflowInput = getSafeObject(
+    getSafeArray(contextValues).find((item) => item?.contextKey === 'workflow.input')?.value,
+    null,
+  );
+
+  if (contextWorkflowInput) {
+    for (const candidate of [
+      contextWorkflowInput.params,
+      contextWorkflowInput.runtimeParameters,
+      contextWorkflowInput.workflowParameters,
+      contextWorkflowInput.parameters,
+    ]) {
+      const safeCandidate = getSafeObject(candidate, null);
+
+      if (safeCandidate && Object.keys(safeCandidate).length > 0) {
+        return { parameters: safeCandidate, source: 'RUNTIME CONTEXT' };
+      }
+    }
+  }
+
+  if (emptyInputSnapshot) {
+    return { parameters: emptyInputSnapshot, source: 'RUN INPUT' };
+  }
+
+  if (contextParams) {
+    return { parameters: contextParams, source: 'RUNTIME CONTEXT' };
+  }
+
+  return { parameters: {}, source: 'RUN INPUT' };
+}
+
+function inferWorkflowRunParameterType(value) {
+  if (value !== null && typeof value === 'object') {
+    return 'json';
+  }
+
+  if (typeof value === 'boolean') {
+    return 'boolean';
+  }
+
+  if (typeof value === 'number') {
+    return 'number';
+  }
+
+  return 'string';
+}
+
 function parseRuntimeParameterValues(parameters = [], values = {}) {
   return parameters.reduce((accumulator, parameter) => {
     const rawValue = values[parameter.key];
@@ -4242,6 +4322,109 @@ function isVisualNodeCompleted(node = {}, nodeRuns = [], approvals = []) {
   );
 }
 
+function WorkflowRunParameterValue({ fieldKey = '', value }) {
+  if (value !== null && typeof value === 'object') {
+    return (
+      <pre className="sky-node-output-readable-text mb-0">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    );
+  }
+
+  return <FriendlyOutputScalar fieldKey={fieldKey} value={value} />;
+}
+
+function WorkflowRunParametersCard({ contextValues = [], definition = null, run = null }) {
+  if (!run) {
+    return null;
+  }
+
+  const snapshot = getWorkflowRunParameterSnapshot(run, contextValues);
+  const parameterDefinitions = normalizeRuntimeParameterDefinitions(definition || {});
+  const definitionByKey = new Map(
+    parameterDefinitions.map((parameter) => [parameter.key, parameter]),
+  );
+  const orderedKeys = [
+    ...parameterDefinitions
+      .map((parameter) => parameter.key)
+      .filter((key) => Object.prototype.hasOwnProperty.call(snapshot.parameters, key)),
+    ...Object.keys(snapshot.parameters).filter((key) => !definitionByKey.has(key)),
+  ];
+  const runSource = String(run.triggerType || run.runSource || 'RUN')
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .toUpperCase();
+
+  return (
+    <section className="sky-card mb-4 sky-workflow-run-parameters-card">
+      <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div>
+          <div className="sky-page-kicker">Run input snapshot</div>
+          <h2 className="h5 mb-0">Workflow Run Parameters</h2>
+          <p className="small sky-muted mb-0 mt-1">
+            Read-only workflow-level parameters captured for this execution. These values remain
+            independent of the editable Start Workflow form after launch.
+          </p>
+        </div>
+        <div className="d-flex flex-wrap align-items-center justify-content-end gap-2 small">
+          <span className="sky-pill sky-pill-info">{snapshot.source}</span>
+          <span className="sky-pill sky-pill-info">
+            {orderedKeys.length} parameter(s)
+          </span>
+          <span className="sky-pill sky-pill-info">{runSource}</span>
+        </div>
+      </div>
+      <div className="sky-card-body">
+        {orderedKeys.length > 0 ? (
+          <div className="table-responsive sky-table-card">
+            <table className="table table-sm sky-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Type</th>
+                  <th>Effective value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orderedKeys.map((key) => {
+                  const definitionEntry = definitionByKey.get(key);
+                  const value = snapshot.parameters[key];
+                  const type = definitionEntry?.type || inferWorkflowRunParameterType(value);
+                  const label = definitionEntry?.label || humanizeOutputKey(key);
+
+                  return (
+                    <tr key={key}>
+                      <td>
+                        <div className="fw-semibold">{label}</div>
+                        {label !== key && (
+                          <div className="small sky-mono sky-muted">{key}</div>
+                        )}
+                      </td>
+                      <td>
+                        <span className="sky-pill sky-pill-info">
+                          {String(type).toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="sky-focused-node-output-value">
+                        <WorkflowRunParameterValue fieldKey={key} value={value} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="sky-empty-state text-start">
+            No workflow-level runtime parameters were captured for this execution. The workflow ran
+            from saved node configuration instead.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function WorkflowNodeParameterCard({
   approvals = [],
   nodeRuns = [],
@@ -7213,6 +7396,14 @@ function SkyWorkflows({ mode = 'start' }) {
               />
             )}
 
+            {selectedRun && (
+              <WorkflowRunParametersCard
+                contextValues={selectedContextValues}
+                definition={selectedDefinitionDetail}
+                run={selectedRun}
+              />
+            )}
+
             {Number.isInteger(selectedRuntimeNodeIndex)
             && selectedRuntimeNodeIndex >= 0
             && selectedRuntimeNodeIndex < runtimeVisualNodes.length ? (
@@ -7700,6 +7891,14 @@ function SkyWorkflows({ mode = 'start' }) {
                   temporalRuntime={selectedTemporalRuntime}
                   title="Runtime workflow map"
                 />
+
+                {selectedRun && (
+                  <WorkflowRunParametersCard
+                    contextValues={selectedContextValues}
+                    definition={selectedDefinitionDetail || selectedDefinition}
+                    run={selectedRun}
+                  />
+                )}
 
                 {Number.isInteger(selectedRuntimeNodeIndex) &&
                 selectedRuntimeNodeIndex >= 0 &&

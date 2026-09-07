@@ -215,6 +215,22 @@ assert(
     workflowSource.includes('setRuntimeParameterValues(getClearedRuntimeParameterValues(runtimeParameters));'),
   'A successful Start Workflow launch must clear operator-entered runtime parameter values to prevent accidental duplicate execution.',
 );
+
+assert(
+  workflowSource.includes('function getWorkflowRunParameterSnapshot(run = {}, contextValues = [])') &&
+    workflowSource.includes('input.runtimeParameters') &&
+    workflowSource.includes('input.workflowParameters') &&
+    workflowSource.includes('input.parameters') &&
+    workflowSource.includes("item?.contextKey === 'params'") &&
+    workflowSource.includes("item?.contextKey === 'workflow.input'") &&
+    workflowSource.includes('function WorkflowRunParametersCard({ contextValues = [], definition = null, run = null })') &&
+    workflowSource.includes('Run input snapshot') &&
+    workflowSource.includes('Workflow Run Parameters') &&
+    workflowSource.includes('{snapshot.source}') &&
+    workflowSource.includes('Effective value') &&
+    (workflowSource.match(/<WorkflowRunParametersCard/g) || []).length >= 2,
+  'Start Workflow and Workflow Operations must expose the same read-only workflow-run parameter snapshot, sourced from persisted run input with runtime-context compatibility fallbacks.',
+);
 assert(
   !workflowSource.includes('headerActions={selectedRun ? <SmartRunStatusBadges run={selectedRun} /> : null}') &&
     graphSource.includes("justify-content-end gap-2 ms-auto") &&
