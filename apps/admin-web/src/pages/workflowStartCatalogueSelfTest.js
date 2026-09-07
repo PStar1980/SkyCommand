@@ -78,15 +78,21 @@ assert(
 );
 assert(
   workflowSource.includes('onClick={() => handleDefinitionSelect(definition.workflowCode)}') &&
+    workflowSource.includes('<th className="text-end">Actions</th>') &&
+    workflowSource.includes('handleWorkflowInitialize(event, definition.workflowCode)') &&
+    workflowSource.includes('Initialize') &&
     workflowSource.includes('<span className="sky-pill sky-pill-success">') &&
     !workflowSource.includes("{selected ? 'Selected' : 'Select workflow'}") &&
     !workflowSource.includes('id="workflowStartDefinition"'),
-  'Start Workflow must use row selection without a redundant Actions column or legacy dropdown.',
+  'Start Workflow must retain row inspection while providing an explicit Initialize action for each workflow.',
 );
 assert(
-  workflowSource.includes('{selectedDefinition && (') &&
-    workflowSource.includes('className="sky-card sky-workflow-start-config-card"'),
-  'Workflow information and parameter entry must appear only after a workflow is selected.',
+  workflowSource.includes('const [workflowInitializationOpen, setWorkflowInitializationOpen] = useState(false);') &&
+    workflowSource.includes('{workflowInitializationOpen && (') &&
+    workflowSource.includes('<div className="sky-page-kicker">Workflow initialization</div>') &&
+    workflowSource.includes('setWorkflowInitializationOpen(Boolean(initialize));') &&
+    workflowSource.includes('handleDefinitionSelect(workflowCode, { initialize: true });'),
+  'Workflow initialization controls must stay hidden until the row Initialize button is used.',
 );
 assert(
   workflowSource.includes('inspectorMode="navigation"') &&
@@ -210,10 +216,18 @@ assert(
   'Start Workflow must anchor immediately, then re-anchor the Runtime Status Overlay after live run content renders so it reaches the fixed-topbar alignment whenever document height allows.',
 );
 
+const clearedRuntimeParametersIndex = workflowSource.indexOf(
+  'setRuntimeParameterValues(getClearedRuntimeParameterValues(runtimeParameters));',
+);
+const closeWorkflowInitializationIndex = workflowSource.indexOf(
+  'setWorkflowInitializationOpen(false);',
+  clearedRuntimeParametersIndex,
+);
 assert(
   workflowSource.includes('function getClearedRuntimeParameterValues(parameters = [])') &&
-    workflowSource.includes('setRuntimeParameterValues(getClearedRuntimeParameterValues(runtimeParameters));'),
-  'A successful Start Workflow launch must clear operator-entered runtime parameter values to prevent accidental duplicate execution.',
+    clearedRuntimeParametersIndex >= 0 &&
+    closeWorkflowInitializationIndex > clearedRuntimeParametersIndex,
+  'A successful Start Workflow launch must clear operator-entered runtime parameter values and close Workflow Initialization to prevent accidental duplicate execution.',
 );
 
 assert(
