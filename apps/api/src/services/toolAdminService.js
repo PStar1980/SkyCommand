@@ -380,6 +380,8 @@ function sanitizeParameter(row, options = []) {
     required: toBoolean(row.required),
     defaultValue: row.default_value,
     optionSourceCode: row.option_source_code,
+    argumentMode: row.argument_mode || 'POSITIONAL',
+    cliFlag: row.cli_flag || null,
     displayOrder: Number(row.display_order || 0),
     enabled: toBoolean(row.enabled),
     options,
@@ -665,7 +667,9 @@ async function getToolParameters(client, toolId) {
         default_value,
         option_source_code,
         display_order,
-        enabled
+        enabled,
+        argument_mode,
+        cli_flag
       FROM core.tool_parameters
       WHERE tool_id = $1
       ORDER BY display_order, parameter_name
@@ -1055,6 +1059,31 @@ function normalizeToolPayload(body = {}, { patch = false } = {}) {
   return payload;
 }
 
+function normalizeArgumentMode(value) {
+  const mode = String(value || 'POSITIONAL').trim().toUpperCase();
+  if (!['POSITIONAL', 'FLAG'].includes(mode)) {
+    throw createHttpError(400, `Unsupported parameter argumentMode: ${mode}`);
+  }
+  return mode;
+}
+
+function normalizeCliFlag(value, argumentMode, parameterName, paramTypeCode) {
+  const flag = normalizeOptionalString(value);
+  if (argumentMode === 'POSITIONAL') {
+    return null;
+  }
+
+  if (String(paramTypeCode || '').toLowerCase() !== 'boolean') {
+    throw createHttpError(400, `${parameterName} must use Boolean type when argumentMode is FLAG.`);
+  }
+
+  if (!flag || !/^--[A-Za-z0-9][A-Za-z0-9-]*$/.test(flag)) {
+    throw createHttpError(400, `${parameterName} requires a valid CLI flag such as --include-tests.`);
+  }
+
+  return flag;
+}
+
 function normalizeParameters(parameters) {
   if (!Array.isArray(parameters)) {
     throw createHttpError(400, 'parameters must be an array.');
@@ -1094,17 +1123,30 @@ function normalizeParameters(parameters) {
       );
     }
 
+    const paramTypeCode = normalizeCode(
+      parameter.paramTypeCode || parameter.type || 'string',
+      'parameter.paramTypeCode',
+    );
+    const argumentMode = normalizeArgumentMode(parameter.argumentMode);
+    const cliFlag = normalizeCliFlag(parameter.cliFlag, argumentMode, parameterName, paramTypeCode);
+
+    if (argumentMode === 'FLAG' && (optionSourceCode || options.length > 0)) {
+      throw createHttpError(
+        400,
+        `${parameterName} cannot use dynamic or static choices when argumentMode is FLAG.`,
+      );
+    }
+
     return {
       parameterName,
       label: normalizeRequiredString(parameter.label || parameterName, 'parameter.label'),
-      paramTypeCode: normalizeCode(
-        parameter.paramTypeCode || parameter.type || 'string',
-        'parameter.paramTypeCode',
-      ),
+      paramTypeCode,
       prompt: normalizeOptionalString(parameter.prompt),
       required: normalizeBoolean(parameter.required, false, 'parameter.required'),
       defaultValue: normalizeOptionalString(parameter.defaultValue),
       optionSourceCode,
+      argumentMode,
+      cliFlag,
       displayOrder,
       enabled: normalizeBoolean(parameter.enabled, true, 'parameter.enabled'),
       options,
@@ -1435,9 +1477,11 @@ async function replaceParameters(client, toolId, parameters) {
           default_value,
           option_source_code,
           display_order,
-          enabled
+          enabled,
+          argument_mode,
+          cli_flag
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING parameter_id
       `,
       [
@@ -1451,6 +1495,8 @@ async function replaceParameters(client, toolId, parameters) {
         parameter.optionSourceCode,
         parameter.displayOrder,
         parameter.enabled,
+        parameter.argumentMode,
+        parameter.cliFlag,
       ],
     );
 

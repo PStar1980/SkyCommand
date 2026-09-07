@@ -71,6 +71,8 @@ function sanitizeParameter(row, options = []) {
     required: toBoolean(row.required),
     defaultValue: row.default_value,
     optionSourceCode: row.option_source_code,
+    argumentMode: row.argument_mode || 'POSITIONAL',
+    cliFlag: row.cli_flag || null,
     displayOrder: row.display_order,
     enabled: toBoolean(row.enabled),
     options,
@@ -253,7 +255,9 @@ async function getParametersForTools(toolCodes) {
         default_value,
         option_source_code,
         display_order,
-        enabled
+        enabled,
+        argument_mode,
+        cli_flag
       FROM core.vw_tool_parameters
       WHERE tool_code = ANY($1::text[])
       ORDER BY tool_code, display_order, parameter_name

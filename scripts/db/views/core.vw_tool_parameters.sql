@@ -14,7 +14,9 @@ SELECT
   p.default_value,
   p.option_source_code,
   p.display_order,
-  p.enabled
+  p.enabled,
+  p.argument_mode,
+  p.cli_flag
 FROM core.tool_parameters p
 JOIN core.tools t
   ON t.tool_id = p.tool_id

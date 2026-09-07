@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
-const { executeToolProcess } = require('../../../../packages/tools/src');
+const { executeToolProcess, bindParameterArgument } = require('../../../../packages/tools/src');
 
 const APP_CODE = process.env.SKYCOMMAND_CORE_APP_CODE || process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -651,7 +651,9 @@ async function loadToolParameters(toolCode, { includeDisabledTool = false } = {}
             parameter.default_value,
             parameter.option_source_code,
             parameter.display_order,
-            parameter.enabled
+            parameter.enabled,
+            parameter.argument_mode,
+            parameter.cli_flag
           FROM core.tool_parameters parameter
           JOIN core.tools tool ON tool.tool_id = parameter.tool_id
           WHERE tool.tool_code = $1
@@ -670,7 +672,9 @@ async function loadToolParameters(toolCode, { includeDisabledTool = false } = {}
             default_value,
             option_source_code,
             display_order,
-            enabled
+            enabled,
+            argument_mode,
+            cli_flag
           FROM core.vw_tool_parameters
           WHERE tool_code = $1
           ORDER BY display_order, parameter_name
@@ -758,7 +762,11 @@ async function buildToolArgs({ toolCode, rawParameters, includeDisabledTool = fa
       }
     }
 
-    args.push(normalizedValue);
+    try {
+      args.push(...bindParameterArgument(parameter, normalizedValue));
+    } catch (error) {
+      throw createHttpError(500, `Invalid CLI binding for ${parameter.parameter_name}: ${error.message}`);
+    }
   }
 
   return {

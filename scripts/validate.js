@@ -28,6 +28,7 @@ const routineSelfTests = [
   'macro-ingestion:self-test',
   'macro-ingestion-cli:self-test',
   'workflow-result-context:self-test',
+  'tool-argument-binding:self-test',
   'repository-package:self-test',
   'repository-map:self-test',
   'repository-artifact-config:self-test',
