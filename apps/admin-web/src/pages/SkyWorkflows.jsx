@@ -5384,6 +5384,7 @@ function SkyWorkflows({ mode = 'start' }) {
   const [selectedRuntimeNodeIndex, setSelectedRuntimeNodeIndex] = useState(null);
   const [followActiveRuntimeNode, setFollowActiveRuntimeNode] = useState(true);
   const [runtimeParameterValues, setRuntimeParameterValues] = useState({});
+  const [workflowInitializationOpen, setWorkflowInitializationOpen] = useState(false);
   const [repositoryOptions, setRepositoryOptions] = useState([]);
   const [runtimeParameterError, setRuntimeParameterError] = useState('');
   const [runDetailOverlayOpen, setRunDetailOverlayOpen] = useState(false);
@@ -5804,7 +5805,7 @@ function SkyWorkflows({ mode = 'start' }) {
     }
   }
 
-  async function handleDefinitionSelect(workflowCode) {
+  async function handleDefinitionSelect(workflowCode, { initialize = false } = {}) {
     const definition = definitions.find((item) => item.workflowCode === workflowCode) || null;
 
     setSelectedRunDetail(null);
@@ -5812,6 +5813,7 @@ function SkyWorkflows({ mode = 'start' }) {
     setFollowActiveRuntimeNode(true);
     setMessage('');
     setRuntimeParameterError('');
+    setWorkflowInitializationOpen(Boolean(initialize));
 
     if (!definition) {
       setSelectedDefinition(null);
@@ -5821,6 +5823,11 @@ function SkyWorkflows({ mode = 'start' }) {
 
     setSelectedDefinitionDetail(null);
     await loadDefinitionDetail(definition);
+  }
+
+  function handleWorkflowInitialize(event, workflowCode) {
+    event.stopPropagation();
+    handleDefinitionSelect(workflowCode, { initialize: true });
   }
 
   async function loadRunDetail(
@@ -6034,6 +6041,7 @@ function SkyWorkflows({ mode = 'start' }) {
       // Validation failures intentionally keep the form populated so they can be corrected.
       setRuntimeParameterValues(getClearedRuntimeParameterValues(runtimeParameters));
       setRuntimeParameterError('');
+      setWorkflowInitializationOpen(false);
 
       setMessage(
         result.started
@@ -7505,8 +7513,8 @@ function SkyWorkflows({ mode = 'start' }) {
                 <div className="sky-page-kicker">Workflow browser</div>
                 <h2 className="h5 mb-0">Available workflows</h2>
                 <p className="sky-muted small mb-0">
-                  Search and filter the published workflow catalogue, then select a row to review
-                  its runtime parameters and launch controls below.
+                  Search and filter the published workflow catalogue. Select a row to inspect it,
+                  or use Initialize to open its launch controls below.
                 </p>
               </div>
               <div className="sky-run-tools-filter-grid sky-workflow-start-filter-grid">
@@ -7627,12 +7635,13 @@ function SkyWorkflows({ mode = 'start' }) {
                     {renderStartWorkflowSortableHeader('Runtime parameters', 'runtimeParameters')}
                     {renderStartWorkflowSortableHeader('Published version', 'publishedVersion')}
                     {renderStartWorkflowSortableHeader('Status', 'status')}
+                    <th className="text-end">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleStartDefinitions.length === 0 ? (
                     <tr>
-                      <td colSpan="8">
+                      <td colSpan="9">
                         <div className="sky-empty-state">
                           No workflows match the current filters.
                         </div>
@@ -7668,6 +7677,18 @@ function SkyWorkflows({ mode = 'start' }) {
                               {definition.status || 'ACTIVE'}
                             </span>
                           </td>
+                          <td className="text-end">
+                            <button
+                              className="btn btn-sm sky-btn-primary"
+                              disabled={starting}
+                              onClick={(event) =>
+                                handleWorkflowInitialize(event, definition.workflowCode)
+                              }
+                              type="button"
+                            >
+                              Initialize
+                            </button>
+                          </td>
                         </tr>
                       );
                     })
@@ -7680,193 +7701,195 @@ function SkyWorkflows({ mode = 'start' }) {
 
           {selectedDefinition && (
             <>
-              <section className="sky-card sky-workflow-start-config-card">
-                <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
-                  <div>
-                    <div className="sky-page-kicker">Workflow configuration</div>
-                    <h2 className="h5 mb-1">
-                      {selectedDefinitionDetail?.displayName || selectedDefinition.displayName}
-                    </h2>
-                    <div className="small sky-muted sky-mono">
-                      {selectedDefinition.workflowCode}
+              {workflowInitializationOpen && (
+                <section className="sky-card sky-workflow-start-config-card">
+                  <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+                    <div>
+                      <div className="sky-page-kicker">Workflow initialization</div>
+                      <h2 className="h5 mb-1">
+                        {selectedDefinitionDetail?.displayName || selectedDefinition.displayName}
+                      </h2>
+                      <div className="small sky-muted sky-mono">
+                        {selectedDefinition.workflowCode}
+                      </div>
+                    </div>
+                    <div className="d-flex flex-wrap align-items-center gap-2">
+                      <span className="sky-pill sky-pill-info">
+                        {getWorkflowCategoryDisplayName(selectedDefinitionDetail || selectedDefinition, workflowCategories)}
+                      </span>
+                      <span
+                        className={`sky-pill ${statusClass(
+                          selectedDefinitionDetail?.status || selectedDefinition.status,
+                        )}`}
+                      >
+                        {selectedDefinitionDetail?.status || selectedDefinition.status || 'ACTIVE'}
+                      </span>
+                      <span className="sky-pill sky-pill-info">
+                        {selectedDefinitionDetail?.nodes?.length ||
+                          getDefinitionNodeCount(selectedDefinition)}{' '}
+                        node(s)
+                      </span>
+                      <span className="sky-pill sky-pill-info">
+                        {getDefinitionEdgeCount(selectedDefinitionDetail || selectedDefinition)} edge(s)
+                      </span>
+                      <span className="sky-pill sky-pill-info">
+                        {runtimeParameters.length} runtime param(s)
+                      </span>
                     </div>
                   </div>
-                  <div className="d-flex flex-wrap align-items-center gap-2">
-                    <span className="sky-pill sky-pill-info">
-                      {getWorkflowCategoryDisplayName(selectedDefinitionDetail || selectedDefinition, workflowCategories)}
-                    </span>
-                    <span
-                      className={`sky-pill ${statusClass(
-                        selectedDefinitionDetail?.status || selectedDefinition.status,
-                      )}`}
-                    >
-                      {selectedDefinitionDetail?.status || selectedDefinition.status || 'ACTIVE'}
-                    </span>
-                    <span className="sky-pill sky-pill-info">
-                      {selectedDefinitionDetail?.nodes?.length ||
-                        getDefinitionNodeCount(selectedDefinition)}{' '}
-                      node(s)
-                    </span>
-                    <span className="sky-pill sky-pill-info">
-                      {getDefinitionEdgeCount(selectedDefinitionDetail || selectedDefinition)} edge(s)
-                    </span>
-                    <span className="sky-pill sky-pill-info">
-                      {runtimeParameters.length} runtime param(s)
-                    </span>
-                  </div>
-                </div>
-                <form className="sky-card-body" onSubmit={handleStartWorkflow}>
-                  <div className="sky-run-tool-description mb-4">
-                    <div className="sky-detail-label">Purpose</div>
-                    <div className="sky-detail-value">
-                      {selectedDefinitionDetail?.description ||
-                        selectedDefinition.description ||
-                        'No workflow description.'}
+                  <form className="sky-card-body" onSubmit={handleStartWorkflow}>
+                    <div className="sky-run-tool-description mb-4">
+                      <div className="sky-detail-label">Purpose</div>
+                      <div className="sky-detail-value">
+                        {selectedDefinitionDetail?.description ||
+                          selectedDefinition.description ||
+                          'No workflow description.'}
+                      </div>
                     </div>
-                  </div>
-
-                  {runtimeParameters.length > 0 ? (
-                    <div className="row g-3 mb-3">
-                      {runtimeParameters.map((parameter) => {
-                        const inputId = `runtime-param-${parameter.key}`;
-                        const value = runtimeParameterValues[parameter.key] ?? '';
-                        const parameterOptions = getRuntimeParameterOptions(
-                          parameter,
-                          repositoryOptions,
-                        );
-
-                        if (parameter.type === 'boolean') {
+  
+                    {runtimeParameters.length > 0 ? (
+                      <div className="row g-3 mb-3">
+                        {runtimeParameters.map((parameter) => {
+                          const inputId = `runtime-param-${parameter.key}`;
+                          const value = runtimeParameterValues[parameter.key] ?? '';
+                          const parameterOptions = getRuntimeParameterOptions(
+                            parameter,
+                            repositoryOptions,
+                          );
+  
+                          if (parameter.type === 'boolean') {
+                            return (
+                              <div className="col-12" key={parameter.key}>
+                                <div className="form-check form-switch">
+                                  <input
+                                    checked={Boolean(value)}
+                                    className="form-check-input"
+                                    id={inputId}
+                                    onChange={(event) =>
+                                      setRuntimeParameterValues((current) => ({
+                                        ...current,
+                                        [parameter.key]: event.target.checked,
+                                      }))
+                                    }
+                                    type="checkbox"
+                                  />
+                                  <label className="form-check-label" htmlFor={inputId}>
+                                    {parameter.label}
+                                  </label>
+                                </div>
+                                {parameter.description && (
+                                  <div className="form-text sky-muted">
+                                    {parameter.description}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+  
                           return (
-                            <div className="col-12" key={parameter.key}>
-                              <div className="form-check form-switch">
-                                <input
-                                  checked={Boolean(value)}
-                                  className="form-check-input"
+                            <div className="col-lg-6" key={parameter.key}>
+                              <label className="form-label" htmlFor={inputId}>
+                                {parameter.label}
+                                {parameter.required && (
+                                  <span className="text-danger ms-1">*</span>
+                                )}
+                              </label>
+                              {parameter.type === 'select' || parameter.type === 'repo' ? (
+                                <select
+                                  className="form-select sky-form-control"
                                   id={inputId}
                                   onChange={(event) =>
                                     setRuntimeParameterValues((current) => ({
                                       ...current,
-                                      [parameter.key]: event.target.checked,
+                                      [parameter.key]: event.target.value,
                                     }))
                                   }
-                                  type="checkbox"
+                                  required={parameter.required}
+                                  value={String(value)}
+                                >
+                                  <option value="">
+                                    {parameter.prompt || `Select ${parameter.label}`}
+                                  </option>
+                                  {parameterOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : parameter.type === 'json' ? (
+                                <textarea
+                                  className="form-control sky-form-control sky-mono"
+                                  id={inputId}
+                                  onChange={(event) =>
+                                    setRuntimeParameterValues((current) => ({
+                                      ...current,
+                                      [parameter.key]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder={parameter.prompt || '{ }'}
+                                  required={parameter.required}
+                                  rows={4}
+                                  value={String(value)}
                                 />
-                                <label className="form-check-label" htmlFor={inputId}>
-                                  {parameter.label}
-                                </label>
-                              </div>
-                              {parameter.description && (
-                                <div className="form-text sky-muted">
-                                  {parameter.description}
-                                </div>
+                              ) : (
+                                <input
+                                  className="form-control sky-form-control sky-mono"
+                                  id={inputId}
+                                  maxLength={parameter.maxLength || undefined}
+                                  onChange={(event) =>
+                                    setRuntimeParameterValues((current) => ({
+                                      ...current,
+                                      [parameter.key]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder={parameter.prompt || parameter.key}
+                                  required={parameter.required}
+                                  type={
+                                    parameter.type === 'number'
+                                      ? 'number'
+                                      : parameter.type === 'date'
+                                        ? 'date'
+                                        : 'text'
+                                  }
+                                  value={String(value)}
+                                />
                               )}
+                              <div className="form-text sky-muted">
+                                {parameter.description ||
+                                  `${parameter.type} parameter saved as params.${parameter.key}`}
+                              </div>
                             </div>
                           );
-                        }
-
-                        return (
-                          <div className="col-lg-6" key={parameter.key}>
-                            <label className="form-label" htmlFor={inputId}>
-                              {parameter.label}
-                              {parameter.required && (
-                                <span className="text-danger ms-1">*</span>
-                              )}
-                            </label>
-                            {parameter.type === 'select' || parameter.type === 'repo' ? (
-                              <select
-                                className="form-select sky-form-control"
-                                id={inputId}
-                                onChange={(event) =>
-                                  setRuntimeParameterValues((current) => ({
-                                    ...current,
-                                    [parameter.key]: event.target.value,
-                                  }))
-                                }
-                                required={parameter.required}
-                                value={String(value)}
-                              >
-                                <option value="">
-                                  {parameter.prompt || `Select ${parameter.label}`}
-                                </option>
-                                {parameterOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : parameter.type === 'json' ? (
-                              <textarea
-                                className="form-control sky-form-control sky-mono"
-                                id={inputId}
-                                onChange={(event) =>
-                                  setRuntimeParameterValues((current) => ({
-                                    ...current,
-                                    [parameter.key]: event.target.value,
-                                  }))
-                                }
-                                placeholder={parameter.prompt || '{ }'}
-                                required={parameter.required}
-                                rows={4}
-                                value={String(value)}
-                              />
-                            ) : (
-                              <input
-                                className="form-control sky-form-control sky-mono"
-                                id={inputId}
-                                maxLength={parameter.maxLength || undefined}
-                                onChange={(event) =>
-                                  setRuntimeParameterValues((current) => ({
-                                    ...current,
-                                    [parameter.key]: event.target.value,
-                                  }))
-                                }
-                                placeholder={parameter.prompt || parameter.key}
-                                required={parameter.required}
-                                type={
-                                  parameter.type === 'number'
-                                    ? 'number'
-                                    : parameter.type === 'date'
-                                      ? 'date'
-                                      : 'text'
-                                }
-                                value={String(value)}
-                              />
-                            )}
-                            <div className="form-text sky-muted">
-                              {parameter.description ||
-                                `${parameter.type} parameter saved as params.${parameter.key}`}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="sky-empty-state text-start mb-3">
-                      This workflow has no runtime parameter schema. It will run with saved node
-                      defaults only.
-                    </div>
-                  )}
-
-                  {runtimeParameterError && (
-                    <DismissibleAlert className="alert alert-danger py-2">
-                      {runtimeParameterError}
-                    </DismissibleAlert>
-                  )}
-
-                  <button
-                    className="btn sky-btn-primary"
-                    disabled={starting || !selectedDefinitionDetail || !canStart}
-                    type="submit"
-                  >
-                    {starting ? 'Running workflow...' : 'Start Workflow'}
-                  </button>
-                  {!canStart && (
-                    <div className="small sky-muted mt-2">
-                      WORKFLOW_RUN permission is required.
-                    </div>
-                  )}
-                </form>
-              </section>
+                        })}
+                      </div>
+                    ) : (
+                      <div className="sky-empty-state text-start mb-3">
+                        This workflow has no runtime parameter schema. It will run with saved node
+                        defaults only.
+                      </div>
+                    )}
+  
+                    {runtimeParameterError && (
+                      <DismissibleAlert className="alert alert-danger py-2">
+                        {runtimeParameterError}
+                      </DismissibleAlert>
+                    )}
+  
+                    <button
+                      className="btn sky-btn-primary"
+                      disabled={starting || !selectedDefinitionDetail || !canStart}
+                      type="submit"
+                    >
+                      {starting ? 'Running workflow...' : 'Start Workflow'}
+                    </button>
+                    {!canStart && (
+                      <div className="small sky-muted mt-2">
+                        WORKFLOW_RUN permission is required.
+                      </div>
+                    )}
+                  </form>
+                </section>
+              )}
 
               <div
                 className="sky-workflow-start-detail-stack sky-table-browser-anchor"
