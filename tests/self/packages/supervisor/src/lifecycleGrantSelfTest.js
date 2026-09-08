@@ -51,6 +51,22 @@ verifyLifecycleGrant(rebuildGrant.token, {
   nowMs: nowMs + 10_000,
 });
 
+const backendRebuildGrant = issueLifecycleGrant({
+  secret,
+  action: 'rebuild_backend',
+  subject: 'user-123',
+  sessionId: 'session-456',
+  ttlSeconds: 45,
+  nowMs,
+  nonce: 'grant-rebuild-backend-nonce',
+});
+assert.equal(backendRebuildGrant.payload.action, 'REBUILD_BACKEND');
+verifyLifecycleGrant(backendRebuildGrant.token, {
+  secret,
+  action: 'REBUILD_BACKEND',
+  nowMs: nowMs + 10_000,
+});
+
 assert.throws(
   () => verifyLifecycleGrant(issued.token, { secret: 'wrong-secret', action: 'RESTART', nowMs }),
   /signature is invalid/i,

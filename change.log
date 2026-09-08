@@ -1,3 +1,9 @@
+2026-09-07 - Supervisor backend rebuild control
+- Added a bounded `REBUILD_BACKEND` Supervisor lifecycle action that rebuilds and force-recreates only the `api`, `temporal-worker`, and `node-worker` Compose services while leaving PostgreSQL, the Temporal server, the web shell, and the host-native Supervisor online.
+- Added configurable backend rebuild targets through `SKYCOMMAND_SUPERVISOR_BACKEND_REBUILD_SERVICES`, defaulting to `api,temporal-worker,node-worker`, and extended signed one-time lifecycle grants/audit labeling to the new action.
+- Added the authenticated **Rebuild Backend** control to the shared SkyCommand runtime control surface used by Command Center and Docker > Projects; the browser waits for Supervisor completion and reloads without clearing the authenticated session.
+- Added `/runtime/rebuild-backend` to the Supervisor HTTP surface and extended Supervisor, lifecycle-grant, API authorization, and Admin-Web runtime-control regression coverage. No database migration is required.
+
 2026-09-07 - Centralized self-test layout and compact repository packaging
 - Moved all 115 existing `*SelfTest.js` files out of production source directories into the top-level `tests/self/` tree while preserving their former source hierarchy for ownership and traceability.
 - Added a small self-test bootstrap that preserves existing relative module resolution and source-directory assumptions, allowing the migrated tests to continue validating the same production files without compatibility shims in `apps/`, `packages/`, or `scripts/`.

@@ -24,6 +24,10 @@ function confirmationMessage(action) {
     return 'Rebuild the SkyCommand frontend from the current local source? The Supervisor will run docker compose up -d --build web, replace the web shell, and reload this page when the rebuild finishes. The backend runtime will stay online.';
   }
 
+  if (action === 'REBUILD_BACKEND') {
+    return 'Rebuild and recreate the SkyCommand API and worker services from the current local source? The Supervisor will run docker compose up -d --build --force-recreate api temporal-worker node-worker. PostgreSQL, Temporal server, the web shell, and Supervisor will stay online.';
+  }
+
   return 'Restart the SkyCommand backend runtime? The web shell and Supervisor will stay online while PostgreSQL, Temporal, workers, and the API restart. Your current session will end and you will sign in again when the runtime is healthy.';
 }
 
@@ -83,7 +87,7 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false, onStat
 
       const accepted = await supervisorService.controlRuntime(action, grant);
 
-      if (action === 'REBUILD_WEB') {
+      if (['REBUILD_WEB', 'REBUILD_BACKEND'].includes(action)) {
         await supervisorService.waitForOperationCompletion({
           action,
           requestedAt: accepted?.operation?.requestedAt,
@@ -143,6 +147,14 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false, onStat
                 type="button"
               >
                 {busyAction === 'REBUILD_WEB' ? 'Rebuilding…' : 'Rebuild Frontend'}
+              </button>
+              <button
+                className="btn btn-sm sky-btn-primary"
+                disabled={Boolean(busyAction) || !runtimeActive}
+                onClick={() => controlRuntime('REBUILD_BACKEND')}
+                type="button"
+              >
+                {busyAction === 'REBUILD_BACKEND' ? 'Rebuilding…' : 'Rebuild Backend'}
               </button>
               <button
                 className="btn btn-sm sky-btn-ghost"

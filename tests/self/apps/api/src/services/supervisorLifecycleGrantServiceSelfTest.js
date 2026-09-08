@@ -63,6 +63,25 @@ authorizeRuntimeControl({
     });
     assert.equal(auditEvents.length, 2);
 
+    return authorizeRuntimeControl({
+      action: 'REBUILD_BACKEND',
+      confirmed: true,
+      actor: { userId: 'user-1', username: 'paul' },
+      session: { sessionId: 'session-1', appCode: 'SKYSERVER_ADMIN' },
+      requestContext: { ipAddress: '127.0.0.1', userAgent: 'self-test' },
+      auditRecorder: async (event) => auditEvents.push(event),
+      nowMs: nowMs + 2000,
+    });
+  })
+  .then((backendRebuildResult) => {
+    assert.equal(backendRebuildResult.authorization.action, 'REBUILD_BACKEND');
+    verifyLifecycleGrant(backendRebuildResult.authorization.grant, {
+      secret: process.env.SKYCOMMAND_SUPERVISOR_GRANT_SECRET,
+      action: 'REBUILD_BACKEND',
+      nowMs: nowMs + 5_000,
+    });
+    assert.equal(auditEvents.length, 3);
+
     return assert.rejects(
       () => authorizeRuntimeControl({ action: 'STOP', confirmed: false }),
       /explicit confirmation/i,
