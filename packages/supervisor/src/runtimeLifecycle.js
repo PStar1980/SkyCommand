@@ -3,7 +3,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
-const ALLOWED_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'REBUILD_WEB']);
+const ALLOWED_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'REBUILD_WEB', 'REBUILD_BACKEND']);
 
 class SupervisorRuntimeError extends Error {
   constructor(message, code = 'SKYCOMMAND_SUPERVISOR_RUNTIME_FAILED', details = {}) {
@@ -44,6 +44,13 @@ function assertConfig(config = {}) {
     throw new SupervisorRuntimeError(
       'SkyCommand Supervisor web service name is missing.',
       'SKYCOMMAND_SUPERVISOR_WEB_SERVICE_MISSING',
+    );
+  }
+
+  if (!Array.isArray(config.backendRebuildServices) || config.backendRebuildServices.length === 0) {
+    throw new SupervisorRuntimeError(
+      'SkyCommand Supervisor backend rebuild service list is empty.',
+      'SKYCOMMAND_SUPERVISOR_BACKEND_REBUILD_SERVICES_MISSING',
     );
   }
 }
@@ -239,6 +246,20 @@ async function rebuildWeb(config, options = {}) {
   };
 }
 
+async function rebuildBackend(config, options = {}) {
+  const result = await executeDocker(
+    config,
+    ['up', '-d', '--build', '--force-recreate', ...config.backendRebuildServices],
+    { ...options, timeout: config.rebuildTimeoutMs || config.controlTimeoutMs },
+  );
+
+  return {
+    action: 'REBUILD_BACKEND',
+    stdout: normalizeText(result.stdout),
+    status: await getRuntimeStatus(config, options),
+  };
+}
+
 async function controlRuntime(config, action, options = {}) {
   const normalized = normalizeText(action).toUpperCase();
   if (!ALLOWED_ACTIONS.has(normalized)) {
@@ -252,6 +273,7 @@ async function controlRuntime(config, action, options = {}) {
   if (normalized === 'START') return startRuntime(config, options);
   if (normalized === 'STOP') return stopRuntime(config, options);
   if (normalized === 'REBUILD_WEB') return rebuildWeb(config, options);
+  if (normalized === 'REBUILD_BACKEND') return rebuildBackend(config, options);
   return restartRuntime(config, options);
 }
 
@@ -262,6 +284,7 @@ module.exports = {
   controlRuntime,
   getRuntimeStatus,
   parseComposePsOutput,
+  rebuildBackend,
   rebuildWeb,
   restartRuntime,
   startRuntime,

@@ -37,6 +37,7 @@ const CONTROL_PATHS = {
   STOP: 'stop',
   RESTART: 'restart',
   REBUILD_WEB: 'rebuild-web',
+  REBUILD_BACKEND: 'rebuild-backend',
 };
 
 async function controlRuntime(action, grant) {

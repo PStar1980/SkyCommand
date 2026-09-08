@@ -88,7 +88,11 @@ async function authorizeRuntimeControl({
     nowMs,
   });
 
-  const resourceLabel = normalizedAction === 'REBUILD_WEB' ? 'SkyCommand web frontend' : 'SkyCommand backend runtime';
+  const resourceLabel = normalizedAction === 'REBUILD_WEB'
+    ? 'SkyCommand web frontend'
+    : normalizedAction === 'REBUILD_BACKEND'
+      ? 'SkyCommand API and worker backend'
+      : 'SkyCommand backend runtime';
   const message = `${normalizedAction} authorized for the ${resourceLabel} through the host-native Supervisor.`;
 
   // High-risk self-lifecycle control fails closed if the authorization audit cannot be persisted.

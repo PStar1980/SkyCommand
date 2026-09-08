@@ -30,9 +30,15 @@ const routes = fs.readFileSync(
   path.join(root, 'apps/api/src/routes/infrastructure.routes.js'),
   'utf8',
 );
+const supervisorServer = fs.readFileSync(
+  path.join(root, 'packages/supervisor/src/server.js'),
+  'utf8',
+);
 
 assert.match(component, /Rebuild Frontend/);
 assert.match(component, /REBUILD_WEB/);
+assert.match(component, /Rebuild Backend/);
+assert.match(component, /REBUILD_BACKEND/);
 assert.match(component, /Restart Runtime/);
 assert.match(component, /Stop Runtime/);
 assert.match(component, /authorizeSkyCommandRuntimeControl/);
@@ -40,10 +46,13 @@ assert.match(component, /supervisorService\.controlRuntime/);
 assert.match(component, /api\.clearSessionToken/);
 assert.match(supervisorService, /X-SkyCommand-Supervisor-Grant/);
 assert.match(supervisorService, /rebuild-web/);
+assert.match(supervisorService, /rebuild-backend/);
 assert.match(supervisorService, /waitForOperationCompletion/);
 assert.match(infrastructureService, /skycommand-runtime\/authorizations/);
 assert.match(routes, /INFRASTRUCTURE_DOCKER_CONTROL/);
 assert.match(routes, /authorizeSkyCommandRuntimeControl/);
+assert.match(supervisorServer, /runtime\/rebuild-backend/);
+assert.match(supervisorServer, /REBUILD_BACKEND/);
 assert.match(dashboard, /<SkyCommandRuntimeControls/);
 assert.match(projectDetails, /SELF_MANAGED_PROTECTED/);
 assert.match(projectDetails, /<SkyCommandRuntimeControls canControl=\{canControl\}/);

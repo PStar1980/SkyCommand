@@ -7,25 +7,31 @@ const sourceDir = sourceDirectoryForTest(__filename);
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const {
+  DEFAULT_BACKEND_REBUILD_SERVICES,
   DEFAULT_RUNTIME_SERVICES,
   getSupervisorConfig,
+  parseBackendRebuildServices,
   parseRuntimeServices,
 } = require('./config');
 const {
   buildComposeArgs,
   getRuntimeStatus,
   parseComposePsOutput,
+  rebuildBackend,
   rebuildWeb,
 } = require('./runtimeLifecycle');
 
 assert.deepEqual(parseRuntimeServices(''), DEFAULT_RUNTIME_SERVICES);
 assert.deepEqual(parseRuntimeServices('api,postgres,api'), ['api', 'postgres']);
+assert.deepEqual(parseBackendRebuildServices(''), DEFAULT_BACKEND_REBUILD_SERVICES);
+assert.deepEqual(parseBackendRebuildServices('api,node-worker,api'), ['api', 'node-worker']);
 
 const repositoryRoot = path.resolve(sourceDir, '../../..');
 const config = getSupervisorConfig(repositoryRoot);
 assert.equal(config.projectName, process.env.SKYCOMMAND_SUPERVISOR_PROJECT_NAME || process.env.SKYCOMMAND_DOCKER_SELF_PROJECT_NAME || 'skycommand');
 assert.ok(config.runtimeServices.includes('api'));
 assert.ok(!config.runtimeServices.includes('web'));
+assert.deepEqual(config.backendRebuildServices, DEFAULT_BACKEND_REBUILD_SERVICES);
 
 const args = buildComposeArgs(config, ['stop', 'api']);
 assert.deepEqual(args.slice(0, 5), ['compose', '--project-name', config.projectName, '--file', config.composeFile]);
@@ -65,9 +71,26 @@ getRuntimeStatus(config, { executor: fakeExecutor })
       return fakeExecutor(_command, dockerArgs);
     };
 
-    return rebuildWeb(config, { executor: rebuildExecutor }).then((result) => {
+    return rebuildWeb(config, { executor: rebuildExecutor }).then(async (result) => {
       assert.equal(result.action, 'REBUILD_WEB');
       assert.equal(rebuildObserved, true);
+
+      let backendRebuildObserved = false;
+      const backendRebuildExecutor = async (_command, dockerArgs) => {
+        if (dockerArgs.includes('--force-recreate')) {
+          backendRebuildObserved = true;
+          assert.deepEqual(
+            dockerArgs.slice(-7),
+            ['up', '-d', '--build', '--force-recreate', ...config.backendRebuildServices],
+          );
+          return { stdout: 'backend rebuilt', stderr: '' };
+        }
+        return fakeExecutor(_command, dockerArgs);
+      };
+
+      const backendResult = await rebuildBackend(config, { executor: backendRebuildExecutor });
+      assert.equal(backendResult.action, 'REBUILD_BACKEND');
+      assert.equal(backendRebuildObserved, true);
       console.log('✅ SkyCommand Supervisor self-test passed.');
     });
   })

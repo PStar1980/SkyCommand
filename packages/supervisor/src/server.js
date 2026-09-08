@@ -145,7 +145,7 @@ async function handleControl(req, res, action) {
       json(res, 403, {
         ok: false,
         code: 'SKYCOMMAND_SUPERVISOR_CONTROL_DENIED',
-        error: 'SkyCommand runtime stop/restart requires an authenticated lifecycle grant.',
+        error: 'SkyCommand runtime control requires an authenticated lifecycle grant.',
       }, getCorsHeaders(req));
       return;
     }
@@ -234,6 +234,11 @@ async function requestHandler(req, res) {
 
     if (req.method === 'POST' && req.url === '/runtime/rebuild-web') {
       await handleControl(req, res, 'REBUILD_WEB');
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/runtime/rebuild-backend') {
+      await handleControl(req, res, 'REBUILD_BACKEND');
       return;
     }
 

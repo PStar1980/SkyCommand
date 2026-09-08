@@ -10,6 +10,11 @@ const DEFAULT_RUNTIME_SERVICES = [
   'node-worker',
   'api',
 ];
+const DEFAULT_BACKEND_REBUILD_SERVICES = [
+  'api',
+  'temporal-worker',
+  'node-worker',
+];
 const DEFAULT_STARTUP_TIMEOUT_MS = 180000;
 const DEFAULT_CONTROL_TIMEOUT_MS = 180000;
 const DEFAULT_REBUILD_TIMEOUT_MS = 300000;
@@ -30,9 +35,9 @@ function normalizePositiveNumber(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function parseRuntimeServices(value) {
+function parseServiceList(value, fallback) {
   const configured = normalizeText(value);
-  if (!configured) return [...DEFAULT_RUNTIME_SERVICES];
+  if (!configured) return [...fallback];
 
   const services = [...new Set(
     configured
@@ -41,7 +46,15 @@ function parseRuntimeServices(value) {
       .filter(Boolean),
   )];
 
-  return services.length > 0 ? services : [...DEFAULT_RUNTIME_SERVICES];
+  return services.length > 0 ? services : [...fallback];
+}
+
+function parseRuntimeServices(value) {
+  return parseServiceList(value, DEFAULT_RUNTIME_SERVICES);
+}
+
+function parseBackendRebuildServices(value) {
+  return parseServiceList(value, DEFAULT_BACKEND_REBUILD_SERVICES);
 }
 
 function getSupervisorConfig(repositoryRoot) {
@@ -62,6 +75,9 @@ function getSupervisorConfig(repositoryRoot) {
     host: normalizeText(process.env.SKYCOMMAND_SUPERVISOR_HOST, DEFAULT_SUPERVISOR_HOST),
     port: normalizePort(process.env.SKYCOMMAND_SUPERVISOR_PORT),
     runtimeServices: parseRuntimeServices(process.env.SKYCOMMAND_SUPERVISOR_RUNTIME_SERVICES),
+    backendRebuildServices: parseBackendRebuildServices(
+      process.env.SKYCOMMAND_SUPERVISOR_BACKEND_REBUILD_SERVICES,
+    ),
     webService: normalizeText(process.env.SKYCOMMAND_SUPERVISOR_WEB_SERVICE, DEFAULT_WEB_SERVICE),
     bootstrapOrigins: new Set(
       normalizeText(
@@ -93,6 +109,7 @@ function getSupervisorConfig(repositoryRoot) {
 }
 
 module.exports = {
+  DEFAULT_BACKEND_REBUILD_SERVICES,
   DEFAULT_CONTROL_TIMEOUT_MS,
   DEFAULT_REBUILD_TIMEOUT_MS,
   DEFAULT_RUNTIME_SERVICES,
@@ -103,5 +120,6 @@ module.exports = {
   DEFAULT_WEB_SERVICE,
   getSupervisorConfig,
   normalizePort,
+  parseBackendRebuildServices,
   parseRuntimeServices,
 };
