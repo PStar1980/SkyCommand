@@ -26,3 +26,9 @@ Thumbs.db
 
 # Ingestion temp files
 src/ingestion/tmp/
+
+# Browser test and automation artifacts
+artifacts/browser/
+playwright-report/
+test-results/
+
