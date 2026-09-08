@@ -18,7 +18,7 @@ test.describe('Workflow Initialization browser smoke', () => {
     await expect(page.getByRole('heading', { name: 'Available workflows' })).toBeVisible();
     await expect(page.locator('section.sky-workflow-start-config-card')).toHaveCount(0);
 
-    await page.getByLabel('Search').fill(workflowCode);
+    await page.getByLabel('Search', { exact: true }).fill(workflowCode);
 
     const workflowRow = page.locator('tbody tr').filter({ hasText: workflowCode }).first();
     await expect(workflowRow).toBeVisible();
