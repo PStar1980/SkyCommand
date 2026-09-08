@@ -124,6 +124,48 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  browser-worker:
+    build:
+      context: .
+      dockerfile: docker/browser-worker.Dockerfile
+    image: skycommand-browser-worker:local
+    container_name: skycommand-browser-worker
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      SKYCOMMAND_BROWSER_TASK_QUEUE: ${SKYCOMMAND_BROWSER_TASK_QUEUE:-skycommand-browser-local}
+      SKYCOMMAND_BROWSER_BASE_URL: ${SKYCOMMAND_BROWSER_DOCKER_BASE_URL:-http://web:8080}
+      SKYCOMMAND_BROWSER_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/tests
+      SKYCOMMAND_BROWSER_EXECUTION_TIMEOUT_MS: ${SKYCOMMAND_BROWSER_EXECUTION_TIMEOUT_MS:-600000}
+      SKYCOMMAND_BROWSER_WORKER_MAX_CONCURRENT_ACTIVITIES: ${SKYCOMMAND_BROWSER_WORKER_MAX_CONCURRENT_ACTIVITIES:-1}
+      SKYCOMMAND_BROWSER_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS: ${SKYCOMMAND_BROWSER_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS:-10}
+      SKYCOMMAND_BROWSER_WORKER_HEARTBEAT_INTERVAL_MS: ${SKYCOMMAND_BROWSER_WORKER_HEARTBEAT_INTERVAL_MS:-10000}
+      SKYCOMMAND_BROWSER_WORKER_HEALTH_FRESHNESS_MS: ${SKYCOMMAND_BROWSER_WORKER_HEALTH_FRESHNESS_MS:-45000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-.}
+        target: /workspace/SkyEco System
+    init: true
+    ipc: host
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - apps/browser-worker/src/health.js
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
   node-worker:
     build:
       context: .

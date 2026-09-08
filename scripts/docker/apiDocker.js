@@ -111,7 +111,7 @@ function main() {
       runCompose(['up', '-d', '--build', '--force-recreate', 'api']);
       break;
     case 'stack-up':
-      runCompose(['up', '-d', '--build', 'temporal', 'temporal-worker', 'node-worker', 'api']);
+      runCompose(['up', '-d', '--build', 'temporal', 'temporal-worker', 'browser-worker', 'node-worker', 'api']);
       break;
     case 'git-check':
       getDockerGitConfiguration();

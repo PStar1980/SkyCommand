@@ -54,6 +54,8 @@ assert.match(routes, /authorizeSkyCommandRuntimeControl/);
 assert.match(supervisorServer, /runtime\/rebuild-backend/);
 assert.match(supervisorServer, /REBUILD_BACKEND/);
 assert.match(dashboard, /<SkyCommandRuntimeControls/);
+assert.match(dashboard, /Browser worker/);
+assert.match(component, /browser-worker/);
 assert.match(projectDetails, /SELF_MANAGED_PROTECTED/);
 assert.match(projectDetails, /<SkyCommandRuntimeControls canControl=\{canControl\}/);
 

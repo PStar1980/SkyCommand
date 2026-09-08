@@ -23,6 +23,7 @@ const proofs = [
   ['SSE telemetry exclusion policy', 'tests/self/apps/api/src/services/apiTelemetryPolicySelfTest.js'],
   ['In-place ECharts live updates', 'tests/self/apps/admin-web/src/components/charts/liveChartUpdateSelfTest.js'],
   ['Admin-Web Docker/NGINX deployment', 'tests/self/scripts/docker/webDockerSelfTest.js'],
+  ['Dedicated Playwright Browser Worker', 'tests/self/scripts/docker/browserWorkerDockerSelfTest.js'],
   ['Phase 17 closure records', 'tests/self/scripts/docker/dockerIntegrationClosureSelfTest.js'],
 ];
 

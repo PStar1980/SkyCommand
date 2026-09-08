@@ -5,10 +5,13 @@ const dotenv = require('dotenv');
 dotenv.config({ path: process.env.SKYCOMMAND_BROWSER_ENV_FILE || path.resolve(__dirname, '../../.env') });
 
 const baseURL = process.env.SKYCOMMAND_BROWSER_BASE_URL || 'http://127.0.0.1:15171';
+const artifactRoot = path.resolve(
+  process.env.SKYCOMMAND_BROWSER_ARTIFACT_ROOT || path.resolve(__dirname, '../../artifacts/browser/tests'),
+);
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'specs'),
-  outputDir: path.resolve(__dirname, '../../artifacts/browser/tests/results'),
+  outputDir: path.join(artifactRoot, 'results'),
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -22,7 +25,7 @@ module.exports = defineConfig({
       'html',
       {
         open: 'never',
-        outputFolder: path.resolve(__dirname, '../../artifacts/browser/tests/report'),
+        outputFolder: path.join(artifactRoot, 'report'),
       },
     ],
   ],

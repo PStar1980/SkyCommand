@@ -1,0 +1,13 @@
+{
+  "name": "skycommand-browser-worker-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal runtime dependency manifest for the dedicated SkyCommand Playwright/Temporal Browser Worker.",
+  "dependencies": {
+    "@playwright/test": "1.60.0",
+    "@temporalio/client": "1.18.1",
+    "@temporalio/worker": "1.18.1",
+    "@temporalio/workflow": "1.18.1",
+    "dotenv": "17.2.3"
+  }
+}

@@ -30,6 +30,8 @@ const repositoryRoot = path.resolve(sourceDir, '../../..');
 const config = getSupervisorConfig(repositoryRoot);
 assert.equal(config.projectName, process.env.SKYCOMMAND_SUPERVISOR_PROJECT_NAME || process.env.SKYCOMMAND_DOCKER_SELF_PROJECT_NAME || 'skycommand');
 assert.ok(config.runtimeServices.includes('api'));
+assert.ok(config.runtimeServices.includes('browser-worker'));
+assert.ok(config.backendRebuildServices.includes('browser-worker'));
 assert.ok(!config.runtimeServices.includes('web'));
 assert.deepEqual(config.backendRebuildServices, DEFAULT_BACKEND_REBUILD_SERVICES);
 
@@ -80,7 +82,7 @@ getRuntimeStatus(config, { executor: fakeExecutor })
         if (dockerArgs.includes('--force-recreate')) {
           backendRebuildObserved = true;
           assert.deepEqual(
-            dockerArgs.slice(-7),
+            dockerArgs.slice(-(4 + config.backendRebuildServices.length)),
             ['up', '-d', '--build', '--force-recreate', ...config.backendRebuildServices],
           );
           return { stdout: 'backend rebuilt', stderr: '' };
