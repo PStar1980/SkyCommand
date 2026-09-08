@@ -59,8 +59,18 @@ function resolveBrowserSpec(repositoryRoot, testPath) {
   return { relativePath: normalizedRelative, resolvedPath: resolved };
 }
 
-function buildPlaywrightArgs({ configPath, testPath, grep }) {
+function buildPlaywrightArgs({ configPath, testPath, grep, browserType = 'chromium', retryCount = 0, timeoutMs = null }) {
   const args = ['test', '--config', configPath, '--workers=1', testPath];
+  const normalizedBrowserType = normalizeText(browserType) || 'chromium';
+  if (normalizedBrowserType) args.push('--project', normalizedBrowserType);
+  const normalizedRetryCount = Number.parseInt(retryCount, 10);
+  if (Number.isInteger(normalizedRetryCount) && normalizedRetryCount > 0) {
+    args.push(`--retries=${Math.min(normalizedRetryCount, 3)}`);
+  }
+  const normalizedTimeoutMs = Number.parseInt(timeoutMs, 10);
+  if (Number.isInteger(normalizedTimeoutMs) && normalizedTimeoutMs > 0) {
+    args.push(`--timeout=${normalizedTimeoutMs}`);
+  }
   const normalizedGrep = normalizeText(grep);
   if (normalizedGrep) args.push('--grep', normalizedGrep);
   return args;
@@ -123,29 +133,57 @@ function runChildProcess(command, args, options = {}) {
   });
 }
 
+function getEffectiveTimeoutMs(inputTimeoutMs, runtimeTimeoutMs) {
+  const runtimeCap = Number(runtimeTimeoutMs) > 0 ? Number(runtimeTimeoutMs) : 600000;
+  const requested = Number(inputTimeoutMs);
+  if (!Number.isFinite(requested) || requested <= 0) return runtimeCap;
+  return Math.min(requested, runtimeCap);
+}
+
+function serializeBrowserTestParameters(value) {
+  if (value === undefined || value === null) return '{}';
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new BrowserTestExecutionError('Browser test parameters must be a JSON object.', {
+      reasonCode: 'SKYCOMMAND_BROWSER_TEST_PARAMETERS_INVALID',
+    });
+  }
+  return JSON.stringify(value);
+}
+
 async function runBrowserTest(input = {}, runtimeConfig = {}) {
   const startedAt = new Date();
   const repositoryRoot = path.resolve(runtimeConfig.repositoryRoot || process.cwd());
   const { relativePath } = resolveBrowserSpec(repositoryRoot, input.testPath);
   const configPath = normalizeText(runtimeConfig.testConfigPath) || 'tests/browser/playwright.config.js';
   const playwrightBinary = path.resolve(repositoryRoot, 'node_modules/.bin/playwright');
+  const effectiveTimeoutMs = getEffectiveTimeoutMs(input.timeoutMs, runtimeConfig.executionTimeoutMs);
+  const processTimeoutMs = Math.min(
+    Number(runtimeConfig.executionTimeoutMs) > 0 ? Number(runtimeConfig.executionTimeoutMs) : 600000,
+    effectiveTimeoutMs + 30000,
+  );
   const args = buildPlaywrightArgs({
     configPath,
     testPath: relativePath,
     grep: input.grep,
+    browserType: input.browserType || 'chromium',
+    retryCount: input.retryCount || 0,
+    timeoutMs: effectiveTimeoutMs,
   });
 
   const env = {
     ...process.env,
     SKYCOMMAND_BROWSER_BASE_URL:
-      normalizeText(runtimeConfig.baseUrl) || process.env.SKYCOMMAND_BROWSER_BASE_URL,
+      normalizeText(input.baseUrl) || normalizeText(runtimeConfig.baseUrl) || process.env.SKYCOMMAND_BROWSER_BASE_URL,
+    SKYCOMMAND_BROWSER_TEST_CODE: normalizeText(input.testCode),
+    SKYCOMMAND_BROWSER_ENVIRONMENT_CODE: normalizeText(input.environmentCode),
+    SKYCOMMAND_BROWSER_TEST_PARAMETERS: serializeBrowserTestParameters(input.parameters),
     CI: process.env.CI || 'true',
   };
 
   const result = await runChildProcess(playwrightBinary, args, {
     cwd: repositoryRoot,
     env,
-    timeoutMs: runtimeConfig.executionTimeoutMs,
+    timeoutMs: processTimeoutMs,
   });
   const completedAt = new Date();
 
@@ -153,11 +191,16 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     contract: 'browser_worker_execution.v1',
     executionType: 'TEST',
     status: result.code === 0 && !result.timedOut ? 'PASSED' : 'FAILED',
+    testCode: normalizeText(input.testCode) || null,
     testPath: relativePath,
     grep: normalizeText(input.grep) || null,
+    browserType: normalizeText(input.browserType) || 'chromium',
+    environmentCode: normalizeText(input.environmentCode) || null,
+    parameters: input.parameters && typeof input.parameters === 'object' ? input.parameters : {},
     exitCode: result.code,
     signal: result.signal,
     timedOut: result.timedOut,
+    timeoutMs: effectiveTimeoutMs,
     startedAt: startedAt.toISOString(),
     completedAt: completedAt.toISOString(),
     durationMs: completedAt.getTime() - startedAt.getTime(),
@@ -167,7 +210,7 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
 
   if (summary.status !== 'PASSED') {
     const reason = result.timedOut
-      ? `Browser test exceeded the ${runtimeConfig.executionTimeoutMs} ms execution timeout.`
+      ? `Browser test process exceeded the ${processTimeoutMs} ms hard execution timeout.`
       : `Browser test exited with code ${result.code}.`;
     throw new BrowserTestExecutionError(reason, summary);
   }
@@ -178,7 +221,9 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
 module.exports = {
   BrowserTestExecutionError,
   buildPlaywrightArgs,
+  getEffectiveTimeoutMs,
   resolveBrowserSpec,
+  serializeBrowserTestParameters,
   runBrowserTest,
   runChildProcess,
 };

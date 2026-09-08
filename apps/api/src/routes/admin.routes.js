@@ -1,5 +1,6 @@
 const express = require('express');
 const adminController = require('../controllers/adminController');
+const browserTestController = require('../controllers/browserTestController');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/permissionMiddleware');
 
@@ -118,6 +119,48 @@ router.post(
   '/tool-onboarding/register',
   requirePermission('ADMIN_TOOL_WRITE'),
   adminController.registerToolOnboardingPackage,
+);
+
+
+router.get(
+  '/browser-tests/options',
+  requirePermission('ADMIN_BROWSER_TEST_READ'),
+  browserTestController.getAdminOptions,
+);
+router.get(
+  '/browser-tests',
+  requirePermission('ADMIN_BROWSER_TEST_READ'),
+  browserTestController.listAdminTests,
+);
+router.post(
+  '/browser-tests',
+  requirePermission('ADMIN_BROWSER_TEST_WRITE'),
+  browserTestController.createAdminTest,
+);
+router.get(
+  '/browser-tests/:testId',
+  requirePermission('ADMIN_BROWSER_TEST_READ'),
+  browserTestController.getAdminTest,
+);
+router.patch(
+  '/browser-tests/:testId',
+  requirePermission('ADMIN_BROWSER_TEST_WRITE'),
+  browserTestController.updateAdminTest,
+);
+router.patch(
+  '/browser-tests/:testId/status',
+  requirePermission('ADMIN_BROWSER_TEST_WRITE'),
+  browserTestController.updateAdminTestStatus,
+);
+router.put(
+  '/browser-tests/:testId/parameters',
+  requirePermission('ADMIN_BROWSER_TEST_WRITE'),
+  browserTestController.replaceAdminTestParameters,
+);
+router.put(
+  '/browser-tests/:testId/environments',
+  requirePermission('ADMIN_BROWSER_TEST_WRITE'),
+  browserTestController.replaceAdminTestEnvironments,
 );
 
 router.get(
