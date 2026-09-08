@@ -33,6 +33,7 @@ const ZIP32_MAX_VALUE = 0xffffffff;
 const ZIP32_MAX_ENTRY_COUNT = 0xffff;
 const DEPENDENCY_FOLDER_NAME = 'node_modules';
 const TESTS_DIRECTORY_NAME = 'tests';
+const GENERATED_ARTIFACTS_DIRECTORY_NAME = 'artifacts';
 const DEFAULT_ZIP_IO_CONCURRENCY = 16;
 const MAX_ZIP_IO_CONCURRENCY = 64;
 
@@ -241,6 +242,10 @@ function shouldIgnoreDirectory(entryName, fullPath, options) {
     lowerName === TESTS_DIRECTORY_NAME &&
     !options.includeTests
   ) {
+    return true;
+  }
+
+  if (isTopLevelDirectory && lowerName === GENERATED_ARTIFACTS_DIRECTORY_NAME) {
     return true;
   }
 
