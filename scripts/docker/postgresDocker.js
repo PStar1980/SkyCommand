@@ -10,8 +10,8 @@ const repositoryRoot = path.resolve(__dirname, '..', '..');
 const envPath = path.join(repositoryRoot, '.env');
 dotenv.config({ path: envPath });
 
-const appServices = ['temporal-worker', 'node-worker', 'api', 'web'];
-const fullStackServices = ['postgres', 'temporal', 'temporal-worker', 'node-worker', 'api', 'web'];
+const appServices = ['temporal-worker', 'browser-worker', 'node-worker', 'api', 'web'];
+const fullStackServices = ['postgres', 'temporal', 'temporal-worker', 'browser-worker', 'node-worker', 'api', 'web'];
 
 function fail(message) {
   throw new Error(`[SkyCommand PostgreSQL] ${message}`);
@@ -310,7 +310,7 @@ function cutover() {
   prepareEnvironment();
   ensureCandidateUp();
   console.log('[SkyCommand PostgreSQL] Prebuilding application images before the write freeze to minimize cutover downtime.');
-  runCompose(['build', 'temporal-worker', 'node-worker', 'api', 'web']);
+  runCompose(['build', 'temporal-worker', 'browser-worker', 'node-worker', 'api', 'web']);
   assertNoActiveSourceRuns();
   stopApplicationWriters();
 
@@ -374,7 +374,7 @@ function persistenceProof() {
   runNode('scripts/docker/postgresCutoverCheck.js');
   const backupPath = createCandidateBackup();
   console.log('[SkyCommand PostgreSQL] Cold-stopping the full Docker runtime, including PostgreSQL.');
-  runCompose(['stop', 'web', 'api', 'node-worker', 'temporal-worker', 'temporal', 'postgres']);
+  runCompose(['stop', 'web', 'api', 'node-worker', 'browser-worker', 'temporal-worker', 'temporal', 'postgres']);
   console.log('[SkyCommand PostgreSQL] Restarting the full Docker runtime from persistent volumes.');
   startApplicationStack();
   runNode('scripts/docker/postgresCutoverCheck.js');

@@ -7,12 +7,14 @@ const DEFAULT_RUNTIME_SERVICES = [
   'postgres',
   'temporal',
   'temporal-worker',
+  'browser-worker',
   'node-worker',
   'api',
 ];
 const DEFAULT_BACKEND_REBUILD_SERVICES = [
   'api',
   'temporal-worker',
+  'browser-worker',
   'node-worker',
 ];
 const DEFAULT_STARTUP_TIMEOUT_MS = 180000;

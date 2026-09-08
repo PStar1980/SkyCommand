@@ -25,7 +25,7 @@ function confirmationMessage(action) {
   }
 
   if (action === 'REBUILD_BACKEND') {
-    return 'Rebuild and recreate the SkyCommand API and worker services from the current local source? The Supervisor will run docker compose up -d --build --force-recreate api temporal-worker node-worker. PostgreSQL, Temporal server, the web shell, and Supervisor will stay online.';
+    return 'Rebuild and recreate the SkyCommand API and worker services from the current local source? The Supervisor will run docker compose up -d --build --force-recreate api temporal-worker browser-worker node-worker. PostgreSQL, Temporal server, the web shell, and Supervisor will stay online.';
   }
 
   return 'Restart the SkyCommand backend runtime? The web shell and Supervisor will stay online while PostgreSQL, Temporal, workers, and the API restart. Your current session will end and you will sign in again when the runtime is healthy.';

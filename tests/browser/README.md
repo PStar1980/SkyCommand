@@ -56,3 +56,22 @@ artifacts/browser/tests/
 
 Playwright traces, screenshots, videos, and HTML reports are generated there and are excluded from
 Git. Structured SkyCommand browser-run records and per-run artifact indexing are future phases.
+
+## Phase 2 dedicated Browser Worker
+
+The same source-controlled specs can now execute inside the isolated Docker `browser-worker` through
+a dedicated Temporal task queue. The host-native commands above remain useful for fast authoring and
+debugging, while the worker lane proves the infrastructure path that the future Browser Test registry
+will invoke.
+
+```powershell
+npm run browser:worker:docker:up
+npm run browser:worker:docker:status
+npm run browser:worker:smoke
+npm run browser:worker:docker:logs
+```
+
+The container targets `SKYCOMMAND_BROWSER_DOCKER_BASE_URL` (default `http://web:8080`) rather than
+host `localhost`, writes artifacts back into the canonical host repository, executes only approved
+spec paths beneath `tests/browser/specs/`, and defaults to one concurrent browser activity with zero
+Temporal retries.

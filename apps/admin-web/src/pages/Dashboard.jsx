@@ -97,6 +97,9 @@ function Dashboard() {
   const scheduleRunRecords = summary.scheduleRunsDetailed?.items || [];
   const workflowTaskQueue = workflowHealth?.taskQueue || {};
   const hostAgentHealth = workflowHealth?.hostAgent || null;
+  const browserWorkerRuntime = supervisorStatus?.services?.find(
+    (service) => service.service === 'browser-worker',
+  );
 
   function changeIdentityWindow(event) {
     const nextDays = Number(event.target.value) || 7;
@@ -396,6 +399,36 @@ function Dashboard() {
             helper: workflowHealth
               ? `${workflowTaskQueue.pollerCount || 0} poller(s) · ${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'task queue'}`
               : 'Temporal worker health is unavailable to this session',
+          },
+          {
+            label: 'Browser worker',
+            value:
+              supervisorStatus === undefined
+                ? 'Checking'
+                : !browserWorkerRuntime
+                  ? 'Unknown'
+                  : browserWorkerRuntime.running && browserWorkerRuntime.health === 'HEALTHY'
+                    ? 'Online'
+                    : browserWorkerRuntime.running
+                      ? browserWorkerRuntime.health === 'UNHEALTHY'
+                        ? 'Unhealthy'
+                        : 'Starting'
+                      : 'Offline',
+            status:
+              supervisorStatus === undefined
+                ? 'PENDING'
+                : !browserWorkerRuntime
+                  ? 'UNKNOWN'
+                  : browserWorkerRuntime.running && browserWorkerRuntime.health === 'HEALTHY'
+                    ? 'ONLINE'
+                    : browserWorkerRuntime.running
+                      ? browserWorkerRuntime.health === 'UNHEALTHY'
+                        ? 'OFFLINE'
+                        : 'PENDING'
+                      : 'OFFLINE',
+            helper: browserWorkerRuntime
+              ? `Dedicated Playwright / Temporal worker · ${browserWorkerRuntime.health || browserWorkerRuntime.state || 'starting'}`
+              : 'Dedicated Playwright execution service',
           },
           {
             label: 'Host agent',

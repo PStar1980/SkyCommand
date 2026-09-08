@@ -118,6 +118,7 @@ function main() {
         'postgres',
         'temporal',
         'temporal-worker',
+        'browser-worker',
         'node-worker',
         'api',
         'web',
@@ -125,7 +126,7 @@ function main() {
       break;
     case 'stack-restart':
       announceWebPort();
-      console.log('[SkyCommand Docker] Rebuilding and recreating the full six-container runtime.');
+      console.log('[SkyCommand Docker] Rebuilding and recreating the full seven-container runtime.');
       runCompose([
         'up',
         '-d',
@@ -134,6 +135,7 @@ function main() {
         'postgres',
         'temporal',
         'temporal-worker',
+        'browser-worker',
         'node-worker',
         'api',
         'web',

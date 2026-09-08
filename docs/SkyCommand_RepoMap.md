@@ -243,6 +243,10 @@ SkyCommand/
 │   │       │   └── workflowServiceError.js
 │   │       └── utils/
 │   │           └── liveTelemetryEnvelope.js
+│   ├── browser-worker/
+│   │   └── src/
+│   │       ├── health.js
+│   │       └── index.js
 │   └── worker/
 │       └── src/
 │           ├── index.js
@@ -263,10 +267,16 @@ SkyCommand/
 │           ├── report/
 │           │   └── index.html
 │           └── results/
-│               └── .last-run.json
+│               ├── .last-run.json
+│               └── .playwright-artifacts-0/
+│                   └── traces/
+│                       └── resources/
 ├── docker/
 │   ├── api.Dockerfile
 │   ├── api.package.json
+│   ├── browser-worker.Dockerfile
+│   ├── browser-worker.Dockerfile.dockerignore
+│   ├── browser-worker.package.json
 │   ├── empty-github-token
 │   ├── git-credential-skycommand.js
 │   ├── git-credential-skycommand.sh
@@ -282,6 +292,7 @@ SkyCommand/
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_API_Docker_Local_Setup.md
 │   ├── SkyCommand_API_Observability.md
+│   ├── SkyCommand_Browser_Worker.md
 │   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
 │   ├── SkyCommand_Docker_Infrastructure_Control_Plane.md
 │   ├── SkyCommand_Host_Agent_Local_Setup.md
@@ -314,6 +325,13 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── createAdminUser.js
 │   │       └── password.js
+│   ├── browser/
+│   │   └── src/
+│   │       ├── browserTestRunner.js
+│   │       ├── config.js
+│   │       └── temporal/
+│   │           ├── activities.js
+│   │           └── workflows.js
 │   ├── core/
 │   │   └── src/
 │   │       ├── runtimePathResolver.js
@@ -633,6 +651,8 @@ SkyCommand/
 │           └── workflowResultContext.js
 ├── scripts/
 │   ├── validate.js
+│   ├── browser/
+│   │   └── browserWorkerSmoke.js
 │   ├── db/
 │   │   ├── workflowCategoryFoundation.js
 │   │   ├── functions/
@@ -800,6 +820,7 @@ SkyCommand/
 │   │       └── worker.vw_workflow_run_records.sql
 │   ├── docker/
 │   │   ├── apiDocker.js
+│   │   ├── browserWorkerDocker.js
 │   │   ├── coreDockerDb.js
 │   │   ├── coreDockerDbCheck.js
 │   │   ├── developmentPromotionHostSyncCheck.js
@@ -924,6 +945,9 @@ SkyCommand/
         │               ├── workflowToolConfirmationPolicySelfTest.js
         │               └── workflowToolVisibilitySelfTest.js
         ├── packages/
+        │   ├── browser/
+        │   │   └── src/
+        │   │       └── browserTestRunnerSelfTest.js
         │   ├── core/
         │   │   └── src/
         │   │       ├── runtimePathResolverSelfTest.js
@@ -1000,6 +1024,7 @@ SkyCommand/
         └── scripts/
             ├── docker/
             │   ├── apiDockerSelfTest.js
+            │   ├── browserWorkerDockerSelfTest.js
             │   ├── coreDockerCompatibilitySelfTest.js
             │   ├── dockerIntegrationClosureSelfTest.js
             │   ├── dockerIntegrationSelfTest.js

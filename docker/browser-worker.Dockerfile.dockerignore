@@ -1,0 +1,15 @@
+# The normal SkyCommand Docker build context excludes /tests. This Dockerfile
+# intentionally needs only browser specs plus its narrow runtime source.
+**
+!docker/
+!docker/browser-worker.Dockerfile
+!docker/browser-worker.package.json
+!apps/
+!apps/browser-worker/
+!apps/browser-worker/**
+!packages/
+!packages/browser/
+!packages/browser/**
+!tests/
+!tests/browser/
+!tests/browser/**

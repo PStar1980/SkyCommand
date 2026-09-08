@@ -131,7 +131,7 @@ The cutover command performs this sequence:
 9. runs the SkyCommand_Core candidate compatibility check again;
 10. saves the current `.env` outside the repository;
 11. switches host clients to `127.0.0.1:55432` and Docker services to `postgres:5432`;
-12. starts the full six-service Docker runtime;
+12. starts the full seven-service Docker runtime;
 13. verifies the host-published database, API health, API database health, candidate PostgreSQL version, and Temporal connectivity.
 
 If the cutover fails **after** the environment switch, the helper automatically restores the pre-cutover `.env` and restarts the application services against the Windows source.
@@ -184,7 +184,7 @@ This command:
 1. verifies the active Docker database runtime;
 2. creates a Docker-active custom-format backup;
 3. stops Web, API, Node Worker, Temporal Worker, Temporal, and PostgreSQL;
-4. restarts the complete six-service stack from the persistent volumes;
+4. restarts the complete seven-service stack from the persistent volumes;
 5. reruns the cutover verification.
 
 A passing persistence proof demonstrates that the database state is not tied to a disposable container instance.

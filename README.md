@@ -189,7 +189,7 @@ flowchart LR
 
 ### Runtime boundary
 
-SkyCommand uses a six-service Docker Compose runtime for **PostgreSQL, Admin-Web, API, Node worker, Temporal worker, and Temporal server**. The intentional exception is the **Host Agent**, which remains native to Windows so guarded operations can interact safely and efficiently with host-owned Git worktrees and Docker Desktop resources.
+SkyCommand uses a seven-service Docker Compose runtime for **PostgreSQL, Admin-Web, API, Node worker, Temporal worker, Browser worker, and Temporal server**. The intentional exception is the **Host Agent**, which remains native to Windows so guarded operations can interact safely and efficiently with host-owned Git worktrees and Docker Desktop resources.
 
 Docker provides the runtime boundary. Temporal makes workflow execution durable. PostgreSQL preserves operational evidence. The Host Agent owns narrowly scoped host-native actions.
 
@@ -389,10 +389,12 @@ For first-time database setup, Docker cutover, Host Agent configuration, and det
 
 | Command                             | Purpose                                                                    |
 | ----------------------------------- | -------------------------------------------------------------------------- |
-| `npm run skycommand:docker:up`      | Build/start the complete six-container runtime                             |
+| `npm run skycommand:docker:up`      | Build/start the complete seven-container runtime                             |
 | `npm run skycommand:docker:restart` | Rebuild and force-recreate the runtime while preserving persistent volumes |
 | `npm run skycommand:docker:status`  | Show runtime container status                                              |
 | `npm run skycommand:docker:logs`    | Follow logs across the SkyCommand runtime                                  |
+| `npm run browser:worker:smoke`      | Run the Temporal-backed Playwright Browser Worker smoke proof               |
+| `npm run browser:worker:docker:logs` | Follow dedicated Browser Worker logs                                        |
 | `npm run host-agent:check`          | Verify Docker/Temporal → Host Agent routing                                |
 | `npm run validate`                  | Run repository validation                                                  |
 | `npm run validate:syntax`           | Run JavaScript syntax validation                                           |
@@ -419,7 +421,7 @@ SkyCommand/
 ├─ tests/                 # centralized self-tests and future automated test suites
 ├─ sql/                   # PostgreSQL migrations, seeds, and database assets
 ├─ docs/                  # architecture, setup, authoring, and closure documentation
-├─ compose.yaml           # six-service Docker runtime
+├─ compose.yaml           # seven-service Docker runtime
 └─ README.md
 ```
 

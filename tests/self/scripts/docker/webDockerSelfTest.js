@@ -86,12 +86,13 @@ assert(
     helper.includes('assertWebPortIsBindable(port)') &&
     helper.includes("'postgres'") &&
     helper.includes("'temporal-worker'") &&
+    helper.includes("'browser-worker'") &&
     helper.includes("'node-worker'") &&
     helper.includes("'api'") &&
     helper.includes("'web'") &&
     helper.includes("case 'stack-restart':") &&
     helper.includes("'--force-recreate'"),
-  'The Web Docker helper must validate the host Web port and support full six-service stack startup plus rebuild/recreate restart including PostgreSQL.',
+  'The Web Docker helper must validate the host Web port and support full seven-service stack startup plus rebuild/recreate restart including PostgreSQL and the Browser Worker.',
 );
 
 const scripts = packageJson.scripts || {};
