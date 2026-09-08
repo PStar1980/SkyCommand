@@ -125,6 +125,7 @@ SkyCommand/
 │   │       │   ├── AuditEvents.jsx
 │   │       │   ├── AutomationDashboard.jsx
 │   │       │   ├── AutomationListeners.jsx
+│   │       │   ├── BrowserTests.jsx
 │   │       │   ├── Dashboard.jsx
 │   │       │   ├── DataStatus.jsx
 │   │       │   ├── DockerInventory.jsx
@@ -155,6 +156,7 @@ SkyCommand/
 │   │       │   ├── adminService.js
 │   │       │   ├── api.js
 │   │       │   ├── authService.js
+│   │       │   ├── browserTestService.js
 │   │       │   ├── infrastructureService.js
 │   │       │   ├── ingestionService.js
 │   │       │   ├── notificationService.js
@@ -270,10 +272,7 @@ SkyCommand/
 │           ├── report/
 │           │   └── index.html
 │           └── results/
-│               ├── .last-run.json
-│               └── .playwright-artifacts-0/
-│                   └── traces/
-│                       └── resources/
+│               └── .last-run.json
 ├── docker/
 │   ├── api.Dockerfile
 │   ├── api.package.json
@@ -904,6 +903,7 @@ SkyCommand/
         │   │       │   ├── adminUsersSurfaceSelfTest.js
         │   │       │   ├── apiDashboardSelfTest.js
         │   │       │   ├── approvalHistorySelfTest.js
+        │   │       │   ├── browserTestUiSelfTest.js
         │   │       │   ├── dockerInfrastructureSurfaceSelfTest.js
         │   │       │   ├── ingestionOperationsSurfaceSelfTest.js
         │   │       │   ├── loginRuntimeBootstrapSelfTest.js

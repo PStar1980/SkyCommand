@@ -35,6 +35,7 @@ const routineSelfTests = [
   'runtime-path-resolver:self-test',
   'browser-runner:self-test',
   'browser-registry:self-test',
+  'browser-test-ui:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',
   'git-branch-sync:self-test',
