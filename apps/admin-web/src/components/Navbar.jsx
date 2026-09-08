@@ -41,6 +41,13 @@ const COMMAND_SEARCH_ALIASES = {
   history: '/tools/executions',
   'manage tools': '/tools/manage',
   'add tool': '/tools/add',
+  'browser tests': '/browser-tests/run',
+  'browser test': '/browser-tests/run',
+  'run browser tests': '/browser-tests/run',
+  'run tests': '/browser-tests/run',
+  'test operations': '/browser-tests/operations',
+  'manage browser tests': '/browser-tests/manage',
+  'add browser test': '/browser-tests/add',
   onboarding: '/tools/add',
   catalogue: '/tools/manage',
   workflows: '/workflows/start',
@@ -166,6 +173,11 @@ function createNavGroups(hasPermission, hasRole) {
     hasPermission('WORKFLOW_READ') ||
     hasPermission('TEMPORAL_WORKFLOW_READ') ||
     hasPermission('WORKFLOW_APPROVAL_READ');
+  const canViewBrowserTests =
+    hasPermission('BROWSER_TEST_READ') ||
+    hasPermission('BROWSER_TEST_RUN') ||
+    hasPermission('ADMIN_BROWSER_TEST_READ') ||
+    hasPermission('ADMIN_BROWSER_TEST_WRITE');
   const canViewAutomation =
     hasPermission('WORKER_SCHEDULE_READ') ||
     hasPermission('WORKER_SCHEDULE_CREATE') ||
@@ -314,6 +326,41 @@ function createNavGroups(hasPermission, hasRole) {
           icon: '☑',
           visible: hasPermission('WORKFLOW_APPROVAL_READ'),
           description: 'Decision ledger',
+        },
+      ],
+    },
+    {
+      label: 'Browser Tests',
+      icon: '▤',
+      visible: canViewBrowserTests,
+      items: [
+        {
+          label: 'Test Operations',
+          to: '/browser-tests/operations',
+          icon: '↺',
+          visible: hasPermission('BROWSER_TEST_READ'),
+          description: 'Browser execution workspace',
+        },
+        {
+          label: 'Run Tests',
+          to: '/browser-tests/run',
+          icon: '▶',
+          visible: hasPermission('BROWSER_TEST_RUN'),
+          description: 'Launch registered Playwright tests',
+        },
+        {
+          label: 'Manage Tests',
+          to: '/browser-tests/manage',
+          icon: '▧',
+          visible: hasPermission('ADMIN_BROWSER_TEST_READ'),
+          description: 'Browser Test registry',
+        },
+        {
+          label: 'Add Test',
+          to: '/browser-tests/add',
+          icon: '+',
+          visible: hasPermission('ADMIN_BROWSER_TEST_WRITE'),
+          description: 'Register Playwright source',
         },
       ],
     },

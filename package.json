@@ -51,6 +51,7 @@
     "browser-worker-docker:self-test": "node tests/self/scripts/docker/browserWorkerDockerSelfTest.js",
     "browser-runner:self-test": "node tests/self/packages/browser/src/browserTestRunnerSelfTest.js",
     "browser-registry:self-test": "node tests/self/apps/api/src/services/browserTestRegistrySelfTest.js",
+    "browser-test-ui:self-test": "node tests/self/apps/admin-web/src/pages/browserTestUiSelfTest.js",
     "temporal:health": "node packages/temporal/src/temporalHealth.js",
     "temporal:fred": "node packages/temporal/src/startFredIngestionWorkflow.js",
     "host-agent": "node packages/host-agent/src/worker.js",
