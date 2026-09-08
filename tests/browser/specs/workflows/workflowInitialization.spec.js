@@ -1,9 +1,14 @@
 const { test, expect } = require('@playwright/test');
 const { loginToSkyCommand } = require('../../helpers/skyCommandAuth');
+const { getBrowserTestParameter } = require('../../helpers/browserTestParameters');
 
 const workflowCode =
-  String(process.env.SKYCOMMAND_BROWSER_TEST_WORKFLOW_CODE || 'repo-map-zip').trim() ||
-  'repo-map-zip';
+  String(
+    getBrowserTestParameter(
+      'workflowCode',
+      process.env.SKYCOMMAND_BROWSER_TEST_WORKFLOW_CODE || 'repo-map-zip',
+    ),
+  ).trim() || 'repo-map-zip';
 
 test.describe('Workflow Initialization browser smoke', () => {
   test.beforeEach(async ({ page }) => {

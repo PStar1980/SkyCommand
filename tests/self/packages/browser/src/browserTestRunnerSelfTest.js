@@ -6,7 +6,9 @@ const path = require('node:path');
 const {
   BrowserTestExecutionError,
   buildPlaywrightArgs,
+  getEffectiveTimeoutMs,
   resolveBrowserSpec,
+  serializeBrowserTestParameters,
 } = require('./browserTestRunner');
 
 const repositoryRoot = path.resolve(__dirname, '../../../../..');
@@ -45,9 +47,16 @@ assert.deepEqual(
     'tests/browser/playwright.config.js',
     '--workers=1',
     allowed.relativePath,
+    '--project',
+    'chromium',
     '--grep',
     '@smoke',
   ],
 );
+
+
+assert.equal(getEffectiveTimeoutMs(30000, 600000), 30000);
+assert.equal(getEffectiveTimeoutMs(900000, 600000), 600000);
+assert.equal(serializeBrowserTestParameters({ workflowCode: 'repo-map-zip' }), '{"workflowCode":"repo-map-zip"}');
 
 console.log('[SkyCommand] Browser test runner self-test passed.');

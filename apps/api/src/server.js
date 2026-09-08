@@ -5,6 +5,7 @@ const path = require('path');
 const { testConnection } = require('../../../packages/db/src/connection');
 const authRoutes = require('./routes/auth.routes');
 const toolsRoutes = require('./routes/tools.routes');
+const browserTestRoutes = require('./routes/browserTest.routes');
 const adminRoutes = require('./routes/admin.routes');
 const macroRoutes = require('./routes/macro.routes');
 const ingestionRoutes = require('./routes/ingestion.routes');
@@ -59,6 +60,7 @@ function createApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/tools', toolsRoutes);
+  app.use('/api/browser-tests', browserTestRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/macro', macroRoutes);
   app.use('/api/ingestion', ingestionRoutes);

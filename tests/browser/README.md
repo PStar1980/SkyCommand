@@ -6,9 +6,9 @@ Operational browser automations are intentionally separate and will live under t
 
 ## Phase 1 scope
 
-Phase 1 establishes a browser-test runner that is independent of the future SkyCommand Browser
-Tests UI and database registry. Tests can therefore validate SkyCommand even when the browser
-registry is unavailable.
+Phase 1 established a browser-test runner that remains independent of the SkyCommand Browser
+Tests UI and database registry. Even after the Phase 3 registry is enabled, native Playwright
+commands can therefore validate SkyCommand when the registry or API is unavailable.
 
 The initial smoke test verifies the Start Workflow **Initialize** interaction without starting a
 workflow or producing external side effects.
@@ -75,3 +75,29 @@ The container targets `SKYCOMMAND_BROWSER_DOCKER_BASE_URL` (default `http://web:
 host `localhost`, writes artifacts back into the canonical host repository, executes only approved
 spec paths beneath `tests/browser/specs/`, and defaults to one concurrent browser activity with zero
 Temporal retries.
+
+## Phase 3 Browser Test Registry
+
+Browser Test source remains in this directory, while registration metadata now lives in PostgreSQL.
+The registry stores the source path, category, browser/environment policy, timeout/retry settings,
+permission/risk metadata, and runtime parameter definitions. Source code is never stored in the
+database.
+
+Registered test parameters are supplied to Playwright as one JSON object through:
+
+```text
+SKYCOMMAND_BROWSER_TEST_PARAMETERS
+```
+
+Specs can consume the values with `helpers/browserTestParameters.js`. The original host-native
+environment variables remain valid as local-authoring fallbacks.
+
+After applying migrations/seeds and rebuilding the backend, the end-to-end registry proof is:
+
+```powershell
+npm run browser:registry:smoke
+```
+
+That proof resolves `workflow-initialization-e2e` from PostgreSQL, normalizes its registered
+parameters/environment, starts the dedicated Temporal Browser Worker execution, and waits for the
+Playwright result.

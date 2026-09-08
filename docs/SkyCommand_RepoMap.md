@@ -175,6 +175,7 @@ SkyCommand/
 │   │       ├── controllers/
 │   │       │   ├── adminController.js
 │   │       │   ├── authController.js
+│   │       │   ├── browserTestController.js
 │   │       │   ├── infrastructureController.js
 │   │       │   ├── ingestionController.js
 │   │       │   ├── macroController.js
@@ -192,6 +193,7 @@ SkyCommand/
 │   │       ├── routes/
 │   │       │   ├── admin.routes.js
 │   │       │   ├── auth.routes.js
+│   │       │   ├── browserTest.routes.js
 │   │       │   ├── infrastructure.routes.js
 │   │       │   ├── ingestion.routes.js
 │   │       │   ├── macro.routes.js
@@ -209,6 +211,7 @@ SkyCommand/
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
+│   │       │   ├── browserTestRegistryService.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
 │   │       │   ├── infrastructureService.js
@@ -411,7 +414,8 @@ SkyCommand/
 │   │       │   ├── 00109__workflow_run_category_projection.sql
 │   │       │   ├── 00110__workflow_approval_category_projection.sql
 │   │       │   ├── 00111__local_dev_pull_tool.sql
-│   │       │   └── 00112__tool_parameter_cli_binding.sql
+│   │       │   ├── 00112__tool_parameter_cli_binding.sql
+│   │       │   └── 00113__browser_test_registry_foundation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -457,7 +461,8 @@ SkyCommand/
 │   │           ├── 00091__ingestion_recovery_foundation_seed.sql
 │   │           ├── 00092__production_ingestion_recovery_integration.sql
 │   │           ├── 00093__workflow_ingestion_recovery_parameters.sql
-│   │           └── 00108__workflow_category_seed.sql
+│   │           ├── 00108__workflow_category_seed.sql
+│   │           └── 00114__browser_test_registry_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -652,6 +657,7 @@ SkyCommand/
 ├── scripts/
 │   ├── validate.js
 │   ├── browser/
+│   │   ├── browserRegistrySmoke.js
 │   │   └── browserWorkerSmoke.js
 │   ├── db/
 │   │   ├── workflowCategoryFoundation.js
@@ -858,6 +864,7 @@ SkyCommand/
     │   ├── fixtures/
     │   │   └── .gitkeep
     │   ├── helpers/
+    │   │   ├── browserTestParameters.js
     │   │   └── skyCommandAuth.js
     │   ├── pages/
     │   │   └── .gitkeep
@@ -920,6 +927,7 @@ SkyCommand/
         │       └── src/
         │           └── services/
         │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── browserTestRegistrySelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js
         │               ├── infrastructureServiceSelfTest.js

@@ -34,6 +34,7 @@ const routineSelfTests = [
   'repository-artifact-config:self-test',
   'runtime-path-resolver:self-test',
   'browser-runner:self-test',
+  'browser-registry:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',
   'git-branch-sync:self-test',
