@@ -261,37 +261,9 @@ SkyCommand/
 │   └── browser/
 │       └── tests/
 │           ├── report/
-│           │   ├── index.html
-│           │   ├── data/
-│           │   │   ├── 2a918135d67c70aeedf16aca0e31e2b30acc4c44.webm
-│           │   │   ├── 55aba9322430985879d1f9b3b5d4837f811de564.png
-│           │   │   └── b12f93eec349cee8542d3a3832856661b1d29dbb.md
-│           │   └── trace/
-│           │       ├── codeMirrorModule.DYBRYzYX.css
-│           │       ├── codicon.DCmgc-ay.ttf
-│           │       ├── defaultSettingsView.BDKsFU3c.css
-│           │       ├── index.BCnMPevh.js
-│           │       ├── index.CzXZzn5A.css
-│           │       ├── index.html
-│           │       ├── manifest.webmanifest
-│           │       ├── playwright-logo.svg
-│           │       ├── snapshot.html
-│           │       ├── snapshot.v8KI4P3m.js
-│           │       ├── sw.bundle.js
-│           │       ├── uiMode.Btcz36p_.css
-│           │       ├── uiMode.C2Efnu2P.js
-│           │       ├── uiMode.html
-│           │       ├── xtermModule.DYP7pi_n.css
-│           │       └── assets/
-│           │           ├── codeMirrorModule-Ds_H_9Yq.js
-│           │           ├── defaultSettingsView-D31xz8zv.js
-│           │           └── urlMatch-BYQrIQwR.js
+│           │   └── index.html
 │           └── results/
-│               ├── .last-run.json
-│               └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
-│                   ├── error-context.md
-│                   ├── test-failed-1.png
-│                   └── video.webm
+│               └── .last-run.json
 ├── docker/
 │   ├── api.Dockerfile
 │   ├── api.package.json
