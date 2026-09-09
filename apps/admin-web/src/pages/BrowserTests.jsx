@@ -6,7 +6,7 @@ import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import browserTestService from '../services/browserTestService.js';
 
-const TERMINAL_RUN_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
+const TERMINAL_RUN_STATUSES = new Set(['PASSED', 'COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
 const DEFAULT_RUN_FILTERS = { q: '', categoryCode: '', environmentCode: '', browserType: '' };
 const DEFAULT_OPERATIONS_FILTERS = { q: '', categoryCode: '', environmentCode: '', status: '' };
 const DEFAULT_MANAGE_FILTERS = { q: '', categoryCode: '', riskCode: '', enabled: '' };
@@ -321,37 +321,131 @@ function BrowserRuntimeParameterFields({ disabled = false, parameters = [], valu
   );
 }
 
+function formatArtifactSize(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value < 0) return '—';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function artifactActionLabel(artifact) {
+  const kind = String(artifact?.kind || '').toUpperCase();
+  if (kind === 'TRACE') return 'Download Trace';
+  if (kind === 'SCREENSHOT') return 'Open Screenshot';
+  if (kind === 'VIDEO') return 'Open Video';
+  if (kind === 'REPORT') return 'Download Report';
+  return 'Open Artifact';
+}
+
 function BrowserRunStatusPanel({ run, workflowId }) {
   if (!workflowId) return null;
   const status = run?.status || 'STARTED';
   const result = run?.result || null;
+  const testCases = result?.testCases || null;
+  const assertions = result?.assertions || null;
+  const parameters = run?.parameters && typeof run.parameters === 'object' ? Object.entries(run.parameters) : [];
+  const artifacts = Array.isArray(run?.artifacts) ? run.artifacts : [];
+  const linkedWorkflowIds = Array.isArray(run?.linkedWorkflowIds) ? run.linkedWorkflowIds : [];
+  const failure = run?.failure || result?.failure || null;
+  const sourceCommit = run?.sourceCommit || result?.sourceCommit || null;
 
   return (
     <Panel
-      actions={<StatusPill status={status} />}
+      actions={<><StatusPill status={status} />{run?.temporalStatus && <span className="sky-pill sky-pill-info">Temporal {String(run.temporalStatus).toUpperCase()}</span>}</>}
       className="mt-3"
-      kicker="LIVE EXECUTION"
-      subtitle="Temporal-backed Browser Worker execution state."
-      title="Browser Test Run"
+      kicker="EXECUTION DETAIL"
+      subtitle="Durable Playwright Test result, input snapshot, source lineage, and browser evidence."
+      title={run?.testLabel || 'Browser Test Run'}
     >
       <div className="sky-card-body">
         <div className="table-responsive sky-canonical-operations-table-frame">
           <table className="table table-sm align-middle sky-table sky-canonical-operations-table mb-0">
             <tbody>
+              <tr><th>Test</th><td>{run?.testLabel || run?.testCode || '—'}{run?.testCode && <div className="small sky-muted sky-mono">{run.testCode}</div>}</td></tr>
               <tr><th>Workflow ID</th><td className="sky-mono">{workflowId}</td></tr>
               <tr><th>Run ID</th><td className="sky-mono">{run?.runId || '—'}</td></tr>
-              <tr><th>Status</th><td><StatusPill status={status} /></td></tr>
+              <tr><th>Test status</th><td><StatusPill status={status} /></td></tr>
+              <tr><th>Temporal status</th><td><StatusPill status={run?.temporalStatus || 'UNKNOWN'} /></td></tr>
+              <tr><th>Environment / Browser</th><td>{run?.environmentCode || '—'} · <span className="text-uppercase">{run?.browserType || 'chromium'}</span></td></tr>
+              <tr><th>Triggered by</th><td>{run?.initiatedBy || '—'}{run?.triggerSource && <span className="small sky-muted"> · {run.triggerSource}</span>}</td></tr>
               <tr><th>Started</th><td>{formatDateTime(run?.startTime)}</td></tr>
               <tr><th>Completed</th><td>{formatDateTime(run?.closeTime)}</td></tr>
               <tr><th>Duration</th><td>{formatDuration(getRunDuration(run))}</td></tr>
+              <tr><th>Source revision</th><td>{run?.sourceRepositoryCode || '—'}{sourceCommit ? <span className="sky-mono" title={sourceCommit}> · {sourceCommit.slice(0, 12)}</span> : <span className="sky-muted"> · SHA unavailable</span>}</td></tr>
             </tbody>
           </table>
         </div>
 
+        {parameters.length > 0 && (
+          <div className="mt-3">
+            <div className="sky-page-kicker mb-2">Input Snapshot</div>
+            <div className="table-responsive sky-canonical-operations-table-frame">
+              <table className="table table-sm align-middle sky-table sky-canonical-operations-table mb-0">
+                <thead><tr><th>Parameter</th><th>Effective Value</th></tr></thead>
+                <tbody>{parameters.map(([name, value]) => <tr key={name}><td className="sky-mono">{name}</td><td>{typeof value === 'object' ? <code>{JSON.stringify(value)}</code> : String(value)}</td></tr>)}</tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {result && (
           <div className="mt-3">
-            <div className="sky-page-kicker mb-2">Runner result</div>
-            <pre className="sky-code-block mb-0">{JSON.stringify(result, null, 2)}</pre>
+            <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+              <div className="sky-page-kicker">Structured Test Result</div>
+              <div className="d-flex flex-wrap gap-2">
+                {testCases && <span className="sky-pill sky-pill-info">{testCases.total ?? 0} test case(s)</span>}
+                {testCases && <span className="sky-pill sky-pill-success">{testCases.passed ?? 0} case(s) passed</span>}
+                {testCases?.failed > 0 && <span className="sky-pill sky-pill-danger">{testCases.failed} case(s) failed</span>}
+                {assertions && <span className="sky-pill sky-pill-info">{assertions.total ?? 0} assertion(s)</span>}
+                {assertions?.failed > 0 && <span className="sky-pill sky-pill-danger">{assertions.failed} assertion(s) failed</span>}
+              </div>
+            </div>
+            <div className="table-responsive sky-canonical-operations-table-frame">
+              <table className="table table-sm align-middle sky-table sky-canonical-operations-table mb-0">
+                <tbody>
+                  <tr><th>Contract</th><td className="sky-mono">{result.contract || 'browser_test_summary.v1'}</td></tr>
+                  <tr><th>Outcome</th><td><StatusPill status={result.status || status} /></td></tr>
+                  <tr><th>Playwright exit code</th><td>{result.exitCode ?? '—'}</td></tr>
+                  <tr><th>Timeout</th><td>{result.timedOut ? 'Yes' : 'No'}{result.timeoutMs ? ` · ${formatDuration(result.timeoutMs)}` : ''}</td></tr>
+                  <tr><th>Artifacts</th><td>{run?.artifactCount ?? artifacts.length}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {failure && (
+          <div className="mt-3">
+            <div className="sky-page-kicker mb-2">Failure Evidence</div>
+            <div className="row g-3">
+              <div className="col-xl-6"><div className="sky-workflow-node-recovery-panel h-100">
+                <div className="sky-detail-label">Error</div>
+                <div className="sky-detail-value">{failure.message || 'Playwright Test failed.'}</div>
+                {failure.title && <><div className="sky-detail-label mt-2">Test</div><div className="sky-detail-value">{failure.title}</div></>}
+                {failure.location?.file && <><div className="sky-detail-label mt-2">Location</div><div className="sky-detail-value sky-mono">{failure.location.file}:{failure.location.line || '?'}</div></>}
+              </div></div>
+              {(failure.snippet || failure.stack) && <div className="col-xl-6"><div className="sky-workflow-node-recovery-panel h-100"><div className="sky-detail-label">Diagnostic</div><pre className="sky-code-block mb-0">{failure.snippet || failure.stack}</pre></div></div>}
+            </div>
+          </div>
+        )}
+
+        {artifacts.length > 0 && (
+          <div className="mt-3">
+            <div className="sky-page-kicker mb-2">Browser Evidence</div>
+            <div className="table-responsive sky-canonical-operations-table-frame">
+              <table className="table table-sm align-middle sky-table sky-canonical-operations-table mb-0">
+                <thead><tr><th>Type</th><th>Artifact</th><th>Size</th><th className="text-end">Actions</th></tr></thead>
+                <tbody>{artifacts.map((artifact) => <tr key={artifact.artifactId || artifact.relativePath}><td><span className="sky-pill sky-pill-info">{artifact.kind}</span></td><td><div className="fw-semibold">{artifact.name}</div><div className="small sky-muted sky-mono">{artifact.relativePath}</div></td><td>{formatArtifactSize(artifact.sizeBytes)}</td><td className="text-end">{artifact.url ? <a className="btn btn-sm sky-btn-ghost" href={artifact.url} rel="noreferrer" target="_blank">{artifactActionLabel(artifact)}</a> : '—'}</td></tr>)}</tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {linkedWorkflowIds.length > 0 && (
+          <div className="mt-3">
+            <div className="sky-page-kicker mb-2">Linked Executions</div>
+            <div className="d-flex flex-wrap gap-2">{linkedWorkflowIds.map((runId) => <a className="btn btn-sm sky-btn-ghost" href={`/workflows/history?runId=${encodeURIComponent(runId)}`} key={runId}>Open Workflow Run · {runId.slice(0, 12)}</a>)}</div>
           </div>
         )}
       </div>
@@ -708,6 +802,7 @@ export function BrowserTestOperations() {
       duration: item.durationMs,
       environment: item.environmentCode,
       browser: item.browserType,
+      evidence: item.artifactCount,
     })[field],
   });
 
@@ -768,17 +863,17 @@ export function BrowserTestOperations() {
     <div className="container-fluid px-0">
       <PageHeader
         kicker="PLAYWRIGHT TESTS · OPERATIONS"
-        subtitle="Browse Temporal-backed Playwright Test executions, then inspect the selected Browser Worker result below."
+        subtitle="Browse durable Playwright Test executions recorded by SkyCommand and reconciled with Temporal."
         title="Test Operations"
       />
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
-      <Panel className="sky-table-card sky-table-browser-anchor" kicker="EXECUTION BROWSER" subtitle="Filter the recent Playwright Test execution ledger, then select a run for details." title="Playwright Test Operations">
+      <Panel className="sky-table-card sky-table-browser-anchor" kicker="EXECUTION BROWSER" subtitle="Filter the durable Playwright Test execution ledger, then select a run for structured results and browser evidence." title="Playwright Test Operations">
         <div className="sky-card-body">
           <div className="sky-run-tools-filter-grid sky-browser-test-filter-grid mb-3">
             <div className="sky-run-tools-search-filter"><label className="form-label" htmlFor="browserTestOperationsSearch">Search</label><input className="form-control sky-form-control" id="browserTestOperationsSearch" onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Test, workflow ID, category, status..." type="search" value={filters.q} /></div>
             <div><label className="form-label" htmlFor="browserTestOperationsCategory">Category</label><select className="form-select sky-form-control" id="browserTestOperationsCategory" onChange={(event) => setFilters((current) => ({ ...current, categoryCode: event.target.value }))} value={filters.categoryCode}><option value="">All categories</option>{categories.map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></div>
-            <div><label className="form-label" htmlFor="browserTestOperationsStatus">Status</label><select className="form-select sky-form-control" id="browserTestOperationsStatus" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} value={filters.status}><option value="">All statuses</option><option value="RUNNING">RUNNING</option><option value="COMPLETED">COMPLETED</option><option value="FAILED">FAILED</option><option value="CANCELED">CANCELED</option><option value="TERMINATED">TERMINATED</option><option value="TIMED_OUT">TIMED OUT</option></select></div>
+            <div><label className="form-label" htmlFor="browserTestOperationsStatus">Status</label><select className="form-select sky-form-control" id="browserTestOperationsStatus" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} value={filters.status}><option value="">All statuses</option><option value="RUNNING">RUNNING</option><option value="PASSED">PASSED</option><option value="FAILED">FAILED</option><option value="CANCELED">CANCELED</option><option value="TERMINATED">TERMINATED</option><option value="TIMED_OUT">TIMED OUT</option></select></div>
             <div><label className="form-label" htmlFor="browserTestOperationsEnvironment">Environment</label><select className="form-select sky-form-control" id="browserTestOperationsEnvironment" onChange={(event) => setFilters((current) => ({ ...current, environmentCode: event.target.value }))} value={filters.environmentCode}><option value="">All environments</option>{environments.map((code) => <option key={code} value={code}>{code}</option>)}</select></div>
             <div className="sky-run-tools-filter-actions">
               {table.sortingCustomized && <button className="btn btn-sm sky-btn-ghost" onClick={table.clearSorting} type="button">Clear sorting</button>}
@@ -788,9 +883,9 @@ export function BrowserTestOperations() {
 
           <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
             <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle">
-              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /><BrowserSortableHeader field="started" label="Started" table={table} /><BrowserSortableHeader field="duration" label="Duration" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="browser" label="Browser" table={table} /><th className="text-end">Actions</th></tr></thead>
+              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /><BrowserSortableHeader field="started" label="Started" table={table} /><BrowserSortableHeader field="duration" label="Duration" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="browser" label="Browser" table={table} /><BrowserSortableHeader field="evidence" label="Evidence" table={table} /><th className="text-end">Actions</th></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={8}><div className="sky-empty-state">Loading Playwright Test executions...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={8}><div className="sky-empty-state">No Playwright Test executions match the current filters.</div></td></tr> : table.pageItems.map((item) => (
+                {loading ? <tr><td colSpan={9}><div className="sky-empty-state">Loading Playwright Test executions...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={9}><div className="sky-empty-state">No Playwright Test executions match the current filters.</div></td></tr> : table.pageItems.map((item) => (
                   <tr className={`sky-clickable-row ${selectedWorkflowId === item.workflowId ? 'sky-selected-row' : ''}`} key={item.workflowId} onClick={() => selectRun(item)}>
                     <td><div className="fw-bold sky-detail-value">{item.testLabel}</div><div className="small sky-muted sky-mono">{item.testCode}</div></td>
                     <td>{item.categoryLabel || 'Uncategorized'}</td>
@@ -799,6 +894,7 @@ export function BrowserTestOperations() {
                     <td>{formatDuration(item.durationMs)}</td>
                     <td>{item.environmentCode || '—'}</td>
                     <td className="text-uppercase">{item.browserType || 'chromium'}</td>
+                    <td>{item.artifactCount || 0}</td>
                     <td className="text-end"><button className="btn btn-sm sky-btn-ghost" disabled={detailLoading} onClick={(event) => { event.stopPropagation(); selectRun(item, { scroll: true }); }} type="button">Run Details</button></td>
                   </tr>
                 ))}

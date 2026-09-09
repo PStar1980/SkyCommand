@@ -269,6 +269,70 @@ SkyCommand/
 ├── artifacts/
 │   └── browser/
 │       └── tests/
+│           ├── 0209d86f-1443-41e3-ad84-62f1220fdf68/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   └── index.html
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── .playwright-artifacts-0/
+│           │           └── traces/
+│           │               └── resources/
+│           │                   ├── 0450a145366a3d68187a15630a4347764baf054b.json
+│           │                   ├── 0a0120f37c763f767599aaa4ba9f704af26419e9.json
+│           │                   ├── 1353b6958faa7d833d1492c98566e714f8540ecd.json
+│           │                   ├── 219c137d994a4f9e93acf5e25a038ba4352d7a48.json
+│           │                   ├── 3626ab79deee7998a744e27e9b8a31f2c7272cb0.png
+│           │                   ├── 3faab62a7125623f01758521440ea664e20e227c.json
+│           │                   ├── 42e86388f373be553c1a59742b5a326c9aa33705.json
+│           │                   ├── 48211149ffab99312ec0dda057d2e96f15d8c8e7.json
+│           │                   ├── 53565281339a9822492ab2fef5db8289e0cc782e.json
+│           │                   ├── 59b16f282ec8be4b6f6d4feff660f72c221fe36e.json
+│           │                   ├── 5bddb87f2573bca1db0bf96a497ef60a94362ac7.css
+│           │                   ├── 6660a86b48de4a9ad9ca1d246d4732a69173a3b6.json
+│           │                   ├── 6fd0f0ca46886e33902862da955fbc8817e7cfe9.json
+│           │                   ├── 76d943cb96b26604d075baed61fcd90fc1f173a0.json
+│           │                   ├── 87e97e66ca2d8c9c5f10a93c919d69f638cae4c1.json
+│           │                   ├── 96a0117ee9005ab15434f0f936f8c3ea349d967e.png
+│           │                   ├── 994592fdac07beb7feb0ebd6b9efdb94104eae2a.json
+│           │                   ├── 998ce898aa818763286a66fd5fd7b31b61cd557e.json
+│           │                   ├── ac3bf7253e1eacf53860ecb78d4aa5412c611df6.png
+│           │                   ├── b97d90e98041bd30da46c83659e4d80f36a42918.json
+│           │                   ├── be19f552b4df89f64807c8cda746cdf069dab637.json
+│           │                   ├── c5d1a2aa31758ad0450758d6916ce36f0a04ead6.json
+│           │                   ├── ebb624ceceb45d4c47de178db9c8754c0c15bd9e.html
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931059.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931326.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931349.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931369.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931391.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931414.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931438.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931461.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931484.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931506.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931528.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931551.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931572.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931594.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931615.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931637.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931773.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931906.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919931975.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932089.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932148.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932161.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932223.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932234.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932267.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932325.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932431.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932449.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932545.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932553.jpeg
+│           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932573.jpeg
+│           │                   └── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932668.jpeg
 │           ├── report/
 │           │   └── index.html
 │           └── results/
@@ -467,7 +531,8 @@ SkyCommand/
 │   │       │   ├── 00110__workflow_approval_category_projection.sql
 │   │       │   ├── 00111__local_dev_pull_tool.sql
 │   │       │   ├── 00112__tool_parameter_cli_binding.sql
-│   │       │   └── 00113__browser_test_registry_foundation.sql
+│   │       │   ├── 00113__browser_test_registry_foundation.sql
+│   │       │   └── 00115__browser_test_observability.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -917,9 +982,12 @@ SkyCommand/
     │   │   └── .gitkeep
     │   ├── helpers/
     │   │   ├── browserTestParameters.js
-    │   │   └── skyCommandAuth.js
+    │   │   ├── skyCommandAuth.js
+    │   │   └── skyCommandLinks.js
     │   ├── pages/
     │   │   └── .gitkeep
+    │   ├── reporters/
+    │   │   └── skyCommandReporter.js
     │   └── specs/
     │       ├── access/
     │       │   └── .gitkeep
@@ -980,6 +1048,7 @@ SkyCommand/
         │       └── src/
         │           └── services/
         │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── browserTestObservabilitySelfTest.js
         │               ├── browserTestRegistrySelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js

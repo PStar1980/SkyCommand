@@ -55,7 +55,14 @@ artifacts/browser/tests/
 ```
 
 Playwright traces, screenshots, videos, and HTML reports are generated there and are excluded from
-Git. Structured SkyCommand browser-run records and per-run artifact indexing are future phases.
+Git. Phase 5 assigns each registered execution its own artifact directory beneath this root, persists a
+durable `worker.browser_test_runs` ledger, indexes browser evidence in
+`worker.browser_test_artifacts`, and records the source Git SHA used for the run.
+
+Registered executions also write `skycommand-summary.json` using the
+`browser_test_summary.v1` contract. Tests that launch a SkyCommand workflow can attach the resulting
+workflow run to Browser Test Operations with `helpers/skyCommandLinks.js`; the operations UI then
+provides direct navigation to Workflow Operations.
 
 ## Phase 2 dedicated Browser Worker
 

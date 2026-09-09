@@ -1,9 +1,11 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { Connection, Client } = require('@temporalio/client');
 
 const { pool, query } = require('../../../../packages/db/src/connection');
 const { getBrowserRuntimeConfig } = require('../../../../packages/browser/src/config');
+const { resolveGitHeadSha } = require('../../../../packages/browser/src/browserTestRunner');
 
 const TEST_CODE_PATTERN = /^[a-z][a-z0-9_-]*$/;
 const PARAMETER_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
@@ -995,116 +997,340 @@ function parseBrowserTestCodeFromWorkflowId(workflowId) {
   return match?.[1] || null;
 }
 
-function browserRunMemo(info = {}) {
-  const memo = info.memo || info.raw?.memo || {};
-  if (!memo || typeof memo !== 'object') return {};
-  const candidate = memo.skycommandBrowserTest || memo.browserTest || memo.browser_test || {};
-  return candidate && typeof candidate === 'object' ? candidate : {};
+function temporalStatusName(status) {
+  if (!status) return 'UNKNOWN';
+  if (typeof status === 'string') return status.toUpperCase();
+  if (status.name) return String(status.name).toUpperCase();
+  const map = { 1: 'RUNNING', 2: 'COMPLETED', 3: 'FAILED', 4: 'CANCELED', 5: 'TERMINATED', 6: 'CONTINUED_AS_NEW', 7: 'TIMED_OUT' };
+  return map[status] || String(status).toUpperCase();
 }
 
-async function listBrowserTestRuns(filters = {}) {
+function operatorStatusFromTemporal(temporalStatus) {
+  const normalized = temporalStatusName(temporalStatus);
+  if (normalized === 'COMPLETED') return 'PASSED';
+  if (['FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT'].includes(normalized)) return normalized;
+  if (normalized === 'RUNNING') return 'RUNNING';
+  return 'STARTED';
+}
+
+function normalizeActor(actor = null) {
+  if (!actor || typeof actor !== 'object') return { userId: null, label: null };
+  const userId = actor.userId || actor.user_id || actor.id || null;
+  return {
+    userId: userId && UUID_PATTERN.test(String(userId)) ? String(userId) : null,
+    label: normalizeText(actor.displayName || actor.display_name || actor.username || actor.email || userId) || null,
+  };
+}
+
+function cleanResultSummary(result) {
+  if (!result || typeof result !== 'object') return null;
+  const clone = { ...result };
+  delete clone.stdout;
+  delete clone.stderr;
+  delete clone.artifacts;
+  return clone;
+}
+
+function sanitizeRunRow(row, artifacts = []) {
+  if (!row) return null;
+  return {
+    browserTestRunId: row.browser_test_run_id,
+    executionId: row.execution_id,
+    testId: row.test_id,
+    testCode: row.test_code,
+    testLabel: row.test_label,
+    categoryCode: row.category_code || null,
+    categoryLabel: row.category_label || 'Uncategorized',
+    workflowId: row.temporal_workflow_id,
+    runId: row.temporal_run_id || null,
+    temporalStatus: row.temporal_status || 'UNKNOWN',
+    status: row.status || 'STARTED',
+    triggerSource: row.trigger_source || 'MANUAL',
+    initiatedBy: row.initiated_by || row.initiated_by_label || null,
+    environmentCode: row.environment_code || null,
+    browserType: row.browser_type || 'chromium',
+    parameters: row.parameters || {},
+    sourceRepositoryCode: row.source_repo_code || null,
+    sourceCommit: row.source_commit_sha || null,
+    artifactRoot: row.artifact_root || null,
+    result: row.result_summary || null,
+    failure: row.failure_summary || null,
+    linkedWorkflowIds: Array.isArray(row.linked_workflow_ids) ? row.linked_workflow_ids : [],
+    startTime: row.started_at || row.created_at || null,
+    closeTime: row.completed_at || null,
+    durationMs: row.duration_ms === null || row.duration_ms === undefined ? null : Number(row.duration_ms),
+    artifactCount: Number(row.artifact_count || artifacts.length || 0),
+    artifacts,
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+function sanitizeArtifactRow(row, workflowId = null) {
+  return {
+    artifactId: row.artifact_id,
+    kind: row.artifact_kind,
+    name: row.artifact_name,
+    relativePath: row.relative_path,
+    contentType: row.content_type || null,
+    sizeBytes: row.size_bytes === null || row.size_bytes === undefined ? null : Number(row.size_bytes),
+    createdAt: row.created_at || null,
+    url: workflowId
+      ? `/api/browser-tests/runs/${encodeURIComponent(workflowId)}/artifacts/${encodeURIComponent(row.artifact_id)}`
+      : null,
+  };
+}
+
+function relativeArtifactRoot(runtimeConfig, executionId) {
+  const sourceRoot = path.resolve(runtimeConfig.sourceRepositoryRoot || process.cwd());
+  const runRoot = path.resolve(runtimeConfig.artifactRoot, executionId);
+  if (runRoot !== sourceRoot && !runRoot.startsWith(`${sourceRoot}${path.sep}`)) return null;
+  return path.relative(sourceRoot, runRoot).replace(/\\/g, '/');
+}
+
+function loadRunSummaryFromDisk(row) {
+  if (!row?.artifact_root) return null;
+  const runtimeConfig = getBrowserRuntimeConfig();
+  const sourceRoot = path.resolve(runtimeConfig.sourceRepositoryRoot || process.cwd());
+  const runRoot = path.resolve(sourceRoot, row.artifact_root);
+  if (runRoot !== sourceRoot && !runRoot.startsWith(`${sourceRoot}${path.sep}`)) return null;
+  const summaryPath = path.join(runRoot, 'skycommand-summary.json');
+  try {
+    if (!fs.existsSync(summaryPath)) return null;
+    const parsed = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function replaceRunArtifacts(client, browserTestRunId, artifacts = []) {
+  await client.query('DELETE FROM worker.browser_test_artifacts WHERE browser_test_run_id = $1', [browserTestRunId]);
+  for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
+    const relativePath = normalizeText(artifact.relativePath).replace(/\\/g, '/');
+    if (!relativePath || relativePath.includes('../') || relativePath.startsWith('/')) continue;
+    const kind = normalizeText(artifact.kind, 'ATTACHMENT').toUpperCase();
+    const allowedKinds = new Set(['TRACE', 'SCREENSHOT', 'VIDEO', 'REPORT', 'ATTACHMENT', 'DOWNLOAD']);
+    await client.query(
+      `INSERT INTO worker.browser_test_artifacts (
+         browser_test_run_id, artifact_kind, artifact_name, relative_path, content_type, size_bytes
+       ) VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (browser_test_run_id, relative_path)
+       DO UPDATE SET artifact_kind = EXCLUDED.artifact_kind,
+                     artifact_name = EXCLUDED.artifact_name,
+                     content_type = EXCLUDED.content_type,
+                     size_bytes = EXCLUDED.size_bytes`,
+      [
+        browserTestRunId,
+        allowedKinds.has(kind) ? kind : 'ATTACHMENT',
+        normalizeText(artifact.name) || path.basename(relativePath),
+        relativePath,
+        normalizeOptionalText(artifact.contentType),
+        Number.isFinite(Number(artifact.sizeBytes)) ? Number(artifact.sizeBytes) : null,
+      ],
+    );
+  }
+}
+
+async function persistObservedRun(row, { temporalStatus, description = null, result = null, temporalError = null } = {}) {
+  const diskSummary = loadRunSummaryFromDisk(row);
+  const effectiveResult = result || diskSummary || null;
+  const normalizedTemporalStatus = temporalStatusName(temporalStatus || row.temporal_status);
+  const operatorStatus = effectiveResult?.status
+    ? String(effectiveResult.status).toUpperCase()
+    : operatorStatusFromTemporal(normalizedTemporalStatus);
+  const startedAt = description?.startTime || effectiveResult?.startedAt || row.started_at || row.created_at;
+  const completedAt = description?.closeTime || effectiveResult?.completedAt || row.completed_at || null;
+  const durationMs = effectiveResult?.durationMs !== undefined && effectiveResult?.durationMs !== null
+    ? Number(effectiveResult.durationMs)
+    : startedAt && completedAt
+      ? Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime())
+      : row.duration_ms;
+  const failure = effectiveResult?.failure || (temporalError
+    ? { message: temporalError.message || String(temporalError), stack: temporalError.stack || null }
+    : row.failure_summary);
+  const sourceCommit = effectiveResult?.sourceCommit || row.source_commit_sha || null;
+  const artifactRoot = effectiveResult?.artifactRoot || row.artifact_root || null;
+  const linkedWorkflowIds = Array.isArray(effectiveResult?.linkedWorkflowIds)
+    ? effectiveResult.linkedWorkflowIds
+    : Array.isArray(row.linked_workflow_ids) ? row.linked_workflow_ids : [];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE worker.browser_test_runs
+       SET temporal_run_id = COALESCE($2, temporal_run_id),
+           temporal_status = $3,
+           status = $4,
+           source_commit_sha = COALESCE($5, source_commit_sha),
+           artifact_root = COALESCE($6, artifact_root),
+           result_summary = COALESCE($7::jsonb, result_summary),
+           failure_summary = $8::jsonb,
+           linked_workflow_ids = $9::jsonb,
+           started_at = COALESCE($10, started_at),
+           completed_at = COALESCE($11, completed_at),
+           duration_ms = COALESCE($12, duration_ms)
+       WHERE browser_test_run_id = $1`,
+      [
+        row.browser_test_run_id,
+        description?.runId || description?.execution?.runId || null,
+        normalizedTemporalStatus,
+        ['PASSED','FAILED','CANCELED','TERMINATED','TIMED_OUT','RUNNING','STARTED'].includes(operatorStatus) ? operatorStatus : 'FAILED',
+        sourceCommit,
+        artifactRoot,
+        cleanResultSummary(effectiveResult) ? JSON.stringify(cleanResultSummary(effectiveResult)) : null,
+        failure ? JSON.stringify(failure) : null,
+        JSON.stringify(linkedWorkflowIds),
+        startedAt || null,
+        completedAt || null,
+        Number.isFinite(Number(durationMs)) ? Number(durationMs) : null,
+      ],
+    );
+    if (effectiveResult?.artifacts) {
+      await replaceRunArtifacts(client, row.browser_test_run_id, effectiveResult.artifacts);
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function getLedgerRowByWorkflowId(workflowId) {
+  const result = await query(
+    `SELECT * FROM worker.vw_browser_test_runs WHERE temporal_workflow_id = $1 LIMIT 1`,
+    [workflowId],
+  );
+  return result.rows[0] || null;
+}
+
+async function loadArtifactsForRun(browserTestRunId, workflowId) {
+  const result = await query(
+    `SELECT * FROM worker.browser_test_artifacts
+     WHERE browser_test_run_id = $1
+     ORDER BY CASE artifact_kind WHEN 'TRACE' THEN 1 WHEN 'SCREENSHOT' THEN 2 WHEN 'VIDEO' THEN 3 WHEN 'REPORT' THEN 4 ELSE 5 END,
+              created_at, artifact_name`,
+    [browserTestRunId],
+  );
+  return result.rows.map((row) => sanitizeArtifactRow(row, workflowId));
+}
+
+async function backfillLegacyTemporalRuns(scanLimit = 200) {
   const runtimeConfig = getBrowserRuntimeConfig();
   const connection = await Connection.connect({ address: runtimeConfig.temporalAddress });
   const client = new Client({ connection, namespace: runtimeConfig.temporalNamespace });
-  const maxVisible = normalizeInteger(filters.scanLimit, 500, 'scanLimit', 1, 2000);
   const visible = [];
-
   try {
     for await (const info of client.workflow.list({
       query: 'WorkflowType="browserExecutionWorkflow"',
-      pageSize: Math.min(maxVisible, 100),
+      pageSize: Math.min(scanLimit, 100),
     })) {
       const workflowId = info.workflowId || info.execution?.workflowId || '';
       if (!workflowId.startsWith('skycommand-browser-test-')) continue;
-      const memo = browserRunMemo(info);
-      visible.push({
-        workflowId,
-        runId: info.runId || info.execution?.runId || null,
-        status: temporalStatusName(info.status),
-        startTime: info.startTime || null,
-        closeTime: info.closeTime || null,
-        testCode: normalizeText(memo.testCode) || parseBrowserTestCodeFromWorkflowId(workflowId),
-        environmentCode: normalizeText(memo.environmentCode).toUpperCase() || null,
-      });
-      if (visible.length >= maxVisible) break;
+      visible.push(info);
+      if (visible.length >= scanLimit) break;
     }
   } finally {
     await connection.close();
   }
+  if (!visible.length) return;
 
-  const testCodes = [...new Set(visible.map((item) => item.testCode).filter(Boolean))];
-  const metadata = new Map();
-  if (testCodes.length) {
-    const result = await query(
-      `${TEST_SELECT}
-       WHERE bt.test_code = ANY($1::text[])
-       ORDER BY btc.display_order, bt.display_order, bt.label, bt.test_code`,
-      [testCodes],
+  for (const info of visible) {
+    const workflowId = info.workflowId || info.execution?.workflowId || '';
+    const exists = await query('SELECT 1 FROM worker.browser_test_runs WHERE temporal_workflow_id = $1', [workflowId]);
+    if (exists.rows[0]) continue;
+    const testCode = parseBrowserTestCodeFromWorkflowId(workflowId);
+    if (!testCode) continue;
+    const test = await getBrowserTestByCode(testCode).catch(() => null);
+    if (!test) continue;
+    const temporalStatus = temporalStatusName(info.status);
+    const environmentCode = test.defaultEnvironmentCode || 'LOCAL';
+    await query(
+      `INSERT INTO worker.browser_test_runs (
+         execution_id, test_id, test_code, test_label, category_code,
+         temporal_workflow_id, temporal_run_id, temporal_status, status,
+         trigger_source, environment_code, browser_type, parameters,
+         source_repo_code, started_at, completed_at, duration_ms
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'LEGACY',$10,$11,'{}'::jsonb,$12,$13,$14,$15)
+       ON CONFLICT (temporal_workflow_id) DO NOTHING`,
+      [
+        randomUUID(), test.testId, test.testCode, test.label, test.category?.categoryCode || null,
+        workflowId, info.runId || info.execution?.runId || null, temporalStatus,
+        operatorStatusFromTemporal(temporalStatus), environmentCode, test.browserType || 'chromium',
+        test.scriptRepository?.repoCode || null, info.startTime || null, info.closeTime || null,
+        info.startTime && info.closeTime ? Math.max(0, new Date(info.closeTime).getTime() - new Date(info.startTime).getTime()) : null,
+      ],
     );
-    for (const row of result.rows) {
-      const test = sanitizeTestRow(row);
-      metadata.set(test.testCode, test);
-    }
   }
+}
 
-  let items = visible.map((item) => {
-    const test = metadata.get(item.testCode) || null;
-    const startMs = item.startTime ? new Date(item.startTime).getTime() : NaN;
-    const closeMs = item.closeTime ? new Date(item.closeTime).getTime() : NaN;
-    return {
-      ...item,
-      durationMs: Number.isFinite(startMs) && Number.isFinite(closeMs) ? Math.max(0, closeMs - startMs) : null,
-      testLabel: test?.label || item.testCode || 'Unknown Browser Test',
-      categoryCode: test?.category?.categoryCode || null,
-      categoryLabel: test?.category?.label || 'Uncategorized',
-      browserType: test?.browserType || 'chromium',
-      environmentCode: item.environmentCode || test?.defaultEnvironmentCode || null,
-    };
-  });
-
-  const search = normalizeText(filters.search || filters.query || filters.q).toLowerCase();
+async function listBrowserTestRuns(filters = {}) {
+  await backfillLegacyTemporalRuns(normalizeInteger(filters.scanLimit, 200, 'scanLimit', 1, 500)).catch(() => {});
+  const values = [];
+  const clauses = [];
+  const search = normalizeText(filters.search || filters.query || filters.q);
+  if (search) {
+    values.push(`%${search}%`);
+    clauses.push(`(
+      test_label ILIKE $${values.length}
+      OR test_code ILIKE $${values.length}
+      OR temporal_workflow_id ILIKE $${values.length}
+      OR COALESCE(category_label, '') ILIKE $${values.length}
+      OR COALESCE(environment_code, '') ILIKE $${values.length}
+      OR COALESCE(status, '') ILIKE $${values.length}
+    )`);
+  }
   const categoryCode = normalizeText(filters.categoryCode).toLowerCase();
+  if (categoryCode) { values.push(categoryCode); clauses.push(`LOWER(category_code) = $${values.length}`); }
   const environmentCode = normalizeText(filters.environmentCode).toUpperCase();
+  if (environmentCode) { values.push(environmentCode); clauses.push(`environment_code = $${values.length}`); }
   const status = normalizeText(filters.status).toUpperCase();
+  if (status) { values.push(status); clauses.push(`status = $${values.length}`); }
   const testCode = normalizeText(filters.testCode).toLowerCase();
-
-  items = items.filter((item) => {
-    if (categoryCode && String(item.categoryCode || '').toLowerCase() !== categoryCode) return false;
-    if (environmentCode && String(item.environmentCode || '').toUpperCase() !== environmentCode) return false;
-    if (status && String(item.status || '').toUpperCase() !== status) return false;
-    if (testCode && String(item.testCode || '').toLowerCase() !== testCode) return false;
-    if (!search) return true;
-    return [item.testLabel, item.testCode, item.workflowId, item.categoryLabel, item.environmentCode, item.status]
-      .some((value) => String(value || '').toLowerCase().includes(search));
-  });
-
-  items.sort((left, right) => {
-    const leftTime = left.startTime ? new Date(left.startTime).getTime() : 0;
-    const rightTime = right.startTime ? new Date(right.startTime).getTime() : 0;
-    return rightTime - leftTime;
-  });
-
+  if (testCode) { values.push(testCode); clauses.push(`LOWER(test_code) = $${values.length}`); }
   const limit = normalizeInteger(filters.limit, 500, 'limit', 1, 1000);
   const offset = normalizeOffset(filters.offset);
+  values.push(limit, offset);
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const result = await query(
+    `SELECT * FROM worker.vw_browser_test_runs
+     ${where}
+     ORDER BY COALESCE(started_at, created_at) DESC
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values,
+  );
+  const totalResult = await query(
+    `SELECT COUNT(*)::int AS count FROM worker.vw_browser_test_runs ${where}`,
+    values.slice(0, -2),
+  );
+  const rows = [...result.rows];
+  for (let index = 0; index < rows.length; index += 1) {
+    if (!['STARTED', 'RUNNING'].includes(String(rows[index].status || '').toUpperCase())) continue;
+    try {
+      rows[index] = await reconcileBrowserTestRun(rows[index]);
+    } catch (_error) {
+      // Keep the durable ledger row visible even if Temporal is briefly unavailable.
+    }
+  }
   return {
-    items: items.slice(offset, offset + limit),
-    total: items.length,
+    items: rows.map((row) => sanitizeRunRow(row)),
+    total: Number(totalResult.rows[0]?.count || 0),
     limit,
     offset,
   };
 }
 
-async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [] }) {
+async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [], actor = null, triggerSource = 'MANUAL' }) {
   const test = await getBrowserTestByCode(testCode, { includeDisabled: false });
   if (!test) throw createHttpError(404, 'Browser Test not found.');
   if (test.scriptRepository.repoCode !== 'SkyCommand') {
     throw createHttpError(
       409,
       'The current Browser Worker can execute Browser Test source only from the SkyCommand repository.',
-      {
-        code: 'BROWSER_TEST_SOURCE_REPOSITORY_NOT_SUPPORTED',
-        repository: test.scriptRepository.repoCode,
-      },
+      { code: 'BROWSER_TEST_SOURCE_REPOSITORY_NOT_SUPPORTED', repository: test.scriptRepository.repoCode },
     );
   }
   assertExecutionPermission(test, permissions);
@@ -1112,9 +1338,31 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
   const environment = await resolveExecutionEnvironment(test, body.environmentCode);
   const parameters = await resolveBrowserTestParameters(test, body.parameters || {});
   const runtimeConfig = getBrowserRuntimeConfig();
+  const workflowId = buildBrowserWorkflowId(test.testCode);
+  const executionId = randomUUID();
+  const actorInfo = normalizeActor(actor);
+  const sourceCommit = resolveGitHeadSha(runtimeConfig.sourceRepositoryRoot || process.cwd());
+  const artifactRoot = relativeArtifactRoot(runtimeConfig, executionId);
+
+  const ledgerInsert = await query(
+    `INSERT INTO worker.browser_test_runs (
+       execution_id, test_id, test_code, test_label, category_code,
+       temporal_workflow_id, temporal_status, status, trigger_source,
+       initiated_by_user_id, initiated_by_label, environment_code, browser_type,
+       parameters, source_repo_code, source_commit_sha, artifact_root
+     ) VALUES ($1,$2,$3,$4,$5,$6,'STARTED','STARTED',$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15)
+     RETURNING browser_test_run_id`,
+    [
+      executionId, test.testId, test.testCode, test.label, test.category?.categoryCode || null,
+      workflowId, normalizeText(triggerSource, 'MANUAL').toUpperCase(), actorInfo.userId, actorInfo.label,
+      environment.environmentCode, test.browserType, JSON.stringify(parameters), test.scriptRepository.repoCode,
+      sourceCommit, artifactRoot,
+    ],
+  );
+  const browserTestRunId = ledgerInsert.rows[0].browser_test_run_id;
+
   const connection = await Connection.connect({ address: runtimeConfig.temporalAddress });
   const client = new Client({ connection, namespace: runtimeConfig.temporalNamespace });
-  const workflowId = buildBrowserWorkflowId(test.testCode);
   try {
     const handle = await client.workflow.start('browserExecutionWorkflow', {
       taskQueue: runtimeConfig.taskQueue,
@@ -1123,10 +1371,12 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
         skycommandBrowserTest: {
           testCode: test.testCode,
           environmentCode: environment.environmentCode,
+          executionId,
         },
       },
       args: [{
         executionType: 'TEST',
+        executionId,
         testCode: test.testCode,
         testPath: test.scriptPath,
         grep: test.grepPattern,
@@ -1138,28 +1388,68 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
         parameters,
       }],
     });
+    await query(
+      `UPDATE worker.browser_test_runs
+       SET temporal_run_id = $2, temporal_status = 'RUNNING', status = 'RUNNING', started_at = CURRENT_TIMESTAMP
+       WHERE browser_test_run_id = $1`,
+      [browserTestRunId, handle.firstExecutionRunId || null],
+    );
     return {
       test,
       execution: {
+        browserTestRunId,
+        executionId,
         workflowId: handle.workflowId,
         runId: handle.firstExecutionRunId || null,
-        status: 'STARTED',
+        status: 'RUNNING',
         taskQueue: runtimeConfig.taskQueue,
         environmentCode: environment.environmentCode,
         parameters,
+        sourceCommit,
+        artifactRoot,
       },
     };
+  } catch (error) {
+    await query(
+      `UPDATE worker.browser_test_runs
+       SET temporal_status = 'UNKNOWN', status = 'FAILED', completed_at = CURRENT_TIMESTAMP,
+           failure_summary = $2::jsonb
+       WHERE browser_test_run_id = $1`,
+      [browserTestRunId, JSON.stringify({ message: error.message || String(error), stack: error.stack || null })],
+    ).catch(() => {});
+    throw error;
   } finally {
     await connection.close();
   }
 }
 
-function temporalStatusName(status) {
-  if (!status) return 'UNKNOWN';
-  if (typeof status === 'string') return status.toUpperCase();
-  if (status.name) return String(status.name).toUpperCase();
-  const map = { 1: 'RUNNING', 2: 'COMPLETED', 3: 'FAILED', 4: 'CANCELED', 5: 'TERMINATED', 6: 'CONTINUED_AS_NEW', 7: 'TIMED_OUT' };
-  return map[status] || String(status).toUpperCase();
+async function reconcileBrowserTestRun(row) {
+  const temporalStatus = String(row.temporal_status || '').toUpperCase();
+  const alreadyTerminal = ['PASSED','FAILED','CANCELED','TERMINATED','TIMED_OUT'].includes(String(row.status || '').toUpperCase());
+  if (alreadyTerminal && row.result_summary) return row;
+
+  const runtimeConfig = getBrowserRuntimeConfig();
+  const connection = await Connection.connect({ address: runtimeConfig.temporalAddress });
+  const client = new Client({ connection, namespace: runtimeConfig.temporalNamespace });
+  try {
+    const handle = client.workflow.getHandle(row.temporal_workflow_id);
+    const description = await handle.describe();
+    const status = temporalStatusName(description.status);
+    let result = null;
+    let temporalError = null;
+    if (status === 'COMPLETED') {
+      result = await handle.result();
+    } else if (['FAILED','CANCELED','TERMINATED','TIMED_OUT'].includes(status)) {
+      try { await handle.result(); } catch (error) { temporalError = error; }
+    }
+    await persistObservedRun(row, { temporalStatus: status, description, result, temporalError });
+  } catch (error) {
+    if (/not found/i.test(error.message || '')) return row;
+    throw error;
+  } finally {
+    await connection.close();
+  }
+  return getLedgerRowByWorkflowId(row.temporal_workflow_id);
 }
 
 async function getBrowserTestRun(workflowId) {
@@ -1167,29 +1457,46 @@ async function getBrowserTestRun(workflowId) {
   if (!id || !/^skycommand-browser-test-[A-Za-z0-9_-]+$/.test(id)) {
     throw createHttpError(400, 'Invalid Browser Test workflowId.');
   }
-  const runtimeConfig = getBrowserRuntimeConfig();
-  const connection = await Connection.connect({ address: runtimeConfig.temporalAddress });
-  const client = new Client({ connection, namespace: runtimeConfig.temporalNamespace });
-  try {
-    const handle = client.workflow.getHandle(id);
-    const description = await handle.describe();
-    const status = temporalStatusName(description.status);
-    let result = null;
-    if (status === 'COMPLETED') result = await handle.result();
-    return {
-      workflowId: id,
-      runId: description.runId || description.execution?.runId || null,
-      status,
-      startTime: description.startTime || null,
-      closeTime: description.closeTime || null,
-      result,
-    };
-  } catch (error) {
-    if (/not found/i.test(error.message || '')) throw createHttpError(404, 'Browser Test run not found.');
-    throw error;
-  } finally {
-    await connection.close();
+  let row = await getLedgerRowByWorkflowId(id);
+  if (!row) {
+    await backfillLegacyTemporalRuns(250).catch(() => {});
+    row = await getLedgerRowByWorkflowId(id);
   }
+  if (!row) throw createHttpError(404, 'Browser Test run not found.');
+  row = await reconcileBrowserTestRun(row);
+  const artifacts = await loadArtifactsForRun(row.browser_test_run_id, id);
+  return sanitizeRunRow(row, artifacts);
+}
+
+async function getBrowserTestArtifact({ workflowId, artifactId }) {
+  const id = normalizeText(workflowId);
+  if (!id || !/^skycommand-browser-test-[A-Za-z0-9_-]+$/.test(id)) {
+    throw createHttpError(400, 'Invalid Browser Test workflowId.');
+  }
+  const artifactUuid = normalizeUuid(artifactId, 'artifactId');
+  const result = await query(
+    `SELECT r.artifact_root, r.temporal_workflow_id, a.*
+     FROM worker.browser_test_artifacts a
+     JOIN worker.browser_test_runs r ON r.browser_test_run_id = a.browser_test_run_id
+     WHERE r.temporal_workflow_id = $1 AND a.artifact_id = $2
+     LIMIT 1`,
+    [id, artifactUuid],
+  );
+  const row = result.rows[0];
+  if (!row) throw createHttpError(404, 'Browser Test artifact not found.');
+  const runtimeConfig = getBrowserRuntimeConfig();
+  const sourceRoot = path.resolve(runtimeConfig.sourceRepositoryRoot || process.cwd());
+  const runRoot = path.resolve(sourceRoot, row.artifact_root || '');
+  const absolutePath = path.resolve(runRoot, row.relative_path);
+  if (!absolutePath.startsWith(`${runRoot}${path.sep}`) || !fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+    throw createHttpError(404, 'Browser Test artifact file is unavailable.');
+  }
+  return {
+    absolutePath,
+    name: row.artifact_name,
+    contentType: row.content_type || 'application/octet-stream',
+    kind: row.artifact_kind,
+  };
 }
 
 module.exports = {
@@ -1199,6 +1506,7 @@ module.exports = {
   getAdminOptions,
   getBrowserTestByCode,
   getBrowserTestById,
+  getBrowserTestArtifact,
   getBrowserTestRun,
   listBrowserTestRuns,
   listBrowserTests,

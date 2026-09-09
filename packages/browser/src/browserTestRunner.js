@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { spawn } = require('node:child_process');
 
 const MAX_CAPTURE_BYTES = 128 * 1024;
@@ -15,6 +16,10 @@ class BrowserTestExecutionError extends Error {
 
 function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
+}
+
+function normalizeRelativePath(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
 }
 
 function appendBounded(current, chunk, maxBytes = MAX_CAPTURE_BYTES) {
@@ -150,6 +155,97 @@ function serializeBrowserTestParameters(value) {
   return JSON.stringify(value);
 }
 
+function normalizeExecutionId(value) {
+  const normalized = normalizeText(value) || randomUUID();
+  if (!/^[A-Za-z0-9_-]{8,128}$/.test(normalized)) {
+    throw new BrowserTestExecutionError('Browser executionId contains unsupported characters.', {
+      reasonCode: 'SKYCOMMAND_BROWSER_EXECUTION_ID_INVALID',
+    });
+  }
+  return normalized;
+}
+
+function resolveGitHeadSha(repositoryRoot) {
+  try {
+    const gitPath = path.join(repositoryRoot, '.git');
+    if (!fs.existsSync(gitPath)) return null;
+    let gitDirectory = gitPath;
+    if (fs.statSync(gitPath).isFile()) {
+      const pointer = fs.readFileSync(gitPath, 'utf8').trim();
+      const match = pointer.match(/^gitdir:\s*(.+)$/i);
+      if (!match) return null;
+      gitDirectory = path.resolve(repositoryRoot, match[1]);
+    }
+    const head = fs.readFileSync(path.join(gitDirectory, 'HEAD'), 'utf8').trim();
+    if (/^[0-9a-f]{40}$/i.test(head)) return head.toLowerCase();
+    const refMatch = head.match(/^ref:\s*(.+)$/i);
+    if (!refMatch) return null;
+    const ref = refMatch[1].trim();
+    const looseRef = path.join(gitDirectory, ...ref.split('/'));
+    if (fs.existsSync(looseRef)) {
+      const sha = fs.readFileSync(looseRef, 'utf8').trim();
+      if (/^[0-9a-f]{40}$/i.test(sha)) return sha.toLowerCase();
+    }
+    const packedRefs = path.join(gitDirectory, 'packed-refs');
+    if (fs.existsSync(packedRefs)) {
+      const line = fs.readFileSync(packedRefs, 'utf8')
+        .split(/\r?\n/)
+        .find((entry) => entry && !entry.startsWith('#') && !entry.startsWith('^') && entry.endsWith(` ${ref}`));
+      const sha = line?.split(/\s+/)?.[0];
+      if (/^[0-9a-f]{40}$/i.test(sha || '')) return sha.toLowerCase();
+    }
+  } catch (_error) {
+    return null;
+  }
+  return null;
+}
+
+function classifyArtifact(relativePath) {
+  const normalized = normalizeRelativePath(relativePath).toLowerCase();
+  if (normalized.endsWith('trace.zip')) return { kind: 'TRACE', contentType: 'application/zip' };
+  if (/\.(png|jpg|jpeg|webp)$/.test(normalized)) return { kind: 'SCREENSHOT', contentType: normalized.endsWith('.png') ? 'image/png' : 'image/jpeg' };
+  if (/\.(webm|mp4)$/.test(normalized)) return { kind: 'VIDEO', contentType: normalized.endsWith('.webm') ? 'video/webm' : 'video/mp4' };
+  if (normalized === 'report/index.html') return { kind: 'REPORT', contentType: 'text/html' };
+  return null;
+}
+
+function collectBrowserArtifacts(artifactRoot) {
+  const artifacts = [];
+  function walk(directory) {
+    if (!fs.existsSync(directory)) return;
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolute);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const relativePath = normalizeRelativePath(path.relative(artifactRoot, absolute));
+      const classification = classifyArtifact(relativePath);
+      if (!classification) continue;
+      const stat = fs.statSync(absolute);
+      artifacts.push({
+        ...classification,
+        name: path.basename(relativePath),
+        relativePath,
+        sizeBytes: stat.size,
+      });
+    }
+  }
+  walk(artifactRoot);
+  return artifacts;
+}
+
+function readReporterSummary(summaryPath) {
+  try {
+    if (!fs.existsSync(summaryPath)) return null;
+    const value = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+    return value && typeof value === 'object' ? value : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 async function runBrowserTest(input = {}, runtimeConfig = {}) {
   const startedAt = new Date();
   const repositoryRoot = path.resolve(runtimeConfig.repositoryRoot || process.cwd());
@@ -161,6 +257,18 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     Number(runtimeConfig.executionTimeoutMs) > 0 ? Number(runtimeConfig.executionTimeoutMs) : 600000,
     effectiveTimeoutMs + 30000,
   );
+  const executionId = normalizeExecutionId(input.executionId);
+  const artifactBaseRoot = path.resolve(runtimeConfig.artifactRoot || path.join(repositoryRoot, 'artifacts/browser/tests'));
+  const runArtifactRoot = path.resolve(artifactBaseRoot, executionId);
+  if (!runArtifactRoot.startsWith(`${artifactBaseRoot}${path.sep}`)) {
+    throw new BrowserTestExecutionError('Browser artifact path escaped the configured artifact root.', {
+      reasonCode: 'SKYCOMMAND_BROWSER_ARTIFACT_PATH_ESCAPE',
+    });
+  }
+  fs.rmSync(runArtifactRoot, { recursive: true, force: true });
+  fs.mkdirSync(runArtifactRoot, { recursive: true });
+  const reporterSummaryPath = path.join(runArtifactRoot, 'skycommand-summary.json');
+
   const args = buildPlaywrightArgs({
     configPath,
     testPath: relativePath,
@@ -176,7 +284,11 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
       normalizeText(input.baseUrl) || normalizeText(runtimeConfig.baseUrl) || process.env.SKYCOMMAND_BROWSER_BASE_URL,
     SKYCOMMAND_BROWSER_TEST_CODE: normalizeText(input.testCode),
     SKYCOMMAND_BROWSER_ENVIRONMENT_CODE: normalizeText(input.environmentCode),
+    SKYCOMMAND_BROWSER_TYPE: normalizeText(input.browserType) || 'chromium',
     SKYCOMMAND_BROWSER_TEST_PARAMETERS: serializeBrowserTestParameters(input.parameters),
+    SKYCOMMAND_BROWSER_ARTIFACT_ROOT: runArtifactRoot,
+    SKYCOMMAND_BROWSER_SUMMARY_PATH: reporterSummaryPath,
+    SKYCOMMAND_BROWSER_RUN_ID: executionId,
     CI: process.env.CI || 'true',
   };
 
@@ -186,10 +298,19 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     timeoutMs: processTimeoutMs,
   });
   const completedAt = new Date();
+  const reporterSummary = readReporterSummary(reporterSummaryPath);
+  const sourceRepositoryRoot = path.resolve(runtimeConfig.sourceRepositoryRoot || repositoryRoot);
+  const sourceCommit = resolveGitHeadSha(sourceRepositoryRoot);
+  const artifacts = collectBrowserArtifacts(runArtifactRoot);
+  const relativeArtifactRoot = runArtifactRoot.startsWith(`${sourceRepositoryRoot}${path.sep}`)
+    ? normalizeRelativePath(path.relative(sourceRepositoryRoot, runArtifactRoot))
+    : null;
 
   const summary = {
-    contract: 'browser_worker_execution.v1',
+    contract: 'browser_test_summary.v1',
+    workerContract: 'browser_worker_execution.v1',
     executionType: 'TEST',
+    executionId,
     status: result.code === 0 && !result.timedOut ? 'PASSED' : 'FAILED',
     testCode: normalizeText(input.testCode) || null,
     testPath: relativePath,
@@ -197,6 +318,14 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     browserType: normalizeText(input.browserType) || 'chromium',
     environmentCode: normalizeText(input.environmentCode) || null,
     parameters: input.parameters && typeof input.parameters === 'object' ? input.parameters : {},
+    testCases: reporterSummary?.testCases || null,
+    assertions: reporterSummary?.assertions || null,
+    testCasesDetail: reporterSummary?.tests || [],
+    failure: reporterSummary?.failure || null,
+    linkedWorkflowIds: reporterSummary?.linkedWorkflowIds || [],
+    sourceCommit,
+    artifactRoot: relativeArtifactRoot,
+    artifacts,
     exitCode: result.code,
     signal: result.signal,
     timedOut: result.timedOut,
@@ -208,10 +337,12 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     stderr: result.stderr,
   };
 
+  fs.writeFileSync(reporterSummaryPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+
   if (summary.status !== 'PASSED') {
     const reason = result.timedOut
       ? `Browser test process exceeded the ${processTimeoutMs} ms hard execution timeout.`
-      : `Browser test exited with code ${result.code}.`;
+      : summary.failure?.message || `Browser test exited with code ${result.code}.`;
     throw new BrowserTestExecutionError(reason, summary);
   }
 
@@ -221,8 +352,13 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
 module.exports = {
   BrowserTestExecutionError,
   buildPlaywrightArgs,
+  classifyArtifact,
+  collectBrowserArtifacts,
   getEffectiveTimeoutMs,
+  normalizeExecutionId,
+  readReporterSummary,
   resolveBrowserSpec,
+  resolveGitHeadSha,
   serializeBrowserTestParameters,
   runBrowserTest,
   runChildProcess,

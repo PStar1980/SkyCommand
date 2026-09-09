@@ -47,16 +47,14 @@ async function main() {
 
   while (Date.now() < deadline) {
     const run = await browserTestRegistryService.getBrowserTestRun(workflowId);
-    if (run.status === 'COMPLETED') {
-      const status = run.result?.status || 'UNKNOWN';
+    if (run.status === 'PASSED') {
       console.log(
-        `[Browser Registry Smoke] ${status} · ${run.result?.testCode || TEST_CODE} · ${run.result?.durationMs || 0} ms`,
+        `[Browser Registry Smoke] PASSED · ${run.result?.testCode || TEST_CODE} · ${run.durationMs || run.result?.durationMs || 0} ms · artifacts=${run.artifactCount || 0}`,
       );
-      if (status !== 'PASSED') process.exitCode = 1;
       return;
     }
     if (['FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT'].includes(run.status)) {
-      throw new Error(`Browser Test Temporal workflow ended with status ${run.status}.`);
+      throw new Error(`Browser Test execution ended with status ${run.status}.`);
     }
     await sleep(POLL_MS);
   }
