@@ -26,6 +26,7 @@ const hostWorkflow = read('packages/temporal/src/workflows/hostAgentWorkflow.js'
 const workflowSpec = read('tests/browser/specs/workflows/workflowInitialization.spec.js');
 const playwrightConfig = read('tests/browser/playwright.config.js');
 const reporter = read('tests/browser/reporters/skyCommandReporter.js');
+const presenterScript = read('scripts/powershell/Show-SkyCommandPlaywrightWindow.ps1');
 
 for (const objectName of [
   'worker.browser_test_runs',
@@ -59,6 +60,14 @@ assert.ok(service.includes('worker.browser_test_artifacts'));
 assert.ok(service.includes('resolveGitHeadSha'));
 assert.ok(controller.includes('getArtifact'));
 assert.ok(routes.includes("'/runs/:workflowId/artifacts/:artifactId'"));
+assert.ok(routes.includes("'/runs/:workflowId/artifacts/:artifactId/report-view'"));
+assert.ok(routes.includes("'/report-view/:ticket/'"));
+assert.ok(routes.includes("'/report-view/:ticket/data/:fileName'"));
+assert.ok(service.includes('createBrowserTestReportView'));
+assert.ok(service.includes('getBrowserTestReportViewAsset'));
+assert.ok(controller.includes('createReportView'));
+assert.ok(controller.includes('getReportViewIndex'));
+assert.ok(controller.includes('getReportViewData'));
 
 assert.ok(runner.includes("contract: 'browser_test_summary.v1'"));
 assert.ok(runner.includes('SKYCOMMAND_BROWSER_SUMMARY_PATH'));
@@ -82,6 +91,7 @@ assert.ok(reporter.includes('linkedWorkflowIds'));
 assert.ok(reporter.includes('result.attachments'));
 
 assert.ok(browserTestService.includes('getArtifact'));
+assert.ok(browserTestService.includes('createReportView'));
 assert.ok(apiClient.includes('requestBlob'));
 assert.ok(apiClient.includes('Authorization'));
 assert.ok(page.includes("browserTestService.getArtifact"));
@@ -92,6 +102,14 @@ assert.ok(hostActivities.includes('__browser_test_interactive'));
 assert.ok(hostActivities.includes('runBrowserTest'));
 assert.ok(hostWorkflow.includes('isInteractiveBrowserTest'));
 assert.ok(runner.includes('resolvePlaywrightCli'));
+assert.ok(runner.includes('launchWindowsInteractiveBrowserPresenter'));
+assert.ok(runner.includes('Show-SkyCommandPlaywrightWindow.ps1'));
+assert.ok(presenterScript.includes('ShowWindowAsync'));
+assert.ok(presenterScript.includes('SetForegroundWindow'));
+assert.ok(presenterScript.includes('AppActivate'));
+assert.ok(playwrightConfig.includes('interactiveExecution'));
+assert.ok(playwrightConfig.includes('headless: false'));
+assert.ok(playwrightConfig.includes('slowMo'));
 assert.ok(runner.includes('runChildProcess(process.execPath, [playwrightCli, ...args]'));
 assert.equal(runner.includes('node_modules/.bin/playwright'), false);
 assert.ok(service.includes('serializeTemporalFailure'));

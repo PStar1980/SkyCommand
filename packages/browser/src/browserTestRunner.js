@@ -111,6 +111,37 @@ function buildPlaywrightArgs({ configPath, testPath, grep, browserType = 'chromi
   return args;
 }
 
+function launchWindowsInteractiveBrowserPresenter(repositoryRoot, rootProcessId) {
+  if (process.platform !== 'win32' || !Number.isInteger(Number(rootProcessId))) return false;
+  const presenterScript = path.resolve(repositoryRoot, 'scripts/powershell/Show-SkyCommandPlaywrightWindow.ps1');
+  if (!fs.existsSync(presenterScript) || !fs.statSync(presenterScript).isFile()) return false;
+
+  try {
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      presenterScript,
+      '-RootProcessId',
+      String(rootProcessId),
+      '-TimeoutSeconds',
+      '12',
+    ], {
+      cwd: repositoryRoot,
+      env: process.env,
+      shell: false,
+      windowsHide: true,
+      stdio: 'ignore',
+    });
+    child.unref?.();
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
 function runChildProcess(command, args, options = {}) {
   const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 600000;
 
@@ -127,6 +158,12 @@ function runChildProcess(command, args, options = {}) {
       windowsHide: options.windowsHide !== false,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+
+    try {
+      options.onSpawn?.(child);
+    } catch (_error) {
+      // Presentation hooks are best-effort and must never change test semantics.
+    }
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -326,6 +363,8 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
   fs.mkdirSync(runArtifactRoot, { recursive: true });
   const reporterSummaryPath = path.join(runArtifactRoot, 'skycommand-summary.json');
 
+  const interactive = String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true;
+
   const args = buildPlaywrightArgs({
     configPath,
     testPath: relativePath,
@@ -333,7 +372,7 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     browserType: input.browserType || 'chromium',
     retryCount: input.retryCount || 0,
     timeoutMs: effectiveTimeoutMs,
-    headed: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true,
+    headed: interactive,
   });
 
   const env = {
@@ -347,8 +386,8 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     SKYCOMMAND_BROWSER_ARTIFACT_ROOT: runArtifactRoot,
     SKYCOMMAND_BROWSER_SUMMARY_PATH: reporterSummaryPath,
     SKYCOMMAND_BROWSER_RUN_ID: executionId,
-    SKYCOMMAND_BROWSER_EXECUTION_MODE: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true ? 'INTERACTIVE' : 'HEADLESS',
-    CI: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true ? '' : (process.env.CI || 'true'),
+    SKYCOMMAND_BROWSER_EXECUTION_MODE: interactive ? 'INTERACTIVE' : 'HEADLESS',
+    CI: interactive ? '' : (process.env.CI || 'true'),
   };
 
   // Invoke Playwright through Node rather than the platform-specific npm .bin shim.
@@ -358,7 +397,10 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     cwd: repositoryRoot,
     env,
     timeoutMs: processTimeoutMs,
-    windowsHide: !(String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true),
+    windowsHide: !interactive,
+    onSpawn: interactive && process.platform === 'win32'
+      ? (child) => launchWindowsInteractiveBrowserPresenter(repositoryRoot, child.pid)
+      : null,
   });
   const completedAt = new Date();
   const reporterSummary = readReporterSummary(reporterSummaryPath);
@@ -379,7 +421,7 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     testPath: relativePath,
     grep: normalizeText(input.grep) || null,
     browserType: normalizeText(input.browserType) || 'chromium',
-    executionMode: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true ? 'INTERACTIVE' : 'HEADLESS',
+    executionMode: interactive ? 'INTERACTIVE' : 'HEADLESS',
     environmentCode: normalizeText(input.environmentCode) || null,
     parameters: input.parameters && typeof input.parameters === 'object' ? input.parameters : {},
     testCases: reporterSummary?.testCases || null,
@@ -419,6 +461,7 @@ module.exports = {
   classifyArtifact,
   collectBrowserArtifacts,
   getEffectiveTimeoutMs,
+  launchWindowsInteractiveBrowserPresenter,
   normalizeExecutionId,
   readReporterSummary,
   resolveBrowserSpec,

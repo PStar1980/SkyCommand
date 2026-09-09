@@ -13,6 +13,9 @@ const workflowCode =
 test.describe('Workflow Initialization browser smoke', () => {
   test.beforeEach(async ({ page }) => {
     await loginToSkyCommand(page);
+    if (String(process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || '').toUpperCase() === 'INTERACTIVE') {
+      await page.bringToFront();
+    }
   });
 
   test('@smoke Initialize reveals workflow launch controls without starting the workflow', async ({
@@ -44,6 +47,11 @@ test.describe('Workflow Initialization browser smoke', () => {
       path: evidencePath,
       contentType: 'image/png',
     });
+
+    if (String(process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || '').toUpperCase() === 'INTERACTIVE') {
+      // Keep the headed proof visible long enough for a human operator to observe it.
+      await page.waitForTimeout(1500);
+    }
 
     // Phase 1 deliberately proves browser/UI behavior without mutating workflow state.
     // Full workflow launch/completion coverage is added after the dedicated Browser Worker

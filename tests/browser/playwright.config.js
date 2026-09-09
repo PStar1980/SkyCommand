@@ -8,6 +8,8 @@ const baseURL = process.env.SKYCOMMAND_BROWSER_BASE_URL || 'http://127.0.0.1:151
 const artifactRoot = path.resolve(
   process.env.SKYCOMMAND_BROWSER_ARTIFACT_ROOT || path.resolve(__dirname, '../../artifacts/browser/tests'),
 );
+const interactiveExecution = String(process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || '').toUpperCase() === 'INTERACTIVE';
+const interactiveSlowMoMs = Math.max(0, Number(process.env.SKYCOMMAND_BROWSER_INTERACTIVE_SLOW_MO_MS || 225) || 0);
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'specs'),
@@ -37,6 +39,10 @@ module.exports = defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
+    ...(interactiveExecution ? {
+      headless: false,
+      launchOptions: { slowMo: interactiveSlowMoMs },
+    } : {}),
   },
   projects: [
     {
