@@ -40,6 +40,8 @@ async function startTest(req, res, next) {
       testCode: req.params.testCode,
       body: req.body || {},
       permissions: req.permissions || [],
+      actor: req.user,
+      triggerSource: 'MANUAL',
     });
     return res.status(202).json({ ok: true, ...payload });
   } catch (error) {
@@ -60,6 +62,22 @@ async function getRun(req, res, next) {
   try {
     const run = await browserTestRegistryService.getBrowserTestRun(req.params.workflowId);
     return res.json({ ok: true, run });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+
+async function getArtifact(req, res, next) {
+  try {
+    const artifact = await browserTestRegistryService.getBrowserTestArtifact({
+      workflowId: req.params.workflowId,
+      artifactId: req.params.artifactId,
+    });
+    res.type(artifact.contentType || 'application/octet-stream');
+    const disposition = ['SCREENSHOT', 'VIDEO'].includes(artifact.kind) ? 'inline' : 'attachment';
+    res.setHeader('Content-Disposition', `${disposition}; filename="${String(artifact.name || 'artifact').replace(/"/g, '')}"`);
+    return res.sendFile(artifact.absolutePath);
   } catch (error) {
     return sendError(res, error, next);
   }
@@ -156,6 +174,7 @@ async function replaceAdminTestEnvironments(req, res, next) {
 module.exports = {
   createAdminTest,
   getAdminOptions,
+  getArtifact,
   getAdminTest,
   getRun,
   getTest,

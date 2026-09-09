@@ -21,6 +21,7 @@ module.exports = defineConfig({
   },
   reporter: [
     ['list'],
+    [path.join(__dirname, 'reporters/skyCommandReporter.js')],
     [
       'html',
       {
