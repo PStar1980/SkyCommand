@@ -9,6 +9,7 @@ async function skyCommandHostAgentToolWorkflow(input = {}) {
   const hostTaskQueue = normalizeHostAgentTaskQueue(input.hostTaskQueue);
   const toolCode = String(input.toolCode || '').trim();
   const isFastProbe = toolCode === '__health' || toolCode === '__docker_snapshot';
+  const isInteractiveBrowserTest = toolCode === '__browser_test_interactive';
   const isDockerDetail =
     toolCode === '__docker_container_detail' || toolCode === '__docker_resource_detail';
   const isDockerControl =
@@ -28,7 +29,9 @@ async function skyCommandHostAgentToolWorkflow(input = {}) {
         ? '45 seconds'
         : isDockerControl
           ? '3 minutes'
-          : '10 minutes',
+          : isInteractiveBrowserTest
+            ? '15 minutes'
+            : '10 minutes',
     retry: {
       maximumAttempts: 1,
     },

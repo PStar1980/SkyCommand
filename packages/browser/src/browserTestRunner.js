@@ -64,8 +64,38 @@ function resolveBrowserSpec(repositoryRoot, testPath) {
   return { relativePath: normalizedRelative, resolvedPath: resolved };
 }
 
-function buildPlaywrightArgs({ configPath, testPath, grep, browserType = 'chromium', retryCount = 0, timeoutMs = null }) {
+function resolvePlaywrightCli(repositoryRoot) {
+  const root = path.resolve(repositoryRoot || process.cwd());
+  const candidates = [
+    path.join(root, 'node_modules', '@playwright', 'test', 'cli.js'),
+    path.join(root, 'node_modules', 'playwright', 'cli.js'),
+  ];
+
+  const resolved = candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+    } catch (_error) {
+      return false;
+    }
+  });
+
+  if (!resolved) {
+    throw new BrowserTestExecutionError(
+      'Playwright CLI is not installed for the selected browser execution runtime.',
+      {
+        reasonCode: 'SKYCOMMAND_BROWSER_PLAYWRIGHT_CLI_NOT_FOUND',
+        repositoryRoot: root,
+        candidates: candidates.map((candidate) => normalizeRelativePath(path.relative(root, candidate))),
+      },
+    );
+  }
+
+  return resolved;
+}
+
+function buildPlaywrightArgs({ configPath, testPath, grep, browserType = 'chromium', retryCount = 0, timeoutMs = null, headed = false }) {
   const args = ['test', '--config', configPath, '--workers=1', testPath];
+  if (headed) args.push('--headed');
   const normalizedBrowserType = normalizeText(browserType) || 'chromium';
   if (normalizedBrowserType) args.push('--project', normalizedBrowserType);
   const normalizedRetryCount = Number.parseInt(retryCount, 10);
@@ -94,7 +124,7 @@ function runChildProcess(command, args, options = {}) {
       cwd: options.cwd,
       env: options.env,
       shell: false,
-      windowsHide: true,
+      windowsHide: options.windowsHide !== false,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -209,31 +239,58 @@ function classifyArtifact(relativePath) {
   return null;
 }
 
-function collectBrowserArtifacts(artifactRoot) {
-  const artifacts = [];
-  function walk(directory) {
-    if (!fs.existsSync(directory)) return;
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const absolute = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        walk(absolute);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      const relativePath = normalizeRelativePath(path.relative(artifactRoot, absolute));
-      const classification = classifyArtifact(relativePath);
-      if (!classification) continue;
-      const stat = fs.statSync(absolute);
-      artifacts.push({
-        ...classification,
-        name: path.basename(relativePath),
-        relativePath,
-        sizeBytes: stat.size,
-      });
+function shouldExposeBrowserArtifact(relativePath) {
+  const normalized = normalizeRelativePath(relativePath).toLowerCase();
+  if (!normalized) return false;
+  if (normalized.split('/').some((segment) => segment.startsWith('.playwright-artifacts-'))) return false;
+  if (normalized.includes('/traces/resources/') || normalized.startsWith('traces/resources/')) return false;
+  if (normalized.startsWith('report/') && normalized !== 'report/index.html') return false;
+  return true;
+}
+
+function collectBrowserArtifacts(artifactRoot, reporterSummary = null) {
+  const artifactsByPath = new Map();
+
+  function addArtifact(candidate = {}) {
+    const relativePath = normalizeRelativePath(candidate.relativePath);
+    if (!relativePath || !shouldExposeBrowserArtifact(relativePath)) return;
+    const absolute = path.resolve(artifactRoot, relativePath);
+    if (!absolute.startsWith(`${path.resolve(artifactRoot)}${path.sep}`)) return;
+    if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) return;
+    const classification = classifyArtifact(relativePath);
+    const requestedKind = normalizeText(candidate.kind).toUpperCase();
+    const kind = ['TRACE','SCREENSHOT','VIDEO','REPORT','ATTACHMENT','DOWNLOAD'].includes(requestedKind)
+      ? requestedKind
+      : classification?.kind;
+    if (!kind) return;
+    const stat = fs.statSync(absolute);
+    artifactsByPath.set(relativePath, {
+      kind,
+      contentType: normalizeText(candidate.contentType) || classification?.contentType || 'application/octet-stream',
+      name: normalizeText(candidate.name) || path.basename(relativePath),
+      relativePath,
+      sizeBytes: stat.size,
+    });
+  }
+
+  for (const test of Array.isArray(reporterSummary?.tests) ? reporterSummary.tests : []) {
+    for (const artifact of Array.isArray(test?.artifacts) ? test.artifacts : []) {
+      addArtifact(artifact);
     }
   }
-  walk(artifactRoot);
-  return artifacts;
+
+  addArtifact({
+    kind: 'REPORT',
+    name: 'Playwright HTML Report',
+    contentType: 'text/html',
+    relativePath: 'report/index.html',
+  });
+
+  const kindOrder = new Map([['TRACE', 1], ['SCREENSHOT', 2], ['VIDEO', 3], ['REPORT', 4], ['DOWNLOAD', 5], ['ATTACHMENT', 6]]);
+  return [...artifactsByPath.values()].sort((left, right) => {
+    const byKind = (kindOrder.get(left.kind) || 99) - (kindOrder.get(right.kind) || 99);
+    return byKind || left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' });
+  });
 }
 
 function readReporterSummary(summaryPath) {
@@ -251,7 +308,7 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
   const repositoryRoot = path.resolve(runtimeConfig.repositoryRoot || process.cwd());
   const { relativePath } = resolveBrowserSpec(repositoryRoot, input.testPath);
   const configPath = normalizeText(runtimeConfig.testConfigPath) || 'tests/browser/playwright.config.js';
-  const playwrightBinary = path.resolve(repositoryRoot, 'node_modules/.bin/playwright');
+  const playwrightCli = resolvePlaywrightCli(repositoryRoot);
   const effectiveTimeoutMs = getEffectiveTimeoutMs(input.timeoutMs, runtimeConfig.executionTimeoutMs);
   const processTimeoutMs = Math.min(
     Number(runtimeConfig.executionTimeoutMs) > 0 ? Number(runtimeConfig.executionTimeoutMs) : 600000,
@@ -276,6 +333,7 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     browserType: input.browserType || 'chromium',
     retryCount: input.retryCount || 0,
     timeoutMs: effectiveTimeoutMs,
+    headed: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true,
   });
 
   const env = {
@@ -289,19 +347,24 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     SKYCOMMAND_BROWSER_ARTIFACT_ROOT: runArtifactRoot,
     SKYCOMMAND_BROWSER_SUMMARY_PATH: reporterSummaryPath,
     SKYCOMMAND_BROWSER_RUN_ID: executionId,
-    CI: process.env.CI || 'true',
+    SKYCOMMAND_BROWSER_EXECUTION_MODE: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true ? 'INTERACTIVE' : 'HEADLESS',
+    CI: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true ? '' : (process.env.CI || 'true'),
   };
 
-  const result = await runChildProcess(playwrightBinary, args, {
+  // Invoke Playwright through Node rather than the platform-specific npm .bin shim.
+  // This keeps the same runner portable between the Linux Browser Worker and the
+  // Windows host-native Host Agent used for headed/interactive execution.
+  const result = await runChildProcess(process.execPath, [playwrightCli, ...args], {
     cwd: repositoryRoot,
     env,
     timeoutMs: processTimeoutMs,
+    windowsHide: !(String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true),
   });
   const completedAt = new Date();
   const reporterSummary = readReporterSummary(reporterSummaryPath);
   const sourceRepositoryRoot = path.resolve(runtimeConfig.sourceRepositoryRoot || repositoryRoot);
   const sourceCommit = resolveGitHeadSha(sourceRepositoryRoot);
-  const artifacts = collectBrowserArtifacts(runArtifactRoot);
+  const artifacts = collectBrowserArtifacts(runArtifactRoot, reporterSummary);
   const relativeArtifactRoot = runArtifactRoot.startsWith(`${sourceRepositoryRoot}${path.sep}`)
     ? normalizeRelativePath(path.relative(sourceRepositoryRoot, runArtifactRoot))
     : null;
@@ -316,6 +379,7 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     testPath: relativePath,
     grep: normalizeText(input.grep) || null,
     browserType: normalizeText(input.browserType) || 'chromium',
+    executionMode: String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true ? 'INTERACTIVE' : 'HEADLESS',
     environmentCode: normalizeText(input.environmentCode) || null,
     parameters: input.parameters && typeof input.parameters === 'object' ? input.parameters : {},
     testCases: reporterSummary?.testCases || null,
@@ -358,8 +422,10 @@ module.exports = {
   normalizeExecutionId,
   readReporterSummary,
   resolveBrowserSpec,
+  resolvePlaywrightCli,
   resolveGitHeadSha,
   serializeBrowserTestParameters,
+  shouldExposeBrowserArtifact,
   runBrowserTest,
   runChildProcess,
 };
