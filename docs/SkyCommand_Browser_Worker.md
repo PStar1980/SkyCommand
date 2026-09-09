@@ -103,10 +103,12 @@ Interactive mode requires the Host Agent to be enabled and online and is intenti
 
 ### Interactive presentation and viewport sizing
 
-SkyCommand maximizes and foregrounds the Chromium window for LOCAL interactive runs. The presenter
-reasserts focus briefly after the Chromium window is created so the hidden Host Agent launcher does
-not leave the browser minimized or behind another window. Interactive Playwright releases the fixed
-emulated viewport and uses the maximized host window's real client area.
+SkyCommand maximizes and foregrounds the Chromium window for LOCAL interactive runs. By default,
+the presenter also marks that Playwright Chromium window as Windows `TOPMOST`, keeping the visible
+test above ordinary desktop applications for the lifetime of the browser process. The presenter
+reasserts focus briefly after Chromium is created so the hidden Host Agent launcher does not leave
+the browser minimized or behind another window. Interactive Playwright releases the fixed emulated
+viewport and uses the maximized host window's real client area.
 
 Headless runs keep deterministic evidence dimensions. Defaults are configurable in `.env`:
 
@@ -115,10 +117,13 @@ SKYCOMMAND_BROWSER_VIEWPORT_WIDTH=1600
 SKYCOMMAND_BROWSER_VIEWPORT_HEIGHT=900
 SKYCOMMAND_BROWSER_INTERACTIVE_SLOW_MO_MS=300
 SKYCOMMAND_BROWSER_INTERACTIVE_HOLD_MS=4000
+SKYCOMMAND_BROWSER_INTERACTIVE_TOPMOST=true
 ```
 
 The viewport settings affect headless screenshots; interactive runs use the actual maximized browser
-window. The slow-motion and hold values affect only interactive/manual execution.
+window. The slow-motion, hold, and topmost settings affect only interactive/manual execution. Set
+`SKYCOMMAND_BROWSER_INTERACTIVE_TOPMOST=false` if always-on-top presentation is undesirable for a
+longer local browser session.
 
 
 ## Browser evidence

@@ -4,7 +4,9 @@ param(
 
     [int]$TimeoutSeconds = 12,
 
-    [int]$FocusDurationMs = 2500
+    [int]$FocusDurationMs = 2500,
+
+    [switch]$Topmost
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -33,6 +35,17 @@ namespace SkyCommand.Native
 
         [DllImport("user32.dll")]
         public static extern bool SetActiveWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowPos(
+            IntPtr hWnd,
+            IntPtr hWndInsertAfter,
+            int X,
+            int Y,
+            int cx,
+            int cy,
+            uint uFlags
+        );
     }
 }
 '@
@@ -62,7 +75,8 @@ function Get-DescendantProcessIds {
 function Present-ChromiumWindow {
     param(
         [System.Diagnostics.Process]$Process,
-        [int]$DurationMs
+        [int]$DurationMs,
+        [bool]$TopmostEnabled
     )
 
     $handle = [IntPtr]$Process.MainWindowHandle
@@ -77,6 +91,15 @@ function Present-ChromiumWindow {
         # becomes visible when launched from the hidden Host Agent process tree.
         [void][SkyCommand.Native.WindowPresenter]::ShowWindowAsync($handle, 5)
         [void][SkyCommand.Native.WindowPresenter]::ShowWindowAsync($handle, 3)
+        if ($TopmostEnabled) {
+            # HWND_TOPMOST = -1. SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW keeps
+            # Chromium above ordinary application windows for this interactive run
+            # without changing its maximized geometry. The state disappears when
+            # Playwright closes the browser process.
+            $hwndTopmost = [IntPtr](-1)
+            $swpFlags = [uint32](0x0001 -bor 0x0002 -bor 0x0040)
+            [void][SkyCommand.Native.WindowPresenter]::SetWindowPos($handle, $hwndTopmost, 0, 0, 0, 0, $swpFlags)
+        }
         [void][SkyCommand.Native.WindowPresenter]::BringWindowToTop($handle)
         [void]$shell.AppActivate($Process.Id)
         [void][SkyCommand.Native.WindowPresenter]::SetActiveWindow($handle)
@@ -102,7 +125,7 @@ while ((Get-Date) -lt $deadline) {
         if ($process.ProcessName -notmatch '^(chrome|chromium|msedge)$') { continue }
         if ($process.MainWindowHandle -eq [IntPtr]::Zero) { continue }
 
-        if (Present-ChromiumWindow -Process $process -DurationMs $FocusDurationMs) {
+        if (Present-ChromiumWindow -Process $process -DurationMs $FocusDurationMs -TopmostEnabled ([bool]$Topmost)) {
             exit 0
         }
     }

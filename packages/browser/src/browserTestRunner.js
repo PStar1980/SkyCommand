@@ -18,6 +18,11 @@ function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
 }
 
+function normalizeBooleanSetting(value, defaultValue = false) {
+  if (value === undefined || value === null || String(value).trim() === '') return Boolean(defaultValue);
+  return /^(1|true|yes|on)$/i.test(String(value).trim());
+}
+
 function normalizeRelativePath(value) {
   return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
 }
@@ -111,26 +116,29 @@ function buildPlaywrightArgs({ configPath, testPath, grep, browserType = 'chromi
   return args;
 }
 
-function launchWindowsInteractiveBrowserPresenter(repositoryRoot, rootProcessId) {
+function launchWindowsInteractiveBrowserPresenter(repositoryRoot, rootProcessId, options = {}) {
   if (process.platform !== 'win32' || !Number.isInteger(Number(rootProcessId))) return false;
   const presenterScript = path.resolve(repositoryRoot, 'scripts/powershell/Show-SkyCommandPlaywrightWindow.ps1');
   if (!fs.existsSync(presenterScript) || !fs.statSync(presenterScript).isFile()) return false;
 
+  const args = [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    presenterScript,
+    '-RootProcessId',
+    String(rootProcessId),
+    '-TimeoutSeconds',
+    '12',
+    '-FocusDurationMs',
+    '2500',
+  ];
+  if (options.topmost !== false) args.push('-Topmost');
+
   try {
-    const child = spawn('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      presenterScript,
-      '-RootProcessId',
-      String(rootProcessId),
-      '-TimeoutSeconds',
-      '12',
-      '-FocusDurationMs',
-      '2500',
-    ], {
+    const child = spawn('powershell.exe', args, {
       cwd: repositoryRoot,
       env: process.env,
       shell: false,
@@ -366,6 +374,10 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
   const reporterSummaryPath = path.join(runArtifactRoot, 'skycommand-summary.json');
 
   const interactive = String(input.executionMode || '').toUpperCase() === 'INTERACTIVE' || input.headed === true;
+  const interactiveTopmost = normalizeBooleanSetting(
+    runtimeConfig.interactiveTopmost ?? process.env.SKYCOMMAND_BROWSER_INTERACTIVE_TOPMOST,
+    true,
+  );
 
   const args = buildPlaywrightArgs({
     configPath,
@@ -401,7 +413,7 @@ async function runBrowserTest(input = {}, runtimeConfig = {}) {
     timeoutMs: processTimeoutMs,
     windowsHide: !interactive,
     onSpawn: interactive && process.platform === 'win32'
-      ? (child) => launchWindowsInteractiveBrowserPresenter(repositoryRoot, child.pid)
+      ? (child) => launchWindowsInteractiveBrowserPresenter(repositoryRoot, child.pid, { topmost: interactiveTopmost })
       : null,
   });
   const completedAt = new Date();
@@ -464,6 +476,7 @@ module.exports = {
   collectBrowserArtifacts,
   getEffectiveTimeoutMs,
   launchWindowsInteractiveBrowserPresenter,
+  normalizeBooleanSetting,
   normalizeExecutionId,
   readReporterSummary,
   resolveBrowserSpec,
