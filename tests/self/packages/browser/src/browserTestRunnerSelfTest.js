@@ -11,6 +11,7 @@ const {
   collectBrowserArtifacts,
   getEffectiveTimeoutMs,
   launchWindowsInteractiveBrowserPresenter,
+  normalizeBooleanSetting,
   resolveBrowserSpec,
   resolvePlaywrightCli,
   serializeBrowserTestParameters,
@@ -105,6 +106,12 @@ try {
 assert.equal(getEffectiveTimeoutMs(30000, 600000), 30000);
 assert.equal(getEffectiveTimeoutMs(900000, 600000), 600000);
 assert.equal(serializeBrowserTestParameters({ workflowCode: 'repo-map-zip' }), '{"workflowCode":"repo-map-zip"}');
+assert.equal(normalizeBooleanSetting(undefined, true), true);
+assert.equal(normalizeBooleanSetting('', true), true);
+assert.equal(normalizeBooleanSetting('true', false), true);
+assert.equal(normalizeBooleanSetting('1', false), true);
+assert.equal(normalizeBooleanSetting('false', true), false);
+assert.equal(normalizeBooleanSetting('off', true), false);
 
 const fakePlaywrightRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skycommand-playwright-cli-'));
 try {
@@ -128,6 +135,12 @@ assert.ok(runnerSource.includes('runChildProcess(process.execPath, [playwrightCl
 assert.ok(runnerSource.includes('launchWindowsInteractiveBrowserPresenter'));
 assert.ok(runnerSource.includes('Show-SkyCommandPlaywrightWindow.ps1'));
 assert.ok(runnerSource.includes("'-FocusDurationMs'"));
+assert.ok(runnerSource.includes("SKYCOMMAND_BROWSER_INTERACTIVE_TOPMOST"));
+assert.ok(runnerSource.includes("args.push('-Topmost')"));
+const presenterSource = fs.readFileSync(path.join(repositoryRoot, 'scripts/powershell/Show-SkyCommandPlaywrightWindow.ps1'), 'utf8');
+assert.ok(presenterSource.includes('SetWindowPos'));
+assert.ok(presenterSource.includes('$hwndTopmost = [IntPtr](-1)'));
+assert.ok(presenterSource.includes('[switch]$Topmost'));
 if (process.platform !== 'win32') {
   assert.equal(launchWindowsInteractiveBrowserPresenter(repositoryRoot, process.pid), false);
 }
