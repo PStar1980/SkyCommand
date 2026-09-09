@@ -125,4 +125,11 @@ assert(
   'Playwright Test Operations must open complete authenticated reports and rely on selectable rows instead of a redundant Run Details action.',
 );
 
+assert(
+  pageSource.includes('label="Execution Mode"') &&
+    pageSource.includes("item.executionMode || 'HEADLESS'") &&
+    pageSource.includes("? 'INTERACTIVE' : 'HEADLESS'"),
+  'Playwright Test Operations must expose the execution mode directly in the selectable operations table.',
+);
+
 console.log('[SkyCommand] Playwright Test UI/table parity self-test passed.');

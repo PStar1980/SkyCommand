@@ -101,8 +101,28 @@ Run Tests
 
 Interactive mode requires the Host Agent to be enabled and online and is intentionally limited to the `LOCAL` Browser Environment. Scheduled/background execution should remain headless.
 
+### Interactive presentation and viewport sizing
+
+SkyCommand maximizes and foregrounds the Chromium window for LOCAL interactive runs. The presenter
+reasserts focus briefly after the Chromium window is created so the hidden Host Agent launcher does
+not leave the browser minimized or behind another window. Interactive Playwright releases the fixed
+emulated viewport and uses the maximized host window's real client area.
+
+Headless runs keep deterministic evidence dimensions. Defaults are configurable in `.env`:
+
+```text
+SKYCOMMAND_BROWSER_VIEWPORT_WIDTH=1600
+SKYCOMMAND_BROWSER_VIEWPORT_HEIGHT=900
+SKYCOMMAND_BROWSER_INTERACTIVE_SLOW_MO_MS=300
+SKYCOMMAND_BROWSER_INTERACTIVE_HOLD_MS=4000
+```
+
+The viewport settings affect headless screenshots; interactive runs use the actual maximized browser
+window. The slow-motion and hold values affect only interactive/manual execution.
+
+
 ## Browser evidence
 
 SkyCommand exposes only operator-meaningful browser evidence. Internal Playwright trace resources beneath `.playwright-artifacts-*` and `traces/resources/` are not promoted into the Browser Evidence table.
 
-Artifacts are retrieved through the authenticated Admin Web API client so screenshots, videos, reports, and traces remain protected by `BROWSER_TEST_READ`. Screenshot/video previews use a temporary browser object URL after the authorized fetch; trace/report artifacts download through the same authenticated path.
+Artifacts remain protected by `BROWSER_TEST_READ`. Screenshot/video previews use an authenticated fetch plus a temporary browser object URL. Playwright HTML reports open through a short-lived report-scoped view ticket so the report and its relative `data/*` attachments render together; trace files continue to download through the authenticated artifact path.

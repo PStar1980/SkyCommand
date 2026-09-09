@@ -835,7 +835,7 @@ export function BrowserTestOperations() {
       if (filters.environmentCode && item.environmentCode !== filters.environmentCode) return false;
       if (filters.status && String(item.status || '').toUpperCase() !== filters.status) return false;
       if (!q) return true;
-      return [item.testLabel, item.testCode, item.workflowId, item.categoryLabel, item.environmentCode, item.status]
+      return [item.testLabel, item.testCode, item.workflowId, item.categoryLabel, item.environmentCode, item.status, item.executionMode]
         .some((value) => String(value || '').toLowerCase().includes(q));
     });
   }, [items, filters]);
@@ -851,6 +851,7 @@ export function BrowserTestOperations() {
       duration: item.durationMs,
       environment: item.environmentCode,
       browser: item.browserType,
+      executionMode: item.executionMode || 'HEADLESS',
       evidence: item.artifactCount,
     })[field],
   });
@@ -932,9 +933,9 @@ export function BrowserTestOperations() {
 
           <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
             <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle">
-              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /><BrowserSortableHeader field="started" label="Started" table={table} /><BrowserSortableHeader field="duration" label="Duration" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="browser" label="Browser" table={table} /><BrowserSortableHeader field="evidence" label="Evidence" table={table} /></tr></thead>
+              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /><BrowserSortableHeader field="started" label="Started" table={table} /><BrowserSortableHeader field="duration" label="Duration" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="browser" label="Browser" table={table} /><BrowserSortableHeader field="executionMode" label="Execution Mode" table={table} /><BrowserSortableHeader field="evidence" label="Evidence" table={table} /></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={8}><div className="sky-empty-state">Loading Playwright Test executions...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={8}><div className="sky-empty-state">No Playwright Test executions match the current filters.</div></td></tr> : table.pageItems.map((item) => (
+                {loading ? <tr><td colSpan={9}><div className="sky-empty-state">Loading Playwright Test executions...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={9}><div className="sky-empty-state">No Playwright Test executions match the current filters.</div></td></tr> : table.pageItems.map((item) => (
                   <tr className={`sky-clickable-row ${selectedWorkflowId === item.workflowId ? 'sky-selected-row' : ''}`} key={item.workflowId} onClick={() => selectRun(item)}>
                     <td><div className="fw-bold sky-detail-value">{item.testLabel}</div><div className="small sky-muted sky-mono">{item.testCode}</div></td>
                     <td>{item.categoryLabel || 'Uncategorized'}</td>
@@ -943,6 +944,7 @@ export function BrowserTestOperations() {
                     <td>{formatDuration(item.durationMs)}</td>
                     <td>{item.environmentCode || '—'}</td>
                     <td className="text-uppercase">{item.browserType || 'chromium'}</td>
+                    <td><span className="sky-pill sky-pill-info">{String(item.executionMode || 'HEADLESS').toUpperCase() === 'INTERACTIVE' ? 'INTERACTIVE' : 'HEADLESS'}</span></td>
                     <td>{item.artifactCount || 0}</td>
                   </tr>
                 ))}

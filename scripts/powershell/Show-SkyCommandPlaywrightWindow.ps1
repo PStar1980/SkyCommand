@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory = $true)]
     [int]$RootProcessId,
 
-    [int]$TimeoutSeconds = 12
+    [int]$TimeoutSeconds = 12,
+
+    [int]$FocusDurationMs = 2500
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -28,6 +30,9 @@ namespace SkyCommand.Native
 
         [DllImport("user32.dll")]
         public static extern bool BringWindowToTop(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetActiveWindow(IntPtr hWnd);
     }
 }
 '@
@@ -54,28 +59,55 @@ function Get-DescendantProcessIds {
     return @($known | Where-Object { $_ -ne $ParentId })
 }
 
+function Present-ChromiumWindow {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [int]$DurationMs
+    )
+
+    $handle = [IntPtr]$Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) { return $false }
+
+    $shell = New-Object -ComObject WScript.Shell
+    $focusDeadline = (Get-Date).AddMilliseconds([Math]::Max(500, $DurationMs))
+
+    do {
+        # SW_SHOW = 5 and SW_MAXIMIZE = 3. Reapply for a short window because Chromium
+        # can finish creating/repositioning its top-level window after the first handle
+        # becomes visible when launched from the hidden Host Agent process tree.
+        [void][SkyCommand.Native.WindowPresenter]::ShowWindowAsync($handle, 5)
+        [void][SkyCommand.Native.WindowPresenter]::ShowWindowAsync($handle, 3)
+        [void][SkyCommand.Native.WindowPresenter]::BringWindowToTop($handle)
+        [void]$shell.AppActivate($Process.Id)
+        [void][SkyCommand.Native.WindowPresenter]::SetActiveWindow($handle)
+        [void][SkyCommand.Native.WindowPresenter]::SetForegroundWindow($handle)
+        Start-Sleep -Milliseconds 200
+
+        $Process.Refresh()
+        if ($Process.HasExited) { break }
+        if ($Process.MainWindowHandle -ne [IntPtr]::Zero) {
+            $handle = [IntPtr]$Process.MainWindowHandle
+        }
+    } while ((Get-Date) -lt $focusDeadline)
+
+    return $true
+}
+
 $deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
-$shell = New-Object -ComObject WScript.Shell
 
 while ((Get-Date) -lt $deadline) {
     foreach ($processId in (Get-DescendantProcessIds -ParentId $RootProcessId)) {
         $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
         if (-not $process) { continue }
-
         if ($process.ProcessName -notmatch '^(chrome|chromium|msedge)$') { continue }
         if ($process.MainWindowHandle -eq [IntPtr]::Zero) { continue }
 
-        $handle = [IntPtr]$process.MainWindowHandle
-        # SW_RESTORE = 9. This counteracts the hidden Host Agent launcher chain and
-        # also restores a Chromium window that Windows elected not to foreground.
-        [void][SkyCommand.Native.WindowPresenter]::ShowWindowAsync($handle, 9)
-        [void][SkyCommand.Native.WindowPresenter]::BringWindowToTop($handle)
-        [void]$shell.AppActivate($process.Id)
-        [void][SkyCommand.Native.WindowPresenter]::SetForegroundWindow($handle)
-        exit 0
+        if (Present-ChromiumWindow -Process $process -DurationMs $FocusDurationMs) {
+            exit 0
+        }
     }
 
-    Start-Sleep -Milliseconds 150
+    Start-Sleep -Milliseconds 125
 }
 
 # Presentation is best-effort visual behavior. A timeout must not fail the test itself.
