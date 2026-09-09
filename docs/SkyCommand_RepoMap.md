@@ -213,6 +213,7 @@ SkyCommand/
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
+│   │       │   ├── browserTestFailureUtils.js
 │   │       │   ├── browserTestRegistryService.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
@@ -333,6 +334,161 @@ SkyCommand/
 │           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932553.jpeg
 │           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932573.jpeg
 │           │                   └── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932668.jpeg
+│           ├── 34cec146-1137-406b-91ff-3ccfbc11f32f/
+│           ├── bcb8abff-8f88-4453-87c0-10e250a69d8c/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── a69a81942baec2c21536263666dfaafe1ae55196.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       ├── .playwright-artifacts-0/
+│           │       │   └── traces/
+│           │       │       └── resources/
+│           │       │           ├── 0a0120f37c763f767599aaa4ba9f704af26419e9.json
+│           │       │           ├── 1353b6958faa7d833d1492c98566e714f8540ecd.json
+│           │       │           ├── 1960c6e6c29b2fee9565b135ec65ee58edc34051.json
+│           │       │           ├── 20aa8d9eacfe00378fe4c2575e11fb4334c0db71.json
+│           │       │           ├── 3626ab79deee7998a744e27e9b8a31f2c7272cb0.png
+│           │       │           ├── 3b13b9bb24a9e161a22bd05e98494b15dcf84efd.json
+│           │       │           ├── 4a474444f0c0f681ede098f9b3bc695ed952568e.json
+│           │       │           ├── 4d0158c128d14df72ab54769e0bca674e67f00f6.json
+│           │       │           ├── 51ff4819cae5874fed50dcda6e67e18146d0b718.json
+│           │       │           ├── 52597227086663c894a91f2b5dfbdddd5c068080.json
+│           │       │           ├── 570a2c20a8e96a773474092e3d907a9f1948d1e5.json
+│           │       │           ├── 57b8f3e4229f988a5a498fcb489e57362e8ea97d.html
+│           │       │           ├── 59b16f282ec8be4b6f6d4feff660f72c221fe36e.json
+│           │       │           ├── 5bddb87f2573bca1db0bf96a497ef60a94362ac7.css
+│           │       │           ├── 6832dccd2ae5e84a7d052162e44fff8caaef5917.json
+│           │       │           ├── 6fd0f0ca46886e33902862da955fbc8817e7cfe9.json
+│           │       │           ├── 76d943cb96b26604d075baed61fcd90fc1f173a0.json
+│           │       │           ├── 96a0117ee9005ab15434f0f936f8c3ea349d967e.png
+│           │       │           ├── 994592fdac07beb7feb0ebd6b9efdb94104eae2a.json
+│           │       │           ├── ac3bf7253e1eacf53860ecb78d4aa5412c611df6.png
+│           │       │           ├── ad309296c615370577c4eb2e065158673d51de74.json
+│           │       │           ├── b755d32b65e05710845c5f7ebe090fbe6b8bb2a8.json
+│           │       │           ├── c5d1a2aa31758ad0450758d6916ce36f0a04ead6.json
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930054816.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055082.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055104.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055126.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055150.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055172.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055199.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055222.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055243.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055267.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055290.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055311.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055333.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055357.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055378.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055404.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055672.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055719.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055811.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055877.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055889.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055929.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930055988.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056058.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056162.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056292.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056306.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056321.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056418.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056427.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056439.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056481.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056498.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056576.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056588.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056606.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056634.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056654.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056778.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056794.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056813.jpeg
+│           │       │           ├── page@9af0a35073a4a4ebf85e748209ac2161-1788930056843.jpeg
+│           │       │           └── page@9af0a35073a4a4ebf85e748209ac2161-1788930057157.jpeg
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-5e2ef74a8adbde81dbc7105a4e1c9ad0aec8da3a.png
+│           ├── ed08b8f6-27e7-464d-adc1-7fdaf3d441af/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── a69a81942baec2c21536263666dfaafe1ae55196.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       ├── .playwright-artifacts-0/
+│           │       │   └── traces/
+│           │       │       └── resources/
+│           │       │           ├── 0a0120f37c763f767599aaa4ba9f704af26419e9.json
+│           │       │           ├── 1353b6958faa7d833d1492c98566e714f8540ecd.json
+│           │       │           ├── 3626ab79deee7998a744e27e9b8a31f2c7272cb0.png
+│           │       │           ├── 454ec08db802d3cd189d6b560fb607101a6b937b.json
+│           │       │           ├── 54524d458de501687811b5309e3a977941e58c36.json
+│           │       │           ├── 57b8f3e4229f988a5a498fcb489e57362e8ea97d.html
+│           │       │           ├── 59b16f282ec8be4b6f6d4feff660f72c221fe36e.json
+│           │       │           ├── 5bddb87f2573bca1db0bf96a497ef60a94362ac7.css
+│           │       │           ├── 6832dccd2ae5e84a7d052162e44fff8caaef5917.json
+│           │       │           ├── 6fd0f0ca46886e33902862da955fbc8817e7cfe9.json
+│           │       │           ├── 76d943cb96b26604d075baed61fcd90fc1f173a0.json
+│           │       │           ├── 8291416ed41854bc0df735e504c4431f2d845da1.json
+│           │       │           ├── 96a0117ee9005ab15434f0f936f8c3ea349d967e.png
+│           │       │           ├── ac3bf7253e1eacf53860ecb78d4aa5412c611df6.png
+│           │       │           ├── c5d1a2aa31758ad0450758d6916ce36f0a04ead6.json
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859317.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859326.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859590.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859617.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859642.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859665.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859689.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859713.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859736.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859760.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859787.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859809.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859830.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859850.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859874.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923859894.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860030.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860068.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860099.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860232.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860309.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860316.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860427.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860445.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860542.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860562.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860626.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860718.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860829.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860935.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923860957.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861040.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861118.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861254.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861265.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861278.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861327.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861451.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861467.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861484.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861500.jpeg
+│           │       │           ├── page@ee29e4df8ada529e629c1d442938914e-1788923861514.jpeg
+│           │       │           └── page@ee29e4df8ada529e629c1d442938914e-1788923861832.jpeg
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-16ecac1af039d680fbf89a008fe762627008aeba.png
 │           ├── report/
 │           │   └── index.html
 │           └── results/
@@ -532,7 +688,8 @@ SkyCommand/
 │   │       │   ├── 00111__local_dev_pull_tool.sql
 │   │       │   ├── 00112__tool_parameter_cli_binding.sql
 │   │       │   ├── 00113__browser_test_registry_foundation.sql
-│   │       │   └── 00115__browser_test_observability.sql
+│   │       │   ├── 00115__browser_test_observability.sql
+│   │       │   └── 00116__browser_test_execution_mode.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

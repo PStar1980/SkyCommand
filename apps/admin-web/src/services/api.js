@@ -138,6 +138,43 @@ async function request(path, options = {}) {
 }
 
 
+async function requestBlob(path, options = {}) {
+  const token = options.token === undefined ? getSessionToken() : options.token;
+  const usesStoredSessionToken = options.token === undefined;
+  const headers = {
+    Accept: options.accept || '*/*',
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(buildUrl(path, options.query), {
+      method: options.method || 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      await parseResponse(response);
+    }
+
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    return {
+      blob: await response.blob(),
+      contentType: response.headers.get('content-type') || 'application/octet-stream',
+      filename: filenameMatch?.[1] || null,
+    };
+  } catch (error) {
+    if (error.status === 401 && usesStoredSessionToken) {
+      notifyAuthExpired(error.message || 'Invalid or expired session.');
+    }
+    throw error;
+  }
+}
+
 async function stream(path, options = {}) {
   const token = options.token === undefined ? getSessionToken() : options.token;
   const usesStoredSessionToken = options.token === undefined;
@@ -244,6 +281,7 @@ const api = {
   clearSessionToken,
   notifyAuthExpired,
   stream,
+  blob: (path, options) => requestBlob(path, { ...options, method: 'GET' }),
   get: (path, options) => request(path, { ...options, method: 'GET' }),
   post: (path, body, options) => request(path, { ...options, method: 'POST', body }),
   put: (path, body, options) => request(path, { ...options, method: 'PUT', body }),

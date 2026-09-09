@@ -7,7 +7,7 @@ The Browser Worker is the isolated Playwright/Temporal execution service introdu
 ## Runtime lane
 
 ```text
-Host / SkyCommand API (future registry)
+SkyCommand API / native smoke launcher
         |
         v
 Temporal server
@@ -23,7 +23,7 @@ Browser Worker
         +-- Browser Test runner
 ```
 
-Phase 2 exposes a direct host smoke launcher rather than a database/API registry. Registry-driven execution is added in Phase 3.
+Registered execution is now driven through the PostgreSQL Browser Test registry and SkyCommand API. The native smoke launcher remains available as a low-level infrastructure proof.
 
 ## Docker service
 
@@ -81,3 +81,28 @@ Those defaults reduce duplicate side effects while Browser Automation semantics 
 ## Security boundary
 
 The Phase 2 worker is currently intended for trusted SkyCommand/local E2E targets. Before general Browser Automation against untrusted external sites is enabled, the worker should receive the stronger sandbox/identity controls planned for the Browser Automation registry/security phases.
+
+## Execution modes
+
+Registered Playwright Tests support two execution modes:
+
+- **HEADLESS** — the default background path through the dedicated Docker Browser Worker.
+- **INTERACTIVE** — a LOCAL-only headed path routed by Temporal through the host-native SkyCommand Host Agent so Chromium can open in the signed-in desktop session.
+
+Interactive execution still uses the same registered test definition, parameter validation, durable Browser Test ledger, structured result contract, and artifact directory. Only the execution target/presentation changes.
+
+```text
+Run Tests
+   |
+   +-- HEADLESS ----> browserExecutionWorkflow ----> Browser Worker ----> headless Chromium
+   |
+   +-- INTERACTIVE -> skyCommandHostAgentToolWorkflow -> Host Agent ----> headed Chromium
+```
+
+Interactive mode requires the Host Agent to be enabled and online and is intentionally limited to the `LOCAL` Browser Environment. Scheduled/background execution should remain headless.
+
+## Browser evidence
+
+SkyCommand exposes only operator-meaningful browser evidence. Internal Playwright trace resources beneath `.playwright-artifacts-*` and `traces/resources/` are not promoted into the Browser Evidence table.
+
+Artifacts are retrieved through the authenticated Admin Web API client so screenshots, videos, reports, and traces remain protected by `BROWSER_TEST_READ`. Screenshot/video previews use a temporary browser object URL after the authorized fetch; trace/report artifacts download through the same authenticated path.

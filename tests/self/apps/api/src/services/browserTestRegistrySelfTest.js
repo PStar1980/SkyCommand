@@ -15,6 +15,7 @@ const routes = read('apps/api/src/routes/browserTest.routes.js');
 const adminRoutes = read('apps/api/src/routes/admin.routes.js');
 const server = read('apps/api/src/server.js');
 const runner = read('packages/browser/src/browserTestRunner.js');
+const failureUtils = read('apps/api/src/services/browserTestFailureUtils.js');
 
 for (const table of [
   'core.browser_environments',
@@ -47,7 +48,12 @@ assert.ok(service.includes('listBrowserTestRuns'));
 assert.ok(service.includes('skycommandBrowserTest'));
 assert.ok(routes.includes("router.get('/runs'"));
 assert.ok(service.includes('resolveBrowserTestParameters'));
-assert.ok(service.includes("client.workflow.start('browserExecutionWorkflow'"));
+assert.ok(service.includes("'browserExecutionWorkflow'"));
+assert.ok(service.includes("'skyCommandHostAgentToolWorkflow'"));
+assert.ok(service.includes("'__browser_test_interactive'"));
+assert.ok(service.includes('executionMode'));
+assert.ok(service.includes('serializeTemporalFailure'));
+assert.ok(failureUtils.includes('causeChain'));
 assert.ok(service.includes('core.browser_test_parameters'));
 assert.ok(service.includes('core.browser_test_environments'));
 

@@ -339,6 +339,8 @@ function artifactActionLabel(artifact) {
 }
 
 function BrowserRunStatusPanel({ run, workflowId }) {
+  const [artifactBusyId, setArtifactBusyId] = useState('');
+  const [artifactError, setArtifactError] = useState('');
   if (!workflowId) return null;
   const status = run?.status || 'STARTED';
   const result = run?.result || null;
@@ -349,6 +351,37 @@ function BrowserRunStatusPanel({ run, workflowId }) {
   const linkedWorkflowIds = Array.isArray(run?.linkedWorkflowIds) ? run.linkedWorkflowIds : [];
   const failure = run?.failure || result?.failure || null;
   const sourceCommit = run?.sourceCommit || result?.sourceCommit || null;
+
+  async function openArtifact(artifact) {
+    if (!artifact?.artifactId || artifactBusyId) return;
+    const kind = String(artifact.kind || '').toUpperCase();
+    const inline = ['SCREENSHOT', 'VIDEO'].includes(kind);
+    const previewWindow = inline ? window.open('about:blank', '_blank') : null;
+    if (previewWindow) previewWindow.opener = null;
+    setArtifactBusyId(artifact.artifactId);
+    setArtifactError('');
+    try {
+      const payload = await browserTestService.getArtifact(workflowId, artifact.artifactId);
+      const objectUrl = window.URL.createObjectURL(payload.blob);
+      if (inline && previewWindow) {
+        previewWindow.location.replace(objectUrl);
+      } else {
+        if (previewWindow) previewWindow.close();
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = payload.filename || artifact.name || 'browser-artifact';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (loadError) {
+      if (previewWindow) previewWindow.close();
+      setArtifactError(loadError.message || 'Failed to open Browser Test evidence.');
+    } finally {
+      setArtifactBusyId('');
+    }
+  }
 
   return (
     <Panel
@@ -368,6 +401,7 @@ function BrowserRunStatusPanel({ run, workflowId }) {
               <tr><th>Test status</th><td><StatusPill status={status} /></td></tr>
               <tr><th>Temporal status</th><td><StatusPill status={run?.temporalStatus || 'UNKNOWN'} /></td></tr>
               <tr><th>Environment / Browser</th><td>{run?.environmentCode || '—'} · <span className="text-uppercase">{run?.browserType || 'chromium'}</span></td></tr>
+              <tr><th>Execution mode</th><td>{String(run?.executionMode || result?.executionMode || 'HEADLESS').toUpperCase() === 'INTERACTIVE' ? 'Interactive · Host Agent' : 'Headless · Browser Worker'}</td></tr>
               <tr><th>Triggered by</th><td>{run?.initiatedBy || '—'}{run?.triggerSource && <span className="small sky-muted"> · {run.triggerSource}</span>}</td></tr>
               <tr><th>Started</th><td>{formatDateTime(run?.startTime)}</td></tr>
               <tr><th>Completed</th><td>{formatDateTime(run?.closeTime)}</td></tr>
@@ -433,10 +467,11 @@ function BrowserRunStatusPanel({ run, workflowId }) {
         {artifacts.length > 0 && (
           <div className="mt-3">
             <div className="sky-page-kicker mb-2">Browser Evidence</div>
+            {artifactError && <DismissibleAlert tone="danger">{artifactError}</DismissibleAlert>}
             <div className="table-responsive sky-canonical-operations-table-frame">
               <table className="table table-sm align-middle sky-table sky-canonical-operations-table mb-0">
                 <thead><tr><th>Type</th><th>Artifact</th><th>Size</th><th className="text-end">Actions</th></tr></thead>
-                <tbody>{artifacts.map((artifact) => <tr key={artifact.artifactId || artifact.relativePath}><td><span className="sky-pill sky-pill-info">{artifact.kind}</span></td><td><div className="fw-semibold">{artifact.name}</div><div className="small sky-muted sky-mono">{artifact.relativePath}</div></td><td>{formatArtifactSize(artifact.sizeBytes)}</td><td className="text-end">{artifact.url ? <a className="btn btn-sm sky-btn-ghost" href={artifact.url} rel="noreferrer" target="_blank">{artifactActionLabel(artifact)}</a> : '—'}</td></tr>)}</tbody>
+                <tbody>{artifacts.map((artifact) => <tr key={artifact.artifactId || artifact.relativePath}><td><span className="sky-pill sky-pill-info">{artifact.kind}</span></td><td><div className="fw-semibold">{artifact.name}</div><div className="small sky-muted sky-mono">{artifact.relativePath}</div></td><td>{formatArtifactSize(artifact.sizeBytes)}</td><td className="text-end">{artifact.url ? <button className="btn btn-sm sky-btn-ghost" disabled={Boolean(artifactBusyId)} onClick={() => openArtifact(artifact)} type="button">{artifactBusyId === artifact.artifactId ? 'Opening...' : artifactActionLabel(artifact)}</button> : '—'}</td></tr>)}</tbody>
               </table>
             </div>
           </div>
@@ -461,6 +496,7 @@ export function BrowserTestRun() {
   const [selectedTest, setSelectedTest] = useState(null);
   const [parameterValues, setParameterValues] = useState({});
   const [environmentCode, setEnvironmentCode] = useState('');
+  const [executionMode, setExecutionMode] = useState('HEADLESS');
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
@@ -566,6 +602,7 @@ export function BrowserTestRun() {
       setSelectedTest(detail);
       setParameterValues(getInitialParameterValues(detail));
       setEnvironmentCode(detail.defaultEnvironmentCode || detail.environments?.[0]?.environmentCode || '');
+      setExecutionMode('HEADLESS');
       setConfirmed(false);
       if (scroll) {
         window.requestAnimationFrame(() => initializationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -599,13 +636,16 @@ export function BrowserTestRun() {
     try {
       const result = await browserTestService.runTest(selectedTest.testCode, {
         environmentCode,
+        executionMode,
         parameters: cleanParameterValues(parameterValues),
         confirmed: selectedTest.requiresConfirmation ? confirmed : false,
       });
       const launchedWorkflowId = result.execution?.workflowId || '';
       setWorkflowId(launchedWorkflowId);
       browserTestService.setLastRunWorkflowId(launchedWorkflowId);
-      setNotice(`${selectedTest.label} was accepted by Temporal and sent to the Browser Worker.`);
+      setNotice(executionMode === 'INTERACTIVE'
+        ? `${selectedTest.label} was accepted by Temporal and sent to the Host Agent for interactive Chromium.`
+        : `${selectedTest.label} was accepted by Temporal and sent to the Browser Worker.`);
     } catch (runError) {
       setError(runError.message || 'Playwright Test failed to start.');
     } finally {
@@ -621,7 +661,7 @@ export function BrowserTestRun() {
     <div className="container-fluid px-0">
       <PageHeader
         kicker="PLAYWRIGHT TESTS · EXECUTION"
-        subtitle="Launch registered Playwright tests through the dedicated Temporal-backed Browser Worker."
+        subtitle="Launch registered Playwright tests headlessly through the Browser Worker or interactively through the host-native Host Agent."
         title="Run Tests"
       />
 
@@ -719,9 +759,10 @@ export function BrowserTestRun() {
           >
             <form className="sky-card-body" onSubmit={startTest}>
               <div className="row g-3 mb-3">
-                <div className="col-12 col-lg-4"><label className="form-label" htmlFor="browserTestRunEnvironment">Environment</label><select className="form-select sky-form-control" disabled={running} id="browserTestRunEnvironment" onChange={(event) => setEnvironmentCode(event.target.value)} value={environmentCode}>{(selectedTest.environments || []).map((environment) => <option key={environment.environmentCode} value={environment.environmentCode}>{environment.environmentName} ({environment.environmentCode})</option>)}</select></div>
-                <div className="col-12 col-lg-4"><label className="form-label">Timeout</label><div className="form-control sky-form-control sky-readonly-field">{selectedTest.timeoutSeconds} seconds</div></div>
-                <div className="col-12 col-lg-4"><label className="form-label">Retries</label><div className="form-control sky-form-control sky-readonly-field">{selectedTest.retryCount}</div></div>
+                <div className="col-12 col-lg-3"><label className="form-label" htmlFor="browserTestRunEnvironment">Environment</label><select className="form-select sky-form-control" disabled={running} id="browserTestRunEnvironment" onChange={(event) => { const next = event.target.value; setEnvironmentCode(next); if (next !== 'LOCAL' && executionMode === 'INTERACTIVE') setExecutionMode('HEADLESS'); }} value={environmentCode}>{(selectedTest.environments || []).map((environment) => <option key={environment.environmentCode} value={environment.environmentCode}>{environment.environmentName} ({environment.environmentCode})</option>)}</select></div>
+                <div className="col-12 col-lg-3"><label className="form-label" htmlFor="browserTestExecutionMode">Execution mode</label><select className="form-select sky-form-control" disabled={running} id="browserTestExecutionMode" onChange={(event) => setExecutionMode(event.target.value)} value={executionMode}><option value="HEADLESS">Background (Headless)</option><option disabled={environmentCode !== 'LOCAL'} value="INTERACTIVE">Interactive (Headed · Host)</option></select><div className="form-text sky-muted">Interactive mode opens Chromium on this machine through the Host Agent.</div></div>
+                <div className="col-12 col-lg-3"><label className="form-label">Timeout</label><div className="form-control sky-form-control sky-readonly-field">{selectedTest.timeoutSeconds} seconds</div></div>
+                <div className="col-12 col-lg-3"><label className="form-label">Retries</label><div className="form-control sky-form-control sky-readonly-field">{selectedTest.retryCount}</div></div>
               </div>
 
               <BrowserRuntimeParameterFields disabled={running} onChange={(name, value) => setParameterValues((current) => ({ ...current, [name]: value }))} parameters={selectedTest.parameters || []} values={parameterValues} />

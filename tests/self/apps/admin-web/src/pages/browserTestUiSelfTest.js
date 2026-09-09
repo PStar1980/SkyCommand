@@ -65,6 +65,14 @@ assert(
 );
 
 assert(
+  pageSource.includes('Background (Headless)') &&
+    pageSource.includes('Interactive (Headed · Host)') &&
+    pageSource.includes('executionMode') &&
+    serviceSource.includes('getArtifact'),
+  'Run Tests must expose headless/interactive execution mode and authenticated browser evidence retrieval.',
+);
+
+assert(
   pageSource.includes('BrowserTestRegistryForm') &&
     pageSource.includes('Allowed environments') &&
     pageSource.includes('RUNTIME PARAMETERS') &&

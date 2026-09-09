@@ -6,11 +6,16 @@ const { Connection, Client } = require('@temporalio/client');
 const { pool, query } = require('../../../../packages/db/src/connection');
 const { getBrowserRuntimeConfig } = require('../../../../packages/browser/src/config');
 const { resolveGitHeadSha } = require('../../../../packages/browser/src/browserTestRunner');
+const { DEFAULT_HOST_AGENT_TASK_QUEUE, normalizeHostAgentTaskQueue } = require('../../../../packages/host-agent/src/config');
+const { getTemporalConfig } = require('../../../../packages/temporal/src/config');
+const { getHostAgentAvailability } = require('./workflowExecutionPreflightService');
+const { serializeTemporalFailure } = require('./browserTestFailureUtils');
 
 const TEST_CODE_PATTERN = /^[a-z][a-z0-9_-]*$/;
 const PARAMETER_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_BROWSER_TYPES = new Set(['chromium']);
+const ALLOWED_EXECUTION_MODES = new Set(['HEADLESS', 'INTERACTIVE']);
 const ALLOWED_PARAM_TYPES = new Set(['string', 'number', 'boolean', 'repo', 'select', 'path', 'date', 'json']);
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -95,6 +100,14 @@ function normalizeBrowserType(value) {
     throw createHttpError(400, `browserType must be one of: ${[...ALLOWED_BROWSER_TYPES].join(', ')}.`);
   }
   return browserType;
+}
+
+function normalizeBrowserExecutionMode(value) {
+  const executionMode = normalizeText(value, 'HEADLESS').toUpperCase();
+  if (!ALLOWED_EXECUTION_MODES.has(executionMode)) {
+    throw createHttpError(400, `executionMode must be one of: ${[...ALLOWED_EXECUTION_MODES].join(', ')}.`);
+  }
+  return executionMode;
 }
 
 function normalizeBrowserSpecPath(value) {
@@ -1049,6 +1062,7 @@ function sanitizeRunRow(row, artifacts = []) {
     initiatedBy: row.initiated_by || row.initiated_by_label || null,
     environmentCode: row.environment_code || null,
     browserType: row.browser_type || 'chromium',
+    executionMode: row.execution_mode || row.result_summary?.executionMode || 'HEADLESS',
     parameters: row.parameters || {},
     sourceRepositoryCode: row.source_repo_code || null,
     sourceCommit: row.source_commit_sha || null,
@@ -1147,7 +1161,7 @@ async function persistObservedRun(row, { temporalStatus, description = null, res
       ? Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime())
       : row.duration_ms;
   const failure = effectiveResult?.failure || (temporalError
-    ? { message: temporalError.message || String(temporalError), stack: temporalError.stack || null }
+    ? serializeTemporalFailure(temporalError)
     : row.failure_summary);
   const sourceCommit = effectiveResult?.sourceCommit || row.source_commit_sha || null;
   const artifactRoot = effectiveResult?.artifactRoot || row.artifact_root || null;
@@ -1252,9 +1266,9 @@ async function backfillLegacyTemporalRuns(scanLimit = 200) {
       `INSERT INTO worker.browser_test_runs (
          execution_id, test_id, test_code, test_label, category_code,
          temporal_workflow_id, temporal_run_id, temporal_status, status,
-         trigger_source, environment_code, browser_type, parameters,
+         trigger_source, environment_code, browser_type, execution_mode, parameters,
          source_repo_code, started_at, completed_at, duration_ms
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'LEGACY',$10,$11,'{}'::jsonb,$12,$13,$14,$15)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'LEGACY',$10,$11,'HEADLESS','{}'::jsonb,$12,$13,$14,$15)
        ON CONFLICT (temporal_workflow_id) DO NOTHING`,
       [
         randomUUID(), test.testId, test.testCode, test.label, test.category?.categoryCode || null,
@@ -1337,6 +1351,30 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
   assertConfirmation(test, body);
   const environment = await resolveExecutionEnvironment(test, body.environmentCode);
   const parameters = await resolveBrowserTestParameters(test, body.parameters || {});
+  const executionMode = normalizeBrowserExecutionMode(body.executionMode);
+  if (executionMode === 'INTERACTIVE' && environment.environmentCode !== 'LOCAL') {
+    throw createHttpError(409, 'Interactive Playwright execution is currently available only for the LOCAL environment.', {
+      code: 'BROWSER_TEST_INTERACTIVE_ENVIRONMENT_NOT_SUPPORTED',
+      environmentCode: environment.environmentCode,
+    });
+  }
+  if (executionMode === 'INTERACTIVE') {
+    const hostAvailability = await getHostAgentAvailability();
+    if (!hostAvailability.enabled) {
+      throw createHttpError(409, 'Interactive Playwright execution requires the SkyCommand Host Agent to be enabled.', {
+        code: 'BROWSER_TEST_INTERACTIVE_HOST_AGENT_DISABLED',
+        taskQueue: hostAvailability.taskQueue,
+      });
+    }
+    if (!hostAvailability.online) {
+      throw createHttpError(503, 'Interactive Playwright execution requires the host-native SkyCommand Host Agent to be online.', {
+        code: 'BROWSER_TEST_INTERACTIVE_HOST_AGENT_UNAVAILABLE',
+        taskQueue: hostAvailability.taskQueue,
+        hostAgentStatus: hostAvailability.status,
+        operatorCommand: 'npm run host-agent:auto-start:start',
+      });
+    }
+  }
   const runtimeConfig = getBrowserRuntimeConfig();
   const workflowId = buildBrowserWorkflowId(test.testCode);
   const executionId = randomUUID();
@@ -1348,14 +1386,14 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
     `INSERT INTO worker.browser_test_runs (
        execution_id, test_id, test_code, test_label, category_code,
        temporal_workflow_id, temporal_status, status, trigger_source,
-       initiated_by_user_id, initiated_by_label, environment_code, browser_type,
+       initiated_by_user_id, initiated_by_label, environment_code, browser_type, execution_mode,
        parameters, source_repo_code, source_commit_sha, artifact_root
-     ) VALUES ($1,$2,$3,$4,$5,$6,'STARTED','STARTED',$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15)
+     ) VALUES ($1,$2,$3,$4,$5,$6,'STARTED','STARTED',$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16)
      RETURNING browser_test_run_id`,
     [
       executionId, test.testId, test.testCode, test.label, test.category?.categoryCode || null,
       workflowId, normalizeText(triggerSource, 'MANUAL').toUpperCase(), actorInfo.userId, actorInfo.label,
-      environment.environmentCode, test.browserType, JSON.stringify(parameters), test.scriptRepository.repoCode,
+      environment.environmentCode, test.browserType, executionMode, JSON.stringify(parameters), test.scriptRepository.repoCode,
       sourceCommit, artifactRoot,
     ],
   );
@@ -1364,29 +1402,48 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
   const connection = await Connection.connect({ address: runtimeConfig.temporalAddress });
   const client = new Client({ connection, namespace: runtimeConfig.temporalNamespace });
   try {
-    const handle = await client.workflow.start('browserExecutionWorkflow', {
-      taskQueue: runtimeConfig.taskQueue,
+    const commonExecutionInput = {
+      executionType: 'TEST',
+      executionMode,
+      executionId,
+      testCode: test.testCode,
+      testPath: test.scriptPath,
+      grep: test.grepPattern,
+      browserType: test.browserType,
+      environmentCode: environment.environmentCode,
+      baseUrl: environment.baseUrl,
+      timeoutMs: test.timeoutSeconds * 1000,
+      retryCount: test.retryCount,
+      parameters,
+    };
+    const hostTaskQueue = normalizeHostAgentTaskQueue(
+      process.env.SKYCOMMAND_HOST_AGENT_TASK_QUEUE || DEFAULT_HOST_AGENT_TASK_QUEUE,
+    );
+    const temporalConfig = getTemporalConfig();
+    const workflowTaskQueue = executionMode === 'INTERACTIVE' ? temporalConfig.taskQueue : runtimeConfig.taskQueue;
+    const workflowType = executionMode === 'INTERACTIVE'
+      ? 'skyCommandHostAgentToolWorkflow'
+      : 'browserExecutionWorkflow';
+    const workflowInput = executionMode === 'INTERACTIVE'
+      ? {
+          ...commonExecutionInput,
+          toolCode: '__browser_test_interactive',
+          hostTaskQueue,
+          headed: true,
+        }
+      : commonExecutionInput;
+    const handle = await client.workflow.start(workflowType, {
+      taskQueue: workflowTaskQueue,
       workflowId,
       memo: {
         skycommandBrowserTest: {
           testCode: test.testCode,
           environmentCode: environment.environmentCode,
           executionId,
+          executionMode,
         },
       },
-      args: [{
-        executionType: 'TEST',
-        executionId,
-        testCode: test.testCode,
-        testPath: test.scriptPath,
-        grep: test.grepPattern,
-        browserType: test.browserType,
-        environmentCode: environment.environmentCode,
-        baseUrl: environment.baseUrl,
-        timeoutMs: test.timeoutSeconds * 1000,
-        retryCount: test.retryCount,
-        parameters,
-      }],
+      args: [workflowInput],
     });
     await query(
       `UPDATE worker.browser_test_runs
@@ -1402,7 +1459,10 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
         workflowId: handle.workflowId,
         runId: handle.firstExecutionRunId || null,
         status: 'RUNNING',
-        taskQueue: runtimeConfig.taskQueue,
+        taskQueue: executionMode === 'INTERACTIVE'
+          ? normalizeHostAgentTaskQueue(process.env.SKYCOMMAND_HOST_AGENT_TASK_QUEUE || DEFAULT_HOST_AGENT_TASK_QUEUE)
+          : runtimeConfig.taskQueue,
+        executionMode,
         environmentCode: environment.environmentCode,
         parameters,
         sourceCommit,
@@ -1510,6 +1570,7 @@ module.exports = {
   getBrowserTestRun,
   listBrowserTestRuns,
   listBrowserTests,
+  normalizeBrowserExecutionMode,
   normalizeBrowserSpecPath,
   normalizeTestCode,
   replaceBrowserTestEnvironments,

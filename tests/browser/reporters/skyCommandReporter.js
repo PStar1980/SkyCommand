@@ -112,6 +112,7 @@ class SkyCommandReporter {
       testCode: process.env.SKYCOMMAND_BROWSER_TEST_CODE || null,
       environmentCode: process.env.SKYCOMMAND_BROWSER_ENVIRONMENT_CODE || null,
       browserType: process.env.SKYCOMMAND_BROWSER_TYPE || 'chromium',
+      executionMode: process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || 'HEADLESS',
       startedAt: this.startedAt.toISOString(),
       completedAt: completedAt.toISOString(),
       durationMs: completedAt.getTime() - this.startedAt.getTime(),

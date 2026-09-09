@@ -1,10 +1,13 @@
 const os = require('node:os');
+const path = require('node:path');
 
 const { executeDevCommit } = require('../../git/src/dev_commit');
 const { executeMainMerge } = require('../../git/src/main_merge');
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
 const { executeLocalDevPull } = require('../../git/src/local_dev_pull');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
+const { getBrowserRuntimeConfig } = require('../../browser/src/config');
+const { runBrowserTest } = require('../../browser/src/browserTestRunner');
 const {
   DOCKER_COMPOSE_CONTROL_TOOL_CODE,
   executeDockerComposeControl,
@@ -28,6 +31,7 @@ const MAIN_MERGE_TOOL_CODE = 'main_merge';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
 const LOCAL_DEV_PULL_TOOL_CODE = 'local_dev_pull';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
+const BROWSER_TEST_INTERACTIVE_TOOL_CODE = '__browser_test_interactive';
 
 function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
@@ -63,6 +67,31 @@ async function executeSkyCommandHostToolActivity(input = {}) {
         checkedAt: new Date().toISOString(),
       },
     };
+  }
+
+  if (toolCode === BROWSER_TEST_INTERACTIVE_TOOL_CODE) {
+    const repositoryRoot = path.resolve(__dirname, '../../..');
+    const runtimeConfig = getBrowserRuntimeConfig(repositoryRoot);
+    const hostBaseUrl = normalizeText(process.env.SKYCOMMAND_BROWSER_BASE_URL) || 'http://127.0.0.1:15171';
+
+    return runBrowserTest(
+      {
+        ...input,
+        executionType: 'TEST',
+        executionMode: 'INTERACTIVE',
+        headed: true,
+        baseUrl: hostBaseUrl,
+      },
+      {
+        ...runtimeConfig,
+        repositoryRoot,
+        sourceRepositoryRoot: repositoryRoot,
+        artifactRoot: path.resolve(
+          normalizeText(process.env.SKYCOMMAND_BROWSER_ARTIFACT_ROOT) || path.join(repositoryRoot, 'artifacts/browser/tests'),
+        ),
+        baseUrl: hostBaseUrl,
+      },
+    );
   }
 
   if (toolCode === DOCKER_SNAPSHOT_TOOL_CODE) {
@@ -329,6 +358,7 @@ module.exports = {
   DOCKER_CONTAINER_DETAIL_TOOL_CODE,
   DOCKER_RESOURCE_CONTROL_TOOL_CODE,
   DOCKER_RESOURCE_DETAIL_TOOL_CODE,
+  BROWSER_TEST_INTERACTIVE_TOOL_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
   DEV_COMMIT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,

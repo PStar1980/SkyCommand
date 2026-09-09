@@ -240,6 +240,8 @@ services:
       SKYCOMMAND_DOCKER_GIT_CHECK_COMMAND: npm run api:docker:git:check
       SKYCOMMAND_SCRIPT_RUNTIME_ROOT: /app
       SKYCOMMAND_SCRIPT_RUNTIME_REPOSITORY: SkyCommand
+      SKYCOMMAND_BROWSER_SOURCE_REPOSITORY_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand
+      SKYCOMMAND_BROWSER_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/tests
       SKYCOMMAND_EXECUTION_LOG_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/logs/script-executions
       SKYCOMMAND_EXECUTION_LOG_PATH_MODE: relative
       SKYCOMMAND_DOCKER_HOST_WORKSPACE_ROOT: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-}

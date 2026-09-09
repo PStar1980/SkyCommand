@@ -17,7 +17,7 @@ test.describe('Workflow Initialization browser smoke', () => {
 
   test('@smoke Initialize reveals workflow launch controls without starting the workflow', async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.goto('/workflows/start');
 
     await expect(page.getByRole('heading', { name: 'Available workflows' })).toBeVisible();
@@ -37,6 +37,13 @@ test.describe('Workflow Initialization browser smoke', () => {
     await expect(
       initializationCard.getByRole('button', { name: 'Start Workflow', exact: true }),
     ).toBeVisible();
+
+    const evidencePath = testInfo.outputPath('workflow-initialization-open.png');
+    await page.screenshot({ path: evidencePath, fullPage: true });
+    await testInfo.attach('Workflow Initialization Open', {
+      path: evidencePath,
+      contentType: 'image/png',
+    });
 
     // Phase 1 deliberately proves browser/UI behavior without mutating workflow state.
     // Full workflow launch/completion coverage is added after the dedicated Browser Worker
