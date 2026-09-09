@@ -15,12 +15,12 @@ const pageSource = read('apps/admin-web/src/pages/BrowserTests.jsx');
 const serviceSource = read('apps/admin-web/src/services/browserTestService.js');
 
 assert(
-  navbarSource.includes("label: 'Browser Tests'") &&
+  navbarSource.includes("label: 'Playwright Tests'") &&
     navbarSource.includes("to: '/browser-tests/operations'") &&
     navbarSource.includes("to: '/browser-tests/run'") &&
     navbarSource.includes("to: '/browser-tests/manage'") &&
     navbarSource.includes("to: '/browser-tests/add'"),
-  'Browser Tests navigation must expose Test Operations, Run Tests, Manage Tests, and Add Test.',
+  'Playwright Tests navigation must expose Test Operations, Run Tests, Manage Tests, and Add Test.',
 );
 
 assert(
@@ -28,7 +28,7 @@ assert(
     navbarSource.includes("hasPermission('BROWSER_TEST_RUN')") &&
     navbarSource.includes("hasPermission('ADMIN_BROWSER_TEST_READ')") &&
     navbarSource.includes("hasPermission('ADMIN_BROWSER_TEST_WRITE')"),
-  'Browser Tests navigation must preserve registry read/run/admin permission boundaries.',
+  'Playwright Tests navigation must preserve registry read/run/admin permission boundaries.',
 );
 
 assert(
@@ -40,12 +40,12 @@ assert(
     mainSource.includes('permissionCode="BROWSER_TEST_RUN"') &&
     mainSource.includes('permissionCode="ADMIN_BROWSER_TEST_READ"') &&
     mainSource.includes('permissionCode="ADMIN_BROWSER_TEST_WRITE"'),
-  'Browser Tests routes must be protected by their intended permission codes.',
+  'Playwright Tests routes must be protected by their intended permission codes.',
 );
 
 assert(
   appSource.includes("'/browser-tests'"),
-  'Browser Tests routes must participate in the workbench page shell.',
+  'Playwright Tests routes must participate in the workbench page shell.',
 );
 
 assert(
@@ -73,6 +73,33 @@ assert(
   'Browser Test administration must expose environments, parameters, permissions, and confirmation controls.',
 );
 
+
+
+assert(
+  pageSource.includes('sky-canonical-operations-table-frame') &&
+    pageSource.includes('sky-canonical-operations-table') &&
+    pageSource.includes('sky-clickable-row') &&
+    pageSource.includes('sky-selected-row') &&
+    pageSource.includes('BrowserTablePagination') &&
+    pageSource.includes('Clear filters') &&
+    pageSource.includes('Clear sorting'),
+  'Playwright Test browser tables must use the canonical Tool Operations interaction and table template.',
+);
+
+assert(
+  pageSource.includes('onClick={() => initializeTest(test)}') &&
+    pageSource.includes('onClick={() => selectTest(test)}') &&
+    !pageSource.includes('>Initialize</button></td>') &&
+    !pageSource.includes('>Configure</button></td>'),
+  'Run Tests and Manage Tests must use selectable rows instead of Actions-column buttons.',
+);
+
+assert(
+  serviceSource.includes("'/api/browser-tests/runs'") &&
+    pageSource.includes('browserTestService.listRuns'),
+  'Test Operations must browse recent Temporal-backed Playwright Test executions.',
+);
+
 assert(
   serviceSource.includes("'/api/browser-tests'") &&
     serviceSource.includes("'/api/admin/browser-tests/options'") &&
@@ -82,4 +109,4 @@ assert(
   'Browser Test UI service must use the Phase 3 catalogue, execution, and administration APIs.',
 );
 
-console.log('Browser Test Phase 4 UI self-test passed.');
+console.log('[SkyCommand] Playwright Test UI/table parity self-test passed.');
