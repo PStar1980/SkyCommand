@@ -2,6 +2,13 @@ const { test, expect } = require('@playwright/test');
 const { loginToSkyCommand } = require('../../helpers/skyCommandAuth');
 const { getBrowserTestParameter } = require('../../helpers/browserTestParameters');
 
+const interactiveExecution =
+  String(process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || '').toUpperCase() === 'INTERACTIVE';
+const interactiveHoldMs = Math.max(
+  0,
+  Number(process.env.SKYCOMMAND_BROWSER_INTERACTIVE_HOLD_MS || 4000) || 0,
+);
+
 const workflowCode =
   String(
     getBrowserTestParameter(
@@ -13,7 +20,7 @@ const workflowCode =
 test.describe('Workflow Initialization browser smoke', () => {
   test.beforeEach(async ({ page }) => {
     await loginToSkyCommand(page);
-    if (String(process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || '').toUpperCase() === 'INTERACTIVE') {
+    if (interactiveExecution) {
       await page.bringToFront();
     }
   });
@@ -48,9 +55,10 @@ test.describe('Workflow Initialization browser smoke', () => {
       contentType: 'image/png',
     });
 
-    if (String(process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || '').toUpperCase() === 'INTERACTIVE') {
+    if (interactiveExecution && interactiveHoldMs > 0) {
       // Keep the headed proof visible long enough for a human operator to observe it.
-      await page.waitForTimeout(1500);
+      await page.bringToFront();
+      await page.waitForTimeout(interactiveHoldMs);
     }
 
     // Phase 1 deliberately proves browser/UI behavior without mutating workflow state.

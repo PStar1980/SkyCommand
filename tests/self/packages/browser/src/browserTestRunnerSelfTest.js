@@ -127,6 +127,7 @@ const runnerSource = fs.readFileSync(path.join(repositoryRoot, 'packages/browser
 assert.ok(runnerSource.includes('runChildProcess(process.execPath, [playwrightCli, ...args]'));
 assert.ok(runnerSource.includes('launchWindowsInteractiveBrowserPresenter'));
 assert.ok(runnerSource.includes('Show-SkyCommandPlaywrightWindow.ps1'));
+assert.ok(runnerSource.includes("'-FocusDurationMs'"));
 if (process.platform !== 'win32') {
   assert.equal(launchWindowsInteractiveBrowserPresenter(repositoryRoot, process.pid), false);
 }

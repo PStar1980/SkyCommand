@@ -128,6 +128,8 @@ function launchWindowsInteractiveBrowserPresenter(repositoryRoot, rootProcessId)
       String(rootProcessId),
       '-TimeoutSeconds',
       '12',
+      '-FocusDurationMs',
+      '2500',
     ], {
       cwd: repositoryRoot,
       env: process.env,

@@ -121,3 +121,23 @@ Playwright HTML reports are opened through a short-lived, report-scoped view tic
 authenticated `BROWSER_TEST_READ` request. The ticket serves the report entry page and its relative
 `data/*` attachments together, so screenshots and other report evidence remain visible without
 placing the user's SkyCommand session bearer token in the report URL.
+
+### Interactive presentation and viewport sizing
+
+SkyCommand maximizes and foregrounds the Chromium window for LOCAL interactive runs. The presenter
+reasserts focus briefly after the Chromium window is created so the hidden Host Agent launcher does
+not leave the browser minimized or behind another window. Interactive Playwright releases the fixed
+emulated viewport and uses the maximized host window's real client area.
+
+Headless runs keep deterministic evidence dimensions. Defaults are configurable in `.env`:
+
+```text
+SKYCOMMAND_BROWSER_VIEWPORT_WIDTH=1600
+SKYCOMMAND_BROWSER_VIEWPORT_HEIGHT=900
+SKYCOMMAND_BROWSER_INTERACTIVE_SLOW_MO_MS=300
+SKYCOMMAND_BROWSER_INTERACTIVE_HOLD_MS=4000
+```
+
+The viewport settings affect headless screenshots; interactive runs use the actual maximized browser
+window. The slow-motion and hold values affect only interactive/manual execution.
+

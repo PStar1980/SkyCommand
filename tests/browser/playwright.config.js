@@ -9,7 +9,9 @@ const artifactRoot = path.resolve(
   process.env.SKYCOMMAND_BROWSER_ARTIFACT_ROOT || path.resolve(__dirname, '../../artifacts/browser/tests'),
 );
 const interactiveExecution = String(process.env.SKYCOMMAND_BROWSER_EXECUTION_MODE || '').toUpperCase() === 'INTERACTIVE';
-const interactiveSlowMoMs = Math.max(0, Number(process.env.SKYCOMMAND_BROWSER_INTERACTIVE_SLOW_MO_MS || 225) || 0);
+const interactiveSlowMoMs = Math.max(0, Number(process.env.SKYCOMMAND_BROWSER_INTERACTIVE_SLOW_MO_MS || 300) || 0);
+const viewportWidth = Math.max(800, Number(process.env.SKYCOMMAND_BROWSER_VIEWPORT_WIDTH || 1600) || 1600);
+const viewportHeight = Math.max(600, Number(process.env.SKYCOMMAND_BROWSER_VIEWPORT_HEIGHT || 900) || 900);
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'specs'),
@@ -41,13 +43,28 @@ module.exports = defineConfig({
     navigationTimeout: 30_000,
     ...(interactiveExecution ? {
       headless: false,
-      launchOptions: { slowMo: interactiveSlowMoMs },
+      launchOptions: {
+        slowMo: interactiveSlowMoMs,
+        args: ['--start-maximized'],
+      },
     } : {}),
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: interactiveExecution
+        ? {
+          browserName: 'chromium',
+          // Do not apply the Desktop Chrome device descriptor here: its fixed viewport
+          // and deviceScaleFactor would defeat native maximized-window sizing.
+          viewport: null,
+        }
+        : {
+          ...devices['Desktop Chrome'],
+          // Headless runs use a larger deterministic 16:9 viewport for clearer evidence.
+          viewport: { width: viewportWidth, height: viewportHeight },
+          screen: { width: viewportWidth, height: viewportHeight },
+        },
     },
   ],
 });
