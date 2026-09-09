@@ -14,6 +14,10 @@ async function runTest(testCode, payload = {}) {
   return api.post(`/api/browser-tests/${encodeURIComponent(testCode)}/run`, payload);
 }
 
+async function listRuns(filters = {}) {
+  return api.get('/api/browser-tests/runs', { query: filters });
+}
+
 async function getRun(workflowId) {
   return api.get(`/api/browser-tests/runs/${encodeURIComponent(workflowId)}`);
 }
@@ -72,6 +76,7 @@ const browserTestService = {
   getRun,
   getTest,
   listAdminTests,
+  listRuns,
   listTests,
   replaceAdminTestEnvironments,
   replaceAdminTestParameters,

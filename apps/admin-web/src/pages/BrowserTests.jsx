@@ -7,8 +7,176 @@ import StatusPill from '../components/ui/StatusPill.jsx';
 import browserTestService from '../services/browserTestService.js';
 
 const TERMINAL_RUN_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
-const DEFAULT_RUN_FILTERS = { q: '', categoryCode: '', environmentCode: '' };
-const DEFAULT_MANAGE_FILTERS = { q: '', categoryCode: '', enabled: '' };
+const DEFAULT_RUN_FILTERS = { q: '', categoryCode: '', environmentCode: '', browserType: '' };
+const DEFAULT_OPERATIONS_FILTERS = { q: '', categoryCode: '', environmentCode: '', status: '' };
+const DEFAULT_MANAGE_FILTERS = { q: '', categoryCode: '', riskCode: '', enabled: '' };
+const BROWSER_TABLE_PAGE_SIZE_OPTIONS = [10, 25, 50];
+
+
+function getAvailableBrowserPageSizes(total) {
+  const recordCount = Math.max(0, Number(total) || 0);
+  return BROWSER_TABLE_PAGE_SIZE_OPTIONS.filter((size) => {
+    if (size === 10) return true;
+    if (size === 25) return recordCount >= 11;
+    if (size === 50) return recordCount >= 26;
+    return false;
+  });
+}
+
+function compareBrowserTableValues(left, right) {
+  if (left === right) return 0;
+  if (left === undefined || left === null || left === '') return 1;
+  if (right === undefined || right === null || right === '') return -1;
+  if (left instanceof Date || right instanceof Date) {
+    return new Date(left).getTime() - new Date(right).getTime();
+  }
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && String(left).trim() !== '' && String(right).trim() !== '') {
+    return leftNumber - rightNumber;
+  }
+  return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function sortStacksMatch(left = [], right = []) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function useBrowserTable(items, { defaultSorts, getSortValue, resetKey }) {
+  const [sorts, setSorts] = useState(defaultSorts);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey]);
+
+  const sortedItems = useMemo(() => {
+    const copy = [...items];
+    copy.sort((left, right) => {
+      for (const sort of sorts) {
+        const comparison = compareBrowserTableValues(
+          getSortValue(left, sort.field),
+          getSortValue(right, sort.field),
+        );
+        if (comparison !== 0) return sort.direction === 'desc' ? -comparison : comparison;
+      }
+      return 0;
+    });
+    return copy;
+  }, [items, sorts, getSortValue]);
+
+  const total = sortedItems.length;
+  const availablePageSizes = getAvailableBrowserPageSizes(total);
+  const normalizedPageSize = availablePageSizes.includes(pageSize)
+    ? pageSize
+    : availablePageSizes[availablePageSizes.length - 1] || 10;
+  const pageCount = Math.max(1, Math.ceil(total / normalizedPageSize));
+  const safePage = Math.min(Math.max(1, page), pageCount);
+  const pageItems = sortedItems.slice((safePage - 1) * normalizedPageSize, safePage * normalizedPageSize);
+  const rangeStart = total === 0 ? 0 : (safePage - 1) * normalizedPageSize + 1;
+  const rangeEnd = total === 0 ? 0 : Math.min(total, safePage * normalizedPageSize);
+  const sortingCustomized = !sortStacksMatch(sorts, defaultSorts);
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+    if (pageSize !== normalizedPageSize) setPageSize(normalizedPageSize);
+  }, [page, pageSize, safePage, normalizedPageSize]);
+
+  function updateSorting(field, event) {
+    const multi = Boolean(event?.shiftKey);
+    setSorts((current) => {
+      const activeIndex = current.findIndex((sort) => sort.field === field);
+      const active = activeIndex >= 0 ? current[activeIndex] : null;
+      if (!multi) {
+        if (!active || current.length !== 1) return [{ field, direction: 'asc' }];
+        if (active.direction === 'asc') return [{ field, direction: 'desc' }];
+        return defaultSorts;
+      }
+      const next = [...current];
+      if (!active) next.push({ field, direction: 'asc' });
+      else if (active.direction === 'asc') next[activeIndex] = { field, direction: 'desc' };
+      else next.splice(activeIndex, 1);
+      return next.length ? next : defaultSorts;
+    });
+  }
+
+  function changePageSize(value) {
+    const next = Number(value);
+    if (!BROWSER_TABLE_PAGE_SIZE_OPTIONS.includes(next)) return;
+    setPageSize(next);
+    setPage(1);
+  }
+
+  return {
+    availablePageSizes,
+    changePageSize,
+    clearSorting: () => setSorts(defaultSorts),
+    page: safePage,
+    pageCount,
+    pageItems,
+    pageSize: normalizedPageSize,
+    rangeEnd,
+    rangeStart,
+    setPage: (value) => setPage(Math.min(Math.max(1, Number(value) || 1), pageCount)),
+    sortingCustomized,
+    sorts,
+    total,
+    updateSorting,
+  };
+}
+
+function BrowserSortableHeader({ field, label, table }) {
+  const activeIndex = table.sorts.findIndex((sort) => sort.field === field);
+  const activeSort = activeIndex >= 0 ? table.sorts[activeIndex] : null;
+  const directionIcon = activeSort?.direction === 'asc' ? '↑' : '↓';
+  const sortDescription = activeSort
+    ? `${activeSort.direction === 'asc' ? 'ascending' : 'descending'}, priority ${activeIndex + 1}`
+    : 'not currently sorted';
+
+  return (
+    <th>
+      <button
+        aria-label={`${label}: ${sortDescription}. Click to sort; Shift+click to add to multi-column sorting.`}
+        className={`sky-table-sort-button ${activeSort ? 'is-active' : ''}`}
+        onClick={(event) => table.updateSorting(field, event)}
+        title="Click to sort · Shift+click to add sort"
+        type="button"
+      >
+        <span>{label}</span>
+        <span aria-hidden="true" className="sky-table-sort-indicator">{activeSort ? directionIcon : '↕'}</span>
+        {activeSort && <span aria-hidden="true" className="sky-table-sort-priority">{activeIndex + 1}</span>}
+      </button>
+    </th>
+  );
+}
+
+function BrowserTablePagination({ label, loading = false, table }) {
+  return (
+    <div className="sky-pagination-row sky-canonical-operations-pagination-row">
+      <div className="small sky-muted sky-canonical-operations-pagination-summary">
+        Showing {table.rangeStart}–{table.rangeEnd} of {table.total} {label}
+      </div>
+      <div aria-label={`${label} pagination`} className="sky-pagination-controls sky-canonical-operations-pagination-controls">
+        <button aria-label="First page" className="btn btn-sm sky-pagination-nav-button" disabled={table.page <= 1 || loading} onClick={() => table.setPage(1)} type="button">«</button>
+        <button aria-label="Previous page" className="btn btn-sm sky-pagination-nav-button" disabled={table.page <= 1 || loading} onClick={() => table.setPage(table.page - 1)} type="button">‹</button>
+        <label className="sky-pagination-select-label">Page</label>
+        <select className="form-select form-select-sm sky-form-control sky-pagination-select" disabled={loading} onChange={(event) => table.setPage(event.target.value)} value={table.page}>
+          {Array.from({ length: table.pageCount }, (_, index) => index + 1).map((page) => <option key={page} value={page}>{page}</option>)}
+        </select>
+        <span className="small sky-muted">of {table.pageCount}</span>
+        <button aria-label="Next page" className="btn btn-sm sky-pagination-nav-button" disabled={table.page >= table.pageCount || loading} onClick={() => table.setPage(table.page + 1)} type="button">›</button>
+        <button aria-label="Last page" className="btn btn-sm sky-pagination-nav-button" disabled={table.page >= table.pageCount || loading} onClick={() => table.setPage(table.pageCount)} type="button">»</button>
+      </div>
+      <div className="sky-canonical-rows-control">
+        <label className="sky-pagination-select-label">Rows</label>
+        <select className="form-select form-select-sm sky-form-control sky-pagination-select sky-canonical-rows-select" disabled={loading} onChange={(event) => table.changePageSize(event.target.value)} value={table.pageSize}>
+          {table.availablePageSizes.map((size) => <option key={size} value={size}>{size}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
 
 function normalizeBoolean(value) {
   return value === true || value === 'true' || value === 't' || value === 1 || value === '1';
@@ -207,6 +375,7 @@ export function BrowserTestRun() {
   const [notice, setNotice] = useState('');
   const [workflowId, setWorkflowId] = useState('');
   const [run, setRun] = useState(null);
+  const initializationRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -217,7 +386,7 @@ export function BrowserTestRun() {
         const result = await browserTestService.listTests({ limit: 100, offset: 0 });
         if (active) setCatalogue(result.items || []);
       } catch (loadError) {
-        if (active) setError(loadError.message || 'Failed to load Browser Tests.');
+        if (active) setError(loadError.message || 'Failed to load Playwright Tests.');
       } finally {
         if (active) setLoading(false);
       }
@@ -240,7 +409,7 @@ export function BrowserTestRun() {
           timer = window.setTimeout(refreshRun, 1000);
         }
       } catch (loadError) {
-        if (active) setError(loadError.message || 'Failed to refresh Browser Test run.');
+        if (active) setError(loadError.message || 'Failed to refresh Playwright Test run.');
       }
     }
 
@@ -259,18 +428,38 @@ export function BrowserTestRun() {
     () => Array.from(new Set(catalogue.map((test) => test.defaultEnvironmentCode).filter(Boolean))).sort(),
     [catalogue],
   );
+  const browsers = useMemo(
+    () => Array.from(new Set(catalogue.map((test) => test.browserType).filter(Boolean))).sort(),
+    [catalogue],
+  );
   const filteredTests = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     return catalogue.filter((test) => {
       if (filters.categoryCode && test.category?.categoryCode !== filters.categoryCode) return false;
       if (filters.environmentCode && test.defaultEnvironmentCode !== filters.environmentCode) return false;
+      if (filters.browserType && test.browserType !== filters.browserType) return false;
       if (!q) return true;
       return [test.label, test.testCode, test.description, test.category?.label, test.scriptPath]
         .some((value) => String(value || '').toLowerCase().includes(q));
     });
   }, [catalogue, filters]);
 
-  async function initializeTest(test) {
+  const table = useBrowserTable(filteredTests, {
+    defaultSorts: [{ field: 'test', direction: 'asc' }],
+    resetKey: JSON.stringify(filters),
+    getSortValue: (test, field) => ({
+      test: test.label,
+      category: test.category?.label,
+      browser: test.browserType,
+      environment: test.defaultEnvironmentCode,
+      risk: test.riskRank,
+      parameters: test.parameterCount,
+      status: test.enabled ? 'ACTIVE' : 'DISABLED',
+    })[field],
+  });
+
+  async function initializeTest(test, { scroll = true } = {}) {
+    if (!test || initializing || running) return;
     setInitializing(true);
     setError('');
     setNotice('');
@@ -284,12 +473,27 @@ export function BrowserTestRun() {
       setParameterValues(getInitialParameterValues(detail));
       setEnvironmentCode(detail.defaultEnvironmentCode || detail.environments?.[0]?.environmentCode || '');
       setConfirmed(false);
+      if (scroll) {
+        window.requestAnimationFrame(() => initializationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
     } catch (loadError) {
-      setError(loadError.message || 'Failed to initialize Browser Test.');
+      setError(loadError.message || 'Failed to initialize Playwright Test.');
     } finally {
       setInitializing(false);
     }
   }
+
+  const visibleTestKey = table.pageItems.map((test) => test.testCode).join('|');
+  useEffect(() => {
+    if (loading || initializing || running) return;
+    if (table.pageItems.length === 0) {
+      setSelectedTestCode('');
+      setSelectedTest(null);
+      return;
+    }
+    if (table.pageItems.some((test) => test.testCode === selectedTestCode)) return;
+    initializeTest(table.pageItems[0], { scroll: false });
+  }, [loading, visibleTestKey]);
 
   async function startTest(event) {
     event.preventDefault();
@@ -309,16 +513,20 @@ export function BrowserTestRun() {
       browserTestService.setLastRunWorkflowId(launchedWorkflowId);
       setNotice(`${selectedTest.label} was accepted by Temporal and sent to the Browser Worker.`);
     } catch (runError) {
-      setError(runError.message || 'Browser Test failed to start.');
+      setError(runError.message || 'Playwright Test failed to start.');
     } finally {
       setRunning(false);
     }
   }
 
+  function clearFilters() {
+    setFilters(DEFAULT_RUN_FILTERS);
+  }
+
   return (
     <div className="container-fluid px-0">
       <PageHeader
-        kicker="BROWSER TESTS · EXECUTION"
+        kicker="PLAYWRIGHT TESTS · EXECUTION"
         subtitle="Launch registered Playwright tests through the dedicated Temporal-backed Browser Worker."
         title="Run Tests"
       />
@@ -327,132 +535,115 @@ export function BrowserTestRun() {
       {notice && <DismissibleAlert tone="success">{notice}</DismissibleAlert>}
 
       <Panel
-        className="sky-table-card"
+        className="sky-table-card sky-table-browser-anchor"
         kicker="TEST BROWSER"
-        subtitle="Filter the registered Browser Test catalogue, then initialize a test to review its runtime parameters."
+        subtitle="Filter the registered Playwright Test catalogue, then select a row to review its runtime parameters."
         title="Available Tests"
       >
         <div className="sky-card-body">
-          <div className="row g-2 mb-3">
-            <div className="col-12 col-xl-6">
+          <div className="sky-run-tools-filter-grid sky-browser-test-filter-grid mb-3">
+            <div className="sky-run-tools-search-filter">
               <label className="form-label" htmlFor="browserTestSearch">Search</label>
-              <input
-                className="form-control sky-form-control"
-                id="browserTestSearch"
-                onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))}
-                placeholder="Name, code, description, source path..."
-                value={filters.q}
-              />
+              <input className="form-control sky-form-control" id="browserTestSearch" onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Name, code, description, source path..." type="search" value={filters.q} />
             </div>
-            <div className="col-12 col-md-5 col-xl-2">
+            <div>
               <label className="form-label" htmlFor="browserTestCategory">Category</label>
-              <select
-                className="form-select sky-form-control"
-                id="browserTestCategory"
-                onChange={(event) => setFilters((current) => ({ ...current, categoryCode: event.target.value }))}
-                value={filters.categoryCode}
-              >
+              <select className="form-select sky-form-control" id="browserTestCategory" onChange={(event) => setFilters((current) => ({ ...current, categoryCode: event.target.value }))} value={filters.categoryCode}>
                 <option value="">All categories</option>
                 {categories.map((category) => <option key={category.categoryCode} value={category.categoryCode}>{category.label}</option>)}
               </select>
             </div>
-            <div className="col-12 col-md-5 col-xl-2">
+            <div>
               <label className="form-label" htmlFor="browserTestEnvironment">Environment</label>
-              <select
-                className="form-select sky-form-control"
-                id="browserTestEnvironment"
-                onChange={(event) => setFilters((current) => ({ ...current, environmentCode: event.target.value }))}
-                value={filters.environmentCode}
-              >
+              <select className="form-select sky-form-control" id="browserTestEnvironment" onChange={(event) => setFilters((current) => ({ ...current, environmentCode: event.target.value }))} value={filters.environmentCode}>
                 <option value="">All environments</option>
                 {environments.map((code) => <option key={code} value={code}>{code}</option>)}
               </select>
             </div>
-            <div className="col-12 col-md-2 col-xl-2 d-flex align-items-end">
-              <button className="btn btn-sm btn-sky w-100" onClick={() => setFilters(DEFAULT_RUN_FILTERS)} type="button">Clear filters</button>
+            <div>
+              <label className="form-label" htmlFor="browserTestBrowser">Browser</label>
+              <select className="form-select sky-form-control" id="browserTestBrowser" onChange={(event) => setFilters((current) => ({ ...current, browserType: event.target.value }))} value={filters.browserType}>
+                <option value="">All browsers</option>
+                {browsers.map((browser) => <option key={browser} value={browser}>{browser.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <div className="sky-run-tools-filter-actions">
+              {table.sortingCustomized && <button className="btn btn-sm sky-btn-ghost" onClick={table.clearSorting} type="button">Clear sorting</button>}
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">Clear filters</button>
             </div>
           </div>
 
-          <div className="table-responsive sky-canonical-operations-table-frame">
-            <table className="table table-sm align-middle sky-table sky-canonical-operations-table mb-0">
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+            <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle">
               <thead>
                 <tr>
-                  <th>Test</th><th>Category</th><th>Browser</th><th>Environment</th><th>Risk</th><th>Parameters</th><th>Status</th><th className="text-end">Actions</th>
+                  <BrowserSortableHeader field="test" label="Test" table={table} />
+                  <BrowserSortableHeader field="category" label="Category" table={table} />
+                  <BrowserSortableHeader field="browser" label="Browser" table={table} />
+                  <BrowserSortableHeader field="environment" label="Environment" table={table} />
+                  <BrowserSortableHeader field="risk" label="Risk" table={table} />
+                  <BrowserSortableHeader field="parameters" label="Parameters" table={table} />
+                  <BrowserSortableHeader field="status" label="Status" table={table} />
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td className="sky-muted" colSpan={8}>Loading Browser Tests...</td></tr>
-                ) : filteredTests.length === 0 ? (
-                  <tr><td className="sky-muted" colSpan={8}>No Browser Tests match the current filters.</td></tr>
-                ) : filteredTests.map((test) => (
-                  <tr className={selectedTestCode === test.testCode ? 'sky-selected-row' : ''} key={test.testId}>
-                    <td><div className="fw-semibold">{test.label}</div><div className="small sky-muted sky-mono">{test.testCode}</div></td>
+                  <tr><td colSpan={7}><div className="sky-empty-state">Loading Playwright Tests...</div></td></tr>
+                ) : table.pageItems.length === 0 ? (
+                  <tr><td colSpan={7}><div className="sky-empty-state">No Playwright Tests match the current filters.</div></td></tr>
+                ) : table.pageItems.map((test) => (
+                  <tr
+                    aria-selected={selectedTestCode === test.testCode}
+                    className={`sky-clickable-row ${selectedTestCode === test.testCode ? 'sky-selected-row' : ''}`}
+                    key={test.testId}
+                    onClick={() => initializeTest(test)}
+                  >
+                    <td><div className="fw-bold sky-detail-value">{test.label}</div><div className="small sky-muted sky-mono">{test.testCode}</div></td>
                     <td>{test.category?.label || '—'}</td>
                     <td className="text-uppercase">{test.browserType}</td>
                     <td>{test.defaultEnvironmentCode}</td>
                     <td><span className={`sky-pill ${riskToneClass(test.riskCode)}`}>{String(test.riskName || test.riskCode || 'LOW').toUpperCase()}</span></td>
                     <td>{test.parameterCount}</td>
                     <td><StatusPill status={test.enabled ? 'ACTIVE' : 'DISABLED'} /></td>
-                    <td className="text-end"><button className="btn btn-sm btn-sky" disabled={initializing || running} onClick={() => initializeTest(test)} type="button">Initialize</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="small sky-muted mt-2">Showing {filteredTests.length} of {catalogue.length} registered test(s)</div>
+          <BrowserTablePagination label="registered test(s)" loading={loading} table={table} />
         </div>
       </Panel>
 
-      {selectedTest && (
-        <Panel
-          actions={<><span className="sky-pill sky-pill-info">{selectedTest.browserType?.toUpperCase()}</span><span className="sky-pill sky-pill-info">{selectedTest.defaultEnvironmentCode}</span></>}
-          className="mt-3"
-          kicker="TEST INITIALIZATION"
-          subtitle={selectedTest.description || 'Review execution configuration and launch the selected Browser Test.'}
-          title={selectedTest.label}
-        >
-          <form className="sky-card-body" onSubmit={startTest}>
-            <div className="row g-3 mb-3">
-              <div className="col-12 col-lg-4">
-                <label className="form-label" htmlFor="browserTestRunEnvironment">Environment</label>
-                <select className="form-select sky-form-control" disabled={running} id="browserTestRunEnvironment" onChange={(event) => setEnvironmentCode(event.target.value)} value={environmentCode}>
-                  {(selectedTest.environments || []).map((environment) => <option key={environment.environmentCode} value={environment.environmentCode}>{environment.environmentName} ({environment.environmentCode})</option>)}
-                </select>
+      <div ref={initializationRef}>
+        {selectedTest && (
+          <Panel
+            actions={<><span className="sky-pill sky-pill-info">{selectedTest.browserType?.toUpperCase()}</span><span className="sky-pill sky-pill-info">{selectedTest.defaultEnvironmentCode}</span></>}
+            className="mt-3"
+            kicker="TEST INITIALIZATION"
+            subtitle={selectedTest.description || 'Review execution configuration and launch the selected Playwright Test.'}
+            title={selectedTest.label}
+          >
+            <form className="sky-card-body" onSubmit={startTest}>
+              <div className="row g-3 mb-3">
+                <div className="col-12 col-lg-4"><label className="form-label" htmlFor="browserTestRunEnvironment">Environment</label><select className="form-select sky-form-control" disabled={running} id="browserTestRunEnvironment" onChange={(event) => setEnvironmentCode(event.target.value)} value={environmentCode}>{(selectedTest.environments || []).map((environment) => <option key={environment.environmentCode} value={environment.environmentCode}>{environment.environmentName} ({environment.environmentCode})</option>)}</select></div>
+                <div className="col-12 col-lg-4"><label className="form-label">Timeout</label><div className="form-control sky-form-control sky-readonly-field">{selectedTest.timeoutSeconds} seconds</div></div>
+                <div className="col-12 col-lg-4"><label className="form-label">Retries</label><div className="form-control sky-form-control sky-readonly-field">{selectedTest.retryCount}</div></div>
               </div>
-              <div className="col-12 col-lg-4">
-                <label className="form-label">Timeout</label>
-                <div className="form-control sky-form-control sky-readonly-field">{selectedTest.timeoutSeconds} seconds</div>
-              </div>
-              <div className="col-12 col-lg-4">
-                <label className="form-label">Retries</label>
-                <div className="form-control sky-form-control sky-readonly-field">{selectedTest.retryCount}</div>
-              </div>
-            </div>
 
-            <BrowserRuntimeParameterFields
-              disabled={running}
-              onChange={(name, value) => setParameterValues((current) => ({ ...current, [name]: value }))}
-              parameters={selectedTest.parameters || []}
-              values={parameterValues}
-            />
+              <BrowserRuntimeParameterFields disabled={running} onChange={(name, value) => setParameterValues((current) => ({ ...current, [name]: value }))} parameters={selectedTest.parameters || []} values={parameterValues} />
 
-            {selectedTest.requiresConfirmation && (
-              <div className="sky-confirm-panel mt-3">
-                <div className="form-check">
-                  <input checked={confirmed} className="form-check-input" id="browserTestRunConfirm" onChange={(event) => setConfirmed(event.target.checked)} type="checkbox" />
-                  <label className="form-check-label" htmlFor="browserTestRunConfirm">{selectedTest.confirmationText || 'I confirm this Browser Test execution.'}</label>
-                </div>
+              {selectedTest.requiresConfirmation && (
+                <div className="sky-confirm-panel mt-3"><div className="form-check"><input checked={confirmed} className="form-check-input" id="browserTestRunConfirm" onChange={(event) => setConfirmed(event.target.checked)} type="checkbox" /><label className="form-check-label" htmlFor="browserTestRunConfirm">{selectedTest.confirmationText || 'I confirm this Playwright Test execution.'}</label></div></div>
+              )}
+
+              <div className="d-flex flex-wrap gap-2 mt-3">
+                <button className="btn sky-btn-primary" disabled={running || (selectedTest.requiresConfirmation && !confirmed)} type="submit">{running ? 'Starting...' : 'Run Test'}</button>
+                {workflowId && <button className="btn btn-sm sky-btn-ghost" onClick={() => navigate(`/browser-tests/operations?workflowId=${encodeURIComponent(workflowId)}`)} type="button">Open Test Operations</button>}
               </div>
-            )}
-
-            <div className="d-flex flex-wrap gap-2 mt-3">
-              <button className="btn btn-sky" disabled={running || (selectedTest.requiresConfirmation && !confirmed)} type="submit">{running ? 'Starting...' : 'Run Test'}</button>
-              {workflowId && <button className="btn btn-sm btn-outline-info" onClick={() => navigate(`/browser-tests/operations?workflowId=${encodeURIComponent(workflowId)}`)} type="button">Open Test Operations</button>}
-            </div>
-          </form>
-        </Panel>
-      )}
+            </form>
+          </Panel>
+        )}
+      </div>
 
       <BrowserRunStatusPanel run={run} workflowId={workflowId} />
     </div>
@@ -460,83 +651,167 @@ export function BrowserTestRun() {
 }
 
 export function BrowserTestOperations() {
-  const [workflowId, setWorkflowId] = useState(() => {
-    const queryValue = new URLSearchParams(window.location.search).get('workflowId');
-    return queryValue || browserTestService.getLastRunWorkflowId();
-  });
-  const [lookupValue, setLookupValue] = useState(workflowId);
+  const requestedWorkflowId = new URLSearchParams(window.location.search).get('workflowId') || browserTestService.getLastRunWorkflowId();
+  const [items, setItems] = useState([]);
+  const [filters, setFilters] = useState(DEFAULT_OPERATIONS_FILTERS);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState(requestedWorkflowId || '');
   const [run, setRun] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
+  const detailRef = useRef(null);
+
+  async function refreshRuns({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    try {
+      const result = await browserTestService.listRuns({ limit: 500, offset: 0, scanLimit: 500 });
+      setItems(result.items || []);
+      setError('');
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load Playwright Test operations.');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    if (!workflowId) return undefined;
-    let active = true;
-    let timer = null;
+    refreshRuns();
+    const timer = window.setInterval(() => refreshRuns({ silent: true }), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-    async function loadRun() {
-      setLoading(true);
-      try {
-        const result = await browserTestService.getRun(workflowId);
-        if (!active) return;
-        setRun(result.run || null);
-        setError('');
-        browserTestService.setLastRunWorkflowId(workflowId);
-        const params = new URLSearchParams(window.location.search);
-        params.set('workflowId', workflowId);
-        window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
-        if (!TERMINAL_RUN_STATUSES.has(String(result.run?.status || '').toUpperCase())) {
-          timer = window.setTimeout(loadRun, 1000);
-        }
-      } catch (loadError) {
-        if (active) setError(loadError.message || 'Failed to load Browser Test run.');
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
+  const categories = useMemo(
+    () => Array.from(new Map(items.map((item) => [item.categoryCode, item.categoryLabel])).entries()).filter(([code]) => code),
+    [items],
+  );
+  const environments = useMemo(() => Array.from(new Set(items.map((item) => item.environmentCode).filter(Boolean))).sort(), [items]);
+  const filteredItems = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    return items.filter((item) => {
+      if (filters.categoryCode && item.categoryCode !== filters.categoryCode) return false;
+      if (filters.environmentCode && item.environmentCode !== filters.environmentCode) return false;
+      if (filters.status && String(item.status || '').toUpperCase() !== filters.status) return false;
+      if (!q) return true;
+      return [item.testLabel, item.testCode, item.workflowId, item.categoryLabel, item.environmentCode, item.status]
+        .some((value) => String(value || '').toLowerCase().includes(q));
+    });
+  }, [items, filters]);
 
-    loadRun();
-    return () => {
-      active = false;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [workflowId]);
+  const table = useBrowserTable(filteredItems, {
+    defaultSorts: [{ field: 'started', direction: 'desc' }],
+    resetKey: JSON.stringify(filters),
+    getSortValue: (item, field) => ({
+      test: item.testLabel,
+      category: item.categoryLabel,
+      status: item.status,
+      started: item.startTime ? new Date(item.startTime) : null,
+      duration: item.durationMs,
+      environment: item.environmentCode,
+      browser: item.browserType,
+    })[field],
+  });
 
-  function handleLookup(event) {
-    event.preventDefault();
-    const value = lookupValue.trim();
+  async function selectRun(item, { scroll = false } = {}) {
+    if (!item?.workflowId) return;
+    setSelectedWorkflowId(item.workflowId);
+    setDetailLoading(true);
     setRun(null);
     setError('');
-    setWorkflowId(value);
+    try {
+      const result = await browserTestService.getRun(item.workflowId);
+      setRun(result.run || null);
+      browserTestService.setLastRunWorkflowId(item.workflowId);
+      const params = new URLSearchParams(window.location.search);
+      params.set('workflowId', item.workflowId);
+      window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+      if (scroll) window.requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load Playwright Test run.');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  const visibleRunKey = table.pageItems.map((item) => item.workflowId).join('|');
+  useEffect(() => {
+    if (loading || detailLoading) return;
+    if (table.pageItems.length === 0) {
+      setSelectedWorkflowId('');
+      setRun(null);
+      return;
+    }
+    const requested = requestedWorkflowId && table.pageItems.find((item) => item.workflowId === requestedWorkflowId);
+    const selectedVisible = table.pageItems.find((item) => item.workflowId === selectedWorkflowId);
+    const next = requested || selectedVisible || table.pageItems[0];
+    if (!next || (next.workflowId === selectedWorkflowId && run)) return;
+    selectRun(next, { scroll: false });
+  }, [loading, visibleRunKey]);
+
+  useEffect(() => {
+    if (!selectedWorkflowId || !run || TERMINAL_RUN_STATUSES.has(String(run.status || '').toUpperCase())) return undefined;
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await browserTestService.getRun(selectedWorkflowId);
+        setRun(result.run || null);
+      } catch (_error) {
+        // The operations browser refresh will surface durable errors; keep live polling unobtrusive.
+      }
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [selectedWorkflowId, run]);
+
+  function clearFilters() {
+    setFilters(DEFAULT_OPERATIONS_FILTERS);
   }
 
   return (
     <div className="container-fluid px-0">
       <PageHeader
-        kicker="BROWSER TESTS · OPERATIONS"
-        subtitle="Inspect Temporal-backed Browser Test execution state directly by workflow ID."
+        kicker="PLAYWRIGHT TESTS · OPERATIONS"
+        subtitle="Browse Temporal-backed Playwright Test executions, then inspect the selected Browser Worker result below."
         title="Test Operations"
       />
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
-      <Panel kicker="RUN LOOKUP" subtitle="Use the latest launched execution or paste a Browser Test Temporal workflow ID." title="Execution Browser">
-        <form className="sky-card-body" onSubmit={handleLookup}>
-          <div className="row g-2 align-items-end">
-            <div className="col-12 col-xl-10">
-              <label className="form-label" htmlFor="browserTestWorkflowId">Temporal workflow ID</label>
-              <input className="form-control sky-form-control sky-mono" id="browserTestWorkflowId" onChange={(event) => setLookupValue(event.target.value)} placeholder="skycommand-browser-test-..." value={lookupValue} />
+      <Panel className="sky-table-card sky-table-browser-anchor" kicker="EXECUTION BROWSER" subtitle="Filter the recent Playwright Test execution ledger, then select a run for details." title="Playwright Test Operations">
+        <div className="sky-card-body">
+          <div className="sky-run-tools-filter-grid sky-browser-test-filter-grid mb-3">
+            <div className="sky-run-tools-search-filter"><label className="form-label" htmlFor="browserTestOperationsSearch">Search</label><input className="form-control sky-form-control" id="browserTestOperationsSearch" onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Test, workflow ID, category, status..." type="search" value={filters.q} /></div>
+            <div><label className="form-label" htmlFor="browserTestOperationsCategory">Category</label><select className="form-select sky-form-control" id="browserTestOperationsCategory" onChange={(event) => setFilters((current) => ({ ...current, categoryCode: event.target.value }))} value={filters.categoryCode}><option value="">All categories</option>{categories.map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></div>
+            <div><label className="form-label" htmlFor="browserTestOperationsStatus">Status</label><select className="form-select sky-form-control" id="browserTestOperationsStatus" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} value={filters.status}><option value="">All statuses</option><option value="RUNNING">RUNNING</option><option value="COMPLETED">COMPLETED</option><option value="FAILED">FAILED</option><option value="CANCELED">CANCELED</option><option value="TERMINATED">TERMINATED</option><option value="TIMED_OUT">TIMED OUT</option></select></div>
+            <div><label className="form-label" htmlFor="browserTestOperationsEnvironment">Environment</label><select className="form-select sky-form-control" id="browserTestOperationsEnvironment" onChange={(event) => setFilters((current) => ({ ...current, environmentCode: event.target.value }))} value={filters.environmentCode}><option value="">All environments</option>{environments.map((code) => <option key={code} value={code}>{code}</option>)}</select></div>
+            <div className="sky-run-tools-filter-actions">
+              {table.sortingCustomized && <button className="btn btn-sm sky-btn-ghost" onClick={table.clearSorting} type="button">Clear sorting</button>}
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">Clear filters</button>
             </div>
-            <div className="col-12 col-xl-2"><button className="btn btn-sky w-100" disabled={loading || !lookupValue.trim()} type="submit">{loading ? 'Loading...' : 'Load Run'}</button></div>
           </div>
-        </form>
+
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+            <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle">
+              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /><BrowserSortableHeader field="started" label="Started" table={table} /><BrowserSortableHeader field="duration" label="Duration" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="browser" label="Browser" table={table} /><th className="text-end">Actions</th></tr></thead>
+              <tbody>
+                {loading ? <tr><td colSpan={8}><div className="sky-empty-state">Loading Playwright Test executions...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={8}><div className="sky-empty-state">No Playwright Test executions match the current filters.</div></td></tr> : table.pageItems.map((item) => (
+                  <tr className={`sky-clickable-row ${selectedWorkflowId === item.workflowId ? 'sky-selected-row' : ''}`} key={item.workflowId} onClick={() => selectRun(item)}>
+                    <td><div className="fw-bold sky-detail-value">{item.testLabel}</div><div className="small sky-muted sky-mono">{item.testCode}</div></td>
+                    <td>{item.categoryLabel || 'Uncategorized'}</td>
+                    <td><StatusPill status={item.status} /></td>
+                    <td>{formatDateTime(item.startTime)}</td>
+                    <td>{formatDuration(item.durationMs)}</td>
+                    <td>{item.environmentCode || '—'}</td>
+                    <td className="text-uppercase">{item.browserType || 'chromium'}</td>
+                    <td className="text-end"><button className="btn btn-sm sky-btn-ghost" disabled={detailLoading} onClick={(event) => { event.stopPropagation(); selectRun(item, { scroll: true }); }} type="button">Run Details</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <BrowserTablePagination label="test execution(s)" loading={loading} table={table} />
+        </div>
       </Panel>
 
-      {!workflowId && (
-        <Panel className="mt-3" kicker="NO RUN SELECTED" subtitle="Launch a registered Browser Test from Run Tests, or enter a workflow ID above." title="Browser Test Run">
-          <div className="sky-card-body small sky-muted">No Browser Test execution is selected.</div>
-        </Panel>
-      )}
-      <BrowserRunStatusPanel run={run} workflowId={workflowId} />
+      <div ref={detailRef}>
+        {selectedWorkflowId ? <BrowserRunStatusPanel run={run} workflowId={selectedWorkflowId} /> : <Panel className="mt-3" kicker="NO RUN SELECTED" subtitle="Select a Playwright Test execution from the browser above." title="Browser Test Run"><div className="sky-card-body small sky-muted">No Playwright Test execution is selected.</div></Panel>}
+      </div>
     </div>
   );
 }
@@ -747,14 +1022,14 @@ function BrowserTestRegistryForm({ canEditCode = true, form, onChange, options, 
 
       <div className="d-flex justify-content-between align-items-center gap-2 mt-4 mb-2">
         <div><div className="sky-page-kicker">RUNTIME PARAMETERS</div><div className="small sky-muted">Parameterized values are validated by the registry before Temporal execution.</div></div>
-        <button className="btn btn-sm btn-sky" onClick={() => onChange((current) => ({ ...current, parameters: [...current.parameters, createEmptyRegistryParameter(current.parameters.length, options)] }))} type="button">Add parameter</button>
+        <button className="btn btn-sm sky-btn-primary" onClick={() => onChange((current) => ({ ...current, parameters: [...current.parameters, createEmptyRegistryParameter(current.parameters.length, options)] }))} type="button">Add parameter</button>
       </div>
 
-      {(form.parameters || []).length === 0 ? <div className="small sky-muted">No Browser Test parameters configured.</div> : (
+      {(form.parameters || []).length === 0 ? <div className="small sky-muted">No Playwright Test parameters configured.</div> : (
         <div className="d-grid gap-3">
           {form.parameters.map((parameter, index) => (
             <section className="sky-tool-parameter-editor" key={`${parameter.parameterName || 'new'}-${index}`}>
-              <div className="d-flex justify-content-between align-items-center gap-2 mb-3"><strong>Parameter {index + 1}</strong><button className="btn btn-sm btn-outline-danger" onClick={() => onChange((current) => ({ ...current, parameters: current.parameters.filter((_, parameterIndex) => parameterIndex !== index) }))} type="button">Remove</button></div>
+              <div className="d-flex justify-content-between align-items-center gap-2 mb-3"><strong>Parameter {index + 1}</strong><button className="btn btn-sm sky-btn-danger" onClick={() => onChange((current) => ({ ...current, parameters: current.parameters.filter((_, parameterIndex) => parameterIndex !== index) }))} type="button">Remove</button></div>
               <div className="row g-3">
                 <div className="col-12 col-lg-3"><label className="form-label">Name *</label><input className="form-control sky-form-control sky-mono" onChange={(event) => updateParameter(index, 'parameterName', event.target.value)} required value={parameter.parameterName} /></div>
                 <div className="col-12 col-lg-3"><label className="form-label">Label *</label><input className="form-control sky-form-control" onChange={(event) => updateParameter(index, 'label', event.target.value)} required value={parameter.label} /></div>
@@ -771,7 +1046,7 @@ function BrowserTestRegistryForm({ canEditCode = true, form, onChange, options, 
         </div>
       )}
 
-      <div className="mt-4"><button className="btn btn-sky" disabled={saving} type="submit">{saving ? 'Saving...' : submitLabel}</button></div>
+      <div className="mt-4"><button className="btn sky-btn-primary" disabled={saving} type="submit">{saving ? 'Saving...' : submitLabel}</button></div>
     </form>
   );
 }
@@ -789,8 +1064,8 @@ export function BrowserTestManage() {
   const [notice, setNotice] = useState('');
   const editorRef = useRef(null);
 
-  async function refreshList(nextFilters = filters) {
-    const result = await browserTestService.listAdminTests({ ...nextFilters, limit: 100, offset: 0 });
+  async function refreshList() {
+    const result = await browserTestService.listAdminTests({ limit: 100, offset: 0 });
     setTests(result.items || []);
   }
 
@@ -807,7 +1082,7 @@ export function BrowserTestManage() {
         setOptions(optionsResult.options || {});
         setTests(testsResult.items || []);
       } catch (loadError) {
-        if (active) setError(loadError.message || 'Failed to load Browser Test administration.');
+        if (active) setError(loadError.message || 'Failed to load Playwright Test administration.');
       } finally {
         if (active) setLoading(false);
       }
@@ -820,13 +1095,30 @@ export function BrowserTestManage() {
     const q = filters.q.trim().toLowerCase();
     return tests.filter((test) => {
       if (filters.categoryCode && test.category?.categoryCode !== filters.categoryCode) return false;
+      if (filters.riskCode && test.riskCode !== filters.riskCode) return false;
       if (filters.enabled !== '' && String(Boolean(test.enabled)) !== filters.enabled) return false;
       if (!q) return true;
-      return [test.label, test.testCode, test.description, test.scriptPath].some((value) => String(value || '').toLowerCase().includes(q));
+      return [test.label, test.testCode, test.description, test.scriptPath, test.scriptRepository?.repoName]
+        .some((value) => String(value || '').toLowerCase().includes(q));
     });
   }, [tests, filters]);
 
-  async function selectTest(test) {
+  const table = useBrowserTable(filteredTests, {
+    defaultSorts: [{ field: 'test', direction: 'asc' }],
+    resetKey: JSON.stringify(filters),
+    getSortValue: (test, field) => ({
+      test: test.label,
+      category: test.category?.label,
+      source: test.scriptRepository?.repoName,
+      environment: test.defaultEnvironmentCode,
+      risk: test.riskRank,
+      parameters: test.parameterCount,
+      status: test.enabled ? 'ACTIVE' : 'DISABLED',
+    })[field],
+  });
+
+  async function selectTest(test, { scroll = true } = {}) {
+    if (!test || detailLoading) return;
     setSelectedTestId(test.testId);
     setDetailLoading(true);
     setError('');
@@ -834,13 +1126,25 @@ export function BrowserTestManage() {
     try {
       const result = await browserTestService.getAdminTest(test.testId);
       setForm(populateRegistryForm(result.test, options || {}));
-      window.requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      if (scroll) window.requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load Browser Test configuration.');
+      setError(loadError.message || 'Failed to load Playwright Test configuration.');
     } finally {
       setDetailLoading(false);
     }
   }
+
+  const visibleTestKey = table.pageItems.map((test) => test.testId).join('|');
+  useEffect(() => {
+    if (loading || !options || detailLoading) return;
+    if (table.pageItems.length === 0) {
+      setSelectedTestId('');
+      setForm(null);
+      return;
+    }
+    if (table.pageItems.some((test) => test.testId === selectedTestId) && form) return;
+    selectTest(table.pageItems[0], { scroll: false });
+  }, [loading, options, visibleTestKey]);
 
   async function saveTest(event) {
     event.preventDefault();
@@ -859,33 +1163,54 @@ export function BrowserTestManage() {
       await refreshList();
       setNotice(`${detail.test.label} configuration saved.`);
     } catch (saveError) {
-      setError(saveError.message || 'Failed to save Browser Test configuration.');
+      setError(saveError.message || 'Failed to save Playwright Test configuration.');
     } finally {
       setSaving(false);
     }
   }
 
+  function clearFilters() {
+    setFilters(DEFAULT_MANAGE_FILTERS);
+  }
+
   return (
     <div className="container-fluid px-0">
-      <PageHeader kicker="BROWSER TESTS · ADMINISTRATION" subtitle="Review and maintain registered source-controlled Playwright tests." title="Manage Tests" />
+      <PageHeader kicker="PLAYWRIGHT TESTS · ADMINISTRATION" subtitle="Review and maintain registered source-controlled Playwright tests." title="Manage Tests" />
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
       {notice && <DismissibleAlert tone="success">{notice}</DismissibleAlert>}
 
-      <Panel className="sky-table-card" kicker="TEST REGISTRY" subtitle="Select a test to edit its registry metadata, environments, permissions, and runtime parameters." title="Registered Tests">
+      <Panel className="sky-table-card sky-table-browser-anchor" kicker="TEST REGISTRY" subtitle="Filter the Playwright Test registry, then select a row to edit its metadata, environments, permissions, and runtime parameters." title="Registered Tests">
         <div className="sky-card-body">
-          <div className="row g-2 mb-3">
-            <div className="col-12 col-xl-6"><label className="form-label" htmlFor="manageBrowserTestSearch">Search</label><input className="form-control sky-form-control" id="manageBrowserTestSearch" onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Name, code, source path..." value={filters.q} /></div>
-            <div className="col-12 col-md-5 col-xl-2"><label className="form-label" htmlFor="manageBrowserTestCategory">Category</label><select className="form-select sky-form-control" id="manageBrowserTestCategory" onChange={(event) => setFilters((current) => ({ ...current, categoryCode: event.target.value }))} value={filters.categoryCode}><option value="">All categories</option>{(options?.categories || []).map((category) => <option key={category.categoryId} value={category.categoryCode}>{category.label}</option>)}</select></div>
-            <div className="col-12 col-md-5 col-xl-2"><label className="form-label" htmlFor="manageBrowserTestStatus">Status</label><select className="form-select sky-form-control" id="manageBrowserTestStatus" onChange={(event) => setFilters((current) => ({ ...current, enabled: event.target.value }))} value={filters.enabled}><option value="">All statuses</option><option value="true">Active</option><option value="false">Disabled</option></select></div>
-            <div className="col-12 col-md-2 col-xl-2 d-flex align-items-end"><button className="btn btn-sm btn-sky w-100" onClick={() => setFilters(DEFAULT_MANAGE_FILTERS)} type="button">Clear filters</button></div>
+          <div className="sky-run-tools-filter-grid sky-browser-test-filter-grid mb-3">
+            <div className="sky-run-tools-search-filter"><label className="form-label" htmlFor="manageBrowserTestSearch">Search</label><input className="form-control sky-form-control" id="manageBrowserTestSearch" onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Name, code, repository, source path..." type="search" value={filters.q} /></div>
+            <div><label className="form-label" htmlFor="manageBrowserTestCategory">Category</label><select className="form-select sky-form-control" id="manageBrowserTestCategory" onChange={(event) => setFilters((current) => ({ ...current, categoryCode: event.target.value }))} value={filters.categoryCode}><option value="">All categories</option>{(options?.categories || []).map((category) => <option key={category.categoryId} value={category.categoryCode}>{category.label}</option>)}</select></div>
+            <div><label className="form-label" htmlFor="manageBrowserTestRisk">Risk</label><select className="form-select sky-form-control" id="manageBrowserTestRisk" onChange={(event) => setFilters((current) => ({ ...current, riskCode: event.target.value }))} value={filters.riskCode}><option value="">All risks</option>{(options?.risks || []).filter((risk) => risk.active !== false).map((risk) => <option key={risk.riskCode} value={risk.riskCode}>{risk.riskName}</option>)}</select></div>
+            <div><label className="form-label" htmlFor="manageBrowserTestStatus">Status</label><select className="form-select sky-form-control" id="manageBrowserTestStatus" onChange={(event) => setFilters((current) => ({ ...current, enabled: event.target.value }))} value={filters.enabled}><option value="">All statuses</option><option value="true">Active</option><option value="false">Disabled</option></select></div>
+            <div className="sky-run-tools-filter-actions">
+              {table.sortingCustomized && <button className="btn btn-sm sky-btn-ghost" onClick={table.clearSorting} type="button">Clear sorting</button>}
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">Clear filters</button>
+            </div>
           </div>
-          <div className="table-responsive sky-canonical-operations-table-frame">
-            <table className="table table-sm align-middle sky-table sky-canonical-operations-table mb-0">
-              <thead><tr><th>Test</th><th>Category</th><th>Source</th><th>Environment</th><th>Risk</th><th>Parameters</th><th>Status</th><th className="text-end">Actions</th></tr></thead>
-              <tbody>{loading ? <tr><td className="sky-muted" colSpan={8}>Loading registered tests...</td></tr> : filteredTests.length === 0 ? <tr><td className="sky-muted" colSpan={8}>No registered tests match the current filters.</td></tr> : filteredTests.map((test) => <tr className={selectedTestId === test.testId ? 'sky-selected-row' : ''} key={test.testId}><td><div className="fw-semibold">{test.label}</div><div className="small sky-muted sky-mono">{test.testCode}</div></td><td>{test.category?.label}</td><td><div>{test.scriptRepository?.repoName}</div><div className="small sky-muted sky-mono">{test.scriptPath}</div></td><td>{test.defaultEnvironmentCode}</td><td><span className={`sky-pill ${riskToneClass(test.riskCode)}`}>{String(test.riskName || test.riskCode).toUpperCase()}</span></td><td>{test.parameterCount}</td><td><StatusPill status={test.enabled ? 'ACTIVE' : 'DISABLED'} /></td><td className="text-end"><button className="btn btn-sm btn-sky" disabled={detailLoading} onClick={() => selectTest(test)} type="button">Configure</button></td></tr>)}</tbody>
+
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+            <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle">
+              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="source" label="Source" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="risk" label="Risk" table={table} /><BrowserSortableHeader field="parameters" label="Parameters" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /></tr></thead>
+              <tbody>
+                {loading ? <tr><td colSpan={7}><div className="sky-empty-state">Loading registered tests...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={7}><div className="sky-empty-state">No registered tests match the current filters.</div></td></tr> : table.pageItems.map((test) => (
+                  <tr className={`sky-clickable-row ${selectedTestId === test.testId ? 'sky-selected-row' : ''}`} key={test.testId} onClick={() => selectTest(test)}>
+                    <td><div className="fw-bold sky-detail-value">{test.label}</div><div className="small sky-muted sky-mono">{test.testCode}</div></td>
+                    <td>{test.category?.label}</td>
+                    <td><div>{test.scriptRepository?.repoName}</div><div className="small sky-muted sky-mono">{test.scriptPath}</div></td>
+                    <td>{test.defaultEnvironmentCode}</td>
+                    <td><span className={`sky-pill ${riskToneClass(test.riskCode)}`}>{String(test.riskName || test.riskCode).toUpperCase()}</span></td>
+                    <td>{test.parameterCount}</td>
+                    <td><StatusPill status={test.enabled ? 'ACTIVE' : 'DISABLED'} /></td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
-          <div className="small sky-muted mt-2">Showing {filteredTests.length} of {tests.length} registered test(s)</div>
+          <BrowserTablePagination label="registered test(s)" loading={loading} table={table} />
         </div>
       </Panel>
 
@@ -919,7 +1244,7 @@ export function BrowserTestAdd() {
         setOptions(loadedOptions);
         setForm(createEmptyRegistryForm(loadedOptions));
       } catch (loadError) {
-        if (active) setError(loadError.message || 'Failed to load Browser Test registration options.');
+        if (active) setError(loadError.message || 'Failed to load Playwright Test registration options.');
       } finally {
         if (active) setLoading(false);
       }
@@ -938,7 +1263,7 @@ export function BrowserTestAdd() {
       const result = await browserTestService.createAdminTest(payload);
       navigate('/browser-tests/manage', { replace: true, state: { createdTestId: result.test?.testId } });
     } catch (createError) {
-      setError(createError.message || 'Failed to register Browser Test.');
+      setError(createError.message || 'Failed to register Playwright Test.');
     } finally {
       setSaving(false);
     }
@@ -946,10 +1271,10 @@ export function BrowserTestAdd() {
 
   return (
     <div className="container-fluid px-0">
-      <PageHeader kicker="BROWSER TESTS · REGISTRATION" subtitle="Register a source-controlled Playwright spec with SkyCommand execution metadata, permissions, environments, and parameters." title="Add Test" />
+      <PageHeader kicker="PLAYWRIGHT TESTS · REGISTRATION" subtitle="Register a source-controlled Playwright spec with SkyCommand execution metadata, permissions, environments, and parameters." title="Add Test" />
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
-      {loading && <Panel kicker="LOADING" title="Browser Test Registration"><div className="sky-card-body sky-muted">Loading registry options...</div></Panel>}
-      {form && options && <Panel kicker="NEW BROWSER TEST" subtitle="The Playwright source file must already exist in the selected repository." title="Test Registration"><BrowserTestRegistryForm form={form} onChange={setForm} onSubmit={createTest} options={options} saving={saving} submitLabel="Register Browser Test" /></Panel>}
+      {loading && <Panel kicker="LOADING" title="Playwright Test Registration"><div className="sky-card-body sky-muted">Loading registry options...</div></Panel>}
+      {form && options && <Panel kicker="NEW PLAYWRIGHT TEST" subtitle="The Playwright source file must already exist in the selected repository." title="Test Registration"><BrowserTestRegistryForm form={form} onChange={setForm} onSubmit={createTest} options={options} saving={saving} submitLabel="Register Playwright Test" /></Panel>}
     </div>
   );
 }

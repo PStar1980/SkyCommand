@@ -47,6 +47,15 @@ async function startTest(req, res, next) {
   }
 }
 
+async function listRuns(req, res, next) {
+  try {
+    const payload = await browserTestRegistryService.listBrowserTestRuns(req.query || {});
+    return res.json({ ok: true, ...payload });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
 async function getRun(req, res, next) {
   try {
     const run = await browserTestRegistryService.getBrowserTestRun(req.params.workflowId);
@@ -151,6 +160,7 @@ module.exports = {
   getRun,
   getTest,
   listAdminTests,
+  listRuns,
   listTests,
   replaceAdminTestEnvironments,
   replaceAdminTestParameters,

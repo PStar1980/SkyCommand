@@ -43,6 +43,9 @@ assert.ok(seed.includes("'workflowCode'"));
 assert.ok(seed.includes("'skyserver_workflows'"));
 
 assert.ok(service.includes('startRegisteredBrowserTest'));
+assert.ok(service.includes('listBrowserTestRuns'));
+assert.ok(service.includes('skycommandBrowserTest'));
+assert.ok(routes.includes("router.get('/runs'"));
 assert.ok(service.includes('resolveBrowserTestParameters'));
 assert.ok(service.includes("client.workflow.start('browserExecutionWorkflow'"));
 assert.ok(service.includes('core.browser_test_parameters'));

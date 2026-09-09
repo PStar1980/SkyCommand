@@ -62,6 +62,9 @@ function normalizeTestCode(value) {
       'testCode must start with a lowercase letter and contain only lowercase letters, numbers, underscores, and hyphens.',
     );
   }
+  if (testCode === 'runs') {
+    throw createHttpError(400, "testCode 'runs' is reserved for Browser Test operations.");
+  }
   return testCode;
 }
 
@@ -986,6 +989,111 @@ function buildBrowserWorkflowId(testCode) {
   return `skycommand-browser-test-${testCode}-${Date.now()}-${randomUUID().slice(0, 8)}`;
 }
 
+
+function parseBrowserTestCodeFromWorkflowId(workflowId) {
+  const match = String(workflowId || '').match(/^skycommand-browser-test-(.+)-\d{13}-[0-9a-f]{8}$/i);
+  return match?.[1] || null;
+}
+
+function browserRunMemo(info = {}) {
+  const memo = info.memo || info.raw?.memo || {};
+  if (!memo || typeof memo !== 'object') return {};
+  const candidate = memo.skycommandBrowserTest || memo.browserTest || memo.browser_test || {};
+  return candidate && typeof candidate === 'object' ? candidate : {};
+}
+
+async function listBrowserTestRuns(filters = {}) {
+  const runtimeConfig = getBrowserRuntimeConfig();
+  const connection = await Connection.connect({ address: runtimeConfig.temporalAddress });
+  const client = new Client({ connection, namespace: runtimeConfig.temporalNamespace });
+  const maxVisible = normalizeInteger(filters.scanLimit, 500, 'scanLimit', 1, 2000);
+  const visible = [];
+
+  try {
+    for await (const info of client.workflow.list({
+      query: 'WorkflowType="browserExecutionWorkflow"',
+      pageSize: Math.min(maxVisible, 100),
+    })) {
+      const workflowId = info.workflowId || info.execution?.workflowId || '';
+      if (!workflowId.startsWith('skycommand-browser-test-')) continue;
+      const memo = browserRunMemo(info);
+      visible.push({
+        workflowId,
+        runId: info.runId || info.execution?.runId || null,
+        status: temporalStatusName(info.status),
+        startTime: info.startTime || null,
+        closeTime: info.closeTime || null,
+        testCode: normalizeText(memo.testCode) || parseBrowserTestCodeFromWorkflowId(workflowId),
+        environmentCode: normalizeText(memo.environmentCode).toUpperCase() || null,
+      });
+      if (visible.length >= maxVisible) break;
+    }
+  } finally {
+    await connection.close();
+  }
+
+  const testCodes = [...new Set(visible.map((item) => item.testCode).filter(Boolean))];
+  const metadata = new Map();
+  if (testCodes.length) {
+    const result = await query(
+      `${TEST_SELECT}
+       WHERE bt.test_code = ANY($1::text[])
+       ORDER BY btc.display_order, bt.display_order, bt.label, bt.test_code`,
+      [testCodes],
+    );
+    for (const row of result.rows) {
+      const test = sanitizeTestRow(row);
+      metadata.set(test.testCode, test);
+    }
+  }
+
+  let items = visible.map((item) => {
+    const test = metadata.get(item.testCode) || null;
+    const startMs = item.startTime ? new Date(item.startTime).getTime() : NaN;
+    const closeMs = item.closeTime ? new Date(item.closeTime).getTime() : NaN;
+    return {
+      ...item,
+      durationMs: Number.isFinite(startMs) && Number.isFinite(closeMs) ? Math.max(0, closeMs - startMs) : null,
+      testLabel: test?.label || item.testCode || 'Unknown Browser Test',
+      categoryCode: test?.category?.categoryCode || null,
+      categoryLabel: test?.category?.label || 'Uncategorized',
+      browserType: test?.browserType || 'chromium',
+      environmentCode: item.environmentCode || test?.defaultEnvironmentCode || null,
+    };
+  });
+
+  const search = normalizeText(filters.search || filters.query || filters.q).toLowerCase();
+  const categoryCode = normalizeText(filters.categoryCode).toLowerCase();
+  const environmentCode = normalizeText(filters.environmentCode).toUpperCase();
+  const status = normalizeText(filters.status).toUpperCase();
+  const testCode = normalizeText(filters.testCode).toLowerCase();
+
+  items = items.filter((item) => {
+    if (categoryCode && String(item.categoryCode || '').toLowerCase() !== categoryCode) return false;
+    if (environmentCode && String(item.environmentCode || '').toUpperCase() !== environmentCode) return false;
+    if (status && String(item.status || '').toUpperCase() !== status) return false;
+    if (testCode && String(item.testCode || '').toLowerCase() !== testCode) return false;
+    if (!search) return true;
+    return [item.testLabel, item.testCode, item.workflowId, item.categoryLabel, item.environmentCode, item.status]
+      .some((value) => String(value || '').toLowerCase().includes(search));
+  });
+
+  items.sort((left, right) => {
+    const leftTime = left.startTime ? new Date(left.startTime).getTime() : 0;
+    const rightTime = right.startTime ? new Date(right.startTime).getTime() : 0;
+    return rightTime - leftTime;
+  });
+
+  const limit = normalizeInteger(filters.limit, 500, 'limit', 1, 1000);
+  const offset = normalizeOffset(filters.offset);
+  return {
+    items: items.slice(offset, offset + limit),
+    total: items.length,
+    limit,
+    offset,
+  };
+}
+
 async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [] }) {
   const test = await getBrowserTestByCode(testCode, { includeDisabled: false });
   if (!test) throw createHttpError(404, 'Browser Test not found.');
@@ -1011,6 +1119,12 @@ async function startRegisteredBrowserTest({ testCode, body = {}, permissions = [
     const handle = await client.workflow.start('browserExecutionWorkflow', {
       taskQueue: runtimeConfig.taskQueue,
       workflowId,
+      memo: {
+        skycommandBrowserTest: {
+          testCode: test.testCode,
+          environmentCode: environment.environmentCode,
+        },
+      },
       args: [{
         executionType: 'TEST',
         testCode: test.testCode,
@@ -1086,6 +1200,7 @@ module.exports = {
   getBrowserTestByCode,
   getBrowserTestById,
   getBrowserTestRun,
+  listBrowserTestRuns,
   listBrowserTests,
   normalizeBrowserSpecPath,
   normalizeTestCode,

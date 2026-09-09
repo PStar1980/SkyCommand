@@ -41,11 +41,15 @@ const COMMAND_SEARCH_ALIASES = {
   history: '/tools/executions',
   'manage tools': '/tools/manage',
   'add tool': '/tools/add',
+  'playwright tests': '/browser-tests/run',
+  'playwright test': '/browser-tests/run',
   'browser tests': '/browser-tests/run',
   'browser test': '/browser-tests/run',
   'run browser tests': '/browser-tests/run',
   'run tests': '/browser-tests/run',
   'test operations': '/browser-tests/operations',
+  'manage playwright tests': '/browser-tests/manage',
+  'add playwright test': '/browser-tests/add',
   'manage browser tests': '/browser-tests/manage',
   'add browser test': '/browser-tests/add',
   onboarding: '/tools/add',
@@ -330,7 +334,7 @@ function createNavGroups(hasPermission, hasRole) {
       ],
     },
     {
-      label: 'Browser Tests',
+      label: 'Playwright Tests',
       icon: '▤',
       visible: canViewBrowserTests,
       items: [
@@ -353,7 +357,7 @@ function createNavGroups(hasPermission, hasRole) {
           to: '/browser-tests/manage',
           icon: '▧',
           visible: hasPermission('ADMIN_BROWSER_TEST_READ'),
-          description: 'Browser Test registry',
+          description: 'Playwright Test registry',
         },
         {
           label: 'Add Test',
