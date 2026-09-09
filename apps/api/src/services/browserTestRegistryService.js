@@ -19,6 +19,32 @@ const ALLOWED_EXECUTION_MODES = new Set(['HEADLESS', 'INTERACTIVE']);
 const ALLOWED_PARAM_TYPES = new Set(['string', 'number', 'boolean', 'repo', 'select', 'path', 'date', 'json']);
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
+const REPORT_VIEW_TICKET_TTL_MS = 15 * 60 * 1000;
+const reportViewTickets = new Map();
+
+function pruneExpiredReportViewTickets(now = Date.now()) {
+  for (const [ticket, record] of reportViewTickets.entries()) {
+    if (!record || Number(record.expiresAt || 0) <= now) reportViewTickets.delete(ticket);
+  }
+}
+
+function normalizeReportViewTicket(value) {
+  const ticket = normalizeText(value);
+  if (!/^[0-9a-f-]{36}$/i.test(ticket)) {
+    throw createHttpError(404, 'Browser Test report view is unavailable.');
+  }
+  return ticket;
+}
+
+function normalizeReportAssetRelativePath(value) {
+  const raw = normalizeText(value).replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!raw || raw.includes('\0')) throw createHttpError(404, 'Browser Test report asset is unavailable.');
+  const normalized = path.posix.normalize(raw);
+  if (normalized === '..' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+    throw createHttpError(404, 'Browser Test report asset is unavailable.');
+  }
+  return normalized;
+}
 
 function createHttpError(statusCode, message, details = {}) {
   const error = new Error(message);
@@ -1559,15 +1585,69 @@ async function getBrowserTestArtifact({ workflowId, artifactId }) {
   };
 }
 
+async function createBrowserTestReportView({ workflowId, artifactId }) {
+  const artifact = await getBrowserTestArtifact({ workflowId, artifactId });
+  if (String(artifact.kind || '').toUpperCase() !== 'REPORT') {
+    throw createHttpError(400, 'Browser Test artifact is not a Playwright HTML report.');
+  }
+
+  const reportRoot = path.dirname(artifact.absolutePath);
+  const indexPath = path.join(reportRoot, 'index.html');
+  if (!fs.existsSync(indexPath) || !fs.statSync(indexPath).isFile()) {
+    throw createHttpError(404, 'Playwright HTML report entry point is unavailable.');
+  }
+
+  pruneExpiredReportViewTickets();
+  const ticket = randomUUID();
+  const expiresAt = Date.now() + REPORT_VIEW_TICKET_TTL_MS;
+  reportViewTickets.set(ticket, {
+    reportRoot,
+    expiresAt,
+  });
+
+  return {
+    ticket,
+    expiresAt: new Date(expiresAt).toISOString(),
+    viewPath: `/api/browser-tests/report-view/${ticket}/`,
+  };
+}
+
+function getBrowserTestReportViewAsset({ ticket, relativePath = 'index.html' }) {
+  pruneExpiredReportViewTickets();
+  const normalizedTicket = normalizeReportViewTicket(ticket);
+  const record = reportViewTickets.get(normalizedTicket);
+  if (!record || Number(record.expiresAt || 0) <= Date.now()) {
+    reportViewTickets.delete(normalizedTicket);
+    throw createHttpError(404, 'Browser Test report view has expired or is unavailable.');
+  }
+
+  const safeRelativePath = normalizeReportAssetRelativePath(relativePath || 'index.html');
+  const reportRoot = path.resolve(record.reportRoot);
+  const absolutePath = path.resolve(reportRoot, safeRelativePath);
+  if (absolutePath !== reportRoot && !absolutePath.startsWith(`${reportRoot}${path.sep}`)) {
+    throw createHttpError(404, 'Browser Test report asset is unavailable.');
+  }
+  if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+    throw createHttpError(404, 'Browser Test report asset is unavailable.');
+  }
+
+  return {
+    absolutePath,
+    name: path.basename(absolutePath),
+  };
+}
+
 module.exports = {
   ALLOWED_BROWSER_TYPES,
   createBrowserTest,
+  createBrowserTestReportView,
   createHttpError,
   getAdminOptions,
   getBrowserTestByCode,
   getBrowserTestById,
   getBrowserTestArtifact,
   getBrowserTestRun,
+  getBrowserTestReportViewAsset,
   listBrowserTestRuns,
   listBrowserTests,
   normalizeBrowserExecutionMode,

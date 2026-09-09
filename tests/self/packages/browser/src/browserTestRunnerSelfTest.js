@@ -10,6 +10,7 @@ const {
   buildPlaywrightArgs,
   collectBrowserArtifacts,
   getEffectiveTimeoutMs,
+  launchWindowsInteractiveBrowserPresenter,
   resolveBrowserSpec,
   resolvePlaywrightCli,
   serializeBrowserTestParameters,
@@ -124,6 +125,11 @@ try {
 
 const runnerSource = fs.readFileSync(path.join(repositoryRoot, 'packages/browser/src/browserTestRunner.js'), 'utf8');
 assert.ok(runnerSource.includes('runChildProcess(process.execPath, [playwrightCli, ...args]'));
+assert.ok(runnerSource.includes('launchWindowsInteractiveBrowserPresenter'));
+assert.ok(runnerSource.includes('Show-SkyCommandPlaywrightWindow.ps1'));
+if (process.platform !== 'win32') {
+  assert.equal(launchWindowsInteractiveBrowserPresenter(repositoryRoot, process.pid), false);
+}
 assert.equal(runnerSource.includes("node_modules/.bin/playwright"), false);
 
 console.log('[SkyCommand] Browser test runner self-test passed.');

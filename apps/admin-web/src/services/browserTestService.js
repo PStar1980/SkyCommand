@@ -22,6 +22,13 @@ async function getRun(workflowId) {
   return api.get(`/api/browser-tests/runs/${encodeURIComponent(workflowId)}`);
 }
 
+async function createReportView(workflowId, artifactId) {
+  return api.post(
+    `/api/browser-tests/runs/${encodeURIComponent(workflowId)}/artifacts/${encodeURIComponent(artifactId)}/report-view`,
+    {},
+  );
+}
+
 async function getArtifact(workflowId, artifactId) {
   return api.blob(
     `/api/browser-tests/runs/${encodeURIComponent(workflowId)}/artifacts/${encodeURIComponent(artifactId)}`,
@@ -76,6 +83,7 @@ function getLastRunWorkflowId() {
 
 const browserTestService = {
   createAdminTest,
+  createReportView,
   getAdminOptions,
   getAdminTest,
   getArtifact,

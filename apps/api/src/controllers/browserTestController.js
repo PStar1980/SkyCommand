@@ -68,6 +68,46 @@ async function getRun(req, res, next) {
 }
 
 
+async function createReportView(req, res, next) {
+  try {
+    const payload = await browserTestRegistryService.createBrowserTestReportView({
+      workflowId: req.params.workflowId,
+      artifactId: req.params.artifactId,
+    });
+    return res.json({ ok: true, ...payload });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getReportViewIndex(req, res, next) {
+  try {
+    const artifact = browserTestRegistryService.getBrowserTestReportViewAsset({
+      ticket: req.params.ticket,
+      relativePath: 'index.html',
+    });
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Disposition', 'inline; filename="Playwright HTML Report.html"');
+    return res.sendFile(artifact.absolutePath);
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getReportViewData(req, res, next) {
+  try {
+    const artifact = browserTestRegistryService.getBrowserTestReportViewAsset({
+      ticket: req.params.ticket,
+      relativePath: `data/${req.params.fileName}`,
+    });
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Disposition', `inline; filename="${String(artifact.name || 'artifact').replace(/"/g, '')}"`);
+    return res.sendFile(artifact.absolutePath);
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
 async function getArtifact(req, res, next) {
   try {
     const artifact = await browserTestRegistryService.getBrowserTestArtifact({
@@ -172,11 +212,14 @@ async function replaceAdminTestEnvironments(req, res, next) {
 }
 
 module.exports = {
+  createReportView,
   createAdminTest,
   getAdminOptions,
   getArtifact,
   getAdminTest,
   getRun,
+  getReportViewData,
+  getReportViewIndex,
   getTest,
   listAdminTests,
   listRuns,

@@ -117,4 +117,12 @@ assert(
   'Browser Test UI service must use the Phase 3 catalogue, execution, and administration APIs.',
 );
 
+
+assert(
+  pageSource.includes('Open Report') &&
+    serviceSource.includes('createReportView') &&
+    !pageSource.includes('Run Details'),
+  'Playwright Test Operations must open complete authenticated reports and rely on selectable rows instead of a redundant Run Details action.',
+);
+
 console.log('[SkyCommand] Playwright Test UI/table parity self-test passed.');

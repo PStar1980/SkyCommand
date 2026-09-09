@@ -335,6 +335,234 @@ SkyCommand/
 │           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932573.jpeg
 │           │                   └── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932668.jpeg
 │           ├── 34cec146-1137-406b-91ff-3ccfbc11f32f/
+│           ├── 5055ea48-b75f-4132-ba34-7edeb5caa495/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── a69a81942baec2c21536263666dfaafe1ae55196.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       ├── .playwright-artifacts-0/
+│           │       │   ├── 01240cd545ea9432c881da68584e88be.png
+│           │       │   ├── page@f7bf2a7c197929d9545b4a4f3f30c799.webm
+│           │       │   └── traces/
+│           │       │       ├── f441b5d0cf7dc9aa1ed2-c78279029eaa25b3bc6d.network
+│           │       │       ├── f441b5d0cf7dc9aa1ed2-c78279029eaa25b3bc6d.trace
+│           │       │       └── resources/
+│           │       │           ├── 0a0120f37c763f767599aaa4ba9f704af26419e9.json
+│           │       │           ├── 1353b6958faa7d833d1492c98566e714f8540ecd.json
+│           │       │           ├── 3626ab79deee7998a744e27e9b8a31f2c7272cb0.png
+│           │       │           ├── 43f60fd5bb565ef13ebe57331892d1b7f505bcbb.json
+│           │       │           ├── 59b16f282ec8be4b6f6d4feff660f72c221fe36e.json
+│           │       │           ├── 5bddb87f2573bca1db0bf96a497ef60a94362ac7.css
+│           │       │           ├── 5f800a2fc698a758ec916f5b7debc669527f0815.json
+│           │       │           ├── 6fd0f0ca46886e33902862da955fbc8817e7cfe9.json
+│           │       │           ├── 76d943cb96b26604d075baed61fcd90fc1f173a0.json
+│           │       │           ├── 7e6810a04e9fa50fc27d19f11b52bccd3f6ec478.json
+│           │       │           ├── 96a0117ee9005ab15434f0f936f8c3ea349d967e.png
+│           │       │           ├── ac3bf7253e1eacf53860ecb78d4aa5412c611df6.png
+│           │       │           ├── af209361b1352da1e755cf87431854967f2aadfd.json
+│           │       │           ├── c5d1a2aa31758ad0450758d6916ce36f0a04ead6.json
+│           │       │           ├── fca357518c8a1a16ce8a6a007abc6e9d49d825ea.html
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929487.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929748.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929770.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929793.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929814.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929837.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929858.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929878.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929899.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929920.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929941.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929962.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933929982.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930003.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930024.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930153.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930177.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930206.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930363.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930418.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930490.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930500.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930597.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930635.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930657.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930675.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930707.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930792.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930811.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933930905.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931014.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931022.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931037.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931062.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931143.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931155.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931169.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931216.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931337.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931354.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931372.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931388.jpeg
+│           │       │           ├── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931402.jpeg
+│           │       │           └── page@f7bf2a7c197929d9545b4a4f3f30c799-1788933931713.jpeg
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-082a1acee49f5849345e70762c76921415c76544.png
+│           ├── 5469621a-0dda-4e95-a095-459b098859d7/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── f9596517c28b9fd8a4b84e25198a16c758bc166e.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-725fbb6db1f646967daaa04e0faf1c83c4b2e668.png
+│           ├── 6b284b19-5e60-42a9-b7a7-48ad2e7aec23/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── 322240b74d6ce372f2b969f91c77808257b6ae84.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-cddb507d49d4506464bc7b452df79502ad625003.png
+│           ├── 8c6ffa7e-5d68-42eb-b843-315e1cc46670/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── b7fcf045fd6fa6eb58023d9138acf400ffc795d1.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-ffdaa1fdf5ee14e3d06f05937af56d3e26cd3bc6.png
+│           ├── 999971c9-33d8-4478-93bc-8788f4de2646/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── d3281570eb068dd291b33cb19d3c014a195cb5cc.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-c14db8559e5a592ada042738ab5b1496224bd218.png
+│           ├── a62930cf-db7a-49d7-9a0f-db2389c1780d/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── a69a81942baec2c21536263666dfaafe1ae55196.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       ├── .playwright-artifacts-0/
+│           │       │   ├── 3743e0411821335921fabd8cfb9478c1.png
+│           │       │   ├── page@05a75fba15bcf6847d382799fe779b4d.webm
+│           │       │   └── traces/
+│           │       │       ├── f441b5d0cf7dc9aa1ed2-c78279029eaa25b3bc6d.network
+│           │       │       ├── f441b5d0cf7dc9aa1ed2-c78279029eaa25b3bc6d.trace
+│           │       │       └── resources/
+│           │       │           ├── 0a0120f37c763f767599aaa4ba9f704af26419e9.json
+│           │       │           ├── 1353b6958faa7d833d1492c98566e714f8540ecd.json
+│           │       │           ├── 3626ab79deee7998a744e27e9b8a31f2c7272cb0.png
+│           │       │           ├── 4876ded51b8ef3f0bbf70cc58eed5316ff614e5e.json
+│           │       │           ├── 52894242605ce2cb5187e402d45ddf8adc3b43ae.json
+│           │       │           ├── 59b16f282ec8be4b6f6d4feff660f72c221fe36e.json
+│           │       │           ├── 5bddb87f2573bca1db0bf96a497ef60a94362ac7.css
+│           │       │           ├── 6fd0f0ca46886e33902862da955fbc8817e7cfe9.json
+│           │       │           ├── 76d943cb96b26604d075baed61fcd90fc1f173a0.json
+│           │       │           ├── 7e6810a04e9fa50fc27d19f11b52bccd3f6ec478.json
+│           │       │           ├── 96a0117ee9005ab15434f0f936f8c3ea349d967e.png
+│           │       │           ├── ac3bf7253e1eacf53860ecb78d4aa5412c611df6.png
+│           │       │           ├── c5d1a2aa31758ad0450758d6916ce36f0a04ead6.json
+│           │       │           ├── fca357518c8a1a16ce8a6a007abc6e9d49d825ea.html
+│           │       │           ├── fda02e49dfe2c456f2f9cfa4d0121f7c9c777379.json
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314376.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314639.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314663.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314684.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314704.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314726.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314752.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314773.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314796.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314819.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314841.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314864.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314890.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314911.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314934.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314960.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934314986.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315066.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315092.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315116.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315274.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315333.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315402.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315419.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315512.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315551.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315578.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315611.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315627.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315709.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315807.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315907.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315920.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934315950.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316035.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316045.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316055.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316067.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316221.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316238.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316255.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316271.jpeg
+│           │       │           ├── page@05a75fba15bcf6847d382799fe779b4d-1788934316285.jpeg
+│           │       │           └── page@05a75fba15bcf6847d382799fe779b4d-1788934316600.jpeg
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-6f69abef1cbc6859591dc77d559c34cddd5754f3.png
+│           ├── af70c720-bc8d-47e5-ae94-c82199e7059b/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── e7340f786e2aed6ba8322fc03836a1697f5dc68e.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-43e1eb2f732dc86387f0aa9c16cf16aa77475b91.png
+│           ├── b788590d-6b84-4328-aec7-306d17bc9856/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── f9596517c28b9fd8a4b84e25198a16c758bc166e.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-58ff2d9061b6788d0c7c08f9469041e4b8cceda2.png
 │           ├── bcb8abff-8f88-4453-87c0-10e250a69d8c/
 │           │   ├── skycommand-summary.json
 │           │   ├── report/
@@ -1119,6 +1347,7 @@ SkyCommand/
 │   │   ├── Build-SkyOne-Bootloader.ps1
 │   │   ├── Clean-BackendCache.ps1
 │   │   ├── Clean-FrontendCache.ps1
+│   │   ├── Show-SkyCommandPlaywrightWindow.ps1
 │   │   ├── SkyCommand-HostAgentTask.ps1
 │   │   ├── SkyCommand-SupervisorTask.ps1
 │   │   ├── Start-SkyCommandHostAgent.ps1

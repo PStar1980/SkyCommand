@@ -334,7 +334,7 @@ function artifactActionLabel(artifact) {
   if (kind === 'TRACE') return 'Download Trace';
   if (kind === 'SCREENSHOT') return 'Open Screenshot';
   if (kind === 'VIDEO') return 'Open Video';
-  if (kind === 'REPORT') return 'Download Report';
+  if (kind === 'REPORT') return 'Open Report';
   return 'Open Artifact';
 }
 
@@ -355,12 +355,20 @@ function BrowserRunStatusPanel({ run, workflowId }) {
   async function openArtifact(artifact) {
     if (!artifact?.artifactId || artifactBusyId) return;
     const kind = String(artifact.kind || '').toUpperCase();
-    const inline = ['SCREENSHOT', 'VIDEO'].includes(kind);
+    const inline = ['SCREENSHOT', 'VIDEO', 'REPORT'].includes(kind);
     const previewWindow = inline ? window.open('about:blank', '_blank') : null;
     if (previewWindow) previewWindow.opener = null;
     setArtifactBusyId(artifact.artifactId);
     setArtifactError('');
     try {
+      if (kind === 'REPORT') {
+        const reportView = await browserTestService.createReportView(workflowId, artifact.artifactId);
+        const reportUrl = new URL(reportView.viewPath, window.location.origin).toString();
+        if (previewWindow) previewWindow.location.replace(reportUrl);
+        else window.open(reportUrl, '_blank', 'noopener');
+        return;
+      }
+
       const payload = await browserTestService.getArtifact(workflowId, artifact.artifactId);
       const objectUrl = window.URL.createObjectURL(payload.blob);
       if (inline && previewWindow) {
@@ -924,9 +932,9 @@ export function BrowserTestOperations() {
 
           <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
             <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle">
-              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /><BrowserSortableHeader field="started" label="Started" table={table} /><BrowserSortableHeader field="duration" label="Duration" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="browser" label="Browser" table={table} /><BrowserSortableHeader field="evidence" label="Evidence" table={table} /><th className="text-end">Actions</th></tr></thead>
+              <thead><tr><BrowserSortableHeader field="test" label="Test" table={table} /><BrowserSortableHeader field="category" label="Category" table={table} /><BrowserSortableHeader field="status" label="Status" table={table} /><BrowserSortableHeader field="started" label="Started" table={table} /><BrowserSortableHeader field="duration" label="Duration" table={table} /><BrowserSortableHeader field="environment" label="Environment" table={table} /><BrowserSortableHeader field="browser" label="Browser" table={table} /><BrowserSortableHeader field="evidence" label="Evidence" table={table} /></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={9}><div className="sky-empty-state">Loading Playwright Test executions...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={9}><div className="sky-empty-state">No Playwright Test executions match the current filters.</div></td></tr> : table.pageItems.map((item) => (
+                {loading ? <tr><td colSpan={8}><div className="sky-empty-state">Loading Playwright Test executions...</div></td></tr> : table.pageItems.length === 0 ? <tr><td colSpan={8}><div className="sky-empty-state">No Playwright Test executions match the current filters.</div></td></tr> : table.pageItems.map((item) => (
                   <tr className={`sky-clickable-row ${selectedWorkflowId === item.workflowId ? 'sky-selected-row' : ''}`} key={item.workflowId} onClick={() => selectRun(item)}>
                     <td><div className="fw-bold sky-detail-value">{item.testLabel}</div><div className="small sky-muted sky-mono">{item.testCode}</div></td>
                     <td>{item.categoryLabel || 'Uncategorized'}</td>
@@ -936,7 +944,6 @@ export function BrowserTestOperations() {
                     <td>{item.environmentCode || '—'}</td>
                     <td className="text-uppercase">{item.browserType || 'chromium'}</td>
                     <td>{item.artifactCount || 0}</td>
-                    <td className="text-end"><button className="btn btn-sm sky-btn-ghost" disabled={detailLoading} onClick={(event) => { event.stopPropagation(); selectRun(item, { scroll: true }); }} type="button">Run Details</button></td>
                   </tr>
                 ))}
               </tbody>

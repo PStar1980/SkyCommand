@@ -108,3 +108,16 @@ npm run browser:registry:smoke
 That proof resolves `workflow-initialization-e2e` from PostgreSQL, normalizes its registered
 parameters/environment, starts the dedicated Temporal Browser Worker execution, and waits for the
 Playwright result.
+
+## Phase 5.1 interactive presentation and evidence viewing
+
+Registered LOCAL tests can run in either **Background (Headless)** mode through the Docker Browser
+Worker or **Interactive (Headed · Host)** mode through the host-native Host Agent. Interactive runs
+force headed Chromium, add a small `slowMo` delay for human visibility, and on Windows use the
+host-side window presenter to restore/foreground the Chromium window even though the long-running
+Host Agent itself is launched hidden.
+
+Playwright HTML reports are opened through a short-lived, report-scoped view ticket created by an
+authenticated `BROWSER_TEST_READ` request. The ticket serves the report entry page and its relative
+`data/*` attachments together, so screenshots and other report evidence remain visible without
+placing the user's SkyCommand session bearer token in the report URL.
