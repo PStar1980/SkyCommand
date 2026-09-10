@@ -1,4 +1,5 @@
 const browserAutomationRegistryService = require('../services/browserAutomationRegistryService');
+const browserAutomationExecutionService = require('../services/browserAutomationExecutionService');
 
 function sendError(res, error, next) {
   if (error?.statusCode) {
@@ -30,6 +31,56 @@ async function getAutomation(req, res, next) {
     automation.parameters = (automation.parameters || []).filter((parameter) => parameter.enabled);
     automation.environments = (automation.environments || []).filter((environment) => environment.enabled);
     return res.json({ ok: true, automation });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+
+
+async function startAutomation(req, res, next) {
+  try {
+    const payload = await browserAutomationExecutionService.startRegisteredAutomation({
+      automationCode: req.params.automationCode,
+      body: req.body || {},
+      permissions: req.permissions || [],
+      actor: req.user,
+      triggerSource: 'MANUAL',
+    });
+    return res.status(202).json({ ok: true, ...payload });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function listRuns(req, res, next) {
+  try {
+    const payload = await browserAutomationExecutionService.listRuns(req.query || {});
+    return res.json({ ok: true, ...payload });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getRun(req, res, next) {
+  try {
+    const run = await browserAutomationExecutionService.getRun(req.params.workflowId);
+    return res.json({ ok: true, run });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getArtifact(req, res, next) {
+  try {
+    const artifact = await browserAutomationExecutionService.getArtifact({
+      workflowId: req.params.workflowId,
+      artifactId: req.params.artifactId,
+    });
+    res.type(artifact.contentType || 'application/octet-stream');
+    const disposition = String(artifact.kind || '').toUpperCase() === 'SCREENSHOT' ? 'inline' : 'attachment';
+    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(artifact.name || 'artifact')}`);
+    return res.sendFile(artifact.absolutePath);
   } catch (error) {
     return sendError(res, error, next);
   }
@@ -125,12 +176,16 @@ async function replaceAdminAutomationEnvironments(req, res, next) {
 
 module.exports = {
   createAdminAutomation,
+  getArtifact,
   getAdminAutomation,
   getAdminOptions,
   getAutomation,
+  getRun,
   listAdminAutomations,
   listAutomations,
+  listRuns,
   replaceAdminAutomationEnvironments,
+  startAutomation,
   replaceAdminAutomationParameters,
   updateAdminAutomation,
   updateAdminAutomationStatus,

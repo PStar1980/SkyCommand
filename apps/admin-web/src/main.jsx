@@ -39,7 +39,7 @@ import WorkflowManager from './pages/WorkflowManager.jsx';
 import WorkflowApprovals from './pages/WorkflowApprovals.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import { BrowserTestAdd, BrowserTestManage, BrowserTestOperations, BrowserTestRun } from './pages/BrowserTests.jsx';
-import { BrowserAutomationRegistry } from './pages/BrowserAutomations.jsx';
+import { BrowserAutomationAdd, BrowserAutomationManage, BrowserAutomationOperations, BrowserAutomationRun } from './pages/BrowserAutomations.jsx';
 import './index.css';
 import './App.css';
 
@@ -187,12 +187,37 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
-            <Route path="browser-automations" element={<Navigate replace to="/browser-automations/registry" />} />
+            <Route path="browser-automations" element={<Navigate replace to="/browser-automations/run" />} />
+            <Route path="browser-automations/registry" element={<Navigate replace to="/browser-automations/manage" />} />
             <Route
-              path="browser-automations/registry"
+              path="browser-automations/operations"
+              element={
+                <ProtectedRoute permissionCode="BROWSER_AUTOMATION_READ">
+                  <BrowserAutomationOperations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="browser-automations/run"
+              element={
+                <ProtectedRoute permissionCode="BROWSER_AUTOMATION_RUN">
+                  <BrowserAutomationRun />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="browser-automations/manage"
               element={
                 <ProtectedRoute permissionCode="ADMIN_BROWSER_AUTOMATION_READ">
-                  <BrowserAutomationRegistry />
+                  <BrowserAutomationManage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="browser-automations/add"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_BROWSER_AUTOMATION_WRITE">
+                  <BrowserAutomationAdd />
                 </ProtectedRoute>
               }
             />
