@@ -9,6 +9,7 @@ const DEFAULT_BROWSER_WORKER_HEALTH_FRESHNESS_MS = 45000;
 const DEFAULT_BROWSER_WORKER_HEALTH_FILE = '/tmp/skycommand-browser-worker-health.json';
 const DEFAULT_BROWSER_TEST_CONFIG = 'tests/browser/playwright.config.js';
 const DEFAULT_BROWSER_ARTIFACT_RELATIVE_ROOT = 'artifacts/browser/tests';
+const DEFAULT_BROWSER_AUTOMATION_ARTIFACT_RELATIVE_ROOT = 'artifacts/browser/automations';
 
 function normalizeText(value, fallback = '') {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
@@ -38,11 +39,18 @@ function getBrowserRuntimeConfig(repositoryRoot = process.cwd()) {
       path.join(sourceRepositoryRoot, DEFAULT_BROWSER_ARTIFACT_RELATIVE_ROOT),
     ),
   );
+  const automationArtifactRoot = path.resolve(
+    normalizeText(
+      process.env.SKYCOMMAND_BROWSER_AUTOMATION_ARTIFACT_ROOT,
+      path.join(sourceRepositoryRoot, DEFAULT_BROWSER_AUTOMATION_ARTIFACT_RELATIVE_ROOT),
+    ),
+  );
 
   return {
     repositoryRoot: root,
     sourceRepositoryRoot,
     artifactRoot,
+    automationArtifactRoot,
     temporalAddress: normalizeText(process.env.TEMPORAL_ADDRESS, 'localhost:7233'),
     temporalNamespace: normalizeText(process.env.TEMPORAL_NAMESPACE, 'default'),
     taskQueue: normalizeText(process.env.SKYCOMMAND_BROWSER_TASK_QUEUE, DEFAULT_BROWSER_TASK_QUEUE),
@@ -86,6 +94,7 @@ function getBrowserRuntimeConfig(repositoryRoot = process.cwd()) {
 
 module.exports = {
   DEFAULT_BROWSER_ARTIFACT_RELATIVE_ROOT,
+  DEFAULT_BROWSER_AUTOMATION_ARTIFACT_RELATIVE_ROOT,
   DEFAULT_BROWSER_EXECUTION_TIMEOUT_MS,
   DEFAULT_BROWSER_TASK_QUEUE,
   DEFAULT_BROWSER_TEST_CONFIG,

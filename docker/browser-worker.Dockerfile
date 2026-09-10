@@ -15,7 +15,8 @@ RUN npm install --omit=dev --package-lock=false --no-audit --no-fund
 COPY apps/browser-worker ./apps/browser-worker
 COPY packages/browser ./packages/browser
 COPY tests/browser ./tests/browser
+COPY browser-automation ./browser-automation
 
-RUN mkdir -p /app/artifacts/browser/tests
+RUN mkdir -p /app/artifacts/browser/tests /app/artifacts/browser/automations
 
 CMD ["node", "apps/browser-worker/src/index.js"]

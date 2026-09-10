@@ -52,6 +52,9 @@ const COMMAND_SEARCH_ALIASES = {
   'add playwright test': '/browser-tests/add',
   'manage browser tests': '/browser-tests/manage',
   'add browser test': '/browser-tests/add',
+  'playwright automation': '/browser-automations/registry',
+  'browser automation': '/browser-automations/registry',
+  'automation registry': '/browser-automations/registry',
   onboarding: '/tools/add',
   catalogue: '/tools/manage',
   workflows: '/workflows/start',
@@ -182,6 +185,11 @@ function createNavGroups(hasPermission, hasRole) {
     hasPermission('BROWSER_TEST_RUN') ||
     hasPermission('ADMIN_BROWSER_TEST_READ') ||
     hasPermission('ADMIN_BROWSER_TEST_WRITE');
+  const canViewBrowserAutomation =
+    hasPermission('BROWSER_AUTOMATION_READ') ||
+    hasPermission('BROWSER_AUTOMATION_RUN') ||
+    hasPermission('ADMIN_BROWSER_AUTOMATION_READ') ||
+    hasPermission('ADMIN_BROWSER_AUTOMATION_WRITE');
   const canViewAutomation =
     hasPermission('WORKER_SCHEDULE_READ') ||
     hasPermission('WORKER_SCHEDULE_CREATE') ||
@@ -365,6 +373,20 @@ function createNavGroups(hasPermission, hasRole) {
           icon: '+',
           visible: hasPermission('ADMIN_BROWSER_TEST_WRITE'),
           description: 'Register Playwright source',
+        },
+      ],
+    },
+    {
+      label: 'Playwright Automation',
+      icon: '◎',
+      visible: canViewBrowserAutomation,
+      items: [
+        {
+          label: 'Automation Registry',
+          to: '/browser-automations/registry',
+          icon: '▧',
+          visible: hasPermission('ADMIN_BROWSER_AUTOMATION_READ'),
+          description: 'Phase 6 automation catalogue',
         },
       ],
     },

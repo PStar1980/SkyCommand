@@ -101,6 +101,7 @@ services:
       SKYCOMMAND_SCRIPT_RUNTIME_REPOSITORY: SkyCommand
       SKYCOMMAND_BROWSER_SOURCE_REPOSITORY_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand
       SKYCOMMAND_BROWSER_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/tests
+      SKYCOMMAND_BROWSER_AUTOMATION_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/automations
       SKYCOMMAND_EXECUTION_LOG_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/logs/script-executions
       SKYCOMMAND_EXECUTION_LOG_PATH_MODE: relative
       SKYCOMMAND_DOCKER_HOST_WORKSPACE_ROOT: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-}
@@ -143,6 +144,7 @@ services:
       SKYCOMMAND_BROWSER_TASK_QUEUE: ${SKYCOMMAND_BROWSER_TASK_QUEUE:-skycommand-browser-local}
       SKYCOMMAND_BROWSER_BASE_URL: ${SKYCOMMAND_BROWSER_DOCKER_BASE_URL:-http://web:8080}
       SKYCOMMAND_BROWSER_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/tests
+      SKYCOMMAND_BROWSER_AUTOMATION_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/automations
       SKYCOMMAND_BROWSER_SOURCE_REPOSITORY_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand
       SKYCOMMAND_BROWSER_EXECUTION_TIMEOUT_MS: ${SKYCOMMAND_BROWSER_EXECUTION_TIMEOUT_MS:-600000}
       SKYCOMMAND_BROWSER_WORKER_MAX_CONCURRENT_ACTIVITIES: ${SKYCOMMAND_BROWSER_WORKER_MAX_CONCURRENT_ACTIVITIES:-1}
@@ -242,6 +244,7 @@ services:
       SKYCOMMAND_SCRIPT_RUNTIME_REPOSITORY: SkyCommand
       SKYCOMMAND_BROWSER_SOURCE_REPOSITORY_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand
       SKYCOMMAND_BROWSER_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/tests
+      SKYCOMMAND_BROWSER_AUTOMATION_ARTIFACT_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/artifacts/browser/automations
       SKYCOMMAND_EXECUTION_LOG_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand/logs/script-executions
       SKYCOMMAND_EXECUTION_LOG_PATH_MODE: relative
       SKYCOMMAND_DOCKER_HOST_WORKSPACE_ROOT: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-}

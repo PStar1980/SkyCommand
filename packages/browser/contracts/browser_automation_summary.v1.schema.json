@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "browser_automation_summary.v1.schema.json",
+  "title": "SkyCommand Browser Automation Summary v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["contract", "status", "automationCode", "browser", "environment", "durationMs"],
+  "properties": {
+    "contract": {
+      "const": "browser_automation_summary.v1"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["SUCCESS", "FAILED"]
+    },
+    "automationCode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "browser": {
+      "type": "string",
+      "enum": ["chromium"]
+    },
+    "environment": {
+      "type": "string",
+      "minLength": 1
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "result": {
+      "type": ["object", "array", "string", "number", "boolean", "null"]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["type", "name"],
+        "properties": {
+          "type": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

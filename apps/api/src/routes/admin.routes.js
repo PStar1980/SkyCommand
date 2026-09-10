@@ -1,6 +1,7 @@
 const express = require('express');
 const adminController = require('../controllers/adminController');
 const browserTestController = require('../controllers/browserTestController');
+const browserAutomationController = require('../controllers/browserAutomationController');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/permissionMiddleware');
 
@@ -161,6 +162,47 @@ router.put(
   '/browser-tests/:testId/environments',
   requirePermission('ADMIN_BROWSER_TEST_WRITE'),
   browserTestController.replaceAdminTestEnvironments,
+);
+
+router.get(
+  '/browser-automations/options',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_READ'),
+  browserAutomationController.getAdminOptions,
+);
+router.get(
+  '/browser-automations',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_READ'),
+  browserAutomationController.listAdminAutomations,
+);
+router.post(
+  '/browser-automations',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_WRITE'),
+  browserAutomationController.createAdminAutomation,
+);
+router.get(
+  '/browser-automations/:automationId',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_READ'),
+  browserAutomationController.getAdminAutomation,
+);
+router.patch(
+  '/browser-automations/:automationId',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_WRITE'),
+  browserAutomationController.updateAdminAutomation,
+);
+router.patch(
+  '/browser-automations/:automationId/status',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_WRITE'),
+  browserAutomationController.updateAdminAutomationStatus,
+);
+router.put(
+  '/browser-automations/:automationId/parameters',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_WRITE'),
+  browserAutomationController.replaceAdminAutomationParameters,
+);
+router.put(
+  '/browser-automations/:automationId/environments',
+  requirePermission('ADMIN_BROWSER_AUTOMATION_WRITE'),
+  browserAutomationController.replaceAdminAutomationEnvironments,
 );
 
 router.get(
