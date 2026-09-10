@@ -1,5 +1,5 @@
 .sky-app-shell {
-  --sky-sidebar-width: 22.75rem;
+  --sky-sidebar-width: 25rem;
   --sky-topbar-height: 5.45rem;
   --sky-max-display-font-size: 1.14rem;
   min-height: 100vh;
@@ -549,6 +549,7 @@
 
 .sky-sidebar-group-title {
   min-width: 0;
+  white-space: nowrap;
 }
 
 .sky-sidebar-group-chevron {
