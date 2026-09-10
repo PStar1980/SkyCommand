@@ -53,6 +53,8 @@
     "browser-registry:self-test": "node tests/self/apps/api/src/services/browserTestRegistrySelfTest.js",
     "browser-test-ui:self-test": "node tests/self/apps/admin-web/src/pages/browserTestUiSelfTest.js",
     "browser-observability:self-test": "node tests/self/apps/api/src/services/browserTestObservabilitySelfTest.js",
+    "browser-automation-registry:self-test": "node tests/self/apps/api/src/services/browserAutomationRegistrySelfTest.js",
+    "browser-automation-ui-foundation:self-test": "node tests/self/apps/admin-web/src/pages/browserAutomationRegistryUiSelfTest.js",
     "temporal:health": "node packages/temporal/src/temporalHealth.js",
     "temporal:fred": "node packages/temporal/src/startFredIngestionWorkflow.js",
     "host-agent": "node packages/host-agent/src/worker.js",

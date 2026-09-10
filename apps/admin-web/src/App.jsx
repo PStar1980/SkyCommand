@@ -8,6 +8,7 @@ const WORKBENCH_ROUTE_PREFIXES = [
   '/tools',
   '/workflows',
   '/browser-tests',
+  '/browser-automations',
   '/automation',
   '/data',
   '/configuration',

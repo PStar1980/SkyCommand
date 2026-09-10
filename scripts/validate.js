@@ -37,6 +37,8 @@ const routineSelfTests = [
   'browser-registry:self-test',
   'browser-test-ui:self-test',
   'browser-observability:self-test',
+  'browser-automation-registry:self-test',
+  'browser-automation-ui-foundation:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',
   'git-branch-sync:self-test',

@@ -39,6 +39,7 @@ import WorkflowManager from './pages/WorkflowManager.jsx';
 import WorkflowApprovals from './pages/WorkflowApprovals.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import { BrowserTestAdd, BrowserTestManage, BrowserTestOperations, BrowserTestRun } from './pages/BrowserTests.jsx';
+import { BrowserAutomationRegistry } from './pages/BrowserAutomations.jsx';
 import './index.css';
 import './App.css';
 
@@ -182,6 +183,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="ADMIN_BROWSER_TEST_WRITE">
                   <BrowserTestAdd />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="browser-automations" element={<Navigate replace to="/browser-automations/registry" />} />
+            <Route
+              path="browser-automations/registry"
+              element={
+                <ProtectedRoute permissionCode="ADMIN_BROWSER_AUTOMATION_READ">
+                  <BrowserAutomationRegistry />
                 </ProtectedRoute>
               }
             />

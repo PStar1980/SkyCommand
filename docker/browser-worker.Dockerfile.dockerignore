@@ -13,3 +13,5 @@
 !tests/
 !tests/browser/
 !tests/browser/**
+!browser-automation/
+!browser-automation/**

@@ -125,6 +125,7 @@ SkyCommand/
 │   │       │   ├── AuditEvents.jsx
 │   │       │   ├── AutomationDashboard.jsx
 │   │       │   ├── AutomationListeners.jsx
+│   │       │   ├── BrowserAutomations.jsx
 │   │       │   ├── BrowserTests.jsx
 │   │       │   ├── Dashboard.jsx
 │   │       │   ├── DataStatus.jsx
@@ -156,6 +157,7 @@ SkyCommand/
 │   │       │   ├── adminService.js
 │   │       │   ├── api.js
 │   │       │   ├── authService.js
+│   │       │   ├── browserAutomationService.js
 │   │       │   ├── browserTestService.js
 │   │       │   ├── infrastructureService.js
 │   │       │   ├── ingestionService.js
@@ -177,6 +179,7 @@ SkyCommand/
 │   │       ├── controllers/
 │   │       │   ├── adminController.js
 │   │       │   ├── authController.js
+│   │       │   ├── browserAutomationController.js
 │   │       │   ├── browserTestController.js
 │   │       │   ├── infrastructureController.js
 │   │       │   ├── ingestionController.js
@@ -195,6 +198,7 @@ SkyCommand/
 │   │       ├── routes/
 │   │       │   ├── admin.routes.js
 │   │       │   ├── auth.routes.js
+│   │       │   ├── browserAutomation.routes.js
 │   │       │   ├── browserTest.routes.js
 │   │       │   ├── infrastructure.routes.js
 │   │       │   ├── ingestion.routes.js
@@ -213,6 +217,7 @@ SkyCommand/
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
+│   │       │   ├── browserAutomationRegistryService.js
 │   │       │   ├── browserTestFailureUtils.js
 │   │       │   ├── browserTestRegistryService.js
 │   │       │   ├── dockerEventStreamService.js
@@ -269,6 +274,8 @@ SkyCommand/
 │               └── schedulePoller.js
 ├── artifacts/
 │   └── browser/
+│       ├── automations/
+│       │   └── .gitkeep
 │       └── tests/
 │           ├── 0209d86f-1443-41e3-ad84-62f1220fdf68/
 │           │   ├── skycommand-summary.json
@@ -473,6 +480,18 @@ SkyCommand/
 │           │           ├── workflow-initialization-open.png
 │           │           └── attachments/
 │           │               └── Workflow-Initialization-Open-725fbb6db1f646967daaa04e0faf1c83c4b2e668.png
+│           ├── 568813fb-2b3b-40b1-a35d-9e458f877648/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── 80fa5996ee92f0bbff099d1a31788a49a91aab39.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-bbab7e510b24ac812bdff58dc97900e9f0c03655.png
 │           ├── 5a9c8dc2-b6b4-41ea-a6f3-ed35391b4f46/
 │           │   ├── skycommand-summary.json
 │           │   ├── report/
@@ -840,6 +859,18 @@ SkyCommand/
 │           │           ├── workflow-initialization-open.png
 │           │           └── attachments/
 │           │               └── Workflow-Initialization-Open-145837ae43ede0a178e631451ee5f03327ee43b4.png
+│           ├── cf6c0363-4a17-4318-a70f-7a85b4652495/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── cd15e1e5dac8866baa123c0159b4683b527c00cd.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-c059687b1a266cce18d80998661acb455883bd86.png
 │           ├── dbee9a43-d67d-4305-b10f-4729e38f9798/
 │           │   ├── skycommand-summary.json
 │           │   ├── report/
@@ -994,6 +1025,11 @@ SkyCommand/
 │                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440460.jpeg
 │                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440556.jpeg
 │                           └── page@f3bcc555655fd05107b53fd0329928ef-1788913440571.jpeg
+├── browser-automation/
+│   ├── README.md
+│   └── scripts/
+│       └── skycommand/
+│           └── commandCenterStatus.js
 ├── docker/
 │   ├── api.Dockerfile
 │   ├── api.package.json
@@ -1049,6 +1085,8 @@ SkyCommand/
 │   │       ├── createAdminUser.js
 │   │       └── password.js
 │   ├── browser/
+│   │   ├── contracts/
+│   │   │   └── browser_automation_summary.v1.schema.json
 │   │   └── src/
 │   │       ├── browserTestRunner.js
 │   │       ├── config.js
@@ -1137,7 +1175,8 @@ SkyCommand/
 │   │       │   ├── 00112__tool_parameter_cli_binding.sql
 │   │       │   ├── 00113__browser_test_registry_foundation.sql
 │   │       │   ├── 00115__browser_test_observability.sql
-│   │       │   └── 00116__browser_test_execution_mode.sql
+│   │       │   ├── 00116__browser_test_execution_mode.sql
+│   │       │   └── 00117__browser_automation_registry_foundation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1184,7 +1223,8 @@ SkyCommand/
 │   │           ├── 00092__production_ingestion_recovery_integration.sql
 │   │           ├── 00093__workflow_ingestion_recovery_parameters.sql
 │   │           ├── 00108__workflow_category_seed.sql
-│   │           └── 00114__browser_test_registry_seed.sql
+│   │           ├── 00114__browser_test_registry_seed.sql
+│   │           └── 00118__browser_automation_registry_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -1630,6 +1670,7 @@ SkyCommand/
         │   │       │   ├── adminUsersSurfaceSelfTest.js
         │   │       │   ├── apiDashboardSelfTest.js
         │   │       │   ├── approvalHistorySelfTest.js
+        │   │       │   ├── browserAutomationRegistryUiSelfTest.js
         │   │       │   ├── browserTestUiSelfTest.js
         │   │       │   ├── dockerInfrastructureSurfaceSelfTest.js
         │   │       │   ├── ingestionOperationsSurfaceSelfTest.js
@@ -1654,6 +1695,7 @@ SkyCommand/
         │       └── src/
         │           └── services/
         │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── browserAutomationRegistrySelfTest.js
         │               ├── browserTestObservabilitySelfTest.js
         │               ├── browserTestRegistrySelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
