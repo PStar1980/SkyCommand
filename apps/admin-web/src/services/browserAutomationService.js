@@ -1,11 +1,29 @@
 import api from './api';
 
+const LAST_BROWSER_AUTOMATION_RUN_KEY = 'skycommand.browserAutomations.lastRunWorkflowId';
+
 async function listAutomations(filters = {}) {
   return api.get('/api/browser-automations', { query: filters });
 }
 
 async function getAutomation(automationCode) {
   return api.get(`/api/browser-automations/${encodeURIComponent(automationCode)}`);
+}
+
+async function runAutomation(automationCode, payload = {}) {
+  return api.post(`/api/browser-automations/${encodeURIComponent(automationCode)}/run`, payload);
+}
+
+async function listRuns(filters = {}) {
+  return api.get('/api/browser-automations/runs', { query: filters });
+}
+
+async function getRun(workflowId) {
+  return api.get(`/api/browser-automations/runs/${encodeURIComponent(workflowId)}`);
+}
+
+async function getArtifact(workflowId, artifactId) {
+  return api.blob(`/api/browser-automations/runs/${encodeURIComponent(workflowId)}/artifacts/${encodeURIComponent(artifactId)}`);
 }
 
 async function getAdminOptions() {
@@ -40,15 +58,33 @@ async function replaceAdminAutomationEnvironments(automationId, environmentCodes
   return api.put(`/api/admin/browser-automations/${encodeURIComponent(automationId)}/environments`, { environmentCodes });
 }
 
+function setLastRunWorkflowId(workflowId) {
+  if (!workflowId) {
+    window.sessionStorage.removeItem(LAST_BROWSER_AUTOMATION_RUN_KEY);
+    return;
+  }
+  window.sessionStorage.setItem(LAST_BROWSER_AUTOMATION_RUN_KEY, String(workflowId));
+}
+
+function getLastRunWorkflowId() {
+  return window.sessionStorage.getItem(LAST_BROWSER_AUTOMATION_RUN_KEY) || '';
+}
+
 const browserAutomationService = {
   createAdminAutomation,
   getAdminAutomation,
   getAdminOptions,
+  getArtifact,
   getAutomation,
+  getLastRunWorkflowId,
+  getRun,
   listAdminAutomations,
   listAutomations,
+  listRuns,
   replaceAdminAutomationEnvironments,
   replaceAdminAutomationParameters,
+  runAutomation,
+  setLastRunWorkflowId,
   updateAdminAutomation,
   updateAdminAutomationStatus,
 };

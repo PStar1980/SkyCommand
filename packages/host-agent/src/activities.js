@@ -8,6 +8,7 @@ const { executeLocalDevPull } = require('../../git/src/local_dev_pull');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
 const { getBrowserRuntimeConfig } = require('../../browser/src/config');
 const { runBrowserTest } = require('../../browser/src/browserTestRunner');
+const { runBrowserAutomation } = require('../../browser/src/browserAutomationRunner');
 const {
   DOCKER_COMPOSE_CONTROL_TOOL_CODE,
   executeDockerComposeControl,
@@ -32,6 +33,7 @@ const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
 const LOCAL_DEV_PULL_TOOL_CODE = 'local_dev_pull';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 const BROWSER_TEST_INTERACTIVE_TOOL_CODE = '__browser_test_interactive';
+const BROWSER_AUTOMATION_INTERACTIVE_TOOL_CODE = '__browser_automation_interactive';
 
 function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
@@ -88,6 +90,32 @@ async function executeSkyCommandHostToolActivity(input = {}) {
         sourceRepositoryRoot: repositoryRoot,
         artifactRoot: path.resolve(
           normalizeText(process.env.SKYCOMMAND_BROWSER_ARTIFACT_ROOT) || path.join(repositoryRoot, 'artifacts/browser/tests'),
+        ),
+        baseUrl: hostBaseUrl,
+      },
+    );
+  }
+
+
+  if (toolCode === BROWSER_AUTOMATION_INTERACTIVE_TOOL_CODE) {
+    const repositoryRoot = path.resolve(__dirname, '../../..');
+    const runtimeConfig = getBrowserRuntimeConfig(repositoryRoot);
+    const hostBaseUrl = normalizeText(process.env.SKYCOMMAND_BROWSER_BASE_URL) || 'http://127.0.0.1:15171';
+
+    return runBrowserAutomation(
+      {
+        ...input,
+        executionType: 'AUTOMATION',
+        executionMode: 'INTERACTIVE',
+        headed: true,
+        baseUrl: hostBaseUrl,
+      },
+      {
+        ...runtimeConfig,
+        repositoryRoot,
+        sourceRepositoryRoot: repositoryRoot,
+        automationArtifactRoot: path.resolve(
+          normalizeText(process.env.SKYCOMMAND_BROWSER_AUTOMATION_ARTIFACT_ROOT) || path.join(repositoryRoot, 'artifacts/browser/automations'),
         ),
         baseUrl: hostBaseUrl,
       },

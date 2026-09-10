@@ -1,5 +1,6 @@
 const { getBrowserRuntimeConfig } = require('../config');
 const { runBrowserTest } = require('../browserTestRunner');
+const { runBrowserAutomation } = require('../browserAutomationRunner');
 
 async function executeBrowserTestActivity(input = {}) {
   const executionType = String(input.executionType || 'TEST').trim().toUpperCase();
@@ -12,6 +13,18 @@ async function executeBrowserTestActivity(input = {}) {
   return runBrowserTest(input, getBrowserRuntimeConfig());
 }
 
+
+
+async function executeBrowserAutomationActivity(input = {}) {
+  const executionType = String(input.executionType || 'AUTOMATION').trim().toUpperCase();
+  if (executionType !== 'AUTOMATION') {
+    throw new Error(`Browser Worker automation activity requires AUTOMATION executionType. Received '${executionType || 'blank'}'.`);
+  }
+
+  return runBrowserAutomation(input, getBrowserRuntimeConfig());
+}
+
 module.exports = {
+  executeBrowserAutomationActivity,
   executeBrowserTestActivity,
 };

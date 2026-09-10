@@ -217,6 +217,7 @@ SkyCommand/
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryService.js
 │   │       │   ├── authService.js
+│   │       │   ├── browserAutomationExecutionService.js
 │   │       │   ├── browserAutomationRegistryService.js
 │   │       │   ├── browserTestFailureUtils.js
 │   │       │   ├── browserTestRegistryService.js
@@ -275,7 +276,27 @@ SkyCommand/
 ├── artifacts/
 │   └── browser/
 │       ├── automations/
-│       │   └── .gitkeep
+│       │   ├── .gitkeep
+│       │   ├── 74cf78ef-b0dc-44a9-b653-2ecf925160ef/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 82bf1bfa-2c17-455b-80f7-1c3901d94fea/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 93fe49ba-a722-4cc8-970d-5365c0538b77/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   └── bd570f67-6409-41db-ba22-20dc6a92b4ef/
+│       │       ├── skycommand-automation-summary.json
+│       │       ├── downloads/
+│       │       └── screenshots/
+│       │           └── Command Center Status Snapshot.png
 │       └── tests/
 │           ├── 0209d86f-1443-41e3-ad84-62f1220fdf68/
 │           │   ├── skycommand-summary.json
@@ -1088,6 +1109,7 @@ SkyCommand/
 │   │   ├── contracts/
 │   │   │   └── browser_automation_summary.v1.schema.json
 │   │   └── src/
+│   │       ├── browserAutomationRunner.js
 │   │       ├── browserTestRunner.js
 │   │       ├── config.js
 │   │       └── temporal/
@@ -1176,7 +1198,8 @@ SkyCommand/
 │   │       │   ├── 00113__browser_test_registry_foundation.sql
 │   │       │   ├── 00115__browser_test_observability.sql
 │   │       │   ├── 00116__browser_test_execution_mode.sql
-│   │       │   └── 00117__browser_automation_registry_foundation.sql
+│   │       │   ├── 00117__browser_automation_registry_foundation.sql
+│   │       │   └── 00119__browser_automation_execution.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1224,7 +1247,8 @@ SkyCommand/
 │   │           ├── 00093__workflow_ingestion_recovery_parameters.sql
 │   │           ├── 00108__workflow_category_seed.sql
 │   │           ├── 00114__browser_test_registry_seed.sql
-│   │           └── 00118__browser_automation_registry_seed.sql
+│   │           ├── 00118__browser_automation_registry_seed.sql
+│   │           └── 00120__browser_automation_execution_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -1695,6 +1719,7 @@ SkyCommand/
         │       └── src/
         │           └── services/
         │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── browserAutomationExecutionSelfTest.js
         │               ├── browserAutomationRegistrySelfTest.js
         │               ├── browserTestObservabilitySelfTest.js
         │               ├── browserTestRegistrySelfTest.js

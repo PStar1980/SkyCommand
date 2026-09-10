@@ -5,10 +5,13 @@
  * is intentionally small: a future runner supplies an authenticated Playwright Page and runtime
  * context, and this module returns structured business output rather than test assertions.
  */
-async function execute({ page, automationCode = 'command-center-status-snapshot', environment = 'LOCAL' } = {}) {
+async function execute({ page, automationCode = 'command-center-status-snapshot', environment = 'LOCAL', helpers = {} } = {}) {
   if (!page) throw new Error('Playwright Automation requires an authenticated Playwright page.');
 
   const startedAt = Date.now();
+  if (typeof helpers.authenticateSkyCommand === 'function') {
+    await helpers.authenticateSkyCommand();
+  }
   await page.goto('/dashboard');
   await page.getByRole('heading', { name: 'Command Center', exact: true }).waitFor();
 
@@ -19,6 +22,10 @@ async function execute({ page, automationCode = 'command-center-status-snapshot'
       detail: card.querySelector('.sky-muted')?.textContent?.trim() || '',
     })),
   );
+
+  const screenshot = typeof helpers.captureScreenshot === 'function'
+    ? await helpers.captureScreenshot('Command Center Status Snapshot')
+    : null;
 
   return {
     contract: 'browser_automation_summary.v1',
@@ -32,7 +39,7 @@ async function execute({ page, automationCode = 'command-center-status-snapshot'
       serviceCount: services.length,
       services,
     },
-    artifacts: [],
+    artifacts: screenshot ? [screenshot] : [],
   };
 }
 
