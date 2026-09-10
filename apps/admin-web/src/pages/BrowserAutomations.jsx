@@ -121,7 +121,7 @@ export function BrowserAutomationRegistry() {
             <div className="col-xl-5">
               <label className="form-label" htmlFor="browserAutomationRegistrySearch">Search</label>
               <input
-                className="form-control"
+                className="form-control sky-form-control"
                 id="browserAutomationRegistrySearch"
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Name, code, description, source path..."
@@ -130,34 +130,33 @@ export function BrowserAutomationRegistry() {
             </div>
             <div className="col-xl-2">
               <label className="form-label" htmlFor="browserAutomationRegistryCategory">Category</label>
-              <select className="form-select" id="browserAutomationRegistryCategory" onChange={(event) => setCategoryCode(event.target.value)} value={categoryCode}>
+              <select className="form-select sky-form-control" id="browserAutomationRegistryCategory" onChange={(event) => setCategoryCode(event.target.value)} value={categoryCode}>
                 <option value="">All categories</option>
                 {(options?.categories || []).map((category) => <option key={category.categoryCode} value={category.categoryCode}>{category.label}</option>)}
               </select>
             </div>
             <div className="col-xl-2">
               <label className="form-label" htmlFor="browserAutomationRegistrySideEffect">Side effects</label>
-              <select className="form-select" id="browserAutomationRegistrySideEffect" onChange={(event) => setSideEffectLevel(event.target.value)} value={sideEffectLevel}>
+              <select className="form-select sky-form-control" id="browserAutomationRegistrySideEffect" onChange={(event) => setSideEffectLevel(event.target.value)} value={sideEffectLevel}>
                 <option value="">All levels</option>
                 {(options?.sideEffectLevels || []).map((level) => <option key={level} value={level}>{level.replace('_', ' ')}</option>)}
               </select>
             </div>
             <div className="col-xl-2">
               <label className="form-label" htmlFor="browserAutomationRegistryStatus">Status</label>
-              <select className="form-select" id="browserAutomationRegistryStatus" onChange={(event) => setEnabledFilter(event.target.value)} value={enabledFilter}>
+              <select className="form-select sky-form-control" id="browserAutomationRegistryStatus" onChange={(event) => setEnabledFilter(event.target.value)} value={enabledFilter}>
                 <option value="">All statuses</option>
                 <option value="true">Active</option>
                 <option value="false">Disabled</option>
               </select>
             </div>
             <div className="col-xl-1 d-grid">
-              <button className="btn btn-sm sky-btn-primary" onClick={clearFilters} type="button">Clear filters</button>
+              <button className="btn btn-sm sky-btn-ghost" onClick={clearFilters} type="button">Clear filters</button>
             </div>
           </div>
 
-          <div className="sky-canonical-operations-table-frame">
-            <div className="table-responsive">
-              <table className="table table-sm align-middle mb-0 sky-canonical-operations-table">
+          <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+              <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle mb-0">
                 <thead>
                   <tr>
                     <th>AUTOMATION</th>
@@ -191,7 +190,6 @@ export function BrowserAutomationRegistry() {
                   ))}
                 </tbody>
               </table>
-            </div>
           </div>
           <div className="small sky-muted mt-2">Showing {filteredItems.length} of {items.length} registered automation(s).</div>
         </div>
@@ -212,7 +210,7 @@ export function BrowserAutomationRegistry() {
           </div>
           <div className="sky-card-body">
             <div className="table-responsive">
-              <table className="table table-sm mb-0 sky-detail-table">
+              <table className="table table-sm sky-table sky-detail-table align-middle mb-0">
                 <tbody>
                   <DetailRow label="Automation code"><span className="font-monospace">{selected.automationCode}</span></DetailRow>
                   <DetailRow label="Source">{selected.scriptRepository?.repoName || selected.scriptRepository?.repoCode} · <span className="font-monospace">{selected.scriptPath}</span></DetailRow>
