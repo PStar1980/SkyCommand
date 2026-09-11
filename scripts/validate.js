@@ -41,6 +41,7 @@ const routineSelfTests = [
   'browser-automation-ui-foundation:self-test',
   'browser-automation-execution:self-test',
   'browser-test-suite:self-test',
+  'workflow-playwright-nodes:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',
   'git-branch-sync:self-test',

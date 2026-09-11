@@ -1520,6 +1520,16 @@ function WorkflowNodesTimeline({ nodes = [], nodeRuns = [], approvals = [], onOp
                 Execution <span className="sky-mono">{nodeRun.output.executionId}</span>
               </div>
             )}
+            {nodeRun?.output?.operationsPath && (
+              <div className="small sky-muted mt-2">
+                <a
+                  className="btn btn-sm sky-btn-ghost"
+                  href={nodeRun.output.operationsPath}
+                >
+                  Open Playwright operation
+                </a>
+              </div>
+            )}
             {getChildRunIdFromNodeRun(nodeRun) && (
               <div className="small sky-muted mt-2 d-flex flex-wrap align-items-center gap-2">
                 <span>
