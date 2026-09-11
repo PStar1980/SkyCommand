@@ -301,7 +301,8 @@
     "tool-argument-binding:self-test": "node tests/self/packages/tools/src/toolArgumentBindingSelfTest.js",
     "browser-automation-execution:self-test": "node tests/self/apps/api/src/services/browserAutomationExecutionSelfTest.js",
     "browser-automation-ui:self-test": "node tests/self/apps/admin-web/src/pages/browserAutomationRegistryUiSelfTest.js",
-    "browser-test-suite:self-test": "node tests/self/apps/api/src/services/browserTestSuiteSelfTest.js"
+    "browser-test-suite:self-test": "node tests/self/apps/api/src/services/browserTestSuiteSelfTest.js",
+    "workflow-playwright-nodes:self-test": "node tests/self/apps/api/src/services/workflowPlaywrightNodeSelfTest.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

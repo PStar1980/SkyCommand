@@ -48,6 +48,27 @@ function getNodeTypeMeta(nodeTypeCode) {
       className: 'sky-workflow-visual-node-temporal',
       pillClassName: 'sky-pill-warning',
     },
+    BROWSER_TEST: {
+      badge: 'PW TEST',
+      label: 'Playwright Test',
+      marker: 'P',
+      className: 'sky-workflow-visual-node-api',
+      pillClassName: 'sky-pill-info',
+    },
+    BROWSER_TEST_SUITE: {
+      badge: 'PW SUITE',
+      label: 'Playwright Test Suite',
+      marker: 'S',
+      className: 'sky-workflow-visual-node-workflow',
+      pillClassName: 'sky-pill-info',
+    },
+    BROWSER_AUTOMATION: {
+      badge: 'PW AUTO',
+      label: 'Playwright Automation',
+      marker: 'B',
+      className: 'sky-workflow-visual-node-temporal',
+      pillClassName: 'sky-pill-warning',
+    },
     CONDITION: {
       badge: 'IF',
       label: 'Condition gate',
@@ -627,6 +648,21 @@ function getCatalogLabel(catalogs = {}, node = {}) {
     return template?.displayName || node.targetCode || 'Temporal template not selected';
   }
 
+  if (nodeTypeCode === 'BROWSER_TEST') {
+    const target = findByTargetCode(catalogs.browserTestTargets, node.targetCode);
+    return target?.displayName || node.targetCode || 'Playwright Test not selected';
+  }
+
+  if (nodeTypeCode === 'BROWSER_TEST_SUITE') {
+    const target = findByTargetCode(catalogs.browserTestSuiteTargets, node.targetCode);
+    return target?.displayName || node.targetCode || 'Playwright Test Suite not selected';
+  }
+
+  if (nodeTypeCode === 'BROWSER_AUTOMATION') {
+    const target = findByTargetCode(catalogs.browserAutomationTargets, node.targetCode);
+    return target?.displayName || node.targetCode || 'Playwright Automation not selected';
+  }
+
   const tool = findByTargetCode(catalogs.toolTargets, node.targetCode);
   return tool?.displayName || node.targetCode || 'Tool target not selected';
 }
@@ -638,7 +674,7 @@ function getNodeSummary(node, catalogs = {}) {
     return getApiSummary(node);
   }
 
-  if (nodeTypeCode === 'WORKFLOW' || nodeTypeCode === 'TEMPORAL_WORKFLOW') {
+  if (['WORKFLOW', 'TEMPORAL_WORKFLOW', 'BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode)) {
     return getCatalogLabel(catalogs, node);
   }
 
@@ -703,6 +739,18 @@ function getNodeDetail(node, nodes = []) {
     return 'Reusable SkyCommand workflow';
   }
 
+  if (nodeTypeCode === 'BROWSER_TEST') {
+    return `Background Playwright Test · ${String(parameters.environmentCode || 'LOCAL').toUpperCase()}`;
+  }
+
+  if (nodeTypeCode === 'BROWSER_TEST_SUITE') {
+    return `Background Playwright Test Suite · ${String(parameters.environmentCode || 'LOCAL').toUpperCase()}`;
+  }
+
+  if (nodeTypeCode === 'BROWSER_AUTOMATION') {
+    return `Background Playwright Automation · ${String(parameters.environmentCode || 'LOCAL').toUpperCase()}`;
+  }
+
   return node.description || 'Reusable tool primitive';
 }
 
@@ -727,10 +775,22 @@ function getInspectorRows(node, catalogs = {}, nodes = []) {
     return rows;
   }
 
-  if (nodeTypeCode === 'WORKFLOW' || nodeTypeCode === 'TEMPORAL_WORKFLOW') {
+  if (['WORKFLOW', 'TEMPORAL_WORKFLOW'].includes(nodeTypeCode)) {
     rows.push(
       ['Target', getCatalogLabel(catalogs, node)],
       ['Target code', node.targetCode || '—'],
+      ['Retry policy', getRetryPolicySummary(node.retryPolicy)],
+      ['Node timeout', formatNodeTimeout(node.timeoutMs)],
+    );
+    return rows;
+  }
+
+  if (['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode)) {
+    rows.push(
+      ['Target', getCatalogLabel(catalogs, node)],
+      ['Target code', node.targetCode || '—'],
+      ['Environment', String(parameters.environmentCode || 'LOCAL').toUpperCase()],
+      ['Execution mode', 'HEADLESS'],
       ['Retry policy', getRetryPolicySummary(node.retryPolicy)],
       ['Node timeout', formatNodeTimeout(node.timeoutMs)],
     );
@@ -795,7 +855,7 @@ function getDesignNodeOverlay(node = {}) {
   const nodeTypeCode = normalizeNodeType(node.nodeTypeCode);
   const enabledLabel = node.enabled === false ? 'Disabled' : 'Ready';
 
-  if (['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'].includes(nodeTypeCode)) {
+  if (['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode)) {
     return {
       label: 'Configuration',
       detail: `${enabledLabel} · ${getRetryPolicySummary(node.retryPolicy)} · Timeout ${formatNodeTimeout(node.timeoutMs)}`,
@@ -1152,6 +1212,9 @@ function WorkflowVisualGraph({
   toolTargets = [],
   workflowTargets = [],
   temporalWorkflowTargets = [],
+  browserTestTargets = [],
+  browserTestSuiteTargets = [],
+  browserAutomationTargets = [],
   selectedNodeIndex = null,
   onFollowActiveNodeChange,
   onApprovalReview,
@@ -1164,6 +1227,9 @@ function WorkflowVisualGraph({
     toolTargets,
     workflowTargets,
     temporalWorkflowTargets,
+    browserTestTargets,
+    browserTestSuiteTargets,
+    browserAutomationTargets,
   };
   const branchEdgeCount = nodes.reduce((count, node) => count + getWorkflowBranchBadges(node, nodes).length, 0);
   const totalEdges = Math.max(nodes.length - 1, 0) + branchEdgeCount;

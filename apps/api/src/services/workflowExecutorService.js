@@ -12,6 +12,7 @@ const authService = require('./authService');
 const scriptExecutionService = require('./scriptExecutionService');
 const temporalService = require('./temporalService');
 const toolManifestService = require('./toolManifestService');
+const workflowPlaywrightNodeService = require('./workflowPlaywrightNodeService');
 const {
   evaluateConditionNode,
   normalizeConditionBranchTargetNodeKey,
@@ -41,6 +42,9 @@ const SUPPORTED_NODE_TYPES = new Set([
   'WAIT',
   'HUMAN_APPROVAL',
   'SUMMARY',
+  'BROWSER_TEST',
+  'BROWSER_TEST_SUITE',
+  'BROWSER_AUTOMATION',
 ]);
 const TERMINAL_SUCCESS_STATUS = 'COMPLETED';
 const TERMINAL_FAILURE_STATUS = 'FAILED';
@@ -1074,6 +1078,9 @@ function getNodeDisplayNameForType(nodeTypeCode, fallback = 'Workflow node') {
     TEMPORAL_WORKFLOW: 'Start Temporal Workflow',
     TOOL: 'Run Tool',
     WORKFLOW: 'Run Child Workflow',
+    BROWSER_TEST: 'Run Playwright Test',
+    BROWSER_TEST_SUITE: 'Run Playwright Test Suite',
+    BROWSER_AUTOMATION: 'Run Playwright Automation',
   };
 
   return map[nodeTypeCode] || fallback;
@@ -1089,6 +1096,9 @@ function getNodeTargetKindForType(nodeTypeCode) {
     TEMPORAL_WORKFLOW: 'worker.temporal_workflow_definitions',
     TOOL: 'core.tools',
     WORKFLOW: 'worker.workflow_definitions',
+    BROWSER_TEST: 'core.browser_tests',
+    BROWSER_TEST_SUITE: 'core.browser_test_suites',
+    BROWSER_AUTOMATION: 'core.browser_automations',
   };
 
   return map[nodeTypeCode] || null;
@@ -1104,6 +1114,9 @@ function getNodeCategoryForType(nodeTypeCode) {
     TEMPORAL_WORKFLOW: 'WORKFLOW',
     TOOL: 'ACTION',
     WORKFLOW: 'WORKFLOW',
+    BROWSER_TEST: 'ACTION',
+    BROWSER_TEST_SUITE: 'WORKFLOW',
+    BROWSER_AUTOMATION: 'ACTION',
   };
 
   return map[nodeTypeCode] || 'ACTION';
@@ -3566,6 +3579,7 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     temporalWorkflowTargetResult,
     approvalRoleResult,
     repositoryResult,
+    playwrightTargetsResult,
   ] = await Promise.all([
     query(
       `
@@ -3651,6 +3665,7 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
       `,
       [PROFILE_CODE],
     ),
+    workflowPlaywrightNodeService.listBuilderTargets({ permissions }),
   ]);
 
   const nodeTypes = nodeTypeResult.rows.map((row) => {
@@ -3779,6 +3794,9 @@ async function listBuilderCatalog({ permissions = [] } = {}) {
     temporalWorkflowTargets,
     approvalRoleTargets,
     repositoryOptions,
+    browserTestTargets: playwrightTargetsResult.browserTestTargets || [],
+    browserTestSuiteTargets: playwrightTargetsResult.browserTestSuiteTargets || [],
+    browserAutomationTargets: playwrightTargetsResult.browserAutomationTargets || [],
   };
 }
 
@@ -3789,7 +3807,7 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
 
   if (!SUPPORTED_NODE_TYPES.has(nodeTypeCode)) {
     throw new WorkflowServiceError(
-      'Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, WAIT, HUMAN_APPROVAL, and SUMMARY nodes.',
+      'Workflow Builder currently supports TOOL, API_CALL, WORKFLOW, TEMPORAL_WORKFLOW, CONDITION, WAIT, HUMAN_APPROVAL, SUMMARY, BROWSER_TEST, BROWSER_TEST_SUITE, and BROWSER_AUTOMATION nodes.',
       400,
       {
         nodeTypeCode,
@@ -3802,6 +3820,9 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
           'WAIT',
           'HUMAN_APPROVAL',
           'SUMMARY',
+          'BROWSER_TEST',
+          'BROWSER_TEST_SUITE',
+          'BROWSER_AUTOMATION',
         ],
       },
     );
@@ -3813,6 +3834,9 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
       node.toolCode ||
       node.workflowCode ||
       node.temporalWorkflowCode ||
+      node.testCode ||
+      node.suiteCode ||
+      node.automationCode ||
       (nodeTypeCode === 'API_CALL' ? inputParameters.url || node.url || '' : ''),
   ).trim();
 
@@ -3840,6 +3864,10 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
         index,
       },
     );
+  }
+
+  if (['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode) && !targetCode) {
+    throw new WorkflowServiceError(`Each ${nodeTypeCode} node requires targetCode.`, 400, { index });
   }
 
   if (nodeTypeCode === 'API_CALL') {
@@ -3921,7 +3949,13 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
                     ? 'human_approval'
                     : nodeTypeCode === 'SUMMARY'
                       ? 'summary'
-                      : 'tool',
+                      : nodeTypeCode === 'BROWSER_TEST'
+                        ? 'playwright_test'
+                        : nodeTypeCode === 'BROWSER_TEST_SUITE'
+                          ? 'playwright_test_suite'
+                          : nodeTypeCode === 'BROWSER_AUTOMATION'
+                            ? 'playwright_automation'
+                            : 'tool',
     }),
   };
 }
@@ -6008,6 +6042,16 @@ async function executeNode({ node, parameters, user, session, permissions, conte
 
   if (node.nodeTypeCode === 'SUMMARY') {
     return buildWorkflowRunSummaryOutput({ node, parameters, context });
+  }
+
+  if (['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(node.nodeTypeCode)) {
+    return workflowPlaywrightNodeService.executePlaywrightWorkflowNode({
+      node,
+      parameters,
+      user,
+      permissions,
+      context,
+    });
   }
 
   throw new WorkflowServiceError(`Node type has no executor adapter: ${node.nodeTypeCode}`, 501);

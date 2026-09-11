@@ -223,7 +223,7 @@ function parseRuntimeParameterSchema(value) {
 }
 
 function supportsRetryPolicy(nodeTypeCode) {
-  return ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW'].includes(String(nodeTypeCode || 'TOOL').toUpperCase());
+  return ['TOOL', 'API_CALL', 'WORKFLOW', 'TEMPORAL_WORKFLOW', 'BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(String(nodeTypeCode || 'TOOL').toUpperCase());
 }
 
 function getRetryPolicyPayload(node = {}) {
@@ -500,15 +500,22 @@ function getManagerNodeExpressionSummary(node, selectedTool) {
   if (nodeTypeCode === 'WAIT') return formatWaitDuration(node.inputParameters);
   if (nodeTypeCode === 'HUMAN_APPROVAL') return getHumanApprovalSummary(node.inputParameters);
   if (nodeTypeCode === 'SUMMARY') return getSummaryExpressionSummary(node.inputParameters);
+  if (nodeTypeCode === 'BROWSER_TEST') return node.targetCode || 'playwright test';
+  if (nodeTypeCode === 'BROWSER_TEST_SUITE') return node.targetCode || 'playwright test suite';
+  if (nodeTypeCode === 'BROWSER_AUTOMATION') return node.targetCode || 'playwright automation';
 
   return node.targetCode || selectedTool?.targetCode || 'target tool';
 }
 
-function EditableNodeCard({ index, node, allNodes = [], highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], approvalRoleTargets = [], runtimeParameters = [], onChange, onMoveDown, onMoveUp, onRemove }) {
+function EditableNodeCard({ index, node, allNodes = [], highlighted = false, toolTargets = [], workflowTargets = [], temporalWorkflowTargets = [], browserTestTargets = [], browserTestSuiteTargets = [], browserAutomationTargets = [], approvalRoleTargets = [], runtimeParameters = [], onChange, onMoveDown, onMoveUp, onRemove }) {
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
   const groupedWorkflowTargets = groupWorkflowsByCategory(workflowTargets);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
+  const selectedBrowserTest = browserTestTargets.find((target) => target.targetCode === node.targetCode);
+  const selectedBrowserTestSuite = browserTestSuiteTargets.find((target) => target.targetCode === node.targetCode);
+  const selectedBrowserAutomation = browserAutomationTargets.find((target) => target.targetCode === node.targetCode);
+  const selectedPlaywrightTarget = node.nodeTypeCode === 'BROWSER_TEST' ? selectedBrowserTest : node.nodeTypeCode === 'BROWSER_TEST_SUITE' ? selectedBrowserTestSuite : selectedBrowserAutomation;
   const nodeTypeCode = node.nodeTypeCode || 'TOOL';
 
   function patch(changes) {
@@ -600,6 +607,16 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
       return;
     }
 
+    if (['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nextType)) {
+      const defaults = {
+        BROWSER_TEST: ['Run Playwright Test', `playwright_test_${index + 1}`, 'Runs a registered Playwright Test and waits for PASS / FAIL.'],
+        BROWSER_TEST_SUITE: ['Run Playwright Test Suite', `playwright_suite_${index + 1}`, 'Runs a registered Playwright Test Suite and waits for its aggregate result.'],
+        BROWSER_AUTOMATION: ['Run Playwright Automation', `playwright_automation_${index + 1}`, 'Runs a registered Playwright Automation and waits for its structured result.'],
+      }[nextType];
+      patch({ nodeTypeCode: nextType, targetCode: '', displayName: node.displayName || defaults[0], nodeKey: node.nodeKey || defaults[1], description: node.description || defaults[2], inputParameters: { environmentCode: 'LOCAL' } });
+      return;
+    }
+
     patch({
       nodeTypeCode: 'TOOL',
       targetCode: '',
@@ -651,6 +668,20 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
     });
   }
 
+  function handlePlaywrightTargetChange(targetCode) {
+    const targets = nodeTypeCode === 'BROWSER_TEST' ? browserTestTargets : nodeTypeCode === 'BROWSER_TEST_SUITE' ? browserTestSuiteTargets : browserAutomationTargets;
+    const target = targets.find((item) => item.targetCode === targetCode);
+    const nextDisplayName = node.displayName || target?.displayName || targetCode;
+    const nextNodeKey = node.nodeKey || nodeKeyFrom(nextDisplayName || targetCode);
+    patch({
+      targetCode,
+      displayName: nextDisplayName,
+      nodeKey: nextNodeKey,
+      description: node.description || target?.description || 'Runs a registered Playwright primitive.',
+      inputParameters: { environmentCode: target?.defaultEnvironmentCode || node.inputParameters?.environmentCode || 'LOCAL', ...getInitialToolParameterValues(target, node.inputParameters || {}) },
+    });
+  }
+
   return (
     <div
       className={`sky-worker-command-card ${highlighted ? 'sky-editor-node-highlight' : ''}`}
@@ -659,7 +690,7 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
       <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
         <div>
           <div className="sky-page-kicker">Node {index + 1} · {getNodeTypeLabel(nodeTypeCode)}</div>
-          <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || 'Workflow node'}</div>
+          <div className="fw-bold">{node.displayName || selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || selectedPlaywrightTarget?.displayName || 'Workflow node'}</div>
           <div className="small sky-muted sky-mono">{node.nodeKey || 'node_key'} → {getManagerNodeExpressionSummary(node, selectedTool)}</div>
         </div>
         <div className="d-flex flex-wrap gap-2">
@@ -686,6 +717,9 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
             <option value="WAIT">Wait / delay</option>
             <option value="HUMAN_APPROVAL">Human approval</option>
             <option value="SUMMARY">Summary / run report</option>
+            <option value="BROWSER_TEST">Playwright Test</option>
+            <option value="BROWSER_TEST_SUITE">Playwright Test Suite</option>
+            <option value="BROWSER_AUTOMATION">Playwright Automation</option>
           </select>
         </div>
         {nodeTypeCode === 'TOOL' && (
@@ -751,6 +785,18 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
             )}
           </div>
         )}
+        {['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode) && (
+          <div className="col-lg-8">
+            <label className="form-label" htmlFor={`manager-node-${index}-playwright-target`}>Playwright target</label>
+            <select className="form-select sky-form-control" id={`manager-node-${index}-playwright-target`} onChange={(event) => handlePlaywrightTargetChange(event.target.value)} value={node.targetCode}>
+              <option value="">Select registered target...</option>
+              {(nodeTypeCode === 'BROWSER_TEST' ? browserTestTargets : nodeTypeCode === 'BROWSER_TEST_SUITE' ? browserTestSuiteTargets : browserAutomationTargets).map((target) => (
+                <option key={target.targetCode} value={target.targetCode}>{target.displayName} ({target.targetCode})</option>
+              ))}
+            </select>
+            {selectedPlaywrightTarget && <div className="form-text">Background (Headless) · {selectedPlaywrightTarget.defaultEnvironmentCode || 'LOCAL'}{selectedPlaywrightTarget.memberCount !== undefined ? ` · ${selectedPlaywrightTarget.memberCount} member(s)` : ''}{selectedPlaywrightTarget.sideEffectLevel ? ` · ${selectedPlaywrightTarget.sideEffectLevel}` : ''}{selectedPlaywrightTarget.requiresConfirmation ? ' · confirmation required (not workflow-eligible)' : ''}</div>}
+          </div>
+        )}
         <div className="col-lg-6">
           <label className="form-label" htmlFor={`manager-node-${index}-key`}>Node key</label>
           <input
@@ -808,6 +854,12 @@ function EditableNodeCard({ index, node, allNodes = [], highlighted = false, too
               <div className="form-text mt-2">
                 Runs the approved Temporal-native template as a child execution and waits for completion. Use this for specialized durable subprocesses.
               </div>
+            </>
+          ) : ['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode) ? (
+            <>
+              <div className="sky-page-kicker mb-2">Playwright execution parameters</div>
+              <div className="row g-3 mb-3"><div className="col-md-4"><label className="form-label" htmlFor={`manager-node-${index}-browser-environment`}>Environment</label><input className="form-control sky-form-control sky-mono" id={`manager-node-${index}-browser-environment`} onChange={(event) => patch({ inputParameters: { ...(node.inputParameters || {}), environmentCode: event.target.value.toUpperCase() } })} value={node.inputParameters?.environmentCode || selectedPlaywrightTarget?.defaultEnvironmentCode || 'LOCAL'} /></div><div className="col-md-8 d-flex align-items-end"><div className="form-text mb-2">Workflow Playwright nodes execute headlessly so workflow runs remain unattended and background-safe.</div></div></div>
+              {nodeTypeCode !== 'BROWSER_TEST_SUITE' ? <ToolParameterEditor idPrefix={`manager-node-${index}-playwright-parameter`} onChange={(inputParameters) => patch({ inputParameters: { environmentCode: node.inputParameters?.environmentCode || selectedPlaywrightTarget?.defaultEnvironmentCode || 'LOCAL', ...inputParameters } })} parameterValues={node.inputParameters || {}} parameters={selectedPlaywrightTarget?.parameters || []} workflowParameters={runtimeParameters} /> : <div className="sky-empty-state py-3">Suite membership and member parameter overrides remain owned by the registered Test Suite.</div>}
             </>
           ) : nodeTypeCode === 'WAIT' ? (
             <>
@@ -902,6 +954,9 @@ function getNodeTypeLabel(nodeTypeCode = 'TOOL') {
     WAIT: 'Wait / delay',
     HUMAN_APPROVAL: 'Human approval',
     SUMMARY: 'Run summary',
+    BROWSER_TEST: 'Playwright Test',
+    BROWSER_TEST_SUITE: 'Playwright Test Suite',
+    BROWSER_AUTOMATION: 'Playwright Automation',
   };
 
   return labels[String(nodeTypeCode || 'TOOL').toUpperCase()] || labels.TOOL;
@@ -926,6 +981,9 @@ function ReadOnlyNodeParameterPanel({
   toolTargets = [],
   workflowTargets = [],
   temporalWorkflowTargets = [],
+  browserTestTargets = [],
+  browserTestSuiteTargets = [],
+  browserAutomationTargets = [],
   onCreateDraft,
 }) {
   if (!node) {
@@ -938,7 +996,8 @@ function ReadOnlyNodeParameterPanel({
   const selectedTool = toolTargets.find((tool) => tool.targetCode === node.targetCode);
   const selectedWorkflow = workflowTargets.find((workflow) => workflow.targetCode === node.targetCode);
   const selectedTemporalWorkflow = temporalWorkflowTargets.find((template) => template.targetCode === node.targetCode);
-  const targetLabel = selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || node.targetCode || '—';
+  const selectedPlaywrightTarget = [...browserTestTargets, ...browserTestSuiteTargets, ...browserAutomationTargets].find((target) => target.targetCode === node.targetCode);
+  const targetLabel = selectedTool?.displayName || selectedWorkflow?.displayName || selectedTemporalWorkflow?.displayName || selectedPlaywrightTarget?.displayName || node.targetCode || '—';
 
   return (
     <div className="sky-worker-command-card mt-4">
@@ -1000,7 +1059,7 @@ function ReadOnlyNodeParameterPanel({
 
 
 function WorkflowManager() {
-  const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], approvalRoleTargets: [], repositoryOptions: [] });
+  const [catalog, setCatalog] = useState({ toolTargets: [], workflowTargets: [], temporalWorkflowTargets: [], browserTestTargets: [], browserTestSuiteTargets: [], browserAutomationTargets: [], approvalRoleTargets: [], repositoryOptions: [] });
   const [workflowCategories, setWorkflowCategories] = useState([]);
   const [definitions, setDefinitions] = useState([]);
   const [selectedCode, setSelectedCode] = useState('');
@@ -1055,6 +1114,9 @@ function WorkflowManager() {
       .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))),
     [catalog.temporalWorkflowTargets],
   );
+  const browserTestTargets = useMemo(() => [...(catalog.browserTestTargets || [])].sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))), [catalog.browserTestTargets]);
+  const browserTestSuiteTargets = useMemo(() => [...(catalog.browserTestSuiteTargets || [])].sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))), [catalog.browserTestSuiteTargets]);
+  const browserAutomationTargets = useMemo(() => [...(catalog.browserAutomationTargets || [])].sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''))), [catalog.browserAutomationTargets]);
 
   const approvalRoleTargets = useMemo(
     () => [...(catalog.approvalRoleTargets || [])]
@@ -1085,6 +1147,9 @@ function WorkflowManager() {
         toolTargets: catalogResult.toolTargets || [],
         workflowTargets: catalogResult.workflowTargets || [],
         temporalWorkflowTargets: catalogResult.temporalWorkflowTargets || [],
+        browserTestTargets: catalogResult.browserTestTargets || [],
+        browserTestSuiteTargets: catalogResult.browserTestSuiteTargets || [],
+        browserAutomationTargets: catalogResult.browserAutomationTargets || [],
         approvalRoleTargets: catalogResult.approvalRoleTargets || [],
         repositoryOptions: catalogResult.repositoryOptions || [],
       });
@@ -1218,7 +1283,16 @@ function WorkflowManager() {
             description: 'Runs an approved Temporal-native workflow template and waits for completion.',
             inputParameters: {},
           }
-          : nodeTypeCode === 'CONDITION'
+          : ['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode)
+            ? {
+              ...EMPTY_NODE,
+              nodeTypeCode,
+              nodeKey: `${nodeTypeCode === 'BROWSER_TEST' ? 'playwright_test' : nodeTypeCode === 'BROWSER_TEST_SUITE' ? 'playwright_suite' : 'playwright_automation'}_${nextIndex + 1}`,
+              displayName: nodeTypeCode === 'BROWSER_TEST' ? 'Run Playwright Test' : nodeTypeCode === 'BROWSER_TEST_SUITE' ? 'Run Playwright Test Suite' : 'Run Playwright Automation',
+              description: nodeTypeCode === 'BROWSER_TEST' ? 'Runs a registered Playwright Test and waits for PASS / FAIL.' : nodeTypeCode === 'BROWSER_TEST_SUITE' ? 'Runs a registered Playwright Test Suite and waits for its aggregate result.' : 'Runs a registered Playwright Automation and waits for SUCCESS / FAILED.',
+              inputParameters: { environmentCode: 'LOCAL' },
+            }
+            : nodeTypeCode === 'CONDITION'
             ? {
               ...EMPTY_NODE,
               nodeTypeCode: 'CONDITION',
@@ -1401,6 +1475,13 @@ function WorkflowManager() {
             updatedBy: 'workflow_manager_ui_v4',
           },
         };
+      }
+
+      if (['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode)) {
+        const targetCode = String(node.targetCode || '').trim();
+        if (!targetCode) throw new Error(`Node ${index + 1} requires a Playwright target.`);
+        const environmentCode = String(node.inputParameters?.environmentCode || 'LOCAL').trim().toUpperCase();
+        return { nodeKey, nodeTypeCode, displayName, description: String(node.description || '').trim(), targetCode, inputParameters: { ...cleanToolParameterValues(node.inputParameters), environmentCode }, ...getRetryPolicyPayload(node), displayOrder: (index + 1) * 10, config: { builderCard: nodeTypeCode === 'BROWSER_TEST' ? 'playwright_test' : nodeTypeCode === 'BROWSER_TEST_SUITE' ? 'playwright_test_suite' : 'playwright_automation', updatedBy: 'workflow_manager_ui_phase9' } };
       }
 
       if (nodeTypeCode === 'CONDITION') {
@@ -2478,7 +2559,7 @@ function WorkflowManager() {
                     <div className="sky-page-kicker">Workflow graph</div>
                     <h2 className="h5 mb-0">{graphLocked ? 'Published graph preview' : 'Edit draft sequential graph with condition gates, waits, and approvals'}</h2>
                   </div>
-                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('SUMMARY')} type="button">Add summary</button></div>
+                  <div className="d-flex flex-wrap gap-2"><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TOOL')} type="button">Add tool node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('API_CALL')} type="button">Add API node</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WORKFLOW')} type="button">Add child workflow</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('TEMPORAL_WORKFLOW')} type="button">Add Temporal template</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('CONDITION')} type="button">Add condition</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('WAIT')} type="button">Add wait/delay</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('HUMAN_APPROVAL')} type="button">Add approval</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('SUMMARY')} type="button">Add summary</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('BROWSER_TEST')} type="button">Add Playwright test</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('BROWSER_TEST_SUITE')} type="button">Add test suite</button><button className="btn btn-sm sky-btn-ghost" disabled={graphLocked || saving} onClick={() => addEditorNode('BROWSER_AUTOMATION')} type="button">Add Playwright automation</button></div>
                 </div>
                 <form className="sky-card-body" onSubmit={handleSaveGraph}>
                   {graphLocked && (
@@ -2496,6 +2577,9 @@ function WorkflowManager() {
                     temporalWorkflowTargets={temporalWorkflowTargets}
                     toolTargets={toolTargets}
                     workflowTargets={workflowTargets}
+                    browserTestTargets={browserTestTargets}
+                    browserTestSuiteTargets={browserTestSuiteTargets}
+                    browserAutomationTargets={browserAutomationTargets}
                   />
 
                   {editorNodes.length === 0 ? (
@@ -2510,6 +2594,9 @@ function WorkflowManager() {
                         toolTargets={toolTargets}
                         workflowTargets={workflowTargets}
                         temporalWorkflowTargets={temporalWorkflowTargets}
+                        browserTestTargets={browserTestTargets}
+                        browserTestSuiteTargets={browserTestSuiteTargets}
+                        browserAutomationTargets={browserAutomationTargets}
                       />
                     ) : (
                       <div className="sky-empty-state mt-4">Select a node above to inspect its saved node-level defaults.</div>
@@ -2532,6 +2619,9 @@ function WorkflowManager() {
                             toolTargets={toolTargets}
                             workflowTargets={workflowTargets}
                             temporalWorkflowTargets={temporalWorkflowTargets}
+                            browserTestTargets={browserTestTargets}
+                            browserTestSuiteTargets={browserTestSuiteTargets}
+                            browserAutomationTargets={browserAutomationTargets}
                             approvalRoleTargets={approvalRoleTargets}
                           />
                         </div>
