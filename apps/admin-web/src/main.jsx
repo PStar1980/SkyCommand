@@ -38,7 +38,7 @@ import WorkflowBuilder from './pages/WorkflowBuilder.jsx';
 import WorkflowManager from './pages/WorkflowManager.jsx';
 import WorkflowApprovals from './pages/WorkflowApprovals.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
-import { BrowserTestAdd, BrowserTestManage, BrowserTestOperations, BrowserTestRun } from './pages/BrowserTests.jsx';
+import { BrowserTestAdd, BrowserTestManage, BrowserTestOperations, BrowserTestRun, BrowserTestSuites } from './pages/BrowserTests.jsx';
 import { BrowserAutomationAdd, BrowserAutomationManage, BrowserAutomationOperations, BrowserAutomationRun } from './pages/BrowserAutomations.jsx';
 import './index.css';
 import './App.css';
@@ -167,6 +167,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="BROWSER_TEST_RUN">
                   <BrowserTestRun />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="browser-tests/suites"
+              element={
+                <ProtectedRoute permissionCode="BROWSER_TEST_SUITE_READ">
+                  <BrowserTestSuites />
                 </ProtectedRoute>
               }
             />

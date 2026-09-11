@@ -6,7 +6,7 @@ import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
 import browserTestService from '../services/browserTestService.js';
 
-const TERMINAL_RUN_STATUSES = new Set(['PASSED', 'COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
+const TERMINAL_RUN_STATUSES = new Set(['PASSED', 'PARTIAL', 'COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
 const DEFAULT_RUN_FILTERS = { q: '', categoryCode: '', environmentCode: '', browserType: '' };
 const DEFAULT_OPERATIONS_FILTERS = { q: '', categoryCode: '', environmentCode: '', status: '' };
 const DEFAULT_MANAGE_FILTERS = { q: '', categoryCode: '', riskCode: '', enabled: '' };
@@ -1422,6 +1422,172 @@ export function BrowserTestAdd() {
       {loading && <Panel kicker="LOADING" title="Playwright Test Registration"><div className="sky-card-body sky-muted">Loading registry options...</div></Panel>}
       {form && options && <Panel kicker="NEW PLAYWRIGHT TEST" subtitle="The Playwright source file must already exist in the selected repository." title="Test Registration"><BrowserTestRegistryForm form={form} onChange={setForm} onSubmit={createTest} options={options} saving={saving} submitLabel="Register Playwright Test" /></Panel>}
     </div>
+  );
+}
+
+
+
+export function BrowserTestSuites() {
+  const [suites, setSuites] = useState([]);
+  const [runs, setRuns] = useState([]);
+  const [selectedSuite, setSelectedSuite] = useState(null);
+  const [selectedRun, setSelectedRun] = useState(null);
+  const [environmentCode, setEnvironmentCode] = useState('LOCAL');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  async function loadSuites() {
+    const response = await browserTestService.listSuites();
+    const items = response.items || [];
+    setSuites(items);
+    if (!selectedSuite && items[0]) {
+      const detail = await browserTestService.getSuite(items[0].suiteCode);
+      setSelectedSuite(detail.suite || items[0]);
+      setEnvironmentCode(detail.suite?.defaultEnvironmentCode || items[0].defaultEnvironmentCode || 'LOCAL');
+    }
+  }
+
+  async function loadRuns({ silent = false } = {}) {
+    try {
+      const response = await browserTestService.listSuiteRuns({ limit: 100 });
+      const items = response.items || [];
+      setRuns(items);
+      if (!selectedRun && items[0]) setSelectedRun(items[0]);
+    } catch (loadError) {
+      if (!silent) throw loadError;
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await Promise.all([loadSuites(), loadRuns()]);
+      } catch (loadError) {
+        if (active) setError(loadError.message || 'Failed to load Playwright Test Suites.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    const timer = window.setInterval(() => loadRuns({ silent: true }), 15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  const filteredSuites = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return suites;
+    return suites.filter((suite) => `${suite.label} ${suite.suiteCode} ${suite.description || ''}`.toLowerCase().includes(term));
+  }, [suites, search]);
+
+  const suiteTable = useBrowserTable(filteredSuites, {
+    defaultSorts: [{ field: 'displayOrder', direction: 'asc' }],
+    getSortValue: (suite, field) => ({ suite: suite.label, members: suite.memberCount, environment: suite.defaultEnvironmentCode, displayOrder: suite.displayOrder, status: suite.enabled ? 'ACTIVE' : 'DISABLED' }[field]),
+    resetKey: search,
+  });
+
+  const filteredRuns = useMemo(() => runs.filter((run) => !statusFilter || String(run.status).toUpperCase() === statusFilter), [runs, statusFilter]);
+  const runTable = useBrowserTable(filteredRuns, {
+    defaultSorts: [{ field: 'started', direction: 'desc' }],
+    getSortValue: (run, field) => ({ suite: run.suiteLabel, status: run.status, started: run.startTime, duration: run.durationMs, members: run.memberCount, environment: run.environmentCode }[field]),
+    resetKey: statusFilter,
+  });
+
+  async function chooseSuite(suite) {
+    setError('');
+    try {
+      const response = await browserTestService.getSuite(suite.suiteCode);
+      setSelectedSuite(response.suite || suite);
+      setEnvironmentCode(response.suite?.defaultEnvironmentCode || suite.defaultEnvironmentCode || 'LOCAL');
+    } catch (loadError) { setError(loadError.message || 'Failed to load Playwright Test Suite.'); }
+  }
+
+  async function chooseRun(run) {
+    setError('');
+    try {
+      const response = await browserTestService.getSuiteRun(run.workflowId);
+      setSelectedRun(response.run || run);
+    } catch (loadError) { setError(loadError.message || 'Failed to load Playwright Test Suite run.'); }
+  }
+
+  async function runSuite() {
+    if (!selectedSuite || running) return;
+    setRunning(true); setError(''); setNotice('');
+    try {
+      const response = await browserTestService.runSuite(selectedSuite.suiteCode, { environmentCode, executionMode: 'HEADLESS' });
+      const workflowId = response.execution?.workflowId;
+      setNotice(`${selectedSuite.label} was accepted by Temporal and sent to the Browser Worker.`);
+      if (workflowId) {
+        let done = false;
+        while (!done) {
+          await new Promise((resolve) => window.setTimeout(resolve, 750));
+          const runResponse = await browserTestService.getSuiteRun(workflowId);
+          const run = runResponse.run;
+          setSelectedRun(run);
+          done = TERMINAL_RUN_STATUSES.has(String(run?.status || '').toUpperCase()) || String(run?.status).toUpperCase() === 'PARTIAL';
+        }
+      }
+      await loadRuns({ silent: true });
+    } catch (runError) { setError(runError.message || 'Playwright Test Suite execution failed.'); }
+    finally { setRunning(false); }
+  }
+
+  const memberResults = selectedRun?.members || selectedRun?.result?.members || [];
+
+  return (
+    <>
+      <PageHeader kicker="PLAYWRIGHT TESTS · SUITES" subtitle="Run reusable Browser Test groups in the background without slowing Development Promotion." title="Test Suites" />
+      {error && <DismissibleAlert className="alert alert-danger mt-3" onDismiss={() => setError('')} tone="danger">{error}</DismissibleAlert>}
+      {notice && <DismissibleAlert className="alert alert-success mt-3" onDismiss={() => setNotice('')} tone="success">{notice}</DismissibleAlert>}
+
+      <Panel className="mt-3 sky-table-card sky-table-browser-anchor" kicker="SUITE BROWSER" subtitle="Select a registered suite to review ordered membership and launch it through the dedicated Browser Worker." title="Available Suites">
+        <div className="sky-filter-row sky-canonical-operations-filter-row">
+          <div className="sky-filter-field sky-filter-field-search"><label className="form-label" htmlFor="browserSuiteSearch">Search</label><input className="form-control sky-form-control" id="browserSuiteSearch" onChange={(e) => setSearch(e.target.value)} placeholder="Suite name, code, description..." value={search} /></div>
+          <button className="btn btn-sm sky-btn-ghost sky-filter-clear-button" disabled={!search} onClick={() => setSearch('')} type="button">Clear filters</button>
+        </div>
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame">
+          <table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle">
+            <thead><tr><BrowserSortableHeader field="suite" label="Suite" table={suiteTable} /><BrowserSortableHeader field="members" label="Members" table={suiteTable} /><BrowserSortableHeader field="environment" label="Environment" table={suiteTable} /><BrowserSortableHeader field="status" label="Status" table={suiteTable} /></tr></thead>
+            <tbody>{suiteTable.pageItems.map((suite) => <tr className={selectedSuite?.suiteCode === suite.suiteCode ? 'sky-table-row-selected' : ''} key={suite.suiteId || suite.suiteCode} onClick={() => chooseSuite(suite)} role="button" tabIndex={0}><td><strong>{suite.label}</strong><div className="small sky-muted sky-mono">{suite.suiteCode}</div></td><td>{suite.memberCount}</td><td>{suite.defaultEnvironmentCode}</td><td><StatusPill status={suite.enabled ? 'ACTIVE' : 'DISABLED'} /></td></tr>)}</tbody>
+          </table>
+        </div>
+        <BrowserTablePagination label="registered suite(s)" loading={loading} table={suiteTable} />
+      </Panel>
+
+      {selectedSuite && <Panel className="mt-3" actions={<><span className="sky-pill sky-pill-info">{selectedSuite.memberCount} member(s)</span><span className="sky-pill sky-pill-info">HEADLESS</span></>} kicker="SUITE INITIALIZATION" subtitle={selectedSuite.description || 'Reusable Playwright Test Suite.'} title={selectedSuite.label}>
+        <div className="sky-card-body">
+          <div className="row g-3 align-items-end">
+            <div className="col-12 col-lg-4"><label className="form-label" htmlFor="suiteEnvironment">Environment</label><select className="form-select sky-form-control" id="suiteEnvironment" onChange={(e) => setEnvironmentCode(e.target.value)} value={environmentCode}><option value="LOCAL">Local (LOCAL)</option></select></div>
+            <div className="col-12 col-lg-4"><label className="form-label">Execution mode</label><input className="form-control sky-form-control" disabled value="Background (Headless)" /></div>
+            <div className="col-12 col-lg-4"><label className="form-label">Failure policy</label><input className="form-control sky-form-control" disabled value={selectedSuite.stopOnFailure ? 'Stop on first failure' : 'Run all members'} /></div>
+          </div>
+          <div className="table-responsive sky-canonical-operations-table-frame mt-3"><table className="table table-sm sky-table sky-canonical-operations-table align-middle mb-0"><thead><tr><th>Order</th><th>Test</th><th>Category</th><th>Browser</th><th>Environment override</th></tr></thead><tbody>{(selectedSuite.members || []).map((member) => <tr key={member.suiteMemberId}><td>{member.displayOrder}</td><td><strong>{member.testLabel}</strong><div className="small sky-muted sky-mono">{member.testCode}</div></td><td>{member.categoryLabel}</td><td>{String(member.browserType || 'chromium').toUpperCase()}</td><td>{member.environmentCode || 'Suite default'}</td></tr>)}</tbody></table></div>
+          <div className="d-flex gap-2 mt-3"><button className="btn btn-sm sky-btn-primary" disabled={running} onClick={runSuite} type="button">{running ? 'Suite Running...' : 'Run Suite'}</button></div>
+          <div className="small sky-muted mt-2">Suite execution is intentionally background-only in Phase 8. Overnight scheduling is wired in Phase 10, independent of Development Promotion.</div>
+        </div>
+      </Panel>}
+
+      <Panel className="mt-3 sky-table-card" kicker="SUITE OPERATIONS" subtitle="Recent durable suite executions and aggregate PASS / FAIL summaries." title="Recent Suite Runs">
+        <div className="sky-filter-row sky-canonical-operations-filter-row">
+          <div className="sky-filter-field"><label className="form-label" htmlFor="suiteStatusFilter">Status</label><select className="form-select sky-form-control" id="suiteStatusFilter" onChange={(e) => setStatusFilter(e.target.value)} value={statusFilter}><option value="">All statuses</option><option value="PASSED">Passed</option><option value="PARTIAL">Partial</option><option value="FAILED">Failed</option><option value="RUNNING">Running</option></select></div>
+          <button className="btn btn-sm sky-btn-ghost sky-filter-clear-button" disabled={!statusFilter} onClick={() => setStatusFilter('')} type="button">Clear filters</button>
+        </div>
+        <div className="table-responsive sky-table-card sky-functional-history-table-card sky-canonical-operations-table-frame"><table className="table table-sm table-hover sky-table sky-canonical-operations-table align-middle"><thead><tr><BrowserSortableHeader field="suite" label="Suite" table={runTable} /><BrowserSortableHeader field="status" label="Status" table={runTable} /><BrowserSortableHeader field="started" label="Started" table={runTable} /><BrowserSortableHeader field="duration" label="Duration" table={runTable} /><BrowserSortableHeader field="members" label="Members" table={runTable} /><BrowserSortableHeader field="environment" label="Environment" table={runTable} /></tr></thead><tbody>{runTable.pageItems.map((run) => <tr className={selectedRun?.workflowId === run.workflowId ? 'sky-table-row-selected' : ''} key={run.workflowId} onClick={() => chooseRun(run)} role="button" tabIndex={0}><td><strong>{run.suiteLabel}</strong><div className="small sky-muted sky-mono">{run.suiteCode}</div></td><td><StatusPill status={run.status} /></td><td>{formatDateTime(run.startTime)}</td><td>{formatDuration(run.durationMs)}</td><td>{run.memberCount}</td><td>{run.environmentCode}</td></tr>)}</tbody></table></div>
+        <BrowserTablePagination label="suite execution(s)" loading={loading} table={runTable} />
+      </Panel>
+
+      {selectedRun && <Panel actions={<><StatusPill status={selectedRun.status} />{selectedRun.temporalStatus && <span className="sky-pill sky-pill-info">Temporal {selectedRun.temporalStatus}</span>}</>} className="mt-3" kicker="SUITE RESULT" subtitle="Aggregate suite outcome plus each ordered Browser Test result." title={selectedRun.suiteLabel}>
+        <div className="sky-card-body">
+          <div className="table-responsive sky-canonical-operations-table-frame"><table className="table table-sm sky-table sky-canonical-operations-table mb-0"><tbody><tr><th>Workflow ID</th><td className="sky-mono">{selectedRun.workflowId}</td></tr><tr><th>Environment / mode</th><td>{selectedRun.environmentCode} · HEADLESS</td></tr><tr><th>Triggered by</th><td>{selectedRun.initiatedBy || '—'} · {selectedRun.triggerSource}</td></tr><tr><th>Duration</th><td>{formatDuration(selectedRun.durationMs)}</td></tr><tr><th>Source revision</th><td className="sky-mono">{selectedRun.sourceCommit || 'SHA unavailable'}</td></tr></tbody></table></div>
+          <div className="d-flex gap-2 flex-wrap mt-3 mb-2"><span className="sky-pill sky-pill-info">{selectedRun.result?.total ?? memberResults.length} total</span><span className="sky-pill sky-pill-success">{selectedRun.result?.passed ?? memberResults.filter((m) => m.status === 'PASSED').length} passed</span><span className="sky-pill sky-pill-danger">{selectedRun.result?.failed ?? memberResults.filter((m) => m.status === 'FAILED').length} failed</span><span className="sky-pill sky-pill-info">{selectedRun.result?.notRun ?? memberResults.filter((m) => m.status === 'NOT_RUN').length} not run</span></div>
+          <div className="table-responsive sky-canonical-operations-table-frame"><table className="table table-sm sky-table sky-canonical-operations-table align-middle mb-0"><thead><tr><th>Test</th><th>Status</th><th>Duration</th><th>Execution</th></tr></thead><tbody>{memberResults.length ? memberResults.map((member) => <tr key={member.suiteMemberRunId || member.executionId || member.testCode}><td><strong>{member.testLabel}</strong><div className="small sky-muted sky-mono">{member.testCode}</div></td><td><StatusPill status={member.status} /></td><td>{formatDuration(member.durationMs)}</td><td className="sky-mono small">{member.executionId || '—'}</td></tr>) : <tr><td className="sky-muted" colSpan="4">Suite member results will appear when the execution completes.</td></tr>}</tbody></table></div>
+          {selectedRun.failure?.message && <DismissibleAlert className="alert alert-danger mt-3" tone="danger">{selectedRun.failure.message}</DismissibleAlert>}
+        </div>
+      </Panel>}
+    </>
   );
 }
 

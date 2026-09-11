@@ -69,6 +69,27 @@ async function replaceAdminTestEnvironments(testId, environmentCodes) {
   });
 }
 
+
+async function listSuites(filters = {}) {
+  return api.get('/api/browser-test-suites', { query: filters });
+}
+
+async function getSuite(suiteCode) {
+  return api.get(`/api/browser-test-suites/${encodeURIComponent(suiteCode)}`);
+}
+
+async function runSuite(suiteCode, payload = {}) {
+  return api.post(`/api/browser-test-suites/${encodeURIComponent(suiteCode)}/run`, payload);
+}
+
+async function listSuiteRuns(filters = {}) {
+  return api.get('/api/browser-test-suites/runs', { query: filters });
+}
+
+async function getSuiteRun(workflowId) {
+  return api.get(`/api/browser-test-suites/runs/${encodeURIComponent(workflowId)}`);
+}
+
 function setLastRunWorkflowId(workflowId) {
   if (!workflowId) {
     window.sessionStorage.removeItem(LAST_BROWSER_TEST_RUN_KEY);
@@ -89,13 +110,18 @@ const browserTestService = {
   getArtifact,
   getLastRunWorkflowId,
   getRun,
+  getSuite,
+  getSuiteRun,
   getTest,
   listAdminTests,
   listRuns,
+  listSuiteRuns,
+  listSuites,
   listTests,
   replaceAdminTestEnvironments,
   replaceAdminTestParameters,
   runTest,
+  runSuite,
   setLastRunWorkflowId,
   updateAdminTest,
   updateAdminTestStatus,
