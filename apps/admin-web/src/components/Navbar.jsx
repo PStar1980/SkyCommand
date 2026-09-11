@@ -48,6 +48,9 @@ const COMMAND_SEARCH_ALIASES = {
   'run browser tests': '/browser-tests/run',
   'run tests': '/browser-tests/run',
   'test operations': '/browser-tests/operations',
+  'test suites': '/browser-tests/suites',
+  'playwright suites': '/browser-tests/suites',
+  'browser test suites': '/browser-tests/suites',
   'manage playwright tests': '/browser-tests/manage',
   'add playwright test': '/browser-tests/add',
   'manage browser tests': '/browser-tests/manage',
@@ -190,6 +193,8 @@ function createNavGroups(hasPermission, hasRole) {
   const canViewBrowserTests =
     hasPermission('BROWSER_TEST_READ') ||
     hasPermission('BROWSER_TEST_RUN') ||
+    hasPermission('BROWSER_TEST_SUITE_READ') ||
+    hasPermission('BROWSER_TEST_SUITE_RUN') ||
     hasPermission('ADMIN_BROWSER_TEST_READ') ||
     hasPermission('ADMIN_BROWSER_TEST_WRITE');
   const canViewBrowserAutomation =
@@ -366,6 +371,13 @@ function createNavGroups(hasPermission, hasRole) {
           icon: '▶',
           visible: hasPermission('BROWSER_TEST_RUN'),
           description: 'Launch registered Playwright tests',
+        },
+        {
+          label: 'Test Suites',
+          to: '/browser-tests/suites',
+          icon: '≡',
+          visible: hasPermission('BROWSER_TEST_SUITE_READ'),
+          description: 'Reusable background test groups',
         },
         {
           label: 'Manage Tests',

@@ -181,6 +181,7 @@ SkyCommand/
 │   │       │   ├── authController.js
 │   │       │   ├── browserAutomationController.js
 │   │       │   ├── browserTestController.js
+│   │       │   ├── browserTestSuiteController.js
 │   │       │   ├── infrastructureController.js
 │   │       │   ├── ingestionController.js
 │   │       │   ├── macroController.js
@@ -200,6 +201,7 @@ SkyCommand/
 │   │       │   ├── auth.routes.js
 │   │       │   ├── browserAutomation.routes.js
 │   │       │   ├── browserTest.routes.js
+│   │       │   ├── browserTestSuite.routes.js
 │   │       │   ├── infrastructure.routes.js
 │   │       │   ├── ingestion.routes.js
 │   │       │   ├── macro.routes.js
@@ -221,6 +223,7 @@ SkyCommand/
 │   │       │   ├── browserAutomationRegistryService.js
 │   │       │   ├── browserTestFailureUtils.js
 │   │       │   ├── browserTestRegistryService.js
+│   │       │   ├── browserTestSuiteService.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
 │   │       │   ├── infrastructureService.js
@@ -362,6 +365,93 @@ SkyCommand/
 │           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932553.jpeg
 │           │                   ├── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932573.jpeg
 │           │                   └── page@0f6e268021d8a2c7abef3dba7f585b48-1788919932668.jpeg
+│           ├── 0c6fdc18-b195-4d1b-a056-9995ca9e38d4/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── 549189c241a1c949cb6d60bc5095c618c79f4d40.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       ├── .playwright-artifacts-0/
+│           │       │   └── traces/
+│           │       │       └── resources/
+│           │       │           ├── 012354827249a40407adc79057a96d54d49ad4cd.json
+│           │       │           ├── 0a0120f37c763f767599aaa4ba9f704af26419e9.json
+│           │       │           ├── 1353b6958faa7d833d1492c98566e714f8540ecd.json
+│           │       │           ├── 227b6140c0c4ae0f0169d77cf35d2b4d724bfa69.json
+│           │       │           ├── 3626ab79deee7998a744e27e9b8a31f2c7272cb0.png
+│           │       │           ├── 3f26c6788a326acc715e1639e5eb65beae3a9493.html
+│           │       │           ├── 59b16f282ec8be4b6f6d4feff660f72c221fe36e.json
+│           │       │           ├── 6fd0f0ca46886e33902862da955fbc8817e7cfe9.json
+│           │       │           ├── 76d943cb96b26604d075baed61fcd90fc1f173a0.json
+│           │       │           ├── 7d63a1479fae3037dc2cb81b393de084a2ee4555.json
+│           │       │           ├── 96a0117ee9005ab15434f0f936f8c3ea349d967e.png
+│           │       │           ├── ac3bf7253e1eacf53860ecb78d4aa5412c611df6.png
+│           │       │           ├── bef17107005235fa9e7b2daf1b447d8d5c260905.css
+│           │       │           ├── c5d1a2aa31758ad0450758d6916ce36f0a04ead6.json
+│           │       │           ├── da07808075d611e8dda3316730c623299fc26555.json
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702178.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702196.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702469.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702495.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702519.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702546.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702572.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702596.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702621.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702646.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702671.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702695.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702718.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702743.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702773.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702891.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702939.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098702995.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703189.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703212.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703229.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703246.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703266.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703284.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703303.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703313.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703348.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703350.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703356.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703407.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703467.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703480.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703493.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703512.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703534.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703564.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703583.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703601.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703633.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703664.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703680.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703694.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703710.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703743.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703759.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703783.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703804.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703908.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098703923.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098704053.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098704064.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098704326.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098704346.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098704368.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098704397.jpeg
+│           │       │           ├── page@19d730e38a5e0287825c00d86e8e8527-1789098704749.jpeg
+│           │       │           └── page@19d730e38a5e0287825c00d86e8e8527-1789098704761.jpeg
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-089353839c5f67392434e6a06ac52b3745bdf7ed.png
 │           ├── 100d058c-41d2-465a-84eb-f16094a6dfd1/
 │           │   ├── skycommand-summary.json
 │           │   ├── report/
@@ -1107,7 +1197,8 @@ SkyCommand/
 │   │       └── password.js
 │   ├── browser/
 │   │   ├── contracts/
-│   │   │   └── browser_automation_summary.v1.schema.json
+│   │   │   ├── browser_automation_summary.v1.schema.json
+│   │   │   └── browser_test_suite_summary.v1.schema.json
 │   │   └── src/
 │   │       ├── browserAutomationRunner.js
 │   │       ├── browserTestRunner.js
@@ -1199,7 +1290,8 @@ SkyCommand/
 │   │       │   ├── 00115__browser_test_observability.sql
 │   │       │   ├── 00116__browser_test_execution_mode.sql
 │   │       │   ├── 00117__browser_automation_registry_foundation.sql
-│   │       │   └── 00119__browser_automation_execution.sql
+│   │       │   ├── 00119__browser_automation_execution.sql
+│   │       │   └── 00121__browser_test_suites.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1248,7 +1340,8 @@ SkyCommand/
 │   │           ├── 00108__workflow_category_seed.sql
 │   │           ├── 00114__browser_test_registry_seed.sql
 │   │           ├── 00118__browser_automation_registry_seed.sql
-│   │           └── 00120__browser_automation_execution_seed.sql
+│   │           ├── 00120__browser_automation_execution_seed.sql
+│   │           └── 00122__browser_test_suites_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -1723,6 +1816,7 @@ SkyCommand/
         │               ├── browserAutomationRegistrySelfTest.js
         │               ├── browserTestObservabilitySelfTest.js
         │               ├── browserTestRegistrySelfTest.js
+        │               ├── browserTestSuiteSelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js
         │               ├── infrastructureServiceSelfTest.js

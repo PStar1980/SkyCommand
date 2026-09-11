@@ -40,6 +40,7 @@ const routineSelfTests = [
   'browser-automation-registry:self-test',
   'browser-automation-ui-foundation:self-test',
   'browser-automation-execution:self-test',
+  'browser-test-suite:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',
   'git-branch-sync:self-test',

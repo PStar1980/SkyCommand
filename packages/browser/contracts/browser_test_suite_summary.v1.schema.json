@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "browser_test_suite_summary.v1",
+  "title": "SkyCommand Browser Test Suite Summary v1",
+  "type": "object",
+  "required": ["contract", "status", "suiteCode", "total", "passed", "failed", "notRun", "members"],
+  "properties": {
+    "contract": { "const": "browser_test_suite_summary.v1" },
+    "status": { "enum": ["PASSED", "FAILED", "PARTIAL"] },
+    "suiteCode": { "type": "string", "minLength": 1 },
+    "environmentCode": { "type": "string" },
+    "executionMode": { "const": "HEADLESS" },
+    "total": { "type": "integer", "minimum": 0 },
+    "passed": { "type": "integer", "minimum": 0 },
+    "failed": { "type": "integer", "minimum": 0 },
+    "notRun": { "type": "integer", "minimum": 0 },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["testCode", "testLabel", "status"],
+        "properties": {
+          "testCode": { "type": "string" },
+          "testLabel": { "type": "string" },
+          "status": { "enum": ["PASSED", "FAILED", "NOT_RUN"] },
+          "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+          "executionId": { "type": ["string", "null"] },
+          "artifactRoot": { "type": ["string", "null"] },
+          "result": { "type": ["object", "null"] },
+          "failure": { "type": ["object", "null"] }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
