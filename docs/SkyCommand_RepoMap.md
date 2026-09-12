@@ -178,6 +178,7 @@ SkyCommand/
 │   │       ├── server.js
 │   │       ├── controllers/
 │   │       │   ├── adminController.js
+│   │       │   ├── assistantIntegrationController.js
 │   │       │   ├── authController.js
 │   │       │   ├── browserAutomationController.js
 │   │       │   ├── browserTestController.js
@@ -194,10 +195,12 @@ SkyCommand/
 │   │       │   └── workflowController.js
 │   │       ├── middleware/
 │   │       │   ├── apiTelemetryMiddleware.js
+│   │       │   ├── assistantIntegrationMiddleware.js
 │   │       │   ├── authMiddleware.js
 │   │       │   └── permissionMiddleware.js
 │   │       ├── routes/
 │   │       │   ├── admin.routes.js
+│   │       │   ├── assistantIntegration.routes.js
 │   │       │   ├── auth.routes.js
 │   │       │   ├── browserAutomation.routes.js
 │   │       │   ├── browserTest.routes.js
@@ -218,6 +221,7 @@ SkyCommand/
 │   │       │   ├── apiDockerPreflight.js
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryService.js
+│   │       │   ├── assistantIntegrationService.js
 │   │       │   ├── authService.js
 │   │       │   ├── browserAutomationExecutionService.js
 │   │       │   ├── browserAutomationRegistryService.js
@@ -1425,6 +1429,7 @@ SkyCommand/
 │   └── web.package.json
 ├── docs/
 │   ├── PLAYWRIGHT_PHASE10_SCHEDULING.md
+│   ├── PLAYWRIGHT_PHASE11_ASSISTANT_INTEGRATION.md
 │   ├── SkyCommand_Admin_Web_Docker_Local_Setup.md
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
 │   ├── SkyCommand_API_Docker_Local_Setup.md
@@ -1560,7 +1565,8 @@ SkyCommand/
 │   │       │   ├── 00119__browser_automation_execution.sql
 │   │       │   ├── 00121__browser_test_suites.sql
 │   │       │   ├── 00123__playwright_workflow_node_types.sql
-│   │       │   └── 00125__scheduler_failure_notifications.sql
+│   │       │   ├── 00125__scheduler_failure_notifications.sql
+│   │       │   └── 00126__assistant_browser_automation_opt_in.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1611,7 +1617,8 @@ SkyCommand/
 │   │           ├── 00118__browser_automation_registry_seed.sql
 │   │           ├── 00120__browser_automation_execution_seed.sql
 │   │           ├── 00122__browser_test_suites_seed.sql
-│   │           └── 00124__playwright_scheduler_bridges_seed.sql
+│   │           ├── 00124__playwright_scheduler_bridges_seed.sql
+│   │           └── 00127__assistant_browser_automation_reference_seed.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -2082,6 +2089,7 @@ SkyCommand/
         │       └── src/
         │           └── services/
         │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── assistantIntegrationSelfTest.js
         │               ├── browserAutomationExecutionSelfTest.js
         │               ├── browserAutomationRegistrySelfTest.js
         │               ├── browserTestObservabilitySelfTest.js
