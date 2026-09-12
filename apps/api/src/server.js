@@ -8,6 +8,7 @@ const toolsRoutes = require('./routes/tools.routes');
 const browserTestRoutes = require('./routes/browserTest.routes');
 const browserTestSuiteRoutes = require('./routes/browserTestSuite.routes');
 const browserAutomationRoutes = require('./routes/browserAutomation.routes');
+const assistantIntegrationRoutes = require('./routes/assistantIntegration.routes');
 const adminRoutes = require('./routes/admin.routes');
 const macroRoutes = require('./routes/macro.routes');
 const ingestionRoutes = require('./routes/ingestion.routes');
@@ -65,6 +66,7 @@ function createApp() {
   app.use('/api/browser-tests', browserTestRoutes);
   app.use('/api/browser-test-suites', browserTestSuiteRoutes);
   app.use('/api/browser-automations', browserAutomationRoutes);
+  app.use('/api/assistant', assistantIntegrationRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/macro', macroRoutes);
   app.use('/api/ingestion', ingestionRoutes);

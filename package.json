@@ -303,7 +303,8 @@
     "browser-automation-ui:self-test": "node tests/self/apps/admin-web/src/pages/browserAutomationRegistryUiSelfTest.js",
     "browser-test-suite:self-test": "node tests/self/apps/api/src/services/browserTestSuiteSelfTest.js",
     "workflow-playwright-nodes:self-test": "node tests/self/apps/api/src/services/workflowPlaywrightNodeSelfTest.js",
-    "playwright-scheduler:self-test": "node tests/self/apps/api/src/services/playwrightSchedulerSelfTest.js"
+    "playwright-scheduler:self-test": "node tests/self/apps/api/src/services/playwrightSchedulerSelfTest.js",
+    "assistant-integration:self-test": "node tests/self/apps/api/src/services/assistantIntegrationSelfTest.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

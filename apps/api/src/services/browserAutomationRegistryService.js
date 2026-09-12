@@ -256,6 +256,7 @@ function sanitizeAutomationRow(row) {
     riskName: row.risk_name,
     riskRank: Number(row.risk_rank || 0),
     requiresConfirmation: toBoolean(row.requires_confirmation),
+    assistantEnabled: toBoolean(row.assistant_enabled),
     confirmationText: row.confirmation_text || null,
     sideEffectLevel: row.side_effect_level,
     idempotencyMode: row.idempotency_mode,
@@ -429,6 +430,11 @@ async function listBrowserAutomations(filters = {}, { admin = false } = {}) {
     clauses.push(`ba.enabled = $${values.length}`);
   }
 
+  if (filters.assistantEnabled !== undefined && filters.assistantEnabled !== '') {
+    values.push(normalizeBoolean(filters.assistantEnabled, true, 'assistantEnabled'));
+    clauses.push(`ba.assistant_enabled = $${values.length}`);
+  }
+
   const limit = normalizePageSize(filters.limit);
   const offset = normalizeOffset(filters.offset);
   values.push(limit, offset);
@@ -506,6 +512,10 @@ function assertSafetyConsistency(definition, current = null) {
   const idempotencyMode = definition.idempotencyMode ?? current?.idempotency_mode ?? 'READ_ONLY';
   const retryCount = definition.retryCount ?? Number(current?.retry_count || 0);
   const requiresConfirmation = definition.requiresConfirmation ?? toBoolean(current?.requires_confirmation);
+  const assistantEnabled = definition.assistantEnabled ?? toBoolean(current?.assistant_enabled);
+  const permissionCode = definition.permissionCode === undefined
+    ? normalizeOptionalText(current?.permission_code)
+    : definition.permissionCode;
   const confirmationText = definition.confirmationText === undefined
     ? normalizeOptionalText(current?.confirmation_text)
     : definition.confirmationText;
@@ -521,6 +531,12 @@ function assertSafetyConsistency(definition, current = null) {
   }
   if (requiresConfirmation && !confirmationText) {
     throw createHttpError(400, 'confirmationText is required when confirmation is enabled.');
+  }
+  if (assistantEnabled && requiresConfirmation) {
+    throw createHttpError(400, 'Assistant execution cannot be enabled for confirmation-required Playwright Automations.');
+  }
+  if (assistantEnabled && !permissionCode) {
+    throw createHttpError(400, 'Assistant-enabled Playwright Automations must define an execution permission.');
   }
 }
 
@@ -555,6 +571,9 @@ function normalizeAutomationDefinition(body = {}, { partial = false } = {}) {
     requiresConfirmation: partial && body.requiresConfirmation === undefined
       ? undefined
       : normalizeBoolean(body.requiresConfirmation, false, 'requiresConfirmation'),
+    assistantEnabled: partial && body.assistantEnabled === undefined
+      ? undefined
+      : normalizeBoolean(body.assistantEnabled, false, 'assistantEnabled'),
     confirmationText: partial && body.confirmationText === undefined
       ? undefined
       : normalizeOptionalText(body.confirmationText),
@@ -706,11 +725,11 @@ async function createBrowserAutomation({ body = {}, actor = null }) {
          category_id, automation_code, name, label, description,
          script_repo_id, script_path, browser_type, default_environment_code,
          timeout_seconds, retry_count, max_concurrency, permission_code, risk_code,
-         requires_confirmation, confirmation_text, side_effect_level, idempotency_mode,
+         requires_confirmation, confirmation_text, assistant_enabled, side_effect_level, idempotency_mode,
          output_type, output_schema_path, display_order, enabled,
          managed_by_skycommand, registered_at, registered_by
        ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,TRUE,CURRENT_TIMESTAMP,$23
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,TRUE,CURRENT_TIMESTAMP,$24
        ) RETURNING automation_id`,
       [
         definition.categoryId,
@@ -729,6 +748,7 @@ async function createBrowserAutomation({ body = {}, actor = null }) {
         definition.riskCode,
         definition.requiresConfirmation,
         definition.confirmationText,
+        definition.assistantEnabled,
         definition.sideEffectLevel,
         definition.idempotencyMode,
         definition.outputType,
@@ -777,6 +797,7 @@ async function updateBrowserAutomation({ automationId, body = {} }) {
     riskCode: 'risk_code',
     requiresConfirmation: 'requires_confirmation',
     confirmationText: 'confirmation_text',
+    assistantEnabled: 'assistant_enabled',
     sideEffectLevel: 'side_effect_level',
     idempotencyMode: 'idempotency_mode',
     outputType: 'output_type',
