@@ -35,6 +35,12 @@ function extractAssistantToken(req) {
   return match ? match[1].trim() : '';
 }
 
+function extractAssistantAgentId(req) {
+  const raw = String(req.headers['x-skycommand-agent-id'] || '').trim();
+  if (!raw) return 'assistant-http';
+  return /^[A-Za-z0-9_.:-]{1,64}$/.test(raw) ? raw : 'assistant-http';
+}
+
 function safeTokenEquals(left, right) {
   const leftDigest = crypto.createHash('sha256').update(String(left || ''), 'utf8').digest();
   const rightDigest = crypto.createHash('sha256').update(String(right || ''), 'utf8').digest();
@@ -55,7 +61,7 @@ function buildPermission(permissionCode) {
   };
 }
 
-function applyAssistantIdentity(req, config) {
+function applyAssistantIdentity(req, config, agentId = 'assistant-http') {
   req.sessionToken = null;
   req.session = {
     sessionId: null,
@@ -66,7 +72,7 @@ function applyAssistantIdentity(req, config) {
     userId: null,
     email: 'skycommand-assistant@local',
     username: 'skycommand-assistant',
-    displayName: 'SkyCommand Assistant Integration',
+    displayName: `SkyCommand Agent (${agentId})`,
     status: 'ACTIVE',
     isSystemUser: true,
   };
@@ -74,6 +80,7 @@ function applyAssistantIdentity(req, config) {
   req.assistantIntegration = {
     enabled: true,
     permissionCodes: [...config.permissionCodes],
+    agentId,
   };
 }
 
@@ -105,12 +112,13 @@ function requireAssistantIntegration(req, res, next) {
     });
   }
 
-  applyAssistantIdentity(req, config);
+  applyAssistantIdentity(req, config, extractAssistantAgentId(req));
   return next();
 }
 
 module.exports = {
   DEFAULT_ASSISTANT_PERMISSION_CODES,
+  extractAssistantAgentId,
   extractAssistantToken,
   getAssistantIntegrationConfig,
   requireAssistantIntegration,

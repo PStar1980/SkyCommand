@@ -1429,6 +1429,7 @@ SkyCommand/
 │   └── web.package.json
 ├── docs/
 │   ├── PLAYWRIGHT_PHASE10_SCHEDULING.md
+│   ├── PLAYWRIGHT_PHASE11_5_MCP_GATEWAY.md
 │   ├── PLAYWRIGHT_PHASE11_ASSISTANT_INTEGRATION.md
 │   ├── SkyCommand_Admin_Web_Docker_Local_Setup.md
 │   ├── SkyCommand_AI_Tool_Build_Prompt.md
@@ -1453,6 +1454,8 @@ SkyCommand/
 │   │   ├── skyweb_schema_ERD.png
 │   │   └── worker_schema_ERD.png
 │   ├── audits/
+│   ├── examples/
+│   │   └── codex-skycommand-mcp.config.toml
 │   └── images/
 │       └── readme/
 │           ├── Approval_Prompt.png
@@ -1993,6 +1996,8 @@ SkyCommand/
 │   │   ├── temporalWorkerDocker.js
 │   │   ├── temporalWorkerGitCheck.js
 │   │   └── webDocker.js
+│   ├── mcp/
+│   │   └── skycommandMcpGateway.js
 │   ├── node/
 │   │   └── util/
 │   │       ├── bootstrap.js
@@ -2210,6 +2215,8 @@ SkyCommand/
             │   ├── temporalDockerSelfTest.js
             │   ├── temporalWorkerDockerSelfTest.js
             │   └── webDockerSelfTest.js
+            ├── mcp/
+            │   └── skycommandMcpGatewaySelfTest.js
             └── powershell/
                 ├── hostAgentTaskSelfTest.js
                 └── supervisorTaskSelfTest.js

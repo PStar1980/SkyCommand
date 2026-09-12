@@ -17,6 +17,7 @@ async function getCapabilities(req, res, next) {
       ok: true,
       capabilities: assistantIntegrationService.getCapabilities({
         permissionCodes: req.assistantIntegration?.permissionCodes || [],
+        agentId: req.assistantIntegration?.agentId || 'assistant-http',
       }),
     });
   } catch (error) {

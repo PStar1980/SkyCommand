@@ -40,6 +40,13 @@ function run() {
     "'/browser-automation-runs/:workflowId/artifacts/:artifactId'",
   ], 'Assistant integration routes');
 
+  const middlewareSource = read('apps/api/src/middleware/assistantIntegrationMiddleware.js');
+  includesAll(middlewareSource, [
+    'extractAssistantAgentId',
+    "x-skycommand-agent-id",
+    'SkyCommand Agent (${agentId})',
+  ], 'Assistant agent identity metadata');
+
   const service = read('apps/api/src/services/assistantIntegrationService.js');
   includesAll(service, [
     "triggerSource: 'ASSISTANT'",
@@ -47,6 +54,7 @@ function run() {
     'HUMAN_CONFIRMATION_REQUIRED',
     'ASSISTANT_PERMISSION_SCOPE_MISSING',
     "eventType: 'ASSISTANT_BROWSER_AUTOMATION'",
+    "agentId: req.assistantIntegration?.agentId || 'assistant-http'",
     "String(run?.triggerSource || '').toUpperCase() !== 'ASSISTANT'",
     'getOpenApiDocument',
   ], 'Assistant integration service');
@@ -81,6 +89,8 @@ function run() {
   assert.equal(middleware.safeTokenEquals('alpha', 'alpha'), true);
   assert.equal(middleware.safeTokenEquals('alpha', 'beta'), false);
   assert.deepEqual(middleware.DEFAULT_ASSISTANT_PERMISSION_CODES, ['BROWSER_AUTOMATION_READ', 'BROWSER_AUTOMATION_RUN']);
+  assert.equal(middleware.extractAssistantAgentId({ headers: { 'x-skycommand-agent-id': 'codex-local' } }), 'codex-local');
+  assert.equal(middleware.extractAssistantAgentId({ headers: { 'x-skycommand-agent-id': 'bad agent id' } }), 'assistant-http');
 
   console.log('[assistant-integration:self-test] PASS');
 }

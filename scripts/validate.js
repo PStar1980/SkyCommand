@@ -43,6 +43,8 @@ const routineSelfTests = [
   'browser-test-suite:self-test',
   'workflow-playwright-nodes:self-test',
   'playwright-scheduler:self-test',
+  'assistant-integration:self-test',
+  'mcp-gateway:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',
   'git-branch-sync:self-test',

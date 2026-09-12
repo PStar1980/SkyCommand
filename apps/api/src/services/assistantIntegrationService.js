@@ -208,7 +208,7 @@ async function getArtifact({ workflowId, artifactId }) {
   return browserAutomationExecutionService.getArtifact({ workflowId, artifactId });
 }
 
-function getCapabilities({ permissionCodes = [] } = {}) {
+function getCapabilities({ permissionCodes = [], agentId = 'assistant-http' } = {}) {
   return {
     integrationVersion: INTEGRATION_VERSION,
     enabled: true,
@@ -216,6 +216,7 @@ function getCapabilities({ permissionCodes = [] } = {}) {
     authentication: 'BEARER_TOKEN',
     executionMode: 'HEADLESS',
     permissionCodes,
+    agentId,
     safety: {
       assistantOptInRequired: true,
       confirmationRequiredAutomationsBlocked: true,
@@ -274,6 +275,7 @@ async function recordInvocationAudit({ req, automationCode, workflowId = null, s
       automationCode,
       workflowId,
       authMode: req.session?.authMode || 'ASSISTANT_SERVICE_TOKEN',
+      agentId: req.assistantIntegration?.agentId || 'assistant-http',
       permissionCodes: (req.permissions || []).map((permission) => permission.permissionCode),
       errorCode: error?.details?.code || error?.code || null,
     },
