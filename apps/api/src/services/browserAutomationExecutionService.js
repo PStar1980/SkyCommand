@@ -689,6 +689,7 @@ module.exports = {
   getRun,
   listRuns,
   normalizeExecutionMode,
+  resolveEnvironment,
   resolveParameters,
   startRegisteredAutomation,
 };
