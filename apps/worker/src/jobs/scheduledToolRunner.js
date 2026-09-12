@@ -4,6 +4,12 @@ const { runWorkerTool } = require('./workerToolExecutionService');
 const { runScheduledTemporalWorkflow } = require('./scheduledTemporalWorkflowRunner');
 const { runScheduledSkyCommandWorkflow } = require('./scheduledSkyCommandWorkflowRunner');
 const {
+  BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE,
+  BROWSER_TEST_SCHEDULE_TOOL_CODE,
+  BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE,
+  runScheduledPlaywright,
+} = require('./scheduledPlaywrightRunner');
+const {
   buildScheduledToolResultSummary,
 } = require('../../../../packages/tools/src/workflowResultContext');
 
@@ -34,6 +40,7 @@ function sanitizeSchedule(row) {
     nextRunAt: row.next_run_at,
     lastRunAt: row.last_run_at,
     lastStatus: row.last_status,
+    createdByUserId: row.created_by_user_id || row.createdByUserId || null,
   };
 }
 
@@ -165,6 +172,18 @@ async function runClaimedSchedule(claim, workerNode) {
         scheduleRun,
         workerNode,
       });
+    } else if (
+      [
+        BROWSER_TEST_SCHEDULE_TOOL_CODE,
+        BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE,
+        BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE,
+      ].includes(schedule.toolCode)
+    ) {
+      result = await runScheduledPlaywright({
+        schedule,
+        scheduleRun,
+        workerNode,
+      });
     } else {
       result = await runWorkerTool({
         toolCode: schedule.toolCode,
@@ -211,6 +230,7 @@ async function runClaimedSchedule(claim, workerNode) {
           result.skyCommandWorkflow && schedule.toolCode === SKYCOMMAND_WORKFLOW_START_TOOL_CODE
             ? result.skyCommandWorkflow
             : null,
+        browserTarget: result.browserTarget || null,
       },
     });
 

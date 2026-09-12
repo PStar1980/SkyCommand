@@ -21,6 +21,9 @@ const INTERVAL_UNITS = new Set(['MINUTE', 'HOUR', 'DAY', 'WEEK']);
 const SCHEDULE_TYPES = new Set(['ONCE', 'INTERVAL']);
 const LISTENER_TYPES = new Set(['FILE_DROP', 'DB_POLL', 'WEBHOOK']);
 const SKYCOMMAND_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
+const BROWSER_TEST_SCHEDULE_TOOL_CODE = 'browser_test_schedule_start';
+const BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE = 'browser_test_suite_schedule_start';
+const BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE = 'browser_automation_schedule_start';
 
 const UNIT_TO_MILLISECONDS = {
   MINUTE: 60 * 1000,
@@ -683,19 +686,88 @@ function parseScheduleJsonObject(value, label) {
 async function validateScheduleParameters({ toolCode, parameters }) {
   await validateToolParameters({ toolCode, parameters });
 
-  if (toolCode !== SKYCOMMAND_WORKFLOW_START_TOOL_CODE) {
+  if (toolCode === SKYCOMMAND_WORKFLOW_START_TOOL_CODE) {
+    const workflowCode = normalizeOptionalString(parameters?.workflowCode);
+    if (!workflowCode) {
+      throw createHttpError(400, 'workflowCode is required for workflow schedules.');
+    }
+
+    const workflowInput = parseScheduleJsonObject(parameters?.inputJson, 'inputJson');
+    const workflowExecutorService = require('./workflowExecutorService');
+    const definition = await workflowExecutorService.getWorkflowDefinition(workflowCode);
+    await workflowExecutorService.validateWorkflowRuntimeInput(definition, workflowInput);
     return;
   }
 
-  const workflowCode = normalizeOptionalString(parameters?.workflowCode);
-  if (!workflowCode) {
-    throw createHttpError(400, 'workflowCode is required for workflow schedules.');
+  if (toolCode === BROWSER_TEST_SCHEDULE_TOOL_CODE) {
+    const browserTestRegistryService = require('./browserTestRegistryService');
+    const testCode = normalizeOptionalString(parameters?.testCode);
+    const environmentCode = normalizeOptionalString(parameters?.environmentCode || 'LOCAL').toUpperCase();
+    if (!testCode) throw createHttpError(400, 'testCode is required for Playwright Test schedules.');
+    const target = await browserTestRegistryService.getBrowserTestByCode(testCode, { includeDisabled: false });
+    if (!target) throw createHttpError(404, 'Playwright Test not found or disabled.', { testCode });
+    if (target.requiresConfirmation) {
+      throw createHttpError(409, 'Playwright Tests that require confirmation cannot be scheduled for unattended execution.', {
+        code: 'BROWSER_TEST_SCHEDULE_CONFIRMATION_REQUIRED',
+        testCode,
+      });
+    }
+    if (!(target.environments || []).some((environment) => environment.enabled && environment.environmentCode === environmentCode)) {
+      throw createHttpError(400, `Playwright Test '${testCode}' is not enabled for environment ${environmentCode}.`);
+    }
+    await browserTestRegistryService.resolveBrowserTestParameters(
+      target,
+      parseScheduleJsonObject(parameters?.parametersJson, 'parametersJson'),
+    );
+    return;
   }
 
-  const workflowInput = parseScheduleJsonObject(parameters?.inputJson, 'inputJson');
-  const workflowExecutorService = require('./workflowExecutorService');
-  const definition = await workflowExecutorService.getWorkflowDefinition(workflowCode);
-  await workflowExecutorService.validateWorkflowRuntimeInput(definition, workflowInput);
+  if (toolCode === BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE) {
+    const browserTestRegistryService = require('./browserTestRegistryService');
+    const browserTestSuiteService = require('./browserTestSuiteService');
+    const suiteCode = normalizeOptionalString(parameters?.suiteCode);
+    const environmentCode = normalizeOptionalString(parameters?.environmentCode || 'LOCAL').toUpperCase();
+    if (!suiteCode) throw createHttpError(400, 'suiteCode is required for Playwright Test Suite schedules.');
+    const suite = await browserTestSuiteService.getSuiteByCode(suiteCode);
+    if (!suite) throw createHttpError(404, 'Playwright Test Suite not found or disabled.', { suiteCode });
+    for (const member of (suite.members || []).filter((item) => item.enabled && item.testEnabled)) {
+      const test = await browserTestRegistryService.getBrowserTestById(member.testId, { includeDisabled: false });
+      if (!test) throw createHttpError(409, `Suite member '${member.testCode}' is unavailable.`);
+      if (test.requiresConfirmation) {
+        throw createHttpError(409, `Suite member '${test.testCode}' requires confirmation and cannot run on a schedule.`, {
+          code: 'BROWSER_TEST_SUITE_SCHEDULE_CONFIRMATION_REQUIRED',
+          suiteCode,
+          testCode: test.testCode,
+        });
+      }
+      const memberEnvironment = String(member.environmentCode || environmentCode || test.defaultEnvironmentCode || 'LOCAL').toUpperCase();
+      if (!(test.environments || []).some((environment) => environment.enabled && environment.environmentCode === memberEnvironment)) {
+        throw createHttpError(409, `Suite member '${test.testCode}' does not allow environment ${memberEnvironment}.`);
+      }
+    }
+    return;
+  }
+
+  if (toolCode === BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE) {
+    const browserAutomationExecutionService = require('./browserAutomationExecutionService');
+    const browserAutomationRegistryService = require('./browserAutomationRegistryService');
+    const automationCode = normalizeOptionalString(parameters?.automationCode);
+    const environmentCode = normalizeOptionalString(parameters?.environmentCode || 'LOCAL').toUpperCase();
+    if (!automationCode) throw createHttpError(400, 'automationCode is required for Playwright Automation schedules.');
+    const target = await browserAutomationRegistryService.getBrowserAutomationByCode(automationCode, { includeDisabled: false });
+    if (!target) throw createHttpError(404, 'Playwright Automation not found or disabled.', { automationCode });
+    if (target.requiresConfirmation) {
+      throw createHttpError(409, 'Playwright Automations that require confirmation cannot be scheduled for unattended execution.', {
+        code: 'BROWSER_AUTOMATION_SCHEDULE_CONFIRMATION_REQUIRED',
+        automationCode,
+      });
+    }
+    await browserAutomationExecutionService.resolveEnvironment(target, environmentCode);
+    await browserAutomationExecutionService.resolveParameters(
+      target,
+      parseScheduleJsonObject(parameters?.parametersJson, 'parametersJson'),
+    );
+  }
 }
 
 function buildSchedulePayload(body, existing = null) {

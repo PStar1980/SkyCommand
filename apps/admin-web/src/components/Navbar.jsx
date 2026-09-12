@@ -163,6 +163,7 @@ function getNotificationTypeLabel(item = {}) {
   if (item.notificationType === 'APPROVAL_REQUIRED') return 'Approval';
   if (item.notificationType === 'TOOL_RUN_FAILED') return 'Tool';
   if (item.notificationType === 'WORKFLOW_RUN_FAILED') return 'Workflow';
+  if (item.notificationType === 'SCHEDULE_RUN_FAILED') return 'Schedule';
   return 'Notification';
 }
 

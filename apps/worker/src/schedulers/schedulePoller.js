@@ -57,6 +57,7 @@ function sanitizeScheduleRow(row) {
     next_run_at: row.next_run_at,
     last_run_at: row.last_run_at,
     last_status: row.last_status,
+    created_by_user_id: row.created_by_user_id,
   };
 }
 
@@ -106,7 +107,8 @@ async function claimDueSchedules({ workerNode, limit = getMaxDuePerTick() } = {}
           s.misfire_policy,
           s.next_run_at,
           s.last_run_at,
-          s.last_status
+          s.last_status,
+          s.created_by_user_id
         FROM worker.schedules s
         JOIN core.tools t
           ON t.tool_id = s.tool_id

@@ -15,6 +15,9 @@ import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const SCHEDULE_TARGET_TYPE_OPTIONS = [
   { value: 'TOOL', label: 'Tool' },
   { value: 'WORKFLOW', label: 'Workflow' },
+  { value: 'BROWSER_TEST', label: 'Playwright Test' },
+  { value: 'BROWSER_TEST_SUITE', label: 'Playwright Test Suite' },
+  { value: 'BROWSER_AUTOMATION', label: 'Playwright Automation' },
 ];
 
 const SCHEDULE_TYPE_OPTIONS = [
@@ -23,6 +26,10 @@ const SCHEDULE_TYPE_OPTIONS = [
 ];
 
 const SKY_SERVER_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
+const BROWSER_TEST_SCHEDULE_TOOL_CODE = 'browser_test_schedule_start';
+const BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE = 'browser_test_suite_schedule_start';
+const BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE = 'browser_automation_schedule_start';
+const PLAYWRIGHT_TARGET_TYPES = new Set(['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION']);
 
 const INTERVAL_UNIT_OPTIONS = [
   { value: 'MINUTE', label: 'Minute(s)' },
@@ -281,8 +288,20 @@ function isWorkflowBridgeTool(tool) {
   return tool?.toolCode === SKY_SERVER_WORKFLOW_START_TOOL_CODE;
 }
 
+function isPlaywrightBridgeTool(tool) {
+  return [
+    BROWSER_TEST_SCHEDULE_TOOL_CODE,
+    BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE,
+    BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE,
+  ].includes(tool?.toolCode);
+}
+
+function isSchedulerBridgeTool(tool) {
+  return isWorkflowBridgeTool(tool) || isPlaywrightBridgeTool(tool);
+}
+
 function getDefaultTool(tools = []) {
-  return tools.find((tool) => !isWorkflowBridgeTool(tool)) || tools[0] || null;
+  return tools.find((tool) => !isSchedulerBridgeTool(tool)) || null;
 }
 
 function getDefaultWorkflow(workflows = []) {
@@ -303,7 +322,71 @@ function buildWorkflowScheduleName(workflow) {
 }
 
 function getScheduleTargetType(scheduleOrForm) {
-  return scheduleOrForm?.toolCode === SKY_SERVER_WORKFLOW_START_TOOL_CODE ? 'WORKFLOW' : 'TOOL';
+  const toolCode = scheduleOrForm?.toolCode;
+  if (toolCode === SKY_SERVER_WORKFLOW_START_TOOL_CODE) return 'WORKFLOW';
+  if (toolCode === BROWSER_TEST_SCHEDULE_TOOL_CODE) return 'BROWSER_TEST';
+  if (toolCode === BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE) return 'BROWSER_TEST_SUITE';
+  if (toolCode === BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE) return 'BROWSER_AUTOMATION';
+  return 'TOOL';
+}
+
+function isPlaywrightTargetType(targetType) {
+  return PLAYWRIGHT_TARGET_TYPES.has(targetType);
+}
+
+function getScheduleTargetTypeLabel(targetType) {
+  if (targetType === 'WORKFLOW') return 'WORKFLOW';
+  if (targetType === 'BROWSER_TEST') return 'PLAYWRIGHT TEST';
+  if (targetType === 'BROWSER_TEST_SUITE') return 'TEST SUITE';
+  if (targetType === 'BROWSER_AUTOMATION') return 'PLAYWRIGHT AUTOMATION';
+  return 'TOOL';
+}
+
+function getPlaywrightBridgeToolCode(targetType) {
+  if (targetType === 'BROWSER_TEST') return BROWSER_TEST_SCHEDULE_TOOL_CODE;
+  if (targetType === 'BROWSER_TEST_SUITE') return BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE;
+  if (targetType === 'BROWSER_AUTOMATION') return BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE;
+  return '';
+}
+
+function getPlaywrightTargetCodeKey(targetType) {
+  if (targetType === 'BROWSER_TEST') return 'testCode';
+  if (targetType === 'BROWSER_TEST_SUITE') return 'suiteCode';
+  if (targetType === 'BROWSER_AUTOMATION') return 'automationCode';
+  return '';
+}
+
+function getPlaywrightTargets(catalog = {}, targetType) {
+  if (targetType === 'BROWSER_TEST') return catalog.browserTestTargets || [];
+  if (targetType === 'BROWSER_TEST_SUITE') return catalog.browserTestSuiteTargets || [];
+  if (targetType === 'BROWSER_AUTOMATION') return catalog.browserAutomationTargets || [];
+  return [];
+}
+
+function getPlaywrightTargetCode(target) {
+  return target?.targetCode || '';
+}
+
+function getPlaywrightTargetLabel(target) {
+  return target?.displayName || target?.targetCode || '';
+}
+
+function getPlaywrightScheduleTargetCode(scheduleOrForm) {
+  const targetType = getScheduleTargetType(scheduleOrForm);
+  const key = getPlaywrightTargetCodeKey(targetType);
+  return key ? scheduleOrForm?.parameters?.[key] || '' : '';
+}
+
+function getSelectedPlaywrightTarget(catalog, targetType, targetCode) {
+  return getPlaywrightTargets(catalog, targetType).find(
+    (target) => getPlaywrightTargetCode(target) === targetCode,
+  ) || null;
+}
+
+function getSchedulablePlaywrightTargets(catalog, targetType) {
+  return getPlaywrightTargets(catalog, targetType).filter(
+    (target) => targetType === 'BROWSER_TEST_SUITE' || target.requiresConfirmation !== true,
+  );
 }
 
 function getSafeObject(value) {
@@ -402,6 +485,81 @@ function parseWorkflowParameterValues(workflow = null, values = {}) {
   }, {});
 }
 
+function getInitialPlaywrightParameterValues(target = null, existingValues = {}) {
+  return (target?.parameters || []).reduce((accumulator, parameter) => {
+    const parameterName = parameter.parameterName;
+    if (Object.prototype.hasOwnProperty.call(existingValues || {}, parameterName)) {
+      const existingValue = existingValues[parameterName];
+      accumulator[parameterName] =
+        parameter.type === 'json' && existingValue && typeof existingValue === 'object'
+          ? JSON.stringify(existingValue, null, 2)
+          : existingValue;
+      return accumulator;
+    }
+    if (parameter.type === 'boolean') {
+      accumulator[parameterName] = parameter.defaultValue === true || parameter.defaultValue === 'true';
+    } else if (parameter.type === 'json') {
+      accumulator[parameterName] =
+        parameter.defaultValue && typeof parameter.defaultValue === 'object'
+          ? JSON.stringify(parameter.defaultValue, null, 2)
+          : String(parameter.defaultValue || '');
+    } else {
+      accumulator[parameterName] = parameter.defaultValue ?? '';
+    }
+    return accumulator;
+  }, {});
+}
+
+function parsePlaywrightParameterValues(target = null, values = {}) {
+  return (target?.parameters || []).reduce((accumulator, parameter) => {
+    const parameterName = parameter.parameterName;
+    const rawValue = values?.[parameterName];
+    const empty = rawValue === undefined || rawValue === null || rawValue === '';
+    if (parameter.required && empty && (parameter.defaultValue === undefined || parameter.defaultValue === null || parameter.defaultValue === '')) {
+      throw new Error(`${parameter.label || parameterName} is required.`);
+    }
+    if (empty) {
+      if (parameter.type === 'boolean') accumulator[parameterName] = false;
+      return accumulator;
+    }
+    if (parameter.type === 'number') {
+      const numericValue = Number(rawValue);
+      if (!Number.isFinite(numericValue)) throw new Error(`${parameter.label || parameterName} must be a number.`);
+      accumulator[parameterName] = numericValue;
+      return accumulator;
+    }
+    if (parameter.type === 'boolean') {
+      accumulator[parameterName] = Boolean(rawValue);
+      return accumulator;
+    }
+    if (parameter.type === 'json') {
+      try {
+        accumulator[parameterName] = typeof rawValue === 'object' ? rawValue : JSON.parse(String(rawValue));
+      } catch {
+        throw new Error(`${parameter.label || parameterName} must be valid JSON.`);
+      }
+      return accumulator;
+    }
+    accumulator[parameterName] = String(rawValue);
+    return accumulator;
+  }, {});
+}
+
+function getPlaywrightEnvironmentOptions(target = null) {
+  const environments = (target?.environments || []).filter((environment) => environment.enabled !== false);
+  if (environments.length > 0) return environments;
+  const code = target?.defaultEnvironmentCode || 'LOCAL';
+  return [{ environmentCode: code, environmentName: code, enabled: true }];
+}
+
+function buildPlaywrightScheduleName(target, targetType) {
+  const label = getPlaywrightTargetLabel(target);
+  if (label) return `${label} schedule`;
+  if (targetType === 'BROWSER_TEST_SUITE') return 'Playwright Test Suite schedule';
+  if (targetType === 'BROWSER_AUTOMATION') return 'Playwright Automation schedule';
+  return 'Playwright Test schedule';
+}
+
 function parseWorkflowScheduleInput(parameters = {}) {
   const rawInput = parameters?.inputJson ?? parameters?.input_json;
   if (rawInput === undefined || rawInput === null || rawInput === '') {
@@ -472,21 +630,45 @@ function cleanParameterValues(values = {}, tool = null) {
   );
 }
 
-function createBlankScheduleForm({ targetType = 'TOOL', tool = null, workflow = null } = {}) {
+function createBlankScheduleForm({ targetType = 'TOOL', tool = null, workflow = null, playwrightTarget = null } = {}) {
   const workflowCode = getWorkflowCode(workflow);
-  const toolCode = targetType === 'WORKFLOW' ? SKY_SERVER_WORKFLOW_START_TOOL_CODE : tool?.toolCode || '';
+  const playwrightCode = getPlaywrightTargetCode(playwrightTarget);
+  const toolCode =
+    targetType === 'WORKFLOW'
+      ? SKY_SERVER_WORKFLOW_START_TOOL_CODE
+      : isPlaywrightTargetType(targetType)
+        ? getPlaywrightBridgeToolCode(targetType)
+        : tool?.toolCode || '';
   const parameters = getInitialParameterValues(tool);
 
-  if (targetType === 'WORKFLOW' && workflowCode) {
-    parameters.workflowCode = workflowCode;
+  if (targetType === 'WORKFLOW' && workflowCode) parameters.workflowCode = workflowCode;
+  if (isPlaywrightTargetType(targetType)) {
+    const codeKey = getPlaywrightTargetCodeKey(targetType);
+    if (playwrightCode) parameters[codeKey] = playwrightCode;
+    parameters.environmentCode = playwrightTarget?.defaultEnvironmentCode || 'LOCAL';
+    if (targetType !== 'BROWSER_TEST_SUITE') parameters.parametersJson = {};
   }
+
+  const targetCode =
+    targetType === 'WORKFLOW'
+      ? workflowCode || toolCode
+      : isPlaywrightTargetType(targetType)
+        ? playwrightCode || toolCode
+        : tool?.toolCode;
+  const scheduleName =
+    targetType === 'WORKFLOW'
+      ? buildWorkflowScheduleName(workflow)
+      : isPlaywrightTargetType(targetType)
+        ? buildPlaywrightScheduleName(playwrightTarget, targetType)
+        : tool
+          ? `${tool.label} schedule`
+          : '';
 
   return {
     scheduleId: '',
     targetType,
-    scheduleCode: buildScheduleCode(targetType === 'WORKFLOW' ? workflowCode || toolCode : tool?.toolCode),
-    scheduleName:
-      targetType === 'WORKFLOW' ? buildWorkflowScheduleName(workflow) : tool ? `${tool.label} schedule` : '',
+    scheduleCode: buildScheduleCode(targetCode),
+    scheduleName,
     description: '',
     toolCode,
     scheduleType: 'ONCE',
@@ -500,10 +682,11 @@ function createBlankScheduleForm({ targetType = 'TOOL', tool = null, workflow = 
     parameters,
     workflowRuntimeValues: getInitialWorkflowParameterValues(workflow),
     workflowInput: {},
+    playwrightRuntimeValues: getInitialPlaywrightParameterValues(playwrightTarget),
   };
 }
 
-function createScheduleFormFromRecord(schedule, tools = [], workflows = []) {
+function createScheduleFormFromRecord(schedule, tools = [], workflows = [], playwrightCatalog = {}) {
   const tool = tools.find((item) => item.toolCode === schedule.toolCode) || null;
   const targetType = getScheduleTargetType(schedule);
   const workflowCode =
@@ -512,6 +695,18 @@ function createScheduleFormFromRecord(schedule, tools = [], workflows = []) {
       : '';
   const workflow = getSelectedWorkflow(workflows, workflowCode);
   const workflowInput = parseWorkflowScheduleInput(schedule.parameters || {});
+  const playwrightCode = isPlaywrightTargetType(targetType)
+    ? getPlaywrightScheduleTargetCode(schedule)
+    : '';
+  const playwrightTarget = getSelectedPlaywrightTarget(
+    playwrightCatalog,
+    targetType,
+    playwrightCode,
+  );
+  const playwrightRuntimeValues = getInitialPlaywrightParameterValues(
+    playwrightTarget,
+    getSafeObject(schedule.parameters?.parametersJson || schedule.parameters?.parameters_json),
+  );
 
   return {
     scheduleId: schedule.scheduleId || '',
@@ -537,6 +732,7 @@ function createScheduleFormFromRecord(schedule, tools = [], workflows = []) {
       workflowInput.runtimeValues,
     ),
     workflowInput: workflowInput.baseInput,
+    playwrightRuntimeValues,
   };
 }
 
@@ -548,30 +744,32 @@ function getSelectedWorkflow(workflows = [], workflowCode = '') {
   return workflows.find((workflow) => getWorkflowCode(workflow) === workflowCode) || null;
 }
 
-function getScheduleTargetLabel(schedule, workflows = []) {
-  if (getScheduleTargetType(schedule) === 'WORKFLOW') {
+function getScheduleTargetLabel(schedule, workflows = [], playwrightCatalog = {}) {
+  const targetType = getScheduleTargetType(schedule);
+  if (targetType === 'WORKFLOW') {
     const workflowCode =
       schedule.parameters?.workflowCode || schedule.parameters?.workflow_code || '';
     const workflow = getSelectedWorkflow(workflows, workflowCode);
     return workflow ? getWorkflowDisplayName(workflow) : workflowCode || 'SkyCommand workflow';
   }
-
+  if (isPlaywrightTargetType(targetType)) {
+    const targetCode = getPlaywrightScheduleTargetCode(schedule);
+    const target = getSelectedPlaywrightTarget(playwrightCatalog, targetType, targetCode);
+    return getPlaywrightTargetLabel(target) || targetCode || schedule.toolLabel || schedule.toolCode;
+  }
   return schedule.toolLabel || schedule.toolCode;
 }
 
 function getScheduleTargetCode(schedule) {
-  if (getScheduleTargetType(schedule) === 'WORKFLOW') {
-    return (
-      schedule.parameters?.workflowCode ||
-      schedule.parameters?.workflow_code ||
-      schedule.toolCode
-    );
+  const targetType = getScheduleTargetType(schedule);
+  if (targetType === 'WORKFLOW') {
+    return schedule.parameters?.workflowCode || schedule.parameters?.workflow_code || schedule.toolCode;
   }
-
+  if (isPlaywrightTargetType(targetType)) return getPlaywrightScheduleTargetCode(schedule) || schedule.toolCode;
   return schedule.toolCode;
 }
 
-function getScheduleSortValue(schedule, field, workflows = []) {
+function getScheduleSortValue(schedule, field, workflows = [], playwrightCatalog = {}) {
   if (field === 'schedule') {
     return `${schedule?.scheduleName || ''} ${schedule?.scheduleCode || ''}`.trim();
   }
@@ -581,7 +779,7 @@ function getScheduleSortValue(schedule, field, workflows = []) {
   }
 
   if (field === 'target') {
-    return `${getScheduleTargetLabel(schedule, workflows)} ${getScheduleTargetCode(schedule)}`.trim();
+    return `${getScheduleTargetLabel(schedule, workflows, playwrightCatalog)} ${getScheduleTargetCode(schedule)}`.trim();
   }
 
   if (field === 'timing') {
@@ -787,6 +985,60 @@ function ScheduledToolResultEvidence({ run }) {
   );
 }
 
+function ScheduledBrowserTargetEvidence({ run }) {
+  const target = getSafeObject(run?.metadata?.browserTarget);
+  if (!target.targetType) return null;
+
+  const success = ['PASSED', 'SUCCESS'].includes(normalizeStatus(target.status));
+  const result = getSafeObject(target.result);
+  const summaryParts = [];
+  if (Number.isFinite(Number(result.passed))) summaryParts.push(`${Number(result.passed)} passed`);
+  if (Number.isFinite(Number(result.failed)) && Number(result.failed) > 0) summaryParts.push(`${Number(result.failed)} failed`);
+  if (Number.isFinite(Number(result.notRun)) && Number(result.notRun) > 0) summaryParts.push(`${Number(result.notRun)} not run`);
+
+  return (
+    <div className="mb-3">
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div>
+          <div className="sky-page-kicker">Playwright schedule result</div>
+          <div className="small sky-muted">
+            Browser execution evidence captured by the scheduler bridge after the Temporal run reached a terminal state.
+          </div>
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <span className={`sky-pill ${success ? 'sky-pill-success' : 'sky-pill-danger'}`}>
+            {target.status || 'UNKNOWN'}
+          </span>
+          <span className="sky-pill sky-pill-info">{target.targetType}</span>
+          <span className="sky-pill sky-pill-info">{target.executionMode || 'HEADLESS'}</span>
+        </div>
+      </div>
+
+      <div className="table-responsive sky-table-card mb-2">
+        <table className="table sky-table mb-0">
+          <tbody>
+            <tr><th className="sky-detail-label" scope="row">Target</th><td>{target.targetLabel || target.targetCode || '—'}</td></tr>
+            <tr><th className="sky-detail-label" scope="row">Code</th><td className="sky-mono">{target.targetCode || '—'}</td></tr>
+            <tr><th className="sky-detail-label" scope="row">Environment</th><td>{target.environmentCode || '—'}</td></tr>
+            <tr><th className="sky-detail-label" scope="row">Browser workflow</th><td className="sky-mono">{target.workflowId || '—'}</td></tr>
+            <tr><th className="sky-detail-label" scope="row">Duration</th><td>{formatDuration(target.durationMs)}</td></tr>
+            <tr><th className="sky-detail-label" scope="row">Artifacts</th><td>{formatNumber(target.artifactCount || 0)}</td></tr>
+            {summaryParts.length > 0 && (
+              <tr><th className="sky-detail-label" scope="row">Result</th><td>{summaryParts.join(' · ')}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {target.operationsPath && (
+        <a className="btn btn-sm sky-btn-ghost" href={target.operationsPath}>
+          Open Playwright result
+        </a>
+      )}
+    </div>
+  );
+}
+
 function buildStatCards(health, tools) {
   return [
     {
@@ -842,6 +1094,11 @@ function SchedulerControl({ view = 'manage' }) {
   const [tools, setTools] = useState([]);
   const [activeWorkflows, setActiveWorkflows] = useState([]);
   const [repositoryOptions, setRepositoryOptions] = useState([]);
+  const [playwrightCatalog, setPlaywrightCatalog] = useState({
+    browserTestTargets: [],
+    browserTestSuiteTargets: [],
+    browserAutomationTargets: [],
+  });
   const [schedules, setSchedules] = useState([]);
   const [runs, setRuns] = useState([]);
   const [runTotal, setRunTotal] = useState(0);
@@ -899,8 +1156,13 @@ function SchedulerControl({ view = 'manage' }) {
     () => tools.find((tool) => isWorkflowBridgeTool(tool)) || null,
     [tools],
   );
+  const playwrightBridgeTools = useMemo(() => ({
+    BROWSER_TEST: tools.find((tool) => tool.toolCode === BROWSER_TEST_SCHEDULE_TOOL_CODE) || null,
+    BROWSER_TEST_SUITE: tools.find((tool) => tool.toolCode === BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE) || null,
+    BROWSER_AUTOMATION: tools.find((tool) => tool.toolCode === BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE) || null,
+  }), [tools]);
   const workerTools = useMemo(
-    () => tools.filter((tool) => !isWorkflowBridgeTool(tool)),
+    () => tools.filter((tool) => !isSchedulerBridgeTool(tool)),
     [tools],
   );
   const selectedTool = useMemo(
@@ -913,14 +1175,29 @@ function SchedulerControl({ view = 'manage' }) {
     () => getSelectedWorkflow(activeWorkflows, selectedWorkflowCode),
     [activeWorkflows, selectedWorkflowCode],
   );
+  const selectedPlaywrightTargetCode = isPlaywrightTargetType(scheduleForm.targetType)
+    ? getPlaywrightScheduleTargetCode(scheduleForm)
+    : '';
+  const selectedPlaywrightTarget = useMemo(
+    () => getSelectedPlaywrightTarget(
+      playwrightCatalog,
+      scheduleForm.targetType,
+      selectedPlaywrightTargetCode,
+    ),
+    [playwrightCatalog, scheduleForm.targetType, selectedPlaywrightTargetCode],
+  );
+  const selectedPlaywrightTargets = useMemo(
+    () => getSchedulablePlaywrightTargets(playwrightCatalog, scheduleForm.targetType),
+    [playwrightCatalog, scheduleForm.targetType],
+  );
   const statCards = useMemo(() => buildStatCards(health, tools), [health, tools]);
   const sortedSchedules = useMemo(
     () => sortItemsBySorts(
       schedules,
       scheduleSorts,
-      (schedule, field) => getScheduleSortValue(schedule, field, activeWorkflows),
+      (schedule, field) => getScheduleSortValue(schedule, field, activeWorkflows, playwrightCatalog),
     ),
-    [activeWorkflows, scheduleSorts, schedules],
+    [activeWorkflows, playwrightCatalog, scheduleSorts, schedules],
   );
   const schedulePageCount = Math.max(1, Math.ceil(sortedSchedules.length / scheduleFilters.limit));
   const currentSchedulePage = Math.min(
@@ -984,6 +1261,11 @@ function SchedulerControl({ view = 'manage' }) {
     ]);
     setActiveWorkflows(definitionsResult.items || []);
     setRepositoryOptions(catalogResult.repositoryOptions || []);
+    setPlaywrightCatalog({
+      browserTestTargets: catalogResult.browserTestTargets || [],
+      browserTestSuiteTargets: catalogResult.browserTestSuiteTargets || [],
+      browserAutomationTargets: catalogResult.browserAutomationTargets || [],
+    });
   }
 
   async function loadHealth() {
@@ -1026,7 +1308,12 @@ function SchedulerControl({ view = 'manage' }) {
     const sortedNextItems = sortItemsBySorts(
       nextItems,
       scheduleSorts,
-      (schedule, field) => getScheduleSortValue(schedule, field, activeWorkflows),
+      (schedule, field) => getScheduleSortValue(
+        schedule,
+        field,
+        activeWorkflows,
+        playwrightCatalog,
+      ),
     );
 
     setSchedules(nextItems);
@@ -1413,7 +1700,7 @@ function SchedulerControl({ view = 'manage' }) {
 
   function editSchedule(schedule) {
     setFormMode('edit');
-    setScheduleForm(createScheduleFormFromRecord(schedule, tools, activeWorkflows));
+    setScheduleForm(createScheduleFormFromRecord(schedule, tools, activeWorkflows, playwrightCatalog));
     setSelectedSchedule(schedule);
     setNotice('');
     setError('');
@@ -1448,6 +1735,16 @@ function SchedulerControl({ view = 'manage' }) {
     }));
   }
 
+  function updatePlaywrightParameter(parameterName, value) {
+    setScheduleForm((currentForm) => ({
+      ...currentForm,
+      playwrightRuntimeValues: {
+        ...(currentForm.playwrightRuntimeValues || {}),
+        [parameterName]: value,
+      },
+    }));
+  }
+
   function handleTargetTypeChange(targetType) {
     if (targetType === 'WORKFLOW') {
       const workflow = getDefaultWorkflow(activeWorkflows);
@@ -1471,6 +1768,37 @@ function SchedulerControl({ view = 'manage' }) {
         parameters,
         workflowRuntimeValues: getInitialWorkflowParameterValues(workflow),
         workflowInput: {},
+        playwrightRuntimeValues: {},
+      }));
+      return;
+    }
+
+    if (isPlaywrightTargetType(targetType)) {
+      const bridgeTool = playwrightBridgeTools[targetType];
+      const target = getSchedulablePlaywrightTargets(playwrightCatalog, targetType)[0] || null;
+      const targetCode = getPlaywrightTargetCode(target);
+      const codeKey = getPlaywrightTargetCodeKey(targetType);
+      const parameters = getInitialParameterValues(bridgeTool);
+      if (targetCode) parameters[codeKey] = targetCode;
+      parameters.environmentCode = target?.defaultEnvironmentCode || 'LOCAL';
+      if (targetType !== 'BROWSER_TEST_SUITE') parameters.parametersJson = {};
+
+      setScheduleForm((currentForm) => ({
+        ...currentForm,
+        targetType,
+        toolCode: getPlaywrightBridgeToolCode(targetType),
+        scheduleCode:
+          formMode === 'create'
+            ? buildScheduleCode(targetCode || getPlaywrightBridgeToolCode(targetType))
+            : currentForm.scheduleCode,
+        scheduleName:
+          formMode === 'create'
+            ? buildPlaywrightScheduleName(target, targetType)
+            : currentForm.scheduleName,
+        parameters,
+        workflowRuntimeValues: {},
+        workflowInput: {},
+        playwrightRuntimeValues: getInitialPlaywrightParameterValues(target),
       }));
       return;
     }
@@ -1488,6 +1816,7 @@ function SchedulerControl({ view = 'manage' }) {
       parameters: getInitialParameterValues(nextTool),
       workflowRuntimeValues: {},
       workflowInput: {},
+      playwrightRuntimeValues: {},
     }));
   }
 
@@ -1504,6 +1833,7 @@ function SchedulerControl({ view = 'manage' }) {
       parameters: getInitialParameterValues(nextTool),
       workflowRuntimeValues: {},
       workflowInput: {},
+      playwrightRuntimeValues: {},
     }));
   }
 
@@ -1525,6 +1855,35 @@ function SchedulerControl({ view = 'manage' }) {
       parameters,
       workflowRuntimeValues: getInitialWorkflowParameterValues(workflow),
       workflowInput: {},
+      playwrightRuntimeValues: {},
+    }));
+  }
+
+  function handlePlaywrightTargetChange(targetCode) {
+    const targetType = scheduleForm.targetType;
+    const target = getSelectedPlaywrightTarget(playwrightCatalog, targetType, targetCode);
+    const bridgeTool = playwrightBridgeTools[targetType];
+    const parameters = getInitialParameterValues(bridgeTool);
+    const codeKey = getPlaywrightTargetCodeKey(targetType);
+    if (targetCode) parameters[codeKey] = targetCode;
+    parameters.environmentCode = target?.defaultEnvironmentCode || 'LOCAL';
+    if (targetType !== 'BROWSER_TEST_SUITE') parameters.parametersJson = {};
+
+    setScheduleForm((currentForm) => ({
+      ...currentForm,
+      toolCode: getPlaywrightBridgeToolCode(targetType),
+      scheduleCode: formMode === 'create' ? buildScheduleCode(targetCode) : currentForm.scheduleCode,
+      scheduleName:
+        formMode === 'create' ? buildPlaywrightScheduleName(target, targetType) : currentForm.scheduleName,
+      parameters,
+      playwrightRuntimeValues: getInitialPlaywrightParameterValues(target),
+    }));
+  }
+
+  function handlePlaywrightEnvironmentChange(environmentCode) {
+    setScheduleForm((currentForm) => ({
+      ...currentForm,
+      parameters: { ...(currentForm.parameters || {}), environmentCode },
     }));
   }
 
@@ -1548,6 +1907,23 @@ function SchedulerControl({ view = 'manage' }) {
         },
         selectedTool,
       );
+    }
+
+    if (isPlaywrightTargetType(scheduleForm.targetType)) {
+      const runtimeParameters = parsePlaywrightParameterValues(
+        selectedPlaywrightTarget,
+        scheduleForm.playwrightRuntimeValues || {},
+      );
+      const nextParameters = { ...scheduleForm.parameters };
+
+      if (scheduleForm.targetType === 'BROWSER_TEST_SUITE') {
+        delete nextParameters.parametersJson;
+        delete nextParameters.parameters_json;
+      } else {
+        nextParameters.parametersJson = runtimeParameters;
+      }
+
+      parameters = cleanParameterValues(nextParameters, selectedTool);
     }
 
     const payload = {
@@ -1596,6 +1972,22 @@ function SchedulerControl({ view = 'manage' }) {
         setError('Select an active workflow.');
         return;
       }
+    } else if (isPlaywrightTargetType(scheduleForm.targetType)) {
+      const bridgeTool = playwrightBridgeTools[scheduleForm.targetType];
+      if (!bridgeTool) {
+        setError('The selected Playwright scheduler bridge is not configured.');
+        return;
+      }
+
+      if (!selectedPlaywrightTarget) {
+        setError('Select a schedulable Playwright target.');
+        return;
+      }
+
+      if (selectedPlaywrightTarget.requiresConfirmation) {
+        setError('Confirmation-required Playwright targets cannot run unattended from the scheduler.');
+        return;
+      }
     } else if (!scheduleForm.toolCode) {
       setError('Select a worker-visible tool.');
       return;
@@ -1625,7 +2017,12 @@ function SchedulerControl({ view = 'manage' }) {
       );
       setFormMode('edit');
       setScheduleForm(
-        createScheduleFormFromRecord(result.schedule || payload, tools, activeWorkflows),
+        createScheduleFormFromRecord(
+          result.schedule || payload,
+          tools,
+          activeWorkflows,
+          playwrightCatalog,
+        ),
       );
       await Promise.all([loadHealth(), loadSchedules(), loadRuns()]);
     } catch (saveError) {
@@ -1870,6 +2267,79 @@ function SchedulerControl({ view = 'manage' }) {
         type={
           parameter.type === 'number' ? 'number' : parameter.type === 'date' ? 'date' : 'text'
         }
+        value={String(value)}
+      />
+    );
+  }
+
+  function renderPlaywrightParameterInput(parameter) {
+    const parameterName = parameter.parameterName;
+    const value = scheduleForm.playwrightRuntimeValues?.[parameterName] ?? '';
+    const options = getWorkflowParameterOptions(parameter, repositoryOptions);
+    const inputId = `playwrightScheduleParam-${parameterName}`;
+
+    if (parameter.type === 'boolean') {
+      return (
+        <div className="form-check form-switch">
+          <input
+            checked={Boolean(value)}
+            className="form-check-input"
+            disabled={!canWriteSchedules || saving}
+            id={inputId}
+            onChange={(event) => updatePlaywrightParameter(parameterName, event.target.checked)}
+            type="checkbox"
+          />
+          <label className="form-check-label sky-muted" htmlFor={inputId}>
+            {parameter.prompt || parameter.label}
+          </label>
+        </div>
+      );
+    }
+
+    if (parameter.type === 'select' || parameter.type === 'repo') {
+      return (
+        <select
+          className="form-select sky-form-control"
+          disabled={!canWriteSchedules || saving}
+          id={inputId}
+          onChange={(event) => updatePlaywrightParameter(parameterName, event.target.value)}
+          required={parameter.required}
+          value={String(value)}
+        >
+          <option value="">{parameter.prompt || `Select ${parameter.label}`}</option>
+          {options.map((option) => (
+            <option key={option.optionId || option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (parameter.type === 'json') {
+      return (
+        <textarea
+          className="form-control sky-form-control sky-mono"
+          disabled={!canWriteSchedules || saving}
+          id={inputId}
+          onChange={(event) => updatePlaywrightParameter(parameterName, event.target.value)}
+          placeholder={parameter.prompt || '{ }'}
+          required={parameter.required}
+          rows={4}
+          value={String(value)}
+        />
+      );
+    }
+
+    return (
+      <input
+        className="form-control sky-form-control sky-mono"
+        disabled={!canWriteSchedules || saving}
+        id={inputId}
+        onChange={(event) => updatePlaywrightParameter(parameterName, event.target.value)}
+        placeholder={parameter.prompt || parameterName}
+        required={parameter.required}
+        type={parameter.type === 'number' ? 'number' : parameter.type === 'date' ? 'date' : 'text'}
         value={String(value)}
       />
     );
@@ -2135,13 +2605,13 @@ function SchedulerControl({ view = 'manage' }) {
     manage: {
       kicker: 'Automation · Manage',
       title: 'Manage Schedules',
-      subtitle: 'Search, configure, queue, enable, disable, and retire schedules for worker tools and workflows.',
+      subtitle: 'Search, configure, queue, enable, disable, and retire schedules for tools, workflows, and Playwright targets.',
       refreshLabel: 'Refresh schedules',
     },
     create: {
       kicker: 'Automation · Create',
       title: 'Create Schedules',
-      subtitle: 'Create a timed or recurring schedule for a worker-visible tool or published SkyCommand workflow.',
+      subtitle: 'Create timed or recurring schedules for tools, workflows, Playwright tests, suites, and browser automations.',
       refreshLabel: 'Refresh targets',
     },
     worker: {
@@ -2256,7 +2726,7 @@ function SchedulerControl({ view = 'manage' }) {
                   {formMode === 'edit' ? 'Edit schedule' : 'Create schedule'}
                 </h2>
                 <div className="small sky-muted">
-                  Choose whether to schedule a tool or workflow, then define when it should run.
+                  Schedule tools, workflows, Playwright tests, test suites, or browser automations.
                 </div>
               </div>
               <button
@@ -2296,7 +2766,7 @@ function SchedulerControl({ view = 'manage' }) {
                       ))}
                     </select>
                     <div className="form-text sky-muted">
-                      Tools run worker-visible primitives. Workflows run active SkyCommand workflows.
+                      Playwright targets run headlessly and unattended; confirmation-required targets are excluded.
                     </div>
                   </div>
 
@@ -2340,6 +2810,62 @@ function SchedulerControl({ view = 'manage' }) {
                             {workflowBridgeTool
                               ? 'No active workflows are available.'
                               : 'Start SkyCommand Workflow bridge tool is not configured.'}
+                          </div>
+                        )}
+                      </>
+                    ) : isPlaywrightTargetType(scheduleForm.targetType) ? (
+                      <>
+                        <label className="form-label" htmlFor="playwrightTargetCode">
+                          {SCHEDULE_TARGET_TYPE_OPTIONS.find((option) => option.value === scheduleForm.targetType)?.label || 'Playwright target'}
+                        </label>
+                        <select
+                          className="form-select sky-form-control"
+                          disabled={
+                            !canWriteSchedules ||
+                            saving ||
+                            !playwrightBridgeTools[scheduleForm.targetType] ||
+                            selectedPlaywrightTargets.length === 0
+                          }
+                          id="playwrightTargetCode"
+                          onChange={(event) => handlePlaywrightTargetChange(event.target.value)}
+                          required
+                          value={selectedPlaywrightTargetCode}
+                        >
+                          <option value="">Select Playwright target</option>
+                          {selectedPlaywrightTargets.map((target) => (
+                            <option key={getPlaywrightTargetCode(target)} value={getPlaywrightTargetCode(target)}>
+                              {getPlaywrightTargetLabel(target)} ({getPlaywrightTargetCode(target)})
+                            </option>
+                          ))}
+                        </select>
+                        {selectedPlaywrightTarget ? (
+                          <>
+                            <div className="form-text sky-muted">
+                              <span className="sky-pill sky-pill-info">HEADLESS</span>{' '}
+                              {selectedPlaywrightTarget.description || 'Registered Playwright target'}
+                            </div>
+                            <label className="form-label mt-2" htmlFor="playwrightEnvironmentCode">
+                              Environment
+                            </label>
+                            <select
+                              className="form-select sky-form-control"
+                              disabled={!canWriteSchedules || saving}
+                              id="playwrightEnvironmentCode"
+                              onChange={(event) => handlePlaywrightEnvironmentChange(event.target.value)}
+                              value={scheduleForm.parameters?.environmentCode || selectedPlaywrightTarget.defaultEnvironmentCode || 'LOCAL'}
+                            >
+                              {getPlaywrightEnvironmentOptions(selectedPlaywrightTarget).map((environment) => (
+                                <option key={environment.environmentCode} value={environment.environmentCode}>
+                                  {environment.environmentName || environment.environmentCode}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        ) : (
+                          <div className="form-text text-warning">
+                            {playwrightBridgeTools[scheduleForm.targetType]
+                              ? 'No unattended Playwright targets are available for this type.'
+                              : 'The scheduler bridge for this Playwright target type is not configured.'}
                           </div>
                         )}
                       </>
@@ -2584,7 +3110,35 @@ function SchedulerControl({ view = 'manage' }) {
                     </div>
                   )}
 
-                {scheduleForm.targetType !== 'WORKFLOW' && selectedTool?.parameters?.length > 0 && (
+                {isPlaywrightTargetType(scheduleForm.targetType) &&
+                  selectedPlaywrightTarget &&
+                  (selectedPlaywrightTarget.parameters || []).length > 0 && (
+                    <div className="mt-4">
+                      <div className="sky-page-kicker">Playwright target parameters</div>
+                      <div className="small sky-muted mb-2">
+                        Runtime values are validated against the registered Playwright target and stored with the schedule.
+                      </div>
+                      <div className="sky-worker-param-grid">
+                        {selectedPlaywrightTarget.parameters.map((parameter) => (
+                          <div key={parameter.parameterId || parameter.parameterName}>
+                            <label
+                              className="form-label"
+                              htmlFor={`playwrightScheduleParam-${parameter.parameterName}`}
+                            >
+                              {parameter.label || parameter.parameterName}{' '}
+                              {parameter.required && <span className="text-danger">*</span>}
+                            </label>
+                            {renderPlaywrightParameterInput(parameter)}
+                            <div className="form-text sky-muted">
+                              {parameter.prompt || `${parameter.type || 'string'} Playwright parameter`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {scheduleForm.targetType === 'TOOL' && selectedTool?.parameters?.length > 0 && (
                   <div className="mt-4">
                     <div className="sky-page-kicker">Target parameters</div>
                     <div className="sky-worker-param-grid">
@@ -2610,7 +3164,15 @@ function SchedulerControl({ view = 'manage' }) {
                 <div className="d-flex flex-wrap gap-2 mt-4">
                   <button
                     className="btn sky-btn-primary"
-                    disabled={!canWriteSchedules || saving || (scheduleForm.targetType === 'WORKFLOW' ? !selectedWorkflow : workerTools.length === 0)}
+                    disabled={
+                      !canWriteSchedules ||
+                      saving ||
+                      (scheduleForm.targetType === 'WORKFLOW'
+                        ? !selectedWorkflow
+                        : isPlaywrightTargetType(scheduleForm.targetType)
+                          ? !selectedPlaywrightTarget || !playwrightBridgeTools[scheduleForm.targetType]
+                          : workerTools.length === 0 || !selectedTool)
+                    }
                     type="submit"
                   >
                     {saving
@@ -2772,12 +3334,12 @@ function SchedulerControl({ view = 'manage' }) {
                                 : 'sky-pill-info'
                             }`}
                           >
-                            {getScheduleTargetType(schedule)}
+                            {getScheduleTargetTypeLabel(getScheduleTargetType(schedule))}
                           </span>
                         </td>
                         <td>
                           <div className="fw-bold">
-                            {getScheduleTargetLabel(schedule, activeWorkflows)}
+                            {getScheduleTargetLabel(schedule, activeWorkflows, playwrightCatalog)}
                           </div>
                           <div className="small sky-muted sky-mono">
                             {getScheduleTargetCode(schedule)}
@@ -3083,7 +3645,9 @@ function SchedulerControl({ view = 'manage' }) {
                           <div className="fw-bold">
                             {run.scheduleName || run.scheduleCode}
                           </div>
-                          <div className="small sky-muted sky-mono">{run.toolCode}</div>
+                          <div className="small sky-muted sky-mono">
+                            {run.metadata?.browserTarget?.targetCode || run.toolCode}
+                          </div>
                         </td>
                         <td>
                           <span className={`sky-pill ${statusClass(run.status)}`}>
@@ -3169,6 +3733,7 @@ function SchedulerControl({ view = 'manage' }) {
                   </p>
 
                   <ScheduledToolResultEvidence run={selectedRun} />
+                  <ScheduledBrowserTargetEvidence run={selectedRun} />
 
                   <div className="sky-page-kicker">Metadata</div>
                   <pre className="sky-code-block sky-worker-json-preview">
