@@ -318,16 +318,16 @@ For detailed conventions, see the [Tool Authoring Guide](docs/SkyCommand_Tool_Au
 
 ## 🛠️ Tech Stack
 
-| Layer                  | Technology                                                             |
-| ---------------------- | ---------------------------------------------------------------------- |
-| Admin-Web              | React, Vite, React Router, Bootstrap, Axios, Apache ECharts, D3, NGINX |
-| API                    | Node.js, Express                                                       |
-| Database               | PostgreSQL, `pg`, SQL migrations/seeds                                 |
-| Durable workflows      | Temporal                                                               |
-| Scheduled automation   | Node worker daemon                                                     |
-| Host-native operations | SkyCommand Host Agent / Temporal activity worker                       |
-| Infrastructure         | Docker Desktop, Docker Compose                                         |
-| Auth and security      | Bearer sessions, hashed session tokens, RBAC, audit events             |
+| Layer                  | Technology                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Admin-Web              | React, Vite, React Router, Bootstrap, Axios, Apache ECharts, D3, NGINX            |
+| API                    | Node.js, Express                                                                  |
+| Database               | PostgreSQL, `pg`, SQL migrations/seeds                                            |
+| Durable workflows      | Temporal                                                                          |
+| Scheduled automation   | Node worker daemon                                                                |
+| Host-native operations | SkyCommand Host Agent / Temporal activity worker                                  |
+| Infrastructure         | Docker Desktop, Docker Compose                                                    |
+| Auth and security      | Bearer sessions, hashed session tokens, RBAC, audit events                        |
 | Engineering quality    | ESLint, Prettier, Husky, centralized repository self-tests and validation scripts |
 
 ---
@@ -387,19 +387,19 @@ For first-time database setup, Docker cutover, Host Agent configuration, and det
 
 ### Common Commands
 
-| Command                             | Purpose                                                                    |
-| ----------------------------------- | -------------------------------------------------------------------------- |
-| `npm run skycommand:docker:up`      | Build/start the complete seven-container runtime                             |
-| `npm run skycommand:docker:restart` | Rebuild and force-recreate the runtime while preserving persistent volumes |
-| `npm run skycommand:docker:status`  | Show runtime container status                                              |
-| `npm run skycommand:docker:logs`    | Follow logs across the SkyCommand runtime                                  |
-| `npm run browser:worker:smoke`      | Run the Temporal-backed Playwright Browser Worker smoke proof               |
-| `npm run browser:worker:docker:logs` | Follow dedicated Browser Worker logs                                        |
-| `npm run host-agent:check`          | Verify Docker/Temporal → Host Agent routing                                |
-| `npm run validate`                  | Run repository validation                                                  |
-| `npm run validate:syntax`           | Run JavaScript syntax validation                                           |
-| `npm run validate:self-tests`       | Run repository self-tests                                                  |
-| `npm run validate:release`          | Run validation plus the Admin-Web production build                         |
+| Command                              | Purpose                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------- |
+| `npm run skycommand:docker:up`       | Build/start the complete seven-container runtime                           |
+| `npm run skycommand:docker:restart`  | Rebuild and force-recreate the runtime while preserving persistent volumes |
+| `npm run skycommand:docker:status`   | Show runtime container status                                              |
+| `npm run skycommand:docker:logs`     | Follow logs across the SkyCommand runtime                                  |
+| `npm run browser:worker:smoke`       | Run the Temporal-backed Playwright Browser Worker smoke proof              |
+| `npm run browser:worker:docker:logs` | Follow dedicated Browser Worker logs                                       |
+| `npm run host-agent:check`           | Verify Docker/Temporal → Host Agent routing                                |
+| `npm run validate`                   | Run repository validation                                                  |
+| `npm run validate:syntax`            | Run JavaScript syntax validation                                           |
+| `npm run validate:self-tests`        | Run repository self-tests                                                  |
+| `npm run validate:release`           | Run validation plus the Admin-Web production build                         |
 
 The complete command catalogue lives in [`package.json`](package.json).
 
@@ -462,7 +462,7 @@ The README is intentionally the **front door**, not the complete operations manu
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ Roadmap test
 
 | Phase      | Status | Objective                                                                                                         |
 | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
