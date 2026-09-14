@@ -1,0 +1,9 @@
+{
+  "contract": "fake_runtime_case.v1",
+  "caseId": "ambiguous-send",
+  "sessionModel": "PERSISTENT",
+  "usageBehavior": "DELAYED",
+  "sendAcceptance": "UNKNOWN",
+  "expectedDisposition": "RECOVERY_REQUIRED",
+  "notes": "An uncertain provider send is reconciled and never blindly resubmitted."
+}

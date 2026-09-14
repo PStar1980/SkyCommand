@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_error.v1.schema.json",
+  "title": "SkyCommand Agent Error v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "code", "phase", "message", "retryable", "uncertainty"],
+  "properties": {
+    "contract": { "const": "agent_error.v1" },
+    "code": { "type": "string", "minLength": 1 },
+    "phase": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "retryable": { "type": "boolean" },
+    "uncertainty": {
+      "type": "string",
+      "enum": ["NONE", "ACCEPTANCE_UNKNOWN", "STOP_UNKNOWN", "TELEMETRY_UNKNOWN", "POLICY_UNKNOWN"]
+    },
+    "details": { "type": ["object", "null"] }
+  }
+}

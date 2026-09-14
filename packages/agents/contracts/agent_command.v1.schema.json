@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_command.v1.schema.json",
+  "title": "SkyCommand Agent Command v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "commandId",
+    "requestId",
+    "commandType",
+    "idempotencyKey",
+    "admissionScope",
+    "submittedAt",
+    "inputDigest"
+  ],
+  "properties": {
+    "contract": { "const": "agent_command.v1" },
+    "commandId": { "type": "string", "minLength": 1 },
+    "requestId": { "type": "string", "minLength": 1 },
+    "commandType": {
+      "type": "string",
+      "enum": [
+        "START_RUN",
+        "CONTINUE_RUN",
+        "CANCEL_RUN",
+        "ROOT_STOP",
+        "RESPOND_INTERACTION",
+        "RECONCILE"
+      ]
+    },
+    "idempotencyKey": { "type": "string", "minLength": 1 },
+    "admissionScope": { "type": "string", "enum": ["ROOT", "RUN", "SESSION", "INTERACTION"] },
+    "submittedAt": { "type": "string", "format": "date-time" },
+    "inputDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": { "type": "string", "const": "SHA-256" },
+        "digest": { "type": "string", "minLength": 1 }
+      }
+    },
+    "clientInput": { "type": ["object", "null"] },
+    "serverContext": { "type": ["object", "null"] }
+  }
+}

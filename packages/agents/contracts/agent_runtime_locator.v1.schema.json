@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_runtime_locator.v1.schema.json",
+  "title": "SkyCommand Agent Runtime Locator v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "runtimeKind",
+    "installationId",
+    "accountBindingId",
+    "cellInstanceId",
+    "cellGeneration",
+    "sessionId",
+    "runId",
+    "leaseEpoch",
+    "providerConversation"
+  ],
+  "properties": {
+    "contract": { "const": "agent_runtime_locator.v1" },
+    "runtimeKind": { "type": "string", "minLength": 1 },
+    "installationId": { "type": "string", "minLength": 1 },
+    "accountBindingId": { "type": "string", "minLength": 1 },
+    "cellInstanceId": { "type": "string", "minLength": 1 },
+    "cellGeneration": { "type": "integer", "minimum": 0 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "turnId": { "type": ["string", "null"] },
+    "leaseEpoch": { "type": "integer", "minimum": 0 },
+    "providerConversation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["namespace", "reference", "generation"],
+      "properties": {
+        "namespace": { "type": "string", "minLength": 1 },
+        "reference": { "type": "string", "minLength": 1 },
+        "generation": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "providerTurnReference": { "type": ["object", "null"] }
+  }
+}

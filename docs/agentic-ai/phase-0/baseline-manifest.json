@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract": "skycommand_agent_phase0_baseline.v1",
+  "reviewedAt": "2026-09-14T04:37:29.311Z",
+  "approvedPlan": {
+    "sourceControlledPath": "docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.0_APPROVED.md",
+    "sha256": "57904DE25EC8C03CEF31238C1122169E9A784C5F2D4E3E3851C7007BF315F8B9",
+    "suppliedArchiveSha256": "7B8CE3C58E703C197A5A602690451513999B09CA913C49E3AA19B44E620AB803",
+    "briefSha256": "BAA9F58CB535976D3548B86745D4C61E8D0F80A6B9BD5B6F1BFC60CBA7DBA236"
+  },
+  "repository": {
+    "gitCommit": "ed8d51a1954a99667a57d6979ab7e3d3abc631a3",
+    "branchAtReview": "dev",
+    "workingTreeCleanAtReview": true,
+    "nodeVersionAtReview": "v24.11.0",
+    "temporalDependencyRange": "^1.18.1"
+  },
+  "databaseBuildInventory": {
+    "migrationDirectory": "packages/db_build/src/migrations",
+    "migrationCount": 74,
+    "firstMigration": "00002__schema_macro.sql",
+    "lastMigration": "00126__assistant_browser_automation_opt_in.sql",
+    "seedDirectory": "packages/db_build/src/seeds",
+    "seedCount": 51,
+    "firstSeed": "00004__data_indicators.sql",
+    "lastSeed": "00127__assistant_browser_automation_reference_seed.sql",
+    "sharedGlobalNumericOrdering": true,
+    "destructiveBuildBehavior": "db:build drops and recreates its named target database"
+  },
+  "existingSeamsReviewed": [
+    "scripts/mcp/skycommandMcpGateway.js",
+    "apps/api/src/middleware/assistantIntegrationMiddleware.js",
+    "apps/api/src/services/assistantIntegrationService.js",
+    "apps/api/src/services/browserAutomationExecutionService.js",
+    "packages/temporal/src/workflows/skyCommandWorkflowExecutorWorkflow.js",
+    "packages/temporal/src/activities/skyCommandWorkflowActivities.js",
+    "apps/worker/src/schedulers/schedulePoller.js",
+    "packages/tools/src/toolResultContract.js",
+    "tests/self",
+    "tests/browser"
+  ],
+  "phase0SafetyBoundary": {
+    "agentExecutionEnabled": false,
+    "realAgentAdmissionImplemented": false,
+    "productionEnvironmentExecutionEnabled": false,
+    "externalAgentTransportEnabled": false,
+    "historicalMigrationsModified": false,
+    "existingRuntimeBehaviorModified": false
+  },
+  "baselineValidationFindings": [
+    {
+      "code": "AUTH_EXPIRY_REFRESH_SELF_TEST",
+      "command": "npm run auth-expiry-refresh:self-test",
+      "observedAt": "2026-09-14",
+      "classification": "EXISTING_UNRELATED_FAILURE",
+      "message": "Admin-Web refreshes must use the shared API client so session-expiry redirect is universal. Direct fetch callers: apps\\admin-web\\src\\services\\supervisorService.js",
+      "location": "tests/self/apps/admin-web/src/services/authExpiryRefreshSelfTest.js:63",
+      "phase0Regression": false,
+      "disposition": "Not modified; outside Phase 0 scope."
+    },
+    {
+      "code": "SCHEDULER_WORKFLOW_PARAMETERS_SELF_TEST",
+      "command": "npm run scheduler-workflow-params:self-test",
+      "observedAt": "2026-09-14",
+      "classification": "EXISTING_UNRELATED_FAILURE",
+      "message": "Schedule create/update must validate nested workflow runtime parameters before persistence.",
+      "location": "tests/self/apps/api/src/services/schedulerWorkflowParametersSelfTest.js:42",
+      "phase0Regression": false,
+      "disposition": "Not modified; outside Phase 0 scope."
+    }
+  ],
+  "knownDiscrepancies": [
+    {
+      "code": "ARCHIVE_ORDINAL_LAYOUT",
+      "planStatement": "The supplied package reaches 00127.",
+      "repositoryObservation": "The checkout has migration 00126 and seed 00127; the global ordering is shared across migrations and seeds.",
+      "safeDisposition": "Reserve future ordinals only after a full repository review; add no Phase 0 SQL."
+    },
+    {
+      "code": "DEPLOYED_DATABASE_EVIDENCE_UNAVAILABLE",
+      "planStatement": "Inventory deployed schema/views/permissions on a restored copy.",
+      "repositoryObservation": "No restored deployment database or deployment snapshot was provided in the repository context.",
+      "safeDisposition": "Record the evidence gap and leave all database inspection/build operations deferred."
+    },
+    {
+      "code": "PROVIDER_CERTIFICATION_UNAVAILABLE",
+      "planStatement": "Select pinned Codex/OpenClaw binaries and obtain protocol schemas.",
+      "repositoryObservation": "No managed provider binaries, pinned protocol schemas, or containment certification evidence are present.",
+      "safeDisposition": "Provide fake-runtime fixtures and an explicit UNVERIFIED certification matrix; do not download or enable a provider."
+    },
+    {
+      "code": "TEMPORAL_HISTORY_FIXTURES_UNAVAILABLE",
+      "planStatement": "Capture representative workflow histories for replay.",
+      "repositoryObservation": "The checkout has Temporal code and self-tests but no supplied production history export.",
+      "safeDisposition": "Inventory the replay seams and mark representative deployed histories as required evidence before Phase 2."
+    }
+  ]
+}

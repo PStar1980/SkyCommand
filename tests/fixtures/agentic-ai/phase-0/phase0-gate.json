@@ -1,0 +1,8 @@
+{
+  "agentExecutionEnabled": false,
+  "realAgentAdmissionImplemented": false,
+  "productionEnvironmentExecutionEnabled": false,
+  "externalAgentTransportEnabled": false,
+  "providerNativeSpawningEnabled": false,
+  "agentCreatedSchedulesEnabled": false
+}

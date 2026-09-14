@@ -1,0 +1,9 @@
+{
+  "contract": "fake_runtime_case.v1",
+  "caseId": "persistent-delayed-usage",
+  "sessionModel": "PERSISTENT",
+  "usageBehavior": "DELAYED",
+  "sendAcceptance": "ACKNOWLEDGED",
+  "expectedDisposition": "OBSERVE_AND_RECONCILE",
+  "notes": "Usage arrives after the terminal event; late telemetry is an evidence revision, not a new result."
+}

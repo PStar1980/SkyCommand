@@ -16,6 +16,7 @@ const excludedDirectories = new Set([
 const syntaxExtensions = new Set(['.cjs', '.js', '.mjs']);
 
 const routineSelfTests = [
+  'agent-phase0:self-test',
   'db-health:self-test',
   'db-build:self-test',
   'tool-template:self-test',

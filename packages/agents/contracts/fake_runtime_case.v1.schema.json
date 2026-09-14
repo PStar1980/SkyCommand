@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fake_runtime_case.v1.schema.json",
+  "title": "SkyCommand Phase 0 Fake Runtime Case v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "caseId",
+    "sessionModel",
+    "usageBehavior",
+    "sendAcceptance",
+    "expectedDisposition"
+  ],
+  "properties": {
+    "contract": { "const": "fake_runtime_case.v1" },
+    "caseId": { "type": "string", "minLength": 1 },
+    "sessionModel": { "type": "string", "enum": ["PERSISTENT", "EPHEMERAL"] },
+    "usageBehavior": { "type": "string", "enum": ["DELAYED", "ABSENT"] },
+    "sendAcceptance": {
+      "type": "string",
+      "enum": ["ACKNOWLEDGED", "REJECTED_BEFORE_ACCEPTANCE", "UNKNOWN"]
+    },
+    "expectedDisposition": {
+      "type": "string",
+      "enum": ["OBSERVE_AND_RECONCILE", "SAFE_TO_REJECT", "RECOVERY_REQUIRED"]
+    },
+    "notes": { "type": "string" }
+  }
+}
