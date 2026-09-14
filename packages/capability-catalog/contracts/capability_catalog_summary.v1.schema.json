@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "capability_catalog_summary.v1",
+  "type": "object",
+  "required": [
+    "outcome",
+    "generatedArtifactPaths",
+    "catalogueSchemaVersion",
+    "generationTimestampUtc",
+    "sourceRevision",
+    "database",
+    "runtime",
+    "resourceCounts",
+    "warnings",
+    "sha256"
+  ],
+  "properties": {
+    "outcome": { "type": "string" },
+    "generatedArtifactPaths": {
+      "type": "object",
+      "required": ["json", "xlsx"],
+      "properties": {
+        "json": { "type": ["string", "null"] },
+        "xlsx": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "catalogueSchemaVersion": { "const": "capability_catalog.v1" },
+    "generationTimestampUtc": { "type": ["string", "null"] },
+    "sourceRevision": { "type": ["string", "null"] },
+    "database": { "type": "object" },
+    "runtime": { "type": "object" },
+    "resourceCounts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "warnings": { "type": "array" },
+    "sha256": {
+      "type": "object",
+      "required": ["json", "xlsx"],
+      "properties": {
+        "json": { "type": ["string", "null"] },
+        "xlsx": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

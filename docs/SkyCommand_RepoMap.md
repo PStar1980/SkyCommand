@@ -1503,6 +1503,12 @@ SkyCommand/
 │   │   └── SkyCommand_Development_Operating_Rules_v1.0.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
+│   ├── generated/
+│   │   ├── .gitignore
+│   │   ├── README.md
+│   │   ├── SkyCommand_Capability_Catalog_Registration_Guide.md
+│   │   ├── SkyCommand_Capability_Catalog.json
+│   │   └── SkyCommand_Capability_Catalog.xlsx
 │   └── images/
 │       └── readme/
 │           ├── Approval_Prompt.png
@@ -1538,10 +1544,17 @@ SkyCommand/
 │   │       └── temporal/
 │   │           ├── activities.js
 │   │           └── workflows.js
+│   ├── capability-catalog/
+│   │   ├── contracts/
+│   │   │   └── capability_catalog_summary.v1.schema.json
+│   │   └── src/
+│   │       ├── index.js
+│   │       └── redaction.js
 │   ├── core/
 │   │   └── src/
 │   │       ├── repositoryEnvironment.js
 │   │       ├── runtimePathResolver.js
+│   │       ├── scheduleTargetResolution.js
 │   │       ├── SkyCommand_Core.js
 │   │       ├── skyCommandIdentityVerification.js
 │   │       └── workflowCliRuntimeParameters.js
@@ -1872,6 +1885,7 @@ SkyCommand/
 │           ├── toolResultTransport.js
 │           └── workflowResultContext.js
 ├── scripts/
+│   ├── capabilityCatalogExport.js
 │   ├── validate.js
 │   ├── browser/
 │   │   ├── browserRegistrySmoke.js
@@ -2199,6 +2213,8 @@ SkyCommand/
         │   ├── browser/
         │   │   └── src/
         │   │       └── browserTestRunnerSelfTest.js
+        │   ├── capability-catalog/
+        │   │   └── src/
         │   ├── core/
         │   │   └── src/
         │   │       ├── runtimePathResolverSelfTest.js

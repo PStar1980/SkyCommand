@@ -1,0 +1,6 @@
+# Runtime capability catalogue snapshots are generated from the live development database.
+# Keep this directory's documentation source-controlled while ignoring snapshot files.
+*
+!.gitignore
+!README.md
+!SkyCommand_Capability_Catalog_Registration_Guide.md

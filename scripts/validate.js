@@ -26,6 +26,7 @@ const routineSelfTests = [
   'tool-verification-navigation:self-test',
   'approval-history:self-test',
   'tool-result:self-test',
+  'capability-catalog:self-test',
   'macro-ingestion:self-test',
   'macro-ingestion-cli:self-test',
   'workflow-result-context:self-test',
