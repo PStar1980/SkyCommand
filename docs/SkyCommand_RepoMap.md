@@ -1467,7 +1467,6 @@ SkyCommand/
 │   ├── SkyCommand_API_Observability.md
 │   ├── SkyCommand_Browser_Worker.md
 │   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
-│   ├── SkyCommand_Development_Operating_Rules_v1.0.md
 │   ├── SkyCommand_Docker_Infrastructure_Control_Plane.md
 │   ├── SkyCommand_Host_Agent_Local_Setup.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
@@ -1500,6 +1499,8 @@ SkyCommand/
 │   │   ├── skyweb_schema_ERD.png
 │   │   └── worker_schema_ERD.png
 │   ├── audits/
+│   ├── development/
+│   │   └── SkyCommand_Development_Operating_Rules_v1.0.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
 │   └── images/
@@ -1539,6 +1540,7 @@ SkyCommand/
 │   │           └── workflows.js
 │   ├── core/
 │   │   └── src/
+│   │       ├── repositoryEnvironment.js
 │   │       ├── runtimePathResolver.js
 │   │       ├── SkyCommand_Core.js
 │   │       ├── skyCommandIdentityVerification.js
@@ -2278,6 +2280,7 @@ SkyCommand/
             │   ├── dockerIntegrationClosureSelfTest.js
             │   ├── dockerIntegrationSelfTest.js
             │   ├── nodeWorkerDockerSelfTest.js
+            │   ├── postgresCutoverCheckSelfTest.js
             │   ├── postgresDockerSelfTest.js
             │   ├── temporalDockerSelfTest.js
             │   ├── temporalWorkerDockerSelfTest.js

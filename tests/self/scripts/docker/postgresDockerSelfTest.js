@@ -3,6 +3,7 @@ const sourceDir = sourceDirectoryForTest(__filename);
 
 const fs = require('node:fs');
 const path = require('node:path');
+const nodeAssert = require('node:assert/strict');
 
 function assert(condition, message) {
   if (!condition) throw new Error(`[SkyCommand PostgreSQL Docker self-test] ${message}`);
@@ -10,6 +11,12 @@ function assert(condition, message) {
 
 const root = path.resolve(sourceDir, '..', '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+const { activeAssignmentIndexes, CRITICAL_DATABASE_ENV_KEYS } = require(
+  path.join(root, 'packages/core/src/repositoryEnvironment'),
+);
+const { assertNoDuplicateActiveEnvDefinitions, upsertEnv } = require(
+  path.join(root, 'scripts/docker/postgresDocker'),
+);
 const compose = read('compose.yaml');
 const helper = read('scripts/docker/postgresDocker.js');
 const parity = read('scripts/docker/postgresParity.js');
@@ -18,6 +25,61 @@ const dbBuild = read('packages/db_build/src/db_build.js');
 const envExample = read('.env.example');
 const packageJson = JSON.parse(read('package.json'));
 const validate = read('scripts/validate.js');
+
+const envFixture = [
+  '# comments are not active definitions',
+  'PGHOST=host.docker.internal',
+  'PGPORT=5432',
+  'PGDATABASE=skyserver_dev',
+  'SKYCOMMAND_DATABASE_HOST=host.docker.internal',
+  'SKYCOMMAND_DATABASE_PORT=5432',
+  'PGHOST_OLD=not-a-critical-key',
+].join('\n');
+let updatedEnv = envFixture;
+for (const [key, value] of [
+  ['PGHOST', '127.0.0.1'],
+  ['PGPORT', '55432'],
+  ['PGDATABASE', 'skyserver_dev'],
+  ['SKYCOMMAND_DATABASE_HOST', 'postgres'],
+  ['SKYCOMMAND_DATABASE_PORT', '5432'],
+]) {
+  updatedEnv = upsertEnv(updatedEnv, key, value);
+  assert(
+    activeAssignmentIndexes(updatedEnv, key).length === 1,
+    `${key} must have exactly one active authoritative assignment after update.`,
+  );
+}
+assert(
+  updatedEnv.includes('PGHOST=127.0.0.1'),
+  'PGHOST must be updated to the Docker-published host route.',
+);
+assert(
+  updatedEnv.includes('PGPORT=55432'),
+  'PGPORT must be updated to the Docker-published host port.',
+);
+assert(
+  updatedEnv.includes('SKYCOMMAND_DATABASE_HOST=postgres'),
+  'Docker services must use postgres as their database host.',
+);
+
+for (const key of CRITICAL_DATABASE_ENV_KEYS) {
+  const duplicateFixture = `${key}=first-value\n${key}=second-value\n`;
+  nodeAssert.throws(
+    () => assertNoDuplicateActiveEnvDefinitions(duplicateFixture),
+    (error) =>
+      error.code === 'SKYCOMMAND_ENV_DUPLICATE_KEY' &&
+      error.message.includes(key) &&
+      !error.message.includes('first-value') &&
+      !error.message.includes('second-value'),
+    'Duplicate critical environment definitions must fail without exposing values.',
+  );
+}
+const duplicateFixture = 'PGHOST=first-value\nPGHOST=second-value\n';
+nodeAssert.throws(
+  () => upsertEnv(duplicateFixture, 'PGHOST', '127.0.0.1'),
+  /Duplicate active environment definitions for PGHOST/,
+  'upsertEnv must not silently normalize duplicate active definitions.',
+);
 
 assert(
   compose.includes('postgres:') &&
@@ -53,6 +115,8 @@ assert(
     helper.includes("case 'persistence':") &&
     helper.includes("case 'finalize':") &&
     helper.includes('Refusing database cutover while') &&
+    helper.includes('assertNoDuplicateActiveEnvDefinitions') &&
+    helper.includes("['PGDATABASE', databaseName]") &&
     helper.includes('SKYCOMMAND_DATABASE_HOST') &&
     helper.includes('CUTOVER COMPLETE'),
   'The PostgreSQL helper must retain shadow staging while adding quiesced cutover, rollback, persistence, active backup, and finalize controls.',
@@ -75,7 +139,9 @@ assert(
 );
 assert(
   parity.includes('FROM worker.vw_workflow_definitions') &&
-    !parity.includes('SELECT workflow_code, display_name, status, published_version_id\n      FROM worker.workflow_definitions'),
+    !parity.includes(
+      'SELECT workflow_code, display_name, status, published_version_id\n      FROM worker.workflow_definitions',
+    ),
   'Workflow publication metadata must be read from worker.vw_workflow_definitions because published_version_id is derived from workflow_versions rather than stored on the base definition table.',
 );
 assert(
@@ -117,6 +183,9 @@ for (const scriptName of [
 ]) {
   assert(packageJson.scripts?.[scriptName], `Missing npm script: ${scriptName}`);
 }
-assert(validate.includes("'postgres-docker:self-test'"), 'Routine validation must include the PostgreSQL Docker self-test.');
+assert(
+  validate.includes("'postgres-docker:self-test'"),
+  'Routine validation must include the PostgreSQL Docker self-test.',
+);
 
 console.log('[SkyCommand] PostgreSQL Docker blue/green cutover self-test passed.');

@@ -2,7 +2,10 @@ require('../../../scripts/node/util/bootstrap');
 
 const express = require('express');
 const path = require('path');
-const { testConnection } = require('../../../packages/db/src/connection');
+const {
+  getConfiguredDatabaseIdentity,
+  testConnection,
+} = require('../../../packages/db/src/connection');
 const authRoutes = require('./routes/auth.routes');
 const toolsRoutes = require('./routes/tools.routes');
 const browserTestRoutes = require('./routes/browserTest.routes');
@@ -39,6 +42,7 @@ function createApp() {
   app.get('/_db/health', async (req, res) => {
     try {
       const db = await testConnection();
+      const configured = getConfiguredDatabaseIdentity();
 
       res.json({
         ok: true,
@@ -47,6 +51,7 @@ function createApp() {
         timestamp: db.now,
         version: db.version,
         serverPort: db.server_port,
+        ...configured,
       });
     } catch (error) {
       console.error('[SkyCommand DB] Health check failed:', error);
@@ -162,7 +167,9 @@ async function runStartupMaintenance() {
     );
   } catch (error) {
     if (error?.code === '42P01') {
-      console.warn('[SkyCommand API] API telemetry retention skipped until migration 00071 is applied.');
+      console.warn(
+        '[SkyCommand API] API telemetry retention skipped until migration 00071 is applied.',
+      );
     } else {
       console.warn('[SkyCommand API] API telemetry retention cleanup failed:', error.message);
     }

@@ -2,16 +2,41 @@ const { sourceDirectoryForTest } = require('../../../../_support/sourceTestBoots
 const sourceDir = sourceDirectoryForTest(__filename);
 
 const assert = require('assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   createDatabaseHealthFailureToolResult,
   createDatabaseHealthToolResult,
   normalizeDatabaseName,
   parseDatabaseNames,
 } = require('./db_health');
+const { getConfiguredDatabaseIdentity } = require('./connection');
 const { validateToolResult } = require('../../tools/src/toolResultContract');
 const outputSchema = require('../../tools/contracts/database_health_summary.v1.schema.json');
+const repositoryRoot = path.resolve(sourceDir, '../../..');
+const apiServerSource = fs.readFileSync(
+  path.join(repositoryRoot, 'apps/api/src/server.js'),
+  'utf8',
+);
 
 function run() {
+  const identity = getConfiguredDatabaseIdentity({
+    PGHOST: 'postgres',
+    PGPORT: '5432',
+    PGUSER: 'postgres',
+    PGPASSWORD: 'must-not-be-exposed',
+  });
+  assert.deepStrictEqual(identity, {
+    configuredHost: 'postgres',
+    configuredPort: 5432,
+  });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(identity, 'PGUSER'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(identity, 'PGPASSWORD'), false);
+  assert.match(apiServerSource, /const configured = getConfiguredDatabaseIdentity\(\);/);
+  assert.match(apiServerSource, /\.\.\.configured/);
+  assert.match(apiServerSource, /serverPort/);
+  assert.doesNotMatch(apiServerSource, /password:\s*db\./i);
+
   const parsed = parseDatabaseNames(
     ['skycommand_dev', 'skycommand_test', '--no-fail-when-offline'],
     'ignored',

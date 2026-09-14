@@ -132,6 +132,7 @@
     "db:docker:stage": "node scripts/docker/postgresDocker.js stage",
     "db:docker:parity": "node scripts/docker/postgresParity.js",
     "postgres-docker:self-test": "node tests/self/scripts/docker/postgresDockerSelfTest.js",
+    "postgres-cutover-check:self-test": "node tests/self/scripts/docker/postgresCutoverCheckSelfTest.js",
     "auth:create-admin": "node packages/auth/src/createAdminUser.js",
     "core": "node packages/core/src/SkyCommand_Core.js",
     "repository:sync:local": "node packages/git/src/local_repo_sync.js",

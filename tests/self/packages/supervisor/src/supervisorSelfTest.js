@@ -3,7 +3,6 @@
 const { sourceDirectoryForTest } = require('../../../../_support/sourceTestBootstrap.js');
 const sourceDir = sourceDirectoryForTest(__filename);
 
-
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const {
@@ -27,8 +26,44 @@ assert.deepEqual(parseBackendRebuildServices(''), DEFAULT_BACKEND_REBUILD_SERVIC
 assert.deepEqual(parseBackendRebuildServices('api,node-worker,api'), ['api', 'node-worker']);
 
 const repositoryRoot = path.resolve(sourceDir, '../../..');
+const { buildChildProcessEnvironmentFromContent } = require(
+  path.join(repositoryRoot, 'packages/core/src/repositoryEnvironment'),
+);
+const parentEnvironment = {
+  PGHOST: 'host.docker.internal',
+  PGPORT: '5432',
+  PGDATABASE: 'skyserver_dev',
+  SKYCOMMAND_DATABASE_HOST: 'host.docker.internal',
+  SKYCOMMAND_DATABASE_PORT: '5432',
+  SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN: 'process-only-control-token',
+  PATH: 'process-only-path',
+  SKYCOMMAND_TEST_UNRELATED: 'preserve-me',
+};
+const childEnvironment = buildChildProcessEnvironmentFromContent(
+  [
+    'PGHOST=127.0.0.1',
+    'PGPORT=55432',
+    'PGDATABASE=skyserver_dev',
+    'SKYCOMMAND_DATABASE_HOST=postgres',
+    'SKYCOMMAND_DATABASE_PORT=5432',
+    'SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN=file-value-must-not-replace-process-control',
+  ].join('\n'),
+  parentEnvironment,
+);
+assert.equal(childEnvironment.PGHOST, '127.0.0.1');
+assert.equal(childEnvironment.PGPORT, '55432');
+assert.equal(childEnvironment.SKYCOMMAND_DATABASE_HOST, 'postgres');
+assert.equal(childEnvironment.SKYCOMMAND_DATABASE_PORT, '5432');
+assert.equal(childEnvironment.SKYCOMMAND_SUPERVISOR_CONTROL_TOKEN, 'process-only-control-token');
+assert.equal(childEnvironment.PATH, 'process-only-path');
+assert.equal(childEnvironment.SKYCOMMAND_TEST_UNRELATED, 'preserve-me');
 const config = getSupervisorConfig(repositoryRoot);
-assert.equal(config.projectName, process.env.SKYCOMMAND_SUPERVISOR_PROJECT_NAME || process.env.SKYCOMMAND_DOCKER_SELF_PROJECT_NAME || 'skycommand');
+assert.equal(
+  config.projectName,
+  process.env.SKYCOMMAND_SUPERVISOR_PROJECT_NAME ||
+    process.env.SKYCOMMAND_DOCKER_SELF_PROJECT_NAME ||
+    'skycommand',
+);
 assert.ok(config.runtimeServices.includes('api'));
 assert.ok(config.runtimeServices.includes('browser-worker'));
 assert.ok(config.backendRebuildServices.includes('browser-worker'));
@@ -36,22 +71,38 @@ assert.ok(!config.runtimeServices.includes('web'));
 assert.deepEqual(config.backendRebuildServices, DEFAULT_BACKEND_REBUILD_SERVICES);
 
 const args = buildComposeArgs(config, ['stop', 'api']);
-assert.deepEqual(args.slice(0, 5), ['compose', '--project-name', config.projectName, '--file', config.composeFile]);
+assert.deepEqual(args.slice(0, 5), [
+  'compose',
+  '--project-name',
+  config.projectName,
+  '--file',
+  config.composeFile,
+]);
 assert.equal(args.at(-2), 'stop');
 assert.equal(args.at(-1), 'api');
 
-const parsedArray = parseComposePsOutput('[{"Service":"api","State":"running","Health":"healthy"}]');
+const parsedArray = parseComposePsOutput(
+  '[{"Service":"api","State":"running","Health":"healthy"}]',
+);
 assert.equal(parsedArray.length, 1);
 assert.equal(parsedArray[0].Service, 'api');
 
-const parsedLines = parseComposePsOutput('{"Service":"api","State":"running"}\n{"Service":"postgres","State":"exited"}');
+const parsedLines = parseComposePsOutput(
+  '{"Service":"api","State":"running"}\n{"Service":"postgres","State":"exited"}',
+);
 assert.equal(parsedLines.length, 2);
 
 const fakeExecutor = async (_command, dockerArgs) => {
   assert.ok(dockerArgs.includes('ps'));
   return {
     stdout: config.runtimeServices
-      .map((service) => JSON.stringify({ Service: service, State: 'running', Health: service === 'api' ? 'healthy' : '' }))
+      .map((service) =>
+        JSON.stringify({
+          Service: service,
+          State: 'running',
+          Health: service === 'api' ? 'healthy' : '',
+        }),
+      )
       .join('\n'),
     stderr: '',
   };
@@ -81,10 +132,13 @@ getRuntimeStatus(config, { executor: fakeExecutor })
       const backendRebuildExecutor = async (_command, dockerArgs) => {
         if (dockerArgs.includes('--force-recreate')) {
           backendRebuildObserved = true;
-          assert.deepEqual(
-            dockerArgs.slice(-(4 + config.backendRebuildServices.length)),
-            ['up', '-d', '--build', '--force-recreate', ...config.backendRebuildServices],
-          );
+          assert.deepEqual(dockerArgs.slice(-(4 + config.backendRebuildServices.length)), [
+            'up',
+            '-d',
+            '--build',
+            '--force-recreate',
+            ...config.backendRebuildServices,
+          ]);
           return { stdout: 'backend rebuilt', stderr: '' };
         }
         return fakeExecutor(_command, dockerArgs);

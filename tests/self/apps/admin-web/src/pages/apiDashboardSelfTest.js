@@ -31,6 +31,10 @@ assert.match(
   dashboardSource,
   /<ApiObservabilityPanel className="mt-4" data=\{summary\.apiTelemetry\} showRouteTable=\{false\} \/>/,
 );
+assert.match(dashboardSource, /formatDatabaseTarget/);
+assert.match(dashboardSource, /configuredHost/);
+assert.match(dashboardSource, /configuredPort/);
+assert.doesNotMatch(dashboardSource, /configuredPassword|configuredUser|PGPASSWORD/);
 assert.ok(
   dashboardSource.indexOf('<ApiObservabilityPanel') <
     dashboardSource.indexOf('sky-dashboard-identity-panel'),
@@ -103,4 +107,6 @@ assert.strictEqual(where.values[1], 'SKYSERVER_ADMIN');
 assert.strictEqual(where.values[2], 'POST');
 assert.strictEqual(where.values[3], '%/api/workflows%');
 
-console.log('[SkyCommand] API dashboard layout, routing, filters, and telemetry analysis self-test passed.');
+console.log(
+  '[SkyCommand] API dashboard layout, routing, filters, and telemetry analysis self-test passed.',
+);

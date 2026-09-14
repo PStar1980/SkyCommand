@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { buildChildProcessEnvironment } = require('../../core/src/repositoryEnvironment');
 
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'REBUILD_WEB', 'REBUILD_BACKEND']);
@@ -57,14 +58,7 @@ function assertConfig(config = {}) {
 
 function buildComposeArgs(config, args = []) {
   assertConfig(config);
-  return [
-    'compose',
-    '--project-name',
-    config.projectName,
-    '--file',
-    config.composeFile,
-    ...args,
-  ];
+  return ['compose', '--project-name', config.projectName, '--file', config.composeFile, ...args];
 }
 
 async function executeDocker(config, args, options = {}) {
@@ -72,20 +66,26 @@ async function executeDocker(config, args, options = {}) {
   const timeout = Number(options.timeout || config.controlTimeoutMs || 180000);
 
   try {
+    const childEnvironment = buildChildProcessEnvironment(config.repositoryRoot, process.env);
     return await executor('docker', buildComposeArgs(config, args), {
       cwd: config.repositoryRoot,
       encoding: 'utf8',
       timeout,
       maxBuffer: 4 * 1024 * 1024,
       windowsHide: true,
-      env: process.env,
+      env: childEnvironment,
     });
   } catch (error) {
+    if (String(error?.code || '').startsWith('SKYCOMMAND_ENV_')) {
+      throw new SupervisorRuntimeError(error.message, error.code);
+    }
     const raw = [error?.stderr, error?.stdout, error?.message]
       .map((item) => normalizeText(item))
       .filter(Boolean)
       .join('\n');
-    const daemonUnavailable = /daemon|docker desktop|pipe|cannot connect|connection refused/i.test(raw);
+    const daemonUnavailable = /daemon|docker desktop|pipe|cannot connect|connection refused/i.test(
+      raw,
+    );
 
     throw new SupervisorRuntimeError(
       daemonUnavailable
@@ -168,13 +168,16 @@ async function getRuntimeStatus(config, options = {}) {
       .map((item) => [item.service, item]),
   );
 
-  const services = config.runtimeServices.map((service) => observed.get(service) || {
-    service,
-    name: '',
-    state: 'NOT_CREATED',
-    health: null,
-    running: false,
-  });
+  const services = config.runtimeServices.map(
+    (service) =>
+      observed.get(service) || {
+        service,
+        name: '',
+        state: 'NOT_CREATED',
+        health: null,
+        running: false,
+      },
+  );
 
   const runningCount = services.filter((item) => item.running).length;
   const allRunning = runningCount === services.length;
@@ -197,11 +200,10 @@ async function getRuntimeStatus(config, options = {}) {
 }
 
 async function startRuntime(config, options = {}) {
-  const result = await executeDocker(
-    config,
-    ['up', '-d', ...config.runtimeServices],
-    { ...options, timeout: config.startupTimeoutMs },
-  );
+  const result = await executeDocker(config, ['up', '-d', ...config.runtimeServices], {
+    ...options,
+    timeout: config.startupTimeoutMs,
+  });
   return {
     action: 'START',
     stdout: normalizeText(result.stdout),
@@ -211,11 +213,10 @@ async function startRuntime(config, options = {}) {
 
 async function stopRuntime(config, options = {}) {
   const stopOrder = [...config.runtimeServices].reverse();
-  const result = await executeDocker(
-    config,
-    ['stop', ...stopOrder],
-    { ...options, timeout: config.controlTimeoutMs },
-  );
+  const result = await executeDocker(config, ['stop', ...stopOrder], {
+    ...options,
+    timeout: config.controlTimeoutMs,
+  });
   return {
     action: 'STOP',
     stdout: normalizeText(result.stdout),
@@ -233,11 +234,10 @@ async function restartRuntime(config, options = {}) {
 }
 
 async function rebuildWeb(config, options = {}) {
-  const result = await executeDocker(
-    config,
-    ['up', '-d', '--build', config.webService],
-    { ...options, timeout: config.rebuildTimeoutMs || config.controlTimeoutMs },
-  );
+  const result = await executeDocker(config, ['up', '-d', '--build', config.webService], {
+    ...options,
+    timeout: config.rebuildTimeoutMs || config.controlTimeoutMs,
+  });
 
   return {
     action: 'REBUILD_WEB',
@@ -281,6 +281,7 @@ module.exports = {
   ALLOWED_ACTIONS,
   SupervisorRuntimeError,
   buildComposeArgs,
+  executeDocker,
   controlRuntime,
   getRuntimeStatus,
   parseComposePsOutput,
