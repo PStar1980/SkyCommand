@@ -12,9 +12,11 @@ const {
 const {
   buildScheduledToolResultSummary,
 } = require('../../../../packages/tools/src/workflowResultContext');
+const {
+  SKYCOMMAND_WORKFLOW_START_TOOL_CODE,
+} = require('../../../../packages/core/src/scheduleTargetResolution');
 
 const TEMPORAL_WORKFLOW_START_TOOL_CODE = 'temporal_workflow_start';
-const SKYCOMMAND_WORKFLOW_START_TOOL_CODE = 'skyserver_workflow_start';
 
 function sanitizeSchedule(row) {
   return {

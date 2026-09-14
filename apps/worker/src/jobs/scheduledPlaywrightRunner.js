@@ -3,18 +3,35 @@ const browserAutomationExecutionService = require('../../../api/src/services/bro
 const browserAutomationRegistryService = require('../../../api/src/services/browserAutomationRegistryService');
 const browserTestRegistryService = require('../../../api/src/services/browserTestRegistryService');
 const browserTestSuiteService = require('../../../api/src/services/browserTestSuiteService');
+const {
+  BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE,
+  BROWSER_TEST_SCHEDULE_TOOL_CODE,
+  BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE,
+  getScheduleParameterValue,
+  resolveScheduledTarget,
+} = require('../../../../packages/core/src/scheduleTargetResolution');
 
-const BROWSER_TEST_SCHEDULE_TOOL_CODE = 'browser_test_schedule_start';
-const BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE = 'browser_test_suite_schedule_start';
-const BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE = 'browser_automation_schedule_start';
 const POLL_INTERVAL_MS = 750;
 const DEFAULT_TEST_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_SUITE_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_AUTOMATION_TIMEOUT_MS = 20 * 60 * 1000;
 
 const TERMINAL_TEST_STATUSES = new Set(['PASSED', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
-const TERMINAL_SUITE_STATUSES = new Set(['PASSED', 'FAILED', 'PARTIAL', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
-const TERMINAL_AUTOMATION_STATUSES = new Set(['SUCCESS', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
+const TERMINAL_SUITE_STATUSES = new Set([
+  'PASSED',
+  'FAILED',
+  'PARTIAL',
+  'CANCELED',
+  'TERMINATED',
+  'TIMED_OUT',
+]);
+const TERMINAL_AUTOMATION_STATUSES = new Set([
+  'SUCCESS',
+  'FAILED',
+  'CANCELED',
+  'TERMINATED',
+  'TIMED_OUT',
+]);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -23,15 +40,6 @@ function sleep(ms) {
 function normalizeText(value, fallback = '') {
   const text = value === undefined || value === null ? '' : String(value).trim();
   return text || fallback;
-}
-
-function getParameterValue(parameters, ...names) {
-  for (const name of names) {
-    if (parameters && Object.prototype.hasOwnProperty.call(parameters, name)) {
-      return parameters[name];
-    }
-  }
-  return undefined;
 }
 
 function parseJsonObject(value, label) {
@@ -81,29 +89,34 @@ function buildActor(schedule = {}) {
 function buildScheduledPlaywrightRequest({ schedule } = {}) {
   const parameters = schedule?.parameters || {};
   const environmentCode = normalizeText(
-    getParameterValue(parameters, 'environmentCode', 'environment_code'),
+    getScheduleParameterValue(parameters, 'environmentCode', 'environment_code'),
     'LOCAL',
   ).toUpperCase();
   const runtimeParameters = parseJsonObject(
-    getParameterValue(parameters, 'parametersJson', 'parameters_json'),
+    getScheduleParameterValue(parameters, 'parametersJson', 'parameters_json'),
     'parametersJson',
   );
+  const resolvedTarget = resolveScheduledTarget({
+    toolCode: schedule?.toolCode,
+    parameters,
+  });
 
-  if (schedule?.toolCode === BROWSER_TEST_SCHEDULE_TOOL_CODE) {
-    const targetCode = normalizeText(getParameterValue(parameters, 'testCode', 'test_code'));
+  if (resolvedTarget.targetType === 'BROWSER_TEST') {
+    const targetCode = normalizeText(resolvedTarget.targetCode);
     if (!targetCode) throw new Error('testCode is required for scheduled Playwright Tests.');
     return { targetType: 'BROWSER_TEST', targetCode, environmentCode, runtimeParameters };
   }
 
-  if (schedule?.toolCode === BROWSER_TEST_SUITE_SCHEDULE_TOOL_CODE) {
-    const targetCode = normalizeText(getParameterValue(parameters, 'suiteCode', 'suite_code'));
+  if (resolvedTarget.targetType === 'BROWSER_TEST_SUITE') {
+    const targetCode = normalizeText(resolvedTarget.targetCode);
     if (!targetCode) throw new Error('suiteCode is required for scheduled Playwright Test Suites.');
     return { targetType: 'BROWSER_TEST_SUITE', targetCode, environmentCode, runtimeParameters: {} };
   }
 
-  if (schedule?.toolCode === BROWSER_AUTOMATION_SCHEDULE_TOOL_CODE) {
-    const targetCode = normalizeText(getParameterValue(parameters, 'automationCode', 'automation_code'));
-    if (!targetCode) throw new Error('automationCode is required for scheduled Playwright Automations.');
+  if (resolvedTarget.targetType === 'BROWSER_AUTOMATION') {
+    const targetCode = normalizeText(resolvedTarget.targetCode);
+    if (!targetCode)
+      throw new Error('automationCode is required for scheduled Playwright Automations.');
     return { targetType: 'BROWSER_AUTOMATION', targetCode, environmentCode, runtimeParameters };
   }
 
@@ -118,14 +131,15 @@ async function pollRun({ getter, workflowId, terminalStatuses, timeoutMs }) {
     if (terminalStatuses.has(status)) return run;
     await sleep(POLL_INTERVAL_MS);
   }
-  throw new Error(`Scheduled Playwright execution timed out after ${timeoutMs} ms (${workflowId}).`);
+  throw new Error(
+    `Scheduled Playwright execution timed out after ${timeoutMs} ms (${workflowId}).`,
+  );
 }
 
 function buildBrowserTargetResult({ request, targetLabel, run, operationsPath, successStatus }) {
   const status = normalizeText(run?.status, 'UNKNOWN').toUpperCase();
-  const durationMs = run?.durationMs === undefined || run?.durationMs === null
-    ? null
-    : Number(run.durationMs);
+  const durationMs =
+    run?.durationMs === undefined || run?.durationMs === null ? null : Number(run.durationMs);
   return {
     status: status === successStatus ? 'SUCCESS' : 'FAILED',
     executionId: null,
@@ -162,7 +176,9 @@ async function runScheduledPlaywright({ schedule, scheduleRun, workerNode } = {}
   );
 
   if (request.targetType === 'BROWSER_TEST') {
-    const target = await browserTestRegistryService.getBrowserTestByCode(request.targetCode, { includeDisabled: false });
+    const target = await browserTestRegistryService.getBrowserTestByCode(request.targetCode, {
+      includeDisabled: false,
+    });
     if (!target) throw new Error(`Playwright Test '${request.targetCode}' is unavailable.`);
     const started = await browserTestRegistryService.startRegisteredBrowserTest({
       testCode: request.targetCode,
@@ -179,7 +195,10 @@ async function runScheduledPlaywright({ schedule, scheduleRun, workerNode } = {}
       getter: browserTestRegistryService.getBrowserTestRun,
       workflowId: started.execution.workflowId,
       terminalStatuses: TERMINAL_TEST_STATUSES,
-      timeoutMs: Math.max(DEFAULT_TEST_TIMEOUT_MS, Number(target.timeoutSeconds || 60) * 1000 + 30_000),
+      timeoutMs: Math.max(
+        DEFAULT_TEST_TIMEOUT_MS,
+        Number(target.timeoutSeconds || 60) * 1000 + 30_000,
+      ),
     });
     return buildBrowserTargetResult({
       request,
@@ -235,7 +254,10 @@ async function runScheduledPlaywright({ schedule, scheduleRun, workerNode } = {}
     getter: browserAutomationExecutionService.getRun,
     workflowId: started.execution.workflowId,
     terminalStatuses: TERMINAL_AUTOMATION_STATUSES,
-    timeoutMs: Math.max(DEFAULT_AUTOMATION_TIMEOUT_MS, Number(target.timeoutSeconds || 120) * 1000 + 30_000),
+    timeoutMs: Math.max(
+      DEFAULT_AUTOMATION_TIMEOUT_MS,
+      Number(target.timeoutSeconds || 120) * 1000 + 30_000,
+    ),
   });
   return buildBrowserTargetResult({
     request,

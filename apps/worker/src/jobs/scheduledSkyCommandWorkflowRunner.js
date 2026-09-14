@@ -1,5 +1,10 @@
 const { query } = require('../../../../packages/db/src/connection');
 const workflowExecutorService = require('../../../api/src/services/workflowExecutorService');
+const {
+  getScheduleParameterValue,
+  SCHEDULE_TARGET_BRIDGE_DEFINITIONS,
+  SKYCOMMAND_WORKFLOW_START_TOOL_CODE,
+} = require('../../../../packages/core/src/scheduleTargetResolution');
 
 const DEFAULT_WORKFLOW_CODE = 'macro-refresh-pipeline';
 
@@ -9,16 +14,6 @@ function normalizeOptionalString(value) {
   }
 
   return String(value).trim();
-}
-
-function getParameterValue(parameters, ...names) {
-  for (const name of names) {
-    if (parameters && Object.prototype.hasOwnProperty.call(parameters, name)) {
-      return parameters[name];
-    }
-  }
-
-  return undefined;
 }
 
 function parseJsonObject(value, label) {
@@ -70,10 +65,19 @@ async function loadWorkerSystemPermissions() {
 function buildScheduledSkyCommandWorkflowStart({ schedule, scheduleRun, workerNode } = {}) {
   const parameters = schedule.parameters || {};
   const workflowCode =
-    normalizeOptionalString(getParameterValue(parameters, 'workflowCode', 'workflow_code')) ||
-    DEFAULT_WORKFLOW_CODE;
-  const workflowId = normalizeOptionalString(getParameterValue(parameters, 'workflowId', 'workflow_id'));
-  const inputJson = parseJsonObject(getParameterValue(parameters, 'inputJson', 'input_json'), 'inputJson');
+    normalizeOptionalString(
+      getScheduleParameterValue(
+        parameters,
+        ...SCHEDULE_TARGET_BRIDGE_DEFINITIONS[SKYCOMMAND_WORKFLOW_START_TOOL_CODE].parameterAliases,
+      ),
+    ) || DEFAULT_WORKFLOW_CODE;
+  const workflowId = normalizeOptionalString(
+    getScheduleParameterValue(parameters, 'workflowId', 'workflow_id'),
+  );
+  const inputJson = parseJsonObject(
+    getScheduleParameterValue(parameters, 'inputJson', 'input_json'),
+    'inputJson',
+  );
 
   const input = {
     ...inputJson,
@@ -134,7 +138,8 @@ async function runScheduledSkyCommandWorkflow({ schedule, scheduleRun, workerNod
     skyCommandWorkflow: {
       workflowRunRecordId: run.workflowRunRecordId,
       workflowCode: run.workflowCode || definition.workflowCode || startRequest.workflowCode,
-      workflowDisplayName: run.workflowDisplayName || definition.displayName || startRequest.workflowCode,
+      workflowDisplayName:
+        run.workflowDisplayName || definition.displayName || startRequest.workflowCode,
       status: run.status || 'RUNNING',
       runSource: run.runSource || 'scheduler',
       triggerType: run.triggerType || 'SCHEDULER',
