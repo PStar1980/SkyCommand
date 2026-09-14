@@ -1,0 +1,9 @@
+{
+  "contract": "fake_runtime_case.v1",
+  "caseId": "ephemeral-absent-usage",
+  "sessionModel": "EPHEMERAL",
+  "usageBehavior": "ABSENT",
+  "sendAcceptance": "ACKNOWLEDGED",
+  "expectedDisposition": "OBSERVE_AND_RECONCILE",
+  "notes": "Provider session state disappears and usage is not reported; no usage value is inferred."
+}

@@ -6,6 +6,7 @@ SkyCommand/
 ├── .gitignore
 ├── .prettierignore
 ├── .prettierrc.json
+├── AGENTS.md
 ├── change.log
 ├── compose.yaml
 ├── eslint.config.mjs
@@ -1466,6 +1467,7 @@ SkyCommand/
 │   ├── SkyCommand_API_Observability.md
 │   ├── SkyCommand_Browser_Worker.md
 │   ├── SkyCommand_Data_Domain_Onboarding_and_Operations_Guide.md
+│   ├── SkyCommand_Development_Operating_Rules_v1.0.md
 │   ├── SkyCommand_Docker_Infrastructure_Control_Plane.md
 │   ├── SkyCommand_Host_Agent_Local_Setup.md
 │   ├── SkyCommand_Phase_14_Structured_Tool_Results.md
@@ -1477,6 +1479,21 @@ SkyCommand/
 │   ├── SkyCommand_Temporal_Local_Setup.md
 │   ├── SkyCommand_Temporal_Workflow_Architecture_Plan.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
+│   ├── agentic-ai/
+│   │   ├── SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.0_APPROVED.md
+│   │   └── phase-0/
+│   │       ├── api-authorization-matrix.md
+│   │       ├── baseline-manifest.json
+│   │       ├── component-boundaries.md
+│   │       ├── entry-surface-traceability.md
+│   │       ├── phase0-requirements-matrix.md
+│   │       ├── README.md
+│   │       ├── runtime-certification-matrix.md
+│   │       ├── schema-relationship-spec.md
+│   │       ├── security-observability-decisions.md
+│   │       ├── temporal-history-and-version-inventory.md
+│   │       ├── ui-wireframe-review.md
+│   │       └── validation-and-rollback-inventory.md
 │   ├── assets/
 │   │   ├── auth_schema_ERD.png
 │   │   ├── core_schema_ERD.png
@@ -1495,6 +1512,16 @@ SkyCommand/
 │           ├── Start_Workflow.png
 │           └── Workflow_Running.png
 ├── packages/
+│   ├── agents/
+│   │   └── contracts/
+│   │       ├── agent_authority_snapshot.v1.schema.json
+│   │       ├── agent_capability_manifest.v1.schema.json
+│   │       ├── agent_command.v1.schema.json
+│   │       ├── agent_error.v1.schema.json
+│   │       ├── agent_event.v1.schema.json
+│   │       ├── agent_run_summary.v1.schema.json
+│   │       ├── agent_runtime_locator.v1.schema.json
+│   │       └── fake_runtime_case.v1.schema.json
 │   ├── auth/
 │   │   └── src/
 │   │       ├── createAdminUser.js
@@ -2075,6 +2102,14 @@ SkyCommand/
     │       │   └── .gitkeep
     │       └── workflows/
     │           └── workflowInitialization.spec.js
+    ├── fixtures/
+    │   └── agentic-ai/
+    │       └── phase-0/
+    │           ├── fake-runtime-ambiguous-send.json
+    │           ├── fake-runtime-ephemeral-absent-usage.json
+    │           ├── fake-runtime-persistent-delayed-usage.json
+    │           ├── fake-runtime-rejected-send.json
+    │           └── phase0-gate.json
     └── self/
         ├── apps/
         │   ├── admin-web/
@@ -2156,6 +2191,9 @@ SkyCommand/
         │               ├── workflowToolConfirmationPolicySelfTest.js
         │               └── workflowToolVisibilitySelfTest.js
         ├── packages/
+        │   ├── agents/
+        │   │   └── src/
+        │   │       └── phase0ContractsSelfTest.js
         │   ├── browser/
         │   │   └── src/
         │   │       └── browserTestRunnerSelfTest.js

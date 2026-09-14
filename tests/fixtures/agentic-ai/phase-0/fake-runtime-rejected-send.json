@@ -1,0 +1,9 @@
+{
+  "contract": "fake_runtime_case.v1",
+  "caseId": "rejected-before-acceptance",
+  "sessionModel": "PERSISTENT",
+  "usageBehavior": "ABSENT",
+  "sendAcceptance": "REJECTED_BEFORE_ACCEPTANCE",
+  "expectedDisposition": "SAFE_TO_REJECT",
+  "notes": "A provider rejection before acceptance is distinct from an uncertain send."
+}

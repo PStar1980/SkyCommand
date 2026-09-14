@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_capability_manifest.v1.schema.json",
+  "title": "SkyCommand Agent Runtime Capability Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "runtimeKind", "adapterVersion", "protocolSchemaDigest", "features"],
+  "properties": {
+    "contract": { "const": "agent_capability_manifest.v1" },
+    "runtimeKind": { "type": "string", "minLength": 1 },
+    "adapterVersion": { "type": "string", "minLength": 1 },
+    "protocolSchemaDigest": { "type": "string", "minLength": 1 },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "evidence"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["SUPPORTED", "UNSUPPORTED", "UNVERIFIED"] },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "extensions": { "type": ["object", "null"] }
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_run_summary.v1.schema.json",
+  "title": "SkyCommand Agent Run Summary v1",
+  "description": "The output contract embedded in the existing ToolResult envelope as outputType agent_run_summary.v1. Canonical identity, lifecycle, usage, cost, artifact, change, and child-run fields are filled by SkyCommand; task output and recommendations are validated candidates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runId",
+    "sessionId",
+    "projectId",
+    "agentDefinitionId",
+    "agentRevision",
+    "runtimeKind",
+    "rootExecutionId",
+    "rootAgentRunId",
+    "parentAgentRunId",
+    "initiatingUserId",
+    "initiatingActor",
+    "triggerSource",
+    "status",
+    "outcome",
+    "summary",
+    "taskOutput",
+    "taskOutputSchema",
+    "artifacts",
+    "changes",
+    "childRuns",
+    "usage",
+    "cost",
+    "recommendations",
+    "extensions"
+  ],
+  "properties": {
+    "runId": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "agentDefinitionId": { "type": "string", "minLength": 1 },
+    "agentRevision": { "type": "integer", "minimum": 1 },
+    "runtimeKind": { "type": "string", "minLength": 1 },
+    "rootExecutionId": { "type": "string", "minLength": 1 },
+    "rootAgentRunId": { "type": "string", "minLength": 1 },
+    "parentAgentRunId": { "type": ["string", "null"] },
+    "initiatingUserId": { "type": ["string", "null"] },
+    "initiatingActor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "displayNameSnapshot": { "type": ["string", "null"] }
+      }
+    },
+    "triggerSource": {
+      "type": "string",
+      "enum": ["MANUAL", "WORKFLOW", "SCHEDULER", "AGENT_DELEGATION", "EXTERNAL_ASSISTANT"]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ADMITTED",
+        "QUEUED",
+        "STARTING",
+        "RUNNING",
+        "WAITING_FOR_APPROVAL",
+        "WAITING_FOR_USER_INPUT",
+        "WAITING_FOR_CHILDREN",
+        "CLOSING",
+        "FINALIZING",
+        "COMPLETED",
+        "FAILED",
+        "TIMED_OUT",
+        "CANCEL_REQUESTED",
+        "CANCELLING",
+        "CANCELED",
+        "RECONCILING",
+        "RECOVERY_REQUIRED"
+      ]
+    },
+    "outcome": { "type": ["string", "null"], "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "taskOutput": { "type": ["object", "array", "string", "number", "boolean", "null"] },
+    "taskOutputSchema": { "type": ["string", "null"] },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifactId", "origin", "integrity"],
+        "properties": {
+          "artifactId": { "type": "string", "minLength": 1 },
+          "origin": { "type": "string", "minLength": 1 },
+          "integrity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["algorithm", "digest"],
+            "properties": {
+              "algorithm": { "type": "string", "minLength": 1 },
+              "digest": { "type": "string", "minLength": 1 }
+            }
+          },
+          "mediaType": { "type": ["string", "null"] },
+          "sizeBytes": { "type": ["integer", "null"], "minimum": 0 },
+          "classification": { "type": ["string", "null"] },
+          "reference": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["changeId", "kind", "evidenceRef"],
+        "properties": {
+          "changeId": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "path": { "type": ["string", "null"] },
+          "evidenceRef": { "type": "string", "minLength": 1 },
+          "reportedBy": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "childRuns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["runId", "status", "outcome"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "minLength": 1 },
+          "outcome": { "type": ["string", "null"] },
+          "relationship": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "usage": { "$ref": "#/$defs/usage" },
+    "cost": { "$ref": "#/$defs/cost" },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "kind": { "type": ["string", "null"] },
+          "evidenceRef": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "extensions": { "type": "object" }
+  },
+  "$defs": {
+    "availability": {
+      "type": "string",
+      "enum": ["REPORTED", "NOT_REPORTED", "UNSUPPORTED", "ERROR"]
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["availability", "observationsRef"],
+      "properties": {
+        "availability": { "$ref": "#/$defs/availability" },
+        "observationsRef": { "type": ["string", "null"] },
+        "scope": { "type": ["string", "null"] },
+        "source": { "type": ["string", "null"] },
+        "freshness": { "type": ["string", "null"], "enum": ["CURRENT", "STALE", "UNKNOWN", null] },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "value", "unit", "availability"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "value": { "type": ["number", "integer", "null"] },
+              "unit": { "type": ["string", "null"] },
+              "availability": { "$ref": "#/$defs/availability" }
+            }
+          }
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["availability", "amount", "currency"],
+      "properties": {
+        "availability": { "$ref": "#/$defs/availability" },
+        "amount": { "type": ["number", "null"] },
+        "currency": { "type": ["string", "null"] },
+        "scope": { "type": ["string", "null"] },
+        "basis": {
+          "type": ["string", "null"],
+          "enum": ["BILLED", "PROVIDER_REPORTED", "CALCULATED_ESTIMATE", null]
+        },
+        "reliability": { "type": ["string", "null"] },
+        "priceSourceRevision": { "type": ["string", "null"] },
+        "observationsRef": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

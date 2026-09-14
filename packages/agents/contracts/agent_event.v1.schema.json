@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_event.v1.schema.json",
+  "title": "SkyCommand Agent Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "eventId",
+    "eventType",
+    "scope",
+    "observedAt",
+    "source",
+    "availability",
+    "payload"
+  ],
+  "properties": {
+    "contract": { "const": "agent_event.v1" },
+    "eventId": { "type": "string", "minLength": 1 },
+    "eventType": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string", "enum": ["ROOT", "RUN", "TURN", "SESSION", "ACCOUNT"] },
+    "observedAt": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "instance", "cursor"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "instance": { "type": "string", "minLength": 1 },
+        "cursor": { "type": ["string", "null"] }
+      }
+    },
+    "availability": {
+      "type": "string",
+      "enum": ["REPORTED", "NOT_REPORTED", "UNSUPPORTED", "UNKNOWN"]
+    },
+    "payload": { "type": "object" },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value", "unit", "availability"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "value": { "type": ["number", "integer", "null"] },
+          "unit": { "type": ["string", "null"] },
+          "availability": {
+            "type": "string",
+            "enum": ["REPORTED", "NOT_REPORTED", "UNSUPPORTED", "UNKNOWN"]
+          }
+        }
+      }
+    }
+  }
+}
