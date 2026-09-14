@@ -286,6 +286,11 @@ SkyCommand/
 │   └── browser/
 │       ├── automations/
 │       │   ├── .gitkeep
+│       │   ├── 7322f3a8-03e5-44ed-a36a-0766d1cbe420/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 74cf78ef-b0dc-44a9-b653-2ecf925160ef/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
@@ -957,6 +962,18 @@ SkyCommand/
 │           │           ├── workflow-initialization-open.png
 │           │           └── attachments/
 │           │               └── Workflow-Initialization-Open-c14db8559e5a592ada042738ab5b1496224bd218.png
+│           ├── a0b4c213-d4ab-40e8-8bec-65edaf2038b2/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── 2193e73fcae9b8374473fc6427da8a1627796628.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-96f38f60eb3cab5ec819d041d6c6ed0a4fbaa87f.png
 │           ├── a62930cf-db7a-49d7-9a0f-db2389c1780d/
 │           │   ├── skycommand-summary.json
 │           │   ├── report/
@@ -1276,6 +1293,18 @@ SkyCommand/
 │           │           ├── workflow-initialization-open.png
 │           │           └── attachments/
 │           │               └── Workflow-Initialization-Open-e655698a99ff12ebf498b596b7d4e214659d88c9.png
+│           ├── e032f6e0-278c-489a-bc94-b054ec0c34aa/
+│           │   ├── skycommand-summary.json
+│           │   ├── report/
+│           │   │   ├── index.html
+│           │   │   └── data/
+│           │   │       └── 2193e73fcae9b8374473fc6427da8a1627796628.png
+│           │   └── results/
+│           │       ├── .last-run.json
+│           │       └── workflows-workflowInitiali-f13c3-thout-starting-the-workflow-chromium/
+│           │           ├── workflow-initialization-open.png
+│           │           └── attachments/
+│           │               └── Workflow-Initialization-Open-e9200654408ce38649fbdb9ae8e73227c80a1948.png
 │           ├── ed08b8f6-27e7-464d-adc1-7fdaf3d441af/
 │           │   ├── skycommand-summary.json
 │           │   ├── report/
