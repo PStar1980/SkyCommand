@@ -20,6 +20,14 @@ import DismissibleAlert from '../components/ui/DismissibleAlert.jsx';
 const DASHBOARD_ACTIVITY_PAGE_SIZE = 200;
 const DASHBOARD_ACTIVITY_DAYS = 7;
 
+function formatDatabaseTarget(health) {
+  const database = String(health?.database || '').trim();
+  const host = String(health?.configuredHost || '').trim();
+  const port = Number(health?.configuredPort);
+  const endpoint = host && Number.isInteger(port) ? `${host}:${port}` : host;
+  return [database, endpoint].filter(Boolean).join(' · ') || 'Database connection health endpoint';
+}
+
 function getDashboardActivityWindowStart() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -322,7 +330,7 @@ function Dashboard() {
               : summary.dbHealth.ok
                 ? 'ONLINE'
                 : 'OFFLINE',
-            helper: summary.dbHealth?.database || 'Database connection health endpoint',
+            helper: formatDatabaseTarget(summary.dbHealth),
           },
           {
             label: 'API server',

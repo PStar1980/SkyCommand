@@ -100,6 +100,7 @@ const routineSelfTests = [
   'node-worker-docker:self-test',
   'api-docker:self-test',
   'postgres-docker:self-test',
+  'postgres-cutover-check:self-test',
   'core-docker-db:self-test',
   'ingestion-identity:self-test',
   'ingestion-profile-guardrails:self-test',

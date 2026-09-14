@@ -30,12 +30,26 @@ async function query(text, params) {
   return pool.query(text, params);
 }
 
+function getConfiguredDatabaseIdentity(environment = process.env) {
+  const rawPort = String(environment.PGPORT || '5432').trim();
+  const parsedPort = Number.parseInt(rawPort, 10);
+
+  return {
+    configuredHost: String(environment.PGHOST || '').trim() || null,
+    configuredPort:
+      Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort <= 65535 ? parsedPort : null,
+  };
+}
+
 async function testConnection() {
-  const result = await pool.query("SELECT NOW() AS now, current_database() AS database, current_setting('server_version') AS version, inet_server_port() AS server_port");
+  const result = await pool.query(
+    "SELECT NOW() AS now, current_database() AS database, current_setting('server_version') AS version, inet_server_port() AS server_port",
+  );
   return result.rows[0];
 }
 
 module.exports = {
+  getConfiguredDatabaseIdentity,
   pool,
   query,
   testConnection,
