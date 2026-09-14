@@ -462,7 +462,7 @@ The README is intentionally the **front door**, not the complete operations manu
 
 ---
 
-## 🗺️ Roadmap test
+## 🗺️ Roadmap
 
 | Phase      | Status | Objective                                                                                                         |
 | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
