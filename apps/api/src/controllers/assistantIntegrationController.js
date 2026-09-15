@@ -1,4 +1,5 @@
 const assistantIntegrationService = require('../services/assistantIntegrationService');
+const authService = require('../services/authService');
 
 function sendError(res, error, next) {
   if (error?.statusCode) {
@@ -35,7 +36,10 @@ async function getOpenApi(req, res, next) {
 
 async function listAutomations(req, res, next) {
   try {
-    const payload = await assistantIntegrationService.listAutomations(req.query || {}, req.permissions || []);
+    const payload = await assistantIntegrationService.listAutomations(
+      req.query || {},
+      req.permissions || [],
+    );
     return res.json({ ok: true, ...payload });
   } catch (error) {
     return sendError(res, error, next);
@@ -44,7 +48,10 @@ async function listAutomations(req, res, next) {
 
 async function getAutomation(req, res, next) {
   try {
-    const automation = await assistantIntegrationService.getAutomation(req.params.automationCode, req.permissions || []);
+    const automation = await assistantIntegrationService.getAutomation(
+      req.params.automationCode,
+      req.permissions || [],
+    );
     return res.json({ ok: true, automation });
   } catch (error) {
     return sendError(res, error, next);
@@ -59,22 +66,56 @@ async function startAutomation(req, res, next) {
       permissions: req.permissions || [],
       actor: req.user,
     });
-    await assistantIntegrationService.recordInvocationAudit({
-      req,
-      automationCode: req.params.automationCode,
-      workflowId: payload.execution?.workflowId || null,
-      success: true,
-      message: `Assistant started Playwright Automation ${req.params.automationCode}.`,
-    }).catch(() => {});
+    await assistantIntegrationService
+      .recordInvocationAudit({
+        req,
+        automationCode: req.params.automationCode,
+        workflowId: payload.execution?.workflowId || null,
+        success: true,
+        message: `Assistant started Playwright Automation ${req.params.automationCode}.`,
+      })
+      .catch(() => {});
     return res.status(202).json({ ok: true, ...payload });
   } catch (error) {
-    await assistantIntegrationService.recordInvocationAudit({
-      req,
-      automationCode: req.params.automationCode,
-      success: false,
-      message: error.message || 'Assistant Playwright Automation execution was rejected.',
-      error,
-    }).catch(() => {});
+    await assistantIntegrationService
+      .recordInvocationAudit({
+        req,
+        automationCode: req.params.automationCode,
+        success: false,
+        message: error.message || 'Assistant Playwright Automation execution was rejected.',
+        error,
+      })
+      .catch(() => {});
+    return sendError(res, error, next);
+  }
+}
+
+async function startDevelopmentPromotion(req, res, next) {
+  try {
+    const context = authService.getRequestContext(req);
+    const promotion = await assistantIntegrationService.startDevelopmentPromotion({
+      body: req.body || {},
+      permissions: req.permissions || [],
+      actor: req.user,
+      session: req.session,
+      context,
+    });
+    await assistantIntegrationService
+      .recordDevelopmentPromotionAudit({
+        req,
+        result: promotion,
+        success: true,
+      })
+      .catch(() => {});
+    return res.status(202).json({ ok: true, promotion });
+  } catch (error) {
+    await assistantIntegrationService
+      .recordDevelopmentPromotionAudit({
+        req,
+        success: false,
+        error,
+      })
+      .catch(() => {});
     return sendError(res, error, next);
   }
 }
@@ -95,8 +136,12 @@ async function getArtifact(req, res, next) {
       artifactId: req.params.artifactId,
     });
     res.type(artifact.contentType || 'application/octet-stream');
-    const disposition = String(artifact.kind || '').toUpperCase() === 'SCREENSHOT' ? 'inline' : 'attachment';
-    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(artifact.name || 'artifact')}`);
+    const disposition =
+      String(artifact.kind || '').toUpperCase() === 'SCREENSHOT' ? 'inline' : 'attachment';
+    res.setHeader(
+      'Content-Disposition',
+      `${disposition}; filename*=UTF-8''${encodeURIComponent(artifact.name || 'artifact')}`,
+    );
     return res.sendFile(artifact.absolutePath);
   } catch (error) {
     return sendError(res, error, next);
@@ -110,5 +155,6 @@ module.exports = {
   getOpenApi,
   getRun,
   listAutomations,
+  startDevelopmentPromotion,
   startAutomation,
 };

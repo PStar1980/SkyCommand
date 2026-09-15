@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS worker.workflow_run_records (
   workflow_code TEXT NOT NULL,
   version_number INTEGER,
   run_source TEXT NOT NULL DEFAULT 'manual'
-    CHECK (run_source IN ('manual', 'api', 'scheduler', 'listener', 'child_workflow', 'system')),
+    CHECK (run_source IN ('manual', 'api', 'scheduler', 'listener', 'child_workflow', 'system', 'assistant')),
   trigger_type TEXT NOT NULL DEFAULT 'MANUAL'
-    CHECK (trigger_type IN ('MANUAL', 'API', 'SCHEDULER', 'LISTENER', 'CHILD_WORKFLOW', 'SYSTEM')),
+    CHECK (trigger_type IN ('MANUAL', 'API', 'SCHEDULER', 'LISTENER', 'CHILD_WORKFLOW', 'SYSTEM', 'ASSISTANT')),
   status TEXT NOT NULL DEFAULT 'QUEUED'
     CHECK (status IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED', 'SKIPPED')),
   temporal_workflow_id TEXT,

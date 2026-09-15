@@ -42,6 +42,32 @@ All routes below require the Assistant bearer token and live beneath `/api/assis
 
 Assistant-started runs are recorded with `triggerSource = ASSISTANT`. The assistant run endpoint refuses to expose runs started through manual, scheduler, or workflow surfaces.
 
+### Step C — governed Development Promotion start
+
+The separately gated `POST /development-promotion/runs` endpoint accepts exactly:
+
+```json
+{ "commitMessage": "..." }
+```
+
+The server supplies `workflowCode = skyserver_dev_commit`, `repoName` from the exact configured `SkyCommand` repository, `executor = temporal`, `runSource = assistant`, and `triggerType = ASSISTANT`. It rejects extra execution/control fields, blank/multiline/control-character messages, and messages over 300 characters. The response is only a start receipt; it does not provide promotion polling or approval controls. The existing human Merge Approval node remains authoritative, and the initiating Agent must stop after a successful receipt.
+
+This endpoint requires the Assistant service identity to possess the complete, explicit permission envelope below; none of these permissions are part of the Assistant default set:
+
+```text
+WORKFLOW_RUN
+REPO_MAP_GENERATE
+REPO_ZIP_GENERATE
+GIT_COMMIT_RUN
+GIT_MAIN_MERGE_RUN
+GIT_LOCAL_SYNC_RUN
+CORE_RUN_LOW_RISK_SCRIPT
+CORE_RUN_MEDIUM_RISK_SCRIPT
+CORE_RUN_HIGH_RISK_SCRIPT
+```
+
+The service checks the entire envelope before creating a workflow run. If any code is absent, it returns `403 ASSISTANT_DEV_PROMOTION_PERMISSION_SCOPE_MISSING` with only the missing `missingPermissionCodes`; it never starts a partially authorized promotion. Capability discovery distinguishes `configured` from `enabled`/`executable` and exposes `requiredPermissionCodes`, `missingPermissionCodes`, and the explicit blocked reason. It also requires both `SKYCOMMAND_ASSISTANT_DEV_PROMOTION_ENABLED=true` and a nonblank `SKYCOMMAND_ASSISTANT_DEV_PROMOTION_REPOSITORY=SkyCommand`.
+
 ## Structured result consumption
 
 The start call returns `202 Accepted` with a `statusUrl`. Poll that URL until `terminal` becomes `true`. The final response exposes the registered automation's structured `result`, any normalized failure, source commit, timings, and assistant-scoped artifact URLs.
@@ -58,6 +84,10 @@ Add a strong local token to `.env`:
 SKYCOMMAND_ASSISTANT_INTEGRATION_ENABLED=true
 SKYCOMMAND_ASSISTANT_API_TOKEN=<strong-random-token>
 SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN
+
+# Step C, disabled until separately reviewed and accepted.
+SKYCOMMAND_ASSISTANT_DEV_PROMOTION_ENABLED=false
+SKYCOMMAND_ASSISTANT_DEV_PROMOTION_REPOSITORY=
 ```
 
 Generate a token locally with Node.js:
