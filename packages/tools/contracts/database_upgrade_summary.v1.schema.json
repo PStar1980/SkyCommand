@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/database_upgrade_summary.v1.schema.json",
+  "title": "SkyCommand database upgrade summary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "mode",
+    "databaseIdentity",
+    "baseline",
+    "sourceRevision",
+    "planDigest",
+    "pendingCount",
+    "pendingChanges",
+    "appliedCount",
+    "ledger",
+    "lock",
+    "outcome",
+    "warnings",
+    "errors",
+    "timing"
+  ],
+  "properties": {
+    "contract": { "const": "database_upgrade_summary.v1" },
+    "mode": { "enum": ["PLAN", "APPLY"] },
+    "databaseIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["databaseName", "serverVersion", "serverPort", "systemIdentifier"],
+      "properties": {
+        "databaseName": { "type": ["string", "null"] },
+        "serverVersion": { "type": ["string", "null"] },
+        "serverPort": { "type": ["integer", "null"], "minimum": 0 },
+        "systemIdentifier": { "type": ["string", "null"] }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "contract", "ordinal", "recorded", "probes"],
+      "properties": {
+        "status": { "enum": ["VERIFIED", "NOT_INITIALIZED", "FAILED", "UNKNOWN"] },
+        "contract": { "type": ["string", "null"] },
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "recorded": { "type": "boolean" },
+        "probes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "status", "evidence"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "enum": ["PASS", "FAIL", "UNKNOWN"] },
+              "evidence": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "sourceRevision": { "type": ["string", "null"] },
+    "planDigest": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": { "const": "SHA-256" },
+        "digest": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+      }
+    },
+    "pendingCount": { "type": "integer", "minimum": 0 },
+    "pendingChanges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ordinal", "kind", "relativePath", "sha256"],
+        "properties": {
+          "ordinal": { "type": "integer", "minimum": 0 },
+          "kind": { "enum": ["MIGRATION", "SEED"] },
+          "relativePath": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\.\\.).+$" },
+          "sha256": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+        }
+      }
+    },
+    "appliedCount": { "type": "integer", "minimum": 0 },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "verification", "appliedCount", "driftDetected"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "verification": { "enum": ["VERIFIED", "NOT_INITIALIZED", "DRIFT", "FAILED", "UNKNOWN"] },
+        "appliedCount": { "type": "integer", "minimum": 0 },
+        "driftDetected": { "type": "boolean" }
+      }
+    },
+    "lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested", "acquired", "released", "mechanism"],
+      "properties": {
+        "requested": { "type": "boolean" },
+        "acquired": { "type": "boolean" },
+        "released": { "type": "boolean" },
+        "mechanism": { "type": ["string", "null"] }
+      }
+    },
+    "outcome": { "enum": ["PLAN_READY", "APPLIED", "BLOCKED", "FAILED"] },
+    "warnings": { "type": "array" },
+    "errors": { "type": "array" },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "completedAt", "durationMs"],
+      "properties": {
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}
