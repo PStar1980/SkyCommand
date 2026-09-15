@@ -54,18 +54,28 @@ function getGatewayConfig(env = process.env) {
   return {
     enabled: parseBoolean(env.SKYCOMMAND_MCP_GATEWAY_ENABLED, false),
     executionEnabled: parseBoolean(env.SKYCOMMAND_MCP_EXECUTION_ENABLED, false),
+    devPromotionEnabled: parseBoolean(env.SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED, false),
     apiBaseUrl,
     apiToken: String(env.SKYCOMMAND_ASSISTANT_API_TOKEN || '').trim(),
     agentId: normalizeAgentId(env.SKYCOMMAND_MCP_AGENT_ID),
     allowedAutomationCodes: parseAutomationAllowlist(env.SKYCOMMAND_MCP_ALLOWED_AUTOMATION_CODES),
-    requestTimeoutMs: parsePositiveInteger(env.SKYCOMMAND_MCP_REQUEST_TIMEOUT_MS, 65000, 1000, 300000),
-    logLevel: String(env.SKYCOMMAND_MCP_LOG_LEVEL || 'info').trim().toLowerCase(),
+    requestTimeoutMs: parsePositiveInteger(
+      env.SKYCOMMAND_MCP_REQUEST_TIMEOUT_MS,
+      65000,
+      1000,
+      300000,
+    ),
+    logLevel: String(env.SKYCOMMAND_MCP_LOG_LEVEL || 'info')
+      .trim()
+      .toLowerCase(),
   };
 }
 
 function automationIsAllowed(config, automationCode) {
   if (!automationCode) return false;
-  return config.allowedAutomationCodes.has('*') || config.allowedAutomationCodes.has(automationCode);
+  return (
+    config.allowedAutomationCodes.has('*') || config.allowedAutomationCodes.has(automationCode)
+  );
 }
 
 function gatewayStatus(config) {
@@ -76,6 +86,8 @@ function gatewayStatus(config) {
     agentId: config.agentId,
     apiBaseUrl: config.apiBaseUrl,
     executionEnabled: config.executionEnabled,
+    devPromotionEnabled: config.devPromotionEnabled,
+    developmentPromotionToolExposed: config.executionEnabled && config.devPromotionEnabled,
     allowedAutomationCodes: [...config.allowedAutomationCodes],
     safety: {
       assistantApiTokenRequired: true,
@@ -86,6 +98,9 @@ function gatewayStatus(config) {
       mcpExecutionKillSwitch: true,
       mcpAutomationAllowlist: true,
       interactiveExecutionUnavailable: true,
+      developmentPromotionIndependentGate: true,
+      developmentPromotionAssistantAuthorizationStillRequired: true,
+      developmentPromotionUsesAssistantApi: true,
     },
   };
 }
@@ -95,14 +110,21 @@ function getToolDefinitions(config) {
     {
       name: 'skycommand_system_capabilities',
       title: 'SkyCommand capabilities',
-      description: 'Read the bounded SkyCommand Assistant integration capabilities available to this MCP gateway.',
+      description:
+        'Read the bounded SkyCommand Assistant integration capabilities available to this MCP gateway.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     {
       name: 'skycommand_browser_automations_list',
       title: 'List allowed browser automations',
-      description: 'List Assistant-enabled Playwright Automations that are also allowed by this MCP gateway.',
+      description:
+        'List Assistant-enabled Playwright Automations that are also allowed by this MCP gateway.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -111,31 +133,48 @@ function getToolDefinitions(config) {
         },
         additionalProperties: false,
       },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     {
       name: 'skycommand_browser_automation_get',
       title: 'Get browser automation',
-      description: 'Read one Assistant-enabled Playwright Automation contract that this MCP gateway is allowed to expose.',
+      description:
+        'Read one Assistant-enabled Playwright Automation contract that this MCP gateway is allowed to expose.',
       inputSchema: {
         type: 'object',
         properties: { automationCode: { type: 'string', minLength: 1 } },
         required: ['automationCode'],
         additionalProperties: false,
       },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     {
       name: 'skycommand_browser_automation_run_get',
       title: 'Get browser automation run',
-      description: 'Read status, structured result, and artifact metadata for an Assistant-originated browser automation run.',
+      description:
+        'Read status, structured result, and artifact metadata for an Assistant-originated browser automation run.',
       inputSchema: {
         type: 'object',
         properties: { workflowId: { type: 'string', minLength: 1 } },
         required: ['workflowId'],
         additionalProperties: false,
       },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
   ];
 
@@ -143,7 +182,8 @@ function getToolDefinitions(config) {
     tools.push({
       name: 'skycommand_browser_automation_run',
       title: 'Run browser automation',
-      description: 'Start an allowed SkyCommand Playwright Automation through the bounded Assistant API. Execution is HEADLESS and all server-side opt-in, permission, risk, confirmation, and environment policies remain enforced.',
+      description:
+        'Start an allowed SkyCommand Playwright Automation through the bounded Assistant API. Execution is HEADLESS and all server-side opt-in, permission, risk, confirmation, and environment policies remain enforced.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -159,6 +199,29 @@ function getToolDefinitions(config) {
         destructiveHint: true,
         idempotentHint: false,
         openWorldHint: true,
+      },
+    });
+  }
+
+  if (config.executionEnabled && config.devPromotionEnabled) {
+    tools.push({
+      name: 'skycommand_development_promotion_start',
+      title: 'Start SkyCommand development promotion',
+      description:
+        'Start only the governed SkyCommand Dev Promotion Local workflow with a single validated commit message. The workflow continues independently to its existing human Merge Approval node; the initiating Agent must stop after the start receipt. No repository, workflow identity, approval, polling, retry, cancellation, merge, sync, or generic workflow controls are exposed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          commitMessage: { type: 'string', minLength: 1, maxLength: 300 },
+        },
+        required: ['commitMessage'],
+        additionalProperties: false,
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
       },
     });
   }
@@ -183,6 +246,18 @@ function assertString(value, label) {
     throw error;
   }
   return normalized;
+}
+
+function assertExactArguments(value, allowedKeys, label = 'arguments') {
+  const object = assertObject(value, label);
+  const unexpectedFields = Object.keys(object).filter((key) => !allowedKeys.includes(key));
+  if (unexpectedFields.length > 0) {
+    const error = new Error(`${label} contains unsupported fields.`);
+    error.code = 'MCP_INVALID_ARGUMENTS';
+    error.details = { unexpectedFields };
+    throw error;
+  }
+  return object;
 }
 
 function toolResult(payload, { isError = false } = {}) {
@@ -211,53 +286,67 @@ function requestJson(config, method, relativePath, body = undefined, requestImpl
   const bodyText = body === undefined ? null : JSON.stringify(body);
 
   return new Promise((resolve, reject) => {
-    const request = transport.request(url, {
-      method,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${config.apiToken}`,
-        'X-SkyCommand-Agent-Id': config.agentId,
-        ...(bodyText ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyText) } : {}),
+    const request = transport.request(
+      url,
+      {
+        method,
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${config.apiToken}`,
+          'X-SkyCommand-Agent-Id': config.agentId,
+          ...(bodyText
+            ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyText) }
+            : {}),
+        },
       },
-    }, (response) => {
-      let size = 0;
-      const chunks = [];
-      response.on('data', (chunk) => {
-        size += chunk.length;
-        if (size > MAX_HTTP_RESPONSE_BYTES) {
-          request.destroy(new Error('SkyCommand Assistant API response exceeded the MCP gateway limit.'));
-          return;
-        }
-        chunks.push(chunk);
-      });
-      response.on('end', () => {
-        const text = Buffer.concat(chunks).toString('utf8');
-        let parsed = {};
-        if (text) {
-          try {
-            parsed = JSON.parse(text);
-          } catch (_error) {
-            const parseError = new Error('SkyCommand Assistant API returned invalid JSON.');
-            parseError.statusCode = response.statusCode;
-            parseError.details = { responseSnippet: text.slice(0, 500) };
-            reject(parseError);
+      (response) => {
+        let size = 0;
+        const chunks = [];
+        response.on('data', (chunk) => {
+          size += chunk.length;
+          if (size > MAX_HTTP_RESPONSE_BYTES) {
+            request.destroy(
+              new Error('SkyCommand Assistant API response exceeded the MCP gateway limit.'),
+            );
             return;
           }
-        }
-        if ((response.statusCode || 500) < 200 || (response.statusCode || 500) >= 300) {
-          const apiError = new Error(parsed.error || `SkyCommand Assistant API returned HTTP ${response.statusCode}.`);
-          apiError.statusCode = response.statusCode;
-          apiError.code = parsed.code || parsed.details?.code || 'SKYCOMMAND_ASSISTANT_API_ERROR';
-          apiError.details = parsed.details || null;
-          reject(apiError);
-          return;
-        }
-        resolve(parsed);
-      });
-    });
+          chunks.push(chunk);
+        });
+        response.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          let parsed = {};
+          if (text) {
+            try {
+              parsed = JSON.parse(text);
+            } catch (_error) {
+              const parseError = new Error('SkyCommand Assistant API returned invalid JSON.');
+              parseError.statusCode = response.statusCode;
+              parseError.details = { responseSnippet: text.slice(0, 500) };
+              reject(parseError);
+              return;
+            }
+          }
+          if ((response.statusCode || 500) < 200 || (response.statusCode || 500) >= 300) {
+            const apiError = new Error(
+              parsed.error || `SkyCommand Assistant API returned HTTP ${response.statusCode}.`,
+            );
+            apiError.statusCode = response.statusCode;
+            apiError.code = parsed.code || parsed.details?.code || 'SKYCOMMAND_ASSISTANT_API_ERROR';
+            apiError.details = parsed.details || null;
+            reject(apiError);
+            return;
+          }
+          resolve(parsed);
+        });
+      },
+    );
 
     request.setTimeout(config.requestTimeoutMs, () => {
-      request.destroy(new Error(`SkyCommand Assistant API request timed out after ${config.requestTimeoutMs} ms.`));
+      request.destroy(
+        new Error(
+          `SkyCommand Assistant API request timed out after ${config.requestTimeoutMs} ms.`,
+        ),
+      );
     });
     request.on('error', reject);
     if (bodyText) request.write(bodyText);
@@ -271,14 +360,27 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
   try {
     if (name === 'skycommand_system_capabilities') {
       const api = await requestJson(config, 'GET', '/capabilities', undefined, requestImpl);
-      return toolResult({ ok: true, gateway: gatewayStatus(config), assistantApi: api.capabilities || api });
+      return toolResult({
+        ok: true,
+        gateway: gatewayStatus(config),
+        assistantApi: api.capabilities || api,
+      });
     }
 
     if (name === 'skycommand_browser_automations_list') {
       const limit = parsePositiveInteger(args.limit, 25, 1, 100);
-      const offset = Number.isInteger(Number(args.offset)) && Number(args.offset) >= 0 ? Number(args.offset) : 0;
-      const api = await requestJson(config, 'GET', `/browser-automations?limit=${limit}&offset=${offset}`, undefined, requestImpl);
-      const items = (api.items || []).filter((item) => automationIsAllowed(config, item.automationCode));
+      const offset =
+        Number.isInteger(Number(args.offset)) && Number(args.offset) >= 0 ? Number(args.offset) : 0;
+      const api = await requestJson(
+        config,
+        'GET',
+        `/browser-automations?limit=${limit}&offset=${offset}`,
+        undefined,
+        requestImpl,
+      );
+      const items = (api.items || []).filter((item) =>
+        automationIsAllowed(config, item.automationCode),
+      );
       return toolResult({
         ok: true,
         items,
@@ -290,17 +392,31 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
     if (name === 'skycommand_browser_automation_get') {
       const automationCode = assertString(args.automationCode, 'automationCode');
       if (!automationIsAllowed(config, automationCode)) {
-        const error = new Error(`Playwright Automation '${automationCode}' is not allowed by this MCP gateway.`);
+        const error = new Error(
+          `Playwright Automation '${automationCode}' is not allowed by this MCP gateway.`,
+        );
         error.code = 'MCP_AUTOMATION_NOT_ALLOWED';
         throw error;
       }
-      const api = await requestJson(config, 'GET', `/browser-automations/${encodeURIComponent(automationCode)}`, undefined, requestImpl);
+      const api = await requestJson(
+        config,
+        'GET',
+        `/browser-automations/${encodeURIComponent(automationCode)}`,
+        undefined,
+        requestImpl,
+      );
       return toolResult(api);
     }
 
     if (name === 'skycommand_browser_automation_run_get') {
       const workflowId = assertString(args.workflowId, 'workflowId');
-      const api = await requestJson(config, 'GET', `/browser-automation-runs/${encodeURIComponent(workflowId)}`, undefined, requestImpl);
+      const api = await requestJson(
+        config,
+        'GET',
+        `/browser-automation-runs/${encodeURIComponent(workflowId)}`,
+        undefined,
+        requestImpl,
+      );
       return toolResult(api);
     }
 
@@ -312,7 +428,9 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
       }
       const automationCode = assertString(args.automationCode, 'automationCode');
       if (!automationIsAllowed(config, automationCode)) {
-        const error = new Error(`Playwright Automation '${automationCode}' is not allowed by this MCP gateway.`);
+        const error = new Error(
+          `Playwright Automation '${automationCode}' is not allowed by this MCP gateway.`,
+        );
         error.code = 'MCP_AUTOMATION_NOT_ALLOWED';
         throw error;
       }
@@ -324,6 +442,51 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
           ...(args.environmentCode ? { environmentCode: args.environmentCode } : {}),
           parameters: args.parameters || {},
         },
+        requestImpl,
+      );
+      return toolResult(api);
+    }
+
+    if (name === 'skycommand_development_promotion_start') {
+      if (!config.executionEnabled) {
+        const error = new Error('MCP execution is disabled by SKYCOMMAND_MCP_EXECUTION_ENABLED.');
+        error.code = 'MCP_EXECUTION_DISABLED';
+        throw error;
+      }
+      if (!config.devPromotionEnabled) {
+        const error = new Error(
+          'MCP development promotion is disabled by SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED.',
+        );
+        error.code = 'MCP_DEV_PROMOTION_DISABLED';
+        throw error;
+      }
+
+      const promotionArgs = assertExactArguments(args, ['commitMessage']);
+      if (typeof promotionArgs.commitMessage !== 'string') {
+        const error = new Error('commitMessage must be a string.');
+        error.code = 'MCP_INVALID_ARGUMENTS';
+        throw error;
+      }
+      if (/[\u0000-\u001F\u007F-\u009F]/.test(promotionArgs.commitMessage)) {
+        const error = new Error(
+          'commitMessage must be a single-line string without control characters.',
+        );
+        error.code = 'MCP_INVALID_ARGUMENTS';
+        throw error;
+      }
+      const commitMessage = assertString(promotionArgs.commitMessage, 'commitMessage');
+      if (commitMessage.length > 300) {
+        const error = new Error(
+          'commitMessage must be a single-line string of no more than 300 characters.',
+        );
+        error.code = 'MCP_INVALID_ARGUMENTS';
+        throw error;
+      }
+      const api = await requestJson(
+        config,
+        'POST',
+        '/development-promotion/runs',
+        { commitMessage },
         requestImpl,
       );
       return toolResult(api);
@@ -365,17 +528,23 @@ async function handleJsonRpcMessage(message, config, requestImpl = null) {
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: 'skycommand-mcp-gateway', version: GATEWAY_VERSION },
-      instructions: 'Use SkyCommand tools as a governed local execution surface. Read discovery tools first. The browser automation run tool is present only when the local MCP execution kill switch is enabled, and SkyCommand server-side safety policy always remains authoritative.',
+      instructions:
+        'Use SkyCommand tools as a governed local execution surface. Read discovery tools first. The browser automation run tool is present only when the local MCP execution kill switch is enabled, and SkyCommand server-side safety policy always remains authoritative.',
     });
   }
 
   if (method === 'ping') return jsonRpcResult(message.id, {});
-  if (method === 'tools/list') return jsonRpcResult(message.id, { tools: getToolDefinitions(config) });
+  if (method === 'tools/list')
+    return jsonRpcResult(message.id, { tools: getToolDefinitions(config) });
   if (method === 'tools/call') {
     try {
       const params = assertObject(message.params || {}, 'params');
       const name = assertString(params.name, 'tool name');
-      const result = await handleToolCall({ name, arguments: params.arguments || {} }, config, requestImpl);
+      const result = await handleToolCall(
+        { name, arguments: params.arguments || {} },
+        config,
+        requestImpl,
+      );
       return jsonRpcResult(message.id, result);
     } catch (error) {
       return jsonRpcResult(message.id, toolResult(mcpErrorPayload(error), { isError: true }));
@@ -400,10 +569,16 @@ function log(config, level, message) {
 }
 
 function validateStartupConfig(config) {
-  if (!config.enabled) throw new Error('SkyCommand MCP Gateway is disabled. Set SKYCOMMAND_MCP_GATEWAY_ENABLED=true.');
-  if (!config.apiToken) throw new Error('SKYCOMMAND_ASSISTANT_API_TOKEN is required by the MCP Gateway.');
+  if (!config.enabled)
+    throw new Error('SkyCommand MCP Gateway is disabled. Set SKYCOMMAND_MCP_GATEWAY_ENABLED=true.');
+  if (!config.apiToken)
+    throw new Error('SKYCOMMAND_ASSISTANT_API_TOKEN is required by the MCP Gateway.');
   if (!config.allowedAutomationCodes.size) {
-    log(config, 'warn', 'No automation codes are allowed. Discovery will be empty until SKYCOMMAND_MCP_ALLOWED_AUTOMATION_CODES is configured.');
+    log(
+      config,
+      'warn',
+      'No automation codes are allowed. Discovery will be empty until SKYCOMMAND_MCP_ALLOWED_AUTOMATION_CODES is configured.',
+    );
   }
 }
 
@@ -412,7 +587,11 @@ async function runStdioServer(config, stdin = process.stdin, stdout = process.st
   let buffer = '';
   let chain = Promise.resolve();
 
-  log(config, 'info', `starting v${GATEWAY_VERSION} for agent '${config.agentId}' (${config.executionEnabled ? 'execution enabled' : 'read-only'})`);
+  log(
+    config,
+    'info',
+    `starting v${GATEWAY_VERSION} for agent '${config.agentId}' (${config.executionEnabled ? 'execution enabled' : 'read-only'})`,
+  );
 
   stdin.setEncoding('utf8');
   stdin.on('data', (chunk) => {
@@ -429,19 +608,21 @@ async function runStdioServer(config, stdin = process.stdin, stdout = process.st
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      chain = chain.then(async () => {
-        let message;
-        try {
-          message = JSON.parse(trimmed);
-        } catch (_error) {
-          writeMessage(jsonRpcError(null, -32700, 'Parse error'), stdout);
-          return;
-        }
-        const response = await handleJsonRpcMessage(message, config);
-        if (response) writeMessage(response, stdout);
-      }).catch((error) => {
-        log(config, 'error', error.stack || error.message || String(error));
-      });
+      chain = chain
+        .then(async () => {
+          let message;
+          try {
+            message = JSON.parse(trimmed);
+          } catch (_error) {
+            writeMessage(jsonRpcError(null, -32700, 'Parse error'), stdout);
+            return;
+          }
+          const response = await handleJsonRpcMessage(message, config);
+          if (response) writeMessage(response, stdout);
+        })
+        .catch((error) => {
+          log(config, 'error', error.stack || error.message || String(error));
+        });
     }
   });
 

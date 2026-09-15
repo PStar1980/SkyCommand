@@ -9,6 +9,7 @@ function config(overrides = {}) {
   return {
     enabled: true,
     executionEnabled: false,
+    devPromotionEnabled: false,
     apiBaseUrl: 'http://127.0.0.1:7171/api/assistant',
     apiToken: 'test-token',
     agentId: 'codex-local',
@@ -18,7 +19,6 @@ function config(overrides = {}) {
     ...overrides,
   };
 }
-
 
 async function verifyStdioTransport() {
   const child = spawn(process.execPath, [path.join(ROOT, 'scripts/mcp/skycommandMcpGateway.js')], {
@@ -39,8 +39,12 @@ async function verifyStdioTransport() {
   let stderr = '';
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
-  child.stdout.on('data', (chunk) => { stdout += chunk; });
-  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk;
+  });
 
   const waitForLines = async (count) => {
     const started = Date.now();
@@ -52,13 +56,21 @@ async function verifyStdioTransport() {
     throw new Error(`MCP STDIO self-test timed out. stdout=${stdout} stderr=${stderr}`);
   };
 
-  child.stdin.write(`${JSON.stringify({
-    jsonrpc: '2.0',
-    id: 101,
-    method: 'initialize',
-    params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'stdio-self-test', version: '1.0.0' } },
-  })}\n`);
-  child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 102, method: 'tools/list', params: {} })}\n`);
+  child.stdin.write(
+    `${JSON.stringify({
+      jsonrpc: '2.0',
+      id: 101,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: { name: 'stdio-self-test', version: '1.0.0' },
+      },
+    })}\n`,
+  );
+  child.stdin.write(
+    `${JSON.stringify({ jsonrpc: '2.0', id: 102, method: 'tools/list', params: {} })}\n`,
+  );
 
   try {
     const responses = await waitForLines(2);
@@ -78,26 +90,59 @@ async function run() {
   assert.equal(gateway.MCP_PROTOCOL_VERSION, '2025-11-25');
   assert.equal(gateway.automationIsAllowed(config(), 'command-center-status-snapshot'), true);
   assert.equal(gateway.automationIsAllowed(config(), 'not-allowed'), false);
-  assert.equal(gateway.automationIsAllowed(config({ allowedAutomationCodes: new Set(['*']) }), 'anything'), true);
+  assert.equal(
+    gateway.automationIsAllowed(config({ allowedAutomationCodes: new Set(['*']) }), 'anything'),
+    true,
+  );
 
   const readOnlyTools = gateway.getToolDefinitions(config()).map((tool) => tool.name);
   assert.ok(readOnlyTools.includes('skycommand_system_capabilities'));
   assert.ok(readOnlyTools.includes('skycommand_browser_automations_list'));
   assert.ok(!readOnlyTools.includes('skycommand_browser_automation_run'));
 
-  const executionTools = gateway.getToolDefinitions(config({ executionEnabled: true })).map((tool) => tool.name);
+  const executionTools = gateway
+    .getToolDefinitions(config({ executionEnabled: true }))
+    .map((tool) => tool.name);
   assert.ok(executionTools.includes('skycommand_browser_automation_run'));
+  assert.ok(!executionTools.includes('skycommand_development_promotion_start'));
 
-  const initialize = await gateway.handleJsonRpcMessage({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'self-test', version: '1.0.0' } },
-  }, config());
+  const devPromotionToolsWithoutMaster = gateway
+    .getToolDefinitions(config({ devPromotionEnabled: true }))
+    .map((tool) => tool.name);
+  assert.ok(!devPromotionToolsWithoutMaster.includes('skycommand_development_promotion_start'));
+
+  const devPromotionTools = gateway.getToolDefinitions(
+    config({ executionEnabled: true, devPromotionEnabled: true }),
+  );
+  const devPromotionTool = devPromotionTools.find(
+    (tool) => tool.name === 'skycommand_development_promotion_start',
+  );
+  assert.ok(devPromotionTool);
+  assert.equal(devPromotionTool.annotations.readOnlyHint, false);
+  assert.equal(devPromotionTool.annotations.idempotentHint, false);
+  assert.deepEqual(Object.keys(devPromotionTool.inputSchema.properties), ['commitMessage']);
+  assert.equal(devPromotionTool.inputSchema.additionalProperties, false);
+
+  const initialize = await gateway.handleJsonRpcMessage(
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: { name: 'self-test', version: '1.0.0' },
+      },
+    },
+    config(),
+  );
   assert.equal(initialize.result.protocolVersion, '2025-11-25');
   assert.ok(initialize.result.capabilities.tools);
 
-  const probe = await gateway.handleJsonRpcMessage({ jsonrpc: '2.0', id: 2, method: 'server/discover', params: {} }, config());
+  const probe = await gateway.handleJsonRpcMessage(
+    { jsonrpc: '2.0', id: 2, method: 'server/discover', params: {} },
+    config(),
+  );
   assert.equal(probe.error.code, -32601);
 
   const requests = [];
@@ -107,8 +152,14 @@ async function run() {
       return {
         ok: true,
         items: [
-          { automationCode: 'command-center-status-snapshot', assistant: { enabled: true, executable: true } },
-          { automationCode: 'other-enabled-automation', assistant: { enabled: true, executable: true } },
+          {
+            automationCode: 'command-center-status-snapshot',
+            assistant: { enabled: true, executable: true },
+          },
+          {
+            automationCode: 'other-enabled-automation',
+            assistant: { enabled: true, executable: true },
+          },
         ],
       };
     }
@@ -122,52 +173,127 @@ async function run() {
       return { ok: true, run: { workflowId: 'wf-123', status: 'SUCCESS', terminal: true } };
     }
     if (relativePath === '/capabilities') return { ok: true, capabilities: { enabled: true } };
+    if (relativePath === '/development-promotion/runs') {
+      return {
+        ok: true,
+        promotion: {
+          accepted: true,
+          started: true,
+          workflowCode: 'skyserver_dev_commit',
+          repositoryCode: 'SkyCommand',
+          workflowRunRecordId: 'run-123',
+          temporalWorkflowId: 'temporal-123',
+          triggerSource: 'ASSISTANT',
+          humanApprovalRequired: true,
+          agentMustStop: true,
+        },
+      };
+    }
     throw new Error(`Unexpected self-test request ${method} ${relativePath}`);
   };
 
-  const list = await gateway.handleToolCall({ name: 'skycommand_browser_automations_list', arguments: {} }, config(), requestImpl);
+  const list = await gateway.handleToolCall(
+    { name: 'skycommand_browser_automations_list', arguments: {} },
+    config(),
+    requestImpl,
+  );
   assert.equal(list.structuredContent.items.length, 1);
   assert.equal(list.structuredContent.items[0].automationCode, 'command-center-status-snapshot');
 
-  const denied = await gateway.handleToolCall({
-    name: 'skycommand_browser_automation_get',
-    arguments: { automationCode: 'other-enabled-automation' },
-  }, config(), requestImpl);
+  const denied = await gateway.handleToolCall(
+    {
+      name: 'skycommand_browser_automation_get',
+      arguments: { automationCode: 'other-enabled-automation' },
+    },
+    config(),
+    requestImpl,
+  );
   assert.equal(denied.isError, true);
   assert.equal(denied.structuredContent.code, 'MCP_AUTOMATION_NOT_ALLOWED');
 
-  const executionDisabled = await gateway.handleToolCall({
-    name: 'skycommand_browser_automation_run',
-    arguments: { automationCode: 'command-center-status-snapshot' },
-  }, config(), requestImpl);
+  const executionDisabled = await gateway.handleToolCall(
+    {
+      name: 'skycommand_browser_automation_run',
+      arguments: { automationCode: 'command-center-status-snapshot' },
+    },
+    config(),
+    requestImpl,
+  );
   assert.equal(executionDisabled.isError, true);
   assert.equal(executionDisabled.structuredContent.code, 'MCP_EXECUTION_DISABLED');
 
-  const started = await gateway.handleToolCall({
-    name: 'skycommand_browser_automation_run',
-    arguments: { automationCode: 'command-center-status-snapshot', environmentCode: 'LOCAL', parameters: {} },
-  }, config({ executionEnabled: true }), requestImpl);
+  const started = await gateway.handleToolCall(
+    {
+      name: 'skycommand_browser_automation_run',
+      arguments: {
+        automationCode: 'command-center-status-snapshot',
+        environmentCode: 'LOCAL',
+        parameters: {},
+      },
+    },
+    config({ executionEnabled: true }),
+    requestImpl,
+  );
   assert.equal(started.isError, undefined);
   assert.equal(started.structuredContent.execution.workflowId, 'wf-123');
 
-  const runStatus = await gateway.handleToolCall({
-    name: 'skycommand_browser_automation_run_get',
-    arguments: { workflowId: 'wf-123' },
-  }, config(), requestImpl);
+  const runStatus = await gateway.handleToolCall(
+    {
+      name: 'skycommand_browser_automation_run_get',
+      arguments: { workflowId: 'wf-123' },
+    },
+    config(),
+    requestImpl,
+  );
   assert.equal(runStatus.structuredContent.run.status, 'SUCCESS');
 
-  assert.ok(requests.some((item) => item.method === 'POST' && item.body.environmentCode === 'LOCAL'));
+  assert.ok(
+    requests.some((item) => item.method === 'POST' && item.body.environmentCode === 'LOCAL'),
+  );
+
+  const promotion = await gateway.handleToolCall(
+    {
+      name: 'skycommand_development_promotion_start',
+      arguments: {
+        commitMessage: 'Development Control Plane Bootstrap - governed MCP development promotion',
+      },
+    },
+    config({ executionEnabled: true, devPromotionEnabled: true }),
+    requestImpl,
+  );
+  assert.equal(promotion.isError, undefined);
+  assert.equal(promotion.structuredContent.promotion.humanApprovalRequired, true);
+  assert.equal(promotion.structuredContent.promotion.agentMustStop, true);
+  const promotionRequest = requests.find(
+    (item) => item.relativePath === '/development-promotion/runs',
+  );
+  assert.deepEqual(promotionRequest.body, {
+    commitMessage: 'Development Control Plane Bootstrap - governed MCP development promotion',
+  });
+
+  const promotionDisabled = await gateway.handleToolCall(
+    {
+      name: 'skycommand_development_promotion_start',
+      arguments: { commitMessage: 'blocked' },
+    },
+    config({ executionEnabled: true, devPromotionEnabled: false }),
+    requestImpl,
+  );
+  assert.equal(promotionDisabled.isError, true);
+  assert.equal(promotionDisabled.structuredContent.code, 'MCP_DEV_PROMOTION_DISABLED');
 
   const gatewayConfig = gateway.getGatewayConfig({
     API_PORT: '7171',
     SKYCOMMAND_MCP_GATEWAY_ENABLED: 'true',
     SKYCOMMAND_MCP_EXECUTION_ENABLED: 'true',
+    SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED: 'true',
     SKYCOMMAND_ASSISTANT_API_TOKEN: 'secret',
     SKYCOMMAND_MCP_AGENT_ID: 'openclaw-local',
     SKYCOMMAND_MCP_ALLOWED_AUTOMATION_CODES: 'command-center-status-snapshot,other',
   });
   assert.equal(gatewayConfig.enabled, true);
   assert.equal(gatewayConfig.executionEnabled, true);
+  assert.equal(gatewayConfig.devPromotionEnabled, true);
   assert.equal(gatewayConfig.agentId, 'openclaw-local');
   assert.equal(gatewayConfig.allowedAutomationCodes.has('other'), true);
 

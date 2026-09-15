@@ -52,6 +52,8 @@ Execution requires every applicable gate to pass:
 9. The requested environment must be registered and allowed.
 10. Browser execution remains `HEADLESS`.
 
+For Step C development promotion, the additional gates are independent: `SKYCOMMAND_MCP_EXECUTION_ENABLED=true` **and** `SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED=true`. The Assistant API independently requires its promotion gate, configured exact `SkyCommand` repository, and the complete explicit Assistant service permission envelope (`WORKFLOW_RUN`, `REPO_MAP_GENERATE`, `REPO_ZIP_GENERATE`, `GIT_COMMIT_RUN`, `GIT_MAIN_MERGE_RUN`, `GIT_LOCAL_SYNC_RUN`, `CORE_RUN_LOW_RISK_SCRIPT`, `CORE_RUN_MEDIUM_RISK_SCRIPT`, `CORE_RUN_HIGH_RISK_SCRIPT`); the MCP gate is not an authorization substitute.
+
 The MCP allowlist is intentionally deny-by-default when empty. This gives an agent-specific layer above the broader Assistant catalogue.
 
 ## Protocol and transport
@@ -73,6 +75,12 @@ The execute tool is advertised only when `SKYCOMMAND_MCP_EXECUTION_ENABLED=true`
 
 - `skycommand_browser_automation_run`
 
+The mutating/non-idempotent Step C tool is advertised only when both MCP execution gates are true:
+
+- `skycommand_development_promotion_start`
+
+It accepts only `commitMessage` and starts only `skyserver_dev_commit` for the configured `SkyCommand` repository. It returns a minimal start receipt with `humanApprovalRequired = true` and `agentMustStop = true`. No approval-decision or promotion polling/control tool is exposed.
+
 The execute tool is conservatively annotated as write/destructive/open-world at the MCP layer. SkyCommand then performs the authoritative automation-specific risk checks server-side.
 
 ## Configuration
@@ -86,6 +94,7 @@ SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION
 
 SKYCOMMAND_MCP_GATEWAY_ENABLED=true
 SKYCOMMAND_MCP_EXECUTION_ENABLED=false
+SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED=false
 SKYCOMMAND_MCP_API_BASE_URL=http://127.0.0.1:7171/api/assistant
 SKYCOMMAND_MCP_AGENT_ID=codex-local
 SKYCOMMAND_MCP_ALLOWED_AUTOMATION_CODES=command-center-status-snapshot
@@ -100,6 +109,18 @@ SKYCOMMAND_MCP_EXECUTION_ENABLED=true
 ```
 
 and restart the MCP client/server connection.
+
+For a later, explicitly approved Step C acceptance test, configure all of the following in `.env` (never in source control):
+
+```dotenv
+SKYCOMMAND_ASSISTANT_DEV_PROMOTION_ENABLED=true
+SKYCOMMAND_ASSISTANT_DEV_PROMOTION_REPOSITORY=SkyCommand
+SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN,WORKFLOW_RUN,REPO_MAP_GENERATE,REPO_ZIP_GENERATE,GIT_COMMIT_RUN,GIT_MAIN_MERGE_RUN,GIT_LOCAL_SYNC_RUN,CORE_RUN_LOW_RISK_SCRIPT,CORE_RUN_MEDIUM_RISK_SCRIPT,CORE_RUN_HIGH_RISK_SCRIPT
+SKYCOMMAND_MCP_EXECUTION_ENABLED=true
+SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED=true
+```
+
+Do not invoke the promotion tool as part of gateway discovery or self-tests. After SkyCommand returns a successful start receipt, the initiating Agent stops; Paul remains the approving principal at the existing Merge Approval node.
 
 ## Codex CLI configuration
 
