@@ -163,12 +163,14 @@ function makeTempSqlRoot(files) {
 
 async function run() {
   const sourceChanges = discoverGovernedSqlChanges();
-  assert.equal(sourceChanges.at(-1).ordinal, 129, '00129 is the next global ordinal');
+  assert.equal(sourceChanges.at(-1).ordinal, 130, '00130 is the next global ordinal');
   assert.equal(
     sourceChanges.filter((change) => change.ordinal <= BASELINE_ORDINAL).length,
-    sourceChanges.length - 1,
-    'all discovered files other than 00129 are historical',
+    sourceChanges.length - 2,
+    'only 00129 and 00130 are post-baseline changes',
   );
+  assert.ok(sourceChanges.some((change) => change.ordinal === 129));
+  assert.ok(sourceChanges.some((change) => change.ordinal === 130));
   assert.ok(sourceChanges.some((change) => change.relativePath.endsWith('00128__assistant_workflow_run_attribution.sql')));
   assert.ok(sourceChanges.every((change) => change.ordinal > BASELINE_ORDINAL || change.separator === '__' || change.separator === '_'));
   assert.equal(parseGovernedFilename('00007_indicator_views.sql').separator, '_');
@@ -379,7 +381,7 @@ async function run() {
     expectedPlanDigest: cleanBuildLedgerPlan.planDigest.digest,
   });
   assert.equal(applyOutput.outcome, 'APPLIED');
-  assert.equal(applyOutput.appliedCount, 1);
+  assert.equal(applyOutput.appliedCount, 2);
   assert.equal(applyOutput.lock.acquired, true);
   assert.equal(applyOutput.lock.released, true);
   assert.ok(applyClient.mutations.includes('INSERT_BASELINE'));

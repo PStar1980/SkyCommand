@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(requireAssistantIntegration);
 router.get('/capabilities', assistantIntegrationController.getCapabilities);
 router.get('/openapi.json', assistantIntegrationController.getOpenApi);
+router.get('/database-upgrade/plan', assistantIntegrationController.getDatabaseUpgradePlan);
 router.get(
   '/browser-automation-runs/:workflowId/artifacts/:artifactId',
   assistantIntegrationController.getArtifact,
