@@ -1500,6 +1500,7 @@ SkyCommand/
 │   │   └── worker_schema_ERD.png
 │   ├── audits/
 │   ├── development/
+│   │   ├── SkyCommand_Database_Upgrade.md
 │   │   └── SkyCommand_Development_Operating_Rules_v1.0.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
@@ -1641,7 +1642,8 @@ SkyCommand/
 │   │       │   ├── 00123__playwright_workflow_node_types.sql
 │   │       │   ├── 00125__scheduler_failure_notifications.sql
 │   │       │   ├── 00126__assistant_browser_automation_opt_in.sql
-│   │       │   └── 00128__assistant_workflow_run_attribution.sql
+│   │       │   ├── 00128__assistant_workflow_run_attribution.sql
+│   │       │   └── 00129__database_upgrade_ledger.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1697,6 +1699,11 @@ SkyCommand/
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
+│   ├── db_upgrade/
+│   │   └── src/
+│   │       ├── databaseUpgradeEngine.js
+│   │       ├── databaseUpgradeResult.js
+│   │       └── db_upgrade.js
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
@@ -1858,6 +1865,7 @@ SkyCommand/
 │       ├── contracts/
 │       │   ├── database_build_summary.v1.schema.json
 │       │   ├── database_health_summary.v1.schema.json
+│       │   ├── database_upgrade_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── git_dev_pull_summary.v1.schema.json
@@ -2229,6 +2237,10 @@ SkyCommand/
         │   │   └── src/
         │   │       ├── assistantWorkflowRunAttributionSelfTest.js
         │   │       └── dbBuildResultSelfTest.js
+        │   ├── db_upgrade/
+        │   │   └── src/
+        │   │       ├── databaseUpgradeCliSelfTest.js
+        │   │       └── databaseUpgradeSelfTest.js
         │   ├── files/
         │   │   └── src/
         │   │       ├── repositoryArtifactConfigurationSelfTest.js

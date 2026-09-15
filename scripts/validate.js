@@ -19,6 +19,8 @@ const routineSelfTests = [
   'agent-phase0:self-test',
   'db-health:self-test',
   'db-build:self-test',
+  'db-upgrade:self-test',
+  'db-upgrade-cli:self-test',
   'assistant-workflow-run-attribution:self-test',
   'tool-template:self-test',
   'skycommand-repository:self-test',
