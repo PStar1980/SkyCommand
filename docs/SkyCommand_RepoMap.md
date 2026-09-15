@@ -1643,7 +1643,8 @@ SkyCommand/
 │   │       │   ├── 00125__scheduler_failure_notifications.sql
 │   │       │   ├── 00126__assistant_browser_automation_opt_in.sql
 │   │       │   ├── 00128__assistant_workflow_run_attribution.sql
-│   │       │   └── 00129__database_upgrade_ledger.sql
+│   │       │   ├── 00129__database_upgrade_ledger.sql
+│   │       │   └── 00130__assistant_database_upgrade_plan_permission.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -2183,6 +2184,7 @@ SkyCommand/
         │       └── src/
         │           └── services/
         │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── assistantDatabaseUpgradePlanSelfTest.js
         │               ├── assistantDevelopmentPromotionSelfTest.js
         │               ├── assistantIntegrationSelfTest.js
         │               ├── browserAutomationExecutionSelfTest.js

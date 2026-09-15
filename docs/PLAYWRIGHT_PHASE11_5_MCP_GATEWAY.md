@@ -56,6 +56,8 @@ For Step C development promotion, the additional gates are independent: `SKYCOMM
 
 The MCP allowlist is intentionally deny-by-default when empty. This gives an agent-specific layer above the broader Assistant catalogue.
 
+The D2A database-upgrade PLAN tool has an independent gate: `SKYCOMMAND_MCP_DB_UPGRADE_PLAN_ENABLED=true`. It is strictly read-only, does not depend on `SKYCOMMAND_MCP_EXECUTION_ENABLED`, accepts exactly `{}`, and delegates only to `GET /api/assistant/database-upgrade/plan`. The Assistant API remains authoritative for its own feature gate, `DB_UPGRADE_PLAN` permission, D1 target pins, and observed database identity. Database-upgrade APPLY is not exposed by this gateway.
+
 ## Protocol and transport
 
 The initial gateway uses local **STDIO MCP** with the `2025-11-25` initialize handshake. This keeps the gateway dependency-free and compatible with clients that support the established MCP legacy era. A 2026-era auto-negotiating client may probe `server/discover`; the gateway returns Method Not Found so compatible clients can fall back to the `2025-11-25` handshake.
@@ -70,6 +72,7 @@ Read tools are always advertised while the gateway is enabled:
 - `skycommand_browser_automations_list`
 - `skycommand_browser_automation_get`
 - `skycommand_browser_automation_run_get`
+- `skycommand_database_upgrade_plan` (only when `SKYCOMMAND_MCP_DB_UPGRADE_PLAN_ENABLED=true`)
 
 The execute tool is advertised only when `SKYCOMMAND_MCP_EXECUTION_ENABLED=true`:
 
@@ -95,6 +98,7 @@ SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION
 SKYCOMMAND_MCP_GATEWAY_ENABLED=true
 SKYCOMMAND_MCP_EXECUTION_ENABLED=false
 SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED=false
+SKYCOMMAND_MCP_DB_UPGRADE_PLAN_ENABLED=false
 SKYCOMMAND_MCP_API_BASE_URL=http://127.0.0.1:7171/api/assistant
 SKYCOMMAND_MCP_AGENT_ID=codex-local
 SKYCOMMAND_MCP_ALLOWED_AUTOMATION_CODES=command-center-status-snapshot

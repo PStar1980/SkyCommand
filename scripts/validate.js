@@ -49,6 +49,7 @@ const routineSelfTests = [
   'workflow-playwright-nodes:self-test',
   'playwright-scheduler:self-test',
   'assistant-integration:self-test',
+  'assistant-database-upgrade-plan:self-test',
   'assistant-development-promotion:self-test',
   'mcp-gateway:self-test',
   'git-repository-status:self-test',

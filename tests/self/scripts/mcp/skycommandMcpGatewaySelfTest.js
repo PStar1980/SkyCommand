@@ -10,6 +10,7 @@ function config(overrides = {}) {
     enabled: true,
     executionEnabled: false,
     devPromotionEnabled: false,
+    databaseUpgradePlanEnabled: false,
     apiBaseUrl: 'http://127.0.0.1:7171/api/assistant',
     apiToken: 'test-token',
     agentId: 'codex-local',
@@ -88,6 +89,7 @@ async function verifyStdioTransport() {
 
 async function run() {
   assert.equal(gateway.MCP_PROTOCOL_VERSION, '2025-11-25');
+  assert.equal(gateway.getGatewayConfig({}).databaseUpgradePlanEnabled, false);
   assert.equal(gateway.automationIsAllowed(config(), 'command-center-status-snapshot'), true);
   assert.equal(gateway.automationIsAllowed(config(), 'not-allowed'), false);
   assert.equal(
@@ -99,6 +101,27 @@ async function run() {
   assert.ok(readOnlyTools.includes('skycommand_system_capabilities'));
   assert.ok(readOnlyTools.includes('skycommand_browser_automations_list'));
   assert.ok(!readOnlyTools.includes('skycommand_browser_automation_run'));
+  assert.ok(!readOnlyTools.includes('skycommand_database_upgrade_plan'));
+
+  const databaseUpgradePlanTools = gateway.getToolDefinitions(
+    config({ databaseUpgradePlanEnabled: true }),
+  );
+  const databaseUpgradePlanTool = databaseUpgradePlanTools.find(
+    (tool) => tool.name === 'skycommand_database_upgrade_plan',
+  );
+  assert.ok(databaseUpgradePlanTool);
+  assert.deepEqual(databaseUpgradePlanTool.inputSchema, {
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
+  });
+  assert.deepEqual(databaseUpgradePlanTool.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  });
+  assert.ok(databaseUpgradePlanTool.description.includes('APPLY is not exposed'));
 
   const executionTools = gateway
     .getToolDefinitions(config({ executionEnabled: true }))
@@ -173,6 +196,14 @@ async function run() {
       return { ok: true, run: { workflowId: 'wf-123', status: 'SUCCESS', terminal: true } };
     }
     if (relativePath === '/capabilities') return { ok: true, capabilities: { enabled: true } };
+    if (relativePath === '/database-upgrade/plan') {
+      return {
+        ok: true,
+        schemaVersion: '1.0',
+        outputType: 'database_upgrade_summary.v1',
+        output: { mode: 'PLAN', outcome: 'PLAN_READY', pendingCount: 0 },
+      };
+    }
     if (relativePath === '/development-promotion/runs') {
       return {
         ok: true,
@@ -247,6 +278,39 @@ async function run() {
   );
   assert.equal(runStatus.structuredContent.run.status, 'SUCCESS');
 
+  const databaseUpgradePlan = await gateway.handleToolCall(
+    { name: 'skycommand_database_upgrade_plan', arguments: {} },
+    config({ databaseUpgradePlanEnabled: true }),
+    requestImpl,
+  );
+  assert.equal(databaseUpgradePlan.isError, undefined);
+  assert.equal(databaseUpgradePlan.structuredContent.output.mode, 'PLAN');
+  const databaseUpgradePlanRequest = requests.find(
+    (item) => item.relativePath === '/database-upgrade/plan',
+  );
+  assert.ok(databaseUpgradePlanRequest);
+  assert.equal(databaseUpgradePlanRequest.method, 'GET');
+  assert.equal(databaseUpgradePlanRequest.body, undefined);
+
+  const databaseUpgradePlanWithArguments = await gateway.handleToolCall(
+    { name: 'skycommand_database_upgrade_plan', arguments: { mode: 'APPLY' } },
+    config({ databaseUpgradePlanEnabled: true }),
+    requestImpl,
+  );
+  assert.equal(databaseUpgradePlanWithArguments.isError, true);
+  assert.equal(databaseUpgradePlanWithArguments.structuredContent.code, 'MCP_INVALID_ARGUMENTS');
+
+  const databaseUpgradePlanDisabled = await gateway.handleToolCall(
+    { name: 'skycommand_database_upgrade_plan', arguments: {} },
+    config(),
+    requestImpl,
+  );
+  assert.equal(databaseUpgradePlanDisabled.isError, true);
+  assert.equal(
+    databaseUpgradePlanDisabled.structuredContent.code,
+    'MCP_DATABASE_UPGRADE_PLAN_DISABLED',
+  );
+
   assert.ok(
     requests.some((item) => item.method === 'POST' && item.body.environmentCode === 'LOCAL'),
   );
@@ -287,6 +351,7 @@ async function run() {
     SKYCOMMAND_MCP_GATEWAY_ENABLED: 'true',
     SKYCOMMAND_MCP_EXECUTION_ENABLED: 'true',
     SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED: 'true',
+    SKYCOMMAND_MCP_DB_UPGRADE_PLAN_ENABLED: 'true',
     SKYCOMMAND_ASSISTANT_API_TOKEN: 'secret',
     SKYCOMMAND_MCP_AGENT_ID: 'openclaw-local',
     SKYCOMMAND_MCP_ALLOWED_AUTOMATION_CODES: 'command-center-status-snapshot,other',
@@ -294,6 +359,7 @@ async function run() {
   assert.equal(gatewayConfig.enabled, true);
   assert.equal(gatewayConfig.executionEnabled, true);
   assert.equal(gatewayConfig.devPromotionEnabled, true);
+  assert.equal(gatewayConfig.databaseUpgradePlanEnabled, true);
   assert.equal(gatewayConfig.agentId, 'openclaw-local');
   assert.equal(gatewayConfig.allowedAutomationCodes.has('other'), true);
 

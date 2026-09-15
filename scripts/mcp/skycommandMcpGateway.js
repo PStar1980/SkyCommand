@@ -55,6 +55,7 @@ function getGatewayConfig(env = process.env) {
     enabled: parseBoolean(env.SKYCOMMAND_MCP_GATEWAY_ENABLED, false),
     executionEnabled: parseBoolean(env.SKYCOMMAND_MCP_EXECUTION_ENABLED, false),
     devPromotionEnabled: parseBoolean(env.SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED, false),
+    databaseUpgradePlanEnabled: parseBoolean(env.SKYCOMMAND_MCP_DB_UPGRADE_PLAN_ENABLED, false),
     apiBaseUrl,
     apiToken: String(env.SKYCOMMAND_ASSISTANT_API_TOKEN || '').trim(),
     agentId: normalizeAgentId(env.SKYCOMMAND_MCP_AGENT_ID),
@@ -87,7 +88,9 @@ function gatewayStatus(config) {
     apiBaseUrl: config.apiBaseUrl,
     executionEnabled: config.executionEnabled,
     devPromotionEnabled: config.devPromotionEnabled,
+    databaseUpgradePlanEnabled: config.databaseUpgradePlanEnabled,
     developmentPromotionToolExposed: config.executionEnabled && config.devPromotionEnabled,
+    databaseUpgradePlanToolExposed: config.databaseUpgradePlanEnabled,
     allowedAutomationCodes: [...config.allowedAutomationCodes],
     safety: {
       assistantApiTokenRequired: true,
@@ -101,6 +104,10 @@ function gatewayStatus(config) {
       developmentPromotionIndependentGate: true,
       developmentPromotionAssistantAuthorizationStillRequired: true,
       developmentPromotionUsesAssistantApi: true,
+      databaseUpgradePlanIndependentGate: true,
+      databaseUpgradePlanUsesAssistantApiOnly: true,
+      databaseUpgradePlanReadOnly: true,
+      databaseUpgradeApplyExposed: false,
     },
   };
 }
@@ -221,6 +228,22 @@ function getToolDefinitions(config) {
         readOnlyHint: false,
         destructiveHint: true,
         idempotentHint: false,
+        openWorldHint: false,
+      },
+    });
+  }
+
+  if (config.databaseUpgradePlanEnabled) {
+    tools.push({
+      name: 'skycommand_database_upgrade_plan',
+      title: 'Read SkyCommand database upgrade plan',
+      description:
+        'Read the current governed database-upgrade PLAN through the bounded Assistant API. This tool accepts exactly {} and is strictly read-only; database-upgrade APPLY is not exposed.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
         openWorldHint: false,
       },
     });
@@ -420,6 +443,25 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
       return toolResult(api);
     }
 
+    if (name === 'skycommand_database_upgrade_plan') {
+      if (!config.databaseUpgradePlanEnabled) {
+        const error = new Error(
+          'MCP database upgrade PLAN is disabled by SKYCOMMAND_MCP_DB_UPGRADE_PLAN_ENABLED.',
+        );
+        error.code = 'MCP_DATABASE_UPGRADE_PLAN_DISABLED';
+        throw error;
+      }
+      assertExactArguments(args, [], 'arguments');
+      const api = await requestJson(
+        config,
+        'GET',
+        '/database-upgrade/plan',
+        undefined,
+        requestImpl,
+      );
+      return toolResult(api);
+    }
+
     if (name === 'skycommand_browser_automation_run') {
       if (!config.executionEnabled) {
         const error = new Error('MCP execution is disabled by SKYCOMMAND_MCP_EXECUTION_ENABLED.');
@@ -529,7 +571,7 @@ async function handleJsonRpcMessage(message, config, requestImpl = null) {
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: 'skycommand-mcp-gateway', version: GATEWAY_VERSION },
       instructions:
-        'Use SkyCommand tools as a governed local execution surface. Read discovery tools first. The browser automation run tool is present only when the local MCP execution kill switch is enabled, and SkyCommand server-side safety policy always remains authoritative.',
+        'Use SkyCommand tools as a governed local execution surface. Read discovery tools first. The browser automation run tool is present only when the local MCP execution kill switch is enabled. The read-only database-upgrade PLAN tool has its own gate and delegates only to the Assistant API; database-upgrade APPLY is not exposed. SkyCommand server-side safety policy always remains authoritative.',
     });
   }
 

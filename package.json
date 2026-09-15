@@ -314,6 +314,7 @@
     "workflow-playwright-nodes:self-test": "node tests/self/apps/api/src/services/workflowPlaywrightNodeSelfTest.js",
     "playwright-scheduler:self-test": "node tests/self/apps/api/src/services/playwrightSchedulerSelfTest.js",
     "assistant-integration:self-test": "node tests/self/apps/api/src/services/assistantIntegrationSelfTest.js",
+    "assistant-database-upgrade-plan:self-test": "node tests/self/apps/api/src/services/assistantDatabaseUpgradePlanSelfTest.js",
     "assistant-development-promotion:self-test": "node tests/self/apps/api/src/services/assistantDevelopmentPromotionSelfTest.js",
     "mcp:gateway": "node scripts/mcp/skycommandMcpGateway.js",
     "mcp-gateway:self-test": "node tests/self/scripts/mcp/skycommandMcpGatewaySelfTest.js"
