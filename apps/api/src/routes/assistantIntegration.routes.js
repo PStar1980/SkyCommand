@@ -8,6 +8,10 @@ router.use(requireAssistantIntegration);
 router.get('/capabilities', assistantIntegrationController.getCapabilities);
 router.get('/openapi.json', assistantIntegrationController.getOpenApi);
 router.get('/database-upgrade/plan', assistantIntegrationController.getDatabaseUpgradePlan);
+router.post(
+  '/database-upgrade/apply-requests',
+  assistantIntegrationController.createDatabaseUpgradeApplyRequest,
+);
 router.get(
   '/browser-automation-runs/:workflowId/artifacts/:artifactId',
   assistantIntegrationController.getArtifact,

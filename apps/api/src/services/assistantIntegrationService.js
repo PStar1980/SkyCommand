@@ -10,6 +10,7 @@ const {
 const {
   createDatabaseUpgradeToolResult,
 } = require('../../../../packages/db_upgrade/src/databaseUpgradeResult');
+const databaseUpgradeApplyRequestService = require('./databaseUpgradeApplyRequestService');
 
 const INTEGRATION_VERSION = 'skycommand_assistant_bridge.v1';
 const DEVELOPMENT_PROMOTION_CAPABILITY = 'skycommand_development_promotion_start';
@@ -18,6 +19,7 @@ const DATABASE_UPGRADE_PLAN_PERMISSION_CODE = 'DB_UPGRADE_PLAN';
 const DATABASE_UPGRADE_PLAN_REQUIRED_PERMISSION_CODES = Object.freeze([
   DATABASE_UPGRADE_PLAN_PERMISSION_CODE,
 ]);
+const DATABASE_UPGRADE_APPLY_REQUEST_CAPABILITY = 'skycommand_database_upgrade_apply_request';
 const DEVELOPMENT_PROMOTION_WORKFLOW_CODE = 'skyserver_dev_commit';
 const DEVELOPMENT_PROMOTION_REPOSITORY_CODE = 'SkyCommand';
 const DEVELOPMENT_PROMOTION_PERMISSION_CODE = 'WORKFLOW_RUN';
@@ -108,6 +110,10 @@ function getMissingDatabaseUpgradePlanPermissionCodes(permissions = []) {
   return DATABASE_UPGRADE_PLAN_REQUIRED_PERMISSION_CODES.filter(
     (permissionCode) => !grantedPermissionCodes.has(permissionCode),
   );
+}
+
+function getDatabaseUpgradeApplyRequestConfig(environment = process.env, permissions = []) {
+  return databaseUpgradeApplyRequestService.getApplyRequestConfig(environment, permissions);
 }
 
 function getDatabaseUpgradePlanConfig(env = process.env) {
@@ -506,6 +512,28 @@ async function getDatabaseUpgradePlan({
   return toolResult;
 }
 
+function assertExactDatabaseUpgradeApplyRequest({ query = {}, body = {} } = {}) {
+  return databaseUpgradeApplyRequestService.assertExactApplyRequestBody({ query, body });
+}
+
+async function createDatabaseUpgradeApplyRequest({
+  expectedPlanDigest,
+  permissions = [],
+  assistantIdentity = {},
+  environment = process.env,
+  upgradeExecutor = executeDatabaseUpgrade,
+  database,
+} = {}) {
+  return databaseUpgradeApplyRequestService.createApplyRequest({
+    expectedPlanDigest,
+    permissions,
+    assistantIdentity,
+    environment,
+    upgradeExecutor,
+    database,
+  });
+}
+
 async function startDevelopmentPromotion({
   body = {},
   permissions = [],
@@ -600,6 +628,10 @@ function getCapabilities({
     databaseUpgradePlan.enabled &&
     databaseUpgradePlan.configured &&
     databaseUpgradePlanMissingPermissionCodes.length === 0;
+  const databaseUpgradeApplyRequest = getDatabaseUpgradeApplyRequestConfig(
+    environment,
+    permissionCodes,
+  );
 
   return {
     integrationVersion: INTEGRATION_VERSION,
@@ -655,6 +687,25 @@ function getCapabilities({
       description:
         'Read-only current database-upgrade PLAN metadata. APPLY is not exposed through the Assistant API.',
     },
+    databaseUpgradeApplyRequest: {
+      capability: DATABASE_UPGRADE_APPLY_REQUEST_CAPABILITY,
+      applyRequestConfigured: databaseUpgradeApplyRequest.applyRequestConfigured,
+      applyRequestEnabled: databaseUpgradeApplyRequest.applyRequestEnabled,
+      applyRequestExecutable: databaseUpgradeApplyRequest.applyRequestExecutable,
+      requestPermissionCode: databaseUpgradeApplyRequest.requestPermissionCode,
+      missingPermissionCodes: databaseUpgradeApplyRequest.missingPermissionCodes,
+      databaseTargetConfigured: databaseUpgradeApplyRequest.databaseTargetConfigured,
+      systemIdentifierTargetConfigured:
+        databaseUpgradeApplyRequest.systemIdentifierTargetConfigured,
+      humanApprovalRequired: true,
+      applyExecutionExposed: false,
+      readOnly: false,
+      destructive: false,
+      idempotent: true,
+      blockedReason: databaseUpgradeApplyRequest.blockedReason,
+      description:
+        'Create a durable human-approval request for the exact current PLAN. This records authorization evidence only and never executes database APPLY.',
+    },
     safety: {
       assistantOptInRequired: true,
       confirmationRequiredAutomationsBlocked: true,
@@ -674,6 +725,7 @@ function getCapabilities({
       artifact: '/api/assistant/browser-automation-runs/{workflowId}/artifacts/{artifactId}',
       developmentPromotionStart: '/api/assistant/development-promotion/runs',
       databaseUpgradePlan: '/api/assistant/database-upgrade/plan',
+      databaseUpgradeApplyRequest: '/api/assistant/database-upgrade/apply-requests',
     },
   };
 }
@@ -685,7 +737,7 @@ function getOpenApiDocument() {
       title: 'SkyCommand Assistant Integration API',
       version: '1.0.0',
       description:
-        'Bounded assistant-facing surface for explicitly opted-in SkyCommand Playwright Automations, the separately gated human-approved development promotion start capability, and the strictly read-only database-upgrade PLAN capability. Database-upgrade APPLY is not exposed.',
+        'Bounded assistant-facing surface for explicitly opted-in SkyCommand Playwright Automations, the separately gated human-approved development promotion start capability, the strictly read-only database-upgrade PLAN capability, and a separately gated APPLY authorization-request capability. Database-upgrade APPLY execution is not exposed.',
     },
     servers: [{ url: '/api/assistant' }],
     components: {
@@ -722,6 +774,40 @@ function getOpenApiDocument() {
               description: 'Observed database identity does not match the configured D1 target.',
             },
             503: { description: 'Assistant PLAN gate or D1 target pins are not configured.' },
+          },
+        },
+      },
+      '/database-upgrade/apply-requests': {
+        post: {
+          operationId: DATABASE_UPGRADE_APPLY_REQUEST_CAPABILITY,
+          description:
+            'Create or reuse a durable human-approval envelope for the exact current governed PLAN. This operation records authorization evidence only; it never executes database APPLY.',
+          'x-required-permission-codes': ['DB_UPGRADE_APPLY_REQUEST'],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['expectedPlanDigest'],
+                  properties: {
+                    expectedPlanDigest: {
+                      type: 'string',
+                      pattern: '^[A-Fa-f0-9]{64}$',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            202: { description: 'Human-approval request accepted or reused.' },
+            200: { description: 'Existing current human-approval request reused.' },
+            400: { description: 'Exactly expectedPlanDigest is required.' },
+            403: { description: 'Assistant identity lacks DB_UPGRADE_APPLY_REQUEST.' },
+            409: { description: 'PLAN digest or configured target no longer matches.' },
+            503: { description: 'Request gate or target pins are not configured.' },
           },
         },
       },
@@ -931,6 +1017,24 @@ async function recordDatabaseUpgradePlanAudit({
   });
 }
 
+async function recordDatabaseUpgradeApplyRequestAudit({
+  req,
+  request = null,
+  success,
+  outcome,
+  error = null,
+  auditRecorder,
+} = {}) {
+  return databaseUpgradeApplyRequestService.recordApplyRequestAudit({
+    req,
+    request,
+    success,
+    outcome,
+    errorCode: error?.details?.code || error?.code || null,
+    auditRecorder,
+  });
+}
+
 async function recordDevelopmentPromotionAudit({
   req,
   result = null,
@@ -992,15 +1096,18 @@ module.exports = {
   DATABASE_UPGRADE_PLAN_CAPABILITY,
   DATABASE_UPGRADE_PLAN_PERMISSION_CODE,
   DATABASE_UPGRADE_PLAN_REQUIRED_PERMISSION_CODES,
+  DATABASE_UPGRADE_APPLY_REQUEST_CAPABILITY,
   INTEGRATION_VERSION,
   assistantEligibility,
   assertEmptyDatabaseUpgradePlanRequest,
+  assertExactDatabaseUpgradeApplyRequest,
   assertExactDevelopmentPromotionBody,
   getArtifact,
   getAutomation,
   getCapabilities,
   getDatabaseUpgradePlan,
   getDatabaseUpgradePlanConfig,
+  getDatabaseUpgradeApplyRequestConfig,
   getDevelopmentPromotionConfig,
   getMissingDatabaseUpgradePlanPermissionCodes,
   getMissingDevelopmentPromotionPermissionCodes,
@@ -1008,11 +1115,13 @@ module.exports = {
   getRun,
   listAutomations,
   recordDatabaseUpgradePlanAudit,
+  recordDatabaseUpgradeApplyRequestAudit,
   recordDevelopmentPromotionAudit,
   recordInvocationAudit,
   sanitizeAutomation,
   sanitizeRun,
   startDevelopmentPromotion,
+  createDatabaseUpgradeApplyRequest,
   startAutomation,
   validateDevelopmentPromotionCommitMessage,
 };

@@ -264,6 +264,17 @@ async function getCoreSettings() {
   return api.get('/api/admin/settings/core');
 }
 
+async function listDatabaseUpgradeApplyRequests(filters = {}) {
+  return api.get('/api/admin/database-upgrade/apply-requests', { query: filters });
+}
+
+async function decideDatabaseUpgradeApplyRequest(requestId, payload = {}) {
+  return api.post(
+    `/api/admin/database-upgrade/apply-requests/${encodeURIComponent(requestId)}/decision`,
+    payload,
+  );
+}
+
 const adminService = {
   listScriptExecutions,
   getScriptExecutionDetail,
@@ -331,6 +342,8 @@ const adminService = {
   getAuthSettings,
   getProductionReadiness,
   getCoreSettings,
+  listDatabaseUpgradeApplyRequests,
+  decideDatabaseUpgradeApplyRequest,
 };
 
 export default adminService;

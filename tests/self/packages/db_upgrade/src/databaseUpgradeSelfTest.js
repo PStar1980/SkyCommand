@@ -163,11 +163,11 @@ function makeTempSqlRoot(files) {
 
 async function run() {
   const sourceChanges = discoverGovernedSqlChanges();
-  assert.equal(sourceChanges.at(-1).ordinal, 130, '00130 is the next global ordinal');
+  assert.equal(sourceChanges.at(-1).ordinal, 131, '00131 is the next global ordinal');
   assert.equal(
     sourceChanges.filter((change) => change.ordinal <= BASELINE_ORDINAL).length,
-    sourceChanges.length - 2,
-    'only 00129 and 00130 are post-baseline changes',
+    sourceChanges.length - 3,
+    'only 00129 through 00131 are post-baseline changes',
   );
   assert.ok(sourceChanges.some((change) => change.ordinal === 129));
   assert.ok(sourceChanges.some((change) => change.ordinal === 130));
@@ -381,7 +381,7 @@ async function run() {
     expectedPlanDigest: cleanBuildLedgerPlan.planDigest.digest,
   });
   assert.equal(applyOutput.outcome, 'APPLIED');
-  assert.equal(applyOutput.appliedCount, 2);
+  assert.equal(applyOutput.appliedCount, 3);
   assert.equal(applyOutput.lock.acquired, true);
   assert.equal(applyOutput.lock.released, true);
   assert.ok(applyClient.mutations.includes('INSERT_BASELINE'));

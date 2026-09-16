@@ -63,6 +63,40 @@ async function getDatabaseUpgradePlan(req, res, next) {
   }
 }
 
+async function createDatabaseUpgradeApplyRequest(req, res, next) {
+  try {
+    const expectedPlanDigest = assistantIntegrationService.assertExactDatabaseUpgradeApplyRequest({
+      query: req.query || {},
+      body: req.body || {},
+    });
+    const request = await assistantIntegrationService.createDatabaseUpgradeApplyRequest({
+      expectedPlanDigest,
+      permissions: req.permissions || [],
+      assistantIdentity: {
+        agentId: req.assistantIntegration?.agentId || 'assistant-http',
+        authMode: req.session?.authMode,
+        userId: req.user?.userId || null,
+      },
+    });
+    return res.status(request.reused ? 200 : 202).json({
+      ok: true,
+      ...request,
+      humanApprovalRequired: true,
+      applyExecutionExposed: false,
+    });
+  } catch (error) {
+    await assistantIntegrationService
+      .recordDatabaseUpgradeApplyRequestAudit({
+        req,
+        success: false,
+        outcome: 'REJECTED',
+        error,
+      })
+      .catch(() => {});
+    return sendError(res, error, next);
+  }
+}
+
 async function listAutomations(req, res, next) {
   try {
     const payload = await assistantIntegrationService.listAutomations(
@@ -182,6 +216,7 @@ module.exports = {
   getAutomation,
   getCapabilities,
   getDatabaseUpgradePlan,
+  createDatabaseUpgradeApplyRequest,
   getOpenApi,
   getRun,
   listAutomations,
