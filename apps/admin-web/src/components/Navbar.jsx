@@ -190,7 +190,8 @@ function createNavGroups(hasPermission, hasRole) {
   const canViewWorkflows =
     hasPermission('WORKFLOW_READ') ||
     hasPermission('TEMPORAL_WORKFLOW_READ') ||
-    hasPermission('WORKFLOW_APPROVAL_READ');
+    hasPermission('WORKFLOW_APPROVAL_READ') ||
+    hasPermission('DB_UPGRADE_APPLY_APPROVE');
   const canViewBrowserTests =
     hasPermission('BROWSER_TEST_READ') ||
     hasPermission('BROWSER_TEST_RUN') ||
@@ -351,6 +352,13 @@ function createNavGroups(hasPermission, hasRole) {
           icon: '☑',
           visible: hasPermission('WORKFLOW_APPROVAL_READ'),
           description: 'Decision ledger',
+        },
+        {
+          label: 'Database Upgrade Requests',
+          to: '/workflows/database-upgrade-requests',
+          icon: '⇧',
+          visible: hasPermission('DB_UPGRADE_APPLY_APPROVE') && hasRole('SUPER_ADMIN'),
+          description: 'Human authorization envelopes',
         },
       ],
     },

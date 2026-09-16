@@ -129,6 +129,7 @@ SkyCommand/
 │   │       │   ├── BrowserAutomations.jsx
 │   │       │   ├── BrowserTests.jsx
 │   │       │   ├── Dashboard.jsx
+│   │       │   ├── DatabaseUpgradeRequests.jsx
 │   │       │   ├── DataStatus.jsx
 │   │       │   ├── DockerInventory.jsx
 │   │       │   ├── DockerOperations.jsx
@@ -184,6 +185,7 @@ SkyCommand/
 │   │       │   ├── browserAutomationController.js
 │   │       │   ├── browserTestController.js
 │   │       │   ├── browserTestSuiteController.js
+│   │       │   ├── databaseUpgradeApplyRequestController.js
 │   │       │   ├── infrastructureController.js
 │   │       │   ├── ingestionController.js
 │   │       │   ├── macroController.js
@@ -229,6 +231,7 @@ SkyCommand/
 │   │       │   ├── browserTestFailureUtils.js
 │   │       │   ├── browserTestRegistryService.js
 │   │       │   ├── browserTestSuiteService.js
+│   │       │   ├── databaseUpgradeApplyRequestService.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
 │   │       │   ├── infrastructureService.js
@@ -1644,7 +1647,8 @@ SkyCommand/
 │   │       │   ├── 00126__assistant_browser_automation_opt_in.sql
 │   │       │   ├── 00128__assistant_workflow_run_attribution.sql
 │   │       │   ├── 00129__database_upgrade_ledger.sql
-│   │       │   └── 00130__assistant_database_upgrade_plan_permission.sql
+│   │       │   ├── 00130__assistant_database_upgrade_plan_permission.sql
+│   │       │   └── 00131__database_upgrade_apply_request_envelope.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -2192,6 +2196,7 @@ SkyCommand/
         │               ├── browserTestObservabilitySelfTest.js
         │               ├── browserTestRegistrySelfTest.js
         │               ├── browserTestSuiteSelfTest.js
+        │               ├── databaseUpgradeApplyRequestSelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js
         │               ├── infrastructureServiceSelfTest.js

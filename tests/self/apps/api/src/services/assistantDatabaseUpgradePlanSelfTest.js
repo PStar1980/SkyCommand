@@ -215,8 +215,8 @@ async function run() {
   const service = read('apps/api/src/services/assistantIntegrationService.js');
   assert.ok(routes.includes("'/database-upgrade/plan'"));
   assert.ok(controller.includes('getDatabaseUpgradePlan'));
-  assert.ok(!routes.includes('database-upgrade/apply'));
-  assert.ok(!service.includes('expectedPlanDigest'));
+  assert.ok(!routes.includes("'/database-upgrade/apply'"));
+  assert.ok(service.includes('expectedPlanDigest'));
   assert.ok(!service.includes("mode: 'APPLY'"));
 
   const auditEvents = [];
@@ -259,6 +259,14 @@ async function run() {
   assert.ok(migration.includes('ON CONFLICT (permission_code) DO UPDATE'));
   assert.ok(migration.includes('ON CONFLICT (role_id, permission_id) DO UPDATE'));
   assert.ok(!migration.includes("'DB_UPGRADE_APPLY'"));
+
+  const applyRequestMigration = read(
+    'packages/db_build/src/migrations/00131__database_upgrade_apply_request_envelope.sql',
+  );
+  assert.ok(applyRequestMigration.includes("'DB_UPGRADE_APPLY_REQUEST'"));
+  assert.ok(applyRequestMigration.includes("'DB_UPGRADE_APPLY_APPROVE'"));
+  assert.ok(applyRequestMigration.includes("WHERE role.role_code = 'SUPER_ADMIN'"));
+  assert.ok(applyRequestMigration.includes('database_upgrade_apply_requests'));
 
   console.log('[assistant-database-upgrade-plan:self-test] PASS');
 }
