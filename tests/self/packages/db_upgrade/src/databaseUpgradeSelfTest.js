@@ -78,22 +78,32 @@ class FakeClient {
     }
     if (sql.includes('current_database()')) {
       return {
-        rows: [{
-          database_name: 'skyserver_dev',
-          server_version: '16.4',
-          server_port: 5432,
-          system_identifier: this.systemIdentifier,
-        }],
+        rows: [
+          {
+            database_name: 'skyserver_dev',
+            server_version: '16.4',
+            server_port: 5432,
+            system_identifier: this.systemIdentifier,
+          },
+        ],
       };
     }
     if (sql.includes('information_schema.schemata')) {
-      return { rows: [{ schema_name: 'core' }, { schema_name: 'auth' }, { schema_name: 'worker' }] };
+      return {
+        rows: [{ schema_name: 'core' }, { schema_name: 'auth' }, { schema_name: 'worker' }],
+      };
     }
     if (sql.includes('FROM pg_constraint')) {
       return {
         rows: [
-          { conname: 'run_source_check', definition: "CHECK (run_source IN ('manual', 'assistant'))" },
-          { conname: 'trigger_type_check', definition: "CHECK (trigger_type IN ('MANUAL', 'ASSISTANT'))" },
+          {
+            conname: 'run_source_check',
+            definition: "CHECK (run_source IN ('manual', 'assistant'))",
+          },
+          {
+            conname: 'trigger_type_check',
+            definition: "CHECK (trigger_type IN ('MANUAL', 'ASSISTANT'))",
+          },
         ],
       };
     }
@@ -107,7 +117,7 @@ class FakeClient {
         ],
       };
     }
-    if (sql.includes('to_regclass(\'core.repositories\')')) {
+    if (sql.includes("to_regclass('core.repositories')")) {
       return { rows: [this.tables] };
     }
     if (sql.includes('FROM core.database_upgrade_baselines')) return { rows: this.baselineRows };
@@ -151,8 +161,12 @@ async function expectRejected(promise, code) {
 
 function makeTempSqlRoot(files) {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skycommand-db-upgrade-'));
-  fs.mkdirSync(path.join(temporaryRoot, 'packages', 'db_build', 'src', 'migrations'), { recursive: true });
-  fs.mkdirSync(path.join(temporaryRoot, 'packages', 'db_build', 'src', 'seeds'), { recursive: true });
+  fs.mkdirSync(path.join(temporaryRoot, 'packages', 'db_build', 'src', 'migrations'), {
+    recursive: true,
+  });
+  fs.mkdirSync(path.join(temporaryRoot, 'packages', 'db_build', 'src', 'seeds'), {
+    recursive: true,
+  });
   files.forEach(({ rootName, name, contents = 'SELECT 1;' }) => {
     fs.writeFileSync(
       path.join(temporaryRoot, 'packages', 'db_build', 'src', rootName, name),
@@ -208,8 +222,17 @@ async function run() {
 
   assert.ok(sourceChanges.some((change) => change.ordinal === 129));
   assert.ok(sourceChanges.some((change) => change.ordinal === 130));
-  assert.ok(sourceChanges.some((change) => change.relativePath.endsWith('00128__assistant_workflow_run_attribution.sql')));
-  assert.ok(sourceChanges.every((change) => change.ordinal > BASELINE_ORDINAL || change.separator === '__' || change.separator === '_'));
+  assert.ok(
+    sourceChanges.some((change) =>
+      change.relativePath.endsWith('00128__assistant_workflow_run_attribution.sql'),
+    ),
+  );
+  assert.ok(
+    sourceChanges.every(
+      (change) =>
+        change.ordinal > BASELINE_ORDINAL || change.separator === '__' || change.separator === '_',
+    ),
+  );
   assert.equal(parseGovernedFilename('00007_indicator_views.sql').separator, '_');
   assert.throws(() => parseGovernedFilename('not-a-governed-file.sql'), /malformed/i);
   assert.throws(() => parseGovernedFilename('00130_new_style.sql'), /double-underscore/i);
@@ -224,13 +247,19 @@ async function run() {
     expectedPlanDigest: null,
     confirmed: false,
   });
-  assert.deepEqual(parseCliArguments(['apply', '--confirm', '--expected-plan-digest', 'A'.repeat(64)]), {
-    mode: 'APPLY',
-    expectedPlanDigest: 'A'.repeat(64),
-    confirmed: true,
-  });
+  assert.deepEqual(
+    parseCliArguments(['apply', '--confirm', '--expected-plan-digest', 'A'.repeat(64)]),
+    {
+      mode: 'APPLY',
+      expectedPlanDigest: 'A'.repeat(64),
+      confirmed: true,
+    },
+  );
   assert.throws(() => parseCliArguments(['plan', '--sql=SELECT%201']), /Unsupported|not allowed/i);
-  assert.throws(() => parseCliArguments(['apply', '--database=skyserver_dev']), /Unsupported|not allowed/i);
+  assert.throws(
+    () => parseCliArguments(['apply', '--database=skyserver_dev']),
+    /Unsupported|not allowed/i,
+  );
 
   const duplicateRoot = makeTempSqlRoot([
     { rootName: 'migrations', name: '00130__one.sql' },
@@ -256,8 +285,18 @@ async function run() {
   }
 
   const planChanges = [
-    { ordinal: 131, kind: 'SEED', relativePath: 'packages/db_build/src/seeds/00131__seed.sql', sha256: 'B'.repeat(64) },
-    { ordinal: 130, kind: 'MIGRATION', relativePath: 'packages/db_build/src/migrations/00130__migration.sql', sha256: 'A'.repeat(64) },
+    {
+      ordinal: 131,
+      kind: 'SEED',
+      relativePath: 'packages/db_build/src/seeds/00131__seed.sql',
+      sha256: 'B'.repeat(64),
+    },
+    {
+      ordinal: 130,
+      kind: 'MIGRATION',
+      relativePath: 'packages/db_build/src/migrations/00130__migration.sql',
+      sha256: 'A'.repeat(64),
+    },
   ];
   const planInput = {
     identity: {
@@ -272,8 +311,17 @@ async function run() {
     sourceRevision: 'revision-a',
   };
   const orderedPlan = buildPlan(planInput);
-  assert.deepEqual(orderedPlan.pending.map((change) => change.ordinal), [130, 131]);
-  const changedDigest = buildPlan({ ...planInput, changes: planChanges.map((change) => ({ ...change, sha256: change.sha256 === 'A'.repeat(64) ? 'C'.repeat(64) : change.sha256 })) }).digest;
+  assert.deepEqual(
+    orderedPlan.pending.map((change) => change.ordinal),
+    [130, 131],
+  );
+  const changedDigest = buildPlan({
+    ...planInput,
+    changes: planChanges.map((change) => ({
+      ...change,
+      sha256: change.sha256 === 'A'.repeat(64) ? 'C'.repeat(64) : change.sha256,
+    })),
+  }).digest;
   assert.notEqual(orderedPlan.digest, changedDigest, 'plan digest binds pending checksums');
   const changedSetDigest = buildPlan({ ...planInput, changes: planChanges.slice(0, 1) }).digest;
   assert.notEqual(orderedPlan.digest, changedSetDigest, 'plan digest binds pending set');
@@ -335,7 +383,11 @@ async function run() {
   await expectRejected(
     executeDatabaseUpgrade({
       mode: 'APPLY',
-      environment: { ...validEnvironment, SKYCOMMAND_DB_UPGRADE_ENABLED: 'true', SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE: 'other_database' },
+      environment: {
+        ...validEnvironment,
+        SKYCOMMAND_DB_UPGRADE_ENABLED: 'true',
+        SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE: 'other_database',
+      },
       adapter: adapterFor(wrongTargetClient),
       confirmed: true,
       expectedPlanDigest: '0'.repeat(64),
@@ -380,9 +432,15 @@ async function run() {
   );
   assert.equal(wrongSystemIdentifierClient.mutations.length, 0);
 
-  const missingEvidenceClient = new FakeClient({ tables: { ...verifiedTables(), workflow_run_records: null } });
+  const missingEvidenceClient = new FakeClient({
+    tables: { ...verifiedTables(), workflow_run_records: null },
+  });
   await expectRejected(
-    executeDatabaseUpgrade({ mode: 'PLAN', environment: validEnvironment, adapter: adapterFor(missingEvidenceClient) }),
+    executeDatabaseUpgrade({
+      mode: 'PLAN',
+      environment: validEnvironment,
+      adapter: adapterFor(missingEvidenceClient),
+    }),
     'DATABASE_UPGRADE_BASELINE_EVIDENCE_MISSING',
   );
 
@@ -432,20 +490,24 @@ async function run() {
   const firstChange = sourceChanges.find((change) => change.ordinal === 129);
   const ledgerClient = new FakeClient({
     ledgerAvailable: true,
-    baselineRows: [{
-      baseline_id: 'baseline-1',
-      baseline_contract: BASELINE_CONTRACT,
-      baseline_ordinal: BASELINE_ORDINAL,
-      database_name: 'skyserver_dev',
-      evidence: { systemIdentifier: validSystemIdentifier },
-    }],
-    ledgerRows: [{
-      baseline_id: 'baseline-1',
-      ordinal: 129,
-      change_kind: firstChange.kind,
-      source_path: firstChange.relativePath,
-      sha256: 'F'.repeat(64),
-    }],
+    baselineRows: [
+      {
+        baseline_id: 'baseline-1',
+        baseline_contract: BASELINE_CONTRACT,
+        baseline_ordinal: BASELINE_ORDINAL,
+        database_name: 'skyserver_dev',
+        evidence: { systemIdentifier: validSystemIdentifier },
+      },
+    ],
+    ledgerRows: [
+      {
+        baseline_id: 'baseline-1',
+        ordinal: 129,
+        change_kind: firstChange.kind,
+        source_path: firstChange.relativePath,
+        sha256: 'F'.repeat(64),
+      },
+    ],
   });
   await expectRejected(
     require('./databaseUpgradeEngine').readLedgerState(
@@ -458,13 +520,15 @@ async function run() {
 
   const baselineDriftClient = new FakeClient({
     ledgerAvailable: true,
-    baselineRows: [{
-      baseline_id: 'baseline-1',
-      baseline_contract: BASELINE_CONTRACT,
-      baseline_ordinal: BASELINE_ORDINAL,
-      database_name: 'skyserver_dev',
-      evidence: { systemIdentifier: '12345678901234567890' },
-    }],
+    baselineRows: [
+      {
+        baseline_id: 'baseline-1',
+        baseline_contract: BASELINE_CONTRACT,
+        baseline_ordinal: BASELINE_ORDINAL,
+        database_name: 'skyserver_dev',
+        evidence: { systemIdentifier: '12345678901234567890' },
+      },
+    ],
   });
   await expectRejected(
     require('./databaseUpgradeEngine').readLedgerState(
@@ -487,19 +551,55 @@ async function run() {
   await expectRejected(
     applyChange(
       failedChangeClient,
-      { ordinal: 130, kind: 'MIGRATION', relativePath: 'packages/db_build/src/migrations/00130__fail.sql', sql: 'SELECT FAIL_CHANGE;', sha256: 'A'.repeat(64) },
-      { baselineId: 'baseline-1', identity: { databaseName: 'skyserver_dev', serverVersion: '16.4', systemIdentifier: validSystemIdentifier }, sourceRevision: null, probes: [], planDigest: 'A'.repeat(64) },
+      {
+        ordinal: 130,
+        kind: 'MIGRATION',
+        relativePath: 'packages/db_build/src/migrations/00130__fail.sql',
+        sql: 'SELECT FAIL_CHANGE;',
+        sha256: sha256(Buffer.from('SELECT FAIL_CHANGE;', 'utf8')),
+      },
+      {
+        baselineId: 'baseline-1',
+        identity: {
+          databaseName: 'skyserver_dev',
+          serverVersion: '16.4',
+          systemIdentifier: validSystemIdentifier,
+        },
+        sourceRevision: null,
+        probes: [],
+        planDigest: 'A'.repeat(64),
+      },
     ),
     'DATABASE_UPGRADE_CHANGE_FAILED',
   );
   assert.ok(failedChangeClient.mutations.includes('ROLLBACK'));
-  assert.equal(failedChangeClient.mutations.includes('INSERT_LEDGER'), false, 'failed SQL has no successful receipt');
+  assert.equal(
+    failedChangeClient.mutations.includes('INSERT_LEDGER'),
+    false,
+    'failed SQL has no successful receipt',
+  );
 
   const atomicClient = new FakeClient();
   await applyChange(
     atomicClient,
-    { ordinal: 130, kind: 'MIGRATION', relativePath: 'packages/db_build/src/migrations/00130__ok.sql', sql: 'SELECT 1;', sha256: 'A'.repeat(64) },
-    { baselineId: 'baseline-1', identity: { databaseName: 'skyserver_dev', serverVersion: '16.4', systemIdentifier: validSystemIdentifier }, sourceRevision: null, probes: [], planDigest: 'A'.repeat(64) },
+    {
+      ordinal: 130,
+      kind: 'MIGRATION',
+      relativePath: 'packages/db_build/src/migrations/00130__ok.sql',
+      sql: 'SELECT 1;',
+      sha256: sha256(Buffer.from('SELECT 1;', 'utf8')),
+    },
+    {
+      baselineId: 'baseline-1',
+      identity: {
+        databaseName: 'skyserver_dev',
+        serverVersion: '16.4',
+        systemIdentifier: validSystemIdentifier,
+      },
+      sourceRevision: null,
+      probes: [],
+      planDigest: 'A'.repeat(64),
+    },
   );
   assert.deepEqual(atomicClient.mutations.slice(0, 3), ['BEGIN', 'SELECT 1;', 'INSERT_LEDGER']);
   assert.equal(atomicClient.mutations.at(-1), 'COMMIT');
@@ -512,9 +612,19 @@ async function run() {
       kind: 'MIGRATION',
       relativePath: 'packages/db_build/src/migrations/00130__do_block_validation.sql',
       sql: 'DO $$ BEGIN IF TRUE THEN NULL; END IF; END $$;',
-      sha256: 'A'.repeat(64),
+      sha256: sha256(Buffer.from('DO $$ BEGIN IF TRUE THEN NULL; END IF; END $$;', 'utf8')),
     },
-    { baselineId: 'baseline-1', identity: { databaseName: 'skyserver_dev', serverVersion: '16.4', systemIdentifier: validSystemIdentifier }, sourceRevision: null, probes: [], planDigest: 'A'.repeat(64) },
+    {
+      baselineId: 'baseline-1',
+      identity: {
+        databaseName: 'skyserver_dev',
+        serverVersion: '16.4',
+        systemIdentifier: validSystemIdentifier,
+      },
+      sourceRevision: null,
+      probes: [],
+      planDigest: 'A'.repeat(64),
+    },
   );
   assert.equal(doBlockClient.mutations[1], 'DO $$ BEGIN IF TRUE THEN NULL; END IF; END $$;');
 

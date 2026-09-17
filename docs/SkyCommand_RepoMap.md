@@ -1654,7 +1654,9 @@ SkyCommand/
 │   │       │   ├── 00131__database_upgrade_apply_request_envelope.sql
 │   │       │   ├── 00132__database_upgrade_apply_execution_receipt.sql
 │   │       │   ├── 00133__capability_catalog_export_and_workflow_integration.sql
-│   │       │   └── 00134__capability_catalog_r1_invariant_validation.sql
+│   │       │   ├── 00134__capability_catalog_r1_invariant_validation.sql
+│   │       │   ├── 00135__autonomous_database_upgrade_tool.sql
+│   │       │   └── 00136__database_upgrade_tool_admin_scope.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1712,6 +1714,8 @@ SkyCommand/
 │   │       └── db_object_compare.js
 │   ├── db_upgrade/
 │   │   └── src/
+│   │       ├── databaseUpgradeApply.js
+│   │       ├── databaseUpgradeApplyTool.js
 │   │       ├── databaseUpgradeEngine.js
 │   │       ├── databaseUpgradeResult.js
 │   │       └── db_upgrade.js
@@ -2254,6 +2258,7 @@ SkyCommand/
         │   ├── db_upgrade/
         │   │   └── src/
         │   │       ├── databaseUpgradeCliSelfTest.js
+        │   │       ├── databaseUpgradeR2SelfTest.js
         │   │       └── databaseUpgradeSelfTest.js
         │   ├── files/
         │   │   └── src/

@@ -21,7 +21,9 @@ function normalizeChange(value = {}) {
     ordinal: asNonNegativeInteger(value.ordinal),
     kind: ['MIGRATION', 'SEED'].includes(value.kind) ? value.kind : 'MIGRATION',
     relativePath: String(value.relativePath || '').trim(),
-    sha256: String(value.sha256 || '').trim().toUpperCase(),
+    sha256: String(value.sha256 || '')
+      .trim()
+      .toUpperCase(),
   };
 }
 
@@ -45,15 +47,48 @@ function normalizeProbe(value = {}) {
   };
 }
 
+function normalizeLedgerSnapshot(value = {}) {
+  return {
+    available: value.available === true,
+    verification: ['VERIFIED', 'NOT_INITIALIZED', 'DRIFT', 'FAILED', 'UNKNOWN'].includes(
+      value.verification,
+    )
+      ? value.verification
+      : 'UNKNOWN',
+    appliedCount: asNonNegativeInteger(value.appliedCount),
+    ordinals: Array.isArray(value.ordinals) ? value.ordinals.map(asNonNegativeInteger) : [],
+  };
+}
+
+function normalizeFileOutcome(value = {}) {
+  return {
+    ordinal: asNonNegativeInteger(value.ordinal),
+    kind: ['MIGRATION', 'SEED'].includes(value.kind) ? value.kind : 'MIGRATION',
+    relativePath: String(value.relativePath || '').trim(),
+    sha256: String(value.sha256 || '')
+      .trim()
+      .toUpperCase(),
+    status: [
+      'ALREADY_LEDGERED',
+      'COMMITTED',
+      'COMMITTED_RECONCILED',
+      'FAILED',
+      'FAILED_ROLLED_BACK',
+      'PENDING_NOT_ATTEMPTED',
+    ].includes(value.status)
+      ? value.status
+      : 'PENDING_NOT_ATTEMPTED',
+    rolledBack: value.rolledBack === true,
+    errorCode: asNullableString(value.errorCode),
+  };
+}
+
 function normalizeDatabaseUpgradeOutput(value = {}, overrides = {}) {
   const input = { ...value, ...overrides };
   const mode = input.mode === 'APPLY' ? 'APPLY' : 'PLAN';
-  const outcome = [
-    'PLAN_READY',
-    'APPLIED',
-    'BLOCKED',
-    'FAILED',
-  ].includes(input.outcome)
+  const outcome = ['PLAN_READY', 'APPLIED', 'NO_CHANGES', 'BLOCKED', 'FAILED'].includes(
+    input.outcome,
+  )
     ? input.outcome
     : 'FAILED';
 
@@ -62,9 +97,7 @@ function normalizeDatabaseUpgradeOutput(value = {}, overrides = {}) {
     mode,
     databaseIdentity: normalizeDatabaseIdentity(input.databaseIdentity),
     baseline: {
-      status: ['VERIFIED', 'NOT_INITIALIZED', 'FAILED', 'UNKNOWN'].includes(
-        input.baseline?.status,
-      )
+      status: ['VERIFIED', 'NOT_INITIALIZED', 'FAILED', 'UNKNOWN'].includes(input.baseline?.status)
         ? input.baseline.status
         : 'UNKNOWN',
       contract: asNullableString(input.baseline?.contract),
@@ -75,10 +108,37 @@ function normalizeDatabaseUpgradeOutput(value = {}, overrides = {}) {
         : [],
     },
     sourceRevision: asNullableString(input.sourceRevision),
+    execution: {
+      path: asNullableString(input.execution?.path),
+      toolCode: asNullableString(input.execution?.toolCode),
+      executionId: asNullableString(input.execution?.executionId),
+      reconciledFromLedger: input.execution?.reconciledFromLedger === true,
+    },
+    binding:
+      input.binding && typeof input.binding === 'object'
+        ? {
+            environmentCode: String(input.binding.environmentCode || '').trim(),
+            repositoryCode: String(input.binding.repositoryCode || '').trim(),
+            repositoryId: String(input.binding.repositoryId || '').trim(),
+            toolCode: String(input.binding.toolCode || '').trim(),
+            toolId: String(input.binding.toolId || '').trim(),
+            permissionCode: String(input.binding.permissionCode || '').trim(),
+          }
+        : null,
     planDigest: input.planDigest
       ? {
           algorithm: 'SHA-256',
-          digest: String(input.planDigest.digest || '').trim().toUpperCase(),
+          digest: String(input.planDigest.digest || '')
+            .trim()
+            .toUpperCase(),
+        }
+      : null,
+    manifestDigest: input.manifestDigest
+      ? {
+          algorithm: 'SHA-256',
+          digest: String(input.manifestDigest.digest || '')
+            .trim()
+            .toUpperCase(),
         }
       : null,
     pendingCount: asNonNegativeInteger(input.pendingCount),
@@ -86,6 +146,9 @@ function normalizeDatabaseUpgradeOutput(value = {}, overrides = {}) {
       ? input.pendingChanges.map(normalizeChange)
       : [],
     appliedCount: asNonNegativeInteger(input.appliedCount),
+    fileOutcomes: Array.isArray(input.fileOutcomes)
+      ? input.fileOutcomes.map(normalizeFileOutcome)
+      : [],
     ledger: {
       available: input.ledger?.available === true,
       verification: ['VERIFIED', 'NOT_INITIALIZED', 'DRIFT', 'FAILED', 'UNKNOWN'].includes(
@@ -95,12 +158,27 @@ function normalizeDatabaseUpgradeOutput(value = {}, overrides = {}) {
         : 'UNKNOWN',
       appliedCount: asNonNegativeInteger(input.ledger?.appliedCount),
       driftDetected: input.ledger?.driftDetected === true,
+      receipts: Array.isArray(input.ledger?.receipts) ? input.ledger.receipts : [],
+      before: input.ledger?.before ? normalizeLedgerSnapshot(input.ledger.before) : null,
+      after: input.ledger?.after ? normalizeLedgerSnapshot(input.ledger.after) : null,
     },
     lock: {
       requested: input.lock?.requested === true,
       acquired: input.lock?.acquired === true,
       released: input.lock?.released === true,
       mechanism: asNullableString(input.lock?.mechanism),
+    },
+    revalidation: {
+      performed: input.revalidation?.performed === true,
+      outcome: asNullableString(input.revalidation?.outcome) || 'NOT_REQUESTED',
+      manifestDigest: input.revalidation?.manifestDigest
+        ? {
+            algorithm: 'SHA-256',
+            digest: String(input.revalidation.manifestDigest.digest || '')
+              .trim()
+              .toUpperCase(),
+          }
+        : null,
     },
     outcome,
     warnings: Array.isArray(input.warnings) ? input.warnings : [],
@@ -115,7 +193,7 @@ function normalizeDatabaseUpgradeOutput(value = {}, overrides = {}) {
 
 function createDatabaseUpgradeToolResult(result) {
   const output = normalizeDatabaseUpgradeOutput(result);
-  const success = output.outcome === 'PLAN_READY' || output.outcome === 'APPLIED';
+  const success = ['PLAN_READY', 'APPLIED', 'NO_CHANGES'].includes(output.outcome);
 
   return {
     schemaVersion: '1.0',
@@ -123,7 +201,9 @@ function createDatabaseUpgradeToolResult(result) {
     message:
       output.outcome === 'APPLIED'
         ? `Applied ${output.appliedCount} database upgrade change(s).`
-        : `Database upgrade plan contains ${output.pendingCount} pending change(s).`,
+        : output.outcome === 'NO_CHANGES'
+          ? 'Database upgrade is already current; no changes were applied.'
+          : `Database upgrade plan contains ${output.pendingCount} pending change(s).`,
     outputType: DATABASE_UPGRADE_OUTPUT_TYPE,
     output,
     warnings: output.warnings,
@@ -136,7 +216,8 @@ function createDatabaseUpgradeToolResult(result) {
     metadata: {
       upgradeMode: output.mode,
       destructiveOperation: false,
-      agentExecutionExposed: false,
+      agentExecutionExposed: output.execution.path === 'REGISTERED_DEV_TOOL',
+      executionPath: output.execution.path,
     },
   };
 }
@@ -175,7 +256,8 @@ function createDatabaseUpgradeFailureToolResult(error) {
     metadata: {
       upgradeMode: output.mode,
       destructiveOperation: false,
-      agentExecutionExposed: false,
+      agentExecutionExposed: output.execution.path === 'REGISTERED_DEV_TOOL',
+      executionPath: output.execution.path,
     },
   };
 }
