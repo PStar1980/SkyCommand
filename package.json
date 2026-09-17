@@ -316,6 +316,8 @@
     "workflow-playwright-nodes:self-test": "node tests/self/apps/api/src/services/workflowPlaywrightNodeSelfTest.js",
     "playwright-scheduler:self-test": "node tests/self/apps/api/src/services/playwrightSchedulerSelfTest.js",
     "assistant-integration:self-test": "node tests/self/apps/api/src/services/assistantIntegrationSelfTest.js",
+    "workflow-agent-execution:self-test": "node tests/self/apps/api/src/services/workflowAgentExecutionSelfTest.js",
+    "workflow-agent-execution:integration:self-test": "node tests/self/apps/api/src/services/workflowAgentExecutionIntegrationSelfTest.js",
     "assistant-database-upgrade-plan:self-test": "node tests/self/apps/api/src/services/assistantDatabaseUpgradePlanSelfTest.js",
     "assistant-database-upgrade-apply-request:self-test": "node tests/self/apps/api/src/services/databaseUpgradeApplyRequestSelfTest.js",
     "admin-database-upgrade-execution:self-test": "node tests/self/apps/api/src/services/databaseUpgradeExecutionSelfTest.js",

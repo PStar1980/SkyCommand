@@ -7,6 +7,11 @@ const router = express.Router();
 router.use(requireAssistantIntegration);
 router.get('/capabilities', assistantIntegrationController.getCapabilities);
 router.get('/openapi.json', assistantIntegrationController.getOpenApi);
+router.post('/workflow-runs', assistantIntegrationController.startWorkflowExecution);
+router.get(
+  '/workflow-runs/:workflowRunRecordId',
+  assistantIntegrationController.getWorkflowExecutionRun,
+);
 router.get('/database-upgrade/plan', assistantIntegrationController.getDatabaseUpgradePlan);
 router.post(
   '/database-upgrade/apply-requests',

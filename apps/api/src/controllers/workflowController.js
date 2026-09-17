@@ -1,5 +1,6 @@
 const authService = require('../services/authService');
 const workflowExecutorService = require('../services/workflowExecutorService');
+const workflowAgentExecutionService = require('../services/workflowAgentExecutionService');
 const workflowHealthService = require('../services/workflowHealthService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
@@ -81,13 +82,10 @@ function parseBooleanQuery(value, fallback) {
   return value === true || value === 'true' || value === '1';
 }
 
-async function recordWorkflowDefinitionAudit(req, {
-  eventType,
-  action,
-  definition = {},
-  message,
-  metadata = {},
-} = {}) {
+async function recordWorkflowDefinitionAudit(
+  req,
+  { eventType, action, definition = {}, message, metadata = {} } = {},
+) {
   const context = authService.getRequestContext(req);
 
   try {
@@ -96,7 +94,11 @@ async function recordWorkflowDefinitionAudit(req, {
       userId: req.user?.userId || null,
       eventType,
       resourceType: 'worker.workflow_definitions',
-      resourceId: definition.workflowDefinitionId || definition.workflowCode || req.params?.workflowCode || null,
+      resourceId:
+        definition.workflowDefinitionId ||
+        definition.workflowCode ||
+        req.params?.workflowCode ||
+        null,
       action,
       success: true,
       message,
@@ -106,18 +108,21 @@ async function recordWorkflowDefinitionAudit(req, {
         workflowCategoryCode: definition.categoryCode || null,
         workflowCategoryDisplayName: definition.categoryDisplayName || null,
         workflowVersionId:
-          definition.workflowVersionId
-          || definition.publishedVersionId
-          || definition.latestVersionId
-          || req.params?.workflowVersionId
-          || null,
+          definition.workflowVersionId ||
+          definition.publishedVersionId ||
+          definition.latestVersionId ||
+          req.params?.workflowVersionId ||
+          null,
         ...metadata,
       },
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
     });
   } catch (auditError) {
-    console.error(`[SkyCommand API] Failed to record ${eventType || 'workflow definition'} audit event:`, auditError);
+    console.error(
+      `[SkyCommand API] Failed to record ${eventType || 'workflow definition'} audit event:`,
+      auditError,
+    );
   }
 }
 
@@ -669,6 +674,54 @@ async function startWorkflow(req, res, next) {
   }
 }
 
+function getAuthenticatedApiPrincipalCode(req) {
+  const userId = String(req.user?.userId || '').trim();
+  return userId ? 'api-user:' + userId : 'api-internal';
+}
+
+async function startAgentWorkflow(req, res, next) {
+  try {
+    const result = await workflowAgentExecutionService.startWorkflow({
+      request: req.body || {},
+      principalCode: getAuthenticatedApiPrincipalCode(req),
+      authMode: req.session?.authMode || 'SESSION',
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.status(result.reused ? 200 : 202).json({ ok: true, ...result });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+    return next(error);
+  }
+}
+
+async function getAgentWorkflowRun(req, res, next) {
+  try {
+    const result = await workflowAgentExecutionService.getWorkflowRun({
+      workflowRunRecordId: req.params.workflowRunRecordId,
+      principalCode: getAuthenticatedApiPrincipalCode(req),
+      authMode: req.session?.authMode || 'SESSION',
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+    return next(error);
+  }
+}
+
 async function listRuns(req, res, next) {
   try {
     const result = await workflowExecutorService.listWorkflowRuns(req.query || {});
@@ -931,6 +984,7 @@ module.exports = {
   getWorkerHealth,
   getRun,
   getRunTelemetry,
+  getAgentWorkflowRun,
   controlRun,
   cancelRun,
   listApprovals,
@@ -947,6 +1001,7 @@ module.exports = {
   retryNode,
   saveDraftGraph,
   startWorkflow,
+  startAgentWorkflow,
   terminateRun,
   updateDefinition,
 };

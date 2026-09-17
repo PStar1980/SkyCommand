@@ -58,6 +58,7 @@ const HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS = {
   HOURS: 60 * 60 * 1000,
   DAYS: 24 * 60 * 60 * 1000,
 };
+const R4_REDACTED_TEXT = '[REDACTED]';
 
 function getSafeObject(value, fallback = {}) {
   if (!value || Array.isArray(value) || typeof value !== 'object') {
@@ -69,6 +70,53 @@ function getSafeObject(value, fallback = {}) {
 
 function getSafeArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function isR4AgentExecutionContext(context = {}) {
+  const executionContext = getSafeObject(context?.executionContext);
+  return Boolean(
+    executionContext.admissionId && executionContext.principalId && executionContext.principalCode,
+  );
+}
+
+function redactR4AgentText(value) {
+  return String(value ?? '')
+    .replace(/(?:authorization|bearer)\s*[:=]?\s*[A-Za-z0-9._~+/=-]{8,}/gi, R4_REDACTED_TEXT)
+    .replace(
+      /(?:password|passwd|secret|token|credential|api[_-]?key|private[_-]?key|connection[_-]?string)\s*[:=]\s*['"]?[^'"\s,;}]+/gi,
+      R4_REDACTED_TEXT,
+    )
+    .replace(/\b[\w./-]*(?:secret|token|password|credential)[\w./-]*\b/gi, R4_REDACTED_TEXT)
+    .replace(/\b(?:sk|pk|ghp|github_pat|xox[baprs]-)[A-Za-z0-9_-]{8,}\b/gi, R4_REDACTED_TEXT)
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, R4_REDACTED_TEXT)
+    .replace(
+      /\b(?=[A-Za-z0-9+/_=-]{32,}\b)(?=[A-Za-z0-9+/_=-]*\d)[A-Za-z0-9+/_=-]{32,}\b/g,
+      R4_REDACTED_TEXT,
+    );
+}
+
+function sanitizeR4AgentValue(value, key = null) {
+  if (
+    key &&
+    /(password|passwd|secret|token|credential|private.?key|api.?key|authorization)/i.test(key)
+  ) {
+    return R4_REDACTED_TEXT;
+  }
+  if (Array.isArray(value)) return value.map((item) => sanitizeR4AgentValue(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([nestedKey, nestedValue]) => [
+        nestedKey,
+        sanitizeR4AgentValue(nestedValue, nestedKey),
+      ]),
+    );
+  }
+  if (typeof value === 'string') return redactR4AgentText(value);
+  return value ?? null;
+}
+
+function safeR4Value(value, context = {}) {
+  return isR4AgentExecutionContext(context) ? sanitizeR4AgentValue(value) : value;
 }
 
 function normalizeWorkflowIdPart(value, fallback = 'workflow') {
@@ -495,11 +543,17 @@ function getNodeRetryPolicy(node = {}) {
   };
 }
 
-function serializeError(error) {
+function serializeError(error, context = {}) {
+  const r4 = isR4AgentExecutionContext(context);
+  const rawMessage = error?.message || String(error);
+  const candidate = String(
+    error?.details?.code || error?.code || 'WORKFLOW_EXECUTION_FAILED',
+  ).trim();
+  const code = /^[A-Z0-9_.:-]{1,80}$/i.test(candidate) ? candidate : 'WORKFLOW_EXECUTION_FAILED';
   return {
-    message: error?.message || String(error),
+    message: r4 ? `Workflow execution failed (${code}).` : rawMessage,
     name: error?.name || 'Error',
-    details: getSafeObject(error?.details, {}),
+    details: r4 ? sanitizeR4AgentValue(error?.details || {}) : getSafeObject(error?.details, {}),
   };
 }
 
@@ -730,7 +784,7 @@ function buildWaitNodeOutput({ node, waitParameters, startedAtMs, completedAtMs 
   };
 }
 
-async function executeWaitNode({ node, parameters, nodeRun }) {
+async function executeWaitNode({ node, parameters, nodeRun, context = {} }) {
   let waitParameters = null;
 
   try {
@@ -756,22 +810,22 @@ async function executeWaitNode({ node, parameters, nodeRun }) {
 
     return await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
       nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-      output,
+      output: safeR4Value(output, context),
       metadata: {
-        parameters,
+        parameters: safeR4Value(parameters, context),
         waitNode: true,
         waitDurationMs: waitParameters.durationMs,
       },
     });
   } catch (error) {
-    const normalizedError = serializeError(error);
+    const normalizedError = serializeError(error, context);
 
     await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
       nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
       output: normalizedError.details || {},
       errorMessage: normalizedError.message,
       metadata: {
-        parameters,
+        parameters: safeR4Value(parameters, context),
         waitNode: true,
         waitDurationMs: waitParameters?.durationMs || null,
         errorName: normalizedError.name,
@@ -1180,9 +1234,10 @@ function buildHumanApprovalOutput({
     null;
   const title = approval?.approvalTitle || approvalParameters?.approvalTitle || 'Approval required';
   const decisionNote = decisionPayload.decisionNote || approval?.decisionNote || null;
-  const rejectTargetNodeKey = decision === 'REJECTED'
-    ? normalizeConditionBranchTargetNodeKey(approvalParameters?.rejectTargetNodeKey)
-    : '';
+  const rejectTargetNodeKey =
+    decision === 'REJECTED'
+      ? normalizeConditionBranchTargetNodeKey(approvalParameters?.rejectTargetNodeKey)
+      : '';
   const summary =
     decision === 'APPROVED'
       ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
@@ -1257,8 +1312,8 @@ async function executeHumanApprovalNode({
     approval = await ledgerActivities.createSkyserverWorkflowApprovalRequestActivity({
       workflowRunRecordId,
       workflowNodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-      node,
-      parameters: approvalParameters,
+      node: safeR4Value(node, context),
+      parameters: safeR4Value(approvalParameters, context),
       user,
       context,
       temporalWorkflowId,
@@ -1304,7 +1359,7 @@ async function executeHumanApprovalNode({
       {
         approvalRequestId: approval.approvalRequestId,
         decision,
-        decisionNote: decisionPayload.decisionNote || null,
+        decisionNote: safeR4Value(decisionPayload.decisionNote || null, context),
         user: getSafeObject(decisionPayload.actor, {}),
         metadata: {
           humanApprovalNode: true,
@@ -1313,18 +1368,21 @@ async function executeHumanApprovalNode({
         },
       },
     );
-    const output = buildHumanApprovalOutput({
-      approval: resolvedApproval || approval,
-      approvalParameters,
-      decisionPayload,
-      timedOut: decision === 'TIMED_OUT',
-    });
+    const output = safeR4Value(
+      buildHumanApprovalOutput({
+        approval: resolvedApproval || approval,
+        approvalParameters,
+        decisionPayload,
+        timedOut: decision === 'TIMED_OUT',
+      }),
+      context,
+    );
 
     return await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
       nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
       output,
       metadata: {
-        parameters,
+        parameters: safeR4Value(parameters, context),
         humanApprovalNode: true,
         approvalRequestId: approval.approvalRequestId,
         approvalStatus: output.status,
@@ -1332,14 +1390,14 @@ async function executeHumanApprovalNode({
       },
     });
   } catch (error) {
-    const normalizedError = serializeError(error);
+    const normalizedError = serializeError(error, context);
 
     await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
       nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
       output: normalizedError.details || {},
       errorMessage: normalizedError.message,
       metadata: {
-        parameters,
+        parameters: safeR4Value(parameters, context),
         humanApprovalNode: true,
         approvalRequestId: approval?.approvalRequestId || null,
         errorName: normalizedError.name,
@@ -1466,9 +1524,9 @@ async function executeChildWorkflowNodeWithRetries({
 
       const completedNodeRun = await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
         nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-        output,
+        output: safeR4Value(output, context),
         metadata: {
-          parameters,
+          parameters: safeR4Value(parameters, context),
           attemptCount: displayedAttemptCount,
           internalAttempt: attempt,
           manualRetryAttemptOffset: attemptOffset,
@@ -1488,13 +1546,13 @@ async function executeChildWorkflowNodeWithRetries({
     }
   }
 
-  const normalizedError = serializeError(lastError);
+  const normalizedError = serializeError(lastError, context);
   await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
     nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
     output: normalizedError.details || {},
     errorMessage: normalizedError.message,
     metadata: {
-      parameters,
+      parameters: safeR4Value(parameters, context),
       retryPolicy,
       childWorkflowCode,
       attemptCount: getDisplayedAttemptCount(attemptOffset, retryPolicy.maximumAttempts),
@@ -1521,6 +1579,7 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
   temporalWorkflowId,
   workflowRunRecordId,
   taskQueue,
+  context = {},
   productIdentity = 'SkyServer',
 }) {
   const retryPolicy = getNodeRetryPolicy(node);
@@ -1604,9 +1663,9 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
 
       const completedNodeRun = await ledgerActivities.completeSkyserverWorkflowNodeRunActivity({
         nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
-        output,
+        output: safeR4Value(output, context),
         metadata: {
-          parameters,
+          parameters: safeR4Value(parameters, context),
           attemptCount: displayedAttemptCount,
           internalAttempt: attempt,
           manualRetryAttemptOffset: attemptOffset,
@@ -1628,13 +1687,13 @@ async function executeTemporalWorkflowTemplateNodeWithRetries({
     }
   }
 
-  const normalizedError = serializeError(lastError);
+  const normalizedError = serializeError(lastError, context);
   await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
     nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
     output: normalizedError.details || {},
     errorMessage: normalizedError.message,
     metadata: {
-      parameters,
+      parameters: safeR4Value(parameters, context),
       retryPolicy,
       templateWorkflowCode,
       attemptCount: getDisplayedAttemptCount(attemptOffset, retryPolicy.maximumAttempts),
@@ -1724,7 +1783,7 @@ async function executeNodeWithRetries({
         },
       });
     } catch (persistenceError) {
-      const normalizedPersistenceError = serializeError(persistenceError);
+      const normalizedPersistenceError = serializeError(persistenceError, context);
 
       throw ApplicationFailure.create({
         message: `Workflow node execution succeeded, but completion persistence failed: ${normalizedPersistenceError.message}`,
@@ -1742,13 +1801,13 @@ async function executeNodeWithRetries({
     }
   }
 
-  const normalizedError = serializeError(lastExecutionError);
+  const normalizedError = serializeError(lastExecutionError, context);
   await ledgerActivities.failSkyserverWorkflowNodeRunActivity({
     nodeRunRecordId: nodeRun.workflowNodeRunRecordId,
     output: normalizedError.details || {},
     errorMessage: normalizedError.message,
     metadata: {
-      parameters,
+      parameters: safeR4Value(parameters, context),
       retryPolicy,
       attemptCount: getDisplayedAttemptCount(attemptOffset, retryPolicy.maximumAttempts),
       internalAttempt: retryPolicy.maximumAttempts,
@@ -1774,9 +1833,8 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   const workflowRunRecordId = input.workflowRunRecordId;
   const requestInput = getSafeObject(input.input);
   const nodeRecovery = getSafeObject(requestInput.nodeRecovery);
-  const recoveryNodeKey = nodeRecovery.active === true
-    ? String(nodeRecovery.nodeKey || '').trim()
-    : '';
+  const recoveryNodeKey =
+    nodeRecovery.active === true ? String(nodeRecovery.nodeKey || '').trim() : '';
   const usesSkyCommandIdentity = input.identityVersion === 'skycommand.v1';
   const nodeRuns = [];
   const nodeOutputsByKey = {};
@@ -1814,9 +1872,8 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
   const definitionActivityInput = requestInput.workflowVersionId
     ? { workflowCode, workflowVersionId: requestInput.workflowVersionId }
     : { workflowCode };
-  const definition = await definitionActivities.loadSkyserverWorkflowDefinitionActivity(
-    definitionActivityInput,
-  );
+  const definition =
+    await definitionActivities.loadSkyserverWorkflowDefinitionActivity(definitionActivityInput);
 
   if (recoveryNodeKey) {
     recoveryState = await ledgerActivities.loadSkyserverWorkflowNodeRecoveryStateActivity({
@@ -1889,9 +1946,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     const executionPlan = buildWorkflowExecutionPlan(definition.nodes);
     const conditionBranchRoutes = [];
     const approvalBranchRoutes = [];
-    let currentNodeIndex = recoveryNodeKey
-      ? executionPlan.nodeIndexByKey.get(recoveryNodeKey)
-      : 0;
+    let currentNodeIndex = recoveryNodeKey ? executionPlan.nodeIndexByKey.get(recoveryNodeKey) : 0;
 
     if (!Number.isInteger(currentNodeIndex) || currentNodeIndex < 0) {
       throw ApplicationFailure.create({
@@ -1957,6 +2012,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           node,
           parameters,
           nodeRun,
+          context: nodeContext,
         });
       } else if (node.nodeTypeCode === 'HUMAN_APPROVAL') {
         completedNodeRun = await executeHumanApprovalNode({
@@ -1997,6 +2053,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           temporalWorkflowId,
           workflowRunRecordId,
           taskQueue: input.taskQueue,
+          context: nodeContext,
           productIdentity: usesSkyCommandIdentity ? 'SkyCommand' : 'SkyServer',
         });
       } else {
@@ -2117,7 +2174,7 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           `Workflow ${definition.displayName} completed: ${nodeRuns.length}/${definition.nodes.length} node(s) succeeded.`;
     const completedRun = await ledgerActivities.completeSkyserverWorkflowRunActivity({
       workflowRunRecordId,
-      summary,
+      summary: safeR4Value(summary, input.context),
       metadata: {
         durationMs,
         completedNodeCount: nodeRuns.length,
@@ -2159,8 +2216,10 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
     };
   } catch (error) {
     const durationMs = Date.now() - startedAtMs;
-    const normalizedError = serializeError(error);
-    const summary = `Workflow ${definition.displayName} failed: ${normalizedError.message}`;
+    const normalizedError = serializeError(error, input.context);
+    const summary = redactR4AgentText(
+      `Workflow ${definition.displayName} failed: ${normalizedError.message}`,
+    );
 
     await ledgerActivities.failSkyserverWorkflowRunActivity({
       workflowRunRecordId,

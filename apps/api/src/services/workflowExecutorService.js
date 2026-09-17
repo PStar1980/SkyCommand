@@ -29,8 +29,10 @@ const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const MAX_WORKFLOW_RUNTIME_PARAMETERS = 10;
 const PROFILE_CODE =
-  process.env.SKYCOMMAND_CONFIG_PROFILE || process.env.SKYSERVER_CONFIG_PROFILE ||
-  process.env.SKYCOMMAND_CORE_PROFILE || process.env.SKYSERVER_CORE_PROFILE ||
+  process.env.SKYCOMMAND_CONFIG_PROFILE ||
+  process.env.SKYSERVER_CONFIG_PROFILE ||
+  process.env.SKYCOMMAND_CORE_PROFILE ||
+  process.env.SKYSERVER_CORE_PROFILE ||
   process.env.CONFIG_PROFILE ||
   'DEV_LOCAL';
 const SUPPORTED_NODE_TYPES = new Set([
@@ -73,6 +75,7 @@ const HUMAN_APPROVAL_TIMEOUT_UNIT_MULTIPLIERS_MS = {
   HOURS: 60 * 60 * 1000,
   DAYS: 24 * 60 * 60 * 1000,
 };
+const R4_REDACTED_TEXT = '[REDACTED]';
 
 function toCamelCase(value) {
   return String(value).replace(/_([a-z0-9])/g, (_, character) => character.toUpperCase());
@@ -94,6 +97,60 @@ function getPermissionSet(permissions = []) {
       .map((permission) => permission.permissionCode || permission.permission_code)
       .filter(Boolean),
   );
+}
+
+function isR4AgentExecutionContext(context = {}) {
+  const executionContext = getSafeObject(context?.executionContext);
+  return Boolean(
+    executionContext.admissionId && executionContext.principalId && executionContext.principalCode,
+  );
+}
+
+function redactR4AgentText(value) {
+  return String(value ?? '')
+    .replace(/(?:authorization|bearer)\s*[:=]?\s*[A-Za-z0-9._~+/=-]{8,}/gi, R4_REDACTED_TEXT)
+    .replace(
+      /(?:password|passwd|secret|token|credential|api[_-]?key|private[_-]?key|connection[_-]?string)\s*[:=]\s*['"]?[^'"\s,;}]+/gi,
+      R4_REDACTED_TEXT,
+    )
+    .replace(/\b[\w./-]*(?:secret|token|password|credential)[\w./-]*\b/gi, R4_REDACTED_TEXT)
+    .replace(/\b(?:sk|pk|ghp|github_pat|xox[baprs]-)[A-Za-z0-9_-]{8,}\b/gi, R4_REDACTED_TEXT)
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, R4_REDACTED_TEXT)
+    .replace(
+      /\b(?=[A-Za-z0-9+/_=-]{32,}\b)(?=[A-Za-z0-9+/_=-]*\d)[A-Za-z0-9+/_=-]{32,}\b/g,
+      R4_REDACTED_TEXT,
+    );
+}
+
+function sanitizeR4AgentValue(value, key = null) {
+  if (
+    key &&
+    /(password|passwd|secret|token|credential|private.?key|api.?key|authorization)/i.test(key)
+  ) {
+    return R4_REDACTED_TEXT;
+  }
+  if (Array.isArray(value)) return value.map((item) => sanitizeR4AgentValue(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([nestedKey, nestedValue]) => [
+        nestedKey,
+        sanitizeR4AgentValue(nestedValue, nestedKey),
+      ]),
+    );
+  }
+  if (typeof value === 'string') return redactR4AgentText(value);
+  return value ?? null;
+}
+
+function getPersistedWorkflowErrorMessage(error, context = {}) {
+  const rawMessage = error?.message || String(error);
+  if (!isR4AgentExecutionContext(context)) return rawMessage;
+
+  const candidate = String(
+    error?.details?.code || error?.code || 'WORKFLOW_EXECUTION_FAILED',
+  ).trim();
+  const code = /^[A-Z0-9_.:-]{1,80}$/i.test(candidate) ? candidate : 'WORKFLOW_EXECUTION_FAILED';
+  return `Workflow execution failed (${code}).`;
 }
 
 function assertPermission({ permissionCode, permissions, action }) {
@@ -779,11 +836,12 @@ function buildHumanApprovalOutput({
     approval?.decidedByEmail ||
     null;
   const title = approval?.approvalTitle || approval?.title || 'Approval required';
-  const rejectTargetNodeKey = normalizedDecision === 'REJECTED'
-    ? normalizeConditionBranchTargetNodeKey(
-        approval?.rejectTargetNodeKey || approval?.metadata?.rejectTargetNodeKey,
-      )
-    : '';
+  const rejectTargetNodeKey =
+    normalizedDecision === 'REJECTED'
+      ? normalizeConditionBranchTargetNodeKey(
+          approval?.rejectTargetNodeKey || approval?.metadata?.rejectTargetNodeKey,
+        )
+      : '';
   const summary =
     normalizedDecision === 'APPROVED'
       ? `Approval granted for ${title}${actorName ? ` by ${actorName}` : ''}; continuing workflow.`
@@ -864,9 +922,7 @@ function normalizeApiAuthMode(value) {
 
 function getInternalApiToken() {
   return String(
-    process.env.SKYCOMMAND_INTERNAL_API_TOKEN ||
-      process.env.SKYSERVER_INTERNAL_API_TOKEN ||
-      '',
+    process.env.SKYCOMMAND_INTERNAL_API_TOKEN || process.env.SKYSERVER_INTERNAL_API_TOKEN || '',
   ).trim();
 }
 
@@ -992,7 +1048,9 @@ function normalizeApiUrl(value) {
 function translateLocalApiUrlForRuntime(value) {
   const normalized = normalizeApiUrl(value);
   const hostAlias = String(process.env.SKYCOMMAND_CONTAINER_HOST_ALIAS || '').trim();
-  const runtime = String(process.env.SKYCOMMAND_RUNTIME_ENV || '').trim().toLowerCase();
+  const runtime = String(process.env.SKYCOMMAND_RUNTIME_ENV || '')
+    .trim()
+    .toLowerCase();
 
   if (runtime !== 'docker' || !hostAlias) {
     return normalized;
@@ -1223,7 +1281,8 @@ function normalizeRunRow(row) {
       item.workflowCategoryCode || metadata.workflowCategoryCode || DEFAULT_WORKFLOW_CATEGORY_CODE,
     workflowCategoryDisplayName:
       item.workflowCategoryDisplayName || metadata.workflowCategoryDisplayName || 'General',
-    workflowCategorySource: item.workflowCategorySource || (metadata.workflowCategoryCode ? 'SNAPSHOT' : 'DEFAULT'),
+    workflowCategorySource:
+      item.workflowCategorySource || (metadata.workflowCategoryCode ? 'SNAPSHOT' : 'DEFAULT'),
     versionNumber: item.versionNumber || item.definitionVersionNumber,
     runSource: item.runSource,
     triggerType: item.triggerType,
@@ -1420,7 +1479,15 @@ function normalizeWorkflowParameterDefinitions(parameters = []) {
         .trim()
         .toLowerCase();
       const type = requestedType === 'repository' ? 'repo' : requestedType;
-      const allowedType = ['string', 'number', 'boolean', 'select', 'date', 'json', 'repo'].includes(type)
+      const allowedType = [
+        'string',
+        'number',
+        'boolean',
+        'select',
+        'date',
+        'json',
+        'repo',
+      ].includes(type)
         ? type
         : 'string';
 
@@ -1598,11 +1665,35 @@ async function resolveRepositoryRuntimeParameterValue(value, parameter = {}) {
   return result.rows[0].repo_code;
 }
 
-async function validateWorkflowRuntimeInput(definition = {}, input = {}) {
+async function validateWorkflowRuntimeInput(
+  definition = {},
+  input = {},
+  { rejectUnknown = false } = {},
+) {
   const safeInput = getSafeObject(input);
   const parameters = getDefinitionRuntimeParameters(definition);
   const suppliedParams = getWorkflowRuntimeParams(safeInput);
   const normalizedParams = {};
+
+  if (rejectUnknown) {
+    const allowedParameterKeys = new Set(
+      parameters.flatMap((parameter) => [parameter.key, parameter.parameterName]),
+    );
+    const unknownParameterKeys = Object.keys(suppliedParams).filter(
+      (key) => !allowedParameterKeys.has(key),
+    );
+
+    if (unknownParameterKeys.length > 0) {
+      throw new WorkflowServiceError(
+        'Workflow runtime input contains unsupported parameters.',
+        400,
+        {
+          code: 'WORKFLOW_RUNTIME_PARAMETER_UNKNOWN',
+          unknownParameterKeys,
+        },
+      );
+    }
+  }
 
   for (const parameter of parameters) {
     const supplied = Object.prototype.hasOwnProperty.call(suppliedParams, parameter.key)
@@ -1635,12 +1726,14 @@ async function validateWorkflowRuntimeInput(definition = {}, input = {}) {
     }
   }
 
-  for (const [key, value] of Object.entries(suppliedParams)) {
-    if (
-      !Object.prototype.hasOwnProperty.call(normalizedParams, key) &&
-      !parameters.some((parameter) => parameter.key === key)
-    ) {
-      normalizedParams[normalizeContextKey(key)] = cloneJsonCompatible(value);
+  if (!rejectUnknown) {
+    for (const [key, value] of Object.entries(suppliedParams)) {
+      if (
+        !Object.prototype.hasOwnProperty.call(normalizedParams, key) &&
+        !parameters.some((parameter) => parameter.key === key)
+      ) {
+        normalizedParams[normalizeContextKey(key)] = cloneJsonCompatible(value);
+      }
     }
   }
 
@@ -2384,12 +2477,16 @@ async function getWorkflowDefinitionForVersion(workflowCode, workflowVersionId) 
   }
 
   if (graph.workflowDefinitionId !== definition.workflowDefinitionId) {
-    throw new WorkflowServiceError('Workflow version does not belong to the requested workflow.', 409, {
-      workflowCode,
-      workflowVersionId,
-      workflowDefinitionId: definition.workflowDefinitionId,
-      versionWorkflowDefinitionId: graph.workflowDefinitionId,
-    });
+    throw new WorkflowServiceError(
+      'Workflow version does not belong to the requested workflow.',
+      409,
+      {
+        workflowCode,
+        workflowVersionId,
+        workflowDefinitionId: definition.workflowDefinitionId,
+        versionWorkflowDefinitionId: graph.workflowDefinitionId,
+      },
+    );
   }
 
   return {
@@ -2428,11 +2525,13 @@ async function insertWorkflowRun({
   context,
   status = 'RUNNING',
   metadata = {},
+  workflowRunRecordId = null,
 } = {}) {
   const safeInput = getSafeObject(input);
   const result = await query(
     `
       INSERT INTO worker.workflow_run_records (
+        workflow_run_record_id,
         workflow_definition_id,
         workflow_version_id,
         workflow_code,
@@ -2446,10 +2545,11 @@ async function insertWorkflowRun({
         started_at,
         metadata
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, CURRENT_TIMESTAMP, $11::jsonb)
+      VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, CURRENT_TIMESTAMP, $12::jsonb)
       RETURNING *
     `,
     [
+      workflowRunRecordId,
       definition.workflowDefinitionId,
       definition.publishedVersionId,
       definition.workflowCode,
@@ -2461,6 +2561,7 @@ async function insertWorkflowRun({
       JSON.stringify({
         ipAddress: context?.ipAddress || null,
         userAgent: context?.userAgent || null,
+        executionContext: getSafeObject(context?.executionContext),
       }),
       user?.userId || null,
       JSON.stringify({
@@ -3166,7 +3267,8 @@ async function getWorkflowNodeRecoveryState({ workflowRunRecordId, nodeKey } = {
   ]);
   const nodeRunIndex = nodeRuns.findIndex((nodeRun) => nodeRun.nodeKey === normalizedNodeKey);
   const nodeRun = nodeRunIndex >= 0 ? nodeRuns[nodeRunIndex] : null;
-  const definitionNode = definitionGraph?.nodes?.find((node) => node.nodeKey === normalizedNodeKey) || null;
+  const definitionNode =
+    definitionGraph?.nodes?.find((node) => node.nodeKey === normalizedNodeKey) || null;
 
   if (!nodeRun || !definitionNode) {
     throw new WorkflowServiceError('Workflow node was not found in the selected run.', 404, {
@@ -3175,11 +3277,13 @@ async function getWorkflowNodeRecoveryState({ workflowRunRecordId, nodeKey } = {
     });
   }
 
-  const laterExecutedNodeRuns = nodeRuns.slice(nodeRunIndex + 1).filter((item) =>
-    ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED'].includes(
-      String(item?.status || '').toUpperCase(),
-    ),
-  );
+  const laterExecutedNodeRuns = nodeRuns
+    .slice(nodeRunIndex + 1)
+    .filter((item) =>
+      ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELED', 'TERMINATED'].includes(
+        String(item?.status || '').toUpperCase(),
+      ),
+    );
 
   return {
     run,
@@ -3866,8 +3970,13 @@ function normalizeCreateNodeInput(node, index, seenKeys) {
     );
   }
 
-  if (['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode) && !targetCode) {
-    throw new WorkflowServiceError(`Each ${nodeTypeCode} node requires targetCode.`, 400, { index });
+  if (
+    ['BROWSER_TEST', 'BROWSER_TEST_SUITE', 'BROWSER_AUTOMATION'].includes(nodeTypeCode) &&
+    !targetCode
+  ) {
+    throw new WorkflowServiceError(`Each ${nodeTypeCode} node requires targetCode.`, 400, {
+      index,
+    });
   }
 
   if (nodeTypeCode === 'API_CALL') {
@@ -6356,13 +6465,17 @@ function buildWorkflowExecutionPlan(nodes = []) {
 
 async function startWorkflowWithTemporal({
   workflowCode,
+  workflowVersionId = null,
+  workflowRunRecordId = null,
   input = {},
   user,
   session,
   permissions = [],
   context = {},
 } = {}) {
-  const definition = await getWorkflowDefinition(workflowCode);
+  const definition = workflowVersionId
+    ? await getWorkflowDefinitionForVersion(workflowCode, workflowVersionId)
+    : await getWorkflowDefinition(workflowCode);
 
   assertPermission({
     permissionCode: WORKFLOW_RUN_PERMISSION,
@@ -6391,25 +6504,47 @@ async function startWorkflowWithTemporal({
   await assertWorkflowExecutionTargetsAvailable(definition);
 
   const normalizedInput = await validateWorkflowRuntimeInput(definition, input);
+  const versionPinnedInput = workflowVersionId
+    ? { ...normalizedInput, workflowVersionId: definition.publishedVersionId }
+    : normalizedInput;
+  let run = workflowRunRecordId ? await getWorkflowRunById(workflowRunRecordId) : null;
 
-  const run = await insertWorkflowRun({
-    definition,
-    input: normalizedInput,
-    user,
-    context,
-    status: 'QUEUED',
-    metadata: {
-      executor: 'skycommand_workflow_executor_temporal_v1',
-      temporalBacked: true,
-      queuedByApi: true,
-    },
-  });
+  if (run) {
+    if (
+      run.workflowCode !== definition.workflowCode ||
+      run.workflowVersionId !== definition.publishedVersionId
+    ) {
+      throw new WorkflowServiceError(
+        'Preallocated workflow run does not match the pinned definition.',
+        409,
+        {
+          workflowCode: definition.workflowCode,
+          workflowRunRecordId,
+          workflowVersionId: definition.publishedVersionId,
+        },
+      );
+    }
+  } else {
+    run = await insertWorkflowRun({
+      definition,
+      input: versionPinnedInput,
+      user,
+      context,
+      status: 'QUEUED',
+      workflowRunRecordId,
+      metadata: {
+        executor: 'skycommand_workflow_executor_temporal_v1',
+        temporalBacked: true,
+        queuedByApi: true,
+      },
+    });
+  }
 
   try {
     const temporalStart = await temporalService.startSkyCommandWorkflowExecutorWorkflow({
       workflowCode: definition.workflowCode,
       workflowRunRecordId: run.workflowRunRecordId,
-      input: normalizedInput,
+      input: versionPinnedInput,
       actor: user,
       session,
       permissions,
@@ -6446,8 +6581,8 @@ async function startWorkflowWithTemporal({
         workflowCode: definition.workflowCode,
         workflowDisplayName: definition.displayName,
         workflowVersionId: startedRun.workflowVersionId || definition.publishedVersionId || null,
-        runSource: normalizedInput.runSource || 'manual',
-        triggerType: normalizedInput.triggerType || 'MANUAL',
+        runSource: versionPinnedInput.runSource || 'manual',
+        triggerType: versionPinnedInput.triggerType || 'MANUAL',
         executor: 'temporal',
         temporalWorkflowId: temporalStart.workflow.workflowId || null,
         temporalRunId: temporalStart.workflow.runId || null,
@@ -6465,15 +6600,22 @@ async function startWorkflowWithTemporal({
       message,
     };
   } catch (error) {
+    const persistedErrorMessage = getPersistedWorkflowErrorMessage(error, context);
+    const persistedErrorDetails = isR4AgentExecutionContext(context)
+      ? sanitizeR4AgentValue(error?.details || {})
+      : getSafeObject(error?.details, {});
     const failedRun = await updateWorkflowRun({
       workflowRunRecordId: run.workflowRunRecordId,
       status: TERMINAL_FAILURE_STATUS,
-      summary: `Workflow ${definition.displayName} failed to start in Temporal: ${error.message || String(error)}`,
+      summary: `Workflow ${definition.displayName} failed to start in Temporal: ${persistedErrorMessage}`,
       metadata: {
         executor: 'skycommand_workflow_executor_temporal_v1',
         temporalBacked: true,
         startFailure: true,
-        errorMessage: error.message || String(error),
+        errorMessage: persistedErrorMessage,
+        ...(Object.keys(persistedErrorDetails).length > 0
+          ? { errorDetails: persistedErrorDetails }
+          : {}),
       },
     });
 
@@ -6489,10 +6631,10 @@ async function startWorkflowWithTemporal({
       metadata: {
         workflowCode: definition.workflowCode,
         workflowDisplayName: definition.displayName,
-        runSource: normalizedInput.runSource || 'manual',
-        triggerType: normalizedInput.triggerType || 'MANUAL',
+        runSource: versionPinnedInput.runSource || 'manual',
+        triggerType: versionPinnedInput.triggerType || 'MANUAL',
         executor: 'temporal',
-        error: error.message || String(error),
+        error: persistedErrorMessage,
       },
     });
 
@@ -6500,7 +6642,7 @@ async function startWorkflowWithTemporal({
       workflowCode: definition.workflowCode,
       workflowRunRecordId: run.workflowRunRecordId,
       run: failedRun,
-      error: error.message || String(error),
+      error: persistedErrorMessage,
     });
   }
 }
@@ -6799,10 +6941,12 @@ async function listWorkflowRuns(filters = {}) {
     sortValue: filters.sort,
     sortFields: {
       workflow: "LOWER(COALESCE(NULLIF(BTRIM(workflow_display_name), ''), workflow_code))",
-      category: "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), ''), workflow_category_code))",
+      category:
+        "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), ''), workflow_category_code))",
       status: 'status',
       startedAt: 'COALESCE(started_at, created_at)',
-      durationMs: 'EXTRACT(EPOCH FROM (COALESCE(completed_at, NOW()) - COALESCE(started_at, created_at))) * 1000',
+      durationMs:
+        'EXTRACT(EPOCH FROM (COALESCE(completed_at, NOW()) - COALESCE(started_at, created_at))) * 1000',
       completedAt: 'completed_at',
       runtime: "CASE WHEN temporal_workflow_id IS NOT NULL THEN 'temporal' ELSE 'inline' END",
     },
@@ -7087,7 +7231,9 @@ async function listWorkflowApprovalRequests(filters = {}) {
     .toUpperCase();
   const workflowRunRecordId = String(filters.workflowRunRecordId || '').trim();
   const workflowCode = String(filters.workflowCode || '').trim();
-  const categoryCode = String(filters.categoryCode || '').trim().toUpperCase();
+  const categoryCode = String(filters.categoryCode || '')
+    .trim()
+    .toUpperCase();
   const requiredRoleCode = normalizeRoleCode(filters.requiredRoleCode || '');
   const userId = String(filters.userId || '').trim();
   const searchText = String(filters.q || filters.search || '').trim();
@@ -7154,13 +7300,17 @@ async function listWorkflowApprovalRequests(filters = {}) {
     sortValue: filters.sort,
     sortFields: {
       workflow: "LOWER(COALESCE(NULLIF(BTRIM(workflow_display_name), ''), workflow_code))",
-      category: "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), ''), workflow_category_code))",
-      approval: "LOWER(COALESCE(NULLIF(BTRIM(approval_title), ''), NULLIF(BTRIM(node_display_name), ''), approval_key, node_key))",
+      category:
+        "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), ''), workflow_category_code))",
+      approval:
+        "LOWER(COALESCE(NULLIF(BTRIM(approval_title), ''), NULLIF(BTRIM(node_display_name), ''), approval_key, node_key))",
       status: 'status',
       requiredRole: "LOWER(COALESCE(required_role_code, ''))",
-      requestedBy: "LOWER(COALESCE(NULLIF(BTRIM(requested_by_display_name), ''), NULLIF(BTRIM(requested_by_email), ''), ''))",
+      requestedBy:
+        "LOWER(COALESCE(NULLIF(BTRIM(requested_by_display_name), ''), NULLIF(BTRIM(requested_by_email), ''), ''))",
       requestedAt: 'COALESCE(requested_at, created_at)',
-      decidedBy: "LOWER(COALESCE(NULLIF(BTRIM(decided_by_display_name), ''), NULLIF(BTRIM(decided_by_email), ''), ''))",
+      decidedBy:
+        "LOWER(COALESCE(NULLIF(BTRIM(decided_by_display_name), ''), NULLIF(BTRIM(decided_by_email), ''), ''))",
       decidedAt: 'decided_at',
     },
     defaultSorts: [{ field: 'requestedAt', direction: 'desc' }],
@@ -7172,7 +7322,15 @@ async function listWorkflowApprovalRequests(filters = {}) {
   const limitParameter = itemValues.length - 1;
   const offsetParameter = itemValues.length;
 
-  const [countResult, itemResult, categoryResult, workflowResult, roleResult, userResult, statusResult] = await Promise.all([
+  const [
+    countResult,
+    itemResult,
+    categoryResult,
+    workflowResult,
+    roleResult,
+    userResult,
+    statusResult,
+  ] = await Promise.all([
     query(
       `
         SELECT COUNT(*)::integer AS total
@@ -7862,6 +8020,7 @@ module.exports = {
   getWorkflowRunTelemetry,
   getWorkflowNodeOutputsForRun,
   getWorkflowContextValuesForRun,
+  getDefinitionRuntimeParameters,
   createWorkflowApprovalRequest,
   decideWorkflowApprovalRequest,
   publishWorkflowDraftVersion,

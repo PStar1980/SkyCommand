@@ -183,6 +183,35 @@ async function startDevelopmentPromotion(req, res, next) {
   }
 }
 
+async function startWorkflowExecution(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.startWorkflowExecution({
+      request: req.body || {},
+      principalCode: req.assistantIntegration?.principalCode || 'assistant-http',
+      authMode: req.session?.authMode || 'ASSISTANT_SERVICE_TOKEN',
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.status(result.reused ? 200 : 202).json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getWorkflowExecutionRun(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.getWorkflowExecutionRun({
+      workflowRunRecordId: req.params.workflowRunRecordId,
+      principalCode: req.assistantIntegration?.principalCode || 'assistant-http',
+      authMode: req.session?.authMode || 'ASSISTANT_SERVICE_TOKEN',
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
 async function getRun(req, res, next) {
   try {
     const run = await assistantIntegrationService.getRun(req.params.workflowId);
@@ -219,7 +248,9 @@ module.exports = {
   createDatabaseUpgradeApplyRequest,
   getOpenApi,
   getRun,
+  getWorkflowExecutionRun,
   listAutomations,
   startDevelopmentPromotion,
+  startWorkflowExecution,
   startAutomation,
 };

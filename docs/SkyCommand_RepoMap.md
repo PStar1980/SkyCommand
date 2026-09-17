@@ -259,6 +259,7 @@ SkyCommand/
 │   │       │   ├── toolOnboardingService.js
 │   │       │   ├── toolVerificationService.js
 │   │       │   ├── workerService.js
+│   │       │   ├── workflowAgentExecutionService.js
 │   │       │   ├── workflowConditionService.js
 │   │       │   ├── workflowExecutionPreflightService.js
 │   │       │   ├── workflowExecutorService.js
@@ -1662,7 +1663,9 @@ SkyCommand/
 │   │       │   ├── 00134__capability_catalog_r1_invariant_validation.sql
 │   │       │   ├── 00135__autonomous_database_upgrade_tool.sql
 │   │       │   ├── 00136__database_upgrade_tool_admin_scope.sql
-│   │       │   └── 00137__dev_env_reconcile_tool.sql
+│   │       │   ├── 00137__dev_env_reconcile_tool.sql
+│   │       │   ├── 00138__governed_workflow_agent_execution.sql
+│   │       │   └── 00139__governed_workflow_agent_docker_local_grant.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -2231,6 +2234,8 @@ SkyCommand/
         │               ├── toolExecutionOutputWorkspaceSelfTest.js
         │               ├── toolOnboardingSelfTest.js
         │               ├── toolVerificationSelfTest.js
+        │               ├── workflowAgentExecutionIntegrationSelfTest.js
+        │               ├── workflowAgentExecutionSelfTest.js
         │               ├── workflowApprovalBranchSelfTest.js
         │               ├── workflowCategoryFoundationSelfTest.js
         │               ├── workflowCloneParitySelfTest.js

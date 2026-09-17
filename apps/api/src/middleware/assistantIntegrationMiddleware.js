@@ -1,9 +1,7 @@
 const crypto = require('node:crypto');
 
-const DEFAULT_ASSISTANT_PERMISSION_CODES = [
-  'BROWSER_AUTOMATION_READ',
-  'BROWSER_AUTOMATION_RUN',
-];
+const DEFAULT_ASSISTANT_PERMISSION_CODES = ['BROWSER_AUTOMATION_READ', 'BROWSER_AUTOMATION_RUN'];
+const DEFAULT_ASSISTANT_PRINCIPAL_CODE = 'assistant-http';
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -22,7 +20,18 @@ function getAssistantIntegrationConfig() {
   return {
     enabled: parseBoolean(process.env.SKYCOMMAND_ASSISTANT_INTEGRATION_ENABLED, false),
     token: String(process.env.SKYCOMMAND_ASSISTANT_API_TOKEN || '').trim(),
-    permissionCodes: permissionCodes.length ? [...new Set(permissionCodes)] : DEFAULT_ASSISTANT_PERMISSION_CODES,
+    permissionCodes: permissionCodes.length
+      ? [...new Set(permissionCodes)]
+      : DEFAULT_ASSISTANT_PERMISSION_CODES,
+    principalCode: /^[A-Za-z0-9_.:-]{1,128}$/.test(
+      String(
+        process.env.SKYCOMMAND_ASSISTANT_PRINCIPAL_CODE || DEFAULT_ASSISTANT_PRINCIPAL_CODE,
+      ).trim(),
+    )
+      ? String(
+          process.env.SKYCOMMAND_ASSISTANT_PRINCIPAL_CODE || DEFAULT_ASSISTANT_PRINCIPAL_CODE,
+        ).trim()
+      : DEFAULT_ASSISTANT_PRINCIPAL_CODE,
   };
 }
 
@@ -42,8 +51,14 @@ function extractAssistantAgentId(req) {
 }
 
 function safeTokenEquals(left, right) {
-  const leftDigest = crypto.createHash('sha256').update(String(left || ''), 'utf8').digest();
-  const rightDigest = crypto.createHash('sha256').update(String(right || ''), 'utf8').digest();
+  const leftDigest = crypto
+    .createHash('sha256')
+    .update(String(left || ''), 'utf8')
+    .digest();
+  const rightDigest = crypto
+    .createHash('sha256')
+    .update(String(right || ''), 'utf8')
+    .digest();
   return crypto.timingSafeEqual(leftDigest, rightDigest);
 }
 
@@ -81,6 +96,7 @@ function applyAssistantIdentity(req, config, agentId = 'assistant-http') {
     enabled: true,
     permissionCodes: [...config.permissionCodes],
     agentId,
+    principalCode: config.principalCode,
   };
 }
 
@@ -118,6 +134,7 @@ function requireAssistantIntegration(req, res, next) {
 
 module.exports = {
   DEFAULT_ASSISTANT_PERMISSION_CODES,
+  DEFAULT_ASSISTANT_PRINCIPAL_CODE,
   extractAssistantAgentId,
   extractAssistantToken,
   getAssistantIntegrationConfig,
