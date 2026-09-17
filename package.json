@@ -182,6 +182,7 @@
     "db-build:self-test": "node tests/self/packages/db_build/src/dbBuildResultSelfTest.js",
     "db-upgrade:self-test": "node tests/self/packages/db_upgrade/src/databaseUpgradeSelfTest.js",
     "db-upgrade-cli:self-test": "node tests/self/packages/db_upgrade/src/databaseUpgradeCliSelfTest.js",
+    "db-upgrade-r2:self-test": "node tests/self/packages/db_upgrade/src/databaseUpgradeR2SelfTest.js",
     "assistant-workflow-run-attribution:self-test": "node tests/self/packages/db_build/src/assistantWorkflowRunAttributionSelfTest.js",
     "workflow-tool-confirmation:self-test": "node tests/self/apps/api/src/services/workflowToolConfirmationPolicySelfTest.js",
     "workflow-tool-visibility:self-test": "node tests/self/apps/api/src/services/workflowToolVisibilitySelfTest.js",

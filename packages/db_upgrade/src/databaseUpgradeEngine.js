@@ -17,6 +17,7 @@ const BASELINE_CONTRACT = 'skycommand_database_baseline.v1';
 const UPGRADE_LOCK_NAMESPACE = 29431;
 const UPGRADE_LOCK_KEY = 129;
 const RUNNER_VERSION = 'database_upgrade.v1';
+const REGISTERED_DEV_TOOL_EXECUTION_PATH = 'REGISTERED_DEV_TOOL';
 const LEGACY_SINGLE_UNDERSCORE_FILENAMES = new Set([
   '00007_indicator_views.sql',
   '00008_indicator_views.sql',
@@ -130,15 +131,63 @@ function parseGovernedFilename(fileName) {
   };
 }
 
-function getAllSqlFiles(root, fileSystem = fs) {
+function isPathInside(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function getRealPath(filePath, fileSystem = fs) {
+  if (typeof fileSystem.realpathSync !== 'function') return path.resolve(filePath);
+  return fileSystem.realpathSync(filePath);
+}
+
+function assertCanonicalSqlRoot(root, repositoryRoot, fileSystem = fs) {
+  const resolvedRepositoryRoot = path.resolve(repositoryRoot);
+  const resolvedRoot = path.resolve(root);
+  if (!isPathInside(resolvedRepositoryRoot, resolvedRoot)) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_SQL_PATH_ESCAPE',
+      'A governed SQL root resolves outside the registered repository root.',
+    );
+  }
+  if (!fileSystem.existsSync(resolvedRoot)) return;
+  const realRepositoryRoot = getRealPath(resolvedRepositoryRoot, fileSystem);
+  const realRoot = getRealPath(resolvedRoot, fileSystem);
+  if (!isPathInside(realRepositoryRoot, realRoot)) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_SQL_PATH_ESCAPE',
+      'A governed SQL root resolves outside the registered repository root.',
+    );
+  }
+}
+
+function getAllSqlFiles(root, fileSystem = fs, canonicalRoot = root) {
   if (!fileSystem.existsSync(root)) return [];
   const entries = fileSystem.readdirSync(root, { withFileTypes: true });
   const results = [];
+  const realCanonicalRoot = getRealPath(canonicalRoot, fileSystem);
 
   entries.forEach((entry) => {
     const absolutePath = path.join(root, entry.name);
+    const stat =
+      typeof fileSystem.lstatSync === 'function' ? fileSystem.lstatSync(absolutePath) : null;
+    if (stat?.isSymbolicLink?.()) {
+      throw upgradeError(
+        'DATABASE_UPGRADE_SQL_PATH_ESCAPE',
+        `Governed SQL roots may not contain symbolic links: ${entry.name}.`,
+        { path: entry.name },
+      );
+    }
+    const realPath = getRealPath(absolutePath, fileSystem);
+    if (!isPathInside(realCanonicalRoot, realPath)) {
+      throw upgradeError(
+        'DATABASE_UPGRADE_SQL_PATH_ESCAPE',
+        `Governed SQL path escapes its canonical root: ${entry.name}.`,
+        { path: entry.name },
+      );
+    }
     if (entry.isDirectory()) {
-      results.push(...getAllSqlFiles(absolutePath, fileSystem));
+      results.push(...getAllSqlFiles(absolutePath, fileSystem, canonicalRoot));
     } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.sql')) {
       results.push(absolutePath);
     }
@@ -166,6 +215,7 @@ function discoverGovernedSqlChanges({ repositoryRoot = SKYCOMMAND_ROOT, fileSyst
   const ordinals = new Map();
 
   roots.forEach((root) => {
+    assertCanonicalSqlRoot(root, repositoryRoot, fileSystem);
     const kind = getSqlFileKindFromRoot(path.basename(root));
     getAllSqlFiles(root, fileSystem).forEach((absolutePath) => {
       const parsed = parseGovernedFilename(path.basename(absolutePath));
@@ -179,13 +229,14 @@ function discoverGovernedSqlChanges({ repositoryRoot = SKYCOMMAND_ROOT, fileSyst
         );
       }
 
-      const contents = fileSystem.readFileSync(absolutePath);
+      const contents = Buffer.from(fileSystem.readFileSync(absolutePath));
       const change = {
         absolutePath,
         ordinal: parsed.ordinal,
         kind,
         relativePath,
         sha256: sha256(contents),
+        sqlBytes: contents,
         separator: parsed.separator,
       };
       ordinals.set(parsed.ordinal, change);
@@ -209,6 +260,62 @@ function publicChange(change) {
     kind: change.kind,
     relativePath: change.relativePath,
     sha256: change.sha256,
+  };
+}
+
+function manifestDigest(changes = []) {
+  return sha256(canonicalJson(changes.map(publicChange).sort(compareChanges)));
+}
+
+function assertManifestMatches(expectedChanges, actualChanges) {
+  const expected = expectedChanges.map(publicChange).sort(compareChanges);
+  const actual = actualChanges.map(publicChange).sort(compareChanges);
+  if (canonicalJson(expected) !== canonicalJson(actual)) {
+    const expectedByPath = new Map(expected.map((change) => [change.relativePath, change]));
+    const actualByPath = new Map(actual.map((change) => [change.relativePath, change]));
+    const changedPaths = [...new Set([...expectedByPath.keys(), ...actualByPath.keys()])]
+      .filter(
+        (relativePath) =>
+          canonicalJson(expectedByPath.get(relativePath)) !==
+          canonicalJson(actualByPath.get(relativePath)),
+      )
+      .sort();
+    throw upgradeError(
+      'DATABASE_UPGRADE_MANIFEST_DRIFT',
+      'The canonical migration/seed manifest changed before execution.',
+      { changedPaths },
+    );
+  }
+}
+
+function getFileOutcomeStatus(change, ledgerRows = []) {
+  const receipt = ledgerRows.find((row) => Number(row.ordinal) === Number(change.ordinal));
+  return receipt ? 'ALREADY_LEDGERED' : 'PENDING_NOT_ATTEMPTED';
+}
+
+function createFileOutcomes(changes = [], ledgerRows = []) {
+  return changes
+    .filter((change) => change.ordinal > BASELINE_ORDINAL)
+    .sort(compareChanges)
+    .map((change) => ({
+      ordinal: change.ordinal,
+      kind: change.kind,
+      relativePath: change.relativePath,
+      sha256: change.sha256,
+      status: getFileOutcomeStatus(change, ledgerRows),
+      rolledBack: false,
+      errorCode: null,
+    }));
+}
+
+function createLedgerSnapshot(ledgerState = {}) {
+  return {
+    available: ledgerState.available === true,
+    verification: ledgerState.verification || 'UNKNOWN',
+    appliedCount: Number(ledgerState.appliedCount || 0),
+    ordinals: (ledgerState.ledgerRows || [])
+      .map((row) => Number(row.ordinal))
+      .sort((a, b) => a - b),
   };
 }
 
@@ -505,6 +612,7 @@ function buildPlan({ identity, baseline, ledgerState, changes, sourceRevision })
   return {
     pending,
     digest: sha256(canonicalJson(planPayload)),
+    manifestDigest: manifestDigest(changes),
     payload: planPayload,
   };
 }
@@ -656,10 +764,31 @@ async function insertLedgerReceipt(client, change, baselineId, sourceRevision, p
 }
 
 async function applyChange(client, change, context) {
-  assertUpgradeSqlTransactionSafe(change.sql, change);
+  const sqlBytes = Buffer.isBuffer(change.sqlBytes)
+    ? change.sqlBytes
+    : typeof change.sql === 'string'
+      ? Buffer.from(change.sql, 'utf8')
+      : null;
+  if (!sqlBytes) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_VERIFIED_BYTES_MISSING',
+      `Verified SQL bytes were not captured for ${change.relativePath}.`,
+      { ordinal: change.ordinal, relativePath: change.relativePath },
+    );
+  }
+  if (change.sha256 && sha256(sqlBytes) !== String(change.sha256).toUpperCase()) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_VERIFIED_BYTES_HASH_MISMATCH',
+      `Verified SQL bytes do not match the planned checksum for ${change.relativePath}.`,
+      { ordinal: change.ordinal, relativePath: change.relativePath },
+    );
+  }
+  const sql = sqlBytes.toString('utf8');
+  assertUpgradeSqlTransactionSafe(sql, change);
   await client.query('BEGIN');
+  let commitAttempted = false;
   try {
-    await client.query(change.sql);
+    await client.query(sql);
     if (!context.baselineId) {
       if (change.ordinal !== BASELINE_ORDINAL + 1) {
         throw upgradeError(
@@ -688,10 +817,24 @@ async function applyChange(client, change, context) {
       context.sourceRevision,
       context.planDigest,
     );
+    commitAttempted = true;
     await client.query('COMMIT');
   } catch (cause) {
-    await client.query('ROLLBACK').catch(() => {});
-    if (cause instanceof DatabaseUpgradeError) throw cause;
+    if (!commitAttempted) await client.query('ROLLBACK').catch(() => {});
+    if (cause instanceof DatabaseUpgradeError) {
+      if (!commitAttempted) {
+        cause.details = { ...cause.details, rolledBack: true };
+      }
+      throw cause;
+    }
+    if (commitAttempted) {
+      throw upgradeError(
+        'DATABASE_UPGRADE_COMMIT_UNCERTAIN',
+        `Commit state is uncertain for governed SQL change: ${change.relativePath}.`,
+        { ordinal: change.ordinal, relativePath: change.relativePath, rolledBack: false },
+        cause,
+      );
+    }
     throw upgradeError(
       'DATABASE_UPGRADE_CHANGE_FAILED',
       `Governed SQL change failed: ${change.relativePath}.`,
@@ -701,9 +844,16 @@ async function applyChange(client, change, context) {
   }
 }
 
-function createInitialUpgradeOutput(mode, startedAt) {
+function createInitialUpgradeOutput(mode, startedAt, execution = {}) {
   return {
     mode,
+    execution: {
+      path: execution.path || null,
+      toolCode: execution.toolCode || null,
+      executionId: execution.executionId || null,
+      reconciledFromLedger: false,
+    },
+    binding: execution.binding || null,
     databaseIdentity: {
       databaseName: null,
       serverVersion: null,
@@ -719,21 +869,30 @@ function createInitialUpgradeOutput(mode, startedAt) {
     },
     sourceRevision: null,
     planDigest: null,
+    manifestDigest: null,
     pendingCount: 0,
     pendingChanges: [],
     appliedCount: 0,
+    fileOutcomes: [],
     ledger: {
       available: false,
       verification: 'UNKNOWN',
       appliedCount: 0,
       driftDetected: false,
       receipts: [],
+      before: null,
+      after: null,
     },
     lock: {
       requested: false,
       acquired: false,
       released: false,
       mechanism: 'pg_advisory_lock',
+    },
+    revalidation: {
+      performed: false,
+      outcome: 'NOT_REQUESTED',
+      manifestDigest: null,
     },
     outcome: 'FAILED',
     warnings: [
@@ -779,10 +938,28 @@ function attachUpgradeFailure(error, output) {
   }
   if (
     error.code === 'DATABASE_UPGRADE_SOURCE_DRIFT' ||
-    error.code === 'DATABASE_UPGRADE_CHECKSUM_DRIFT'
+    error.code === 'DATABASE_UPGRADE_CHECKSUM_DRIFT' ||
+    error.code === 'DATABASE_UPGRADE_MANIFEST_DRIFT' ||
+    error.code === 'DATABASE_UPGRADE_SQL_PATH_ESCAPE'
   ) {
     output.ledger.verification = 'DRIFT';
     output.ledger.driftDetected = true;
+  }
+  if (
+    error.code === 'DATABASE_UPGRADE_MANIFEST_DRIFT' ||
+    error.code === 'DATABASE_UPGRADE_SQL_PATH_ESCAPE'
+  ) {
+    output.revalidation.outcome = 'DRIFT_REJECTED';
+  }
+  if (Number.isInteger(error.details?.ordinal)) {
+    const failedOutcome = output.fileOutcomes.find(
+      (outcome) => outcome.ordinal === error.details.ordinal,
+    );
+    if (failedOutcome && failedOutcome.status === 'PENDING_NOT_ATTEMPTED') {
+      failedOutcome.status = error.details.rolledBack ? 'FAILED_ROLLED_BACK' : 'FAILED';
+      failedOutcome.rolledBack = error.details.rolledBack === true;
+      failedOutcome.errorCode = error.code || 'DATABASE_UPGRADE_FAILED';
+    }
   }
   output.errors = [
     {
@@ -794,6 +971,49 @@ function attachUpgradeFailure(error, output) {
   return error;
 }
 
+function assertConfiguredApplyTarget({ environment, configuredDatabase, identity }) {
+  const allowedTarget = String(environment.SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE || '').trim();
+  if (!allowedTarget) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_TARGET_NOT_CONFIGURED',
+      'APPLY requires the registered DEV target database to be configured.',
+    );
+  }
+  if (normalizeDatabaseName(allowedTarget) !== configuredDatabase) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_TARGET_MISMATCH',
+      'Configured upgrade target does not match PGDATABASE.',
+    );
+  }
+  const allowedSystemIdentifier = normalizeSystemIdentifier(
+    environment.SKYCOMMAND_DB_UPGRADE_TARGET_SYSTEM_IDENTIFIER,
+  );
+  if (!allowedSystemIdentifier) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_TARGET_SYSTEM_IDENTIFIER_NOT_CONFIGURED',
+      'APPLY requires the registered DEV target PostgreSQL cluster to be configured.',
+    );
+  }
+  if (allowedSystemIdentifier !== identity.systemIdentifier) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_TARGET_SYSTEM_IDENTIFIER_MISMATCH',
+      'Configured upgrade target system identifier does not match the connected PostgreSQL cluster.',
+    );
+  }
+}
+
+function assertIdentityMatches(left, right) {
+  if (
+    left?.databaseName !== right?.databaseName ||
+    left?.systemIdentifier !== right?.systemIdentifier
+  ) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_IDENTITY_CHANGED_UNDER_LOCK',
+      'Connected database identity changed while the upgrade lock was held.',
+    );
+  }
+}
+
 async function executeDatabaseUpgradeInternal(
   {
     mode = 'PLAN',
@@ -803,12 +1023,19 @@ async function executeDatabaseUpgradeInternal(
     adapter = null,
     repositoryRoot = SKYCOMMAND_ROOT,
     fileSystem = fs,
+    binding = null,
+    toolCode = null,
   } = {},
   executionPath = 'MANUAL',
 ) {
   const normalizedMode = mode === 'APPLY' ? 'APPLY' : 'PLAN';
   const startedAt = Date.now();
-  const output = createInitialUpgradeOutput(normalizedMode, startedAt);
+  const output = createInitialUpgradeOutput(normalizedMode, startedAt, {
+    path: executionPath,
+    toolCode,
+    executionId: environment.SKYCOMMAND_EXECUTION_ID || null,
+    binding,
+  });
   let client = null;
   let lockHeld = false;
   let changes = [];
@@ -837,18 +1064,24 @@ async function executeDatabaseUpgradeInternal(
       appliedCount: inspected.ledgerState.appliedCount,
       driftDetected: inspected.ledgerState.driftDetected,
       receipts: inspected.ledgerState.ledgerRows.map(publicLedgerReceipt),
+      before: createLedgerSnapshot(inspected.ledgerState),
+      after: createLedgerSnapshot(inspected.ledgerState),
     };
     output.pendingChanges = inspected.plan.pending.map(publicChange);
     output.pendingCount = inspected.plan.pending.length;
     output.planDigest = { algorithm: 'SHA-256', digest: inspected.plan.digest };
+    output.manifestDigest = { algorithm: 'SHA-256', digest: inspected.plan.manifestDigest };
+    output.fileOutcomes = createFileOutcomes(changes, inspected.ledgerState.ledgerRows);
 
     if (normalizedMode === 'PLAN') {
       output.outcome = 'PLAN_READY';
       return finishUpgradeOutput(output, startedAt);
     }
 
+    const registeredDevTool = executionPath === REGISTERED_DEV_TOOL_EXECUTION_PATH;
     if (
       executionPath !== 'APPROVED_REQUEST' &&
+      !registeredDevTool &&
       !parseBoolean(environment.SKYCOMMAND_DB_UPGRADE_ENABLED, false)
     ) {
       throw upgradeError(
@@ -856,57 +1089,30 @@ async function executeDatabaseUpgradeInternal(
         'Database upgrade APPLY is disabled by SKYCOMMAND_DB_UPGRADE_ENABLED.',
       );
     }
-    const allowedTarget = String(environment.SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE || '').trim();
-    if (!allowedTarget) {
-      throw upgradeError(
-        'DATABASE_UPGRADE_TARGET_NOT_CONFIGURED',
-        'APPLY requires SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE to name the allowed target.',
-      );
-    }
-    if (normalizeDatabaseName(allowedTarget) !== configuredDatabase) {
-      throw upgradeError(
-        'DATABASE_UPGRADE_TARGET_MISMATCH',
-        'Configured upgrade target does not match PGDATABASE.',
-      );
-    }
-    const allowedSystemIdentifier = normalizeSystemIdentifier(
-      environment.SKYCOMMAND_DB_UPGRADE_TARGET_SYSTEM_IDENTIFIER,
-    );
-    if (!allowedSystemIdentifier) {
-      throw upgradeError(
-        'DATABASE_UPGRADE_TARGET_SYSTEM_IDENTIFIER_NOT_CONFIGURED',
-        'APPLY requires SKYCOMMAND_DB_UPGRADE_TARGET_SYSTEM_IDENTIFIER to identify the allowed PostgreSQL cluster.',
-      );
-    }
-    if (allowedSystemIdentifier !== identity.systemIdentifier) {
-      throw upgradeError(
-        'DATABASE_UPGRADE_TARGET_SYSTEM_IDENTIFIER_MISMATCH',
-        'Configured upgrade target system identifier does not match the connected PostgreSQL cluster.',
-      );
-    }
-    if (!confirmed) {
+    assertConfiguredApplyTarget({ environment, configuredDatabase, identity });
+    if (!registeredDevTool && !confirmed) {
       throw upgradeError(
         'DATABASE_UPGRADE_CONFIRMATION_REQUIRED',
         'APPLY requires explicit --confirm confirmation.',
       );
     }
-    if (!/^[A-Fa-f0-9]{64}$/.test(String(expectedPlanDigest || ''))) {
+    if (!registeredDevTool && !/^[A-Fa-f0-9]{64}$/.test(String(expectedPlanDigest || ''))) {
       throw upgradeError(
         'DATABASE_UPGRADE_PLAN_DIGEST_REQUIRED',
         'APPLY requires the exact current SHA-256 plan digest.',
       );
     }
-    if (String(expectedPlanDigest).toUpperCase() !== inspected.plan.digest) {
+    if (!registeredDevTool && String(expectedPlanDigest).toUpperCase() !== inspected.plan.digest) {
       throw upgradeError(
         'DATABASE_UPGRADE_PLAN_DIGEST_MISMATCH',
         'The supplied plan digest does not match a freshly computed plan.',
       );
     }
     if (inspected.plan.pending.length === 0) {
-      throw upgradeError(
-        'DATABASE_UPGRADE_NO_PENDING_CHANGES',
-        'APPLY requires at least one valid pending post-baseline SQL change.',
-      );
+      output.outcome = 'NO_CHANGES';
+      output.execution.reconciledFromLedger = true;
+      output.revalidation.outcome = 'NOT_REQUIRED_NO_CHANGES';
+      return finishUpgradeOutput(output, startedAt);
     }
 
     output.lock.requested = true;
@@ -914,13 +1120,40 @@ async function executeDatabaseUpgradeInternal(
     lockHeld = true;
     output.lock.acquired = true;
 
-    const refreshed = await inspectAndPlan(client, identity, changes, output.sourceRevision);
-    if (refreshed.plan.digest !== String(expectedPlanDigest).toUpperCase()) {
+    const lockedChanges = discoverGovernedSqlChanges({ repositoryRoot, fileSystem });
+    try {
+      assertManifestMatches(changes, lockedChanges);
+    } catch (error) {
+      output.revalidation.outcome = 'DRIFT_REJECTED';
+      throw error;
+    }
+    const lockedIdentity = await readDatabaseIdentity(client);
+    assertIdentityMatches(identity, lockedIdentity);
+    const refreshed = await inspectAndPlan(
+      client,
+      lockedIdentity,
+      lockedChanges,
+      output.sourceRevision,
+    );
+    const expectedDigest = registeredDevTool
+      ? inspected.plan.digest
+      : String(expectedPlanDigest).toUpperCase();
+    if (refreshed.plan.digest !== expectedDigest) {
       throw upgradeError(
         'DATABASE_UPGRADE_PLAN_CHANGED_UNDER_LOCK',
         'The current plan changed before APPLY could begin.',
       );
     }
+    output.revalidation = {
+      performed: true,
+      outcome: 'VERIFIED',
+      manifestDigest: { algorithm: 'SHA-256', digest: refreshed.plan.manifestDigest },
+    };
+    changes = lockedChanges;
+    identity = lockedIdentity;
+    output.databaseIdentity = lockedIdentity;
+    output.manifestDigest = { algorithm: 'SHA-256', digest: refreshed.plan.manifestDigest };
+    output.fileOutcomes = createFileOutcomes(lockedChanges, refreshed.ledgerState.ledgerRows);
 
     const context = {
       baselineId: refreshed.ledgerState.baseline?.baseline_id || null,
@@ -930,20 +1163,32 @@ async function executeDatabaseUpgradeInternal(
       planDigest: refreshed.plan.digest,
     };
     for (const pendingChange of refreshed.plan.pending) {
-      const sql = fileSystem.readFileSync(pendingChange.absolutePath, 'utf8');
-      pendingChange.sql = sql;
-      await applyChange(client, pendingChange, context);
+      try {
+        await applyChange(client, pendingChange, context);
+      } catch (error) {
+        const failedOutcome = output.fileOutcomes.find(
+          (outcome) => outcome.ordinal === pendingChange.ordinal,
+        );
+        if (failedOutcome) {
+          failedOutcome.status = error.details?.rolledBack ? 'FAILED_ROLLED_BACK' : 'FAILED';
+          failedOutcome.rolledBack = error.details?.rolledBack === true;
+          failedOutcome.errorCode = error.code || 'DATABASE_UPGRADE_FAILED';
+        }
+        throw error;
+      }
+      const committedOutcome = output.fileOutcomes.find(
+        (outcome) => outcome.ordinal === pendingChange.ordinal,
+      );
+      if (committedOutcome) committedOutcome.status = 'COMMITTED';
       output.appliedCount += 1;
     }
     output.outcome = 'APPLIED';
     output.ledger.available = true;
     output.ledger.verification = 'VERIFIED';
     const finalLedgerState = await readLedgerState(client, identity, changes);
-    output.ledger.appliedCount = Math.max(
-      output.ledger.appliedCount + output.appliedCount,
-      finalLedgerState.appliedCount,
-    );
+    output.ledger.appliedCount = finalLedgerState.appliedCount;
     output.ledger.receipts = finalLedgerState.ledgerRows.map(publicLedgerReceipt);
+    output.ledger.after = createLedgerSnapshot(finalLedgerState);
     return finishUpgradeOutput(output, startedAt);
   } catch (error) {
     if (client && normalizedMode === 'APPLY' && identity && changes.length > 0) {
@@ -951,6 +1196,21 @@ async function executeDatabaseUpgradeInternal(
         const failureLedgerState = await readLedgerState(client, identity, changes);
         output.ledger.appliedCount = failureLedgerState.appliedCount;
         output.ledger.receipts = failureLedgerState.ledgerRows.map(publicLedgerReceipt);
+        output.ledger.after = createLedgerSnapshot(failureLedgerState);
+        output.execution.reconciledFromLedger = true;
+        const ledgeredOrdinals = new Set(
+          failureLedgerState.ledgerRows.map((row) => Number(row.ordinal)),
+        );
+        output.fileOutcomes = output.fileOutcomes.map((fileOutcome) =>
+          ledgeredOrdinals.has(fileOutcome.ordinal) &&
+          ['FAILED', 'FAILED_ROLLED_BACK'].includes(fileOutcome.status)
+            ? {
+                ...fileOutcome,
+                status: 'COMMITTED_RECONCILED',
+                rolledBack: false,
+              }
+            : fileOutcome,
+        );
       } catch (_ledgerError) {
         // Preserve the original failure; reconciliation can retry a read-only PLAN.
       }
@@ -973,6 +1233,33 @@ async function executeDatabaseUpgradeInternal(
 
 async function executeDatabaseUpgrade(options = {}) {
   return executeDatabaseUpgradeInternal(options, 'MANUAL');
+}
+
+/**
+ * Registered DEV_LOCAL Tool entry point. Authority is supplied by the Tool
+ * catalogue/permission boundary and the trusted DEV target pins; no caller
+ * confirmation, plan digest, SQL, path, credential, or target override is
+ * accepted here.
+ */
+async function executeRegisteredDatabaseUpgrade({
+  environment = process.env,
+  adapter = null,
+  repositoryRoot = SKYCOMMAND_ROOT,
+  fileSystem = fs,
+  binding = null,
+} = {}) {
+  return executeDatabaseUpgradeInternal(
+    {
+      mode: 'APPLY',
+      environment,
+      adapter,
+      repositoryRoot,
+      fileSystem,
+      binding,
+      toolCode: 'database_upgrade_apply',
+    },
+    REGISTERED_DEV_TOOL_EXECUTION_PATH,
+  );
 }
 
 function assertApprovedRequestExecutionEnvelope(approvedRequest) {
@@ -1038,6 +1325,7 @@ module.exports = {
   BASELINE_CONTRACT,
   BASELINE_ORDINAL,
   DatabaseUpgradeError,
+  REGISTERED_DEV_TOOL_EXECUTION_PATH,
   RUNNER_VERSION,
   SQL_ROOT_LABELS,
   SQL_ROOTS,
@@ -1049,6 +1337,7 @@ module.exports = {
   createInitialUpgradeOutput,
   createPgDatabaseAdapter,
   discoverGovernedSqlChanges,
+  executeRegisteredDatabaseUpgrade,
   executeDatabaseUpgrade,
   executeApprovedDatabaseUpgrade,
   finishUpgradeOutput,
@@ -1058,6 +1347,9 @@ module.exports = {
   parseBoolean,
   parseGovernedFilename,
   publicChange,
+  assertManifestMatches,
+  createFileOutcomes,
+  manifestDigest,
   publicLedgerReceipt,
   readBaselineProbes,
   readDatabaseIdentity,

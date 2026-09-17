@@ -10,12 +10,17 @@
     "databaseIdentity",
     "baseline",
     "sourceRevision",
+    "execution",
+    "binding",
     "planDigest",
+    "manifestDigest",
     "pendingCount",
     "pendingChanges",
     "appliedCount",
+    "fileOutcomes",
     "ledger",
     "lock",
+    "revalidation",
     "outcome",
     "warnings",
     "errors",
@@ -60,7 +65,47 @@
       }
     },
     "sourceRevision": { "type": ["string", "null"] },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "toolCode", "executionId", "reconciledFromLedger"],
+      "properties": {
+        "path": { "type": ["string", "null"] },
+        "toolCode": { "type": ["string", "null"] },
+        "executionId": { "type": ["string", "null"] },
+        "reconciledFromLedger": { "type": "boolean" }
+      }
+    },
+    "binding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "environmentCode",
+        "repositoryCode",
+        "repositoryId",
+        "toolCode",
+        "toolId",
+        "permissionCode"
+      ],
+      "properties": {
+        "environmentCode": { "type": "string" },
+        "repositoryCode": { "type": "string" },
+        "repositoryId": { "type": "string" },
+        "toolCode": { "type": "string" },
+        "toolId": { "type": "string" },
+        "permissionCode": { "type": "string" }
+      }
+    },
     "planDigest": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": { "const": "SHA-256" },
+        "digest": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+      }
+    },
+    "manifestDigest": {
       "type": ["object", "null"],
       "additionalProperties": false,
       "required": ["algorithm", "digest"],
@@ -79,12 +124,52 @@
         "properties": {
           "ordinal": { "type": "integer", "minimum": 0 },
           "kind": { "enum": ["MIGRATION", "SEED"] },
-          "relativePath": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\.\\.).+$" },
+          "relativePath": {
+            "type": "string",
+            "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\.\\.).+$"
+          },
           "sha256": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
         }
       }
     },
     "appliedCount": { "type": "integer", "minimum": 0 },
+    "fileOutcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ordinal",
+          "kind",
+          "relativePath",
+          "sha256",
+          "status",
+          "rolledBack",
+          "errorCode"
+        ],
+        "properties": {
+          "ordinal": { "type": "integer", "minimum": 0 },
+          "kind": { "enum": ["MIGRATION", "SEED"] },
+          "relativePath": {
+            "type": "string",
+            "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\.\\.).+$"
+          },
+          "sha256": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
+          "status": {
+            "enum": [
+              "ALREADY_LEDGERED",
+              "COMMITTED",
+              "COMMITTED_RECONCILED",
+              "FAILED",
+              "FAILED_ROLLED_BACK",
+              "PENDING_NOT_ATTEMPTED"
+            ]
+          },
+          "rolledBack": { "type": "boolean" },
+          "errorCode": { "type": ["string", "null"] }
+        }
+      }
+    },
     "ledger": {
       "type": "object",
       "additionalProperties": false,
@@ -93,7 +178,10 @@
         "available": { "type": "boolean" },
         "verification": { "enum": ["VERIFIED", "NOT_INITIALIZED", "DRIFT", "FAILED", "UNKNOWN"] },
         "appliedCount": { "type": "integer", "minimum": 0 },
-        "driftDetected": { "type": "boolean" }
+        "driftDetected": { "type": "boolean" },
+        "receipts": { "type": "array" },
+        "before": { "$ref": "#/$defs/ledgerSnapshot" },
+        "after": { "$ref": "#/$defs/ledgerSnapshot" }
       }
     },
     "lock": {
@@ -107,7 +195,25 @@
         "mechanism": { "type": ["string", "null"] }
       }
     },
-    "outcome": { "enum": ["PLAN_READY", "APPLIED", "BLOCKED", "FAILED"] },
+    "revalidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["performed", "outcome", "manifestDigest"],
+      "properties": {
+        "performed": { "type": "boolean" },
+        "outcome": { "type": "string" },
+        "manifestDigest": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["algorithm", "digest"],
+          "properties": {
+            "algorithm": { "const": "SHA-256" },
+            "digest": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+          }
+        }
+      }
+    },
+    "outcome": { "enum": ["PLAN_READY", "APPLIED", "NO_CHANGES", "BLOCKED", "FAILED"] },
     "warnings": { "type": "array" },
     "errors": { "type": "array" },
     "timing": {
@@ -118,6 +224,19 @@
         "startedAt": { "type": "string", "format": "date-time" },
         "completedAt": { "type": "string", "format": "date-time" },
         "durationMs": { "type": "number", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "ledgerSnapshot": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["available", "verification", "appliedCount", "ordinals"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "verification": { "enum": ["VERIFIED", "NOT_INITIALIZED", "DRIFT", "FAILED", "UNKNOWN"] },
+        "appliedCount": { "type": "integer", "minimum": 0 },
+        "ordinals": { "type": "array", "items": { "type": "integer", "minimum": 0 } }
       }
     }
   }
