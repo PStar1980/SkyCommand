@@ -970,4 +970,5 @@ module.exports = {
   getRoleCodesForUser,
   hasPermission,
   recordAuditEvent,
+  recordAuditEventWithClient,
 };

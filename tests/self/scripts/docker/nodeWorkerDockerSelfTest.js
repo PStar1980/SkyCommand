@@ -20,6 +20,7 @@ const schedulePoller = read('apps/worker/src/schedulers/schedulePoller.js');
 const workerToolExecution = read('apps/worker/src/jobs/workerToolExecutionService.js');
 const packageJson = JSON.parse(read('package.json'));
 const validate = read('scripts/validate.js');
+const capabilityCatalogExport = read('scripts/capabilityCatalogExport.js');
 
 assert(
   compose.includes('node-worker:') &&
@@ -46,11 +47,16 @@ assert(
   'The Node worker image must use the isolated dependency stage, retain Node 22 at runtime, include Git/PostgreSQL support, and run non-root.',
 );
 
-const requiredDependencies = ['@temporalio/client', 'axios', 'bcryptjs', 'dotenv', 'pg'];
+const requiredDependencies = ['@temporalio/client', 'axios', 'bcryptjs', 'dotenv', 'pg', 'xlsx'];
 assert(
   requiredDependencies.every((dependency) => workerPackage.dependencies?.[dependency]) &&
     !workerPackage.devDependencies,
   'The Node worker must use a compact server-side dependency manifest.',
+);
+assert(
+  workerPackage.dependencies.xlsx === '0.18.5' &&
+    capabilityCatalogExport.includes("require('xlsx')"),
+  'The Node worker runtime must pin the XLSX dependency required by the registered Capability Catalogue Tool.',
 );
 assert(
   worker.includes('assertDockerWorkerConfiguration') &&

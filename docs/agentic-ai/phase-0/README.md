@@ -1,6 +1,6 @@
 # Agentic AI Phase 0
 
-This directory contains the Phase 0 baseline, design contracts, and certification-preparation evidence for the approved SkyCommand Agentic AI Architecture & Phased Implementation Plan v1.0. The authoritative source-controlled plan is `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.0_APPROVED.md`; its SHA-256 is recorded and self-tested in `phase-0/baseline-manifest.json`.
+This directory contains the Phase 0 baseline, design contracts, and certification-preparation evidence for the approved SkyCommand Agentic AI Architecture & Phased Implementation Plan v1.1. The active authoritative source-controlled plan is `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`. The original v1.0 review digest remains historical evidence in `phase-0/baseline-manifest.json`.
 
 Phase 0 is intentionally non-executable. It adds no database migration, Agent admission route, runtime worker, provider adapter, Temporal Agent workflow, scheduler target, or Admin-Web execution control. The contracts and fixtures are source-controlled preparation for later phases and are validated by `npm run agent-phase0:self-test`.
 

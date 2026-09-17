@@ -25,7 +25,7 @@ function Field({ label, value, mono = false }) {
 }
 
 export default function DatabaseUpgradeRequests() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasRole } = useAuth();
   const [requests, setRequests] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [note, setNote] = useState('');
@@ -33,6 +33,7 @@ export default function DatabaseUpgradeRequests() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [executionEnabled, setExecutionEnabled] = useState(false);
 
   const selected = useMemo(
     () => requests.find((request) => request.requestId === selectedId) || null,
@@ -46,6 +47,7 @@ export default function DatabaseUpgradeRequests() {
       const result = await adminService.listDatabaseUpgradeApplyRequests();
       const items = result.items || [];
       setRequests(items);
+      setExecutionEnabled(result.execution?.enabled === true);
       setSelectedId((current) =>
         items.some((item) => item.requestId === current) ? current : items[0]?.requestId || '',
       );
@@ -81,6 +83,27 @@ export default function DatabaseUpgradeRequests() {
     }
   }
 
+  async function executeApproved() {
+    if (!selected || selected.status !== 'APPROVED') return;
+    const confirmed = window.confirm(
+      `Execute the exact approved database-upgrade PLAN for ${selected.databaseName}? This will apply governed database changes.`,
+    );
+    if (!confirmed) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      await adminService.executeDatabaseUpgradeApplyRequest(selected.requestId);
+      setMessage('Approved PLAN executed; the execution receipt was recorded.');
+      await loadRequests();
+    } catch (executeError) {
+      await loadRequests();
+      setError(executeError.message || 'Execution was refused or failed.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="sky-page-shell">
       <header className="sky-page-header">
@@ -102,7 +125,8 @@ export default function DatabaseUpgradeRequests() {
       </header>
 
       <div className="alert alert-warning" role="note">
-        Approval records authorization only. D2B.1 does not execute database changes.
+        Approval records authorization only. Execution is a separate gated human action and is never
+        available through Assistant or MCP.
       </div>
       {error && (
         <div className="alert alert-danger" role="alert">
@@ -192,6 +216,17 @@ export default function DatabaseUpgradeRequests() {
                     }
                   />
                   <Field label="Decision time" value={formatDate(selected.humanDecisionAt)} />
+                  <Field label="Approval" value={selected.status} />
+                  <Field
+                    label="Execution"
+                    value={
+                      selected.execution?.outcome === 'APPLIED'
+                        ? 'APPLIED'
+                        : selected.execution?.outcome === 'FAILED'
+                          ? 'FAILED'
+                          : 'NOT EXECUTED'
+                    }
+                  />
                 </div>
                 <h3 className="h6 mt-2">Pending governed changes ({selected.pendingCount})</h3>
                 <div className="table-responsive">
@@ -219,6 +254,20 @@ export default function DatabaseUpgradeRequests() {
                 {selected.humanDecisionNote && (
                   <p className="small sky-muted mb-3">Note: {selected.humanDecisionNote}</p>
                 )}
+                {selected.status === 'APPROVED' &&
+                  !selected.execution &&
+                  executionEnabled &&
+                  hasPermission('DB_UPGRADE_APPLY_APPROVE') &&
+                  hasRole('SUPER_ADMIN') && (
+                    <button
+                      className="btn btn-danger mb-3"
+                      disabled={saving}
+                      onClick={executeApproved}
+                      type="button"
+                    >
+                      Execute approved PLAN
+                    </button>
+                  )}
                 {selected.status === 'PENDING' && hasPermission('DB_UPGRADE_APPLY_APPROVE') && (
                   <>
                     <label className="form-label" htmlFor="databaseUpgradeDecisionNote">

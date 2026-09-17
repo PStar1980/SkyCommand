@@ -51,6 +51,7 @@ const routineSelfTests = [
   'assistant-integration:self-test',
   'assistant-database-upgrade-plan:self-test',
   'assistant-database-upgrade-apply-request:self-test',
+  'admin-database-upgrade-execution:self-test',
   'assistant-development-promotion:self-test',
   'mcp-gateway:self-test',
   'git-repository-status:self-test',

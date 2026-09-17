@@ -11,6 +11,10 @@ const {
   createDatabaseUpgradeToolResult,
 } = require('../../../../packages/db_upgrade/src/databaseUpgradeResult');
 const databaseUpgradeApplyRequestService = require('./databaseUpgradeApplyRequestService');
+const {
+  DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
+  DEVELOPMENT_PROMOTION_TOOL_PERMISSION_CODES,
+} = require('./developmentPromotionPermissionContract');
 
 const INTEGRATION_VERSION = 'skycommand_assistant_bridge.v1';
 const DEVELOPMENT_PROMOTION_CAPABILITY = 'skycommand_development_promotion_start';
@@ -23,17 +27,6 @@ const DATABASE_UPGRADE_APPLY_REQUEST_CAPABILITY = 'skycommand_database_upgrade_a
 const DEVELOPMENT_PROMOTION_WORKFLOW_CODE = 'skyserver_dev_commit';
 const DEVELOPMENT_PROMOTION_REPOSITORY_CODE = 'SkyCommand';
 const DEVELOPMENT_PROMOTION_PERMISSION_CODE = 'WORKFLOW_RUN';
-const DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES = Object.freeze([
-  'WORKFLOW_RUN',
-  'REPO_MAP_GENERATE',
-  'REPO_ZIP_GENERATE',
-  'GIT_COMMIT_RUN',
-  'GIT_MAIN_MERGE_RUN',
-  'GIT_LOCAL_SYNC_RUN',
-  'CORE_RUN_LOW_RISK_SCRIPT',
-  'CORE_RUN_MEDIUM_RISK_SCRIPT',
-  'CORE_RUN_HIGH_RISK_SCRIPT',
-]);
 const DEVELOPMENT_PROMOTION_TRIGGER_SOURCE = 'ASSISTANT';
 const DEVELOPMENT_PROMOTION_TRIGGER_TYPE = 'ASSISTANT';
 const DEVELOPMENT_PROMOTION_MAX_COMMIT_MESSAGE_LENGTH = 300;
@@ -632,6 +625,8 @@ function getCapabilities({
     environment,
     permissionCodes,
   );
+  const databaseUpgradeHumanExecution =
+    databaseUpgradeApplyRequestService.getExecutionConfig(environment);
 
   return {
     integrationVersion: INTEGRATION_VERSION,
@@ -705,6 +700,18 @@ function getCapabilities({
       blockedReason: databaseUpgradeApplyRequest.blockedReason,
       description:
         'Create a durable human-approval request for the exact current PLAN. This records authorization evidence only and never executes database APPLY.',
+    },
+    databaseUpgradeHumanExecution: {
+      capability: databaseUpgradeHumanExecution.capability,
+      configured: databaseUpgradeHumanExecution.enabled,
+      enabled: databaseUpgradeHumanExecution.enabled,
+      humanAdminOnly: true,
+      requiredRoleCode: databaseUpgradeHumanExecution.requiredRoleCode,
+      requiredPermissionCode: databaseUpgradeHumanExecution.requiredPermissionCode,
+      applyExecutionExposed: false,
+      agentCapability: false,
+      description:
+        'Human/Admin-Web-only D2B.2 continuation. This is not an Assistant or MCP execution capability.',
     },
     safety: {
       assistantOptInRequired: true,
@@ -1089,6 +1096,7 @@ module.exports = {
   DEVELOPMENT_PROMOTION_MAX_COMMIT_MESSAGE_LENGTH,
   DEVELOPMENT_PROMOTION_PERMISSION_CODE,
   DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
+  DEVELOPMENT_PROMOTION_TOOL_PERMISSION_CODES,
   DEVELOPMENT_PROMOTION_REPOSITORY_CODE,
   DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
   DEVELOPMENT_PROMOTION_TRIGGER_TYPE,

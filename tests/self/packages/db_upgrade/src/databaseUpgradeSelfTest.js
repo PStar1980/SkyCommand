@@ -14,6 +14,7 @@ const {
   applyChange,
   buildPlan,
   discoverGovernedSqlChanges,
+  executeApprovedDatabaseUpgrade,
   executeDatabaseUpgrade,
   parseGovernedFilename,
   readDatabaseIdentity,
@@ -163,12 +164,48 @@ function makeTempSqlRoot(files) {
 
 async function run() {
   const sourceChanges = discoverGovernedSqlChanges();
-  assert.equal(sourceChanges.at(-1).ordinal, 131, '00131 is the next global ordinal');
-  assert.equal(
-    sourceChanges.filter((change) => change.ordinal <= BASELINE_ORDINAL).length,
-    sourceChanges.length - 3,
-    'only 00129 through 00131 are post-baseline changes',
+  const postBaselineChanges = sourceChanges.filter((change) => change.ordinal > BASELINE_ORDINAL);
+  const latestPostBaselineOrdinal = postBaselineChanges.at(-1)?.ordinal;
+  assert.ok(
+    Number.isInteger(latestPostBaselineOrdinal) && latestPostBaselineOrdinal > BASELINE_ORDINAL,
+    'the source-controlled manifest must contain post-baseline changes',
   );
+  assert.equal(
+    postBaselineChanges.length,
+    latestPostBaselineOrdinal - BASELINE_ORDINAL,
+    'post-baseline ordinals must remain contiguous through the current source-controlled change',
+  );
+
+  const approvedContinuationClient = new FakeClient({ ledgerAvailable: true });
+  const approvedContinuationPlan = await executeDatabaseUpgrade({
+    mode: 'PLAN',
+    environment: {
+      ...validEnvironment,
+      SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE: 'skyserver_dev',
+      SKYCOMMAND_DB_UPGRADE_TARGET_SYSTEM_IDENTIFIER: validSystemIdentifier,
+    },
+    adapter: adapterFor(approvedContinuationClient),
+  });
+  const approvedContinuation = await executeApprovedDatabaseUpgrade({
+    approvedRequest: {
+      requestId: 'approved-request-1',
+      status: 'APPROVED',
+      planDigest: approvedContinuationPlan.planDigest.digest,
+      requestDigest: 'A'.repeat(64),
+      humanDecisionUserId: '00000000-0000-0000-0000-000000000001',
+      humanDecisionAt: new Date().toISOString(),
+    },
+    environment: {
+      ...validEnvironment,
+      SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE: 'skyserver_dev',
+      SKYCOMMAND_DB_UPGRADE_TARGET_SYSTEM_IDENTIFIER: validSystemIdentifier,
+    },
+    adapter: adapterFor(approvedContinuationClient),
+  });
+  assert.equal(approvedContinuation.outcome, 'APPLIED');
+  assert.equal(approvedContinuation.appliedCount, postBaselineChanges.length);
+  assert.equal(approvedContinuationClient.mutations.includes('BEGIN'), true);
+
   assert.ok(sourceChanges.some((change) => change.ordinal === 129));
   assert.ok(sourceChanges.some((change) => change.ordinal === 130));
   assert.ok(sourceChanges.some((change) => change.relativePath.endsWith('00128__assistant_workflow_run_attribution.sql')));
@@ -381,7 +418,7 @@ async function run() {
     expectedPlanDigest: cleanBuildLedgerPlan.planDigest.digest,
   });
   assert.equal(applyOutput.outcome, 'APPLIED');
-  assert.equal(applyOutput.appliedCount, 3);
+  assert.equal(applyOutput.appliedCount, postBaselineChanges.length);
   assert.equal(applyOutput.lock.acquired, true);
   assert.equal(applyOutput.lock.released, true);
   assert.ok(applyClient.mutations.includes('INSERT_BASELINE'));
@@ -466,6 +503,20 @@ async function run() {
   );
   assert.deepEqual(atomicClient.mutations.slice(0, 3), ['BEGIN', 'SELECT 1;', 'INSERT_LEDGER']);
   assert.equal(atomicClient.mutations.at(-1), 'COMMIT');
+
+  const doBlockClient = new FakeClient();
+  await applyChange(
+    doBlockClient,
+    {
+      ordinal: 130,
+      kind: 'MIGRATION',
+      relativePath: 'packages/db_build/src/migrations/00130__do_block_validation.sql',
+      sql: 'DO $$ BEGIN IF TRUE THEN NULL; END IF; END $$;',
+      sha256: 'A'.repeat(64),
+    },
+    { baselineId: 'baseline-1', identity: { databaseName: 'skyserver_dev', serverVersion: '16.4', systemIdentifier: validSystemIdentifier }, sourceRevision: null, probes: [], planDigest: 'A'.repeat(64) },
+  );
+  assert.equal(doBlockClient.mutations[1], 'DO $$ BEGIN IF TRUE THEN NULL; END IF; END $$;');
 
   const buildSource = fs.readFileSync(path.join(root, 'packages/db_build/src/db_build.js'), 'utf8');
   const ledgerMigration = fs.readFileSync(

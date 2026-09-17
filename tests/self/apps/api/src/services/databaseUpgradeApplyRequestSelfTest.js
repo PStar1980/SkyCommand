@@ -265,6 +265,7 @@ async function run() {
     return planResult();
   };
   const database = makeDatabase();
+  assert.equal(typeof authService.recordAuditEventWithClient, 'function');
   const originalAudit = authService.recordAuditEventWithClient;
   authService.recordAuditEventWithClient = async (client, event) => client.auditEvents.push(event);
   try {

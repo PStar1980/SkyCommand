@@ -1,6 +1,9 @@
 const authService = require('../services/authService');
+const {
+  DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
+} = require('../services/developmentPromotionPermissionContract');
 
-const INTERNAL_SERVICE_PERMISSION_CODES = [
+const INTERNAL_SERVICE_BASE_PERMISSION_CODES = [
   'WORKFLOW_READ',
   'WORKFLOW_START',
   'WORKFLOW_RUN',
@@ -13,6 +16,13 @@ const INTERNAL_SERVICE_PERMISSION_CODES = [
   'BROWSER_TEST_READ',
   'BROWSER_TEST_RUN',
 ];
+
+const INTERNAL_SERVICE_PERMISSION_CODES = Object.freeze([
+  ...INTERNAL_SERVICE_BASE_PERMISSION_CODES,
+  ...DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES.filter(
+    (permissionCode) => !INTERNAL_SERVICE_BASE_PERMISSION_CODES.includes(permissionCode),
+  ),
+]);
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') {
@@ -132,5 +142,6 @@ async function requireAuth(req, res, next) {
 }
 
 module.exports = {
+  INTERNAL_SERVICE_PERMISSION_CODES,
   requireAuth,
 };

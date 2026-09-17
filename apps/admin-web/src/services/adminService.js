@@ -275,6 +275,13 @@ async function decideDatabaseUpgradeApplyRequest(requestId, payload = {}) {
   );
 }
 
+async function executeDatabaseUpgradeApplyRequest(requestId) {
+  return api.post(
+    `/api/admin/database-upgrade/apply-requests/${encodeURIComponent(requestId)}/execute`,
+    { confirm: true },
+  );
+}
+
 const adminService = {
   listScriptExecutions,
   getScriptExecutionDetail,
@@ -344,6 +351,7 @@ const adminService = {
   getCoreSettings,
   listDatabaseUpgradeApplyRequests,
   decideDatabaseUpgradeApplyRequest,
+  executeDatabaseUpgradeApplyRequest,
 };
 
 export default adminService;

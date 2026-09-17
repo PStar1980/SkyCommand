@@ -18,8 +18,31 @@ async function listRequests(req, res) {
       user: req.user,
       session: req.session,
       permissions: req.permissions || [],
+      environment: process.env,
     });
     return res.json({ ok: true, ...result });
+  } catch (error) {
+    return sendServiceError(res, error);
+  }
+}
+
+async function executeRequest(req, res) {
+  try {
+    const result = await databaseUpgradeApplyRequestService.executeApprovedApplyRequest({
+      requestId: req.params.requestId,
+      body: req.body || {},
+      req,
+      user: req.user,
+      session: req.session,
+      permissions: req.permissions || [],
+      environment: process.env,
+    });
+    return res.json({
+      ok: true,
+      ...result,
+      approval: 'APPROVED',
+      execution: result.receipt,
+    });
   } catch (error) {
     return sendServiceError(res, error);
   }
@@ -43,5 +66,6 @@ async function decideRequest(req, res) {
 
 module.exports = {
   decideRequest,
+  executeRequest,
   listRequests,
 };
