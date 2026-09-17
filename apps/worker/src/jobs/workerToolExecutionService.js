@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const { executeToolProcess, bindParameterArgument } = require('../../../../packages/tools/src');
+const {
+  summarizeToolParameters,
+} = require('../../../../packages/config/src/devEnvReconcileSecurity');
 
 const APP_CODE = process.env.SKYCOMMAND_CORE_APP_CODE || process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -80,6 +83,10 @@ function assertDockerToolSupported(tool) {
 
 function sanitizeMetadata(metadata = {}) {
   return JSON.stringify(metadata || {});
+}
+
+function persistedToolParameters(tool, parameters = {}) {
+  return summarizeToolParameters(tool, parameters);
 }
 
 function assertNoNullByte(value, label) {
@@ -543,7 +550,7 @@ async function insertExecutionStarted({
       tool.tool_code,
       scriptFile,
       tool.category_code,
-      JSON.stringify(parameters || {}),
+      JSON.stringify(persistedToolParameters(tool, parameters)),
       sanitizeMetadata({
         appCode: APP_CODE,
         profileCode: PROFILE_CODE,

@@ -25,7 +25,9 @@ const adminRead = read('apps/api/src/services/adminReadService.js');
 const artifactConfiguration = read('packages/files/src/repositoryArtifactConfiguration.js');
 const mainMerge = read('packages/git/src/main_merge.js');
 const localRepoSync = read('packages/git/src/local_repo_sync.js');
-const migration = read('packages/db_build/src/migrations/00098__docker_local_repository_profile.sql');
+const migration = read(
+  'packages/db_build/src/migrations/00098__docker_local_repository_profile.sql',
+);
 const seed = read('packages/db_build/src/seeds/00019__core_config_seed.sql');
 const packageJson = JSON.parse(read('package.json'));
 const capabilityCatalogExport = read('scripts/capabilityCatalogExport.js');
@@ -83,6 +85,14 @@ assert(
   'The Temporal worker runtime must pin the XLSX dependency required by the registered Capability Catalogue Tool.',
 );
 assert(
+  capabilityCatalogExport.includes('loadRepositoryArtifactConfiguration') &&
+    capabilityCatalogExport.includes('resolveCanonicalRepositoryRoot') &&
+    capabilityCatalogExport.includes("path.join(canonicalRepositoryRoot, 'docs', 'generated')") &&
+    capabilityCatalogExport.includes('repositoryRoot: target.repositoryRoot') &&
+    !capabilityCatalogExport.includes('exportCapabilityCatalogue({ database, repositoryRoot })'),
+  'Capability Catalogue export must resolve its canonical artifact repository through the registered repository-path configuration instead of treating the execution image root as the artifact root.',
+);
+assert(
   envSource.includes('SKYCOMMAND_DOCKER_WORKSPACE_ROOT=') &&
     envSource.includes('SKYCOMMAND_DOCKER_GIT_ENABLED=false') &&
     envSource.includes('SKYCOMMAND_DOCKER_GITHUB_TOKEN_FILE=') &&
@@ -127,7 +137,9 @@ assert(
 );
 assert(
   gitCredentialCheck.includes("['config', '--global', '--add', 'safe.directory', repo]") &&
-    read('scripts/docker/temporalWorkerDocker.js').includes("'scripts/docker/temporalWorkerGitCheck.js'"),
+    read('scripts/docker/temporalWorkerDocker.js').includes(
+      "'scripts/docker/temporalWorkerGitCheck.js'",
+    ),
   'The Docker Git credential check must defensively register the exact SkyCommand repository and run the layered credential diagnostic inside the worker.',
 );
 assert(
@@ -176,7 +188,10 @@ const scripts = packageJson.scripts || {};
 assert(scripts['temporal:worker:docker:up'], 'Missing Docker worker start helper.');
 assert(scripts['temporal:worker:docker:status'], 'Missing Docker worker status helper.');
 assert(scripts['temporal:worker:docker:logs'], 'Missing Docker worker logs helper.');
-assert(scripts['temporal:worker:docker:git:check'], 'Missing Docker worker Git credential check helper.');
+assert(
+  scripts['temporal:worker:docker:git:check'],
+  'Missing Docker worker Git credential check helper.',
+);
 assert(scripts['temporal:stack:up'], 'Missing combined Temporal stack start helper.');
 
 console.log('[SkyCommand] Temporal Worker Docker foundation self-test passed.');
