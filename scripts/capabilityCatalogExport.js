@@ -18,16 +18,77 @@ const {
   createCapabilityCatalogToolResult,
   exportCapabilityCatalogue,
 } = require('../packages/capability-catalog/src');
+const {
+  loadRepositoryArtifactConfiguration,
+} = require('../packages/files/src/repositoryArtifactConfiguration');
 const outputSchema = require('../packages/capability-catalog/contracts/capability_catalog_summary.v1.schema.json');
 const { validateJsonSchema } = require('../packages/tools/src/jsonSchemaValidator');
 const { validateToolResult } = require('../packages/tools/src/toolResultContract');
 
-const repositoryRoot = path.resolve(__dirname, '..');
-dotenv.config({ path: path.join(repositoryRoot, '.env'), quiet: true });
+const scriptRoot = path.resolve(__dirname, '..');
+const CANONICAL_REPOSITORY_CODE = 'SkyCommand';
+dotenv.config({ path: path.join(scriptRoot, '.env'), quiet: true });
 
-async function executeCapabilityCatalog() {
-  const database = require('../packages/db/src/connection');
-  return exportCapabilityCatalogue({ database, repositoryRoot });
+async function resolveCanonicalRepositoryRoot({
+  repositoryCode = CANONICAL_REPOSITORY_CODE,
+  loadRepository = loadRepositoryArtifactConfiguration,
+  fileSystem = fs,
+} = {}) {
+  const repository = await loadRepository(repositoryCode);
+  const configuredRoot = String(repository?.rootPath || '').trim();
+
+  if (!configuredRoot || !path.isAbsolute(configuredRoot)) {
+    throw new Error(
+      "Capability catalogue canonical repository '" +
+        repositoryCode +
+        "' has no absolute registered root path.",
+    );
+  }
+
+  const canonicalRoot = path.resolve(configuredRoot);
+  let stats;
+  try {
+    stats = fileSystem.statSync(canonicalRoot);
+    fileSystem.accessSync(canonicalRoot, fileSystem.constants.R_OK | fileSystem.constants.W_OK);
+  } catch (error) {
+    throw new Error(
+      'Capability catalogue canonical repository root is not readable and writable: ' +
+        canonicalRoot +
+        '.',
+      { cause: error },
+    );
+  }
+
+  if (!stats.isDirectory()) {
+    throw new Error(
+      'Capability catalogue canonical repository root must be a directory: ' + canonicalRoot + '.',
+    );
+  }
+
+  return canonicalRoot;
+}
+
+async function resolveCanonicalArtifactTarget(dependencies = {}) {
+  const canonicalRepositoryRoot = await resolveCanonicalRepositoryRoot(dependencies);
+  return {
+    repositoryRoot: canonicalRepositoryRoot,
+    outputDirectory: path.join(canonicalRepositoryRoot, 'docs', 'generated'),
+  };
+}
+
+async function executeCapabilityCatalog(_args = [], _toolContext = {}, dependencies = {}) {
+  const database = dependencies.database || require('../packages/db/src/connection');
+  const target = await resolveCanonicalArtifactTarget({
+    loadRepository:
+      dependencies.loadRepositoryArtifactConfiguration || loadRepositoryArtifactConfiguration,
+    fileSystem: dependencies.fileSystem || fs,
+  });
+  const exporter = dependencies.exportCapabilityCatalogue || exportCapabilityCatalogue;
+  return exporter({
+    database,
+    repositoryRoot: target.repositoryRoot,
+    outputDirectory: target.outputDirectory,
+  });
 }
 
 function renderConsole(result) {
@@ -746,6 +807,93 @@ async function runSelfTest() {
     assert.match(result.sha256.xlsx, /^[a-f0-9]{64}$/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+  const executionImageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skycommand-app-image-'));
+  const canonicalRepositoryRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'skycommand-canonical-repo-'),
+  );
+  try {
+    let capturedExportOptions = null;
+    let capturedGitCwd = null;
+    const canonicalResult = await executeCapabilityCatalog(
+      [],
+      {},
+      {
+        database: fakeDatabase(rows, []),
+        loadRepositoryArtifactConfiguration: async () => ({
+          repoCode: 'SkyCommand',
+          rootPath: canonicalRepositoryRoot,
+        }),
+        exportCapabilityCatalogue: (options) => {
+          capturedExportOptions = options;
+          return exportCapabilityCatalogue({
+            ...options,
+            generatedAtUtc: fixedTime,
+            gitExecute: (_args, cwd) => {
+              capturedGitCwd = cwd;
+              return { status: 0, stdout: 'c'.repeat(40) + '\n', stderr: '' };
+            },
+          });
+        },
+      },
+    );
+    const canonicalOutputDirectory = path.join(canonicalRepositoryRoot, 'docs', 'generated');
+    assert.notEqual(canonicalRepositoryRoot, executionImageRoot);
+    assert.equal(capturedExportOptions.repositoryRoot, canonicalRepositoryRoot);
+    assert.equal(capturedExportOptions.outputDirectory, canonicalOutputDirectory);
+    assert.equal(capturedGitCwd, canonicalRepositoryRoot);
+    assert.equal(canonicalResult.sourceRevision, 'c'.repeat(40));
+    assert.deepEqual(canonicalResult.generatedArtifactPaths, {
+      json: 'docs/generated/SkyCommand_Capability_Catalog.json',
+      xlsx: 'docs/generated/SkyCommand_Capability_Catalog.xlsx',
+    });
+    assert.equal(
+      fs.existsSync(path.join(canonicalOutputDirectory, 'SkyCommand_Capability_Catalog.json')),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(canonicalOutputDirectory, 'SkyCommand_Capability_Catalog.xlsx')),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(executionImageRoot, 'docs', 'generated', 'SkyCommand_Capability_Catalog.json'),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(executionImageRoot, 'docs', 'generated', 'SkyCommand_Capability_Catalog.xlsx'),
+      ),
+      false,
+    );
+    assert.throws(
+      () =>
+        assertGeneratedPaths(
+          path.join(canonicalRepositoryRoot, 'outside'),
+          canonicalRepositoryRoot,
+        ),
+      /exactly docs\/generated/,
+    );
+    await assert.rejects(
+      () =>
+        resolveCanonicalRepositoryRoot({
+          loadRepository: async () => ({
+            rootPath: path.join(executionImageRoot, 'missing'),
+          }),
+        }),
+      /not readable and writable/,
+    );
+    await assert.rejects(
+      () =>
+        resolveCanonicalRepositoryRoot({
+          loadRepository: async () => ({ rootPath: 'relative/SkyCommand' }),
+        }),
+      /no absolute registered root path/,
+    );
+  } finally {
+    fs.rmSync(executionImageRoot, { recursive: true, force: true });
+    fs.rmSync(canonicalRepositoryRoot, { recursive: true, force: true });
   }
   const absolutePathToolResult = createCapabilityCatalogToolResult({
     ok: true,

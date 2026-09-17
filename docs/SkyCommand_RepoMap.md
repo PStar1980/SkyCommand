@@ -1557,6 +1557,11 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── index.js
 │   │       └── redaction.js
+│   ├── config/
+│   │   └── src/
+│   │       ├── devEnvReconcile.js
+│   │       ├── devEnvReconcileResult.js
+│   │       └── devEnvReconcileSecurity.js
 │   ├── core/
 │   │   └── src/
 │   │       ├── repositoryEnvironment.js
@@ -1656,7 +1661,8 @@ SkyCommand/
 │   │       │   ├── 00133__capability_catalog_export_and_workflow_integration.sql
 │   │       │   ├── 00134__capability_catalog_r1_invariant_validation.sql
 │   │       │   ├── 00135__autonomous_database_upgrade_tool.sql
-│   │       │   └── 00136__database_upgrade_tool_admin_scope.sql
+│   │       │   ├── 00136__database_upgrade_tool_admin_scope.sql
+│   │       │   └── 00137__dev_env_reconcile_tool.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1881,6 +1887,7 @@ SkyCommand/
 │       │   ├── database_build_summary.v1.schema.json
 │       │   ├── database_health_summary.v1.schema.json
 │       │   ├── database_upgrade_summary.v1.schema.json
+│       │   ├── dev_env_reconcile_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── git_dev_pull_summary.v1.schema.json
@@ -2243,6 +2250,9 @@ SkyCommand/
         │   │       └── browserTestRunnerSelfTest.js
         │   ├── capability-catalog/
         │   │   └── src/
+        │   ├── config/
+        │   │   └── src/
+        │   │       └── devEnvReconcileSelfTest.js
         │   ├── core/
         │   │   └── src/
         │   │       ├── runtimePathResolverSelfTest.js

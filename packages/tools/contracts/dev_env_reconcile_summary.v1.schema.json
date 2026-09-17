@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/dev_env_reconcile_summary.v1.schema.json",
+  "title": "SkyCommand DEV_LOCAL environment reconciliation summary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "outcome",
+    "binding",
+    "requestedKeys",
+    "changedKeys",
+    "classifications",
+    "missingRequiredSecrets",
+    "envExample",
+    "configurationRevision",
+    "concurrency",
+    "restart",
+    "execution",
+    "timing",
+    "warnings",
+    "error"
+  ],
+  "properties": {
+    "contract": { "const": "dev_env_reconcile_summary.v1" },
+    "outcome": { "enum": ["CHANGED", "NO_CHANGES", "BLOCKED", "FAILED"] },
+    "binding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "environmentCode",
+        "repositoryCode",
+        "repositoryId",
+        "toolCode",
+        "toolId",
+        "permissionCode"
+      ],
+      "properties": {
+        "environmentCode": { "type": "string", "minLength": 1 },
+        "repositoryCode": { "type": "string", "minLength": 1 },
+        "repositoryId": { "type": "string", "minLength": 1 },
+        "toolCode": { "type": "string", "minLength": 1 },
+        "toolId": { "type": "string", "minLength": 1 },
+        "permissionCode": { "type": "string", "minLength": 1 }
+      }
+    },
+    "requestedKeys": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "changedKeys": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "classifications": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/change" }
+    },
+    "missingRequiredSecrets": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "classification"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "classification": { "type": "string", "minLength": 1, "maxLength": 128 }
+        }
+      }
+    },
+    "envExample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "changedKeys", "classifications"],
+      "properties": {
+        "outcome": {
+          "enum": ["CHANGED", "NO_CHANGES", "NOT_APPLICABLE", "BLOCKED", "FAILED"]
+        },
+        "changedKeys": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "classifications": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/change" }
+        }
+      }
+    },
+    "configurationRevision": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": { "const": "SHA-256_NON_SECRET_EFFECTIVE_CONFIGURATION" },
+        "digest": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+      }
+    },
+    "concurrency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checked", "outcome", "files"],
+      "properties": {
+        "checked": { "type": "boolean" },
+        "outcome": { "enum": ["NOT_REQUESTED", "MATCHED", "REPLACED", "CONFLICT"] },
+        "files": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["target", "outcome"],
+            "properties": {
+              "target": { "type": "string", "minLength": 1, "maxLength": 32 },
+              "outcome": { "enum": ["NOT_REQUESTED", "MATCHED", "REPLACED", "CONFLICT"] }
+            }
+          }
+        }
+      }
+    },
+    "restart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "services", "reasonCode"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "services": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+        },
+        "reasonCode": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["correlationId"],
+      "properties": {
+        "correlationId": { "type": ["string", "null"], "maxLength": 200 }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "completedAt", "durationMs"],
+      "properties": {
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "number", "minimum": 0 }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "type": "string", "maxLength": 400 }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "key": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "classification": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    }
+  },
+  "$defs": {
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "classification", "change"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "classification": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "change": { "enum": ["ADDED", "UPDATED", "NO_CHANGE", "PRESERVED", "REJECTED"] }
+      }
+    }
+  }
+}

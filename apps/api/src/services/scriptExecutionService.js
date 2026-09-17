@@ -3,6 +3,9 @@ const path = require('path');
 const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
 const { executeToolProcess, bindParameterArgument } = require('../../../../packages/tools/src');
+const {
+  summarizeToolParameters,
+} = require('../../../../packages/config/src/devEnvReconcileSecurity');
 
 const APP_CODE = process.env.SKYCOMMAND_CORE_APP_CODE || process.env.SKYSERVER_CORE_APP_CODE || 'SKYSERVER_CORE';
 const PROFILE_CODE =
@@ -70,6 +73,10 @@ function getRiskRunPermission(riskCode) {
 
 function sanitizeMetadata(metadata = {}) {
   return JSON.stringify(metadata || {});
+}
+
+function persistedToolParameters(tool, parameters = {}) {
+  return summarizeToolParameters(tool, parameters);
 }
 
 function normalizeOptionalString(value) {
@@ -805,7 +812,7 @@ async function insertExecutionStarted({
       tool.tool_code,
       scriptFile,
       tool.category_code,
-      JSON.stringify(parameters || {}),
+      JSON.stringify(persistedToolParameters(tool, parameters)),
       sanitizeMetadata({
         appCode: APP_CODE,
         profileCode: PROFILE_CODE,
@@ -1360,7 +1367,7 @@ async function runTool({
         action: 'start_tool',
         metadata: {
           executionId: execution.execution_id,
-          parameters: safeParameters,
+          parameters: persistedToolParameters(tool, safeParameters),
           launchChannel:
             confirmationDecision.mode === CONFIRMATION_MODE_WORKFLOW
               ? 'WORKFLOW'
@@ -1645,6 +1652,7 @@ async function runManagedToolTest({
 }
 
 module.exports = {
+  assertRunAllowed,
   markStaleStartedExecutions,
   runManagedToolTest,
   runTool,
