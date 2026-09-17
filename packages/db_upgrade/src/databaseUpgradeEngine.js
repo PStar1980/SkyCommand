@@ -59,7 +59,10 @@ function parseBoolean(value, fallback = false) {
   const normalized = String(value).trim().toLowerCase();
   if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
   if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
-  throw upgradeError('BOOLEAN_PARAMETER_INVALID', `Invalid boolean value for upgrade gate: ${value}`);
+  throw upgradeError(
+    'BOOLEAN_PARAMETER_INVALID',
+    `Invalid boolean value for upgrade gate: ${value}`,
+  );
 }
 
 function sha256(value) {
@@ -209,6 +212,26 @@ function publicChange(change) {
   };
 }
 
+function publicLedgerReceipt(row = {}) {
+  return {
+    changeId: row.change_id || row.changeId || null,
+    baselineId: row.baseline_id || row.baselineId || null,
+    ordinal: Number(row.ordinal),
+    kind: row.change_kind || row.kind || null,
+    relativePath: row.source_path || row.relativePath || null,
+    sha256:
+      String(row.sha256 || '')
+        .trim()
+        .toUpperCase() || null,
+    appliedAt: row.applied_at || row.appliedAt || null,
+    sourceRevision: row.source_revision || row.sourceRevision || null,
+    planDigest:
+      String(row.plan_digest || row.planDigest || '')
+        .trim()
+        .toUpperCase() || null,
+  };
+}
+
 function createPgDatabaseAdapter(environment = process.env, ClientClass = Client) {
   return {
     async connect() {
@@ -229,7 +252,9 @@ function createPgDatabaseAdapter(environment = process.env, ClientClass = Client
         user,
         password,
         application_name: 'skycommand_db_upgrade',
-        connectionTimeoutMillis: Number(environment.SKYCOMMAND_DB_UPGRADE_CONNECT_TIMEOUT_MS || 10000),
+        connectionTimeoutMillis: Number(
+          environment.SKYCOMMAND_DB_UPGRADE_CONNECT_TIMEOUT_MS || 10000,
+        ),
       });
       await client.connect();
       return client;
@@ -249,7 +274,8 @@ async function readDatabaseIdentity(client) {
   return {
     databaseName: row.database_name || null,
     serverVersion: row.server_version || null,
-    serverPort: row.server_port === null || row.server_port === undefined ? null : Number(row.server_port),
+    serverPort:
+      row.server_port === null || row.server_port === undefined ? null : Number(row.server_port),
     systemIdentifier: normalizeSystemIdentifier(row.system_identifier),
   };
 }
@@ -308,7 +334,10 @@ async function readBaselineProbes(client) {
     {
       name: 'STEP_C_BROWSER_AUTOMATION_FOUNDATION',
       status: tableRow.browser_automations ? 'PASS' : 'FAIL',
-      evidence: { table: 'core.browser_automations', present: Boolean(tableRow.browser_automations) },
+      evidence: {
+        table: 'core.browser_automations',
+        present: Boolean(tableRow.browser_automations),
+      },
     },
   ];
 
@@ -377,10 +406,10 @@ async function readLedgerState(client, identity, changes) {
     };
   }
   if (
-    !baseline
-    || baseline.baseline_contract !== BASELINE_CONTRACT
-    || Number(baseline.baseline_ordinal) !== BASELINE_ORDINAL
-    || baseline.database_name !== identity.databaseName
+    !baseline ||
+    baseline.baseline_contract !== BASELINE_CONTRACT ||
+    Number(baseline.baseline_ordinal) !== BASELINE_ORDINAL ||
+    baseline.database_name !== identity.databaseName
   ) {
     throw upgradeError(
       'DATABASE_UPGRADE_BASELINE_RECORD_INVALID',
@@ -420,9 +449,9 @@ async function readLedgerState(client, identity, changes) {
       );
     }
     if (
-      receipt.change_kind !== change.kind
-      || String(receipt.sha256 || '').toUpperCase() !== change.sha256
-      || !byPath.has(receipt.source_path)
+      receipt.change_kind !== change.kind ||
+      String(receipt.sha256 || '').toUpperCase() !== change.sha256 ||
+      !byPath.has(receipt.source_path)
     ) {
       throw upgradeError(
         'DATABASE_UPGRADE_CHECKSUM_DRIFT',
@@ -450,7 +479,9 @@ async function readLedgerState(client, identity, changes) {
 }
 
 function buildPlan({ identity, baseline, ledgerState, changes, sourceRevision }) {
-  const recordedOrdinals = new Set((ledgerState.ledgerRows || []).map((row) => Number(row.ordinal)));
+  const recordedOrdinals = new Set(
+    (ledgerState.ledgerRows || []).map((row) => Number(row.ordinal)),
+  );
   const pending = changes
     .filter((change) => change.ordinal > BASELINE_ORDINAL && !recordedOrdinals.has(change.ordinal))
     .sort(compareChanges);
@@ -499,9 +530,45 @@ function removeSqlComments(sql) {
     .replace(/--.*$/gm, ' ');
 }
 
+function removePlpgsqlDoBlockStructure(sql) {
+  const source = String(sql);
+  const doBlockStart = /\bDO\s+(\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$)/gi;
+  let cursor = 0;
+  let output = '';
+  let match;
+
+  while ((match = doBlockStart.exec(source)) !== null) {
+    output += source.slice(cursor, match.index);
+    const delimiter = match[1];
+    const bodyStart = doBlockStart.lastIndex;
+    const bodyEnd = source.indexOf(delimiter, bodyStart);
+    if (bodyEnd < 0) {
+      output += source.slice(match.index);
+      cursor = source.length;
+      break;
+    }
+
+    const body = source.slice(bodyStart, bodyEnd).replace(/\b(BEGIN|END)\b/gi, ' ');
+    output += `${source.slice(match.index, bodyStart)}${body}${delimiter}`;
+    cursor = bodyEnd + delimiter.length;
+    doBlockStart.lastIndex = cursor;
+  }
+
+  return output + source.slice(cursor);
+}
+
 function assertUpgradeSqlTransactionSafe(sql, change) {
   const normalized = removeSqlComments(sql);
-  if (/\b(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION|END\s*;)\b/i.test(normalized)) {
+  if (/\b(COMMIT|ROLLBACK|START\s+TRANSACTION)\b/i.test(normalized)) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_SQL_TRANSACTION_CONTROL_NOT_ALLOWED',
+      `Governed SQL ${change.relativePath} must not own transaction boundaries.`,
+      { ordinal: change.ordinal, relativePath: change.relativePath },
+    );
+  }
+
+  const nonProcedural = removePlpgsqlDoBlockStructure(normalized);
+  if (/\bBEGIN\b|\bEND\s*;/i.test(nonProcedural)) {
     throw upgradeError(
       'DATABASE_UPGRADE_SQL_TRANSACTION_CONTROL_NOT_ALLOWED',
       `Governed SQL ${change.relativePath} must not own transaction boundaries.`,
@@ -518,10 +585,10 @@ function assertUpgradeSqlTransactionSafe(sql, change) {
 }
 
 async function acquireUpgradeLock(client) {
-  const result = await client.query(
-    'SELECT pg_try_advisory_lock($1, $2) AS acquired',
-    [UPGRADE_LOCK_NAMESPACE, UPGRADE_LOCK_KEY],
-  );
+  const result = await client.query('SELECT pg_try_advisory_lock($1, $2) AS acquired', [
+    UPGRADE_LOCK_NAMESPACE,
+    UPGRADE_LOCK_KEY,
+  ]);
   if (!result.rows[0]?.acquired) {
     throw upgradeError(
       'DATABASE_UPGRADE_LOCK_NOT_ACQUIRED',
@@ -532,10 +599,10 @@ async function acquireUpgradeLock(client) {
 }
 
 async function releaseUpgradeLock(client) {
-  const result = await client.query(
-    'SELECT pg_advisory_unlock($1, $2) AS released',
-    [UPGRADE_LOCK_NAMESPACE, UPGRADE_LOCK_KEY],
-  );
+  const result = await client.query('SELECT pg_advisory_unlock($1, $2) AS released', [
+    UPGRADE_LOCK_NAMESPACE,
+    UPGRADE_LOCK_KEY,
+  ]);
   return Boolean(result.rows[0]?.released);
 }
 
@@ -660,6 +727,7 @@ function createInitialUpgradeOutput(mode, startedAt) {
       verification: 'UNKNOWN',
       appliedCount: 0,
       driftDetected: false,
+      receipts: [],
     },
     lock: {
       requested: false,
@@ -675,7 +743,11 @@ function createInitialUpgradeOutput(mode, startedAt) {
       },
     ],
     errors: [],
-    timing: { startedAt: new Date(startedAt).toISOString(), completedAt: new Date(startedAt).toISOString(), durationMs: 0 },
+    timing: {
+      startedAt: new Date(startedAt).toISOString(),
+      completedAt: new Date(startedAt).toISOString(),
+      durationMs: 0,
+    },
   };
 }
 
@@ -699,13 +771,16 @@ function attachUpgradeFailure(error, output) {
     );
   }
   if (
-    error.code === 'DATABASE_UPGRADE_BASELINE_EVIDENCE_MISSING'
-    || error.code === 'DATABASE_UPGRADE_BASELINE_DATABASE_IDENTITY_DRIFT'
-    || error.code === 'DATABASE_UPGRADE_BASELINE_RECORD_INVALID'
+    error.code === 'DATABASE_UPGRADE_BASELINE_EVIDENCE_MISSING' ||
+    error.code === 'DATABASE_UPGRADE_BASELINE_DATABASE_IDENTITY_DRIFT' ||
+    error.code === 'DATABASE_UPGRADE_BASELINE_RECORD_INVALID'
   ) {
     output.baseline.status = 'FAILED';
   }
-  if (error.code === 'DATABASE_UPGRADE_SOURCE_DRIFT' || error.code === 'DATABASE_UPGRADE_CHECKSUM_DRIFT') {
+  if (
+    error.code === 'DATABASE_UPGRADE_SOURCE_DRIFT' ||
+    error.code === 'DATABASE_UPGRADE_CHECKSUM_DRIFT'
+  ) {
     output.ledger.verification = 'DRIFT';
     output.ledger.driftDetected = true;
   }
@@ -719,28 +794,33 @@ function attachUpgradeFailure(error, output) {
   return error;
 }
 
-async function executeDatabaseUpgrade({
-  mode = 'PLAN',
-  expectedPlanDigest = null,
-  confirmed = false,
-  environment = process.env,
-  adapter = null,
-  repositoryRoot = SKYCOMMAND_ROOT,
-  fileSystem = fs,
-} = {}) {
+async function executeDatabaseUpgradeInternal(
+  {
+    mode = 'PLAN',
+    expectedPlanDigest = null,
+    confirmed = false,
+    environment = process.env,
+    adapter = null,
+    repositoryRoot = SKYCOMMAND_ROOT,
+    fileSystem = fs,
+  } = {},
+  executionPath = 'MANUAL',
+) {
   const normalizedMode = mode === 'APPLY' ? 'APPLY' : 'PLAN';
   const startedAt = Date.now();
   const output = createInitialUpgradeOutput(normalizedMode, startedAt);
   let client = null;
   let lockHeld = false;
+  let changes = [];
+  let identity = null;
 
   try {
     const configuredDatabase = normalizeDatabaseName(environment.PGDATABASE);
     output.databaseIdentity.databaseName = configuredDatabase;
     output.sourceRevision = getSourceRevision(environment);
-    const changes = discoverGovernedSqlChanges({ repositoryRoot, fileSystem });
+    changes = discoverGovernedSqlChanges({ repositoryRoot, fileSystem });
     client = await (adapter || createPgDatabaseAdapter(environment)).connect();
-    const identity = await readDatabaseIdentity(client);
+    identity = await readDatabaseIdentity(client);
     output.databaseIdentity = identity;
     if (identity.databaseName !== configuredDatabase) {
       throw upgradeError(
@@ -756,6 +836,7 @@ async function executeDatabaseUpgrade({
       verification: inspected.ledgerState.verification,
       appliedCount: inspected.ledgerState.appliedCount,
       driftDetected: inspected.ledgerState.driftDetected,
+      receipts: inspected.ledgerState.ledgerRows.map(publicLedgerReceipt),
     };
     output.pendingChanges = inspected.plan.pending.map(publicChange);
     output.pendingCount = inspected.plan.pending.length;
@@ -766,7 +847,10 @@ async function executeDatabaseUpgrade({
       return finishUpgradeOutput(output, startedAt);
     }
 
-    if (!parseBoolean(environment.SKYCOMMAND_DB_UPGRADE_ENABLED, false)) {
+    if (
+      executionPath !== 'APPROVED_REQUEST' &&
+      !parseBoolean(environment.SKYCOMMAND_DB_UPGRADE_ENABLED, false)
+    ) {
       throw upgradeError(
         'DATABASE_UPGRADE_DISABLED',
         'Database upgrade APPLY is disabled by SKYCOMMAND_DB_UPGRADE_ENABLED.',
@@ -854,9 +938,23 @@ async function executeDatabaseUpgrade({
     output.outcome = 'APPLIED';
     output.ledger.available = true;
     output.ledger.verification = 'VERIFIED';
-    output.ledger.appliedCount += output.appliedCount;
+    const finalLedgerState = await readLedgerState(client, identity, changes);
+    output.ledger.appliedCount = Math.max(
+      output.ledger.appliedCount + output.appliedCount,
+      finalLedgerState.appliedCount,
+    );
+    output.ledger.receipts = finalLedgerState.ledgerRows.map(publicLedgerReceipt);
     return finishUpgradeOutput(output, startedAt);
   } catch (error) {
+    if (client && normalizedMode === 'APPLY' && identity && changes.length > 0) {
+      try {
+        const failureLedgerState = await readLedgerState(client, identity, changes);
+        output.ledger.appliedCount = failureLedgerState.appliedCount;
+        output.ledger.receipts = failureLedgerState.ledgerRows.map(publicLedgerReceipt);
+      } catch (_ledgerError) {
+        // Preserve the original failure; reconciliation can retry a read-only PLAN.
+      }
+    }
     throw attachUpgradeFailure(error, finishUpgradeOutput(output, startedAt));
   } finally {
     if (client && lockHeld) {
@@ -871,6 +969,69 @@ async function executeDatabaseUpgrade({
       else if (typeof client.end === 'function') await client.end().catch(() => {});
     }
   }
+}
+
+async function executeDatabaseUpgrade(options = {}) {
+  return executeDatabaseUpgradeInternal(options, 'MANUAL');
+}
+
+function assertApprovedRequestExecutionEnvelope(approvedRequest) {
+  const status = approvedRequest?.status;
+  const requestId = approvedRequest?.requestId || approvedRequest?.request_id;
+  const planDigest = String(approvedRequest?.planDigest || approvedRequest?.plan_digest || '')
+    .trim()
+    .toUpperCase();
+  const requestDigest = String(
+    approvedRequest?.requestDigest || approvedRequest?.request_digest || '',
+  )
+    .trim()
+    .toUpperCase();
+  const humanDecisionUserId =
+    approvedRequest?.humanDecisionUserId || approvedRequest?.human_decision_user_id;
+  const humanDecisionAt = approvedRequest?.humanDecisionAt || approvedRequest?.human_decision_at;
+
+  if (
+    status !== 'APPROVED' ||
+    !requestId ||
+    !humanDecisionUserId ||
+    !humanDecisionAt ||
+    !/^[A-F0-9]{64}$/.test(planDigest) ||
+    !/^[A-F0-9]{64}$/.test(requestDigest)
+  ) {
+    throw upgradeError(
+      'DATABASE_UPGRADE_APPROVED_REQUEST_AUTHORITY_INVALID',
+      'D1 approved-request execution requires a server-validated APPROVED request envelope.',
+    );
+  }
+  return { requestId, planDigest, requestDigest };
+}
+
+/**
+ * D2B.2-only continuation. The manual/CLI entry point remains gated by
+ * SKYCOMMAND_DB_UPGRADE_ENABLED; this dedicated function is reachable only
+ * by the API service after it has loaded and independently revalidated the
+ * persisted APPROVED request envelope.
+ */
+async function executeApprovedDatabaseUpgrade({
+  approvedRequest,
+  environment = process.env,
+  adapter = null,
+  repositoryRoot = SKYCOMMAND_ROOT,
+  fileSystem = fs,
+} = {}) {
+  const authority = assertApprovedRequestExecutionEnvelope(approvedRequest);
+  return executeDatabaseUpgradeInternal(
+    {
+      mode: 'APPLY',
+      expectedPlanDigest: authority.planDigest,
+      confirmed: true,
+      environment,
+      adapter,
+      repositoryRoot,
+      fileSystem,
+    },
+    'APPROVED_REQUEST',
+  );
 }
 
 module.exports = {
@@ -889,6 +1050,7 @@ module.exports = {
   createPgDatabaseAdapter,
   discoverGovernedSqlChanges,
   executeDatabaseUpgrade,
+  executeApprovedDatabaseUpgrade,
   finishUpgradeOutput,
   getSourceRevision,
   normalizeDatabaseName,
@@ -896,6 +1058,7 @@ module.exports = {
   parseBoolean,
   parseGovernedFilename,
   publicChange,
+  publicLedgerReceipt,
   readBaselineProbes,
   readDatabaseIdentity,
   readLedgerState,

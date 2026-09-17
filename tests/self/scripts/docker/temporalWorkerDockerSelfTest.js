@@ -28,6 +28,7 @@ const localRepoSync = read('packages/git/src/local_repo_sync.js');
 const migration = read('packages/db_build/src/migrations/00098__docker_local_repository_profile.sql');
 const seed = read('packages/db_build/src/seeds/00019__core_config_seed.sql');
 const packageJson = JSON.parse(read('package.json'));
+const capabilityCatalogExport = read('scripts/capabilityCatalogExport.js');
 
 assert(
   compose.includes('temporal-worker:') &&
@@ -68,12 +69,18 @@ const requiredWorkerDependencies = [
   'bcryptjs',
   'dotenv',
   'pg',
+  'xlsx',
 ];
 assert(
   requiredWorkerDependencies.every((dependency) => workerPackage.dependencies?.[dependency]) &&
     !workerPackage.scripts &&
     !workerPackage.devDependencies,
   'The Docker worker must use a minimal pinned runtime manifest instead of the full Windows-authored SkyCommand package/lock pair.',
+);
+assert(
+  workerPackage.dependencies.xlsx === '0.18.5' &&
+    capabilityCatalogExport.includes("require('xlsx')"),
+  'The Temporal worker runtime must pin the XLSX dependency required by the registered Capability Catalogue Tool.',
 );
 assert(
   envSource.includes('SKYCOMMAND_DOCKER_WORKSPACE_ROOT=') &&

@@ -70,6 +70,11 @@ router.post(
   requirePermission('DB_UPGRADE_APPLY_APPROVE'),
   databaseUpgradeApplyRequestController.decideRequest,
 );
+router.post(
+  '/database-upgrade/apply-requests/:requestId/execute',
+  requirePermission('DB_UPGRADE_APPLY_APPROVE'),
+  databaseUpgradeApplyRequestController.executeRequest,
+);
 
 router.get('/applications', requirePermission('ADMIN_USER_READ'), adminController.listApplications);
 

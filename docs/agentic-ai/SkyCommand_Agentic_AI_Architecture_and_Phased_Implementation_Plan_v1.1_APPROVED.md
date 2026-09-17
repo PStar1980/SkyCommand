@@ -1,9 +1,23 @@
-# SkyCommand Agentic AI Architecture & Phased Implementation Plan — v1.0 APPROVED
+# SkyCommand Agentic AI Architecture & Phased Implementation Plan — v1.1 APPROVED
 
-**Status:** Approved engineering blueprint and implementation baseline v1.0.  
+**Status:** Approved engineering blueprint v1.1; original v1.0 design retained with the scoped Autonomous DEV amendment below.  
 **Baseline:** Supplied lightweight SkyCommand repository and complete architecture brief, reviewed September 13, 2026.  
 **Review disposition:** Astra Ultra's architecture is accepted with one deliberate product amendment: **Phase 3.5 — Managed Development Workspace & Controlled Code Modification**. This keeps Astra's isolation/authority model while making the first release useful for real software-development work.  
 **Release boundary:** Phases 0–8, including Phase 3.5, deliver controlled local v1. Phase 9 is a separately gated future external integration release. No application implementation was performed by the planning exercise itself.
+
+## September 16, 2026 — Approved Autonomous DEV transition amendment
+
+Paul accepted the review recommendations. This amendment governs the pre-Phase-1 remediation and takes precedence over older operator-procedure wording for that scope only. It does not claim implementation or acceptance.
+
+- Complete R0–R8 under `docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md` and `docs/development/SkyCommand_Development_Operating_Rules_v1.2.md` before Agentic AI Phase 1.
+- Current operator-authorized local Codex/Luna remediation may edit the approved DEV checkout and perform scoped routine local operations. Future SkyCommand-managed Agent Runs retain the isolation, live-checkout prohibition, managed credentials, and Phase 3.5 workspace requirements throughout this architecture. Never transfer the local operator's host authority into a managed runtime.
+- Reuse D1 as the incremental database execution engine. Replace D2's per-operation human ceremony for permitted DEV work with registered tools/workflows, verified source bytes, target binding, atomic per-file receipts, drift checks, and recoverable execution. Applied history remains immutable.
+- R4 establishes only the minimal server-recognized principal/grant and workflow start/status bridge needed by remediation. It must integrate with the future Agent Execution Service rather than introduce a competing provider-specific agent domain. Legacy shared-token labels are insufficient for per-agent ownership. This narrow remediation bridge is not completion of Phase 1 or permission for legacy credentials to access managed Agent Runs.
+- DEV finalization owns preflight, approved configuration reconciliation, database upgrade, conditional durable build/restart, validation/readiness, exports, and a receipt identifying exact source/configuration/workflow evidence. Side effects stay in deterministic registered capabilities.
+- An explicit user promotion instruction authorizes the registered DEV promotion workflow once. Bind it to the reviewed receipt, verify unchanged source/branch state and database readiness, record trusted attribution, and preserve commit/merge/sync recovery. No second redundant approval click. Production remains separately authorized.
+- Idempotent start, ledger reconciliation, concurrent-run exclusion, and crash/retry/drift acceptance supplement the zero-intervention criterion.
+
+The existing v1.0 baseline hash, source observations, original roadmap, and examples below are historical design evidence. They are not fresh verification of the September 16 archive or live deployment. References to original phase gates and isolation remain in force outside this explicitly scoped local remediation amendment.
 
 ## 1. Executive architecture
 

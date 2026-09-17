@@ -316,6 +316,7 @@
     "assistant-integration:self-test": "node tests/self/apps/api/src/services/assistantIntegrationSelfTest.js",
     "assistant-database-upgrade-plan:self-test": "node tests/self/apps/api/src/services/assistantDatabaseUpgradePlanSelfTest.js",
     "assistant-database-upgrade-apply-request:self-test": "node tests/self/apps/api/src/services/databaseUpgradeApplyRequestSelfTest.js",
+    "admin-database-upgrade-execution:self-test": "node tests/self/apps/api/src/services/databaseUpgradeExecutionSelfTest.js",
     "assistant-development-promotion:self-test": "node tests/self/apps/api/src/services/assistantDevelopmentPromotionSelfTest.js",
     "mcp:gateway": "node scripts/mcp/skycommandMcpGateway.js",
     "mcp-gateway:self-test": "node tests/self/scripts/mcp/skycommandMcpGatewaySelfTest.js"

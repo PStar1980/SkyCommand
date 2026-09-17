@@ -232,6 +232,7 @@ SkyCommand/
 │   │       │   ├── browserTestRegistryService.js
 │   │       │   ├── browserTestSuiteService.js
 │   │       │   ├── databaseUpgradeApplyRequestService.js
+│   │       │   ├── developmentPromotionPermissionContract.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
 │   │       │   ├── infrastructureService.js
@@ -1482,7 +1483,7 @@ SkyCommand/
 │   ├── SkyCommand_Temporal_Workflow_Architecture_Plan.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
 │   ├── agentic-ai/
-│   │   ├── SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.0_APPROVED.md
+│   │   ├── SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md
 │   │   └── phase-0/
 │   │       ├── api-authorization-matrix.md
 │   │       ├── baseline-manifest.json
@@ -1503,8 +1504,10 @@ SkyCommand/
 │   │   └── worker_schema_ERD.png
 │   ├── audits/
 │   ├── development/
+│   │   ├── Luna_R0_R1_Work_Order.md
+│   │   ├── SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md
 │   │   ├── SkyCommand_Database_Upgrade.md
-│   │   └── SkyCommand_Development_Operating_Rules_v1.0.md
+│   │   └── SkyCommand_Development_Operating_Rules_v1.2.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
 │   ├── generated/
@@ -1648,7 +1651,10 @@ SkyCommand/
 │   │       │   ├── 00128__assistant_workflow_run_attribution.sql
 │   │       │   ├── 00129__database_upgrade_ledger.sql
 │   │       │   ├── 00130__assistant_database_upgrade_plan_permission.sql
-│   │       │   └── 00131__database_upgrade_apply_request_envelope.sql
+│   │       │   ├── 00131__database_upgrade_apply_request_envelope.sql
+│   │       │   ├── 00132__database_upgrade_apply_execution_receipt.sql
+│   │       │   ├── 00133__capability_catalog_export_and_workflow_integration.sql
+│   │       │   └── 00134__capability_catalog_r1_invariant_validation.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -2197,6 +2203,7 @@ SkyCommand/
         │               ├── browserTestRegistrySelfTest.js
         │               ├── browserTestSuiteSelfTest.js
         │               ├── databaseUpgradeApplyRequestSelfTest.js
+        │               ├── databaseUpgradeExecutionSelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js
         │               ├── infrastructureServiceSelfTest.js

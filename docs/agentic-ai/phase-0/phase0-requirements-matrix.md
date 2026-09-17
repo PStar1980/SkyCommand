@@ -1,6 +1,6 @@
 # Phase 0 requirement-to-artifact matrix
 
-The approved plan’s fifteen architecture requirements are mapped below. The implementation authority is the source-controlled `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.0_APPROVED.md`. This matrix is a Phase 0 readiness artifact, not an assertion that later execution behavior exists.
+The approved plan’s fifteen architecture requirements are mapped below. The implementation authority is the source-controlled `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`. This matrix is a Phase 0 readiness artifact, not an assertion that later execution behavior exists.
 
 | Requirement                                                 | Phase 0 artifact/evidence                                                         | Later enablement gate                  |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------- |

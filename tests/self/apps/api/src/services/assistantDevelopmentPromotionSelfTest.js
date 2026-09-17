@@ -12,6 +12,7 @@ process.env.PGUSER ||= 'skycommand_self_test';
 process.env.PGPASSWORD ||= 'skycommand_self_test';
 const assistant = require(path.join(ROOT, 'apps/api/src/services/assistantIntegrationService'));
 const middlewareModule = require(path.join(ROOT, 'apps/api/src/middleware/assistantIntegrationMiddleware'));
+const authMiddlewareModule = require(path.join(ROOT, 'apps/api/src/middleware/authMiddleware'));
 
 function read(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -74,6 +75,22 @@ async function run() {
     setPromotionEnv({ enabled: 'true', repository: 'SkyCommand' });
     assert.equal(assistant.getDevelopmentPromotionConfig().enabled, true);
     const requiredPermissionCodes = assistant.DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES;
+    const toolPermissionCodes = assistant.DEVELOPMENT_PROMOTION_TOOL_PERMISSION_CODES;
+    assert.deepEqual(toolPermissionCodes, [
+      'CAPABILITY_CATALOG_EXPORT',
+      'REPO_MAP_GENERATE',
+      'REPO_ZIP_GENERATE',
+    ]);
+    assert.ok(
+      toolPermissionCodes.every((permissionCode) => requiredPermissionCodes.includes(permissionCode)),
+      'Development Promotion permission closure must include every registered Tool-node permission.',
+    );
+    assert.ok(
+      requiredPermissionCodes.every((permissionCode) =>
+        authMiddlewareModule.INTERNAL_SERVICE_PERMISSION_CODES.includes(permissionCode),
+      ),
+      'Internal workflow execution must receive the complete Development Promotion permission closure.',
+    );
     const completePermissions = permissionObjects(requiredPermissionCodes);
     const promotionOpenApi = assistant.getOpenApiDocument().paths['/development-promotion/runs'].post;
     assert.deepEqual(promotionOpenApi['x-required-permission-codes'], requiredPermissionCodes);
