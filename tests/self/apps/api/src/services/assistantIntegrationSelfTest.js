@@ -3,7 +3,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '../../../../../..');
-const middleware = require(path.join(ROOT, 'apps/api/src/middleware/assistantIntegrationMiddleware'));
+const middleware = require(
+  path.join(ROOT, 'apps/api/src/middleware/assistantIntegrationMiddleware'),
+);
 
 function read(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -16,81 +18,128 @@ function includesAll(text, fragments, label) {
 }
 
 function run() {
-  const migration = read('packages/db_build/src/migrations/00126__assistant_browser_automation_opt_in.sql');
-  includesAll(migration, [
-    'assistant_enabled BOOLEAN NOT NULL DEFAULT FALSE',
-    'idx_browser_automations_assistant_catalogue',
-  ], 'Assistant opt-in migration');
+  const migration = read(
+    'packages/db_build/src/migrations/00126__assistant_browser_automation_opt_in.sql',
+  );
+  includesAll(
+    migration,
+    [
+      'assistant_enabled BOOLEAN NOT NULL DEFAULT FALSE',
+      'idx_browser_automations_assistant_catalogue',
+    ],
+    'Assistant opt-in migration',
+  );
 
-  const seed = read('packages/db_build/src/seeds/00127__assistant_browser_automation_reference_seed.sql');
-  includesAll(seed, [
-    "automation_code = 'command-center-status-snapshot'",
-    'assistant_enabled = TRUE',
-    "side_effect_level = 'READ_ONLY'",
-    'requires_confirmation = FALSE',
-  ], 'Assistant reference seed');
+  const seed = read(
+    'packages/db_build/src/seeds/00127__assistant_browser_automation_reference_seed.sql',
+  );
+  includesAll(
+    seed,
+    [
+      "automation_code = 'command-center-status-snapshot'",
+      'assistant_enabled = TRUE',
+      "side_effect_level = 'READ_ONLY'",
+      'requires_confirmation = FALSE',
+    ],
+    'Assistant reference seed',
+  );
 
   const routes = read('apps/api/src/routes/assistantIntegration.routes.js');
-  includesAll(routes, [
-    'requireAssistantIntegration',
-    "'/capabilities'",
-    "'/openapi.json'",
-    "'/browser-automations/:automationCode/runs'",
-    "'/browser-automation-runs/:workflowId'",
-    "'/browser-automation-runs/:workflowId/artifacts/:artifactId'",
-  ], 'Assistant integration routes');
+  includesAll(
+    routes,
+    [
+      'requireAssistantIntegration',
+      "'/capabilities'",
+      "'/openapi.json'",
+      "'/workflow-runs'",
+      "'/workflow-runs/:workflowRunRecordId'",
+      "'/browser-automations/:automationCode/runs'",
+      "'/browser-automation-runs/:workflowId'",
+      "'/browser-automation-runs/:workflowId/artifacts/:artifactId'",
+    ],
+    'Assistant integration routes',
+  );
 
   const middlewareSource = read('apps/api/src/middleware/assistantIntegrationMiddleware.js');
-  includesAll(middlewareSource, [
-    'extractAssistantAgentId',
-    "x-skycommand-agent-id",
-    'SkyCommand Agent (${agentId})',
-  ], 'Assistant agent identity metadata');
+  includesAll(
+    middlewareSource,
+    ['extractAssistantAgentId', 'x-skycommand-agent-id', 'SkyCommand Agent (${agentId})'],
+    'Assistant agent identity metadata',
+  );
 
   const service = read('apps/api/src/services/assistantIntegrationService.js');
-  includesAll(service, [
-    "triggerSource: 'ASSISTANT'",
-    "executionMode: 'HEADLESS'",
-    'HUMAN_CONFIRMATION_REQUIRED',
-    'ASSISTANT_PERMISSION_SCOPE_MISSING',
-    "eventType: 'ASSISTANT_BROWSER_AUTOMATION'",
-    "agentId: req.assistantIntegration?.agentId || 'assistant-http'",
-    "String(run?.triggerSource || '').toUpperCase() !== 'ASSISTANT'",
-    'getOpenApiDocument',
-  ], 'Assistant integration service');
+  includesAll(
+    service,
+    [
+      "triggerSource: 'ASSISTANT'",
+      "executionMode: 'HEADLESS'",
+      'HUMAN_CONFIRMATION_REQUIRED',
+      'ASSISTANT_PERMISSION_SCOPE_MISSING',
+      "eventType: 'ASSISTANT_BROWSER_AUTOMATION'",
+      "agentId: req.assistantIntegration?.agentId || 'assistant-http'",
+      "String(run?.triggerSource || '').toUpperCase() !== 'ASSISTANT'",
+      'getOpenApiDocument',
+      'workflowAgentExecution',
+      'startWorkflowExecution',
+    ],
+    'Assistant integration service',
+  );
 
   const registry = read('apps/api/src/services/browserAutomationRegistryService.js');
-  includesAll(registry, [
-    'assistantEnabled: toBoolean(row.assistant_enabled)',
-    "assistantEnabled: 'assistant_enabled'",
-    'Assistant execution cannot be enabled for confirmation-required Playwright Automations.',
-    'Assistant-enabled Playwright Automations must define an execution permission.',
-  ], 'Browser Automation registry assistant policy');
+  includesAll(
+    registry,
+    [
+      'assistantEnabled: toBoolean(row.assistant_enabled)',
+      "assistantEnabled: 'assistant_enabled'",
+      'Assistant execution cannot be enabled for confirmation-required Playwright Automations.',
+      'Assistant-enabled Playwright Automations must define an execution permission.',
+    ],
+    'Browser Automation registry assistant policy',
+  );
 
   const server = read('apps/api/src/server.js');
   assert.ok(server.includes("app.use('/api/assistant', assistantIntegrationRoutes);"));
 
   const admin = read('apps/admin-web/src/pages/BrowserAutomations.jsx');
-  includesAll(admin, [
-    'Assistant execution enabled',
-    'assistantEnabled: Boolean(automation.assistantEnabled)',
-    'assistantEnabled: Boolean(form.assistantEnabled)',
-    'confirmation-required automations',
-    'field="assistant"',
-  ], 'Assistant opt-in UI');
+  includesAll(
+    admin,
+    [
+      'Assistant execution enabled',
+      'assistantEnabled: Boolean(automation.assistantEnabled)',
+      'assistantEnabled: Boolean(form.assistantEnabled)',
+      'confirmation-required automations',
+      'field="assistant"',
+    ],
+    'Assistant opt-in UI',
+  );
 
   const envExample = read('.env.example');
-  includesAll(envExample, [
-    'SKYCOMMAND_ASSISTANT_INTEGRATION_ENABLED=false',
-    'SKYCOMMAND_ASSISTANT_API_TOKEN=',
-    'SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN',
-  ], 'Assistant environment configuration');
+  includesAll(
+    envExample,
+    [
+      'SKYCOMMAND_ASSISTANT_INTEGRATION_ENABLED=false',
+      'SKYCOMMAND_ASSISTANT_API_TOKEN=',
+      'SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN',
+      'SKYCOMMAND_ASSISTANT_PRINCIPAL_CODE=assistant-http',
+    ],
+    'Assistant environment configuration',
+  );
 
   assert.equal(middleware.safeTokenEquals('alpha', 'alpha'), true);
   assert.equal(middleware.safeTokenEquals('alpha', 'beta'), false);
-  assert.deepEqual(middleware.DEFAULT_ASSISTANT_PERMISSION_CODES, ['BROWSER_AUTOMATION_READ', 'BROWSER_AUTOMATION_RUN']);
-  assert.equal(middleware.extractAssistantAgentId({ headers: { 'x-skycommand-agent-id': 'codex-local' } }), 'codex-local');
-  assert.equal(middleware.extractAssistantAgentId({ headers: { 'x-skycommand-agent-id': 'bad agent id' } }), 'assistant-http');
+  assert.deepEqual(middleware.DEFAULT_ASSISTANT_PERMISSION_CODES, [
+    'BROWSER_AUTOMATION_READ',
+    'BROWSER_AUTOMATION_RUN',
+  ]);
+  assert.equal(
+    middleware.extractAssistantAgentId({ headers: { 'x-skycommand-agent-id': 'codex-local' } }),
+    'codex-local',
+  );
+  assert.equal(
+    middleware.extractAssistantAgentId({ headers: { 'x-skycommand-agent-id': 'bad agent id' } }),
+    'assistant-http',
+  );
+  assert.equal(middleware.getAssistantIntegrationConfig().principalCode, 'assistant-http');
 
   console.log('[assistant-integration:self-test] PASS');
 }

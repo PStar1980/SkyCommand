@@ -61,8 +61,7 @@ const FALLBACK_WORKFLOW_DEFINITIONS = [
         required: false,
         defaultValue: [],
         placeholder: 'GDP, UNRATE, DGS10 — leave blank for full FRED set',
-        helpText:
-          'Comma, space, or newline separated. Blank runs every configured FRED indicator.',
+        helpText: 'Comma, space, or newline separated. Blank runs every configured FRED indicator.',
         adminVisible: true,
         startFormField: true,
         displayOrder: 10,
@@ -88,7 +87,8 @@ const FALLBACK_WORKFLOW_DEFINITIONS = [
         type: 'STRING',
         required: false,
         placeholder: 'Optional; normally auto-generated',
-        helpText: 'Optional manual workflow ID. Leave blank unless you need a stable run identifier.',
+        helpText:
+          'Optional manual workflow ID. Leave blank unless you need a stable run identifier.',
         adminVisible: true,
         startFormField: true,
         displayOrder: 30,
@@ -118,7 +118,9 @@ function camelizeRow(row) {
 }
 
 function normalizeIndicatorCode(value) {
-  const code = String(value || '').trim().toUpperCase();
+  const code = String(value || '')
+    .trim()
+    .toUpperCase();
 
   if (!code) {
     return null;
@@ -237,7 +239,11 @@ function normalizeWorkflowInfo(info) {
   const runId = serialized.runId || serialized.execution?.runId;
 
   const workflowType =
-    serialized.type?.name || serialized.workflowType?.name || serialized.type || serialized.workflowType || serialized.workflowTypeName;
+    serialized.type?.name ||
+    serialized.workflowType?.name ||
+    serialized.type ||
+    serialized.workflowType ||
+    serialized.workflowTypeName;
 
   return {
     workflowId,
@@ -317,7 +323,8 @@ function normalizeFallbackDefinition(definition, temporalConfig) {
     ...definition,
     taskQueue: definition.taskQueue || temporalConfig.taskQueue,
     parameters: definition.parameters || [],
-    allowedParameters: definition.allowedParameters ||
+    allowedParameters:
+      definition.allowedParameters ||
       (definition.parameters || []).map((parameter) => ({
         name: parameter.name,
         type: parameter.type,
@@ -354,10 +361,40 @@ function getSafeJson(value, fallback = {}) {
 }
 
 function normalizeRequestContext(context = {}) {
+  const executionContext = getSafeJson(context.executionContext);
+  const allowedExecutionContextKeys = [
+    'principalId',
+    'principalCode',
+    'authMode',
+    'resourceGrantId',
+    'admissionId',
+    'rootWorkflowRunRecordId',
+    'repositoryCode',
+    'environmentCode',
+    'configProfileCode',
+  ];
+
   return {
     ipAddress: context.ipAddress || null,
     userAgent: context.userAgent || null,
+    executionContext: Object.fromEntries(
+      allowedExecutionContextKeys
+        .filter((key) => executionContext[key] !== undefined && executionContext[key] !== null)
+        .map((key) => [key, String(executionContext[key]).slice(0, 256)]),
+    ),
   };
+}
+
+function isAlreadyStartedError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+  return (
+    code.includes('already_started') ||
+    code.includes('already-started') ||
+    message.includes('already started') ||
+    message.includes('workflow execution already exists') ||
+    message.includes('workflowidreuse')
+  );
 }
 
 function normalizeRunRecordStatus(value) {
@@ -371,7 +408,9 @@ function normalizeRunRecordStatus(value) {
 }
 
 function normalizeStatusFilter(value) {
-  const normalized = String(value || '').trim().toUpperCase();
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase();
 
   if (!normalized) {
     return '';
@@ -487,7 +526,11 @@ async function upsertWorkflowRunRecord({
   }
 
   const normalizedStatus = normalizeRunRecordStatus(status || workflow.status || 'RUNNING');
-  const workflowCode = definition.workflowCode || input.workflowCode || workflow.workflowCode || DEFAULT_FRED_WORKFLOW_CODE;
+  const workflowCode =
+    definition.workflowCode ||
+    input.workflowCode ||
+    workflow.workflowCode ||
+    DEFAULT_FRED_WORKFLOW_CODE;
   const workflowType = definition.workflowType || workflow.workflowType;
 
   if (!workflowType) {
@@ -734,7 +777,13 @@ function mergeWorkflowItemsWithRunRecords({ items = [], records = [], namespace,
     .slice(0, limit);
 }
 
-async function updateWorkflowRunRecordAction({ workflowId, runId, action, actor = null, reason = null } = {}) {
+async function updateWorkflowRunRecordAction({
+  workflowId,
+  runId,
+  action,
+  actor = null,
+  reason = null,
+} = {}) {
   if (!workflowId) {
     return null;
   }
@@ -742,7 +791,9 @@ async function updateWorkflowRunRecordAction({ workflowId, runId, action, actor 
   const actionIsTerminate = action === 'terminate';
   const status = actionIsTerminate ? 'TERMINATE_REQUESTED' : 'CANCEL_REQUESTED';
   const timestampColumn = actionIsTerminate ? 'terminate_requested_at' : 'cancel_requested_at';
-  const userColumn = actionIsTerminate ? 'terminate_requested_by_user_id' : 'cancel_requested_by_user_id';
+  const userColumn = actionIsTerminate
+    ? 'terminate_requested_by_user_id'
+    : 'cancel_requested_by_user_id';
   const reasonSql = actionIsTerminate ? ', terminate_reason = $5' : '';
   const values = [workflowId, runId || null, status, getActorUserId(actor)];
 
@@ -771,7 +822,10 @@ async function updateWorkflowRunRecordAction({ workflowId, runId, action, actor 
       return null;
     }
 
-    console.warn('[SkyCommand Temporal API] Failed to update workflow action record:', error.message);
+    console.warn(
+      '[SkyCommand Temporal API] Failed to update workflow action record:',
+      error.message,
+    );
     return null;
   }
 }
@@ -802,7 +856,9 @@ async function getDatabaseWorkflowDefinitions({ enabledOnly = true, visibleOnly 
       values,
     );
 
-    const definitions = result.rows.map((row) => normalizeWorkflowDefinitionRow(row, temporalConfig));
+    const definitions = result.rows.map((row) =>
+      normalizeWorkflowDefinitionRow(row, temporalConfig),
+    );
 
     if (definitions.length > 0) {
       return definitions;
@@ -817,7 +873,6 @@ async function getDatabaseWorkflowDefinitions({ enabledOnly = true, visibleOnly 
     normalizeFallbackDefinition(definition, temporalConfig),
   );
 }
-
 
 async function getWorkflowDefinition(workflowCode = DEFAULT_FRED_WORKFLOW_CODE) {
   const normalizedWorkflowCode = String(workflowCode || DEFAULT_FRED_WORKFLOW_CODE).trim();
@@ -876,7 +931,13 @@ function normalizeTaskQueuePoller(poller, taskQueueType) {
   };
 }
 
-async function describeTaskQueueForType({ connection, namespace, taskQueue, taskQueueType, label }) {
+async function describeTaskQueueForType({
+  connection,
+  namespace,
+  taskQueue,
+  taskQueueType,
+  label,
+}) {
   try {
     const response = await connection.workflowService.describeTaskQueue({
       namespace,
@@ -1000,8 +1061,13 @@ function getFredTimeoutMs(value, definition) {
   );
 }
 
-async function startFredIngestionWorkflow(body = {}, providedDefinition = null, actionContext = {}) {
-  const definition = providedDefinition || (await getWorkflowDefinition(DEFAULT_FRED_WORKFLOW_CODE));
+async function startFredIngestionWorkflow(
+  body = {},
+  providedDefinition = null,
+  actionContext = {},
+) {
+  const definition =
+    providedDefinition || (await getWorkflowDefinition(DEFAULT_FRED_WORKFLOW_CODE));
 
   if (definition.workflowType !== 'fredIngestionWorkflow') {
     throw new ServiceError('Workflow template is not backed by fredIngestionWorkflow.', 500, {
@@ -1011,7 +1077,10 @@ async function startFredIngestionWorkflow(body = {}, providedDefinition = null, 
   }
 
   const { config, client } = await createTemporalClient();
-  const workflowId = buildWorkflowId(definition.workflowIdPrefix || config.fredWorkflowIdPrefix, body.workflowId);
+  const workflowId = buildWorkflowId(
+    definition.workflowIdPrefix || config.fredWorkflowIdPrefix,
+    body.workflowId,
+  );
   const indicators = normalizeIndicatorCodes(body.indicators);
   const concurrency = getFredConcurrency(body.concurrency || body.batchSize, definition);
   const timeoutMs = getFredTimeoutMs(body.timeoutMs, definition);
@@ -1116,16 +1185,43 @@ async function startSkyCommandWorkflowExecutorWorkflow({
     taskQueue: config.taskQueue,
   });
 
-  const handle = await client.workflow.start('skyserverWorkflowExecutorWorkflow', {
-    taskQueue: config.taskQueue,
-    workflowId,
-    args: [workflowInput],
-  });
+  let handle;
+  let reused = false;
+
+  try {
+    handle = await client.workflow.start('skyserverWorkflowExecutorWorkflow', {
+      taskQueue: config.taskQueue,
+      workflowId,
+      args: [workflowInput],
+    });
+  } catch (error) {
+    if (!isAlreadyStartedError(error)) {
+      throw error;
+    }
+
+    reused = true;
+    handle = client.workflow.getHandle(workflowId);
+  }
+
+  let described = null;
+  if (reused && typeof handle.describe === 'function') {
+    try {
+      described = await handle.describe();
+    } catch (_error) {
+      described = null;
+    }
+  }
+  const describedRunId =
+    described?.runId ||
+    described?.workflowExecution?.runId ||
+    described?.execution?.runId ||
+    handle.firstExecutionRunId ||
+    null;
 
   return {
     workflow: {
       workflowId: handle.workflowId,
-      runId: handle.firstExecutionRunId,
+      runId: describedRunId,
       workflowCode: normalizedWorkflowCode,
       workflowType: 'skyserverWorkflowExecutorWorkflow',
       taskQueue: config.taskQueue,
@@ -1135,12 +1231,18 @@ async function startSkyCommandWorkflowExecutorWorkflow({
       startedAt,
       source: 'temporal',
       missingFromTemporal: false,
+      reused,
     },
     input: workflowInput,
   };
 }
 
-async function startWorkflowFromDefinition({ workflowCode, body = {}, actor = null, context = {} } = {}) {
+async function startWorkflowFromDefinition({
+  workflowCode,
+  body = {},
+  actor = null,
+  context = {},
+} = {}) {
   const definition = await getWorkflowDefinition(workflowCode);
 
   if (definition.workflowCode === DEFAULT_FRED_WORKFLOW_CODE) {
@@ -1223,7 +1325,7 @@ function serializeTemporalTimestamp(value) {
     const nanos = Number(value.nanos || 0);
 
     if (Number.isFinite(seconds) && seconds > 0) {
-      return new Date((seconds * 1000) + Math.floor(nanos / 1000000)).toISOString();
+      return new Date(seconds * 1000 + Math.floor(nanos / 1000000)).toISOString();
     }
   }
 
@@ -1269,11 +1371,12 @@ function getTemporalFailureMessage(failure = {}) {
   let depth = 0;
 
   while (current && typeof current === 'object' && depth < 4) {
-    const message = current.message
-      || current.applicationFailureInfo?.type
-      || current.timeoutFailureInfo?.timeoutType
-      || current.canceledFailureInfo?.details
-      || null;
+    const message =
+      current.message ||
+      current.applicationFailureInfo?.type ||
+      current.timeoutFailureInfo?.timeoutType ||
+      current.canceledFailureInfo?.details ||
+      null;
 
     if (message) {
       messages.push(String(message));
@@ -1323,23 +1426,27 @@ function getTemporalAttributeText(value) {
 }
 
 function getTemporalEventIdentity(attributes = {}) {
-  return attributes.activityId
-    || attributes.timerId
-    || attributes.signalName
-    || attributes.workflowExecution?.workflowId
-    || attributes.childWorkflowExecution?.workflowId
-    || attributes.initiatedEventId
-    || null;
+  return (
+    attributes.activityId ||
+    attributes.timerId ||
+    attributes.signalName ||
+    attributes.workflowExecution?.workflowId ||
+    attributes.childWorkflowExecution?.workflowId ||
+    attributes.initiatedEventId ||
+    null
+  );
 }
 
 function getTemporalEventTarget(attributes = {}) {
-  return attributes.activityType?.name
-    || attributes.activityType
-    || attributes.workflowType?.name
-    || attributes.workflowType
-    || attributes.taskQueue?.name
-    || attributes.taskQueue
-    || null;
+  return (
+    attributes.activityType?.name ||
+    attributes.activityType ||
+    attributes.workflowType?.name ||
+    attributes.workflowType ||
+    attributes.taskQueue?.name ||
+    attributes.taskQueue ||
+    null
+  );
 }
 
 function getTemporalEventSummary(event = {}) {
@@ -1445,7 +1552,9 @@ function getTemporalEventDiagnostic(event = {}) {
 
 function isNotableTemporalEvent(event = {}) {
   const type = normalizeTemporalEventType(event);
-  return /FAILED|TIMED_OUT|CANCELED|CANCEL_REQUESTED|TERMINATED|SIGNALED|CHILD_WORKFLOW|TIMER/.test(type);
+  return /FAILED|TIMED_OUT|CANCELED|CANCEL_REQUESTED|TERMINATED|SIGNALED|CHILD_WORKFLOW|TIMER/.test(
+    type,
+  );
 }
 
 function summarizeTemporalHistoryEvents(events = []) {
@@ -1507,10 +1616,14 @@ function summarizeTemporalHistoryEvents(events = []) {
 
   const eventDiagnostics = events.map(getTemporalEventDiagnostic);
   const latestEvents = eventDiagnostics.slice(-20);
-  const notableEvents = eventDiagnostics.filter((event) => isNotableTemporalEvent({
-    eventType: event.eventType,
-    eventId: event.eventId,
-  })).slice(-20);
+  const notableEvents = eventDiagnostics
+    .filter((event) =>
+      isNotableTemporalEvent({
+        eventType: event.eventType,
+        eventId: event.eventId,
+      }),
+    )
+    .slice(-20);
 
   return {
     eventCount: events.length,
@@ -1702,12 +1815,14 @@ async function getWorkflowRuntimeDetail({ workflowId, runId, includeHistory = tr
     executionTime: workflow?.executionTime || null,
     closeTime: workflow?.closeTime || null,
     historyLength: workflow?.historyLength || history?.eventCount || null,
-    uiUrl: diagnostics?.workflowUrl || buildTemporalUiWorkflowUrl({
-      baseUrl: config.uiBaseUrl,
-      namespace: config.namespace,
-      workflowId,
-      runId: workflow?.runId || runId,
-    }),
+    uiUrl:
+      diagnostics?.workflowUrl ||
+      buildTemporalUiWorkflowUrl({
+        baseUrl: config.uiBaseUrl,
+        namespace: config.namespace,
+        workflowId,
+        runId: workflow?.runId || runId,
+      }),
     links: {
       workflow: diagnostics?.workflowUrl || null,
       history: diagnostics?.historyUrl || null,
@@ -1716,8 +1831,12 @@ async function getWorkflowRuntimeDetail({ workflowId, runId, includeHistory = tr
     diagnostics,
     history,
     warnings: [
-      describeError ? `Temporal describe failed: ${describeError.message || String(describeError)}` : null,
-      historyError ? `Temporal history fetch failed: ${historyError.message || String(historyError)}` : null,
+      describeError
+        ? `Temporal describe failed: ${describeError.message || String(describeError)}`
+        : null,
+      historyError
+        ? `Temporal history fetch failed: ${historyError.message || String(historyError)}`
+        : null,
     ].filter(Boolean),
   };
 
@@ -1732,7 +1851,9 @@ async function listWorkflows(query = {}) {
 
   if (!listQuery.query && !listQuery.workflowType && !listQuery.type) {
     try {
-      selectedDefinition = await getWorkflowDefinition(listQuery.workflowCode || DEFAULT_FRED_WORKFLOW_CODE);
+      selectedDefinition = await getWorkflowDefinition(
+        listQuery.workflowCode || DEFAULT_FRED_WORKFLOW_CODE,
+      );
       listQuery.workflowType = selectedDefinition.workflowType;
     } catch (error) {
       listQuery.workflowType = 'fredIngestionWorkflow';
@@ -1770,7 +1891,10 @@ async function listWorkflows(query = {}) {
       input: {},
       taskQueue: normalizedWorkflow.taskQueue || definition.taskQueue || config.taskQueue,
       status: normalizedWorkflow.status,
-      metadata: buildRunRecordMetadata({ workflow: normalizedWorkflow, source: 'temporal_visibility' }),
+      metadata: buildRunRecordMetadata({
+        workflow: normalizedWorkflow,
+        source: 'temporal_visibility',
+      }),
     });
 
     if (temporalItems.length >= limit) {
@@ -1853,7 +1977,8 @@ async function getWorkflow({ workflowId, runId } = {}) {
       return {
         namespace: config.namespace,
         workflow: runRecordToWorkflowInfo(runRecord, { missingFromTemporal: true }),
-        warning: 'Workflow was not found in Temporal visibility/history; returned SkyCommand run record only.',
+        warning:
+          'Workflow was not found in Temporal visibility/history; returned SkyCommand run record only.',
       };
     }
 
@@ -1887,7 +2012,6 @@ async function cancelWorkflow({ workflowId, runId, actor = null } = {}) {
     runRecord,
   };
 }
-
 
 async function signalWorkflow({ workflowId, runId, signalName, payload = {} } = {}) {
   if (!workflowId) {

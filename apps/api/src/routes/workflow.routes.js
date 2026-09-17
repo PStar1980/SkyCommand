@@ -7,7 +7,6 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-
 router.get(
   '/worker-health',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
@@ -16,7 +15,13 @@ router.get(
 
 router.get(
   '/categories',
-  requireAnyPermission(['WORKFLOW_READ', 'WORKFLOW_CREATE', 'WORKFLOW_CHANGE', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
+  requireAnyPermission([
+    'WORKFLOW_READ',
+    'WORKFLOW_CREATE',
+    'WORKFLOW_CHANGE',
+    'TEMPORAL_WORKFLOW_READ',
+    'WORKER_SCHEDULE_READ',
+  ]),
   workflowController.listCategories,
 );
 
@@ -28,7 +33,12 @@ router.get(
 
 router.get(
   '/builder/catalog',
-  requireAnyPermission(['WORKFLOW_CREATE', 'WORKFLOW_CHANGE', 'WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ']),
+  requireAnyPermission([
+    'WORKFLOW_CREATE',
+    'WORKFLOW_CHANGE',
+    'WORKFLOW_READ',
+    'TEMPORAL_WORKFLOW_READ',
+  ]),
   workflowController.getBuilderCatalog,
 );
 
@@ -37,7 +47,6 @@ router.post(
   requireAnyPermission(['WORKFLOW_CREATE']),
   workflowController.createDefinition,
 );
-
 
 router.get(
   '/approvals',
@@ -87,7 +96,6 @@ router.get(
   workflowController.getRun,
 );
 
-
 router.post(
   '/runs/:workflowRunRecordId/cancel',
   requireAnyPermission(['WORKFLOW_RUN']),
@@ -111,7 +119,6 @@ router.post(
   requireAnyPermission(['WORKFLOW_RUN']),
   workflowController.retryNode,
 );
-
 
 router.get(
   '/definitions/:workflowCode/manage',
@@ -143,7 +150,6 @@ router.post(
   workflowController.createVersion,
 );
 
-
 router.post(
   '/definitions/:workflowCode/drafts',
   requireAnyPermission(['WORKFLOW_CHANGE']),
@@ -168,7 +174,6 @@ router.delete(
   workflowController.discardDraftVersion,
 );
 
-
 router.put(
   '/definitions/:workflowCode/graph',
   requireAnyPermission(['WORKFLOW_CHANGE']),
@@ -191,6 +196,18 @@ router.post(
   '/definitions/:workflowCode/start',
   requireAnyPermission(['WORKFLOW_RUN']),
   workflowController.startWorkflow,
+);
+
+router.post(
+  '/agent/workflow-runs',
+  requireAnyPermission(['WORKFLOW_RUN']),
+  workflowController.startAgentWorkflow,
+);
+
+router.get(
+  '/agent/workflow-runs/:workflowRunRecordId',
+  requireAnyPermission(['WORKFLOW_RUN']),
+  workflowController.getAgentWorkflowRun,
 );
 
 module.exports = router;

@@ -5,14 +5,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const repositoryRoot = path.resolve(__dirname, '..');
-const excludedDirectories = new Set([
-  '.git',
-  'coverage',
-  'dist',
-  'logs',
-  'node_modules',
-  'tmp',
-]);
+const excludedDirectories = new Set(['.git', 'coverage', 'dist', 'logs', 'node_modules', 'tmp']);
 const syntaxExtensions = new Set(['.cjs', '.js', '.mjs']);
 
 const routineSelfTests = [
@@ -50,6 +43,8 @@ const routineSelfTests = [
   'workflow-playwright-nodes:self-test',
   'playwright-scheduler:self-test',
   'assistant-integration:self-test',
+  'workflow-agent-execution:self-test',
+  'workflow-agent-execution:integration:self-test',
   'assistant-database-upgrade-plan:self-test',
   'assistant-database-upgrade-apply-request:self-test',
   'admin-database-upgrade-execution:self-test',

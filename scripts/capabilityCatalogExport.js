@@ -653,6 +653,33 @@ function selfTestRows() {
       active: true,
     },
   ];
+  r.workflowExecutionPrincipals = [
+    {
+      workflow_execution_principal_id: id,
+      principal_code: 'assistant-http',
+      display_name: 'SkyCommand Assistant HTTP integration',
+      auth_mode: 'ASSISTANT_SERVICE_TOKEN',
+      status: 'ACTIVE',
+    },
+  ];
+  r.workflowExecutionResourceGrants = [
+    {
+      workflow_execution_resource_grant_id: id,
+      principal_code: 'assistant-http',
+      repository_code: 'SkyCommand',
+      environment_code: 'DOCKER_LOCAL',
+      config_profile_code: 'DOCKER_LOCAL',
+      workflow_code: 'repo-map-zip',
+      allowed_permission_codes: [
+        'WORKFLOW_RUN',
+        'REPO_MAP_GENERATE',
+        'REPO_ZIP_GENERATE',
+        'CAPABILITY_CATALOG_EXPORT',
+        'CORE_RUN_LOW_RISK_SCRIPT',
+      ],
+      status: 'ACTIVE',
+    },
+  ];
   return r;
 }
 
@@ -695,6 +722,22 @@ async function runSelfTest() {
   assert.equal(snapshot.resourceCounts.testSuites, 1);
   assert.equal(snapshot.resourceCounts.suiteMembers, 1);
   assert.equal(snapshot.resourceCounts.workflowNodes, 1);
+  assert.equal(snapshot.resourceCounts.workflowExecutionPrincipals, 1);
+  assert.equal(snapshot.resourceCounts.workflowExecutionResourceGrants, 1);
+  assert.deepEqual(snapshot.resources.workflowExecutionPrincipals[0], {
+    principalId: '00000000-0000-4000-8000-000000000001',
+    principalCode: 'assistant-http',
+    displayName: 'SkyCommand Assistant HTTP integration',
+    authMode: 'ASSISTANT_SERVICE_TOKEN',
+    status: 'ACTIVE',
+  });
+  assert.deepEqual(snapshot.resources.workflowExecutionResourceGrants[0].allowedPermissionCodes, [
+    'WORKFLOW_RUN',
+    'REPO_MAP_GENERATE',
+    'REPO_ZIP_GENERATE',
+    'CAPABILITY_CATALOG_EXPORT',
+    'CORE_RUN_LOW_RISK_SCRIPT',
+  ]);
   assert.equal(snapshot.resources.toolParameters[0].defaultValue, '[REDACTED]');
   assert.deepEqual(
     snapshot.resources.workflowParameters.map((parameter) => parameter.parameterName),
@@ -797,6 +840,8 @@ async function runSelfTest() {
       'Permissions',
       'Roles',
       'Role Permissions',
+      'R4 Principals',
+      'R4 Resource Grants',
     ].forEach((sheet) => assert.ok(workbook.SheetNames.includes(sheet), `missing sheet ${sheet}`));
     assert.deepEqual(
       JSON.parse(fs.readFileSync(path.join(root, result.generatedArtifactPaths.json), 'utf8'))

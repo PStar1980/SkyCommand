@@ -2,6 +2,7 @@ const authService = require('./authService');
 const browserAutomationExecutionService = require('./browserAutomationExecutionService');
 const browserAutomationRegistryService = require('./browserAutomationRegistryService');
 const workflowExecutorService = require('./workflowExecutorService');
+const workflowAgentExecutionService = require('./workflowAgentExecutionService');
 const {
   executeDatabaseUpgrade,
   normalizeDatabaseName,
@@ -590,6 +591,36 @@ async function startDevelopmentPromotion({
   };
 }
 
+async function startWorkflowExecution({
+  request,
+  principalCode = 'assistant-http',
+  authMode = 'ASSISTANT_SERVICE_TOKEN',
+  actor = null,
+  session = null,
+  context = {},
+} = {}) {
+  return workflowAgentExecutionService.startWorkflow({
+    request,
+    principalCode,
+    authMode,
+    actor,
+    session,
+    context,
+  });
+}
+
+async function getWorkflowExecutionRun({
+  workflowRunRecordId,
+  principalCode = 'assistant-http',
+  authMode = 'ASSISTANT_SERVICE_TOKEN',
+} = {}) {
+  return workflowAgentExecutionService.getWorkflowRun({
+    workflowRunRecordId,
+    principalCode,
+    authMode,
+  });
+}
+
 async function getRun(workflowId) {
   const run = await browserAutomationExecutionService.getRun(workflowId);
   if (String(run?.triggerSource || '').toUpperCase() !== 'ASSISTANT') {
@@ -713,6 +744,7 @@ function getCapabilities({
       description:
         'Human/Admin-Web-only D2B.2 continuation. This is not an Assistant or MCP execution capability.',
     },
+    workflowAgentExecution: workflowAgentExecutionService.getCapabilitySummary(),
     safety: {
       assistantOptInRequired: true,
       confirmationRequiredAutomationsBlocked: true,
@@ -723,6 +755,10 @@ function getCapabilities({
       developmentPromotionPermissionEnforced: true,
       developmentPromotionRepositoryPinned: true,
       developmentPromotionHumanApprovalRequired: true,
+      workflowAgentPrincipalResolvedServerSide: true,
+      workflowAgentResourceGrantRequired: true,
+      workflowAgentPublishedVersionPinned: true,
+      workflowAgentIdempotencyDigestEnforced: true,
     },
     endpoints: {
       catalogue: '/api/assistant/browser-automations',
@@ -733,6 +769,8 @@ function getCapabilities({
       developmentPromotionStart: '/api/assistant/development-promotion/runs',
       databaseUpgradePlan: '/api/assistant/database-upgrade/plan',
       databaseUpgradeApplyRequest: '/api/assistant/database-upgrade/apply-requests',
+      workflowAgentStart: '/api/assistant/workflow-runs',
+      workflowAgentRun: '/api/assistant/workflow-runs/{workflowRunRecordId}',
     },
   };
 }
@@ -762,6 +800,55 @@ function getOpenApiDocument() {
         get: {
           operationId: 'getSkyCommandAssistantCapabilities',
           responses: { 200: { description: 'Integration capabilities' } },
+        },
+      },
+      '/workflow-runs': {
+        post: {
+          operationId: 'skycommand_workflow_start',
+          description:
+            'Admit and start one statically governed Temporal Workflow using the server-side authenticated principal, exact resource grant, published-version pin, and caller-scoped idempotency key.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['workflowCode', 'parameters', 'idempotencyKey'],
+                  properties: {
+                    workflowCode: { type: 'string', minLength: 1, maxLength: 160 },
+                    parameters: { type: 'object', additionalProperties: true },
+                    idempotencyKey: { type: 'string', minLength: 1, maxLength: 200 },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            202: { description: 'Workflow admitted and started.' },
+            200: { description: 'Existing idempotent admission reused.' },
+            403: { description: 'Principal/resource grant or authority closure denied.' },
+            409: { description: 'Idempotency or published-version conflict.' },
+          },
+        },
+      },
+      '/workflow-runs/{workflowRunRecordId}': {
+        get: {
+          operationId: 'skycommand_workflow_run_get',
+          description:
+            'Read only the authenticated principal-owned governed Workflow run. Results omit raw outputs, secrets, credentials, and filesystem paths.',
+          parameters: [
+            {
+              name: 'workflowRunRecordId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            200: { description: 'Safe run status and node outcome receipt.' },
+            404: { description: 'Run not found or not owned by this principal.' },
+          },
         },
       },
       '/database-upgrade/plan': {
@@ -1129,6 +1216,8 @@ module.exports = {
   sanitizeAutomation,
   sanitizeRun,
   startDevelopmentPromotion,
+  startWorkflowExecution,
+  getWorkflowExecutionRun,
   createDatabaseUpgradeApplyRequest,
   startAutomation,
   validateDevelopmentPromotionCommitMessage,

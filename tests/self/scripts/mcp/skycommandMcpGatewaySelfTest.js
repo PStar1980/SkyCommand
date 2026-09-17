@@ -81,6 +81,8 @@ async function verifyStdioTransport() {
     assert.equal(responses[1].id, 102);
     const names = responses[1].result.tools.map((tool) => tool.name);
     assert.ok(names.includes('skycommand_system_capabilities'));
+    assert.ok(names.includes('skycommand_workflow_run_get'));
+    assert.ok(!names.includes('skycommand_workflow_start'));
     assert.ok(!names.includes('skycommand_browser_automation_run'));
   } finally {
     child.stdin.end();
@@ -101,6 +103,8 @@ async function run() {
   const readOnlyTools = gateway.getToolDefinitions(config()).map((tool) => tool.name);
   assert.ok(readOnlyTools.includes('skycommand_system_capabilities'));
   assert.ok(readOnlyTools.includes('skycommand_browser_automations_list'));
+  assert.ok(readOnlyTools.includes('skycommand_workflow_run_get'));
+  assert.ok(!readOnlyTools.includes('skycommand_workflow_start'));
   assert.ok(!readOnlyTools.includes('skycommand_browser_automation_run'));
   assert.ok(!readOnlyTools.includes('skycommand_database_upgrade_plan'));
   assert.ok(!readOnlyTools.includes('skycommand_database_upgrade_apply_request'));
@@ -148,6 +152,7 @@ async function run() {
   const executionTools = gateway
     .getToolDefinitions(config({ executionEnabled: true }))
     .map((tool) => tool.name);
+  assert.ok(executionTools.includes('skycommand_workflow_start'));
   assert.ok(executionTools.includes('skycommand_browser_automation_run'));
   assert.ok(!executionTools.includes('skycommand_development_promotion_start'));
 
@@ -216,6 +221,23 @@ async function run() {
     }
     if (relativePath === '/browser-automation-runs/wf-123') {
       return { ok: true, run: { workflowId: 'wf-123', status: 'SUCCESS', terminal: true } };
+    }
+    if (relativePath === '/workflow-runs/r4-run-123') {
+      return {
+        ok: true,
+        state: 'COMPLETED',
+        terminal: true,
+        run: { workflowCode: 'repo-map-zip' },
+      };
+    }
+    if (relativePath === '/workflow-runs') {
+      return {
+        ok: true,
+        accepted: true,
+        reused: false,
+        status: 'STARTED',
+        workflowRunRecordId: 'r4-run-123',
+      };
     }
     if (relativePath === '/capabilities') return { ok: true, capabilities: { enabled: true } };
     if (relativePath === '/database-upgrade/plan') {
@@ -309,6 +331,71 @@ async function run() {
     requestImpl,
   );
   assert.equal(runStatus.structuredContent.run.status, 'SUCCESS');
+
+  const governedRun = await gateway.handleToolCall(
+    {
+      name: 'skycommand_workflow_run_get',
+      arguments: { workflowRunRecordId: 'r4-run-123' },
+    },
+    config(),
+    requestImpl,
+  );
+  assert.equal(governedRun.isError, undefined);
+  assert.equal(governedRun.structuredContent.state, 'COMPLETED');
+
+  const governedStart = await gateway.handleToolCall(
+    {
+      name: 'skycommand_workflow_start',
+      arguments: {
+        workflowCode: 'repo-map-zip',
+        parameters: { repoName: 'SkyCommand' },
+        idempotencyKey: 'r4-mcp-self-test',
+      },
+    },
+    config({ executionEnabled: true }),
+    requestImpl,
+  );
+  assert.equal(governedStart.isError, undefined);
+  assert.equal(governedStart.structuredContent.workflowRunRecordId, 'r4-run-123');
+  const governedStartRequest = requests.find(
+    (item) => item.relativePath === '/workflow-runs' && item.method === 'POST',
+  );
+  assert.deepEqual(governedStartRequest.body, {
+    workflowCode: 'repo-map-zip',
+    parameters: { repoName: 'SkyCommand' },
+    idempotencyKey: 'r4-mcp-self-test',
+  });
+
+  const governedStartWithExtraArgument = await gateway.handleToolCall(
+    {
+      name: 'skycommand_workflow_start',
+      arguments: {
+        workflowCode: 'repo-map-zip',
+        parameters: {},
+        idempotencyKey: 'r4-mcp-self-test-extra',
+        agentId: 'caller-controlled',
+      },
+    },
+    config({ executionEnabled: true }),
+    requestImpl,
+  );
+  assert.equal(governedStartWithExtraArgument.isError, true);
+  assert.equal(governedStartWithExtraArgument.structuredContent.code, 'MCP_INVALID_ARGUMENTS');
+
+  const governedStartDisabled = await gateway.handleToolCall(
+    {
+      name: 'skycommand_workflow_start',
+      arguments: {
+        workflowCode: 'repo-map-zip',
+        parameters: {},
+        idempotencyKey: 'r4-mcp-self-test-disabled',
+      },
+    },
+    config(),
+    requestImpl,
+  );
+  assert.equal(governedStartDisabled.isError, true);
+  assert.equal(governedStartDisabled.structuredContent.code, 'MCP_EXECUTION_DISABLED');
 
   const databaseUpgradePlan = await gateway.handleToolCall(
     { name: 'skycommand_database_upgrade_plan', arguments: {} },

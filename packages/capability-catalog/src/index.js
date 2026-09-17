@@ -349,6 +349,28 @@ const QUERIES = Object.freeze({
     JOIN auth.permissions p ON p.permission_id = rp.permission_id
     ORDER BY r.role_code, p.permission_code, rp.role_id, rp.permission_id
   `,
+  workflowExecutionPrincipals: `
+    SELECT
+      workflow_execution_principal_id, principal_code, display_name, auth_mode, status
+    FROM auth.workflow_execution_principals
+    ORDER BY principal_code, workflow_execution_principal_id
+  `,
+  workflowExecutionResourceGrants: `
+    SELECT
+      g.workflow_execution_resource_grant_id,
+      p.principal_code,
+      g.repository_code,
+      g.environment_code,
+      g.config_profile_code,
+      g.workflow_code,
+      g.allowed_permission_codes,
+      g.status
+    FROM worker.workflow_execution_resource_grants g
+    JOIN auth.workflow_execution_principals p
+      ON p.workflow_execution_principal_id = g.workflow_execution_principal_id
+    ORDER BY p.principal_code, g.repository_code, g.environment_code,
+      g.config_profile_code, g.workflow_code, g.workflow_execution_resource_grant_id
+  `,
 });
 
 function toBoolean(value) {
@@ -869,6 +891,23 @@ function mapRows(rows) {
       permissionCode: r.permission_code,
       active: toBoolean(r.active),
     })),
+    workflowExecutionPrincipals: rows.workflowExecutionPrincipals.map((r) => ({
+      principalId: r.workflow_execution_principal_id,
+      principalCode: r.principal_code,
+      displayName: r.display_name,
+      authMode: r.auth_mode,
+      status: r.status,
+    })),
+    workflowExecutionResourceGrants: rows.workflowExecutionResourceGrants.map((r) => ({
+      grantId: r.workflow_execution_resource_grant_id,
+      principalCode: r.principal_code,
+      repositoryCode: r.repository_code,
+      environmentCode: r.environment_code,
+      configProfileCode: r.config_profile_code,
+      workflowCode: r.workflow_code,
+      allowedPermissionCodes: safeJsonValue(r.allowed_permission_codes),
+      status: r.status,
+    })),
   };
 
   resources.workflowParameters = mapWorkflowRuntimeParameters(rows.workflows);
@@ -959,6 +998,15 @@ const SORT_KEYS = {
   permissions: ['code', 'permissionId'],
   roles: ['code', 'roleId'],
   rolePermissions: ['roleCode', 'permissionCode', 'roleId', 'permissionId'],
+  workflowExecutionPrincipals: ['principalCode', 'principalId'],
+  workflowExecutionResourceGrants: [
+    'principalCode',
+    'repositoryCode',
+    'environmentCode',
+    'configProfileCode',
+    'workflowCode',
+    'grantId',
+  ],
 };
 
 async function queryRows(client, key, warnings) {
@@ -1482,6 +1530,17 @@ function workbookRows(snapshot) {
       'applicationTitle',
     ],
     'Role Permissions': ['roleId', 'roleCode', 'permissionId', 'permissionCode', 'active'],
+    'R4 Principals': ['principalId', 'principalCode', 'displayName', 'authMode', 'status'],
+    'R4 Resource Grants': [
+      'grantId',
+      'principalCode',
+      'repositoryCode',
+      'environmentCode',
+      'configProfileCode',
+      'workflowCode',
+      'allowedPermissionCodes',
+      'status',
+    ],
     Applications: ['applicationId', 'code', 'title', 'manifestVersion', 'description', 'active'],
     'Config Profiles': ['profileId', 'code', 'name', 'description', 'active'],
     Runtimes: ['code', 'name', 'executable', 'description', 'active'],
@@ -1549,6 +1608,8 @@ function workbookRows(snapshot) {
     Permissions: r.permissions,
     Roles: r.roles,
     'Role Permissions': r.rolePermissions,
+    'R4 Principals': r.workflowExecutionPrincipals,
+    'R4 Resource Grants': r.workflowExecutionResourceGrants,
     Applications: r.applications,
     'Config Profiles': r.configProfiles,
     Runtimes: r.runtimes,

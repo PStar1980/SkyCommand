@@ -97,6 +97,8 @@ function gatewayStatus(config) {
     developmentPromotionToolExposed: config.executionEnabled && config.devPromotionEnabled,
     databaseUpgradePlanToolExposed: config.databaseUpgradePlanEnabled,
     databaseUpgradeApplyRequestToolExposed: config.databaseUpgradeApplyRequestEnabled,
+    workflowExecutionReadToolExposed: true,
+    workflowExecutionStartToolExposed: config.executionEnabled,
     allowedAutomationCodes: [...config.allowedAutomationCodes],
     safety: {
       assistantApiTokenRequired: true,
@@ -117,6 +119,10 @@ function gatewayStatus(config) {
       databaseUpgradeApplyRequestIndependentGate: true,
       databaseUpgradeApplyRequestUsesAssistantApiOnly: true,
       databaseUpgradeApplyRequestRecordsOnly: true,
+      workflowExecutionPrincipalResolvedServerSide: true,
+      workflowExecutionResourceGrantStillRequired: true,
+      workflowExecutionVersionPinnedAtAdmission: true,
+      workflowExecutionIdempotencyDigestEnforced: true,
     },
   };
 }
@@ -192,9 +198,50 @@ function getToolDefinitions(config) {
         openWorldHint: false,
       },
     },
+    {
+      name: 'skycommand_workflow_run_get',
+      title: 'Get governed Workflow run',
+      description:
+        'Read a safe status and node-outcome receipt for a Workflow run owned by the authenticated server-side execution principal. Raw outputs, secrets, credentials, and filesystem paths are not returned.',
+      inputSchema: {
+        type: 'object',
+        properties: { workflowRunRecordId: { type: 'string', format: 'uuid', minLength: 1 } },
+        required: ['workflowRunRecordId'],
+        additionalProperties: false,
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
   ];
 
   if (config.executionEnabled) {
+    tools.push({
+      name: 'skycommand_workflow_start',
+      title: 'Start governed Workflow',
+      description:
+        'Admit and start one statically governed Temporal Workflow through the Assistant API. The server resolves the principal, exact resource grant, permission/risk closure, published version, repository/profile, and caller-scoped idempotency digest.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflowCode: { type: 'string', minLength: 1, maxLength: 160 },
+          parameters: { type: 'object', additionalProperties: true },
+          idempotencyKey: { type: 'string', minLength: 1, maxLength: 200 },
+        },
+        required: ['workflowCode', 'parameters', 'idempotencyKey'],
+        additionalProperties: false,
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    });
+
     tools.push({
       name: 'skycommand_browser_automation_run',
       title: 'Run browser automation',
@@ -470,6 +517,46 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
         'GET',
         `/browser-automation-runs/${encodeURIComponent(workflowId)}`,
         undefined,
+        requestImpl,
+      );
+      return toolResult(api);
+    }
+
+    if (name === 'skycommand_workflow_run_get') {
+      const requestArgs = assertExactArguments(args, ['workflowRunRecordId']);
+      const workflowRunRecordId = assertString(
+        requestArgs.workflowRunRecordId,
+        'workflowRunRecordId',
+      );
+      const api = await requestJson(
+        config,
+        'GET',
+        `/workflow-runs/${encodeURIComponent(workflowRunRecordId)}`,
+        undefined,
+        requestImpl,
+      );
+      return toolResult(api);
+    }
+
+    if (name === 'skycommand_workflow_start') {
+      if (!config.executionEnabled) {
+        const error = new Error('MCP execution is disabled by SKYCOMMAND_MCP_EXECUTION_ENABLED.');
+        error.code = 'MCP_EXECUTION_DISABLED';
+        throw error;
+      }
+      const requestArgs = assertExactArguments(args, [
+        'workflowCode',
+        'parameters',
+        'idempotencyKey',
+      ]);
+      const workflowCode = assertString(requestArgs.workflowCode, 'workflowCode');
+      const idempotencyKey = assertString(requestArgs.idempotencyKey, 'idempotencyKey');
+      const parameters = assertObject(requestArgs.parameters, 'parameters');
+      const api = await requestJson(
+        config,
+        'POST',
+        '/workflow-runs',
+        { workflowCode, parameters, idempotencyKey },
         requestImpl,
       );
       return toolResult(api);
