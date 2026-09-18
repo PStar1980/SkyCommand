@@ -4,6 +4,7 @@ const {
   DatabaseUpgradeError,
   executeRegisteredDatabaseUpgrade,
 } = require('./databaseUpgradeEngine');
+const { translateWorkspacePath } = require('../../core/src/runtimePathResolver');
 
 const ENVIRONMENT_CODE = 'DEV_LOCAL';
 const REPOSITORY_CODE = 'SkyCommand';
@@ -11,6 +12,7 @@ const TOOL_CODE = 'database_upgrade_apply';
 const PERMISSION_CODE = 'DB_UPGRADE_APPLY';
 const SCRIPT_PATH = 'packages/db_upgrade/src/databaseUpgradeApply.js';
 const REQUIRED_CHANNELS = ['admin-web', 'api', 'cli', 'worker'];
+const SUPPORTED_PROFILE_CODES = new Set(['DEV_LOCAL', 'DOCKER_LOCAL']);
 
 function registeredContextError(code, message, details = {}) {
   return new DatabaseUpgradeError(code, message, details);
@@ -41,10 +43,11 @@ async function verifyRegisteredDevContext({
   adapter = null,
   repositoryRoot = path.resolve(__dirname, '../../..'),
 } = {}) {
-  if (configuredEnvironmentCode(environment) !== ENVIRONMENT_CODE) {
+  const profileCode = configuredEnvironmentCode(environment);
+  if (!SUPPORTED_PROFILE_CODES.has(profileCode)) {
     throw registeredContextError(
       'DATABASE_UPGRADE_DEV_PROFILE_REQUIRED',
-      'The autonomous database-upgrade Tool is registered only for DEV_LOCAL.',
+      'The autonomous database-upgrade Tool is registered only for DEV_LOCAL or DOCKER_LOCAL.',
     );
   }
 
@@ -62,15 +65,22 @@ async function verifyRegisteredDevContext({
           AND r.active = TRUE
           AND r.is_skycommand_repository = TRUE
       `,
-      [ENVIRONMENT_CODE],
-    );
+      [profileCode],
+  );
     if (binding.rowCount !== 1 || binding.rows[0].repo_code !== REPOSITORY_CODE) {
       throw registeredContextError(
         'DATABASE_UPGRADE_REGISTERED_BINDING_INVALID',
         'The registered DEV_LOCAL SkyCommand repository binding is missing or ambiguous.',
       );
     }
-    if (normalizeRoot(binding.rows[0].root_path) !== normalizeRoot(repositoryRoot)) {
+    if (
+      normalizeRoot(
+        translateWorkspacePath(binding.rows[0].root_path, {
+          environment,
+          profileCode,
+        }),
+      ) !== normalizeRoot(repositoryRoot)
+    ) {
       throw registeredContextError(
         'DATABASE_UPGRADE_REGISTERED_REPOSITORY_MISMATCH',
         'The registered DEV_LOCAL repository root does not match the executing checkout.',
@@ -130,7 +140,7 @@ async function verifyRegisteredDevContext({
     }
 
     return {
-      environmentCode: ENVIRONMENT_CODE,
+      environmentCode: profileCode,
       repositoryCode: REPOSITORY_CODE,
       repositoryId: binding.rows[0].repo_id,
       toolCode: TOOL_CODE,
@@ -143,8 +153,60 @@ async function verifyRegisteredDevContext({
   }
 }
 
+async function resolveRegisteredRepositoryRoot({ environment = process.env, adapter = null } = {}) {
+  const profileCode = configuredEnvironmentCode(environment);
+  if (!SUPPORTED_PROFILE_CODES.has(profileCode)) {
+    throw registeredContextError(
+      'DATABASE_UPGRADE_DEV_PROFILE_REQUIRED',
+      'The autonomous database-upgrade Tool is registered only for DEV_LOCAL or DOCKER_LOCAL.',
+    );
+  }
+
+  const client = await (adapter || createPgDatabaseAdapter(environment)).connect();
+  try {
+    const result = await client.query(
+      `
+        SELECT r.repo_code, rp.root_path
+        FROM core.config_profiles cp
+        JOIN core.repository_paths rp ON rp.profile_id = cp.profile_id
+        JOIN core.repositories r ON r.repo_id = rp.repo_id
+        WHERE cp.profile_code = $1
+          AND cp.active = TRUE
+          AND rp.active = TRUE
+          AND r.active = TRUE
+          AND r.is_skycommand_repository = TRUE
+          AND LOWER(r.repo_code) = LOWER($2)
+      `,
+      [profileCode, REPOSITORY_CODE],
+    );
+    if (result.rowCount !== 1 || result.rows[0].repo_code !== REPOSITORY_CODE) {
+      throw registeredContextError(
+        'DATABASE_UPGRADE_REGISTERED_BINDING_INVALID',
+        'The registered SkyCommand repository binding is missing or ambiguous.',
+      );
+    }
+
+    return path.resolve(
+      String(
+        translateWorkspacePath(result.rows[0].root_path, {
+          environment,
+          profileCode,
+        }),
+      ),
+    );
+  } finally {
+    if (typeof client.release === 'function') client.release();
+    else if (typeof client.end === 'function') await client.end().catch(() => {});
+  }
+}
+
 async function executeRegisteredDevDatabaseUpgrade(options = {}) {
-  const repositoryRoot = options.repositoryRoot || path.resolve(__dirname, '../../..');
+  const repositoryRoot =
+    options.repositoryRoot ||
+    (await resolveRegisteredRepositoryRoot({
+      environment: options.environment || process.env,
+      adapter: options.adapter || null,
+    }));
   const binding = await verifyRegisteredDevContext({ ...options, repositoryRoot });
   return executeRegisteredDatabaseUpgrade({ ...options, repositoryRoot, binding });
 }
@@ -154,10 +216,12 @@ module.exports = {
   PERMISSION_CODE,
   REPOSITORY_CODE,
   REQUIRED_CHANNELS,
+  SUPPORTED_PROFILE_CODES,
   SCRIPT_PATH,
   TOOL_CODE,
   configuredEnvironmentCode,
   executeRegisteredDevDatabaseUpgrade,
   normalizeRoot,
+  resolveRegisteredRepositoryRoot,
   verifyRegisteredDevContext,
 };

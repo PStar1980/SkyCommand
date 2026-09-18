@@ -10,6 +10,9 @@ const {
 } = require('../../../../packages/tools/src');
 const authService = require('./authService');
 const scriptExecutionService = require('./scriptExecutionService');
+const {
+  applyR5RepositoryZipParameters,
+} = require('../../../../packages/dev-finalization/src/packaging');
 const temporalService = require('./temporalService');
 const toolManifestService = require('./toolManifestService');
 const workflowPlaywrightNodeService = require('./workflowPlaywrightNodeService');
@@ -1865,13 +1868,6 @@ function buildContextObjectFromPatch(patch = {}) {
   }, {});
 }
 
-function buildContextObjectFromRows(contextValues = []) {
-  return contextValues.reduce((accumulator, item) => {
-    setNestedContextValue(accumulator, item.contextKey, item.value);
-    return accumulator;
-  }, {});
-}
-
 function mergeContextObjects(base = {}, patchObject = {}) {
   const output = { ...getSafeObject(base) };
 
@@ -2509,13 +2505,20 @@ function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
     ...nodeOverride,
   };
 
-  return resolveRuntimeTemplates(
+  const resolvedParameters = resolveRuntimeTemplates(
     mergedParameters,
     buildTemplateResolutionScope({
       input,
       context: executionContext,
     }),
   );
+
+  return applyR5RepositoryZipParameters({
+    workflowCode: executionContext?.definition?.workflowCode,
+    nodeKey: node.nodeKey,
+    targetCode: node.targetCode,
+    parameters: resolvedParameters,
+  });
 }
 
 async function insertWorkflowRun({
@@ -3032,6 +3035,19 @@ async function requestWorkflowRunControlAction({
   }
 
   const finalStatus = normalizedAction === 'terminate' ? 'TERMINATED' : 'CANCELED';
+  let finalizationRecovery = null;
+  if (String(run.workflowCode || '').trim() === 'dev_change_finalize') {
+    const { markFinalizationFailure } = require('../../../../packages/dev-finalization/src/finalization');
+    const recoveryCode = 'R5_FINALIZATION_' + normalizedAction.toUpperCase();
+    await markFinalizationFailure(run.workflowRunRecordId, {
+      code: recoveryCode,
+      message: 'R5 DEV finalization was ' + normalizedAction + ' through workflow control.',
+    });
+    finalizationRecovery = {
+      status: 'FAILED',
+      code: recoveryCode,
+    };
+  }
   const controlMetadata = {
     runControlAction: normalizedAction,
     runControlStatus: finalStatus,
@@ -3051,6 +3067,7 @@ async function requestWorkflowRunControlAction({
           namespace: temporalResult.namespace,
         }
       : null,
+    finalizationRecovery,
   };
   const summary = buildRunControlSummary({
     action: normalizedAction,
@@ -7678,7 +7695,7 @@ async function getWorkflowRunRelations(run) {
   };
 }
 
-async function getWorkflowRun(workflowRunRecordId) {
+async function getWorkflowRun(workflowRunRecordId, { includeTemporalHistory = false } = {}) {
   const run = await getWorkflowRunById(workflowRunRecordId);
 
   if (!run) {
@@ -7704,6 +7721,7 @@ async function getWorkflowRun(workflowRunRecordId) {
       temporalRuntime = await temporalService.getWorkflowRuntimeDetail({
         workflowId: run.temporalWorkflowId,
         runId: run.temporalRunId,
+        includeHistory: includeTemporalHistory,
       });
     } catch (error) {
       temporalRuntime = {
@@ -7729,6 +7747,10 @@ async function getWorkflowRun(workflowRunRecordId) {
     runTree: relations.runTree,
     temporalRuntime,
   };
+}
+
+async function getWorkflowRunDiagnostics(workflowRunRecordId) {
+  return getWorkflowRun(workflowRunRecordId, { includeTemporalHistory: true });
 }
 
 function isWorkflowRunStatusActive(status) {
@@ -7851,9 +7873,7 @@ function buildWorkflowTelemetryNode({ node = {}, nodeRun = null, index = 0 } = {
     durationMs: getNodeRunDurationMs(nodeRun),
     attemptCount: nodeRun?.attemptCount ?? 0,
     outputSummary: summarizeWorkflowNodeOutput(nodeRun?.output),
-    output: nodeRun?.output || {},
     errorMessage: nodeRun?.errorMessage || null,
-    metadata: nodeRun?.metadata || {},
   };
 }
 
@@ -7873,30 +7893,11 @@ function findTelemetryCurrentNodeId(nodes = [], run = {}) {
   return queuedNode?.nodeId || null;
 }
 
-function groupNodeOutputsByNodeKey(nodeOutputs = []) {
-  return nodeOutputs.reduce((accumulator, output) => {
-    const nodeKey = String(output?.nodeKey || '').trim();
-
-    if (!nodeKey) {
-      return accumulator;
-    }
-
-    if (!accumulator[nodeKey]) {
-      accumulator[nodeKey] = [];
-    }
-
-    accumulator[nodeKey].push(output);
-    return accumulator;
-  }, {});
-}
-
 function buildWorkflowRunTelemetrySnapshot(detail = {}) {
   const run = detail.run || {};
   const definitionNodes = detail.definitionGraph?.nodes || [];
   const nodeRuns = detail.nodeRuns || [];
   const nodeRunsByKey = new Map(nodeRuns.map((nodeRun) => [nodeRun.nodeKey, nodeRun]));
-  const persistedOutputsByNodeKey = groupNodeOutputsByNodeKey(detail.nodeOutputs || []);
-  const contextObject = buildContextObjectFromRows(detail.contextValues || []);
   const nodes =
     definitionNodes.length > 0
       ? definitionNodes.map((node, index) => ({
@@ -7905,11 +7906,9 @@ function buildWorkflowRunTelemetrySnapshot(detail = {}) {
             nodeRun: nodeRunsByKey.get(node.nodeKey) || null,
             index,
           }),
-          persistedOutputs: persistedOutputsByNodeKey[node.nodeKey] || [],
         }))
       : nodeRuns.map((nodeRun, index) => ({
           ...buildWorkflowTelemetryNode({ nodeRun, index }),
-          persistedOutputs: persistedOutputsByNodeKey[nodeRun.nodeKey] || [],
         }));
   const currentNodeId = findTelemetryCurrentNodeId(nodes, run);
   const activeNodeCount = nodes.filter((node) => isWorkflowRunStatusActive(node.status)).length;
@@ -7933,11 +7932,6 @@ function buildWorkflowRunTelemetrySnapshot(detail = {}) {
     temporalWorkflowId: run.temporalWorkflowId || null,
     temporalRunId: run.temporalRunId || null,
     nodes,
-    nodeOutputs: detail.nodeOutputs || [],
-    outputsByNodeKey: persistedOutputsByNodeKey,
-    contextValues: detail.contextValues || [],
-    contextObject,
-    approvals: detail.approvals || [],
     counts: {
       nodes: nodes.length,
       activeNodes: activeNodeCount,
@@ -8017,6 +8011,7 @@ module.exports = {
   getWorkflowDefinitionForVersion,
   getWorkflowDefinitionForManage,
   getWorkflowRun,
+  getWorkflowRunDiagnostics,
   getWorkflowRunTelemetry,
   getWorkflowNodeOutputsForRun,
   getWorkflowContextValuesForRun,

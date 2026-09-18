@@ -1,3 +1,19 @@
+import {
+  BrowserAutomationOutput,
+  CapabilityCatalogOutput,
+  DatabaseUpgradeOutput,
+  DevEnvReconcileOutput,
+  DevFinalizationLifecycleOutput,
+  DevFinalizationPreflightOutput,
+  DevFinalizationReadinessOutput,
+  DevFinalizationReceiptOutput,
+  DevFinalizationValidationOutput,
+  GenericStructuredToolResultOutput,
+  GitDevPullOutput,
+  getStructuredToolResultSummary,
+  isStructuredToolResultEnvelope,
+} from './StructuredToolResultPresenters.jsx';
+
 function getSafeArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -2142,6 +2158,8 @@ function DatabaseComparisonOutput({ toolResult }) {
 
 
 const STRUCTURED_TOOL_RESULT_RENDERERS = {
+  'browser_automation_summary.v1': BrowserAutomationOutput,
+  'capability_catalog_summary.v1': CapabilityCatalogOutput,
   'macro_ingestion_summary.v1': MacroIngestionOutput,
   'repository_package_summary.v1': RepositoryPackageOutput,
   'repository_map_summary.v1': RepositoryMapOutput,
@@ -2149,23 +2167,41 @@ const STRUCTURED_TOOL_RESULT_RENDERERS = {
   'git_commit_summary.v1': GitCommitOutput,
   'git_branch_sync_summary.v1': GitBranchSyncOutput,
   'git_local_sync_summary.v1': GitLocalSyncOutput,
+  'git_dev_pull_summary.v1': GitDevPullOutput,
   'database_health_summary.v1': DatabaseHealthOutput,
   'database_build_summary.v1': DatabaseBuildOutput,
+  'database_upgrade_summary.v1': DatabaseUpgradeOutput,
   'postgresql_database_comparison_summary.v1': DatabaseComparisonOutput,
+  'dev_env_reconcile_summary.v1': DevEnvReconcileOutput,
+  'dev_finalization_preflight_summary.v1': DevFinalizationPreflightOutput,
+  'dev_finalization_lifecycle_summary.v1': DevFinalizationLifecycleOutput,
+  'dev_finalization_validation_summary.v1': DevFinalizationValidationOutput,
+  'dev_finalization_readiness_summary.v1': DevFinalizationReadinessOutput,
+  'dev_finalization_summary.v1': DevFinalizationReceiptOutput,
 };
 
 export function isStructuredToolResultDisplaySupported(toolResult) {
+  return Boolean(STRUCTURED_TOOL_RESULT_RENDERERS[toolResult?.outputType] || isStructuredToolResultEnvelope(toolResult));
+}
+
+export function isStructuredToolResultRendererRegistered(toolResult) {
   return Boolean(STRUCTURED_TOOL_RESULT_RENDERERS[toolResult?.outputType]);
 }
 
-function StructuredToolResultDisplay({ toolResult }) {
-  const Renderer = STRUCTURED_TOOL_RESULT_RENDERERS[toolResult?.outputType];
+export function getStructuredToolResultRendererOutputTypes() {
+  return Object.keys(STRUCTURED_TOOL_RESULT_RENDERERS);
+}
 
-  if (!Renderer) {
+export function StructuredToolResultDisplay({ toolResult }) {
+  const Renderer = STRUCTURED_TOOL_RESULT_RENDERERS[toolResult?.outputType] || GenericStructuredToolResultOutput;
+
+  if (!toolResult?.outputType || !isStructuredToolResultEnvelope(toolResult)) {
     return null;
   }
 
   return <Renderer toolResult={toolResult} />;
 }
+
+export { getStructuredToolResultSummary };
 
 export default StructuredToolResultDisplay;

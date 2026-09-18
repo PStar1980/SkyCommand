@@ -6,6 +6,7 @@ const { executeMainMerge } = require('../../git/src/main_merge');
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
 const { executeLocalDevPull } = require('../../git/src/local_dev_pull');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
+const { executeDevFinalizationLifecycle } = require('./devFinalizationLifecycle');
 const { getBrowserRuntimeConfig } = require('../../browser/src/config');
 const { runBrowserTest } = require('../../browser/src/browserTestRunner');
 const { runBrowserAutomation } = require('../../browser/src/browserAutomationRunner');
@@ -34,6 +35,7 @@ const LOCAL_DEV_PULL_TOOL_CODE = 'local_dev_pull';
 const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 const BROWSER_TEST_INTERACTIVE_TOOL_CODE = '__browser_test_interactive';
 const BROWSER_AUTOMATION_INTERACTIVE_TOOL_CODE = '__browser_automation_interactive';
+const DEV_FINALIZATION_LIFECYCLE_TOOL_CODE = '__dev_finalization_lifecycle';
 
 function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
@@ -120,6 +122,23 @@ async function executeSkyCommandHostToolActivity(input = {}) {
         baseUrl: hostBaseUrl,
       },
     );
+  }
+
+  if (toolCode === DEV_FINALIZATION_LIFECYCLE_TOOL_CODE) {
+    try {
+      const result = await executeDevFinalizationLifecycle(input);
+      return {
+        ok: true,
+        toolCode,
+        result,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
   }
 
   if (toolCode === DOCKER_SNAPSHOT_TOOL_CODE) {
@@ -388,6 +407,7 @@ module.exports = {
   DOCKER_RESOURCE_DETAIL_TOOL_CODE,
   BROWSER_TEST_INTERACTIVE_TOOL_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
+  DEV_FINALIZATION_LIFECYCLE_TOOL_CODE,
   DEV_COMMIT_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
   LOCAL_DEV_PULL_TOOL_CODE,

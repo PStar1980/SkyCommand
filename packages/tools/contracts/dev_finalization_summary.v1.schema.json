@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/dev_finalization_summary.v1.schema.json",
+  "title": "SkyCommand R5 DEV finalization summary v1",
+  "type": "object",
+  "required": [
+    "contract",
+    "outcome",
+    "runId",
+    "workflowCode",
+    "sourceIdentity",
+    "sourceChange",
+    "environment",
+    "database",
+    "lifecycle",
+    "validation",
+    "readiness",
+    "artifacts",
+    "zipEntries",
+    "receiptPath",
+    "receiptSelfHashConvention",
+    "lockReleasePolicy",
+    "lockStateAtPersist",
+    "lockReleased",
+    "timing",
+    "warnings"
+  ],
+  "properties": {
+    "contract": { "const": "dev_finalization_summary.v1" },
+    "outcome": { "type": "string", "enum": ["COMPLETE", "NO_CHANGES", "FAILED"] },
+    "runId": { "type": ["string", "null"] },
+    "workflowCode": { "type": "string" },
+    "sourceIdentity": {
+      "type": "object",
+      "required": ["algorithm", "digest", "baseRevision", "manifestDigest", "fileCount", "excludedGeneratedOutputs"],
+      "properties": {
+        "algorithm": { "type": "string" },
+        "digest": { "type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$" },
+        "baseRevision": { "type": ["string", "null"] },
+        "manifestDigest": { "type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$" },
+        "fileCount": { "type": "number", "minimum": 0 },
+        "excludedGeneratedOutputs": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "sourceChange": {
+      "type": "object",
+      "required": ["changed", "changedPaths", "changedPathCount", "changedPathsDigest", "priorSourceIdentityDigest"],
+      "properties": {
+        "changed": { "type": "boolean" },
+        "changedPaths": { "type": "array", "items": { "type": "string" } },
+        "changedPathCount": { "type": "number", "minimum": 0 },
+        "changedPathsDigest": { "type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$" },
+        "priorSourceIdentityDigest": { "type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$" }
+      },
+      "additionalProperties": true
+    },
+    "environment": {
+      "type": "object",
+      "required": ["preflight", "execution", "final"],
+      "properties": {
+        "preflight": { "type": "object" },
+        "execution": { "type": "object" },
+        "final": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "database": {
+      "type": "object",
+      "required": ["preflight", "execution", "final"],
+      "properties": {
+        "preflight": { "type": "object" },
+        "execution": { "type": "object" },
+        "final": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["required", "outcome", "reason", "action", "services", "deferredServices"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "outcome": { "type": "string" },
+        "reason": { "type": ["string", "null"] },
+        "action": { "type": ["string", "null"] },
+        "services": { "type": "array", "items": { "type": "string" } },
+        "deferredServices": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "validation": { "type": "object" },
+    "readiness": { "type": "object" },
+    "validationOutcome": { "type": "string" },
+    "readinessOutcome": { "type": "string" },
+    "artifacts": { "type": "object" },
+    "zipEntries": { "type": "array" },
+    "receiptPath": { "type": ["string", "null"] },
+    "receiptSha256": { "type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$" },
+    "receiptSelfHashConvention": { "const": "SELF_HASH_FIELD_NULL_DURING_HASH" },
+    "lockReleasePolicy": { "const": "RELEASE_AFTER_RECEIPT_PERSIST" },
+    "lockStateAtPersist": { "type": "string", "enum": ["HELD", "RELEASED"] },
+    "lockReleased": { "type": "boolean" },
+    "timing": { "type": "object" },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

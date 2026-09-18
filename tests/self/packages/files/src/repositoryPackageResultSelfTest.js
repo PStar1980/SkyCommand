@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 
 const {
+  FINALIZATION_RECEIPT_RELATIVE_PATH,
   executeRepositoryZip,
   flattenFiles,
   parseRepositoryZipArgs,
@@ -28,6 +29,7 @@ async function run() {
   const outputRoot = path.join(tempRoot, 'output');
 
   fs.mkdirSync(path.join(sourceRoot, 'src'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, 'docs', 'generated'), { recursive: true });
   fs.mkdirSync(path.join(sourceRoot, 'tests', 'self'), { recursive: true });
   const assetRoot = path.join(sourceRoot, 'apps', 'admin-web', 'src', 'assets');
   const publicRoot = path.join(sourceRoot, 'apps', 'admin-web', 'public');
@@ -38,11 +40,27 @@ async function run() {
   fs.mkdirSync(path.join(sourceRoot, '__pycache__'), { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'README.md'), '# Sample\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, 'src', 'index.js'), 'console.log("hello");\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, 'docs', 'SkyCommand_RepoMap.md'), '# Repo Map\n', 'utf8');
+  fs.writeFileSync(
+    path.join(sourceRoot, 'docs', 'generated', 'SkyCommand_Capability_Catalog.json'),
+    '{"catalog":"old"}\n',
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(sourceRoot, 'docs', 'generated', 'SkyCommand_Capability_Catalog.xlsx'),
+    Buffer.from('catalog-xlsx'),
+  );
+  fs.writeFileSync(
+    path.join(sourceRoot, FINALIZATION_RECEIPT_RELATIVE_PATH),
+    '{"runId":"old-r5-run"}\n',
+    'utf8',
+  );
   fs.writeFileSync(path.join(sourceRoot, 'tests', 'self', 'sampleSelfTest.js'), 'console.log("test");\n', 'utf8');
   fs.writeFileSync(path.join(assetRoot, 'sky-net-background.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   fs.writeFileSync(path.join(assetRoot, 'optional-preview.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
   fs.writeFileSync(path.join(publicRoot, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, '.env'), 'SECRET=do-not-package\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, '.env.example'), 'PUBLIC_SETTING=example\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, '.venv', 'Lib', 'site-packages', 'heavy.py'), 'ignored\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, '.pytest_cache', 'v', 'cache', 'nodeids'), '[]\n', 'utf8');
   fs.writeFileSync(path.join(sourceRoot, '__pycache__', 'module.pyc'), Buffer.from([0x00]));
@@ -75,6 +93,32 @@ async function run() {
     assert.ok(!defaultFiles.some((file) => file.relativePath.includes('.pytest_cache')));
     assert.ok(!defaultFiles.some((file) => file.relativePath.includes('__pycache__')));
     assert.ok(!defaultFiles.some((file) => file.relativePath.startsWith(`tests${path.sep}`)));
+    assert.ok(
+      defaultFiles.some(
+        (file) => file.relativePath.replaceAll(path.sep, '/') === 'docs/SkyCommand_RepoMap.md',
+      ),
+    );
+    assert.ok(
+      defaultFiles.some(
+        (file) =>
+          file.relativePath.replaceAll(path.sep, '/') ===
+          'docs/generated/SkyCommand_Capability_Catalog.json',
+      ),
+    );
+    assert.ok(
+      defaultFiles.some(
+        (file) =>
+          file.relativePath.replaceAll(path.sep, '/') ===
+          'docs/generated/SkyCommand_Capability_Catalog.xlsx',
+      ),
+    );
+    assert.ok(defaultFiles.some((file) => file.relativePath === '.env.example'));
+    assert.ok(!defaultFiles.some((file) => file.relativePath === '.env'));
+    assert.ok(
+      !defaultFiles.some(
+        (file) => file.relativePath.replaceAll(path.sep, '/') === FINALIZATION_RECEIPT_RELATIVE_PATH,
+      ),
+    );
 
     const includeTestsParsed = await parseRepositoryZipArgs(
       ['SampleRepo', '--include-tests'],
@@ -105,7 +149,7 @@ async function run() {
     });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.repositoryName, 'Sample Repository');
-    assert.strictEqual(result.filesIncluded, 3);
+    assert.strictEqual(result.filesIncluded, 7);
     assert.ok(result.sourceBytes > 0);
     assert.ok(result.archiveBytes > 0);
     assert.ok(result.performanceTelemetry.instrumentedTotalMs >= 0);
@@ -118,12 +162,18 @@ async function run() {
     );
     assert.ok(fs.existsSync(result.artifactPath));
     assert.strictEqual(fs.readFileSync(result.artifactPath, { encoding: null }).subarray(0, 2).toString(), 'PK');
+    const firstArchive = fs.readFileSync(result.artifactPath);
+    const repeatedResult = await executeRepositoryZip(['SampleRepo'], {
+      loadRepositoryArtifactConfiguration,
+    });
+    assert.strictEqual(repeatedResult.filesIncluded, result.filesIncluded);
+    assert.deepStrictEqual(fs.readFileSync(repeatedResult.artifactPath), firstArchive);
 
     const toolResult = createRepositoryPackageToolResult(result);
     assert.strictEqual(toolResult.success, true);
     assert.strictEqual(toolResult.outputType, REPOSITORY_PACKAGE_OUTPUT_TYPE);
     assert.strictEqual(toolResult.output.outcome, 'CREATED');
-    assert.strictEqual(toolResult.output.filesIncluded, 3);
+    assert.strictEqual(toolResult.output.filesIncluded, 7);
     assert.strictEqual(toolResult.output.options.testsIncluded, false);
     assert.strictEqual(toolResult.output.options.sensitiveEnvironmentFilesExcluded, true);
     assert.ok(toolResult.output.compressionRatio > 0);
@@ -134,6 +184,12 @@ async function run() {
     );
     assert.ok(!Object.prototype.hasOwnProperty.call(toolResult.output, 'stdout'));
     assert.ok(!Object.prototype.hasOwnProperty.call(toolResult.output, 'stderr'));
+    const outputSchema = require('../../tools/contracts/repository_package_summary.v1.schema.json');
+    const { validateToolResult } = require('../../tools/src/toolResultContract');
+    validateToolResult(toolResult, {
+      expectedOutputType: REPOSITORY_PACKAGE_OUTPUT_TYPE,
+      outputSchema,
+    });
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

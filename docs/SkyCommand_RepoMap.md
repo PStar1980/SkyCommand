@@ -94,6 +94,8 @@ SkyCommand/
 │   │       │   │   └── WorkflowHistoryVisuals.jsx
 │   │       │   ├── tools/
 │   │       │   │   ├── StructuredToolResultDisplay.jsx
+│   │       │   │   ├── StructuredToolResultPresenters.jsx
+│   │       │   │   ├── structuredToolResultWarnings.cjs
 │   │       │   │   └── ToolExecutionOutputPanels.jsx
 │   │       │   └── ui/
 │   │       │       ├── DashboardFilterCard.jsx
@@ -1387,60 +1389,7 @@ SkyCommand/
 │           ├── report/
 │           │   └── index.html
 │           └── results/
-│               ├── .last-run.json
-│               └── .playwright-artifacts-0/
-│                   └── traces/
-│                       └── resources/
-│                           ├── 0a0120f37c763f767599aaa4ba9f704af26419e9.json
-│                           ├── 0c736da785c92444db63b25963fd8beb89798ce1.html
-│                           ├── 0e6b9073b7cf569b00bd5b4a8bbeecc7d7adca34.json
-│                           ├── 1353b6958faa7d833d1492c98566e714f8540ecd.json
-│                           ├── 1ea0500bdd02c73bcd6b48d2d83ac42be5a674fc.json
-│                           ├── 3626ab79deee7998a744e27e9b8a31f2c7272cb0.png
-│                           ├── 59b16f282ec8be4b6f6d4feff660f72c221fe36e.json
-│                           ├── 5bddb87f2573bca1db0bf96a497ef60a94362ac7.css
-│                           ├── 6fd0f0ca46886e33902862da955fbc8817e7cfe9.json
-│                           ├── 76d943cb96b26604d075baed61fcd90fc1f173a0.json
-│                           ├── 96a0117ee9005ab15434f0f936f8c3ea349d967e.png
-│                           ├── aa6ac398ab464b28f60b355b3090f991863148b0.json
-│                           ├── ac3bf7253e1eacf53860ecb78d4aa5412c611df6.png
-│                           ├── c5d1a2aa31758ad0450758d6916ce36f0a04ead6.json
-│                           ├── d940365aa516ea450b1d82ec02414326904f6817.json
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913438923.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439179.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439207.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439230.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439254.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439276.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439300.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439323.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439345.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439368.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439392.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439413.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439433.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439455.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439477.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439614.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439637.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439666.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439820.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439873.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439949.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439956.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913439993.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440054.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440087.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440112.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440145.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440163.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440239.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440332.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440431.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440440.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440460.jpeg
-│                           ├── page@f3bcc555655fd05107b53fd0329928ef-1788913440556.jpeg
-│                           └── page@f3bcc555655fd05107b53fd0329928ef-1788913440571.jpeg
+│               └── .last-run.json
 ├── browser-automation/
 │   ├── README.md
 │   └── scripts/
@@ -1516,7 +1465,8 @@ SkyCommand/
 │   │   ├── README.md
 │   │   ├── SkyCommand_Capability_Catalog_Registration_Guide.md
 │   │   ├── SkyCommand_Capability_Catalog.json
-│   │   └── SkyCommand_Capability_Catalog.xlsx
+│   │   ├── SkyCommand_Capability_Catalog.xlsx
+│   │   └── SkyCommand_DevFinalizationSummary.json
 │   └── images/
 │       └── readme/
 │           ├── Approval_Prompt.png
@@ -1665,7 +1615,9 @@ SkyCommand/
 │   │       │   ├── 00136__database_upgrade_tool_admin_scope.sql
 │   │       │   ├── 00137__dev_env_reconcile_tool.sql
 │   │       │   ├── 00138__governed_workflow_agent_execution.sql
-│   │       │   └── 00139__governed_workflow_agent_docker_local_grant.sql
+│   │       │   ├── 00139__governed_workflow_agent_docker_local_grant.sql
+│   │       │   ├── 00140__dev_change_finalize_r5.sql
+│   │       │   └── 00141__r5_final_naming_convention.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1728,6 +1680,16 @@ SkyCommand/
 │   │       ├── databaseUpgradeEngine.js
 │   │       ├── databaseUpgradeResult.js
 │   │       └── db_upgrade.js
+│   ├── dev-finalization/
+│   │   └── src/
+│   │       ├── finalization.js
+│   │       ├── finalizationResult.js
+│   │       ├── lifecycle.js
+│   │       ├── packaging.js
+│   │       ├── preflight.js
+│   │       ├── readiness.js
+│   │       ├── receipt.js
+│   │       └── validation.js
 │   ├── files/
 │   │   └── src/
 │   │       ├── generateRepoMap.js
@@ -1754,6 +1716,7 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── activities.js
 │   │       ├── config.js
+│   │       ├── devFinalizationLifecycle.js
 │   │       ├── dockerContainer.js
 │   │       ├── dockerControl.js
 │   │       ├── dockerEventBridge.js
@@ -1891,6 +1854,11 @@ SkyCommand/
 │       │   ├── database_health_summary.v1.schema.json
 │       │   ├── database_upgrade_summary.v1.schema.json
 │       │   ├── dev_env_reconcile_summary.v1.schema.json
+│       │   ├── dev_finalization_lifecycle_summary.v1.schema.json
+│       │   ├── dev_finalization_preflight_summary.v1.schema.json
+│       │   ├── dev_finalization_readiness_summary.v1.schema.json
+│       │   ├── dev_finalization_summary.v1.schema.json
+│       │   ├── dev_finalization_validation_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── git_dev_pull_summary.v1.schema.json
@@ -2120,6 +2088,10 @@ SkyCommand/
 │   │   ├── Start-SkyCommandSupervisor.ps1
 │   │   └── Start-SkyCommandSupervisorHidden.vbs
 │   └── python/
+├── test-results/
+│   ├── .last-run.json
+│   └── tests-browser-specs-workfl-c7a11-lazily-requests-diagnostics/
+│       └── error-context.md
 └── tests/
     ├── README.md
     ├── _support/
@@ -2151,7 +2123,8 @@ SkyCommand/
     │       ├── tools/
     │       │   └── .gitkeep
     │       └── workflows/
-    │           └── workflowInitialization.spec.js
+    │           ├── workflowInitialization.spec.js
+    │           └── workflowOperationsPerformance.spec.js
     ├── fixtures/
     │   └── agentic-ai/
     │       └── phase-0/
@@ -2193,6 +2166,7 @@ SkyCommand/
         │   │       │   ├── repositoryPageSplitSelfTest.js
         │   │       │   ├── runToolsCatalogueSelfTest.js
         │   │       │   ├── schedulerPageSplitSelfTest.js
+        │   │       │   ├── structuredToolResultRendererSelfTest.js
         │   │       │   ├── supervisorRuntimeControlSelfTest.js
         │   │       │   ├── toolHistoryCatalogueSelfTest.js
         │   │       │   ├── toolOperationsSortingSelfTest.js
@@ -2200,6 +2174,7 @@ SkyCommand/
         │   │       │   ├── workflowCategoryUiSelfTest.js
         │   │       │   ├── workflowDatabaseOutputSelfTest.js
         │   │       │   ├── workflowEditorGraphParitySelfTest.js
+        │   │       │   ├── workflowOperationsPerformanceSelfTest.js
         │   │       │   ├── workflowOperationsTableRefinementSelfTest.js
         │   │       │   └── workflowStartCatalogueSelfTest.js
         │   │       └── services/
@@ -2269,12 +2244,16 @@ SkyCommand/
         │   ├── db_build/
         │   │   └── src/
         │   │       ├── assistantWorkflowRunAttributionSelfTest.js
-        │   │       └── dbBuildResultSelfTest.js
+        │   │       ├── dbBuildResultSelfTest.js
+        │   │       └── devChangeFinalizeNamingSelfTest.js
         │   ├── db_upgrade/
         │   │   └── src/
         │   │       ├── databaseUpgradeCliSelfTest.js
         │   │       ├── databaseUpgradeR2SelfTest.js
         │   │       └── databaseUpgradeSelfTest.js
+        │   ├── dev-finalization/
+        │   │   └── src/
+        │   │       └── devFinalizationSelfTest.js
         │   ├── files/
         │   │   └── src/
         │   │       ├── repositoryArtifactConfigurationSelfTest.js

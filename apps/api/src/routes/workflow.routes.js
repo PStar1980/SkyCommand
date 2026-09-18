@@ -85,6 +85,12 @@ router.get(
 );
 
 router.get(
+  '/runs/:workflowRunRecordId/diagnostics',
+  requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
+  workflowController.getRunDiagnostics,
+);
+
+router.get(
   '/runs/:workflowRunRecordId/telemetry',
   requireAnyPermission(['WORKFLOW_READ', 'TEMPORAL_WORKFLOW_READ', 'WORKER_SCHEDULE_READ']),
   workflowController.getRunTelemetry,

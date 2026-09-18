@@ -187,6 +187,25 @@ async function failSkyserverWorkflowRunActivity(input = {}) {
   });
 }
 
+async function reconcileDevFinalizationFailureActivity(input = {}) {
+  if (input.workflowCode !== 'dev_change_finalize') {
+    return { skipped: true, reason: 'NOT_R5_FINALIZATION' };
+  }
+  const { markFinalizationFailure } = require('../../../../packages/dev-finalization/src/finalization');
+  const error = {
+    code: input.error?.code || 'R5_FINALIZATION_FAILED',
+    message: input.error?.message || 'R5 DEV finalization failed.',
+  };
+  await markFinalizationFailure(input.workflowRunRecordId, error);
+  return {
+    skipped: false,
+    workflowRunRecordId: input.workflowRunRecordId,
+    status: 'FAILED',
+    lockReleased: true,
+    failureCode: error.code,
+  };
+}
+
 
 async function createSkyserverWorkflowApprovalRequestActivity(input = {}) {
   console.log(`[Temporal:SkyWorkflow] Creating approval request for node ${input.node?.nodeKey}`);
@@ -226,6 +245,7 @@ module.exports = {
   failSkyserverWorkflowNodeRunActivity,
   failSkyserverWorkflowRunActivity,
   resolveSkyserverWorkflowApprovalRequestActivity,
+  reconcileDevFinalizationFailureActivity,
   linkSkyserverWorkflowRunToTemporalActivity,
   loadSkyserverWorkflowDefinitionActivity,
   loadSkyserverWorkflowNodeRecoveryStateActivity,
@@ -241,6 +261,7 @@ module.exports = {
   failSkyCommandWorkflowNodeRunActivity: failSkyserverWorkflowNodeRunActivity,
   failSkyCommandWorkflowRunActivity: failSkyserverWorkflowRunActivity,
   resolveSkyCommandWorkflowApprovalRequestActivity: resolveSkyserverWorkflowApprovalRequestActivity,
+  reconcileDevChangeFinalizeFailureActivity: reconcileDevFinalizationFailureActivity,
   linkSkyCommandWorkflowRunToTemporalActivity: linkSkyserverWorkflowRunToTemporalActivity,
   loadSkyCommandWorkflowDefinitionActivity: loadSkyserverWorkflowDefinitionActivity,
   loadSkyCommandWorkflowNodeRecoveryStateActivity: loadSkyserverWorkflowNodeRecoveryStateActivity,
