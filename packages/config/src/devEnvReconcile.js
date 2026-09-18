@@ -6,6 +6,7 @@ const path = require('node:path');
 const dotenv = require('dotenv');
 
 const { isSecretSensitiveKey } = require('../../capability-catalog/src/redaction');
+const { translateWorkspacePath } = require('../../core/src/runtimePathResolver');
 const { runToolCli } = require('../../tools/src/toolCliAdapter');
 const {
   createDevEnvReconcileFailureToolResult,
@@ -704,13 +705,20 @@ function reconcileEnvironment({
 async function verifyRegisteredDevContext({
   environment = process.env,
   query = null,
-  repositoryRoot = REPOSITORY_ROOT,
+  repositoryRoot = null,
 } = {}) {
-  if (getProfileCode(environment) !== ENVIRONMENT_CODE) {
+  const profileCode = getProfileCode(environment);
+  if (profileCode !== ENVIRONMENT_CODE && profileCode !== 'DOCKER_LOCAL') {
     throw reconcileError('REGISTERED_CONTEXT_INVALID');
   }
 
   const databaseQuery = query || require('../../db/src/connection').query;
+  const resolvedRepositoryRoot =
+    repositoryRoot ||
+    (await resolveRegisteredRepositoryRoot({
+      environment,
+      query: databaseQuery,
+    }));
   const bindingResult = await databaseQuery(
     `
       SELECT cp.profile_code, r.repo_id, r.repo_code, rp.root_path
@@ -723,14 +731,17 @@ async function verifyRegisteredDevContext({
         AND r.active = TRUE
         AND r.is_skycommand_repository = TRUE
     `,
-    [ENVIRONMENT_CODE],
+    [profileCode],
   );
 
   if (bindingResult.rowCount !== 1 || bindingResult.rows[0].repo_code !== REPOSITORY_CODE) {
     throw reconcileError('REGISTERED_CONTEXT_INVALID');
   }
 
-  if (normalizeRoot(bindingResult.rows[0].root_path) !== normalizeRoot(repositoryRoot)) {
+  if (
+    normalizeRoot(bindingResult.rows[0].root_path) !==
+    normalizeRoot(resolvedRepositoryRoot)
+  ) {
     throw reconcileError('REGISTERED_CONTEXT_INVALID');
   }
 
@@ -797,13 +808,55 @@ async function verifyRegisteredDevContext({
   }
 
   return {
-    environmentCode: ENVIRONMENT_CODE,
+    environmentCode: profileCode,
     repositoryCode: REPOSITORY_CODE,
     repositoryId: bindingResult.rows[0].repo_id,
     toolCode: TOOL_CODE,
     toolId: tool.tool_id,
     permissionCode: PERMISSION_CODE,
   };
+}
+
+async function resolveRegisteredRepositoryRoot({ environment = process.env, query = null } = {}) {
+  const profileCode = getProfileCode(environment);
+  if (profileCode !== ENVIRONMENT_CODE && profileCode !== 'DOCKER_LOCAL') {
+    throw reconcileError('REGISTERED_CONTEXT_INVALID');
+  }
+
+  const databaseQuery = query || require('../../db/src/connection').query;
+  const result = await databaseQuery(
+    `
+      SELECT cp.profile_code, r.repo_code, rp.root_path
+      FROM core.config_profiles cp
+      JOIN core.repository_paths rp ON rp.profile_id = cp.profile_id
+      JOIN core.repositories r ON r.repo_id = rp.repo_id
+      WHERE cp.profile_code = $1
+        AND cp.active = TRUE
+        AND rp.active = TRUE
+        AND r.active = TRUE
+        AND r.is_skycommand_repository = TRUE
+        AND LOWER(r.repo_code) = LOWER($2)
+    `,
+    [profileCode, REPOSITORY_CODE],
+  );
+
+  if (result.rowCount !== 1 || result.rows[0].repo_code !== REPOSITORY_CODE) {
+    throw reconcileError('REGISTERED_CONTEXT_INVALID');
+  }
+
+  const repositoryRoot = path.resolve(
+    String(
+      translateWorkspacePath(result.rows[0].root_path, {
+        environment,
+        profileCode,
+      }),
+    ),
+  );
+  if (!fs.existsSync(repositoryRoot) || !fs.statSync(repositoryRoot).isDirectory()) {
+    throw reconcileError('REGISTERED_CONTEXT_INVALID');
+  }
+
+  return repositoryRoot;
 }
 
 function parseCliArguments(args = []) {
@@ -823,9 +876,10 @@ function parseCliArguments(args = []) {
 
 async function executeCli(args) {
   const patch = parseCliArguments(args);
-  const binding = await verifyRegisteredDevContext({ repositoryRoot: REPOSITORY_ROOT });
+  const repositoryRoot = await resolveRegisteredRepositoryRoot();
+  const binding = await verifyRegisteredDevContext({ repositoryRoot });
   return reconcileEnvironment({
-    repositoryRoot: REPOSITORY_ROOT,
+    repositoryRoot,
     patch,
     binding,
     executionId: process.env.SKYCOMMAND_EXECUTION_ID || null,
@@ -883,4 +937,5 @@ module.exports = {
   reconcileEnvironment,
   renderReconcileResult,
   verifyRegisteredDevContext,
+  resolveRegisteredRepositoryRoot,
 };

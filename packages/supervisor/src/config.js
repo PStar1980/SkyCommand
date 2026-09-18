@@ -17,6 +17,13 @@ const DEFAULT_BACKEND_REBUILD_SERVICES = [
   'browser-worker',
   'node-worker',
 ];
+const FINALIZATION_REBUILD_SERVICES = Object.freeze([
+  'api',
+  'temporal-worker',
+  'browser-worker',
+  'node-worker',
+  'web',
+]);
 const DEFAULT_STARTUP_TIMEOUT_MS = 180000;
 const DEFAULT_CONTROL_TIMEOUT_MS = 180000;
 const DEFAULT_REBUILD_TIMEOUT_MS = 300000;
@@ -120,6 +127,7 @@ module.exports = {
   DEFAULT_SUPERVISOR_PORT,
   DEFAULT_SUPERVISOR_PROJECT_NAME,
   DEFAULT_WEB_SERVICE,
+  FINALIZATION_REBUILD_SERVICES,
   getSupervisorConfig,
   normalizePort,
   parseBackendRebuildServices,

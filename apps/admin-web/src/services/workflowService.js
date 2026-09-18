@@ -93,6 +93,10 @@ function getRun(workflowRunRecordId) {
   return api.get(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}`);
 }
 
+function getRunDiagnostics(workflowRunRecordId) {
+  return api.get(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/diagnostics`);
+}
+
 function getRunTelemetry(workflowRunRecordId) {
   return api.get(`/api/workflows/runs/${encodeURIComponent(workflowRunRecordId)}/telemetry`);
 }
@@ -130,6 +134,7 @@ const workflowService = {
   getDefinition,
   getManagedDefinition,
   getRun,
+  getRunDiagnostics,
   getRunTelemetry,
   listActiveRuns,
   listApprovals,

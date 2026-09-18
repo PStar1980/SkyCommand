@@ -2,9 +2,11 @@ const fs = require('node:fs');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { buildChildProcessEnvironment } = require('../../core/src/repositoryEnvironment');
+const { FINALIZATION_REBUILD_SERVICES } = require('./config');
 
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'REBUILD_WEB', 'REBUILD_BACKEND']);
+const FINALIZATION_SERVICE_SET = new Set(FINALIZATION_REBUILD_SERVICES);
 
 class SupervisorRuntimeError extends Error {
   constructor(message, code = 'SKYCOMMAND_SUPERVISOR_RUNTIME_FAILED', details = {}) {
@@ -260,6 +262,43 @@ async function rebuildBackend(config, options = {}) {
   };
 }
 
+function normalizeFinalizationServices(services) {
+  if (!Array.isArray(services) || services.length === 0) {
+    throw new SupervisorRuntimeError(
+      'R5 finalization requires a non-empty fixed service list.',
+      'SKYCOMMAND_SUPERVISOR_FINALIZATION_SERVICES_REQUIRED',
+    );
+  }
+
+  const normalized = [...new Set(services.map((service) => normalizeText(service)))];
+  const unsupported = normalized.filter((service) => !FINALIZATION_SERVICE_SET.has(service));
+  if (unsupported.length > 0) {
+    throw new SupervisorRuntimeError(
+      'R5 finalization requested a service outside the fixed rebuild allowlist.',
+      'SKYCOMMAND_SUPERVISOR_FINALIZATION_SERVICE_NOT_ALLOWED',
+      { unsupported },
+    );
+  }
+
+  return FINALIZATION_REBUILD_SERVICES.filter((service) => normalized.includes(service));
+}
+
+async function rebuildServices(config, services, options = {}) {
+  const normalizedServices = normalizeFinalizationServices(services);
+  const result = await executeDocker(
+    config,
+    ['up', '-d', '--build', '--force-recreate', ...normalizedServices],
+    { ...options, timeout: config.rebuildTimeoutMs || config.controlTimeoutMs },
+  );
+
+  return {
+    action: 'REBUILD_SERVICES',
+    services: normalizedServices,
+    stdout: normalizeText(result.stdout),
+    status: await getRuntimeStatus(config, options),
+  };
+}
+
 async function controlRuntime(config, action, options = {}) {
   const normalized = normalizeText(action).toUpperCase();
   if (!ALLOWED_ACTIONS.has(normalized)) {
@@ -284,6 +323,10 @@ module.exports = {
   executeDocker,
   controlRuntime,
   getRuntimeStatus,
+  FINALIZATION_REBUILD_SERVICES,
+  FINALIZATION_SERVICE_SET,
+  normalizeFinalizationServices,
+  rebuildServices,
   parseComposePsOutput,
   rebuildBackend,
   rebuildWeb,

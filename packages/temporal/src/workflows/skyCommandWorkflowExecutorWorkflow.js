@@ -14,6 +14,7 @@ const {
   getToolResultDomainOutput,
   isToolResultEnvelope,
 } = require('../../../tools/src/workflowResultContext');
+const { applyR5RepositoryZipParameters } = require('../../../dev-finalization/src/packaging');
 
 const definitionActivities = proxyActivities({
   startToCloseTimeout: '2 minutes',
@@ -140,13 +141,20 @@ function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
     ...nodeOverride,
   };
 
-  return resolveRuntimeTemplates(
+  const resolvedParameters = resolveRuntimeTemplates(
     mergedParameters,
     buildTemplateResolutionScope({
       requestInput: input,
       context: executionContext,
     }),
   );
+
+  return applyR5RepositoryZipParameters({
+    workflowCode: executionContext?.definition?.workflowCode,
+    nodeKey: node.nodeKey,
+    targetCode: node.targetCode,
+    parameters: resolvedParameters,
+  });
 }
 
 function cloneJsonCompatible(value) {
@@ -2243,6 +2251,21 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
           : {}),
       },
     });
+
+    if (workflowCode === 'dev_change_finalize') {
+      try {
+        await ledgerActivities.reconcileDevFinalizationFailureActivity({
+          workflowCode,
+          workflowRunRecordId,
+          error: {
+            code: normalizedError.name || 'R5_FINALIZATION_FAILED',
+            message: normalizedError.message,
+          },
+        });
+      } catch (recoveryError) {
+        console.error('[Temporal:SkyWorkflow] R5 finalization failure recovery failed:', recoveryError?.message || recoveryError);
+      }
+    }
 
     throw ApplicationFailure.create({
       message: normalizedError.message,

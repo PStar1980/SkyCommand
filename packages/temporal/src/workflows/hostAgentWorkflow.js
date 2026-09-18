@@ -17,20 +17,25 @@ async function skyCommandHostAgentToolWorkflow(input = {}) {
     toolCode === '__docker_compose_control' ||
     toolCode === '__docker_container_control' ||
     toolCode === '__docker_resource_control';
+  const isDevFinalizationLifecycle = toolCode === '__dev_finalization_lifecycle';
   const { executeSkyCommandHostToolActivity } = proxyActivities({
     taskQueue: hostTaskQueue,
     scheduleToStartTimeout: isFastProbe || isDockerDetail
       ? '5 seconds'
       : isDockerControl
-        ? '15 seconds'
-        : '45 seconds',
+      ? '15 seconds'
+      : isDevFinalizationLifecycle
+        ? '45 seconds'
+      : '45 seconds',
     startToCloseTimeout: isFastProbe
       ? '15 seconds'
       : isDockerDetail
         ? '45 seconds'
         : isDockerControl
-          ? '3 minutes'
-          : isInteractiveBrowserTest || isInteractiveBrowserAutomation
+        ? '3 minutes'
+        : isDevFinalizationLifecycle
+          ? '8 minutes'
+        : isInteractiveBrowserTest || isInteractiveBrowserAutomation
             ? '65 minutes'
             : '10 minutes',
     retry: {

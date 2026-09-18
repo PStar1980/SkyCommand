@@ -15,6 +15,8 @@ const routineSelfTests = [
   'db-upgrade:self-test',
   'db-upgrade-cli:self-test',
   'dev-env-reconcile:self-test',
+  'dev-finalization-r5:self-test',
+  'workflow-operations-performance:self-test',
   'assistant-workflow-run-attribution:self-test',
   'tool-template:self-test',
   'skycommand-repository:self-test',

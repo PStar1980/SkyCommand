@@ -1734,7 +1734,7 @@ function buildTemporalDiagnostics({ config, workflow = {}, workflowId, runId, hi
   };
 }
 
-async function getWorkflowRuntimeDetail({ workflowId, runId, includeHistory = true } = {}) {
+async function getWorkflowRuntimeDetail({ workflowId, runId, includeHistory = false } = {}) {
   if (!workflowId) {
     return null;
   }

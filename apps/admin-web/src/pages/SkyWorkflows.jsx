@@ -8,9 +8,11 @@ import WorkflowApprovalOverlay from '../components/WorkflowApprovalOverlay.jsx';
 import WorkflowVisualGraph from '../components/WorkflowVisualGraph.jsx';
 import {
   ArchiveBuildBreakdownTable,
+  getStructuredToolResultSummary,
   MacroIngestionWorkloadTelemetryTable,
   PerformanceTelemetryTable,
   ProcessEnvelopeTelemetryTable,
+  StructuredToolResultDisplay,
   TransportTelemetryTable,
 } from '../components/tools/StructuredToolResultDisplay.jsx';
 import workflowService from '../services/workflowService';
@@ -4787,40 +4789,9 @@ function WorkflowNodeOutputLedger({
     () => getFocusedConditionResult(outputs, selectedNode?.nodeKey),
     [outputs, selectedNode?.nodeKey],
   );
-  const macroIngestionResult =
-    structuredToolResult?.outputType === 'macro_ingestion_summary.v1' ? structuredToolResult : null;
-  const repositoryPackageResult =
-    structuredToolResult?.outputType === 'repository_package_summary.v1'
-      ? structuredToolResult
-      : null;
-  const repositoryMapResult =
-    structuredToolResult?.outputType === 'repository_map_summary.v1' ? structuredToolResult : null;
-  const gitRepositoryStatusResult =
-    structuredToolResult?.outputType === 'git_repository_status.v1'
-      ? structuredToolResult
-      : null;
-  const gitCommitResult =
-    structuredToolResult?.outputType === 'git_commit_summary.v1' ? structuredToolResult : null;
-  const gitBranchSyncResult =
-    structuredToolResult?.outputType === 'git_branch_sync_summary.v1'
-      ? structuredToolResult
-      : null;
-  const gitLocalSyncResult =
-    structuredToolResult?.outputType === 'git_local_sync_summary.v1'
-      ? structuredToolResult
-      : null;
-  const databaseHealthResult =
-    structuredToolResult?.outputType === 'database_health_summary.v1'
-      ? structuredToolResult
-      : null;
-  const databaseBuildResult =
-    structuredToolResult?.outputType === 'database_build_summary.v1'
-      ? structuredToolResult
-      : null;
-  const databaseComparisonResult =
-    structuredToolResult?.outputType === 'postgresql_database_comparison_summary.v1'
-      ? structuredToolResult
-      : null;
+  const structuredResultSummary = structuredToolResult
+    ? getStructuredToolResultSummary(structuredToolResult)
+    : null;
   const summaryMacroSources = getSafeArray(
     workflowSummaryResult?.macroIngestion?.sources ||
       workflowSummaryResult?.output?.macroIngestion?.sources,
@@ -4828,7 +4799,11 @@ function WorkflowNodeOutputLedger({
   const displayName = selectedNode?.displayName || selectedNode?.nodeKey || 'Focused node';
 
   return (
-    <section className="sky-card mb-4">
+    <section
+      className="sky-card mb-4"
+      data-testid="workflow-focused-node-output"
+      data-structured-output-type={structuredToolResult?.outputType || ''}
+    >
       <div className="sky-card-header d-flex flex-wrap align-items-start justify-content-between gap-3">
         <div>
           <div className="sky-page-kicker">Focused node output</div>
@@ -4847,70 +4822,8 @@ function WorkflowNodeOutputLedger({
             <span className="sky-pill sky-pill-info">
               {selectedOutputs.length} output record(s)
             </span>
-            {macroIngestionResult ? (
-              <span className="sky-pill sky-pill-success">
-                {getSafeArray(macroIngestionResult.output?.indicators).length} indicator result(s)
-              </span>
-            ) : repositoryPackageResult ? (
-              <span className="sky-pill sky-pill-success">
-                {Number(repositoryPackageResult.output?.filesIncluded || 0).toLocaleString()}{' '}
-                file(s)
-              </span>
-            ) : repositoryMapResult ? (
-              <span className="sky-pill sky-pill-success">
-                {Number(repositoryMapResult.output?.filesDocumented || 0).toLocaleString()} file(s)
-              </span>
-            ) : gitRepositoryStatusResult ? (
-              <span
-                className={`sky-pill ${
-                  gitRepositoryStatusResult.output?.readyForDevelopmentPromotion
-                    ? 'sky-pill-success'
-                    : 'sky-pill-warning'
-                }`}
-              >
-                {gitRepositoryStatusResult.output?.readyForDevelopmentPromotion
-                  ? 'Promotion ready'
-                  : `${getSafeArray(gitRepositoryStatusResult.output?.blockers).length} blocker(s)`}
-              </span>
-            ) : gitCommitResult ? (
-              <span className="sky-pill sky-pill-success">
-                {Number(gitCommitResult.output?.changedFiles || 0).toLocaleString()} change(s)
-              </span>
-            ) : gitBranchSyncResult ? (
-              <span className={`sky-pill ${operationOutcomeClass(gitBranchSyncResult.output?.outcome)}`}>
-                {gitBranchSyncResult.output?.localHostSyncRequired
-                  ? 'Host sync required'
-                  : `${Number(gitBranchSyncResult.output?.commitsApplied || 0).toLocaleString()} commit(s) synchronized`}
-              </span>
-            ) : gitLocalSyncResult ? (
-              <span className={`sky-pill ${operationOutcomeClass(gitLocalSyncResult.output?.outcome)}`}>
-                {gitLocalSyncResult.output?.fourWaySynchronized
-                  ? 'Four-way synchronized'
-                  : gitLocalSyncResult.output?.outcome || 'Host sync'}
-              </span>
-            ) : databaseHealthResult ? (
-              <span
-                className={`sky-pill ${
-                  databaseHealthResult.output?.allOnline ? 'sky-pill-success' : 'sky-pill-warning'
-                }`}
-              >
-                {Number(databaseHealthResult.output?.onlineCount || 0).toLocaleString()} of{' '}
-                {Number(databaseHealthResult.output?.requestedCount || 0).toLocaleString()} online
-              </span>
-            ) : databaseBuildResult ? (
-              <span
-                className={`sky-pill ${operationOutcomeClass(databaseBuildResult.output?.status)}`}
-              >
-                {Number(databaseBuildResult.output?.sqlFilesExecuted || 0).toLocaleString()} of{' '}
-                {Number(databaseBuildResult.output?.sqlFilesDiscovered || 0).toLocaleString()} SQL file(s)
-              </span>
-            ) : databaseComparisonResult ? (
-              <span
-                className={`sky-pill ${operationOutcomeClass(databaseComparisonResult.output?.status)}`}
-              >
-                {Number(databaseComparisonResult.output?.totalDifferenceCount || 0).toLocaleString()}{' '}
-                difference(s)
-              </span>
+            {structuredToolResult ? (
+              <span className="sky-pill sky-pill-success">{structuredResultSummary || 'Structured result'}</span>
             ) : conditionResult ? (
               <span
                 className={`sky-pill ${conditionResult.passed ? 'sky-pill-success' : 'sky-pill-warning'}`}
@@ -4938,26 +4851,8 @@ function WorkflowNodeOutputLedger({
           <div className="sky-empty-state">
             Select a node in the Runtime Status Overlay to inspect that node&apos;s unique output.
           </div>
-        ) : macroIngestionResult ? (
-          <MacroIngestionOutput toolResult={macroIngestionResult} />
-        ) : repositoryPackageResult ? (
-          <RepositoryPackageOutput toolResult={repositoryPackageResult} />
-        ) : repositoryMapResult ? (
-          <RepositoryMapOutput toolResult={repositoryMapResult} />
-        ) : gitRepositoryStatusResult ? (
-          <GitRepositoryStatusOutput toolResult={gitRepositoryStatusResult} />
-        ) : gitCommitResult ? (
-          <GitCommitOutput toolResult={gitCommitResult} />
-        ) : gitBranchSyncResult ? (
-          <GitBranchSyncOutput toolResult={gitBranchSyncResult} />
-        ) : gitLocalSyncResult ? (
-          <GitLocalSyncOutput toolResult={gitLocalSyncResult} />
-        ) : databaseHealthResult ? (
-          <DatabaseHealthOutput toolResult={databaseHealthResult} />
-        ) : databaseBuildResult ? (
-          <DatabaseBuildOutput toolResult={databaseBuildResult} />
-        ) : databaseComparisonResult ? (
-          <DatabaseComparisonOutput toolResult={databaseComparisonResult} />
+        ) : structuredToolResult ? (
+          <StructuredToolResultDisplay toolResult={structuredToolResult} />
         ) : conditionResult ? (
           <ConditionEvaluationOutput conditionResult={conditionResult} />
         ) : humanApprovalResult ? (
@@ -4996,16 +4891,7 @@ function WorkflowNodeOutputLedger({
           </div>
         )}
         {selectedNode &&
-        !macroIngestionResult &&
-        !repositoryPackageResult &&
-        !repositoryMapResult &&
-        !gitRepositoryStatusResult &&
-        !gitCommitResult &&
-        !gitBranchSyncResult &&
-        !gitLocalSyncResult &&
-        !databaseHealthResult &&
-        !databaseBuildResult &&
-        !databaseComparisonResult &&
+        !structuredToolResult &&
         !conditionResult &&
         !humanApprovalResult &&
         !workflowSummaryResult &&
@@ -5375,7 +5261,10 @@ function SkyWorkflows({ mode = 'start' }) {
   const [selectedDefinition, setSelectedDefinition] = useState(null);
   const [selectedDefinitionDetail, setSelectedDefinitionDetail] = useState(null);
   const [runs, setRuns] = useState([]);
+  const [selectedRunId, setSelectedRunId] = useState('');
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
+  const [selectedRunDetailLoading, setSelectedRunDetailLoading] = useState(false);
+  const [selectedRunDetailError, setSelectedRunDetailError] = useState('');
   const [filters, setFilters] = useState(() => ({
     q: (searchParams.get('runId') || '').trim(),
     categoryCode: '',
@@ -5406,6 +5295,8 @@ function SkyWorkflows({ mode = 'start' }) {
   const [repositoryOptions, setRepositoryOptions] = useState([]);
   const [runtimeParameterError, setRuntimeParameterError] = useState('');
   const [runDetailOverlayOpen, setRunDetailOverlayOpen] = useState(false);
+  const [runDiagnosticsLoading, setRunDiagnosticsLoading] = useState(false);
+  const [runDiagnosticsError, setRunDiagnosticsError] = useState('');
   const [approvalOverlayRequest, setApprovalOverlayRequest] = useState(null);
   const [approvalResumePollingUntil, setApprovalResumePollingUntil] = useState(0);
   const [telemetryState, setTelemetryState] = useState({
@@ -5420,6 +5311,10 @@ function SkyWorkflows({ mode = 'start' }) {
     warning: '',
   });
   const telemetryPollingRef = useRef(false);
+  const selectedRunIdRef = useRef('');
+  const selectedRunStatusRef = useRef('');
+  const runDetailRequestSequenceRef = useRef(0);
+  const runDiagnosticsRequestSequenceRef = useRef(0);
   const historyBrowserRef = useRef(null);
   const startWorkflowBrowserRef = useRef(null);
   const runtimeStatusOverlayRef = useRef(null);
@@ -5441,7 +5336,11 @@ function SkyWorkflows({ mode = 'start' }) {
       current.q === requestedRunId ? current : { ...current, q: requestedRunId },
     );
     setHistoryPage(1);
+    selectedRunIdRef.current = requestedRunId;
+    selectedRunStatusRef.current = '';
+    setSelectedRunId(requestedRunId);
     setSelectedRunDetail(null);
+    setSelectedRunDetailError('');
   }, [requestedRunId]);
 
   useEffect(() => {
@@ -5758,19 +5657,25 @@ function SkyWorkflows({ mode = 'start' }) {
     const items = result.items || [];
     setRuns(items);
 
-    if (keepSelection && selectedRun?.workflowRunRecordId) {
+    if (keepSelection && selectedRunIdRef.current) {
       const stillVisible = items.find(
-        (item) => item.workflowRunRecordId === selectedRun.workflowRunRecordId,
+        (item) => item.workflowRunRecordId === selectedRunIdRef.current,
       );
 
       if (stillVisible) {
-        await loadRunDetail(stillVisible.workflowRunRecordId);
+        selectedRunStatusRef.current = String(stillVisible.status || '').toUpperCase();
+        await loadRunDetail(stillVisible.workflowRunRecordId, { quiet: true, telemetry: false });
         return items;
       }
     }
 
     if (!keepSelection) {
+      selectedRunIdRef.current = '';
+      selectedRunStatusRef.current = '';
+      setSelectedRunId('');
       setSelectedRunDetail(null);
+      setSelectedRunDetailLoading(false);
+      setSelectedRunDetailError('');
     }
 
     return items;
@@ -5826,7 +5731,12 @@ function SkyWorkflows({ mode = 'start' }) {
   async function handleDefinitionSelect(workflowCode, { initialize = false } = {}) {
     const definition = definitions.find((item) => item.workflowCode === workflowCode) || null;
 
+    selectedRunIdRef.current = '';
+    selectedRunStatusRef.current = '';
+    setSelectedRunId('');
     setSelectedRunDetail(null);
+    setSelectedRunDetailLoading(false);
+    setSelectedRunDetailError('');
     setSelectedRuntimeNodeIndex(null);
     setFollowActiveRuntimeNode(true);
     setMessage('');
@@ -5848,32 +5758,102 @@ function SkyWorkflows({ mode = 'start' }) {
     handleDefinitionSelect(workflowCode, { initialize: true });
   }
 
+  function selectWorkflowRun(
+    workflowRunRecordId,
+    { summary = null, preserveDiagnosticsLoading = false } = {},
+  ) {
+    const normalizedRunId = String(workflowRunRecordId || '').trim();
+
+    if (!normalizedRunId) {
+      return Promise.resolve(null);
+    }
+
+    const requestSequence = runDetailRequestSequenceRef.current + 1;
+    runDetailRequestSequenceRef.current = requestSequence;
+    selectedRunIdRef.current = normalizedRunId;
+    selectedRunStatusRef.current = String(summary?.status || '').toUpperCase();
+    if (!preserveDiagnosticsLoading) {
+      runDiagnosticsRequestSequenceRef.current += 1;
+    }
+    setSelectedRunId(normalizedRunId);
+    setSelectedRunDetail(null);
+    setSelectedRunDetailLoading(true);
+    setSelectedRunDetailError('');
+    if (!preserveDiagnosticsLoading) {
+      setRunDiagnosticsError('');
+      setRunDiagnosticsLoading(false);
+    }
+    setSelectedRuntimeNodeIndex(null);
+    setApprovalOverlayRequest(null);
+    setFollowActiveRuntimeNode(true);
+
+    return loadRunDetail(normalizedRunId, {
+      quiet: false,
+      telemetry: false,
+      requestSequence,
+    });
+  }
+
   async function loadRunDetail(
     workflowRunRecordId,
-    { quiet = false, telemetry = isHistoryMode } = {},
+    { quiet = false, telemetry = false, requestSequence = null } = {},
   ) {
-    if (!workflowRunRecordId) {
+    const normalizedRunId = String(workflowRunRecordId || '').trim();
+
+    if (!normalizedRunId) {
       return null;
     }
 
+    if (!selectedRunIdRef.current) {
+      selectedRunIdRef.current = normalizedRunId;
+      setSelectedRunId(normalizedRunId);
+    }
+
+    const activeRequestSequence = Number.isInteger(requestSequence)
+      ? requestSequence
+      : runDetailRequestSequenceRef.current + 1;
+    runDetailRequestSequenceRef.current = Math.max(
+      runDetailRequestSequenceRef.current,
+      activeRequestSequence,
+    );
+    const isCurrentRequest = () =>
+      activeRequestSequence === runDetailRequestSequenceRef.current &&
+      selectedRunIdRef.current === normalizedRunId;
+
     if (!quiet) {
       setError('');
+      setSelectedRunDetailLoading(true);
+      setSelectedRunDetailError('');
     }
 
     try {
       const detail = telemetry
-        ? await workflowService.getRunTelemetry(workflowRunRecordId)
-        : await workflowService.getRun(workflowRunRecordId);
+        ? await workflowService.getRunTelemetry(normalizedRunId)
+        : await workflowService.getRun(normalizedRunId);
+
+      if (!isCurrentRequest()) {
+        return null;
+      }
+
       setSelectedRunDetail(detail);
+      setSelectedRunDetailLoading(false);
+      setSelectedRunDetailError('');
+      selectedRunStatusRef.current = String(detail.run?.status || '').toUpperCase();
 
       if (detail.run?.workflowCode && !quiet) {
         const definitionDetail = await workflowService.getDefinition(detail.run.workflowCode);
-        setSelectedDefinitionDetail(definitionDetail.definition);
+        if (isCurrentRequest()) {
+          setSelectedDefinitionDetail(definitionDetail.definition);
+        }
       }
 
       return detail;
     } catch (loadError) {
-      if (!quiet) {
+      if (isCurrentRequest()) {
+        setSelectedRunDetailLoading(false);
+        setSelectedRunDetailError(formatApiError(loadError, 'Failed to load workflow run detail.'));
+      }
+      if (!quiet && isCurrentRequest()) {
         setError(formatApiError(loadError, 'Failed to load workflow run detail.'));
       }
       return null;
@@ -5909,22 +5889,36 @@ function SkyWorkflows({ mode = 'start' }) {
         visiblePageStart,
         visiblePageStart + historyPageSize,
       );
-      const selectedRunId = selectedRun?.workflowRunRecordId;
-      const selectedVisibleRun = selectedRunId
-        ? visiblePageRuns.find((run) => run.workflowRunRecordId === selectedRunId)
+      const currentSelectedRunId = selectedRunIdRef.current;
+      const selectedVisibleRun = currentSelectedRunId
+        ? visiblePageRuns.find((run) => run.workflowRunRecordId === currentSelectedRunId)
         : null;
-      const nextSelectedRun = selectedVisibleRun || visiblePageRuns[0] || null;
+      const nextSelectedRun = selectedVisibleRun || (!currentSelectedRunId ? visiblePageRuns[0] : null);
       let refreshedDetail = null;
 
       setRuns(items);
 
-      if (nextSelectedRun) {
+      if (nextSelectedRun && !currentSelectedRunId) {
+        refreshedDetail = await selectWorkflowRun(nextSelectedRun.workflowRunRecordId, {
+          summary: nextSelectedRun,
+        });
+      } else if (
+        nextSelectedRun &&
+        (isActiveRun(nextSelectedRun) ||
+          (isActiveRun({ status: selectedRunStatusRef.current }) && !isActiveRun(nextSelectedRun)))
+      ) {
         refreshedDetail = await loadRunDetail(nextSelectedRun.workflowRunRecordId, {
           quiet: true,
           telemetry: true,
         });
-      } else {
+      } else if (!currentSelectedRunId) {
         setSelectedRunDetail(null);
+        setSelectedRunId('');
+        selectedRunIdRef.current = '';
+      }
+
+      if (nextSelectedRun && currentSelectedRunId === nextSelectedRun.workflowRunRecordId) {
+        selectedRunStatusRef.current = String(nextSelectedRun.status || '').toUpperCase();
       }
 
       const selectedRunActive = isActiveRun(refreshedDetail?.run || nextSelectedRun);
@@ -6331,15 +6325,46 @@ function SkyWorkflows({ mode = 'start' }) {
     setSearchParams(nextSearchParams, { replace: true });
     setFilters(nextFilters);
     setHistoryPage(1);
+    selectedRunIdRef.current = '';
+    selectedRunStatusRef.current = '';
+    setSelectedRunId('');
     setSelectedRunDetail(null);
+    setSelectedRunDetailError('');
     loadRuns(nextFilters, { keepSelection: false });
   }
 
   async function openWorkflowDetails(workflowRunRecordId) {
-    const detail = await loadRunDetail(workflowRunRecordId);
+    runDiagnosticsRequestSequenceRef.current += 1;
+    setRunDetailOverlayOpen(true);
+    setRunDiagnosticsLoading(true);
+    setRunDiagnosticsError('');
 
-    if (detail) {
-      setRunDetailOverlayOpen(true);
+    const detail = await selectWorkflowRun(workflowRunRecordId, {
+      preserveDiagnosticsLoading: true,
+    });
+    const requestSequence = runDiagnosticsRequestSequenceRef.current + 1;
+    runDiagnosticsRequestSequenceRef.current = requestSequence;
+    if (requestSequence !== runDiagnosticsRequestSequenceRef.current) {
+      return;
+    }
+
+    try {
+      const diagnostics = await workflowService.getRunDiagnostics(workflowRunRecordId);
+      if (
+        requestSequence === runDiagnosticsRequestSequenceRef.current &&
+        selectedRunIdRef.current === workflowRunRecordId
+      ) {
+        setSelectedRunDetail(diagnostics);
+        setSelectedRunDetailError('');
+        setRunDiagnosticsLoading(false);
+      }
+    } catch (diagnosticsError) {
+      if (requestSequence === runDiagnosticsRequestSequenceRef.current) {
+        setRunDiagnosticsLoading(false);
+        setRunDiagnosticsError(
+          formatApiError(diagnosticsError, 'Failed to load Temporal diagnostics.'),
+        );
+      }
     }
   }
 
@@ -6558,16 +6583,18 @@ function SkyWorkflows({ mode = 'start' }) {
       return;
     }
 
-    const selectedRunId = selectedRun?.workflowRunRecordId;
+    const currentSelectedRunId = selectedRunIdRef.current;
     const selectedRunIsVisible = pagedHistoryRuns.some(
-      (run) => run.workflowRunRecordId === selectedRunId,
+      (run) => run.workflowRunRecordId === currentSelectedRunId,
     );
 
     if (!selectedRunIsVisible) {
-      loadRunDetail(pagedHistoryRuns[0].workflowRunRecordId);
+      selectWorkflowRun(pagedHistoryRuns[0].workflowRunRecordId, {
+        summary: pagedHistoryRuns[0],
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHistoryMode, loading, pagedHistoryRuns, selectedRun?.workflowRunRecordId]);
+  }, [isHistoryMode, loading, pagedHistoryRuns, selectedRunId]);
 
   useEffect(() => {
     if (!isHistoryMode) {
@@ -6722,7 +6749,11 @@ function SkyWorkflows({ mode = 'start' }) {
               <dd className="col-8 sky-detail-value">
                 <button
                   className="btn btn-link btn-sm p-0 align-baseline"
-                  onClick={() => loadRunDetail(selectedRelations.parentRun.workflowRunRecordId)}
+                  onClick={() =>
+                    selectWorkflowRun(selectedRelations.parentRun.workflowRunRecordId, {
+                      summary: selectedRelations.parentRun,
+                    })
+                  }
                   type="button"
                 >
                   {selectedRelations.parentRun.workflowDisplayName ||
@@ -6883,7 +6914,24 @@ function SkyWorkflows({ mode = 'start' }) {
               </svg>
             </button>
           </div>
-          <div className="sky-run-detail-modal-body">{renderSelectedRunDetailContent()}</div>
+          <div className="sky-run-detail-modal-body">
+            {runDiagnosticsLoading && (
+              <div className="alert alert-info" data-testid="workflow-run-diagnostics-loading">
+                Loading Temporal diagnostics…
+              </div>
+            )}
+            {runDiagnosticsError && (
+              <div
+                aria-live="polite"
+                className="alert alert-warning"
+                data-testid="workflow-run-diagnostics-error"
+                role="alert"
+              >
+                {runDiagnosticsError}
+              </div>
+            )}
+            {renderSelectedRunDetailContent()}
+          </div>
         </section>
       </div>,
       document.body,
@@ -7331,9 +7379,10 @@ function SkyWorkflows({ mode = 'start' }) {
                 {!loading &&
                   pagedHistoryRuns.map((run) => (
                     <tr
-                      className={`sky-clickable-row ${selectedRun?.workflowRunRecordId === run.workflowRunRecordId ? 'sky-selected-row' : ''}`}
+                      className={`sky-clickable-row ${selectedRunId === run.workflowRunRecordId ? 'sky-selected-row' : ''}`}
+                      data-workflow-run-id={run.workflowRunRecordId}
                       key={run.workflowRunRecordId}
-                      onClick={() => loadRunDetail(run.workflowRunRecordId)}
+                      onClick={() => selectWorkflowRun(run.workflowRunRecordId, { summary: run })}
                     >
                       <td>
                         <div className="fw-bold">{run.workflowDisplayName || run.workflowCode}</div>
@@ -7385,7 +7434,10 @@ function SkyWorkflows({ mode = 'start' }) {
           {renderHistoryPagination()}
         </section>
 
-        <section className="sky-card sky-workflow-history-detail-zone">
+        <section
+          className="sky-card sky-workflow-history-detail-zone"
+          data-selected-run-id={selectedRun?.workflowRunRecordId || ''}
+        >
           <div className="sky-card-header d-flex flex-wrap align-items-end justify-content-between gap-2">
             <div>
               <div className="sky-page-kicker">Selected run workspace</div>
@@ -7397,11 +7449,26 @@ function SkyWorkflows({ mode = 'start' }) {
           </div>
 
           <div className="sky-card-body sky-workflow-history-detail-stack">
-            {!selectedRun ? (
+            {selectedRunDetailLoading && (
+              <div className="sky-empty-state" data-testid="workflow-run-detail-loading">
+                Loading selected run…
+              </div>
+            )}
+            {selectedRunDetailError && (
+              <div
+                aria-live="polite"
+                className="alert alert-warning"
+                data-testid="workflow-run-detail-error"
+                role="alert"
+              >
+                {selectedRunDetailError}
+              </div>
+            )}
+            {!selectedRunDetailLoading && !selectedRunDetailError && !selectedRun ? (
               <div className="sky-empty-state">
                 Select a workflow run to view the runtime graph overlay.
               </div>
-            ) : (
+            ) : selectedRun ? (
               <WorkflowVisualGraph
                 approvals={selectedApprovals}
                 headingKicker="Runtime status overlay"
@@ -7420,7 +7487,7 @@ function SkyWorkflows({ mode = 'start' }) {
                 temporalRuntime={selectedTemporalRuntime}
                 title="Runtime workflow map"
               />
-            )}
+            ) : null}
 
             {selectedRun && (
               <WorkflowRunParametersCard

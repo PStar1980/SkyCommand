@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skycommand.local/contracts/dev_finalization_preflight_summary.v1.schema.json",
+  "title": "SkyCommand R5 DEV finalization preflight summary v1",
+  "type": "object",
+  "required": ["contract", "outcome"],
+  "properties": {
+    "contract": { "const": "dev_finalization_preflight_summary.v1" },
+    "outcome": { "type": "string" }
+  },
+  "additionalProperties": true
+}

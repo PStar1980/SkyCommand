@@ -80,6 +80,13 @@ const SENSITIVE_ENV_FILES = new Set([
   '.env.test',
 ]);
 
+// R5 finalization order is Catalogue -> Map -> ZIP -> receipt. The finalization
+// receipt attests the exact ZIP and therefore MUST remain outside that ZIP.
+// Keep this exclusion canonical and narrow so the Catalogue JSON/XLSX and Repo
+// Map remain packageable evidence.
+const FINALIZATION_RECEIPT_RELATIVE_PATH =
+  'docs/generated/SkyCommand_DevFinalizationSummary.json';
+
 const IMAGE_FILE_EXTENSIONS = new Set([
   '.png',
   '.jpg',
@@ -284,13 +291,18 @@ function shouldSkipFile(fullPath, options) {
   }
 
   const fileNameOnly = path.basename(fullPath).toLowerCase();
+  const relativePath = normalizeRelativeAssetPath(fullPath, options.location);
+
+  if (relativePath === FINALIZATION_RECEIPT_RELATIVE_PATH.toLowerCase()) {
+    return true;
+  }
 
   if (SENSITIVE_ENV_FILES.has(fileNameOnly)) {
     return true;
   }
 
   const extension = path.extname(fullPath).toLowerCase();
-  const relativeAssetPath = normalizeRelativeAssetPath(fullPath, options.location);
+  const relativeAssetPath = relativePath;
 
   if (ALWAYS_EXCLUDED_FILE_EXTENSIONS.has(extension)) {
     return true;
@@ -746,6 +758,7 @@ if (require.main === module) {
 module.exports = {
   OUTPUT_TYPE,
   TOOL_CODE,
+  FINALIZATION_RECEIPT_RELATIVE_PATH,
   executeRepositoryZip,
   flattenFiles,
   main,

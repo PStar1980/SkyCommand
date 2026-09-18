@@ -5,7 +5,11 @@ const {
 const { WorkflowServiceError } = require('./workflowServiceError');
 
 const HOST_EXECUTION_TARGETS = new Set(['HOST', 'HOST_AGENT']);
-const HOST_AGENT_TOOL_CODES = new Set(['local_repo_sync', 'local_dev_pull']);
+const HOST_AGENT_TOOL_CODES = new Set([
+  'local_repo_sync',
+  'local_dev_pull',
+  'dev_runtime_lifecycle',
+]);
 const HOST_AGENT_RECENT_HEARTBEAT_SECONDS = 60;
 const HOST_AGENT_LIVE_PROBE_TIMEOUT = '6 seconds';
 

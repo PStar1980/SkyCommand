@@ -782,6 +782,29 @@ async function getRun(req, res, next) {
   }
 }
 
+async function getRunDiagnostics(req, res, next) {
+  try {
+    const result = await workflowExecutorService.getWorkflowRunDiagnostics(
+      req.params.workflowRunRecordId,
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        ok: false,
+        error: error.message,
+        details: error.details || undefined,
+      });
+    }
+
+    return next(error);
+  }
+}
+
 async function getRunTelemetry(req, res, next) {
   try {
     const result = await workflowExecutorService.getWorkflowRunTelemetry(
@@ -983,6 +1006,7 @@ module.exports = {
   getManagedDefinition,
   getWorkerHealth,
   getRun,
+  getRunDiagnostics,
   getRunTelemetry,
   getAgentWorkflowRun,
   controlRun,
