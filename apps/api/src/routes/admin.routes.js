@@ -2,7 +2,6 @@ const express = require('express');
 const adminController = require('../controllers/adminController');
 const browserTestController = require('../controllers/browserTestController');
 const browserAutomationController = require('../controllers/browserAutomationController');
-const databaseUpgradeApplyRequestController = require('../controllers/databaseUpgradeApplyRequestController');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/permissionMiddleware');
 
@@ -58,22 +57,6 @@ router.get(
   '/production-readiness',
   requirePermission('ADMIN_REPOSITORY_READ'),
   adminController.getProductionReadiness,
-);
-
-router.get(
-  '/database-upgrade/apply-requests',
-  requirePermission('DB_UPGRADE_APPLY_APPROVE'),
-  databaseUpgradeApplyRequestController.listRequests,
-);
-router.post(
-  '/database-upgrade/apply-requests/:requestId/decision',
-  requirePermission('DB_UPGRADE_APPLY_APPROVE'),
-  databaseUpgradeApplyRequestController.decideRequest,
-);
-router.post(
-  '/database-upgrade/apply-requests/:requestId/execute',
-  requirePermission('DB_UPGRADE_APPLY_APPROVE'),
-  databaseUpgradeApplyRequestController.executeRequest,
 );
 
 router.get('/applications', requirePermission('ADMIN_USER_READ'), adminController.listApplications);

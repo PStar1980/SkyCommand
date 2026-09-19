@@ -14,7 +14,6 @@ const {
   applyChange,
   buildPlan,
   discoverGovernedSqlChanges,
-  executeApprovedDatabaseUpgrade,
   executeDatabaseUpgrade,
   parseGovernedFilename,
   readDatabaseIdentity,
@@ -189,36 +188,6 @@ async function run() {
     latestPostBaselineOrdinal - BASELINE_ORDINAL,
     'post-baseline ordinals must remain contiguous through the current source-controlled change',
   );
-
-  const approvedContinuationClient = new FakeClient({ ledgerAvailable: true });
-  const approvedContinuationPlan = await executeDatabaseUpgrade({
-    mode: 'PLAN',
-    environment: {
-      ...validEnvironment,
-      SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE: 'skyserver_dev',
-      SKYCOMMAND_DB_UPGRADE_TARGET_SYSTEM_IDENTIFIER: validSystemIdentifier,
-    },
-    adapter: adapterFor(approvedContinuationClient),
-  });
-  const approvedContinuation = await executeApprovedDatabaseUpgrade({
-    approvedRequest: {
-      requestId: 'approved-request-1',
-      status: 'APPROVED',
-      planDigest: approvedContinuationPlan.planDigest.digest,
-      requestDigest: 'A'.repeat(64),
-      humanDecisionUserId: '00000000-0000-0000-0000-000000000001',
-      humanDecisionAt: new Date().toISOString(),
-    },
-    environment: {
-      ...validEnvironment,
-      SKYCOMMAND_DB_UPGRADE_TARGET_DATABASE: 'skyserver_dev',
-      SKYCOMMAND_DB_UPGRADE_TARGET_SYSTEM_IDENTIFIER: validSystemIdentifier,
-    },
-    adapter: adapterFor(approvedContinuationClient),
-  });
-  assert.equal(approvedContinuation.outcome, 'APPLIED');
-  assert.equal(approvedContinuation.appliedCount, postBaselineChanges.length);
-  assert.equal(approvedContinuationClient.mutations.includes('BEGIN'), true);
 
   assert.ok(sourceChanges.some((change) => change.ordinal === 129));
   assert.ok(sourceChanges.some((change) => change.ordinal === 130));

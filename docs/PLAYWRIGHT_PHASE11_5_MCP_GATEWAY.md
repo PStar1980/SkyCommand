@@ -1,5 +1,7 @@
 # SkyCommand Playwright Phase 11.5 — MCP Gateway
 
+> **Historical / superseded:** This document records the pre-R7 MCP gateway and D2 database-upgrade bootstrap. It is retained as historical evidence and is not current operating guidance. Current DEV database changes use the registered `database_upgrade_apply` Tool through `dev_change_finalize`; the retired database-upgrade MCP and approval-request surfaces must not be reintroduced from this document.
+
 **Status:** Implementation package  
 **Date:** September 12, 2026
 

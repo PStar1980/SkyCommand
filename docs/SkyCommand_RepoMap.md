@@ -131,7 +131,6 @@ SkyCommand/
 │   │       │   ├── BrowserAutomations.jsx
 │   │       │   ├── BrowserTests.jsx
 │   │       │   ├── Dashboard.jsx
-│   │       │   ├── DatabaseUpgradeRequests.jsx
 │   │       │   ├── DataStatus.jsx
 │   │       │   ├── DockerInventory.jsx
 │   │       │   ├── DockerOperations.jsx
@@ -187,7 +186,6 @@ SkyCommand/
 │   │       │   ├── browserAutomationController.js
 │   │       │   ├── browserTestController.js
 │   │       │   ├── browserTestSuiteController.js
-│   │       │   ├── databaseUpgradeApplyRequestController.js
 │   │       │   ├── infrastructureController.js
 │   │       │   ├── ingestionController.js
 │   │       │   ├── macroController.js
@@ -233,7 +231,6 @@ SkyCommand/
 │   │       │   ├── browserTestFailureUtils.js
 │   │       │   ├── browserTestRegistryService.js
 │   │       │   ├── browserTestSuiteService.js
-│   │       │   ├── databaseUpgradeApplyRequestService.js
 │   │       │   ├── developmentPromotionPermissionContract.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
@@ -294,6 +291,11 @@ SkyCommand/
 │   └── browser/
 │       ├── automations/
 │       │   ├── .gitkeep
+│       │   ├── 70ca8783-2172-4a27-81a7-bd26e157ab77/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 7322f3a8-03e5-44ed-a36a-0766d1cbe420/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
@@ -1622,7 +1624,8 @@ SkyCommand/
 │   │       │   ├── 00143__github_dev_pr_merge_r6_correction.sql
 │   │       │   ├── 00144__r6_promotion_node_order_correction.sql
 │   │       │   ├── 00145__dev_commit_r6_boundary_parameters.sql
-│   │       │   └── 00146__r6_human_agent_parity_and_recovery.sql
+│   │       │   ├── 00146__r6_human_agent_parity_and_recovery.sql
+│   │       │   └── 00147__retire_d2_database_upgrade_surfaces.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -2145,6 +2148,7 @@ SkyCommand/
     │           ├── fake-runtime-rejected-send.json
     │           └── phase0-gate.json
     └── self/
+        ├── r7DatabaseUpgradeCleanupSelfTest.js
         ├── apps/
         │   ├── admin-web/
         │   │   └── src/
@@ -2194,7 +2198,6 @@ SkyCommand/
         │       └── src/
         │           └── services/
         │               ├── apiTelemetryPolicySelfTest.js
-        │               ├── assistantDatabaseUpgradePlanSelfTest.js
         │               ├── assistantDevelopmentPromotionSelfTest.js
         │               ├── assistantIntegrationSelfTest.js
         │               ├── browserAutomationExecutionSelfTest.js
@@ -2202,8 +2205,6 @@ SkyCommand/
         │               ├── browserTestObservabilitySelfTest.js
         │               ├── browserTestRegistrySelfTest.js
         │               ├── browserTestSuiteSelfTest.js
-        │               ├── databaseUpgradeApplyRequestSelfTest.js
-        │               ├── databaseUpgradeExecutionSelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js
         │               ├── infrastructureServiceSelfTest.js

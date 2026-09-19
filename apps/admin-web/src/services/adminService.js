@@ -264,24 +264,6 @@ async function getCoreSettings() {
   return api.get('/api/admin/settings/core');
 }
 
-async function listDatabaseUpgradeApplyRequests(filters = {}) {
-  return api.get('/api/admin/database-upgrade/apply-requests', { query: filters });
-}
-
-async function decideDatabaseUpgradeApplyRequest(requestId, payload = {}) {
-  return api.post(
-    `/api/admin/database-upgrade/apply-requests/${encodeURIComponent(requestId)}/decision`,
-    payload,
-  );
-}
-
-async function executeDatabaseUpgradeApplyRequest(requestId) {
-  return api.post(
-    `/api/admin/database-upgrade/apply-requests/${encodeURIComponent(requestId)}/execute`,
-    { confirm: true },
-  );
-}
-
 const adminService = {
   listScriptExecutions,
   getScriptExecutionDetail,
@@ -349,9 +331,6 @@ const adminService = {
   getAuthSettings,
   getProductionReadiness,
   getCoreSettings,
-  listDatabaseUpgradeApplyRequests,
-  decideDatabaseUpgradeApplyRequest,
-  executeDatabaseUpgradeApplyRequest,
 };
 
 export default adminService;

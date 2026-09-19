@@ -1091,11 +1091,7 @@ async function executeDatabaseUpgradeInternal(
     }
 
     const registeredDevTool = executionPath === REGISTERED_DEV_TOOL_EXECUTION_PATH;
-    if (
-      executionPath !== 'APPROVED_REQUEST' &&
-      !registeredDevTool &&
-      !parseBoolean(environment.SKYCOMMAND_DB_UPGRADE_ENABLED, false)
-    ) {
+    if (!registeredDevTool && !parseBoolean(environment.SKYCOMMAND_DB_UPGRADE_ENABLED, false)) {
       throw upgradeError(
         'DATABASE_UPGRADE_DISABLED',
         'Database upgrade APPLY is disabled by SKYCOMMAND_DB_UPGRADE_ENABLED.',
@@ -1274,65 +1270,6 @@ async function executeRegisteredDatabaseUpgrade({
   );
 }
 
-function assertApprovedRequestExecutionEnvelope(approvedRequest) {
-  const status = approvedRequest?.status;
-  const requestId = approvedRequest?.requestId || approvedRequest?.request_id;
-  const planDigest = String(approvedRequest?.planDigest || approvedRequest?.plan_digest || '')
-    .trim()
-    .toUpperCase();
-  const requestDigest = String(
-    approvedRequest?.requestDigest || approvedRequest?.request_digest || '',
-  )
-    .trim()
-    .toUpperCase();
-  const humanDecisionUserId =
-    approvedRequest?.humanDecisionUserId || approvedRequest?.human_decision_user_id;
-  const humanDecisionAt = approvedRequest?.humanDecisionAt || approvedRequest?.human_decision_at;
-
-  if (
-    status !== 'APPROVED' ||
-    !requestId ||
-    !humanDecisionUserId ||
-    !humanDecisionAt ||
-    !/^[A-F0-9]{64}$/.test(planDigest) ||
-    !/^[A-F0-9]{64}$/.test(requestDigest)
-  ) {
-    throw upgradeError(
-      'DATABASE_UPGRADE_APPROVED_REQUEST_AUTHORITY_INVALID',
-      'D1 approved-request execution requires a server-validated APPROVED request envelope.',
-    );
-  }
-  return { requestId, planDigest, requestDigest };
-}
-
-/**
- * D2B.2-only continuation. The manual/CLI entry point remains gated by
- * SKYCOMMAND_DB_UPGRADE_ENABLED; this dedicated function is reachable only
- * by the API service after it has loaded and independently revalidated the
- * persisted APPROVED request envelope.
- */
-async function executeApprovedDatabaseUpgrade({
-  approvedRequest,
-  environment = process.env,
-  adapter = null,
-  repositoryRoot = SKYCOMMAND_ROOT,
-  fileSystem = fs,
-} = {}) {
-  const authority = assertApprovedRequestExecutionEnvelope(approvedRequest);
-  return executeDatabaseUpgradeInternal(
-    {
-      mode: 'APPLY',
-      expectedPlanDigest: authority.planDigest,
-      confirmed: true,
-      environment,
-      adapter,
-      repositoryRoot,
-      fileSystem,
-    },
-    'APPROVED_REQUEST',
-  );
-}
-
 module.exports = {
   BASELINE_CONTRACT,
   BASELINE_ORDINAL,
@@ -1351,7 +1288,6 @@ module.exports = {
   discoverGovernedSqlChanges,
   executeRegisteredDatabaseUpgrade,
   executeDatabaseUpgrade,
-  executeApprovedDatabaseUpgrade,
   finishUpgradeOutput,
   getSourceRevision,
   normalizeDatabaseName,

@@ -37,7 +37,6 @@ import { TemporalStartWorkflow } from './pages/TemporalWorkflows.jsx';
 import WorkflowBuilder from './pages/WorkflowBuilder.jsx';
 import WorkflowManager from './pages/WorkflowManager.jsx';
 import WorkflowApprovals from './pages/WorkflowApprovals.jsx';
-import DatabaseUpgradeRequests from './pages/DatabaseUpgradeRequests.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import { BrowserTestAdd, BrowserTestManage, BrowserTestOperations, BrowserTestRun, BrowserTestSuites } from './pages/BrowserTests.jsx';
 import { BrowserAutomationAdd, BrowserAutomationManage, BrowserAutomationOperations, BrowserAutomationRun } from './pages/BrowserAutomations.jsx';
@@ -380,14 +379,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="WORKFLOW_APPROVAL_READ">
                   <WorkflowApprovals />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="workflows/database-upgrade-requests"
-              element={
-                <ProtectedRoute permissionCode="DB_UPGRADE_APPLY_APPROVE" roleCode="SUPER_ADMIN">
-                  <DatabaseUpgradeRequests />
                 </ProtectedRoute>
               }
             />
