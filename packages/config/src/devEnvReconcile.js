@@ -25,6 +25,26 @@ const MAX_PATCH_KEYS = 8;
 const REQUIRED_SECRET_KEYS = Object.freeze(['PGPASSWORD', 'JWT_SECRET']);
 const ENV_FILE_NAME = '.env';
 const ENV_EXAMPLE_FILE_NAME = '.env.example';
+const ASSISTANT_PERMISSION_SCOPE_KEY = 'SKYCOMMAND_ASSISTANT_PERMISSION_CODES';
+const ALLOWLISTED_ASSISTANT_PERMISSION_CODES = Object.freeze([
+  'BROWSER_AUTOMATION_READ',
+  'BROWSER_AUTOMATION_RUN',
+  'WORKFLOW_RUN',
+  'DEV_PROMOTION_PREFLIGHT',
+  'CAPABILITY_CATALOG_EXPORT',
+  'REPO_MAP_GENERATE',
+  'REPO_ZIP_GENERATE',
+  'GIT_COMMIT_RUN',
+  'GIT_DEV_PR_MERGE_RUN',
+  'GIT_MAIN_MERGE_RUN',
+  'GIT_LOCAL_SYNC_RUN',
+  'CORE_RUN_LOW_RISK_SCRIPT',
+  'CORE_RUN_MEDIUM_RISK_SCRIPT',
+  'CORE_RUN_HIGH_RISK_SCRIPT',
+  'DB_UPGRADE_PLAN',
+  'DB_UPGRADE_APPLY_REQUEST',
+]);
+const ALLOWLISTED_ASSISTANT_PERMISSION_CODE_SET = new Set(ALLOWLISTED_ASSISTANT_PERMISSION_CODES);
 
 const CONFIGURATION_ALLOWLIST = Object.freeze({
   API_TELEMETRY_RETENTION_DAYS: Object.freeze({
@@ -51,6 +71,19 @@ const CONFIGURATION_ALLOWLIST = Object.freeze({
     restartRequired: true,
     restartServices: Object.freeze(['api', 'worker', 'cli']),
     restartReasonCode: 'PROCESS_START_CONFIGURATION',
+  }),
+  [ASSISTANT_PERMISSION_SCOPE_KEY]: Object.freeze({
+    type: 'permission_codes',
+    classification: 'NON_SECRET_ASSISTANT_PERMISSION_SCOPE',
+    allowAdd: true,
+    allowUpdate: true,
+    allowProtectedClassification: true,
+    examplePolicy: 'SAFE_DEFAULT',
+    exampleDefault: 'BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN',
+    restartRequired: true,
+    restartServices: Object.freeze(['api', 'worker', 'cli']),
+    restartReasonCode: 'PROCESS_START_CONFIGURATION',
+    allowedValues: ALLOWLISTED_ASSISTANT_PERMISSION_CODES,
   }),
 });
 
@@ -150,6 +183,32 @@ function normalizeIntegerValue(value, definition, key, source = 'requested') {
   return numeric;
 }
 
+function normalizePermissionCodesValue(value, definition, key, source = 'requested') {
+  if (typeof value !== 'string') {
+    throw reconcileError(source === 'existing' ? 'EXISTING_VALUE_INVALID' : 'PATCH_VALUE_INVALID', {
+      key,
+      classification: definition.classification,
+    });
+  }
+
+  const codes = value
+    .split(',')
+    .map((code) => code.trim())
+    .filter(Boolean);
+  const valid = codes.length > 0 && codes.every((code) => (
+    /^[A-Z][A-Z0-9_]{0,127}$/.test(code) && ALLOWLISTED_ASSISTANT_PERMISSION_CODE_SET.has(code)
+  ));
+  const unique = new Set(codes);
+  if (!valid || unique.size !== codes.length) {
+    throw reconcileError(source === 'existing' ? 'EXISTING_VALUE_INVALID' : 'PATCH_VALUE_INVALID', {
+      key,
+      classification: definition.classification,
+    });
+  }
+
+  return codes.join(',');
+}
+
 function normalizeDefinitionValue(key, value, source = 'requested') {
   const definition = CONFIGURATION_ALLOWLIST[key];
   if (!definition) {
@@ -158,6 +217,10 @@ function normalizeDefinitionValue(key, value, source = 'requested') {
 
   if (definition.type === 'integer') {
     return normalizeIntegerValue(value, definition, key, source);
+  }
+
+  if (definition.type === 'permission_codes') {
+    return normalizePermissionCodesValue(value, definition, key, source);
   }
 
   throw reconcileError('PATCH_VALUE_INVALID', {
@@ -183,7 +246,7 @@ function normalizePatch(patch) {
     if (protectedClass === 'SECRET') {
       throw reconcileError('SECRET_KEY_NOT_ALLOWED', { key, classification: protectedClass });
     }
-    if (protectedClass) {
+    if (protectedClass && !CONFIGURATION_ALLOWLIST[key]?.allowProtectedClassification) {
       throw reconcileError('PROTECTED_CONFIGURATION_KEY', {
         key,
         classification: protectedClass,
@@ -909,6 +972,8 @@ async function main() {
 if (require.main === module) main();
 
 module.exports = {
+  ALLOWLISTED_ASSISTANT_PERMISSION_CODES,
+  ASSISTANT_PERMISSION_SCOPE_KEY,
   CONFIGURATION_ALLOWLIST,
   ENVIRONMENT_CODE,
   ENV_EXAMPLE_FILE_NAME,

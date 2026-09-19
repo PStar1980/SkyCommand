@@ -60,13 +60,16 @@ function run() {
   assert.deepEqual(checkValues(historicalMigration, 'trigger_type'), legacyTriggerTypes);
 
   const assistantService = read('apps/api/src/services/assistantIntegrationService.js');
-  const promotionInputStart = assistantService.indexOf('const input = {');
-  const promotionInputEnd = assistantService.indexOf('const result = await workflowExecutor', promotionInputStart);
+  const promotionInputStart = assistantService.indexOf('const finalizationWorkflowRunId =');
+  const promotionInputEnd = assistantService.indexOf('const result = await workflowAgentExecution.startWorkflow', promotionInputStart);
   assert.ok(promotionInputStart >= 0 && promotionInputEnd > promotionInputStart);
   const promotionInput = assistantService.slice(promotionInputStart, promotionInputEnd);
-  assert.match(promotionInput, /runSource:\s*'assistant'/);
+  assert.match(promotionInput, /triggerSource:\s*DEVELOPMENT_PROMOTION_TRIGGER_SOURCE/);
   assert.match(promotionInput, /triggerType:\s*DEVELOPMENT_PROMOTION_TRIGGER_TYPE/);
+  assert.match(promotionInput, /finalizationWorkflowRunId/);
+  assert.match(promotionInput, /idempotencyKey/);
   assert.match(assistantService, /const DEVELOPMENT_PROMOTION_TRIGGER_TYPE = 'ASSISTANT'/);
+  assert.doesNotMatch(promotionInput, /runSource:\s*'assistant'/);
   assert.doesNotMatch(promotionInput, /runSource:\s*'api'/);
   assert.doesNotMatch(promotionInput, /triggerType:\s*'API'/);
 

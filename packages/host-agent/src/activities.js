@@ -2,6 +2,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { executeDevCommit } = require('../../git/src/dev_commit');
+const { executeGithubDevPrMerge } = require('../../git/src/github_dev_pr_merge');
 const { executeMainMerge } = require('../../git/src/main_merge');
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
 const { executeLocalDevPull } = require('../../git/src/local_dev_pull');
@@ -29,6 +30,7 @@ const {
 
 const HOST_AGENT_HEALTH_TOOL_CODE = '__health';
 const DEV_COMMIT_TOOL_CODE = 'dev_commit';
+const GITHUB_DEV_PR_MERGE_TOOL_CODE = 'github_dev_pr_merge';
 const MAIN_MERGE_TOOL_CODE = 'main_merge';
 const LOCAL_REPOSITORY_SYNC_TOOL_CODE = 'local_repo_sync';
 const LOCAL_DEV_PULL_TOOL_CODE = 'local_dev_pull';
@@ -291,6 +293,42 @@ async function executeSkyCommandHostToolActivity(input = {}) {
           orchestratedExecution: true,
           executionTarget: 'HOST',
           transport: 'temporal_host_agent',
+          finalizationWorkflowRunId: normalizeText(input.finalizationWorkflowRunId),
+          workflowRunId: normalizeText(input.workflowRunId),
+        },
+      );
+
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          transport: 'temporal_host_agent',
+          executionTarget: 'HOST',
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
+  if (toolCode === GITHUB_DEV_PR_MERGE_TOOL_CODE) {
+    try {
+      const result = await executeGithubDevPrMerge(
+        [],
+        {
+          input: {
+            repositoryName: normalizeText(input.repoName),
+            expectedDevSha: normalizeText(input.expectedDevSha),
+            workflowRunId: normalizeText(input.workflowRunId),
+            expectedMainSha: normalizeText(input.expectedMainSha),
+          },
+          executionTarget: 'HOST',
+          transport: 'temporal_host_agent',
         },
       );
 
@@ -409,6 +447,7 @@ module.exports = {
   DOCKER_SNAPSHOT_TOOL_CODE,
   DEV_FINALIZATION_LIFECYCLE_TOOL_CODE,
   DEV_COMMIT_TOOL_CODE,
+  GITHUB_DEV_PR_MERGE_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,
   LOCAL_DEV_PULL_TOOL_CODE,
   LOCAL_REPOSITORY_SYNC_TOOL_CODE,

@@ -4,6 +4,7 @@ const REPOSITORY_MAP_OUTPUT_TYPE = 'repository_map_summary.v1';
 const GIT_COMMIT_OUTPUT_TYPE = 'git_commit_summary.v1';
 const GIT_BRANCH_SYNC_OUTPUT_TYPE = 'git_branch_sync_summary.v1';
 const GIT_LOCAL_SYNC_OUTPUT_TYPE = 'git_local_sync_summary.v1';
+const GITHUB_DEV_PR_MERGE_OUTPUT_TYPE = 'github_dev_pr_merge_summary.v1';
 const GIT_REPOSITORY_STATUS_OUTPUT_TYPE = 'git_repository_status.v1';
 const DATABASE_HEALTH_OUTPUT_TYPE = 'database_health_summary.v1';
 const DATABASE_BUILD_OUTPUT_TYPE = 'database_build_summary.v1';
@@ -348,6 +349,26 @@ function compactDomainOutput(result = {}) {
     };
   }
 
+  if (isToolResultEnvelope(result) && result.outputType === GITHUB_DEV_PR_MERGE_OUTPUT_TYPE) {
+    return {
+      outcome: safeOutput.outcome || null,
+      repositoryCode: safeOutput.repositoryCode || null,
+      baseBranch: safeOutput.baseBranch || null,
+      headBranch: safeOutput.headBranch || null,
+      expectedDevSha: safeOutput.expectedDevSha || null,
+      verifiedDevSha: safeOutput.verifiedDevSha || null,
+      expectedMainSha: safeOutput.expectedMainSha || null,
+      baseShaBeforeMerge: safeOutput.baseShaBeforeMerge || null,
+      mergedMainSha: safeOutput.mergedMainSha || null,
+      prNumber: Number(safeOutput.prNumber || 0) || null,
+      prUrl: safeOutput.prUrl || null,
+      prCreated: Boolean(safeOutput.prCreated),
+      createdByRun: safeOutput.createdByRun || null,
+      mergeMethod: safeOutput.mergeMethod || null,
+      durationMs: getResultDurationMs(result, safeOutput),
+    };
+  }
+
   if (isToolResultEnvelope(result) && result.outputType === GIT_BRANCH_SYNC_OUTPUT_TYPE) {
     return {
       outcome: safeOutput.outcome || null,
@@ -521,6 +542,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
   let repositoryPackage = null;
   let preflightCondition = null;
   let gitCommit = null;
+  let githubPr = null;
   let approval = null;
   let branchSync = null;
   let localSync = null;
@@ -624,6 +646,24 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
       continue;
     }
 
+    if (isToolResultEnvelope(result) && result.outputType === GITHUB_DEV_PR_MERGE_OUTPUT_TYPE) {
+      githubPr = { nodeKey, result, output };
+      stages.push({
+        nodeKey,
+        stageCode: 'GITHUB_DEV_PR_MERGE',
+        label: 'Merge GitHub Dev PR',
+        status: result.success === false ? 'FAILED' : 'SUCCESS',
+        outcome: output.outcome || null,
+        summary: getResultSummary(result, output),
+        outputType: result.outputType,
+        durationMs,
+        evidence: output.prNumber
+          ? `PR #${output.prNumber}${output.mergedMainSha ? `; main ${String(output.mergedMainSha).slice(0, 12)}` : ''}`
+          : output.mergedMainSha || 'GitHub PR merge result',
+      });
+      continue;
+    }
+
     if (output.kind === 'human_approval') {
       approval = { nodeKey, output };
       const decision = String(output.decision || output.status || 'UNKNOWN').toUpperCase();
@@ -675,19 +715,21 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     }
   }
 
-  if (!preflightCondition && !gitCommit && !branchSync && !localSync) {
+  if (!preflightCondition && !gitCommit && !githubPr && !branchSync && !localSync) {
     return null;
   }
 
   const failed = stages.some((stage) => stage.status === 'FAILED');
   const stopped = stages.some((stage) => stage.status === 'STOPPED');
   const commitOutput = getSafeObject(gitCommit?.output);
+  const githubPrOutput = getSafeObject(githubPr?.output);
   const syncOutput = getSafeObject(branchSync?.output);
   const localSyncOutput = getSafeObject(localSync?.output);
   const approvalOutput = getSafeObject(approval?.output);
   const repositoryStatusOutput = getSafeObject(repositoryStatus?.output);
   const preflightConditionOutput = getSafeObject(preflightCondition?.output);
   const repositoryCode =
+    githubPrOutput.repositoryCode ||
     localSyncOutput.repositoryCode ||
     syncOutput.repositoryCode ||
     commitOutput.repositoryCode ||
@@ -696,6 +738,7 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     repositoryPackage?.output?.repositoryName ||
     null;
   const repositoryName =
+    githubPrOutput.repositoryName ||
     localSyncOutput.repositoryName ||
     syncOutput.repositoryName ||
     commitOutput.repositoryName ||
@@ -703,8 +746,8 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     repositoryMap?.output?.repositoryName ||
     repositoryPackage?.output?.repositoryName ||
     repositoryCode;
-  const developmentBranch = commitOutput.branch || syncOutput.targetBranch || syncOutput.devBranch || null;
-  const mainBranch = syncOutput.sourceBranch || syncOutput.mainBranch || null;
+  const developmentBranch = commitOutput.branch || githubPrOutput.headBranch || syncOutput.targetBranch || syncOutput.devBranch || null;
+  const mainBranch = githubPrOutput.baseBranch || syncOutput.sourceBranch || syncOutput.mainBranch || null;
   const devCommitSha = commitOutput.currentHeadSha || commitOutput.commitSha || null;
   const synchronizedHeadSha = syncOutput.synchronizedHeadSha || syncOutput.devHeadAfterSha || null;
   const localSyncCommand =
@@ -713,8 +756,10 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
       : null;
   const outcome = failed
     ? 'FAILED'
-    : stopped
-      ? 'STOPPED'
+      : stopped
+        ? 'STOPPED'
+      : githubPr && !branchSync
+        ? 'REMOTE_PROMOTED'
       : branchSync
         ? localSync
           ? localSyncOutput.fourWaySynchronized
@@ -742,6 +787,22 @@ function buildGitPromotionRollup(nodeOutputsByKey = {}) {
     synchronizationDirection:
       mainBranch && developmentBranch ? `${mainBranch} → ${developmentBranch}` : null,
     devCommitSha,
+    githubPr: githubPr
+      ? {
+          nodeKey: githubPr.nodeKey,
+          outcome: githubPrOutput.outcome || null,
+          prNumber: Number(githubPrOutput.prNumber || 0) || null,
+          prUrl: githubPrOutput.prUrl || null,
+          prCreated: Boolean(githubPrOutput.prCreated),
+          expectedDevSha: githubPrOutput.expectedDevSha || null,
+          verifiedDevSha: githubPrOutput.verifiedDevSha || null,
+          expectedMainSha: githubPrOutput.expectedMainSha || null,
+          baseShaBeforeMerge: githubPrOutput.baseShaBeforeMerge || null,
+          mergedMainSha: githubPrOutput.mergedMainSha || null,
+          mergeMethod: githubPrOutput.mergeMethod || null,
+          createdByRun: githubPrOutput.createdByRun || null,
+        }
+      : null,
     synchronizedHeadSha,
     changedFiles: normalizeNonNegativeNumber(commitOutput.changedFiles),
     commitsApplied: normalizeNonNegativeNumber(syncOutput.commitsApplied),
@@ -1228,6 +1289,26 @@ function buildScheduledToolResultSummary(toolResult = {}) {
     };
   }
 
+  if (result.outputType === GITHUB_DEV_PR_MERGE_OUTPUT_TYPE) {
+    const output = getSafeObject(result.output);
+    summary.githubDevPrMerge = {
+      outcome: output.outcome || null,
+      repositoryCode: output.repositoryCode || null,
+      baseBranch: output.baseBranch || null,
+      headBranch: output.headBranch || null,
+      expectedDevSha: output.expectedDevSha || null,
+      verifiedDevSha: output.verifiedDevSha || null,
+      expectedMainSha: output.expectedMainSha || null,
+      baseShaBeforeMerge: output.baseShaBeforeMerge || null,
+      mergedMainSha: output.mergedMainSha || null,
+      prNumber: Number(output.prNumber || 0) || null,
+      prUrl: output.prUrl || null,
+      prCreated: Boolean(output.prCreated),
+      createdByRun: output.createdByRun || null,
+      durationMs: getResultDurationMs(result, output),
+    };
+  }
+
   if (result.outputType === GIT_BRANCH_SYNC_OUTPUT_TYPE) {
     const output = getSafeObject(result.output);
     summary.gitBranchSync = {
@@ -1315,6 +1396,7 @@ module.exports = {
   GIT_COMMIT_OUTPUT_TYPE,
   GIT_BRANCH_SYNC_OUTPUT_TYPE,
   GIT_LOCAL_SYNC_OUTPUT_TYPE,
+  GITHUB_DEV_PR_MERGE_OUTPUT_TYPE,
   GIT_REPOSITORY_STATUS_OUTPUT_TYPE,
   DATABASE_HEALTH_OUTPUT_TYPE,
   DATABASE_BUILD_OUTPUT_TYPE,

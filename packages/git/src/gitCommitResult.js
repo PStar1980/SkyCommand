@@ -84,6 +84,18 @@ function createGitCommitToolResult(result = {}) {
       changes: normalizeChanges(result.changes),
       ...(performanceTelemetry ? { performanceTelemetry } : {}),
       ...(transportTelemetry ? { transportTelemetry } : {}),
+      ...(result.commitBoundary
+        ? {
+            commitBoundary: {
+              finalizationWorkflowRunId: nullable(result.commitBoundary.finalizationWorkflowRunId),
+              workflowRunRecordId: nullable(result.commitBoundary.workflowRunRecordId),
+              sourceIdentityDigest: nullable(result.commitBoundary.sourceIdentityDigest),
+              currentRevision: nullable(result.commitBoundary.currentRevision),
+              databasePlanDigest: nullable(result.commitBoundary.databasePlanDigest),
+              revalidatedAt: nullable(result.commitBoundary.revalidatedAt),
+            },
+          }
+        : {}),
       steps: {
         fetched: Boolean(result.fetched),
         switchedBranch: Boolean(result.switchedBranch),

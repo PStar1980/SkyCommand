@@ -821,6 +821,8 @@ async function applyChange(client, change, context) {
     await client.query('COMMIT');
   } catch (cause) {
     if (!commitAttempted) await client.query('ROLLBACK').catch(() => {});
+    const safeCauseMessage =
+      String(cause?.message || '').replace(/\s+/g, ' ').slice(0, 500) || null;
     if (cause instanceof DatabaseUpgradeError) {
       if (!commitAttempted) {
         cause.details = { ...cause.details, rolledBack: true };
@@ -837,8 +839,18 @@ async function applyChange(client, change, context) {
     }
     throw upgradeError(
       'DATABASE_UPGRADE_CHANGE_FAILED',
-      `Governed SQL change failed: ${change.relativePath}.`,
-      { ordinal: change.ordinal, relativePath: change.relativePath, rolledBack: true },
+      `Governed SQL change failed: ${change.relativePath}${
+        cause?.code || safeCauseMessage
+          ? ` (${[cause?.code, safeCauseMessage].filter(Boolean).join(': ')})`
+          : ''
+      }.`,
+      {
+        ordinal: change.ordinal,
+        relativePath: change.relativePath,
+        rolledBack: true,
+        causeCode: cause?.code || null,
+        causeMessage: safeCauseMessage,
+      },
       cause,
     );
   }

@@ -271,19 +271,21 @@ function getToolDefinitions(config) {
       name: 'skycommand_development_promotion_start',
       title: 'Start SkyCommand development promotion',
       description:
-        'Start only the governed SkyCommand Dev Promotion Local workflow with a single validated commit message. The workflow continues independently to its existing human Merge Approval node; the initiating Agent must stop after the start receipt. No repository, workflow identity, approval, polling, retry, cancellation, merge, sync, or generic workflow controls are exposed.',
+        'Start only the governed SkyCommand Development Promotion workflow after binding it to a successful reviewed dev_change_finalize receipt. Supply a commit message, finalization workflow run id, and caller-scoped idempotency key. No second human approval is required; observe the returned generic workflow run to terminal status.',
       inputSchema: {
         type: 'object',
         properties: {
           commitMessage: { type: 'string', minLength: 1, maxLength: 300 },
+          finalizationWorkflowRunId: { type: 'string', format: 'uuid' },
+          idempotencyKey: { type: 'string', minLength: 1, maxLength: 200 },
         },
-        required: ['commitMessage'],
+        required: ['commitMessage', 'finalizationWorkflowRunId', 'idempotencyKey'],
         additionalProperties: false,
       },
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
-        idempotentHint: false,
+        idempotentHint: true,
         openWorldHint: false,
       },
     });
@@ -651,7 +653,11 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
         throw error;
       }
 
-      const promotionArgs = assertExactArguments(args, ['commitMessage']);
+      const promotionArgs = assertExactArguments(args, [
+        'commitMessage',
+        'finalizationWorkflowRunId',
+        'idempotencyKey',
+      ]);
       if (typeof promotionArgs.commitMessage !== 'string') {
         const error = new Error('commitMessage must be a string.');
         error.code = 'MCP_INVALID_ARGUMENTS';
@@ -672,11 +678,36 @@ async function handleToolCall({ name, arguments: rawArguments = {} }, config, re
         error.code = 'MCP_INVALID_ARGUMENTS';
         throw error;
       }
+      const finalizationWorkflowRunId = assertString(
+        promotionArgs.finalizationWorkflowRunId,
+        'finalizationWorkflowRunId',
+      );
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          finalizationWorkflowRunId,
+        )
+      ) {
+        const error = new Error('finalizationWorkflowRunId must be a UUID.');
+        error.code = 'MCP_INVALID_ARGUMENTS';
+        throw error;
+      }
+      const idempotencyKey = assertString(promotionArgs.idempotencyKey, 'idempotencyKey');
+      if (
+        !idempotencyKey ||
+        idempotencyKey.length > 200 ||
+        /[\u0000-\u001F\u007F-\u009F]/.test(idempotencyKey)
+      ) {
+        const error = new Error(
+          'idempotencyKey must be a nonblank single-line string of no more than 200 characters.',
+        );
+        error.code = 'MCP_INVALID_ARGUMENTS';
+        throw error;
+      }
       const api = await requestJson(
         config,
         'POST',
         '/development-promotion/runs',
-        { commitMessage },
+        { commitMessage, finalizationWorkflowRunId, idempotencyKey },
         requestImpl,
       );
       return toolResult(api);

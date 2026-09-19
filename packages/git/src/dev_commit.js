@@ -76,6 +76,12 @@ function fail(message) {
   throw new Error(message);
 }
 
+function failWithCode(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  throw error;
+}
+
 function getCommandEnvironment() {
   const env = {
     ...process.env,
@@ -236,7 +242,7 @@ async function executeDevCommitViaHostAgent(args = []) {
   const positional = (Array.isArray(args) ? args : [])
     .map(String)
     .filter((arg) => !arg.startsWith('--'));
-  const [repoName, commitMessage] = positional;
+  const [repoName, commitMessage, finalizationWorkflowRunId, workflowRunId] = positional;
 
   if (!toBoolean(process.env.SKYCOMMAND_HOST_AGENT_ENABLED)) {
     fail(
@@ -291,6 +297,8 @@ async function executeDevCommitViaHostAgent(args = []) {
               toolCode: TOOL_CODE,
               repoName,
               commitMessage,
+              finalizationWorkflowRunId,
+              workflowRunId,
               hostTaskQueue,
             },
           ],
@@ -358,9 +366,12 @@ async function executeDevCommit(args = [], options = {}) {
       : Boolean(options.orchestratedExecution);
   const executionTarget = String(options.executionTarget || (isDockerRuntime() ? 'DOCKER' : 'HOST'));
   const transport = String(options.transport || 'git_cli');
-  const [repoName, commitMessage] = (Array.isArray(args) ? args : [])
+  const [repoName, commitMessage, argumentFinalizationWorkflowRunId, argumentWorkflowRunId] = (Array.isArray(args) ? args : [])
     .map(String)
     .filter((arg) => !arg.startsWith('--'));
+  const finalizationWorkflowRunId =
+    options.finalizationWorkflowRunId || argumentFinalizationWorkflowRunId || null;
+  const workflowRunId = options.workflowRunId || argumentWorkflowRunId || null;
   if (!commitMessage || commitMessage.trim() === '')
     fail('Missing commitMessage. Usage: node dev_commit.js <repoName> <commitMessage>');
   const repo = await telemetry.measure(
@@ -427,6 +438,33 @@ async function executeDevCommit(args = [], options = {}) {
   );
   const changeSummary = parseGitStatusPorcelain(status);
 
+  let commitBoundary = null;
+  if (finalizationWorkflowRunId || workflowRunId) {
+    if (!finalizationWorkflowRunId || !workflowRunId) {
+      failWithCode(
+        'R6_PROMOTION_COMMIT_BOUNDARY_ARGUMENTS_INVALID',
+        'Finalization and promotion workflow run ids are both required at the commit boundary.',
+      );
+    }
+    const {
+      validateFinalizationBinding,
+    } = require('../../dev-finalization/src/promotionPreflight');
+    const binding = await validateFinalizationBinding({
+      finalizationWorkflowRunId,
+      workflowRunRecordId: workflowRunId,
+      verifyCurrent: true,
+      environment: process.env,
+    });
+    commitBoundary = {
+      finalizationWorkflowRunId: binding.finalizationWorkflowRunId,
+      workflowRunRecordId: workflowRunId,
+      sourceIdentityDigest: binding.current?.sourceIdentity?.digest || binding.sourceIdentity?.digest || null,
+      currentRevision: binding.current?.currentRevision || null,
+      databasePlanDigest: binding.current?.database?.planDigest || binding.receipt?.database?.planDigest || null,
+      revalidatedAt: new Date().toISOString(),
+    };
+  }
+
   if (status === '') {
     const aheadCount = telemetry.measureSync('AHEAD_CHECK', 'Unpushed commit check', () =>
       getAheadCount(repo.rootPath, repo.devBranch),
@@ -476,6 +514,7 @@ async function executeDevCommit(args = [], options = {}) {
       executionTarget,
       transport,
       performanceTelemetry: telemetry.snapshot(),
+      commitBoundary,
     };
   }
 
@@ -523,6 +562,7 @@ async function executeDevCommit(args = [], options = {}) {
     executionTarget,
     transport,
     performanceTelemetry: telemetry.snapshot(),
+    commitBoundary,
   };
 }
 

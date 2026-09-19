@@ -169,8 +169,12 @@ async function run() {
   );
   assert.ok(devPromotionTool);
   assert.equal(devPromotionTool.annotations.readOnlyHint, false);
-  assert.equal(devPromotionTool.annotations.idempotentHint, false);
-  assert.deepEqual(Object.keys(devPromotionTool.inputSchema.properties), ['commitMessage']);
+  assert.equal(devPromotionTool.annotations.idempotentHint, true);
+  assert.deepEqual(Object.keys(devPromotionTool.inputSchema.properties), [
+    'commitMessage',
+    'finalizationWorkflowRunId',
+    'idempotencyKey',
+  ]);
   assert.equal(devPromotionTool.inputSchema.additionalProperties, false);
 
   const initialize = await gateway.handleJsonRpcMessage(
@@ -269,8 +273,9 @@ async function run() {
           workflowRunRecordId: 'run-123',
           temporalWorkflowId: 'temporal-123',
           triggerSource: 'ASSISTANT',
-          humanApprovalRequired: true,
-          agentMustStop: true,
+          humanApprovalRequired: false,
+          agentMustStop: false,
+          terminalObservationRequired: true,
         },
       };
     }
@@ -483,19 +488,24 @@ async function run() {
       name: 'skycommand_development_promotion_start',
       arguments: {
         commitMessage: 'Development Control Plane Bootstrap - governed MCP development promotion',
+        finalizationWorkflowRunId: '11111111-1111-4111-8111-111111111111',
+        idempotencyKey: 'mcp-r6-self-test',
       },
     },
     config({ executionEnabled: true, devPromotionEnabled: true }),
     requestImpl,
   );
   assert.equal(promotion.isError, undefined);
-  assert.equal(promotion.structuredContent.promotion.humanApprovalRequired, true);
-  assert.equal(promotion.structuredContent.promotion.agentMustStop, true);
+  assert.equal(promotion.structuredContent.promotion.humanApprovalRequired, false);
+  assert.equal(promotion.structuredContent.promotion.agentMustStop, false);
+  assert.equal(promotion.structuredContent.promotion.terminalObservationRequired, true);
   const promotionRequest = requests.find(
     (item) => item.relativePath === '/development-promotion/runs',
   );
   assert.deepEqual(promotionRequest.body, {
     commitMessage: 'Development Control Plane Bootstrap - governed MCP development promotion',
+    finalizationWorkflowRunId: '11111111-1111-4111-8111-111111111111',
+    idempotencyKey: 'mcp-r6-self-test',
   });
 
   const promotionDisabled = await gateway.handleToolCall(

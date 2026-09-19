@@ -47,15 +47,20 @@ Assistant-started runs are recorded with `triggerSource = ASSISTANT`. The assist
 The separately gated `POST /development-promotion/runs` endpoint accepts exactly:
 
 ```json
-{ "commitMessage": "..." }
+{
+  "commitMessage": "...",
+  "finalizationWorkflowRunId": "<successful dev_change_finalize workflow run id>",
+  "idempotencyKey": "<caller-scoped retry key>"
+}
 ```
 
-The server supplies `workflowCode = skyserver_dev_commit`, `repoName` from the exact configured `SkyCommand` repository, `executor = temporal`, `runSource = assistant`, and `triggerType = ASSISTANT`. It rejects extra execution/control fields, blank/multiline/control-character messages, and messages over 300 characters. The response is only a start receipt; it does not provide promotion polling or approval controls. The existing human Merge Approval node remains authoritative, and the initiating Agent must stop after a successful receipt.
+The server supplies `workflowCode = skyserver_dev_commit`, `repoName` from the exact configured `SkyCommand` repository, `executor = temporal`, `runSource = assistant`, and `triggerType = ASSISTANT`. It rejects extra execution/control fields, blank/multiline/control-character messages, invalid finalization run ids, and invalid idempotency keys. The referenced successful `dev_change_finalize` receipt must match the exact repository, DEV environment/profile, source/configuration/SQL identity, and zero-pending database state; current drift blocks the start. The response is a governed generic workflow-run receipt with principal/request attribution and a read path for terminal observation. R6 promotion versions remove the redundant Merge Approval node; the explicit user promotion instruction remains the authorization boundary.
 
 This endpoint requires the Assistant service identity to possess the complete, explicit permission envelope below; none of these permissions are part of the Assistant default set:
 
 ```text
 WORKFLOW_RUN
+DEV_PROMOTION_PREFLIGHT
 REPO_MAP_GENERATE
 REPO_ZIP_GENERATE
 GIT_COMMIT_RUN
@@ -70,7 +75,7 @@ The service checks the entire envelope before creating a workflow run. If any co
 
 ## Structured result consumption
 
-The start call returns `202 Accepted` with a `statusUrl`. Poll that URL until `terminal` becomes `true`. The final response exposes the registered automation's structured `result`, any normalized failure, source commit, timings, and assistant-scoped artifact URLs.
+The start call returns `202 Accepted` with a generic workflow-run record reference. Read `/api/assistant/workflow-runs/{workflowRunRecordId}` until the run is terminal. The final response exposes the workflow-owned structured result, commit/merge/sync evidence, timings, and assistant-scoped artifact references without exposing secrets.
 
 ## Audit
 

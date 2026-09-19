@@ -65,4 +65,56 @@ test.describe('Workflow Initialization browser smoke', () => {
     // Full workflow launch/completion coverage is added after the dedicated Browser Worker
     // and registered Browser Test execution path are in place.
   });
+
+  test('renders the corrected R6 promotion node order for both published variants without starting either workflow', async ({
+    page,
+  }) => {
+    const variants = [
+      {
+        code: 'skyserver_dev_commit',
+        nodeKeys: [
+          'promotion_preflight_node',
+          'capability_catalog_node',
+          'repo_map_node',
+          'repo_zip_node',
+          'dev_commit_node',
+          'github_dev_pr_merge_node',
+          'merge_sync_node',
+          'local_repo_sync_node',
+          'dev_promotion_summary',
+        ],
+      },
+      {
+        code: 'skycommand-dev-promo-alt',
+        nodeKeys: [
+          'promotion_preflight_node',
+          'local_dev_pull_node',
+          'capability_catalog_node',
+          'repo_map_node',
+          'repo_zip_node',
+          'dev_commit_node',
+          'github_dev_pr_merge_node',
+          'merge_sync_node',
+          'local_repo_sync_node',
+          'dev_promotion_summary',
+        ],
+      },
+    ];
+
+    for (const variant of variants) {
+      await page.goto(`/workflows/start?workflowCode=${encodeURIComponent(variant.code)}`);
+      await expect(page.getByRole('heading', { name: 'Available workflows' })).toBeVisible();
+      await page.getByLabel('Search', { exact: true }).fill(variant.code);
+
+      const workflowRow = page.locator('tbody tr').filter({ hasText: variant.code }).first();
+      await expect(workflowRow).toBeVisible();
+      await workflowRow.getByRole('button', { name: 'Initialize', exact: true }).click();
+
+      const visualKeys = page.locator(
+        '[role="list"][aria-label="Sequential workflow visual map"] .sky-workflow-visual-key',
+      );
+      await expect(visualKeys).toHaveText(variant.nodeKeys, { timeout: 10_000 });
+      await expect(page.getByRole('button', { name: 'Start Workflow', exact: true })).toBeVisible();
+    }
+  });
 });

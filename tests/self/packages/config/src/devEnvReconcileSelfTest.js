@@ -162,6 +162,7 @@ async function run() {
     [{ API_TELEMETRY_RETENTION_DAYS: 0 }, 'PATCH_VALUE_INVALID'],
     [{ PGDATABASE: 'other_database' }, 'PROTECTED_CONFIGURATION_KEY'],
     [{ JWT_SECRET: syntheticSecret }, 'SECRET_KEY_NOT_ALLOWED'],
+    [{ SKYCOMMAND_ASSISTANT_PERMISSION_CODES: 'GIT_DEV_PR_MERGE_RUN,UNREGISTERED_PERMISSION' }, 'PATCH_VALUE_INVALID'],
   ]) {
     const directory = fixtureRoot();
     try {
@@ -176,6 +177,54 @@ async function run() {
     } finally {
       cleanup(directory);
     }
+  }
+
+  const permissionScope = [
+    'BROWSER_AUTOMATION_READ',
+    'BROWSER_AUTOMATION_RUN',
+    'WORKFLOW_RUN',
+    'DEV_PROMOTION_PREFLIGHT',
+    'CAPABILITY_CATALOG_EXPORT',
+    'REPO_MAP_GENERATE',
+    'REPO_ZIP_GENERATE',
+    'GIT_COMMIT_RUN',
+    'GIT_DEV_PR_MERGE_RUN',
+    'GIT_MAIN_MERGE_RUN',
+    'GIT_LOCAL_SYNC_RUN',
+    'CORE_RUN_LOW_RISK_SCRIPT',
+    'CORE_RUN_MEDIUM_RISK_SCRIPT',
+    'CORE_RUN_HIGH_RISK_SCRIPT',
+    'DB_UPGRADE_PLAN',
+    'DB_UPGRADE_APPLY_REQUEST',
+  ].join(',');
+  const permissionRoot = fixtureRoot({
+    env: [
+      'UNRELATED_SETTING=preserve-me',
+      `PGPASSWORD=${syntheticSecret}`,
+      `JWT_SECRET=${syntheticSecret}`,
+      `SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN`,
+    ].join('\n'),
+    example: [
+      'SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN',
+    ].join('\n'),
+  });
+  try {
+    const result = runReconcile(permissionRoot, {
+      SKYCOMMAND_ASSISTANT_PERMISSION_CODES: permissionScope,
+    });
+    assert.equal(result.outcome, 'CHANGED');
+    assert.deepEqual(result.changedKeys, ['SKYCOMMAND_ASSISTANT_PERMISSION_CODES']);
+    assert.deepEqual(result.envExample.changedKeys, []);
+    assert.equal(
+      fs.readFileSync(path.join(permissionRoot, '.env'), 'utf8').includes('GIT_DEV_PR_MERGE_RUN'),
+      true,
+    );
+    const repeated = runReconcile(permissionRoot, {
+      SKYCOMMAND_ASSISTANT_PERMISSION_CODES: permissionScope,
+    });
+    assert.equal(repeated.outcome, 'NO_CHANGES');
+  } finally {
+    cleanup(permissionRoot);
   }
 
   const missingSecretRoot = fixtureRoot({

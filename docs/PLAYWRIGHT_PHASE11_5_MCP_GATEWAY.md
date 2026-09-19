@@ -85,7 +85,7 @@ The mutating/non-idempotent Step C tool is advertised only when both MCP executi
 
 - `skycommand_development_promotion_start`
 
-It accepts only `commitMessage` and starts only `skyserver_dev_commit` for the configured `SkyCommand` repository. It returns a minimal start receipt with `humanApprovalRequired = true` and `agentMustStop = true`. No approval-decision or promotion polling/control tool is exposed.
+It accepts `commitMessage`, a successful reviewed `finalizationWorkflowRunId`, and a caller-scoped `idempotencyKey`; the server resolves `skyserver_dev_commit` and the configured `SkyCommand` repository. The finalization receipt and current source/SQL/configuration/DEV database state are revalidated before admission. It returns the generic workflow-run reference with `humanApprovalRequired = false`, `agentMustStop = false`, and `terminalObservationRequired = true`; read the returned run until terminal status. No approval-decision tool is exposed, and the R6 promotion graph has no redundant Merge Approval node.
 
 The execute tool is conservatively annotated as write/destructive/open-world at the MCP layer. SkyCommand then performs the authoritative automation-specific risk checks server-side.
 
@@ -123,12 +123,12 @@ For a later, explicitly approved Step C acceptance test, configure all of the fo
 ```dotenv
 SKYCOMMAND_ASSISTANT_DEV_PROMOTION_ENABLED=true
 SKYCOMMAND_ASSISTANT_DEV_PROMOTION_REPOSITORY=SkyCommand
-SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN,WORKFLOW_RUN,REPO_MAP_GENERATE,REPO_ZIP_GENERATE,GIT_COMMIT_RUN,GIT_MAIN_MERGE_RUN,GIT_LOCAL_SYNC_RUN,CORE_RUN_LOW_RISK_SCRIPT,CORE_RUN_MEDIUM_RISK_SCRIPT,CORE_RUN_HIGH_RISK_SCRIPT
+SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN,WORKFLOW_RUN,DEV_PROMOTION_PREFLIGHT,REPO_MAP_GENERATE,REPO_ZIP_GENERATE,GIT_COMMIT_RUN,GIT_MAIN_MERGE_RUN,GIT_LOCAL_SYNC_RUN,CORE_RUN_LOW_RISK_SCRIPT,CORE_RUN_MEDIUM_RISK_SCRIPT,CORE_RUN_HIGH_RISK_SCRIPT
 SKYCOMMAND_MCP_EXECUTION_ENABLED=true
 SKYCOMMAND_MCP_DEV_PROMOTION_ENABLED=true
 ```
 
-Do not invoke the promotion tool as part of gateway discovery or self-tests. After SkyCommand returns a successful start receipt, the initiating Agent stops; Paul remains the approving principal at the existing Merge Approval node.
+Do not invoke the promotion tool as part of gateway discovery or self-tests. A real promotion remains outside this R6 implementation turn; when explicitly authorized later, the initiating Agent observes the returned run to terminal status and reports its workflow-owned commit/merge/sync evidence.
 
 ## Codex CLI configuration
 

@@ -431,6 +431,49 @@ function gitCommitResult() {
   };
 }
 
+function githubPrMergeResult() {
+  return {
+    schemaVersion: '1.0',
+    success: true,
+    message: 'GitHub DEV pull request merged.',
+    outputType: 'github_dev_pr_merge_summary.v1',
+    output: {
+      operationKind: 'GITHUB_DEV_PR_MERGE',
+      outcome: 'MERGED',
+      repositoryCode: 'SkyCommand',
+      repositoryName: 'SkyCommand',
+      remote: 'https://github.com/PStar1980/SkyCommand.git',
+      githubRepository: 'PStar1980/SkyCommand',
+      baseBranch: 'main',
+      headBranch: 'dev',
+      expectedDevSha: '2'.repeat(40),
+      verifiedDevSha: '2'.repeat(40),
+      expectedMainSha: '1'.repeat(40),
+      baseShaBeforeMerge: '1'.repeat(40),
+      mergedMainSha: '3'.repeat(40),
+      prNumber: 42,
+      prUrl: 'https://github.com/PStar1980/SkyCommand/pull/42',
+      prCreated: false,
+      createdByRun: '11111111-1111-4111-8111-111111111111',
+      mergeMethod: 'merge',
+      startedAt: '2026-09-18T12:00:00.000Z',
+      completedAt: '2026-09-18T12:00:01.000Z',
+      durationMs: 1000,
+      verification: {
+        remoteIdentityVerified: true,
+        devHeadVerified: true,
+        baseHeadVerified: true,
+        pullRequestHeadVerified: true,
+        mergeabilityVerified: true,
+        resultingMainVerified: true,
+      },
+    },
+    warnings: [],
+    error: null,
+    metadata: {},
+  };
+}
+
 function databaseBuildResult() {
   return {
     schemaVersion: '1.0',
@@ -794,6 +837,15 @@ function run() {
   assert.equal(promotion.preflight.condition.branchLabel, 'TRUE');
   assert.equal(promotion.branchesSynchronized, true);
 
+  const githubPromotion = buildGitPromotionRollup({
+    dev_commit_node: commitResult,
+    github_dev_pr_merge_node: githubPrMergeResult(),
+  });
+  assert.equal(githubPromotion.outcome, 'REMOTE_PROMOTED');
+  assert.equal(githubPromotion.githubPr.prNumber, 42);
+  assert.equal(githubPromotion.githubPr.mergedMainSha, '3'.repeat(40));
+  assert.equal(githubPromotion.stages[1].stageCode, 'GITHUB_DEV_PR_MERGE');
+
   const remoteOnlyBranchSync = gitBranchSyncResult();
   remoteOnlyBranchSync.output.localHostSyncRequired = true;
   remoteOnlyBranchSync.output.deferredLocalBranches = ['main', 'dev'];
@@ -860,11 +912,13 @@ function run() {
     repo_map_node: mapResult,
     repo_zip_node: repositoryResult,
     dev_commit_node: commitResult,
+    github_dev_pr_merge_node: githubPrMergeResult(),
     merge_approval_node: humanApprovalResult(),
     main_merge_node: branchSyncResult,
   });
   assert.equal(promotionStructured.outputTypes['git_repository_status.v1'], 1);
   assert.equal(promotionStructured.outputTypes['git_branch_sync_summary.v1'], 1);
+  assert.equal(promotionStructured.outputTypes['github_dev_pr_merge_summary.v1'], 1);
   assert.equal(promotionStructured.gitPromotion.outcome, 'PROMOTED');
 
   const databaseSynchronization = buildDatabaseSynchronizationRollup({
