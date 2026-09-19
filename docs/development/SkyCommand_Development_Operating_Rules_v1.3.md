@@ -1,19 +1,19 @@
-# SkyCommand Development Operating Rules v1.2
+# SkyCommand Development Operating Rules v1.3
 
 **Status:** Active development governance  
-**Revision:** 2026-09-16 — Accepted review recommendations and transition scope  
-**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.1.md`  
+**Revision:** 2026-09-18 — Post-R6 autonomous DEV promotion baseline  
+**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.2.md`  
 **Applies to:** Paul, Sky/ChatGPT, Codex/Luna/Astra, future coding agents, and any agent operating on the SkyCommand repository  
 **Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`  
 **Immediate pre-Phase-1 remediation authority:** `docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md`
 
 ## Transition scope and precedence
 
-Paul accepted the review recommendations on September 16, 2026. This revision incorporates that approval; it is governance authorization, not evidence that remediation has been implemented or accepted.
+R0–R6 establish the accepted Autonomous DEV implementation and promotion baseline. R7 cleanup and R8 one-instruction acceptance remain separate scoped remediation steps. Agentic AI Phase 1 remains blocked until R8 acceptance.
 
-These operating rules govern the operator-authorized local Codex/Luna remediation workflow in the approved DEV checkout. The long-range architecture governs future SkyCommand-managed Agent Runs: those agents remain isolated from the live checkout, control-plane secrets, Docker socket, and privileged Host Agent. Their writable access begins only through the certified Phase 3.5 managed-workspace path. Local bootstrap access does not become authority for managed agents.
+These operating rules govern the operator-authorized local Codex/Luna development workflow in the approved DEV checkout. The long-range architecture governs future SkyCommand-managed Agent Runs: those agents remain isolated from the live checkout, control-plane secrets, Docker socket, and privileged Host Agent. Their writable access begins only through the certified Phase 3.5 managed-workspace path. Local operator access does not become blanket authority for managed agents.
 
-The assigned work order limits implementation scope. R0–R8 are sequential acceptance gates, not blanket permission to implement every phase. Required routine operations within an assigned step remain autonomous. Before a replacement capability exists, use only the documented bootstrap path or already-authorized local operation; never report an unavailable workflow as executed. Until R2 acceptance, the remediation plan permits D1 CLI PLAN/APPLY for required canonical DEV changes, retaining target pins, digest verification, and existing technical checks. This exception ends at R2 acceptance.
+The assigned work order limits implementation scope. R0–R8 are sequential acceptance gates, not blanket permission to implement every phase. Required routine operations within an assigned step remain autonomous. R2's bootstrap exception is closed: the registered database-upgrade capability is now the normal mutation path for canonical DEV migrations/seeds. R3 configuration reconciliation, R4 governed agent execution, R5 Dev Change Finalization, and R6 governed promotion are the normal accepted DEV boundaries where applicable.
 
 No instruction here overrides runtime access controls. A genuine inaccessible capability is a blocker, not a request for a ceremonial second approval.
 
@@ -77,10 +77,13 @@ A development implementation turn ends in a reviewable DEV state. It does not im
 
 When Paul later explicitly instructs promotion:
 
-- that instruction authorizes the permitted DEV promotion Workflow;
-- the agent may start the Workflow;
-- the Workflow should complete its registered DEV promotion path without a second redundant Paul approval checkpoint;
-- the agent may inspect/poll the run and report the final receipt;
+- that instruction is the promotion authorization event for the permitted DEV promotion Workflow;
+- promotion must bind to a successful reviewed Dev Change Finalization receipt;
+- the promotion preflight must verify reviewed source/SQL/config/database/branch identity before Git mutation;
+- drift invalidates the reviewed promotion state and requires fresh finalization/review;
+- the agent may start the permitted Workflow and observe/poll it to terminal completion;
+- the Workflow must complete its registered DEV promotion path without a second redundant Paul approval checkpoint;
+- the final receipt must include commit, GitHub PR/merge, remote synchronization, local synchronization, artifact, actor, and final branch/SHA evidence;
 - production deployment/publication remains a separate boundary.
 
 The intended human pattern is therefore:
@@ -205,23 +208,46 @@ Read-only Git inspection is allowed.
 
 SkyCommand Development Promotion Workflow(s) are the source-control mutation path.
 
-A normal implementation work order does not imply promotion. The agent prepares a complete reviewable working tree and stops after autonomous finalization.
+A normal implementation work order does not imply promotion. The agent prepares a complete reviewable working tree, runs Dev Change Finalization, reports the reviewable state, and stops.
 
-When Paul explicitly instructs promotion, the instruction is sufficient authorization for the permitted DEV promotion Workflow. The Workflow should not introduce an additional redundant human merge-approval pause for the same DEV promotion decision.
+When Paul explicitly instructs promotion, the instruction is sufficient authorization for the permitted DEV promotion Workflow. The Workflow must not introduce an additional redundant human merge-approval pause for the same DEV promotion decision.
+
+The promotion start must bind to the reviewed successful finalization receipt. Promotion preflight must fail closed on source, SQL manifest, non-secret configuration, database, workflow-version, or branch drift. A drifted state requires fresh finalization and review before another promotion decision.
+
+### 7.3 R6 promotion mutation chain
+
+The registered promotion workflow owns the complete Git mutation sequence. The critical ordering is:
+
+1. **Verify DEV Promotion Preflight**;
+2. refresh required promotion evidence/artifacts, including Capability Catalogue, Repository Map, and Repository Zip as registered;
+3. **Dev Commit**;
+4. **Merge GitHub Dev PR**;
+5. **Repo Merge / Sync**;
+6. **Local Repository Sync**;
+7. **Development Promotion Summary** as the terminal summary.
+
+Registered variants may contain additional non-mutating governance/evidence nodes, but they must preserve this mutation ordering and may not introduce a bypass edge around preflight or the GitHub PR merge.
+
+`Merge GitHub Dev PR` is the governed `dev -> main` GitHub PR boundary. It must verify the expected reviewed DEV/main SHAs, operate on the configured repository/branches, perform the registered PR merge behavior, and emit structured PR/merge evidence. The implementation agent must not substitute direct Git/GitHub mutation or require Paul to manually perform the same merge after promotion has already been explicitly authorized.
+
+After the GitHub PR merge, Repo Merge / Sync reconciles the configured remote branch state and Local Repository Sync reconciles the host checkout to the approved remote state. The terminal summary records the resulting source-control evidence.
 
 Promotion must retain:
 
-- actor attribution;
+- actor/instruction attribution;
+- bound finalization receipt identity;
 - commit message/evidence;
-- branch/revision evidence;
+- reviewed and resulting branch/revision evidence;
 - workflow/node results;
-- merge/sync evidence;
-- local/remote synchronization evidence;
-- final structured summary.
+- GitHub PR/merge evidence;
+- remote merge/sync evidence;
+- local repository synchronization evidence;
+- artifact/catalogue/map/zip evidence;
+- final structured summary/receipt.
 
 ## 8. Autonomous DEV finalization
 
-SkyCommand must provide a registered Workflow that represents the deterministic end of a development turn.
+SkyCommand provides the registered **Dev Change Finalization** Workflow as the deterministic end of a development turn.
 
 Target responsibility:
 
@@ -233,6 +259,8 @@ Target responsibility:
 6. export the Capability Catalogue;
 7. generate the Repository Map and Repository Zip;
 8. emit a durable finalization receipt and structured summary.
+
+The finalization receipt is the canonical reviewed-state binding for subsequent promotion. Generated artifacts must be classified so receipt/ZIP generation does not recursively invalidate source identity. If embedding the canonical receipt inside the ZIP would make its own recorded ZIP hash self-referential, keep the receipt external and bind it to the final ZIP by recorded hash instead.
 
 Nodes may be conditionally skipped when no relevant change exists, but the Workflow should remain idempotent and safe to run after every development turn.
 
@@ -310,7 +338,9 @@ Then stop for Paul/Sky review.
 
 ## 13. Remediation gate before Agentic AI Phase 1
 
-Do not begin the approved Agentic AI Phase 1 implementation until the Autonomous DEV remediation plan is completed and its one-instruction end-to-end acceptance test passes.
+R0–R6 are the accepted implementation/promotion baseline. R7 cleanup and R8 one-instruction end-to-end acceptance remain outstanding remediation gates.
+
+Do not begin the approved Agentic AI Phase 1 implementation until R7/R8 are completed and the Autonomous DEV remediation plan's one-instruction implementation and separate one-instruction promotion acceptance tests pass.
 
 The acceptance standard is not "many safety gates exist." It is:
 
@@ -320,7 +350,7 @@ The acceptance standard is not "many safety gates exist." It is:
 
 These rules remain active until Paul explicitly approves another revision.
 
-A coding agent may recommend changes but must not silently rewrite its own authority. This v1.2 revision is an explicit Paul-authorized change to the `DEV_LOCAL` operating model.
+A coding agent may recommend changes but must not silently rewrite its own authority. This v1.3 revision records the Paul-authorized post-R6 `DEV_LOCAL` operating model and the governed promotion chain.
 
 ## 15. Accepted execution and evidence requirements
 
@@ -332,7 +362,9 @@ A coding agent may recommend changes but must not silently rewrite its own autho
 - Starts use a caller-scoped idempotency key plus canonical request digest: same key/same request returns the original run; same key/different request is rejected. Retries reconcile uncertain effects before repeating them.
 - Serialize conflicting finalization/promotion operations for a shared DEV repository/environment. Retain D1 database locking. Interrupted runtime reconciliation must remain recoverable when the API or worker restarts itself.
 - R5 records baseline revision, changed tracked files and relevant untracked files with hashes, SQL manifest, secret-free configuration revision, pinned workflow version, validation/readiness evidence, and artifact references/hashes. Explicitly classify generated outputs so receipt generation does not recursively invalidate the source manifest.
-- R6 accepts an explicit promotion instruction tied to a successful finalization receipt. Verify the reviewed content and branch state before source mutation; drift blocks promotion and requires fresh finalization/review. Recheck target database readiness, reusing D1 rather than creating another engine. Unexpected SQL changes invalidate the reviewed manifest.
+- R6 accepts an explicit promotion instruction tied to a successful finalization receipt. Verify the reviewed content, SQL/config/database binding, workflow version, and branch state before source mutation; drift blocks promotion and requires fresh finalization/review. Recheck target database readiness through the existing registered upgrade/readiness capability. Unexpected SQL changes invalidate the reviewed manifest.
 - Promotion authority is attributable to the user's instruction, not inferred from tool access or an agent assertion. Record the instruction/session reference available from the trusted execution boundary. This records the existing decision and must not add another human approval click.
-- Reconcile the expected source changes caused by workflow-owned commit/merge/sync in the final receipt. Do not silently absorb unrelated concurrent edits.
+- The critical R6 mutation order is preflight/evidence refresh → Dev Commit → Merge GitHub Dev PR → Repo Merge / Sync → Local Repository Sync → terminal Development Promotion Summary. No approval node or alternate edge may bypass this chain.
+- The GitHub PR merge is workflow-owned and returns durable PR/merge evidence. Subsequent remote and local synchronization must verify the final approved SHA/state.
+- Reconcile the expected source changes caused by workflow-owned commit/PR merge/remote sync/local sync in the final receipt. Do not silently absorb unrelated concurrent edits.
 - Successful development and promotion acceptance requires crash/retry/concurrency/drift checks as specified in remediation R8, in addition to zero intermediate Paul actions.

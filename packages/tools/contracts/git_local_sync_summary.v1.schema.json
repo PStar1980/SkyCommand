@@ -22,10 +22,14 @@
     "localDevBeforeSha",
     "remoteMainBeforeSha",
     "remoteDevBeforeSha",
+    "trackingMainBeforeSha",
+    "trackingDevBeforeSha",
     "localMainAfterSha",
     "localDevAfterSha",
     "remoteMainAfterSha",
     "remoteDevAfterSha",
+    "trackingMainAfterSha",
+    "trackingDevAfterSha",
     "stashCount",
     "workingTreeCleanBefore",
     "workingTreeCleanAfter",
@@ -33,6 +37,7 @@
     "devRefUpdated",
     "checkedOutBranchUpdated",
     "fourWaySynchronized",
+    "trackingRefsSynchronized",
     "safeguards",
     "steps",
     "startedAt",
@@ -164,6 +169,20 @@
       ],
       "pattern": "^[a-fA-F0-9]{7,64}$"
     },
+    "trackingMainBeforeSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "trackingDevBeforeSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
     "localMainAfterSha": {
       "type": [
         "string",
@@ -192,6 +211,20 @@
       ],
       "pattern": "^[a-fA-F0-9]{7,64}$"
     },
+    "trackingMainAfterSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
+    "trackingDevAfterSha": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-fA-F0-9]{7,64}$"
+    },
     "stashCount": {
       "type": "number",
       "minimum": 0
@@ -212,6 +245,9 @@
       "type": "boolean"
     },
     "fourWaySynchronized": {
+      "type": "boolean"
+    },
+    "trackingRefsSynchronized": {
       "type": "boolean"
     },
     "safeguards": {

@@ -47,7 +47,7 @@ assert.match(preflightSource, /github_dev_pr_merge_node/);
 assert.match(preflightSource, /R6_PROMOTION_REMOTE_MAIN_UNAVAILABLE/);
 assert.match(preflightSource, /terminal_receipt/);
 assert.match(preflightSource, /reconcileActivePromotionAdmissions/);
-assert.match(commitSource, /validateFinalizationBinding/);
+assert.match(commitSource, /validatePromotionCommitBoundary/);
 assert.match(commitSource, /commitBoundary/);
 assert.match(workflowSource, /settleDevPromotionAdmissionActivity/);
 assert.match(activitiesSource, /settleDevPromotionAdmissionActivity/);

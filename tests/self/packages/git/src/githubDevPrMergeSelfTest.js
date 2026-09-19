@@ -50,9 +50,12 @@ function basePr(overrides = {}) {
   });
 }
 
-function adapterFor({ open = [basePr()], merged = [], baseBeforeSha = MAIN_SHA, afterMainSha = MERGED_SHA, createPr = null, viewPr = null } = {}) {
+function adapterFor({ open = [basePr()], openSequence = null, merged = [], baseBeforeSha = MAIN_SHA, afterMainSha = MERGED_SHA, createPr = null, viewPr = null } = {}) {
   let branchCalls = 0;
   let openPrs = open;
+  let openCalls = 0;
+  let viewCalls = 0;
+  let mergedCalled = false;
   return {
     authStatus() { return 'authenticated'; },
     async getBranchSha(branch) {
@@ -60,15 +63,31 @@ function adapterFor({ open = [basePr()], merged = [], baseBeforeSha = MAIN_SHA, 
       if (branch === 'dev') return DEV_SHA;
       return branchCalls >= 3 ? afterMainSha : baseBeforeSha;
     },
-    async listOpenPrs() { return openPrs; },
+    async listOpenPrs() {
+      if (Array.isArray(openSequence)) {
+        const next = openSequence[Math.min(openCalls, openSequence.length - 1)] || [];
+        openCalls += 1;
+        return next;
+      }
+      return openPrs;
+    },
     async listMergedPrs() { return merged; },
     async createPr() {
       if (createPr) createPr();
       openPrs = [basePr({ number: 43, url: 'https://github.com/PStar1980/SkyCommand/pull/43' })];
       return { url: 'https://github.com/PStar1980/SkyCommand/pull/43' };
     },
-    async mergePr() { return { merged: true }; },
-    async viewPr() { return viewPr || basePr({ state: 'MERGED', mergedAt: '2026-09-18T12:00:00.000Z', mergeCommit: { oid: MERGED_SHA } }); },
+    async mergePr() { mergedCalled = true; return { merged: true }; },
+    async viewPr() {
+      if (typeof viewPr === 'function') return viewPr({ viewCalls: viewCalls += 1, mergedCalled });
+      if (Array.isArray(viewPr)) {
+        const next = viewPr[Math.min(viewCalls, viewPr.length - 1)];
+        viewCalls += 1;
+        return next;
+      }
+      if (!mergedCalled) return openPrs[0] || basePr();
+      return viewPr || basePr({ state: 'MERGED', mergedAt: '2026-09-18T12:00:00.000Z', mergeCommit: { oid: MERGED_SHA } });
+    },
   };
 }
 
@@ -94,11 +113,70 @@ async function run() {
   const created = await executeGithubDevPrMerge([], {
     input: input(),
     repository,
-    githubAdapter: adapterFor({ open: [], createPr: () => { createCount += 1; } }),
+    settlementIntervalMs: 0,
+    sleep: async () => {},
+    githubAdapter: adapterFor({
+      open: [],
+      openSequence: [[], [], [basePr({ number: 43, url: 'https://github.com/PStar1980/SkyCommand/pull/43' })]],
+      createPr: () => { createCount += 1; },
+    }),
   });
   assert.equal(created.outcome, 'MERGED');
   assert.equal(created.prCreated, true);
   assert.equal(createCount, 1);
+
+  let unknownViewCalls = 0;
+  const settledUnknown = await executeGithubDevPrMerge([], {
+    input: input(),
+    repository,
+    settlementIntervalMs: 0,
+    sleep: async () => {},
+    githubAdapter: adapterFor({
+      viewPr: () => {
+        unknownViewCalls += 1;
+        if (unknownViewCalls > 2) return basePr({ state: 'MERGED', mergedAt: '2026-09-18T12:00:00.000Z', mergeCommit: { oid: MERGED_SHA } });
+        return unknownViewCalls === 1
+          ? basePr({ mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN' })
+          : basePr();
+      },
+    }),
+  });
+  assert.equal(settledUnknown.outcome, 'MERGED');
+  assert.equal(unknownViewCalls, 3);
+
+  let unknownMergeCalls = 0;
+  await expectCode(
+    () => executeGithubDevPrMerge([], {
+      input: input(),
+      repository,
+      settlementTimeoutMs: 0,
+      githubAdapter: adapterFor({
+        viewPr: () => basePr({ mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN' }),
+        async mergePr() { unknownMergeCalls += 1; },
+      }),
+    }),
+    'GITHUB_DEV_PR_MERGE_NOT_READY_TIMEOUT',
+  );
+  assert.equal(unknownMergeCalls, 0);
+
+  let pendingViewCalls = 0;
+  const pendingThenPass = await executeGithubDevPrMerge([], {
+    input: input(),
+    repository,
+    settlementIntervalMs: 0,
+    sleep: async () => {},
+    githubAdapter: adapterFor({
+      viewPr: () => {
+        pendingViewCalls += 1;
+        if (pendingViewCalls > 2) return basePr({ state: 'MERGED', mergedAt: '2026-09-18T12:00:00.000Z', mergeCommit: { oid: MERGED_SHA } });
+        return pendingViewCalls === 1
+          ? basePr({ statusCheckRollup: [{ status: 'IN_PROGRESS' }] })
+          : basePr();
+      },
+    }),
+  });
+  assert.equal(pendingThenPass.outcome, 'MERGED');
+  assert.equal(pendingViewCalls, 3);
 
   const alreadyMerged = await executeGithubDevPrMerge([], {
     input: input(),
@@ -124,8 +202,8 @@ async function run() {
     'GITHUB_DEV_PR_MERGE_BRANCH_PROTECTION',
   );
   await expectCode(
-    () => executeGithubDevPrMerge([], { input: input(), repository, githubAdapter: adapterFor({ open: [basePr({ statusCheckRollup: [{ status: 'IN_PROGRESS' }] })] }) }),
-    'GITHUB_DEV_PR_MERGE_CHECKS_PENDING',
+    () => executeGithubDevPrMerge([], { input: input(), repository, settlementTimeoutMs: 0, githubAdapter: adapterFor({ open: [basePr({ statusCheckRollup: [{ status: 'IN_PROGRESS' }] })] }) }),
+    'GITHUB_DEV_PR_MERGE_NOT_READY_TIMEOUT',
   );
   await expectCode(
     () => executeGithubDevPrMerge([], { input: input(), repository, githubAdapter: adapterFor({ open: [basePr({ headRefName: 'feature' })] }) }),

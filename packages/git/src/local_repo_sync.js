@@ -524,6 +524,97 @@ function updateNonCheckedOutBranch({ branch, targetSha, expectedOldSha, cwd, sta
   return true;
 }
 
+function updateRemoteTrackingRef({ ref, targetSha, expectedOldSha, cwd, state }) {
+  if (expectedOldSha === targetSha) return false;
+
+  const objectFormat = tryGetGitOutput(['rev-parse', '--show-object-format'], cwd) || 'sha1';
+  const zeroOid = '0'.repeat(objectFormat === 'sha256' ? 64 : 40);
+  const result = executeGit(['update-ref', ref, targetSha, expectedOldSha || zeroOid], cwd, {
+    capture: true,
+    allowedStatuses: [0, 1, 128],
+    echoOutput: true,
+  });
+  if (result.status !== 0) {
+    throw createSyncError(
+      'LOCAL_REPOSITORY_SYNC_BLOCKED_REMOTE_TRACKING_CHANGED',
+      `Remote-tracking ref ${ref} changed concurrently; refusing to overwrite it.`,
+      state,
+    );
+  }
+  return true;
+}
+
+function assertRemoteHeadsMatchExpected({ remoteHeads, mainBranch, devBranch, expectedSynchronizedHeadSha, state }) {
+  const remoteMainSha = remoteHeads[mainBranch];
+  const remoteDevSha = remoteHeads[devBranch];
+  if (remoteMainSha !== expectedSynchronizedHeadSha || remoteDevSha !== expectedSynchronizedHeadSha) {
+    block(
+      'REMOTE_CHANGED_DURING_SYNC',
+      'Remote branch heads changed during local synchronization preflight. No local refs were modified.',
+      state,
+    );
+  }
+}
+
+function reconcileRemoteTrackingRefs({
+  remote,
+  mainBranch,
+  devBranch,
+  expectedSynchronizedHeadSha,
+  cwd,
+  state,
+  getRefs = (refs) => getRefShas(refs, cwd),
+  updateRef = (details) => updateRemoteTrackingRef(details),
+}) {
+  const mainRef = `refs/remotes/${remote}/${mainBranch}`;
+  const devRef = `refs/remotes/${remote}/${devBranch}`;
+  const refsImmediatelyBeforeMutation = getRefs([mainRef, devRef]);
+  const trackingMainBeforeSha = refsImmediatelyBeforeMutation[mainRef] || null;
+  const trackingDevBeforeSha = refsImmediatelyBeforeMutation[devRef] || null;
+  state.trackingMainBeforeSha = trackingMainBeforeSha;
+  state.trackingDevBeforeSha = trackingDevBeforeSha;
+
+  if (
+    trackingMainBeforeSha === expectedSynchronizedHeadSha &&
+    trackingDevBeforeSha === expectedSynchronizedHeadSha
+  ) {
+    state.trackingMainAfterSha = trackingMainBeforeSha;
+    state.trackingDevAfterSha = trackingDevBeforeSha;
+    state.trackingRefsSynchronized = true;
+    return false;
+  }
+
+  updateRef({
+    ref: mainRef,
+    targetSha: expectedSynchronizedHeadSha,
+    expectedOldSha: trackingMainBeforeSha,
+    cwd,
+    state,
+  });
+  updateRef({
+    ref: devRef,
+    targetSha: expectedSynchronizedHeadSha,
+    expectedOldSha: trackingDevBeforeSha,
+    cwd,
+    state,
+  });
+
+  const refsAfterMutation = getRefs([mainRef, devRef]);
+  state.trackingMainAfterSha = refsAfterMutation[mainRef] || null;
+  state.trackingDevAfterSha = refsAfterMutation[devRef] || null;
+  state.trackingRefsSynchronized =
+    state.trackingMainAfterSha === expectedSynchronizedHeadSha &&
+    state.trackingDevAfterSha === expectedSynchronizedHeadSha;
+  if (!state.trackingRefsSynchronized) {
+    throw createSyncError(
+      'LOCAL_REPOSITORY_SYNC_POSTCHECK_TRACKING_MISMATCH',
+      `Remote-tracking refs did not settle at approved synchronized head ${expectedSynchronizedHeadSha}.`,
+      state,
+    );
+  }
+  return true;
+}
+
 function updateCheckedOutBranch({ branch, targetSha, cwd }) {
   console.log(`> git merge --ff-only ${targetSha}  # checked-out ${branch}`);
   const result = executeGit(['merge', '--ff-only', targetSha], cwd, {
@@ -750,10 +841,14 @@ async function executeLocalRepositorySync(args = []) {
     localDevBeforeSha: null,
     remoteMainBeforeSha: null,
     remoteDevBeforeSha: null,
+    trackingMainBeforeSha: null,
+    trackingDevBeforeSha: null,
     localMainAfterSha: null,
     localDevAfterSha: null,
     remoteMainAfterSha: null,
     remoteDevAfterSha: null,
+    trackingMainAfterSha: null,
+    trackingDevAfterSha: null,
     stashCount: 0,
     workingTreeCleanBefore: false,
     workingTreeCleanAfter: false,
@@ -761,6 +856,7 @@ async function executeLocalRepositorySync(args = []) {
     devRefUpdated: false,
     checkedOutBranchUpdated: false,
     fourWaySynchronized: false,
+    trackingRefsSynchronized: false,
     safeguards: {
       hostProfileVerified: false,
       repositoryLockAcquired: false,
@@ -990,18 +1086,24 @@ async function executeLocalRepositorySync(args = []) {
     state.steps.remoteInspected = true;
     state.remoteMainBeforeSha ||= remoteMainImmediatelyBeforeMutation;
     state.remoteDevBeforeSha ||= remoteDevImmediatelyBeforeMutation;
-    if (
-      remoteMainImmediatelyBeforeMutation !== expectedSynchronizedHeadSha ||
-      remoteDevImmediatelyBeforeMutation !== expectedSynchronizedHeadSha
-    ) {
-      block(
-        'REMOTE_CHANGED_DURING_SYNC',
-        `Remote branch heads changed during local synchronization preflight. No local refs were modified.`,
-        state,
-      );
-    }
+    assertRemoteHeadsMatchExpected({
+      remoteHeads: remoteHeadsImmediatelyBeforeMutation,
+      mainBranch: repo.mainBranch,
+      devBranch: repo.devBranch,
+      expectedSynchronizedHeadSha,
+      state,
+    });
     state.safeguards.remoteReverifiedBeforeMutation = true;
     state.safeguards.remoteTargetMatched = true;
+
+    reconcileRemoteTrackingRefs({
+      remote: 'origin',
+      mainBranch: repo.mainBranch,
+      devBranch: repo.devBranch,
+      expectedSynchronizedHeadSha,
+      cwd: repo.rootPath,
+      state,
+    });
 
     const alreadySynchronized =
       state.localMainBeforeSha === expectedSynchronizedHeadSha &&
@@ -1083,6 +1185,16 @@ async function executeLocalRepositorySync(args = []) {
     );
     state.remoteMainAfterSha = remoteHeadsAfter[repo.mainBranch];
     state.remoteDevAfterSha = remoteHeadsAfter[repo.devBranch];
+    const trackingRefsAfter = getRefShas([
+      `refs/remotes/origin/${repo.mainBranch}`,
+      `refs/remotes/origin/${repo.devBranch}`,
+    ], repo.rootPath);
+    state.trackingMainAfterSha = trackingRefsAfter[`refs/remotes/origin/${repo.mainBranch}`];
+    state.trackingDevAfterSha = trackingRefsAfter[`refs/remotes/origin/${repo.devBranch}`];
+    state.trackingRefsSynchronized = [
+      state.trackingMainAfterSha,
+      state.trackingDevAfterSha,
+    ].every((sha) => sha === expectedSynchronizedHeadSha);
 
     state.fourWaySynchronized = [
       state.localMainAfterSha,
@@ -1091,10 +1203,12 @@ async function executeLocalRepositorySync(args = []) {
       state.remoteDevAfterSha,
     ].every((sha) => sha === expectedSynchronizedHeadSha);
 
-    if (!state.fourWaySynchronized) {
+    if (!state.fourWaySynchronized || !state.trackingRefsSynchronized) {
       throw createSyncError(
-        'LOCAL_REPOSITORY_SYNC_POSTCHECK_MISMATCH',
-        'Post-sync verification failed: local main/dev and origin main/dev are not all at the approved synchronized head.',
+        state.trackingRefsSynchronized
+          ? 'LOCAL_REPOSITORY_SYNC_POSTCHECK_MISMATCH'
+          : 'LOCAL_REPOSITORY_SYNC_POSTCHECK_TRACKING_MISMATCH',
+        'Post-sync verification failed: local main/dev, live origin main/dev, and cached origin/main/dev are not all at the approved synchronized head.',
         state,
       );
     }
@@ -1110,6 +1224,8 @@ async function executeLocalRepositorySync(args = []) {
     console.log(`   local ${repo.devBranch}:   ${state.localDevAfterSha}`);
     console.log(`   origin/${repo.mainBranch}: ${state.remoteMainAfterSha}`);
     console.log(`   origin/${repo.devBranch}:  ${state.remoteDevAfterSha}`);
+    console.log(`   cached origin/${repo.mainBranch}: ${state.trackingMainAfterSha}`);
+    console.log(`   cached origin/${repo.devBranch}:  ${state.trackingDevAfterSha}`);
     console.log('');
 
     return state;
@@ -1199,5 +1315,7 @@ module.exports = {
   getRemoteBranchShas,
   hasCommitObject,
   normalizeSha,
+  assertRemoteHeadsMatchExpected,
+  reconcileRemoteTrackingRefs,
   printLocalRepositorySyncResult,
 };
