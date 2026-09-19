@@ -77,7 +77,8 @@ assert(
 );
 
 assert(
-  temporalWorkflowSource.includes('const recoveryNodeKey = nodeRecovery.active === true')
+    temporalWorkflowSource.includes('const recoveryNodeKey =')
+    && temporalWorkflowSource.includes('nodeRecovery.active === true ?')
     && temporalWorkflowSource.includes('const definitionActivityInput = requestInput.workflowVersionId')
     && temporalWorkflowSource.includes(': { workflowCode };')
     && temporalWorkflowSource.includes('loadSkyserverWorkflowNodeRecoveryStateActivity')

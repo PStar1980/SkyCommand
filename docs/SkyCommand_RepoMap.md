@@ -1621,7 +1621,8 @@ SkyCommand/
 │   │       │   ├── 00142__dev_promotion_r6_workflow_simplification.sql
 │   │       │   ├── 00143__github_dev_pr_merge_r6_correction.sql
 │   │       │   ├── 00144__r6_promotion_node_order_correction.sql
-│   │       │   └── 00145__dev_commit_r6_boundary_parameters.sql
+│   │       │   ├── 00145__dev_commit_r6_boundary_parameters.sql
+│   │       │   └── 00146__r6_human_agent_parity_and_recovery.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -2267,7 +2268,9 @@ SkyCommand/
         │   │       ├── devFinalizationSelfTest.js
         │   │       ├── promotionPreflightSelfTest.js
         │   │       ├── r6CorrectionSelfTest.js
-        │   │       └── r6PromotionNodeOrderSelfTest.js
+        │   │       ├── r6HumanAgentParityRecoverySelfTest.js
+        │   │       ├── r6PromotionNodeOrderSelfTest.js
+        │   │       └── receiptPathPersistenceSelfTest.js
         │   ├── files/
         │   │   └── src/
         │   │       ├── repositoryArtifactConfigurationSelfTest.js

@@ -2265,17 +2265,6 @@ async function skyserverWorkflowExecutorWorkflow(input = {}) {
       },
     });
 
-    if (['skyserver_dev_commit', 'skycommand-dev-promo-alt'].includes(workflowCode)) {
-      try {
-        await ledgerActivities.settleDevPromotionAdmissionActivity({
-          workflowRunRecordId,
-          settlementSource: 'temporal_terminal_activity',
-        });
-      } catch (settlementError) {
-        console.error('[Temporal:SkyWorkflow] DEV promotion admission settlement failed after failed run:', settlementError?.message || settlementError);
-      }
-    }
-
     if (workflowCode === 'dev_change_finalize') {
       try {
         await ledgerActivities.reconcileDevFinalizationFailureActivity({

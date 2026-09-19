@@ -2521,11 +2521,37 @@ function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
   });
 }
 
+function buildWorkflowRunAuthorization({ input = {}, user = null, context = {}, permissions = [] } = {}) {
+  const safeInput = getSafeObject(input);
+  const runtimeParameters = getWorkflowRuntimeParams(safeInput);
+  const executionContext = getSafeObject(context?.executionContext);
+  const isAssistantAdmission = Boolean(
+    safeInput.runSource === 'assistant' &&
+      safeInput.triggerType === 'ASSISTANT' &&
+      executionContext.admissionId &&
+      executionContext.principalId &&
+      executionContext.principalCode,
+  );
+
+  return {
+    source: isAssistantAdmission ? 'ASSISTANT_ADMISSION' : user?.userId ? 'HUMAN_UI' : 'SYSTEM',
+    actorUserId: user?.userId || null,
+    principalId: executionContext.principalId || null,
+    principalCode: executionContext.principalCode || null,
+    authMode: executionContext.authMode || (user?.userId ? 'HUMAN_SESSION' : null),
+    repositoryCode: runtimeParameters.repoName || null,
+    environmentCode: String(PROFILE_CODE || '').trim().toUpperCase() || null,
+    configProfileCode: String(PROFILE_CODE || '').trim().toUpperCase() || null,
+    permissionCodes: [...getPermissionSet(permissions)].sort(),
+  };
+}
+
 async function insertWorkflowRun({
   definition,
   input,
   user,
   context,
+  permissions = [],
   status = 'RUNNING',
   metadata = {},
   workflowRunRecordId = null,
@@ -2565,6 +2591,7 @@ async function insertWorkflowRun({
         ipAddress: context?.ipAddress || null,
         userAgent: context?.userAgent || null,
         executionContext: getSafeObject(context?.executionContext),
+        authorization: buildWorkflowRunAuthorization({ input: safeInput, user, context, permissions }),
       }),
       user?.userId || null,
       JSON.stringify({
@@ -6071,6 +6098,7 @@ async function createChildWorkflowRun({
     input: childInput,
     user,
     context,
+    permissions,
     status: 'QUEUED',
     metadata: {
       executor: 'skycommand_workflow_executor_temporal_v1',
@@ -6547,6 +6575,7 @@ async function startWorkflowWithTemporal({
       input: versionPinnedInput,
       user,
       context,
+      permissions,
       status: 'QUEUED',
       workflowRunRecordId,
       metadata: {
@@ -6702,7 +6731,7 @@ async function executeWorkflow({
 
   const normalizedInput = await validateWorkflowRuntimeInput(definition, input);
 
-  const run = await insertWorkflowRun({ definition, input: normalizedInput, user, context });
+  const run = await insertWorkflowRun({ definition, input: normalizedInput, user, context, permissions });
   const nodeRuns = [];
   const nodeOutputsByKey = {};
   let workflowRuntimeContext = buildContextObjectFromPatch(

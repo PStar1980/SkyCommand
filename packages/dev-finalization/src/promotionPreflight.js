@@ -27,6 +27,23 @@ const FINALIZATION_WORKFLOW_CODE = 'dev_change_finalize';
 const PRIMARY_R6_VERSION = PROMOTION_WORKFLOW_VARIANTS.skyserver_dev_commit;
 const ACTIVE_PROMOTION_STATUSES = ['PREFLIGHT_RUNNING', 'AUTHORIZED'];
 const TERMINAL_WORKFLOW_STATUSES = ['COMPLETED', 'FAILED', 'CANCELED', 'CANCELLED', 'TERMINATED', 'SKIPPED'];
+const VALID_PROMOTION_RUN_STATUSES = ['QUEUED', 'RUNNING', 'ADMITTED', 'STARTING', 'STARTED'];
+const HUMAN_PROMOTION_RUN_SOURCES = ['manual', 'api'];
+const HUMAN_PROMOTION_TRIGGER_TYPES = ['MANUAL', 'API'];
+const PROMOTION_REQUIRED_PERMISSION_CODES = Object.freeze([
+  'WORKFLOW_RUN',
+  'DEV_PROMOTION_PREFLIGHT',
+  'CAPABILITY_CATALOG_EXPORT',
+  'REPO_MAP_GENERATE',
+  'REPO_ZIP_GENERATE',
+  'GIT_COMMIT_RUN',
+  'GIT_DEV_PR_MERGE_RUN',
+  'GIT_MAIN_MERGE_RUN',
+  'GIT_LOCAL_SYNC_RUN',
+  'CORE_RUN_LOW_RISK_SCRIPT',
+  'CORE_RUN_MEDIUM_RISK_SCRIPT',
+  'CORE_RUN_HIGH_RISK_SCRIPT',
+]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DIGEST_PATTERN = /^[A-F0-9]{64}$/;
 
@@ -242,10 +259,99 @@ async function loadFinalizationRun(finalizationWorkflowRunId, queryFn = defaultQ
 
 async function loadPromotionAdmission(workflowRunRecordId, queryFn = defaultQuery) {
   const result = await queryFunction(queryFn)(
-    "SELECT a.workflow_execution_admission_id, a.workflow_execution_principal_id, a.workflow_execution_resource_grant_id, a.workflow_run_record_id, a.idempotency_key_hash, a.request_digest, a.workflow_code, a.workflow_definition_id, a.workflow_version_id, a.version_number, a.repository_code, a.environment_code, a.config_profile_code, a.validated_parameters, a.parameter_contract, a.status, r.run_source, r.trigger_type, r.request_context, r.started_by_user_id, r.created_at, p.principal_code, p.auth_mode FROM worker.workflow_execution_admissions a JOIN worker.workflow_run_records r ON r.workflow_run_record_id = a.workflow_run_record_id JOIN auth.workflow_execution_principals p ON p.workflow_execution_principal_id = a.workflow_execution_principal_id WHERE a.workflow_run_record_id = $1 AND a.workflow_code = ANY($2::text[]) AND a.repository_code = $3 LIMIT 1",
+    `SELECT r.workflow_run_record_id,
+            r.workflow_definition_id,
+            r.workflow_version_id,
+            r.workflow_code,
+            r.version_number,
+            r.status AS workflow_run_status,
+            r.run_source,
+            r.trigger_type,
+            r.input AS workflow_input,
+            r.request_context,
+            r.metadata AS workflow_metadata,
+            r.started_by_user_id,
+            r.created_at,
+            a.workflow_execution_admission_id,
+            a.workflow_execution_principal_id,
+            a.workflow_execution_resource_grant_id,
+            a.idempotency_key_hash,
+            a.request_digest,
+            a.workflow_definition_id AS admission_workflow_definition_id,
+            a.workflow_version_id AS admission_workflow_version_id,
+            a.version_number AS admission_version_number,
+            a.repository_code AS admission_repository_code,
+            a.environment_code AS admission_environment_code,
+            a.config_profile_code AS admission_config_profile_code,
+            a.validated_parameters AS admission_validated_parameters,
+            a.parameter_contract AS admission_parameter_contract,
+            a.status AS admission_status,
+            p.principal_code,
+            p.auth_mode,
+            p.status AS principal_status,
+            g.repository_code AS grant_repository_code,
+            g.environment_code AS grant_environment_code,
+            g.config_profile_code AS grant_config_profile_code,
+            g.workflow_code AS grant_workflow_code,
+            g.status AS grant_status,
+            g.allowed_permission_codes AS grant_permission_codes,
+            COALESCE(
+              ARRAY(
+                SELECT DISTINCT up.permission_code
+                FROM auth.vw_user_permissions up
+                WHERE up.user_id = r.started_by_user_id
+                  AND up.app_code = 'SKYSERVER_ADMIN'
+                ORDER BY up.permission_code
+              ),
+              ARRAY[]::text[]
+            ) AS actor_permission_codes,
+            COALESCE(
+              a.repository_code,
+              r.input #>> '{params,repoName}',
+              r.input #>> '{runtimeParameters,repoName}'
+            ) AS repository_code,
+            COALESCE(
+              a.environment_code,
+              r.request_context #>> '{authorization,environmentCode}',
+              r.request_context #>> '{executionContext,environmentCode}'
+            ) AS environment_code,
+            COALESCE(
+              a.config_profile_code,
+              r.request_context #>> '{authorization,configProfileCode}',
+              r.request_context #>> '{executionContext,configProfileCode}'
+            ) AS config_profile_code,
+            COALESCE(a.validated_parameters, r.input->'params', r.input->'runtimeParameters', '{}'::jsonb) AS validated_parameters,
+            COALESCE(a.parameter_contract, '[]'::jsonb) AS parameter_contract,
+            COALESCE(a.status, r.status) AS status
+       FROM worker.workflow_run_records r
+       LEFT JOIN worker.workflow_execution_admissions a
+         ON a.workflow_run_record_id = r.workflow_run_record_id
+       LEFT JOIN auth.workflow_execution_principals p
+         ON p.workflow_execution_principal_id = a.workflow_execution_principal_id
+       LEFT JOIN worker.workflow_execution_resource_grants g
+         ON g.workflow_execution_resource_grant_id = a.workflow_execution_resource_grant_id
+      WHERE r.workflow_run_record_id = $1
+        AND r.workflow_code = ANY($2::text[])
+        AND (
+          a.repository_code = $3
+          OR r.input #>> '{params,repoName}' = $3
+          OR r.input #>> '{runtimeParameters,repoName}' = $3
+        )
+      LIMIT 1`,
     [workflowRunRecordId, Object.keys(PROMOTION_WORKFLOW_VARIANTS), REPOSITORY_CODE],
   );
-  return result.rows[0] || null;
+  const row = result.rows[0] || null;
+  if (!row) return null;
+  return {
+    ...row,
+    workflow_definition_id: row.admission_workflow_definition_id || row.workflow_definition_id,
+    workflow_version_id: row.admission_workflow_version_id || row.workflow_version_id,
+    version_number: row.admission_version_number || row.version_number,
+    validated_parameters: row.validated_parameters || {},
+    parameter_contract: row.parameter_contract || [],
+    principal_code: row.principal_code || 'operator-ui',
+    auth_mode: row.auth_mode || 'HUMAN_SESSION',
+  };
 }
 
 async function loadDevPromotionAdmission(workflowRunRecordId, queryFn = defaultQuery) {
@@ -254,7 +360,7 @@ async function loadDevPromotionAdmission(workflowRunRecordId, queryFn = defaultQ
             repository_code, environment_code, config_profile_code, workflow_code,
             workflow_version_id, version_number, finalization_workflow_run_record_id,
             finalization_receipt_sha256, finalization_source_identity_digest,
-            request_digest, idempotency_key_hash, status, terminal_run_status,
+            request_digest, idempotency_key_hash, authorization_source, status, terminal_run_status,
             terminal_outcome, failure_code, failure_message
        FROM worker.dev_promotion_admissions
       WHERE workflow_run_record_id = $1
@@ -277,9 +383,11 @@ function trustedAttribution(admission) {
   const executionContext = safeObject(requestContext.executionContext);
   const authorization = safeObject(requestContext.promotionAuthorization);
   return {
-    principalId: nullableText(executionContext.principalId),
+    principalId: nullableText(executionContext.principalId || admission.started_by_user_id),
     principalCode: nullableText(executionContext.principalCode || admission.principal_code),
-    authMode: nullableText(executionContext.authMode || admission.auth_mode),
+    authMode: nullableText(
+      executionContext.authMode || admission.auth_mode || (admission.started_by_user_id ? 'HUMAN_SESSION' : null),
+    ),
     userId: nullableText(admission.started_by_user_id),
     sessionId: nullableText(requestContext.sessionId),
     agentId: nullableText(authorization.agentId || requestContext.agentId),
@@ -289,6 +397,78 @@ function trustedAttribution(admission) {
     triggerType: nullableText(admission.trigger_type),
     requestedAt: nullableText(authorization.requestedAt || admission.created_at),
   };
+}
+
+function getPromotionParameters(admission) {
+  return safeObject(admission?.validated_parameters);
+}
+
+function getPromotionAuthorizationScope(admission) {
+  return normalizeGovernedScope({
+    repositoryCode: admission?.repository_code,
+    environmentCode: admission?.environment_code,
+    configProfileCode: admission?.config_profile_code,
+  });
+}
+
+function hasPermissionCodes(actualCodes, requiredCodes = PROMOTION_REQUIRED_PERMISSION_CODES) {
+  const actual = new Set(
+    safeArray(actualCodes)
+      .map((code) => text(code).toUpperCase())
+      .filter(Boolean),
+  );
+  return requiredCodes.every((code) => actual.has(code));
+}
+
+function isHumanPromotionRun(admission) {
+  const source = text(admission?.run_source).toLowerCase();
+  const trigger = text(admission?.trigger_type).toUpperCase();
+  const authorization = safeObject(safeObject(admission?.request_context).authorization);
+  return (
+    !admission?.workflow_execution_admission_id &&
+    UUID_PATTERN.test(text(admission?.started_by_user_id)) &&
+    HUMAN_PROMOTION_RUN_SOURCES.includes(source) &&
+    HUMAN_PROMOTION_TRIGGER_TYPES.includes(trigger) &&
+    authorization.source === 'HUMAN_UI' &&
+    text(authorization.actorUserId) === text(admission.started_by_user_id)
+  );
+}
+
+function isAssistantPromotionRun(admission) {
+  return (
+    Boolean(admission?.workflow_execution_admission_id) &&
+    ['ADMITTED', 'STARTING', 'STARTED'].includes(text(admission?.admission_status).toUpperCase()) &&
+    text(admission?.run_source).toLowerCase() === 'assistant' &&
+    text(admission?.trigger_type).toUpperCase() === 'ASSISTANT' &&
+    text(admission?.principal_code) === 'assistant-http' &&
+    text(admission?.principal_status).toUpperCase() === 'ACTIVE' &&
+    text(admission?.grant_status).toUpperCase() === 'ACTIVE' &&
+    text(admission?.grant_repository_code) === REPOSITORY_CODE &&
+    text(admission?.grant_workflow_code) === PROMOTION_WORKFLOW_CODE &&
+    text(admission?.grant_environment_code).toUpperCase() === text(admission?.environment_code).toUpperCase() &&
+    text(admission?.grant_config_profile_code).toUpperCase() === text(admission?.config_profile_code).toUpperCase() &&
+    hasPermissionCodes(admission?.grant_permission_codes)
+  );
+}
+
+function assertPromotionRunAuthorization(admission) {
+  const runStatus = text(admission?.workflow_run_status || admission?.status).toUpperCase();
+  if (!VALID_PROMOTION_RUN_STATUSES.includes(runStatus)) {
+    reject(
+      'R6_PROMOTION_ADMISSION_INVALID',
+      'The promotion workflow run is not active for governed R6 execution.',
+      { status: runStatus || null },
+    );
+  }
+  if (isAssistantPromotionRun(admission)) return 'ASSISTANT_ADMISSION';
+  if (isHumanPromotionRun(admission) && hasPermissionCodes(admission.actor_permission_codes)) {
+    return 'HUMAN_UI';
+  }
+  reject(
+    'R6_PROMOTION_AUTHORIZATION_INVALID',
+    'The promotion workflow run is not backed by an authorized Assistant admission or authenticated human UI start.',
+    { workflowRunRecordId: nullableText(admission?.workflow_run_record_id) },
+  );
 }
 
 async function assertFinalizationReceipt({
@@ -370,7 +550,22 @@ async function settlePromotionAdmission({ workflowRunRecordId, queryFn = default
   if (!isTerminalWorkflowStatus(terminalStatus)) {
     return { settled: false, reason: 'RUN_NOT_TERMINAL', admission };
   }
-  const outcome = terminalStatus === 'COMPLETED' ? 'COMPLETED' : 'FAILED';
+  if (terminalStatus !== 'COMPLETED') {
+    return {
+      settled: false,
+      reason: 'FAILED_ADMISSION_PRESERVED_FOR_RECOVERY',
+      admission,
+      evidence: {
+        contract: 'dev_promotion_admission_settlement.v1',
+        workflowRunRecordId: runId,
+        terminalRunStatus: terminalStatus,
+        terminalOutcome: 'FAILED',
+        recoveryAuthorizationPreserved: true,
+        settlementSource: text(settlementSource, 'durable_workflow_terminal'),
+      },
+    };
+  }
+  const outcome = 'COMPLETED';
   const evidence = {
     contract: 'dev_promotion_admission_settlement.v1',
     workflowRunRecordId: runId,
@@ -431,10 +626,54 @@ async function reconcileActivePromotionAdmissions(scope, queryFn = defaultQuery)
 async function assertNoOtherPromotion(workflowRunRecordId, scope, queryFn = defaultQuery) {
   await reconcileActivePromotionAdmissions(scope, queryFn);
   const result = await queryFunction(queryFn)(
+    `SELECT a.dev_promotion_admission_id, a.workflow_run_record_id,
+            a.status, r.status AS terminal_run_status
+       FROM worker.dev_promotion_admissions a
+       JOIN worker.workflow_run_records r
+         ON r.workflow_run_record_id = a.workflow_run_record_id
+      WHERE a.repository_code = $1
+        AND a.environment_code = $2
+        AND a.config_profile_code = $3
+        AND a.status = ANY($4::text[])
+        AND a.workflow_run_record_id <> $5
+      ORDER BY a.created_at DESC`,
+    [scope.repositoryCode, scope.environmentCode, scope.configProfileCode, ACTIVE_PROMOTION_STATUSES, workflowRunRecordId],
+  );
+  for (const row of result?.rows || []) {
+    if (text(row.terminal_run_status).toUpperCase() === 'COMPLETED') {
+      await settlePromotionAdmission({ workflowRunRecordId: row.workflow_run_record_id, queryFn });
+      continue;
+    }
+    if (isTerminalWorkflowStatus(row.terminal_run_status)) {
+      const evidence = {
+        contract: 'dev_promotion_admission_supersession.v1',
+        supersededWorkflowRunRecordId: row.workflow_run_record_id,
+        supersededByWorkflowRunRecordId: workflowRunRecordId,
+        terminalRunStatus: text(row.terminal_run_status).toUpperCase(),
+        supersededAt: new Date().toISOString(),
+      };
+      await queryFunction(queryFn)(
+        `UPDATE worker.dev_promotion_admissions
+            SET status = 'FAILED',
+                terminal_run_status = $2,
+                terminal_outcome = 'FAILED',
+                terminal_receipt = $3::jsonb,
+                failure_code = 'R6_PROMOTION_SUPERSEDED',
+                failure_message = 'A new explicit R6 promotion run superseded this terminal failed admission.',
+                settled_at = CURRENT_TIMESTAMP,
+                settlement_source = 'new_promotion_admission',
+                updated_at = CURRENT_TIMESTAMP
+          WHERE dev_promotion_admission_id = $1
+            AND status = ANY($4::text[])`,
+        [row.dev_promotion_admission_id, text(row.terminal_run_status).toUpperCase(), JSON.stringify(evidence), ACTIVE_PROMOTION_STATUSES],
+      );
+    }
+  }
+  const activeResult = await queryFunction(queryFn)(
     "SELECT workflow_run_record_id FROM worker.dev_promotion_admissions WHERE repository_code = $1 AND environment_code = $2 AND config_profile_code = $3 AND status = ANY($4::text[]) AND workflow_run_record_id <> $5 ORDER BY created_at DESC LIMIT 1",
     [scope.repositoryCode, scope.environmentCode, scope.configProfileCode, ACTIVE_PROMOTION_STATUSES, workflowRunRecordId],
   );
-  if (result.rows[0]) reject('R6_PROMOTION_CONCURRENT_EDIT', 'Another R6 Development Promotion run is already admitted for this DEV scope.', { ownerWorkflowRunRecordId: result.rows[0].workflow_run_record_id });
+  if (activeResult.rows[0]) reject('R6_PROMOTION_CONCURRENT_EDIT', 'Another R6 Development Promotion run is already admitted for this DEV scope.', { ownerWorkflowRunRecordId: activeResult.rows[0].workflow_run_record_id });
 }
 
 async function assertWorkflowGraph(workflowVersionId, expectedWorkflowCode = null, queryFn = defaultQuery) {
@@ -603,6 +842,14 @@ async function validatePromotionCommitBoundary({
       { workflowRunRecordId: promotionRunId },
     );
   }
+  const authorizationSource = assertPromotionRunAuthorization(admission);
+  if (text(admission.workflow_run_record_id) !== promotionRunId) {
+    reject(
+      'R6_PROMOTION_COMMIT_BOUNDARY_INVALID',
+      'The durable promotion run identity does not match the current workflow boundary.',
+      { workflowRunRecordId: promotionRunId },
+    );
+  }
 
   const parameters = safeObject(admission.validated_parameters);
   if (
@@ -629,6 +876,7 @@ async function validatePromotionCommitBoundary({
     );
   }
   if (
+    text(promotionAdmission.authorization_source || 'ASSISTANT_ADMISSION') !== authorizationSource ||
     text(promotionAdmission.workflow_execution_admission_id) !== text(admission.workflow_execution_admission_id) ||
     text(promotionAdmission.workflow_code) !== PROMOTION_WORKFLOW_CODE ||
     text(promotionAdmission.workflow_version_id) !== text(admission.workflow_version_id) ||
@@ -640,6 +888,16 @@ async function validatePromotionCommitBoundary({
     reject(
       'R6_PROMOTION_COMMIT_BOUNDARY_INVALID',
       'The durable promotion admission is not bound to the current promotion workflow and finalization receipt.',
+      { workflowRunRecordId: promotionRunId, finalizationWorkflowRunId: finalizationRunId },
+    );
+  }
+  if (
+    text(promotionAdmission.environment_code).toUpperCase() !== text(admission.environment_code).toUpperCase() ||
+    text(promotionAdmission.config_profile_code).toUpperCase() !== text(admission.config_profile_code).toUpperCase()
+  ) {
+    reject(
+      'R6_PROMOTION_COMMIT_SCOPE_INVALID',
+      'The durable promotion admission scope does not match the authorized workflow-run scope.',
       { workflowRunRecordId: promotionRunId, finalizationWorkflowRunId: finalizationRunId },
     );
   }
@@ -692,7 +950,7 @@ async function beginPromotionAdmission({ admission, finalization, queryFn = defa
   const attribution = trustedAttribution(admission);
   try {
     const result = await queryFunction(queryFn)(
-      "INSERT INTO worker.dev_promotion_admissions (dev_promotion_admission_id, workflow_execution_admission_id, workflow_run_record_id, principal_code, principal_id, repository_code, environment_code, config_profile_code, workflow_code, workflow_version_id, version_number, idempotency_key_hash, request_digest, finalization_workflow_run_record_id, finalization_receipt_sha256, finalization_source_identity_digest, trusted_attribution, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, 'PREFLIGHT_RUNNING') RETURNING *",
+      "INSERT INTO worker.dev_promotion_admissions (dev_promotion_admission_id, workflow_execution_admission_id, workflow_run_record_id, principal_code, principal_id, repository_code, environment_code, config_profile_code, workflow_code, workflow_version_id, version_number, idempotency_key_hash, request_digest, finalization_workflow_run_record_id, finalization_receipt_sha256, finalization_source_identity_digest, trusted_attribution, authorization_source, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, 'PREFLIGHT_RUNNING') RETURNING *",
       [
         crypto.randomUUID(),
         admission.workflow_execution_admission_id,
@@ -711,6 +969,7 @@ async function beginPromotionAdmission({ admission, finalization, queryFn = defa
         finalization.receipt.receiptSha256,
         finalization.sourceIdentity.digest,
         JSON.stringify(attribution),
+        text(admission.authorization_source, admission.workflow_execution_admission_id ? 'ASSISTANT_ADMISSION' : 'HUMAN_UI'),
       ],
     );
     return result.rows[0];
@@ -811,22 +1070,31 @@ async function executePreflight(args = []) {
   if (input.repositoryName !== REPOSITORY_CODE) reject('R6_PROMOTION_REPOSITORY_SCOPE_INVALID', 'R6 promotion preflight is bound to SkyCommand.');
   const admission = await loadPromotionAdmission(input.workflowRunId);
   const workflowCode = text(admission?.workflow_code);
-  const isPrimaryAssistantAdmission = admission && workflowCode === PROMOTION_WORKFLOW_CODE && admission.run_source === 'assistant' && admission.trigger_type === 'ASSISTANT' && admission.principal_code === 'assistant-http';
-  const isAlternateOperatorAdmission = admission && workflowCode === 'skycommand-dev-promo-alt' &&
-    ['admin-web', 'operator', 'system', 'scheduler'].includes(text(admission.run_source).toLowerCase()) &&
-    ['ADMIN', 'OPERATOR', 'SYSTEM', 'SCHEDULED', 'WORKFLOW'].includes(text(admission.trigger_type).toUpperCase()) &&
-    admission.principal_code !== 'assistant-http';
-  if (!admission || !PROMOTION_WORKFLOW_VARIANTS[workflowCode] || !['ADMITTED', 'STARTING', 'STARTED'].includes(String(admission.status).toUpperCase()) || (!isPrimaryAssistantAdmission && !isAlternateOperatorAdmission)) {
+  if (!admission || !PROMOTION_WORKFLOW_VARIANTS[workflowCode]) {
     reject('R6_PROMOTION_ADMISSION_INVALID', 'The promotion run is not a valid governed primary or operator-owned admission.', { workflowRunRecordId: input.workflowRunId });
   }
-  const parameters = safeObject(admission.validated_parameters);
+  const authorizationSource = assertPromotionRunAuthorization(admission);
+  const parameters = getPromotionParameters(admission);
   if (text(parameters.repoName) !== REPOSITORY_CODE || text(parameters.finalizationWorkflowRunId) !== input.finalizationWorkflowRunId) reject('R6_PROMOTION_ADMISSION_INVALID', 'The promotion admission is not bound to the requested repository and finalization receipt.');
-  const finalization = await validateFinalizationBinding({ finalizationWorkflowRunId: input.finalizationWorkflowRunId, environment: process.env });
+  const governanceScope = getPromotionAuthorizationScope(admission);
+  const finalization = await validateFinalizationBinding({
+    finalizationWorkflowRunId: input.finalizationWorkflowRunId,
+    governanceScope,
+  });
   await assertWorkflowGraph(admission.workflow_version_id, workflowCode);
-  const promotionAdmission = await beginPromotionAdmission({ admission, finalization });
+  await assertNoOtherPromotion(input.workflowRunId, governanceScope);
+  const promotionAdmission = await beginPromotionAdmission({
+    admission: { ...admission, authorization_source: authorizationSource },
+    finalization,
+  });
   let current;
   try {
-    current = await validateCurrentSource({ finalization, environment: process.env, workflowRunRecordId: input.workflowRunId });
+    current = await validateCurrentSource({
+      finalization,
+      environment: process.env,
+      sourceIdentityProfileCode: governanceScope.configProfileCode,
+      workflowRunRecordId: input.workflowRunId,
+    });
   } catch (error) {
     await queryFunction(defaultQuery)(
       "UPDATE worker.dev_promotion_admissions SET status = 'FAILED', failure_code = $2, failure_message = $3, updated_at = CURRENT_TIMESTAMP WHERE dev_promotion_admission_id = $1",
@@ -960,7 +1228,10 @@ if (require.main === module) main();
 module.exports = {
   ACTIVE_PROMOTION_STATUSES,
   FINALIZATION_WORKFLOW_CODE,
+  HUMAN_PROMOTION_RUN_SOURCES,
+  HUMAN_PROMOTION_TRIGGER_TYPES,
   OUTPUT_TYPE,
+  PROMOTION_REQUIRED_PERMISSION_CODES,
   PROMOTION_WORKFLOW_VARIANTS,
   PRIMARY_R6_VERSION,
   PROMOTION_WORKFLOW_CODE,
@@ -975,6 +1246,7 @@ module.exports = {
   createToolResult,
   executePreflight,
   getEnvironmentCode,
+  getPromotionAuthorizationScope,
   getPromotionScope,
   isSqlPath,
   loadDevPromotionAdmission,
@@ -991,6 +1263,10 @@ module.exports = {
   reconcileActivePromotionAdmissions,
   settlePromotionAdmission,
   renderConsole,
+  assertPromotionRunAuthorization,
+  hasPermissionCodes,
+  isAssistantPromotionRun,
+  isHumanPromotionRun,
   trustedAttribution,
   validateCurrentSource,
   validateFinalizationBinding,

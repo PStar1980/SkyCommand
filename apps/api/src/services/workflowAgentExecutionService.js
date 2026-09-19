@@ -1299,22 +1299,6 @@ async function getWorkflowRun({ workflowRunRecordId, principalCode, authMode = n
     });
   }
 
-  if (['skyserver_dev_commit', 'skycommand-dev-promo-alt'].includes(admission.workflowCode)) {
-    try {
-      const { reconcileActivePromotionAdmissions } = require('../../../packages/dev-finalization/src/promotionPreflight');
-      await reconcileActivePromotionAdmissions({
-        repositoryCode: admission.repositoryCode,
-        environmentCode: admission.environmentCode,
-        configProfileCode: admission.configProfileCode,
-      });
-    } catch (error) {
-      // The durable workflow terminal activity remains authoritative; a read
-      // path must not hide an otherwise valid workflow result if recovery is
-      // temporarily unavailable.
-      console.warn('[SkyCommand] DEV promotion admission reconciliation deferred:', error?.message || error);
-    }
-  }
-
   const refreshedAdmission = await loadAdmissionForRun(principal.principalId, normalizedRunId) || admission;
   const detail = await getWorkflowExecutorService().getWorkflowRun(refreshedAdmission.workflowRunRecordId);
   return {
