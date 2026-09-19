@@ -12,11 +12,6 @@ router.get(
   '/workflow-runs/:workflowRunRecordId',
   assistantIntegrationController.getWorkflowExecutionRun,
 );
-router.get('/database-upgrade/plan', assistantIntegrationController.getDatabaseUpgradePlan);
-router.post(
-  '/database-upgrade/apply-requests',
-  assistantIntegrationController.createDatabaseUpgradeApplyRequest,
-);
 router.get(
   '/browser-automation-runs/:workflowId/artifacts/:artifactId',
   assistantIntegrationController.getArtifact,

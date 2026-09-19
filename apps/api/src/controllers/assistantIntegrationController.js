@@ -34,69 +34,6 @@ async function getOpenApi(req, res, next) {
   }
 }
 
-async function getDatabaseUpgradePlan(req, res, next) {
-  try {
-    assistantIntegrationService.assertEmptyDatabaseUpgradePlanRequest({
-      query: req.query || {},
-      body: req.body || {},
-    });
-    const result = await assistantIntegrationService.getDatabaseUpgradePlan({
-      permissions: req.permissions || [],
-    });
-    await assistantIntegrationService
-      .recordDatabaseUpgradePlanAudit({
-        req,
-        result,
-        success: true,
-      })
-      .catch(() => {});
-    return res.json({ ok: true, ...result });
-  } catch (error) {
-    await assistantIntegrationService
-      .recordDatabaseUpgradePlanAudit({
-        req,
-        success: false,
-        error,
-      })
-      .catch(() => {});
-    return sendError(res, error, next);
-  }
-}
-
-async function createDatabaseUpgradeApplyRequest(req, res, next) {
-  try {
-    const expectedPlanDigest = assistantIntegrationService.assertExactDatabaseUpgradeApplyRequest({
-      query: req.query || {},
-      body: req.body || {},
-    });
-    const request = await assistantIntegrationService.createDatabaseUpgradeApplyRequest({
-      expectedPlanDigest,
-      permissions: req.permissions || [],
-      assistantIdentity: {
-        agentId: req.assistantIntegration?.agentId || 'assistant-http',
-        authMode: req.session?.authMode,
-        userId: req.user?.userId || null,
-      },
-    });
-    return res.status(request.reused ? 200 : 202).json({
-      ok: true,
-      ...request,
-      humanApprovalRequired: true,
-      applyExecutionExposed: false,
-    });
-  } catch (error) {
-    await assistantIntegrationService
-      .recordDatabaseUpgradeApplyRequestAudit({
-        req,
-        success: false,
-        outcome: 'REJECTED',
-        error,
-      })
-      .catch(() => {});
-    return sendError(res, error, next);
-  }
-}
-
 async function listAutomations(req, res, next) {
   try {
     const payload = await assistantIntegrationService.listAutomations(
@@ -245,8 +182,6 @@ module.exports = {
   getArtifact,
   getAutomation,
   getCapabilities,
-  getDatabaseUpgradePlan,
-  createDatabaseUpgradeApplyRequest,
   getOpenApi,
   getRun,
   getWorkflowExecutionRun,

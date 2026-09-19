@@ -194,8 +194,6 @@ async function run() {
     'CORE_RUN_LOW_RISK_SCRIPT',
     'CORE_RUN_MEDIUM_RISK_SCRIPT',
     'CORE_RUN_HIGH_RISK_SCRIPT',
-    'DB_UPGRADE_PLAN',
-    'DB_UPGRADE_APPLY_REQUEST',
   ].join(',');
   const permissionRoot = fixtureRoot({
     env: [
