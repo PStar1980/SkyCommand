@@ -169,7 +169,34 @@ function publicDatabaseExecution(record) {
   };
 }
 
-async function persistReceipt({ runId, payload, output, paths }) {
+function getReusableReceipt(run, runId, fileExists = fs.existsSync) {
+  const existingReceipt = text(run?.receipt_path);
+  if (
+    run?.status === 'COMPLETED' &&
+    existingReceipt &&
+    run?.receipt_sha256 &&
+    fileExists(existingReceipt)
+  ) {
+    return {
+      ...(run.receipt_payload || {}),
+      outcome: text(run.receipt_payload?.outcome, 'NO_CHANGES'),
+      runId,
+      receiptPath: existingReceipt,
+      receiptSha256: text(run.receipt_sha256).toUpperCase(),
+      lockReleased: true,
+    };
+  }
+  return null;
+}
+
+async function persistReceipt({
+  runId,
+  payload,
+  output,
+  paths,
+  queryFn = query,
+  releaseLockFn = releaseFinalizationLock,
+}) {
   const receiptDirectory = path.dirname(paths.receipt);
   fs.mkdirSync(receiptDirectory, { recursive: true });
   const temporaryPath = `${paths.receipt}.tmp-${process.pid}-${Date.now()}`;
@@ -178,7 +205,7 @@ async function persistReceipt({ runId, payload, output, paths }) {
   const receiptSha256 = sha256(receiptBytes);
   fs.rmSync(paths.receipt, { force: true });
   fs.renameSync(temporaryPath, paths.receipt);
-  await query(
+  await queryFn(
     `
       UPDATE worker.dev_finalization_runs
       SET status = 'COMPLETED',
@@ -192,9 +219,9 @@ async function persistReceipt({ runId, payload, output, paths }) {
           failure_message = NULL
       WHERE workflow_run_record_id = $1
     `,
-    [runId, JSON.stringify(output.artifacts), JSON.stringify({ ...payload, receiptSha256 }), output.receiptPath, receiptSha256],
+    [runId, JSON.stringify(output.artifacts), JSON.stringify({ ...payload, receiptSha256 }), paths.receipt, receiptSha256],
   );
-  await releaseFinalizationLock(runId);
+  await releaseLockFn(runId);
   return receiptSha256;
 }
 
@@ -205,16 +232,9 @@ async function executeReceipt(args = []) {
   const runId = assertRunId(args[0]);
   const startedAt = new Date().toISOString();
   const run = await getRun(runId);
-  const existingReceipt = text(run.receipt_path);
-  if (run.status === 'COMPLETED' && existingReceipt && run.receipt_sha256 && fs.existsSync(existingReceipt)) {
-    return {
-      ...(run.receipt_payload || {}),
-      outcome: text(run.receipt_payload?.outcome, 'NO_CHANGES'),
-      runId,
-      receiptPath: existingReceipt,
-      receiptSha256: text(run.receipt_sha256).toUpperCase(),
-      lockReleased: true,
-    };
+  const reusableReceipt = getReusableReceipt(run, runId);
+  if (reusableReceipt) {
+    return reusableReceipt;
   }
 
   const validation = normalizedOutput(run.validation_output);
@@ -388,6 +408,7 @@ module.exports = {
   REQUIRED_ZIP_ENTRIES,
   TOOL_CODE,
   executeReceipt,
+  getReusableReceipt,
   main,
   persistReceipt,
   publicSourceIdentity,

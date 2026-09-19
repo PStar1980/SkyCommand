@@ -16,6 +16,7 @@ const routineSelfTests = [
   'db-upgrade-cli:self-test',
   'dev-env-reconcile:self-test',
   'dev-finalization-r5:self-test',
+  'receipt-path-persistence:self-test',
   'r6-promotion-preflight:self-test',
   'r6-correction:self-test',
   'r6-promotion-node-order:self-test',
