@@ -27,6 +27,8 @@ const SKY_COMMAND_ROOT = path.resolve(__dirname, '../../..');
 const TOOL_CODE = 'github_dev_pr_merge';
 const DOCKER_LOCAL_PROFILE = 'DOCKER_LOCAL';
 const DEFAULT_GH_TIMEOUT_MS = 120000;
+const DEFAULT_PR_SETTLEMENT_TIMEOUT_MS = 30000;
+const DEFAULT_PR_SETTLEMENT_INTERVAL_MS = 1000;
 const SHA_PATTERN = /^[a-f0-9]{40,64}$/i;
 
 dotenv.config({ path: path.join(SKY_COMMAND_ROOT, '.env'), quiet: true });
@@ -253,18 +255,120 @@ function normalizePr(value = {}) {
   };
 }
 
-function assertChecksAndMergeability(pr) {
-  if (pr.isDraft) fail('GITHUB_DEV_PR_MERGE_PR_DRAFT', 'The DEV pull request is still a draft.');
-  if (['CONFLICTING', 'DIRTY', 'UNKNOWN'].includes(pr.mergeable) || ['BLOCKED', 'DIRTY', 'UNKNOWN', 'UNSTABLE'].includes(pr.mergeStateStatus)) {
-    fail('GITHUB_DEV_PR_MERGE_BRANCH_PROTECTION', 'GitHub reports that the DEV pull request is not mergeable under current branch protection or conflict state.');
-  }
-  const failedCheck = pr.statusCheckRollup.find((check) => ['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED'].includes(text(check.conclusion).toUpperCase()));
-  if (failedCheck) fail('GITHUB_DEV_PR_MERGE_CHECKS_FAILED', 'Required GitHub checks for the DEV pull request have not passed.');
-  const incompleteCheck = pr.statusCheckRollup.find((check) => {
+function getSettlementNumber(value, fallback, minimum = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum ? parsed : fallback;
+}
+
+function getPrSettlementConfig(options = {}) {
+  return {
+    timeoutMs: getSettlementNumber(
+      options.settlementTimeoutMs ?? process.env.SKYCOMMAND_GITHUB_DEV_PR_MERGE_SETTLEMENT_TIMEOUT_MS,
+      DEFAULT_PR_SETTLEMENT_TIMEOUT_MS,
+    ),
+    intervalMs: getSettlementNumber(
+      options.settlementIntervalMs ?? process.env.SKYCOMMAND_GITHUB_DEV_PR_MERGE_SETTLEMENT_INTERVAL_MS,
+      DEFAULT_PR_SETTLEMENT_INTERVAL_MS,
+    ),
+    now: typeof options.now === 'function' ? options.now : () => Date.now(),
+    sleep: typeof options.sleep === 'function'
+      ? options.sleep
+      : (durationMs) => new Promise((resolve) => setTimeout(resolve, durationMs)),
+  };
+}
+
+function findFailedCheck(pr) {
+  return pr.statusCheckRollup.find((check) =>
+    ['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED'].includes(
+      text(check.conclusion).toUpperCase(),
+    ),
+  );
+}
+
+function findIncompleteCheck(pr) {
+  return pr.statusCheckRollup.find((check) => {
     const status = text(check.status).toUpperCase();
     return status && !['COMPLETED', 'SUCCESS'].includes(status);
   });
-  if (incompleteCheck) fail('GITHUB_DEV_PR_MERGE_CHECKS_PENDING', 'Required GitHub checks for the DEV pull request are still pending.');
+}
+
+function assertHardMergeBlockers(pr) {
+  if (pr.isDraft) fail('GITHUB_DEV_PR_MERGE_PR_DRAFT', 'The DEV pull request is still a draft.');
+  if (['CONFLICTING', 'DIRTY'].includes(pr.mergeable) || ['BLOCKED', 'DIRTY', 'UNSTABLE'].includes(pr.mergeStateStatus)) {
+    fail('GITHUB_DEV_PR_MERGE_BRANCH_PROTECTION', 'GitHub reports that the DEV pull request is not mergeable under current branch protection or conflict state.');
+  }
+  const failedCheck = findFailedCheck(pr);
+  if (failedCheck) fail('GITHUB_DEV_PR_MERGE_CHECKS_FAILED', 'Required GitHub checks for the DEV pull request have not passed.');
+}
+
+function assessMergeability(pr) {
+  assertHardMergeBlockers(pr);
+  if (['UNKNOWN', null, ''].includes(pr.mergeable) || ['UNKNOWN', null, ''].includes(pr.mergeStateStatus)) {
+    return { ready: false, reason: 'MERGEABILITY_UNKNOWN' };
+  }
+  const incompleteCheck = findIncompleteCheck(pr);
+  if (incompleteCheck) return { ready: false, reason: 'CHECKS_PENDING' };
+  if (pr.mergeable !== 'MERGEABLE') return { ready: false, reason: 'MERGEABILITY_UNSETTLED' };
+  return { ready: true, reason: 'READY' };
+}
+
+function assertChecksAndMergeability(pr) {
+  const assessment = assessMergeability(pr);
+  if (!assessment.ready) {
+    if (assessment.reason === 'CHECKS_PENDING') {
+      fail('GITHUB_DEV_PR_MERGE_CHECKS_PENDING', 'Required GitHub checks for the DEV pull request are still pending.');
+    }
+    fail('GITHUB_DEV_PR_MERGE_NOT_READY_TIMEOUT', 'GitHub pull request mergeability metadata did not settle to a mergeable state.');
+  }
+}
+
+async function waitForCreatedPullRequest({ listOpen, options }) {
+  const config = getPrSettlementConfig(options);
+  const deadline = config.now() + config.timeoutMs;
+  let lastCount = 0;
+  for (;;) {
+    const openPrs = await listOpen();
+    lastCount = openPrs.length;
+    if (openPrs.length > 1) {
+      fail('GITHUB_DEV_PR_MERGE_DUPLICATE_PR', 'More than one open DEV to main pull request exists after creation.');
+    }
+    if (openPrs.length === 1) return openPrs[0];
+    if (config.now() >= deadline) {
+      fail(
+        'GITHUB_DEV_PR_MERGE_NOT_READY_TIMEOUT',
+        'The newly created DEV pull request did not become visible within the bounded settlement window.',
+        { stage: 'PR_VISIBILITY', observedOpenPullRequests: lastCount, timeoutMs: config.timeoutMs },
+      );
+    }
+    await config.sleep(config.intervalMs);
+  }
+}
+
+async function settlePullRequest({ adapter, pullRequest, options }) {
+  const config = getPrSettlementConfig(options);
+  const deadline = config.now() + config.timeoutMs;
+  let current = pullRequest;
+  for (;;) {
+    current = normalizePr(await adapter.viewPr(current.number));
+    if (current.state === 'MERGED' || current.mergedAt) return current;
+    const assessment = assessMergeability(current);
+    if (assessment.ready) return current;
+    if (config.now() >= deadline) {
+      fail(
+        'GITHUB_DEV_PR_MERGE_NOT_READY_TIMEOUT',
+        'GitHub pull request mergeability metadata did not settle within the bounded readiness window.',
+        {
+          stage: 'PR_SETTLEMENT',
+          prNumber: current.number,
+          mergeable: current.mergeable,
+          mergeStateStatus: current.mergeStateStatus,
+          checkPending: assessment.reason === 'CHECKS_PENDING',
+          timeoutMs: config.timeoutMs,
+        },
+      );
+    }
+    await config.sleep(config.intervalMs);
+  }
 }
 
 async function executeGithubDevPrMerge(args = [], options = {}) {
@@ -347,9 +451,7 @@ async function executeGithubDevPrMerge(args = [], options = {}) {
       const body = `Governed SkyCommand DEV promotion for workflow run ${input.workflowRunId}.`;
       await adapter.createPr({ baseBranch: repository.mainBranch, headBranch: repository.devBranch, title, body });
       prCreated = true;
-      openPrs = await listOpen();
-      if (openPrs.length !== 1) fail('GITHUB_DEV_PR_MERGE_DUPLICATE_PR', 'GitHub did not leave exactly one open DEV to main pull request after creation.');
-      pr = openPrs[0];
+      pr = await waitForCreatedPullRequest({ listOpen, options });
     }
 
     if (pr.baseRefName !== repository.mainBranch || pr.headRefName !== repository.devBranch) {
@@ -357,6 +459,14 @@ async function executeGithubDevPrMerge(args = [], options = {}) {
     }
     if (pr.headRefOid !== input.expectedDevSha) fail('GITHUB_DEV_PR_MERGE_PR_HEAD_MISMATCH', 'The selected pull request head differs from the reviewed DEV commit.');
     verification.pullRequestHeadVerified = true;
+    pr = await settlePullRequest({ adapter, pullRequest: pr, options });
+    if (pr.state === 'MERGED' || pr.mergedAt) return buildAlreadyMergedResult(pr);
+    if (pr.baseRefName !== repository.mainBranch || pr.headRefName !== repository.devBranch) {
+      fail('GITHUB_DEV_PR_MERGE_PR_DIRECTION_INVALID', 'The settled pull request does not target the registered DEV to main branch direction.');
+    }
+    if (pr.headRefOid !== input.expectedDevSha) {
+      fail('GITHUB_DEV_PR_MERGE_PR_HEAD_MISMATCH', 'The settled pull request head differs from the reviewed DEV commit.');
+    }
     assertChecksAndMergeability(pr);
     verification.mergeabilityVerified = true;
     await adapter.mergePr({ number: pr.number, expectedDevSha: input.expectedDevSha });

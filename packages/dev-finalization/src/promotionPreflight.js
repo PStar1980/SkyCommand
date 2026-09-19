@@ -75,12 +75,30 @@ function getEnvironmentCode(environment = process.env) {
 }
 
 function getPromotionScope(environment = process.env) {
-  const profileCode = getProfileCode(environment);
-  return {
+  return normalizeGovernedScope({
     repositoryCode: REPOSITORY_CODE,
     environmentCode: getEnvironmentCode(environment),
-    configProfileCode: profileCode,
+    configProfileCode: getProfileCode(environment),
+  });
+}
+
+function normalizeGovernedScope(scope = {}) {
+  const normalized = {
+    repositoryCode: text(scope.repositoryCode),
+    environmentCode: text(scope.environmentCode).toUpperCase(),
+    configProfileCode: text(scope.configProfileCode).toUpperCase(),
   };
+  if (
+    normalized.repositoryCode !== REPOSITORY_CODE ||
+    !normalized.environmentCode ||
+    !normalized.configProfileCode
+  ) {
+    reject(
+      'R6_PROMOTION_SCOPE_INVALID',
+      'The promotion admission does not contain a complete authorized SkyCommand DEV scope.',
+    );
+  }
+  return normalized;
 }
 
 function queryFunction(queryFn) {
@@ -230,6 +248,22 @@ async function loadPromotionAdmission(workflowRunRecordId, queryFn = defaultQuer
   return result.rows[0] || null;
 }
 
+async function loadDevPromotionAdmission(workflowRunRecordId, queryFn = defaultQuery) {
+  const result = await queryFunction(queryFn)(
+    `SELECT dev_promotion_admission_id, workflow_execution_admission_id, workflow_run_record_id,
+            repository_code, environment_code, config_profile_code, workflow_code,
+            workflow_version_id, version_number, finalization_workflow_run_record_id,
+            finalization_receipt_sha256, finalization_source_identity_digest,
+            request_digest, idempotency_key_hash, status, terminal_run_status,
+            terminal_outcome, failure_code, failure_message
+       FROM worker.dev_promotion_admissions
+      WHERE workflow_run_record_id = $1
+      LIMIT 1`,
+    [workflowRunRecordId],
+  );
+  return result.rows[0] || null;
+}
+
 async function loadRepositoryMetadata(profileCode, queryFn = defaultQuery) {
   const result = await queryFunction(queryFn)(
     "SELECT repo_code, repo_id, remote_url, dev_branch, main_branch, root_path, profile_code FROM core.vw_repository_paths WHERE repo_code = $1 AND profile_code = $2 AND is_skycommand_repository = TRUE AND repo_active = TRUE AND path_active = TRUE LIMIT 1",
@@ -257,9 +291,14 @@ function trustedAttribution(admission) {
   };
 }
 
-async function assertFinalizationReceipt({ finalizationWorkflowRunId, environment = process.env, queryFn = defaultQuery } = {}) {
+async function assertFinalizationReceipt({
+  finalizationWorkflowRunId,
+  environment = process.env,
+  governanceScope = null,
+  queryFn = defaultQuery,
+} = {}) {
   const runId = assertRunId(finalizationWorkflowRunId, 'finalizationWorkflowRunId');
-  const scope = getPromotionScope(environment);
+  const scope = governanceScope ? normalizeGovernedScope(governanceScope) : getPromotionScope(environment);
   const run = await loadFinalizationRun(runId, queryFn);
   if (!run) reject('R6_PROMOTION_FINALIZATION_NOT_FOUND', 'The referenced DEV finalization run was not found.', { finalizationWorkflowRunId: runId });
   if (
@@ -455,6 +494,7 @@ async function validateCurrentSource({
   finalization,
   environment = process.env,
   workflowRunRecordId = null,
+  sourceIdentityProfileCode = null,
   queryFn = defaultQuery,
   dependencies = {},
 } = {}) {
@@ -480,7 +520,12 @@ async function validateCurrentSource({
   const database = publicDatabase(databasePlan);
   if (!['PLAN_READY', 'NO_CHANGES'].includes(database.outcome) || database.pendingCount !== 0) reject('R6_PROMOTION_DATABASE_NOT_READY', 'The governed DEV database is not at a verified zero-pending state.', { outcome: database.outcome, pendingCount: database.pendingCount });
 
-  const currentIdentity = await buildSourceIdentityFn({ repositoryRoot: binding.repositoryRoot, databasePlan, environment });
+  const currentIdentity = await buildSourceIdentityFn({
+    repositoryRoot: binding.repositoryRoot,
+    databasePlan,
+    environment,
+    identityProfileCode: sourceIdentityProfileCode,
+  });
   const changedPaths = manifestChangedPaths(currentIdentity.files, reviewedIdentity.files || []);
   if (digest(currentIdentity.configurationRevision?.digest) !== digest(reviewedIdentity.configurationRevision?.digest)) reject('R6_PROMOTION_CONFIG_DRIFT', 'Effective non-secret configuration differs from the reviewed finalization receipt.');
   if (digest(currentIdentity.sqlManifestDigest) !== digest(reviewedIdentity.sqlManifestDigest) || changedPaths.some(isSqlPath)) reject('R6_PROMOTION_SQL_DRIFT', 'The reviewed SQL manifest differs from the current source state.', { changedPathCount: changedPaths.filter(isSqlPath).length });
@@ -524,6 +569,122 @@ async function validateFinalizationBinding({ finalizationWorkflowRunId, environm
   const finalization = await assertFinalizationReceipt({ finalizationWorkflowRunId, environment, queryFn });
   const output = normalizeFinalizationBinding(finalization);
   if (verifyCurrent) output.current = await validateCurrentSource({ finalization: output, environment, workflowRunRecordId, queryFn });
+  return output;
+}
+
+async function validatePromotionCommitBoundary({
+  workflowRunId,
+  finalizationWorkflowRunId,
+  hostEnvironment = process.env,
+  queryFn = defaultQuery,
+  dependencies = {},
+} = {}) {
+  const promotionRunId = assertRunId(workflowRunId, 'workflowRunId');
+  const finalizationRunId = assertRunId(finalizationWorkflowRunId, 'finalizationWorkflowRunId');
+  const loadPromotionAdmissionFn = dependencies.loadPromotionAdmission || loadPromotionAdmission;
+  const loadDevPromotionAdmissionFn = dependencies.loadDevPromotionAdmission || loadDevPromotionAdmission;
+  const assertFinalizationReceiptFn = dependencies.assertFinalizationReceipt || assertFinalizationReceipt;
+  const validateCurrentSourceFn = dependencies.validateCurrentSource || validateCurrentSource;
+
+  const admission = await loadPromotionAdmissionFn(promotionRunId, queryFn);
+  const workflowCode = text(admission?.workflow_code);
+  const expectedVersion = PROMOTION_WORKFLOW_VARIANTS[workflowCode];
+  if (
+    !admission ||
+    text(admission.workflow_run_record_id) !== promotionRunId ||
+    workflowCode !== PROMOTION_WORKFLOW_CODE ||
+    !expectedVersion ||
+    Number(admission.version_number) !== expectedVersion ||
+    text(admission.repository_code) !== REPOSITORY_CODE
+  ) {
+    reject(
+      'R6_PROMOTION_COMMIT_ADMISSION_INVALID',
+      'The current promotion workflow run is not a valid governed SkyCommand DEV admission.',
+      { workflowRunRecordId: promotionRunId },
+    );
+  }
+
+  const parameters = safeObject(admission.validated_parameters);
+  if (
+    text(parameters.repoName) !== REPOSITORY_CODE ||
+    text(parameters.finalizationWorkflowRunId) !== finalizationRunId
+  ) {
+    reject(
+      'R6_PROMOTION_COMMIT_ADMISSION_INVALID',
+      'The promotion admission is not bound to the requested repository and finalization receipt.',
+      { workflowRunRecordId: promotionRunId, finalizationWorkflowRunId: finalizationRunId },
+    );
+  }
+
+  const promotionAdmission = await loadDevPromotionAdmissionFn(promotionRunId, queryFn);
+  if (
+    !promotionAdmission ||
+    text(promotionAdmission.workflow_run_record_id) !== promotionRunId ||
+    text(promotionAdmission.status).toUpperCase() !== 'AUTHORIZED'
+  ) {
+    reject(
+      'R6_PROMOTION_COMMIT_ADMISSION_UNAUTHORIZED',
+      'The durable SkyCommand DEV promotion admission is not authorized for Dev Commit.',
+      { workflowRunRecordId: promotionRunId, status: text(promotionAdmission?.status) || null },
+    );
+  }
+  if (
+    text(promotionAdmission.workflow_execution_admission_id) !== text(admission.workflow_execution_admission_id) ||
+    text(promotionAdmission.workflow_code) !== PROMOTION_WORKFLOW_CODE ||
+    text(promotionAdmission.workflow_version_id) !== text(admission.workflow_version_id) ||
+    Number(promotionAdmission.version_number) !== Number(admission.version_number) ||
+    text(promotionAdmission.repository_code) !== REPOSITORY_CODE ||
+    text(promotionAdmission.finalization_workflow_run_record_id) !== finalizationRunId ||
+    text(parameters.finalizationWorkflowRunId) !== text(promotionAdmission.finalization_workflow_run_record_id)
+  ) {
+    reject(
+      'R6_PROMOTION_COMMIT_BOUNDARY_INVALID',
+      'The durable promotion admission is not bound to the current promotion workflow and finalization receipt.',
+      { workflowRunRecordId: promotionRunId, finalizationWorkflowRunId: finalizationRunId },
+    );
+  }
+
+  const governanceScope = normalizeGovernedScope({
+    repositoryCode: promotionAdmission.repository_code,
+    environmentCode: promotionAdmission.environment_code,
+    configProfileCode: promotionAdmission.config_profile_code,
+  });
+  const finalization = await assertFinalizationReceiptFn({
+    finalizationWorkflowRunId: finalizationRunId,
+    governanceScope,
+    queryFn,
+  });
+  if (
+    text(finalization.scope?.repositoryCode) !== governanceScope.repositoryCode ||
+    text(finalization.scope?.environmentCode).toUpperCase() !== governanceScope.environmentCode ||
+    text(finalization.scope?.configProfileCode).toUpperCase() !== governanceScope.configProfileCode
+  ) {
+    reject(
+      'R6_PROMOTION_COMMIT_SCOPE_INVALID',
+      'The promotion admission scope does not match the reviewed finalization receipt scope.',
+      { workflowRunRecordId: promotionRunId, finalizationWorkflowRunId: finalizationRunId },
+    );
+  }
+  if (
+    digest(promotionAdmission.finalization_receipt_sha256) !== digest(finalization.receipt?.receiptSha256) ||
+    digest(promotionAdmission.finalization_source_identity_digest) !== digest(finalization.sourceIdentity?.digest)
+  ) {
+    reject(
+      'R6_PROMOTION_COMMIT_BINDING_INVALID',
+      'The durable promotion admission is not bound to the reviewed finalization receipt and source identity.',
+      { workflowRunRecordId: promotionRunId, finalizationWorkflowRunId: finalizationRunId },
+    );
+  }
+
+  const output = normalizeFinalizationBinding(finalization);
+  output.current = await validateCurrentSourceFn({
+    finalization: output,
+    environment: hostEnvironment,
+    sourceIdentityProfileCode: governanceScope.configProfileCode,
+    workflowRunRecordId: promotionRunId,
+    queryFn,
+    dependencies: dependencies.currentSourceDependencies || {},
+  });
   return output;
 }
 
@@ -816,8 +977,10 @@ module.exports = {
   getEnvironmentCode,
   getPromotionScope,
   isSqlPath,
+  loadDevPromotionAdmission,
   loadPromotionAdmission,
   loadFinalizationRun,
+  normalizeGovernedScope,
   normalizeFinalizationBinding,
   normalizeReviewedSourceIdentity,
   main,
@@ -831,4 +994,5 @@ module.exports = {
   trustedAttribution,
   validateCurrentSource,
   validateFinalizationBinding,
+  validatePromotionCommitBoundary,
 };

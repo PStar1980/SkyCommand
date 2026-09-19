@@ -1,6 +1,6 @@
 # AGENTS.md — SkyCommand Autonomous Development Agent Rules
 
-Read and follow `docs/development/SkyCommand_Development_Operating_Rules_v1.2.md` before making changes.
+Read and follow `docs/development/SkyCommand_Development_Operating_Rules_v1.3.md` before making changes.
 
 During the Autonomous DEV remediation, also follow:
 `docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md`
@@ -8,17 +8,15 @@ During the Autonomous DEV remediation, also follow:
 The authoritative long-range Agentic AI roadmap remains:
 `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`
 
-Where the older development rules required repeated human approval for routine `DEV_LOCAL` work, the v1.2 operating rules supersede that procedure.
+The v1.3 Operating Rules supersede earlier active development-governance procedures where they conflict.
 
-## Approved September 16 transition
+## Current remediation boundary
 
-These rules govern operator-authorized local remediation. Future SkyCommand-managed Agent Runs still require the isolated workspaces and authority boundaries in the architecture; local checkout/host access does not transfer to those runs.
+R0–R6 establish the accepted Autonomous DEV implementation/promotion baseline. R7 cleanup and R8 one-instruction acceptance remain separate scoped remediation steps. Agentic AI Phase 1 remains blocked until R8 acceptance.
 
-Complete only the assigned remediation step(s). The initial handoff authorizes R0 installation and R1 implementation, then stop. Later steps require their own scoped work orders. Agentic AI Phase 1 remains blocked until R8 acceptance, and promotion always requires a separate explicit promotion instruction.
+These rules govern operator-authorized local development in the approved `DEV_LOCAL` checkout. Future SkyCommand-managed Agent Runs remain subject to the isolation and authority boundaries in the long-range architecture; local checkout/host access does not automatically transfer to managed agents.
 
-Until R2 acceptance, the plan's bootstrap allowance permits D1 CLI PLAN/APPLY for required canonical DEV migrations/seeds, retaining identity pins, digest checks, and technical gates. Do not invent an unavailable registered tool or workflow. When a capability exists, use it. This allowance does not authorize destructive rebuilds or ad-hoc SQL.
-
-As the assigned steps implement them, enforce the v1.2 contracts: exact verified SQL bytes; verified no-op; per-file recovery; typed/allowlisted atomic configuration reconciliation; credential-bound ownership; idempotent workflow starts; durable conditional runtime restart; and promotion tied to reviewed source evidence. Non-secret settings are not blanket authority to change targets, permissions, or authentication.
+Complete only the assigned work order/phase. A normal implementation instruction does not authorize promotion. Promotion requires a separate explicit user instruction. Production or non-DEV effects require separate authorization.
 
 ## Prime directive
 
@@ -26,27 +24,48 @@ SkyCommand development automation exists to remove routine human intervention.
 
 For an explicitly assigned `DEV_LOCAL` task, the task instruction authorizes the agent to complete the work end-to-end within the assigned scope. The agent must not stop to ask Paul to perform routine implementation steps that the agent can perform through an allowed local action, registered Tool, or permitted Workflow.
 
-Normal sequence:
+Normal implementation sequence:
 
 1. Receive one scoped implementation instruction.
 2. Inspect repository/runtime reality.
 3. Make the required source/configuration changes.
 4. Perform all required local development operations autonomously.
-5. Run the required finalization/validation Workflow.
-6. Verify final state and evidence.
-7. Report the completed result and stop for Paul/Sky review.
+5. Run the registered **Dev Change Finalization** Workflow.
+6. Verify final state, receipts, structured results, and generated evidence.
+7. Report the completed reviewable DEV result and stop for Paul/Sky review.
 
 Human review belongs at the end of the development turn, not between routine implementation steps.
 
 ## Workflow-first execution
 
 - SkyCommand Workflows are the preferred orchestration boundary.
-- Agent identities are granted server-side permission to specific Workflows.
-- If the current agent is permitted to run a Workflow, invoking that Workflow requires no additional per-run human approval unless the Workflow represents an explicitly separately authorized environment or release boundary.
+- Agent identities are granted server-side permission to specific Workflows and Tools.
+- If the current agent is permitted to run a Workflow, invoking that Workflow requires no additional per-run human approval unless the Workflow represents a separately authorized environment/release boundary.
+- MCP/API connectivity does not create authority by itself. Use the registered identity/context and SkyCommand permission checks.
 - When a registered Workflow or Tool already performs an operation, use it rather than recreating the operation with direct shell/database/Git calls.
-- When the Autonomous DEV finalization Workflow exists, run it before stopping after a source/configuration change.
-- The agent may autonomously poll/inspect its own Workflow runs, retry recoverable nodes according to registered retry policy, and collect the final structured result.
-- Development Promotion is separate from the implementation turn. Start it only when the user's instruction explicitly includes promotion. Once promotion is authorized by that instruction and started through an allowed Workflow, do not require a second human approval inside the same DEV promotion run.
+- Run **Dev Change Finalization** before stopping after a source/configuration development change unless the assigned work order explicitly establishes another accepted boundary.
+- The agent may autonomously poll/inspect its own Workflow runs, use registered recovery/retry behavior, and collect final structured results.
+
+## Development Promotion
+
+Development Promotion is separate from the implementation turn.
+
+When the user explicitly says to promote a reviewed DEV change:
+
+- that instruction is the promotion authorization event;
+- promotion must bind to a successful reviewed Dev Change Finalization receipt;
+- the permitted DEV promotion Workflow may start without another redundant Paul approval checkpoint;
+- promotion preflight must verify reviewed source/SQL/config/database/branch identity before Git mutation;
+- drift invalidates the reviewed promotion state and requires fresh finalization/review;
+- source-control mutation remains workflow-owned.
+
+The critical workflow-owned promotion order is:
+
+**Verify DEV Promotion Preflight → promotion artifact refresh → Dev Commit → Merge GitHub Dev PR → Repo Merge / Sync → Local Repository Sync → Development Promotion Summary**
+
+Registered variants may include additional non-mutating governance/evidence nodes, but they must preserve this mutation ordering.
+
+`Merge GitHub Dev PR` owns the governed `dev -> main` GitHub PR merge boundary. Agents must not replace it with direct Git/GitHub mutation or ask Paul to perform the same merge manually once promotion has already been explicitly authorized.
 
 ## Allowed inside an assigned DEV_LOCAL task
 
@@ -55,11 +74,12 @@ The agent may, without additional human intervention:
 - read and edit repository source files within task scope;
 - read/query the development database, including schema/catalog/metadata inspection;
 - create new additive, idempotent, globally numbered migrations and seeds;
-- apply pending approved-by-policy repository migrations/seeds to the pinned development database through the registered database-upgrade Tool/Workflow;
-- update the local `.env` when required by the task and keep `.env.example` aligned for non-secret configuration;
-- rebuild/restart required local Docker services;
+- apply pending reviewed-by-policy repository migrations/seeds to the pinned development database through the registered database-upgrade Tool/Workflow;
+- update the local `.env` when required by the task and keep `.env.example` aligned for safe non-secret configuration;
+- use the registered configuration-reconciliation capability for typed/allowlisted non-secret changes;
+- rebuild/restart required local Docker services through allowed runtime/Host Agent capabilities;
 - run registered Tools, Workflows, Playwright tests/automations, validation scripts, and test suites allowed to the agent;
-- generate Repo Map, Repo Zip, Capability Catalogue, logs, diffs, receipts, and other development evidence;
+- generate Repo Map, Repo Zip, Capability Catalogue, receipts, logs, diffs, and other development evidence;
 - inspect Git status/diff/log/history;
 - perform other non-destructive local operations necessary to complete and validate the assigned task.
 
@@ -67,25 +87,26 @@ The agent may, without additional human intervention:
 
 - Read-only database access is allowed for development work.
 - Do not run `npm run db:build` against an existing development database.
-- Do not perform ad-hoc `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `ALTER`, `DROP`, or other mutating SQL outside a source-controlled migration/seed or a separately registered purpose-built Tool.
-- Database mutations for normal development must flow through source-controlled numbered migrations/seeds and the database-upgrade execution path.
+- Do not perform ad-hoc `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `ALTER`, `DROP`, or other mutating SQL outside a source-controlled migration/seed or separately registered purpose-built Tool.
+- Database mutations for normal development must flow through source-controlled numbered migrations/seeds and the registered database-upgrade execution path.
 - Applied historical migrations/seeds are immutable.
-- Preserve ordinal, checksum, database identity, execution ledger, structured result, and failure evidence.
+- Preserve ordinal, checksum, exact-byte execution, database identity, execution ledger, structured result, and failure evidence.
 - A migration/seed execution failure must stop that database mutation path and report evidence; do not hide or bypass drift.
 
 ## Environment/configuration rules
 
 - The agent may update the live local `.env` when required to make the assigned DEV task runnable.
-- Never print, summarize, copy into chat/output, commit, or persist secret values into tracked files or structured results.
-- Preserve unrelated `.env` values.
+- Keep `.env.example` and `.env` aligned for applicable non-secret keys when the task introduces or changes such configuration; preserve local-only/secrets and unrelated values.
+- Never print, summarize, copy into chat/output, commit, package, or persist secret values into tracked files or structured results.
+- Preserve unrelated `.env` values and comments where practical.
 - Prefer updating existing configuration over introducing a new environment variable.
 - Do not create per-operation approval flags when Workflow/Tool permission already expresses authority.
 - `.env.example` contains non-secret defaults/documentation only; `.env` remains local and untracked.
-- Configuration tooling must report which keys changed, not secret values.
+- Configuration tooling must report key names/classification, never secret values.
 
 ## Git and promotion
 
-- Do not directly run mutating Git commands such as commit, merge, push, pull, rebase, reset, checkout/switch, branch deletion, or tag mutation unless a future operating-rule revision explicitly allows them.
+- Do not directly run mutating Git commands such as commit, merge, push, pull, rebase, reset, checkout/switch, branch deletion, tag mutation, or direct GitHub PR mutation unless a future Operating Rules revision explicitly allows them.
 - Use registered SkyCommand Development Promotion Workflow(s) for source-control mutation.
 - A normal implementation instruction does not imply promotion.
 - A user instruction to promote is sufficient authorization to start the permitted DEV promotion Workflow and allow that Workflow to complete its registered DEV steps without another Paul approval checkpoint.
@@ -100,18 +121,20 @@ Without a separate explicit instruction, do not:
 - mutate database state outside registered migrations/seeds or a purpose-built allowed Tool;
 - expose secrets;
 - perform unrelated destructive host/OS/network actions;
-- expand the assigned task into another roadmap phase;
-- bypass SkyCommand permissions or fabricate authority.
+- expand the assigned task into another remediation/roadmap phase;
+- bypass SkyCommand permissions, preflight/review binding, or fabricate authority.
 
 ## Completion contract
 
-Before stopping, the agent must:
+Before stopping an implementation turn, the agent must:
 
-1. run the required autonomous DEV finalization Workflow when available;
+1. run the required Dev Change Finalization Workflow when available;
 2. verify database/configuration/runtime state relevant to the task;
 3. run appropriate validation/tests;
 4. retain structured Tool/Workflow receipts and material evidence;
 5. report files changed, database/configuration actions, Workflows run, validation results, discrepancies, final Git status, and concise diff summary;
 6. stop for Paul/Sky review.
 
-Routine execution is autonomous. Review and direction remain human.
+After a separately authorized promotion, the agent must observe the promotion to terminal state, report the final promotion receipt and branch/SHA/PR/synchronization evidence, then stop.
+
+Routine execution is autonomous. Review, promotion intent, governance changes, and release direction remain human.

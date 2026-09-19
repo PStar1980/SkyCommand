@@ -446,14 +446,11 @@ async function executeDevCommit(args = [], options = {}) {
         'Finalization and promotion workflow run ids are both required at the commit boundary.',
       );
     }
-    const {
-      validateFinalizationBinding,
-    } = require('../../dev-finalization/src/promotionPreflight');
-    const binding = await validateFinalizationBinding({
+    const { validatePromotionCommitBoundary } = require('../../dev-finalization/src/promotionPreflight');
+    const binding = await validatePromotionCommitBoundary({
       finalizationWorkflowRunId,
-      workflowRunRecordId: workflowRunId,
-      verifyCurrent: true,
-      environment: process.env,
+      workflowRunId,
+      hostEnvironment: process.env,
     });
     commitBoundary = {
       finalizationWorkflowRunId: binding.finalizationWorkflowRunId,

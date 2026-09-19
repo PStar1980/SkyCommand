@@ -313,7 +313,7 @@ async function readDatabasePlan(repositoryRoot, environment = process.env) {
   });
 }
 
-async function buildSourceIdentity({ repositoryRoot, databasePlan, environment = process.env }) {
+async function buildSourceIdentity({ repositoryRoot, databasePlan, environment = process.env, identityProfileCode = null }) {
   const artifactBinding = await loadBinding(REPOSITORY_CODE, environment);
   const extraExcluded = new Set([
     artifactBinding.repoMapOutputPath && artifactBinding.repoMapFileName
@@ -342,10 +342,11 @@ async function buildSourceIdentity({ repositoryRoot, databasePlan, environment =
   );
   const fileManifestDigest = sha256(canonicalJson(files.entries));
   const sqlManifestDigest = text(databasePlan.manifestDigest?.digest).toUpperCase() || null;
+  const sourceProfileCode = text(identityProfileCode || getProfileCode(environment)).toUpperCase();
   const sourceDigest = sha256(
     canonicalJson({
       repositoryCode: REPOSITORY_CODE,
-      profileCode: getProfileCode(environment),
+      profileCode: sourceProfileCode,
       baseRevision: files.revision,
       fileManifestDigest,
       sqlManifestDigest,

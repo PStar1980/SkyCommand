@@ -1457,7 +1457,7 @@ SkyCommand/
 │   │   ├── Luna_R0_R1_Work_Order.md
 │   │   ├── SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md
 │   │   ├── SkyCommand_Database_Upgrade.md
-│   │   └── SkyCommand_Development_Operating_Rules_v1.2.md
+│   │   └── SkyCommand_Development_Operating_Rules_v1.3.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
 │   ├── generated/
@@ -2263,6 +2263,7 @@ SkyCommand/
         │   │       └── databaseUpgradeSelfTest.js
         │   ├── dev-finalization/
         │   │   └── src/
+        │   │       ├── devCommitScopeSelfTest.js
         │   │       ├── devFinalizationSelfTest.js
         │   │       ├── promotionPreflightSelfTest.js
         │   │       ├── r6CorrectionSelfTest.js
@@ -2280,7 +2281,8 @@ SkyCommand/
         │   │       ├── githubDevPrMergeSelfTest.js
         │   │       ├── gitLocalSyncResultSelfTest.js
         │   │       ├── gitRepositoryStatusSelfTest.js
-        │   │       └── localRepoSyncLineageSelfTest.js
+        │   │       ├── localRepoSyncLineageSelfTest.js
+        │   │       └── localRepoSyncTrackingRefsSelfTest.js
         │   ├── host-agent/
         │   │   └── src/
         │   │       ├── dockerContainerSelfTest.js
