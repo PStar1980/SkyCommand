@@ -67,6 +67,14 @@ function run() {
         { code: 'HOST_WORKFLOW_DISPATCH_WAIT', label: 'Host workflow dispatch + wait', durationMs: 10 },
       ],
     },
+    commitBoundary: {
+      finalizationWorkflowRunId: '11111111-1111-4111-8111-111111111111',
+      workflowRunRecordId: '22222222-2222-4222-8222-222222222222',
+      sourceIdentityDigest: 'A'.repeat(64),
+      currentRevision: '3'.repeat(40),
+      databasePlanDigest: 'B'.repeat(64),
+      revalidatedAt: '2026-09-18T12:00:00.000Z',
+    },
   });
   assert.equal(result.outputType, GIT_COMMIT_OUTPUT_TYPE);
   assert.equal(result.output.outcome, 'PUSHED');
@@ -77,6 +85,7 @@ function run() {
   assert.equal(result.output.transportTelemetry.phases.length, 2);
   assert.equal(result.metadata.executionTarget, 'HOST');
   assert.equal(result.metadata.transport, 'temporal_host_agent');
+  assert.equal(result.output.commitBoundary.sourceIdentityDigest, 'A'.repeat(64));
   validateToolResult(result, {
     expectedOutputType: GIT_COMMIT_OUTPUT_TYPE,
     outputSchema,

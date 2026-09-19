@@ -162,6 +162,7 @@ async function startDevelopmentPromotion(req, res, next) {
       actor: req.user,
       session: req.session,
       context,
+      agentId: req.assistantIntegration?.agentId || 'assistant-http',
     });
     await assistantIntegrationService
       .recordDevelopmentPromotionAudit({

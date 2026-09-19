@@ -77,6 +77,7 @@ async function run() {
     const requiredPermissionCodes = assistant.DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES;
     const toolPermissionCodes = assistant.DEVELOPMENT_PROMOTION_TOOL_PERMISSION_CODES;
     assert.deepEqual(toolPermissionCodes, [
+      'DEV_PROMOTION_PREFLIGHT',
       'CAPABILITY_CATALOG_EXPORT',
       'REPO_MAP_GENERATE',
       'REPO_ZIP_GENERATE',
@@ -189,21 +190,44 @@ async function run() {
     }
 
     const calls = [];
+    const finalizationWorkflowRunId = '11111111-1111-4111-8111-111111111111';
+    const finalizationReceiptSha256 = 'A'.repeat(64);
+    const finalizationSourceIdentityDigest = 'B'.repeat(64);
     const result = await assistant.startDevelopmentPromotion({
       body: {
         commitMessage: 'Development Control Plane Bootstrap - governed MCP development promotion',
+        finalizationWorkflowRunId,
+        idempotencyKey: 'assistant-self-test-r6',
       },
       permissions: completePermissions,
       actor: { userId: null, displayName: 'SkyCommand Agent (codex-local)' },
       session: { authMode: 'ASSISTANT_SERVICE_TOKEN' },
       context: { ipAddress: '127.0.0.1', userAgent: 'self-test' },
-      workflowExecutor: {
-        startWorkflowWithTemporal: async (input) => {
+      agentId: 'codex-local',
+      promotionValidator: async (input) => {
+        assert.equal(input.finalizationWorkflowRunId, finalizationWorkflowRunId);
+        assert.equal(input.verifyCurrent, true);
+        return {
+          receipt: { receiptSha256: finalizationReceiptSha256 },
+          sourceIdentity: { digest: finalizationSourceIdentityDigest },
+        };
+      },
+      workflowAgentExecution: {
+        startWorkflow: async (input) => {
           calls.push(input);
           return {
-            started: true,
-            run: { workflowRunRecordId: 'run-self-test' },
-            temporalWorkflow: { workflowId: 'temporal-self-test' },
+            accepted: true,
+            reused: false,
+            status: 'STARTED',
+            admissionId: 'admission-self-test',
+            workflowRunRecordId: 'run-self-test',
+            temporalWorkflowId: 'temporal-self-test',
+            temporalRunId: 'temporal-run-self-test',
+            principal: { principalCode: 'assistant-http' },
+            idempotency: {
+              keyHash: 'C'.repeat(64),
+              requestDigest: 'D'.repeat(64),
+            },
           };
         },
       },
@@ -211,20 +235,36 @@ async function run() {
 
     assert.deepEqual(calls, [
       {
-        workflowCode: 'skyserver_dev_commit',
-        input: {
-          params: {
+        request: {
+          workflowCode: 'skyserver_dev_commit',
+          parameters: {
             commitMessage:
               'Development Control Plane Bootstrap - governed MCP development promotion',
             repoName: 'SkyCommand',
+            finalizationWorkflowRunId,
           },
-          runSource: 'assistant',
-          triggerType: 'ASSISTANT',
+          idempotencyKey: 'assistant-self-test-r6',
         },
-        user: { userId: null, displayName: 'SkyCommand Agent (codex-local)' },
+        principalCode: 'assistant-http',
+        authMode: 'ASSISTANT_SERVICE_TOKEN',
+        actor: { userId: null, displayName: 'SkyCommand Agent (codex-local)' },
         session: { authMode: 'ASSISTANT_SERVICE_TOKEN' },
-        permissions: completePermissions,
-        context: { ipAddress: '127.0.0.1', userAgent: 'self-test' },
+        context: {
+          ipAddress: '127.0.0.1',
+          userAgent: 'self-test',
+          agentId: 'codex-local',
+          promotionAuthorization: {
+            instructionSource: 'ASSISTANT',
+            triggerSource: 'ASSISTANT',
+            triggerType: 'ASSISTANT',
+            agentId: 'codex-local',
+            instructionRef: null,
+            requestedAt: calls[0]?.context?.promotionAuthorization?.requestedAt,
+            finalizationWorkflowRunId,
+            finalizationReceiptSha256,
+            finalizationSourceIdentityDigest,
+          },
+        },
       },
     ]);
     assert.deepEqual(result, {
@@ -234,9 +274,33 @@ async function run() {
       repositoryCode: 'SkyCommand',
       workflowRunRecordId: 'run-self-test',
       temporalWorkflowId: 'temporal-self-test',
+      temporalRunId: 'temporal-run-self-test',
+      admissionId: 'admission-self-test',
+      status: 'STARTED',
+      reused: false,
+      principal: { principalCode: 'assistant-http' },
+      idempotency: {
+        keyHash: 'C'.repeat(64),
+        requestDigest: 'D'.repeat(64),
+      },
+      finalizationWorkflowCode: 'dev_change_finalize',
+      finalizationWorkflowRunId,
+      finalizationReceiptSha256,
+      finalizationSourceIdentityDigest,
       triggerSource: 'ASSISTANT',
-      humanApprovalRequired: true,
-      agentMustStop: true,
+      triggerType: 'ASSISTANT',
+      humanApprovalRequired: false,
+      agentMustStop: false,
+      terminalObservationRequired: true,
+      terminalObservationPath: '/api/assistant/workflow-runs/{workflowRunRecordId}',
+      trustedAttribution: {
+        agentId: 'codex-local',
+        userId: null,
+        sessionId: null,
+        instructionSource: 'ASSISTANT',
+        instructionRef: null,
+        requestedAt: result?.trustedAttribution?.requestedAt,
+      },
     });
 
     const auditEvents = [];
@@ -273,7 +337,7 @@ async function run() {
 
     assert.ok(routes.includes("'/development-promotion/runs'"));
     assert.ok(controller.includes('recordDevelopmentPromotionAudit'));
-    assert.ok(service.includes("runSource: 'assistant'"));
+    assert.ok(service.includes("triggerSource: 'ASSISTANT'"));
     assert.ok(service.includes('triggerType: DEVELOPMENT_PROMOTION_TRIGGER_TYPE'));
     assert.ok(service.includes('DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES'));
     assert.ok(!routes.includes('approval'));

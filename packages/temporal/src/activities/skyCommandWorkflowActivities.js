@@ -187,6 +187,14 @@ async function failSkyserverWorkflowRunActivity(input = {}) {
   });
 }
 
+async function settleDevPromotionAdmissionActivity(input = {}) {
+  const { settlePromotionAdmission } = require('../../../../packages/dev-finalization/src/promotionPreflight');
+  return settlePromotionAdmission({
+    workflowRunRecordId: input.workflowRunRecordId,
+    settlementSource: input.settlementSource || 'temporal_terminal_activity',
+  });
+}
+
 async function reconcileDevFinalizationFailureActivity(input = {}) {
   if (input.workflowCode !== 'dev_change_finalize') {
     return { skipped: true, reason: 'NOT_R5_FINALIZATION' };
@@ -244,6 +252,7 @@ module.exports = {
   executeSkyserverWorkflowNodeActivity,
   failSkyserverWorkflowNodeRunActivity,
   failSkyserverWorkflowRunActivity,
+  settleDevPromotionAdmissionActivity,
   resolveSkyserverWorkflowApprovalRequestActivity,
   reconcileDevFinalizationFailureActivity,
   linkSkyserverWorkflowRunToTemporalActivity,
@@ -260,6 +269,7 @@ module.exports = {
   executeSkyCommandWorkflowNodeActivity: executeSkyserverWorkflowNodeActivity,
   failSkyCommandWorkflowNodeRunActivity: failSkyserverWorkflowNodeRunActivity,
   failSkyCommandWorkflowRunActivity: failSkyserverWorkflowRunActivity,
+  settleSkyCommandDevPromotionAdmissionActivity: settleDevPromotionAdmissionActivity,
   resolveSkyCommandWorkflowApprovalRequestActivity: resolveSkyserverWorkflowApprovalRequestActivity,
   reconcileDevChangeFinalizeFailureActivity: reconcileDevFinalizationFailureActivity,
   linkSkyCommandWorkflowRunToTemporalActivity: linkSkyserverWorkflowRunToTemporalActivity,

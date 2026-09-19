@@ -205,6 +205,26 @@
         }
       }
     },
+    "commitBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finalizationWorkflowRunId",
+        "workflowRunRecordId",
+        "sourceIdentityDigest",
+        "currentRevision",
+        "databasePlanDigest",
+        "revalidatedAt"
+      ],
+      "properties": {
+        "finalizationWorkflowRunId": { "type": ["string", "null"], "maxLength": 100 },
+        "workflowRunRecordId": { "type": ["string", "null"], "maxLength": 100 },
+        "sourceIdentityDigest": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" },
+        "currentRevision": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{7,64}$" },
+        "databasePlanDigest": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" },
+        "revalidatedAt": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
     "performanceTelemetry": {
       "type": "object",
       "additionalProperties": false,

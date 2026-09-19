@@ -4,6 +4,9 @@ const { query } = require('../../../../packages/db/src/connection');
 const authService = require('./authService');
 const { executeToolProcess, bindParameterArgument } = require('../../../../packages/tools/src');
 const {
+  getDevCommitBoundaryValidation,
+} = require('../../../../packages/tools/src/devCommitParameterContract');
+const {
   summarizeToolParameters,
 } = require('../../../../packages/config/src/devEnvReconcileSecurity');
 
@@ -732,6 +735,11 @@ async function buildToolArgs({ toolCode, rawParameters, includeDisabledTool = fa
 
   if (unknownParameters.length > 0) {
     throw createHttpError(400, `Unknown parameter(s): ${unknownParameters.join(', ')}`);
+  }
+
+  const boundaryValidation = getDevCommitBoundaryValidation(toolCode, inputParameters);
+  if (boundaryValidation) {
+    throw createHttpError(400, boundaryValidation.message, boundaryValidation);
   }
 
   let repositoryOptions = null;

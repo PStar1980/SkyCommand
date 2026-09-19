@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SkyCommand R6 Development Promotion Preflight Summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "outcome",
+    "workflowRunRecordId",
+    "finalizationWorkflowRunId",
+    "repository",
+    "workflow",
+    "principal",
+    "authorization",
+    "finalizationReceipt",
+    "sourceIdentity",
+    "database",
+    "checks",
+    "changedPaths",
+    "timing",
+    "warnings",
+    "error"
+  ],
+  "properties": {
+    "contract": { "const": "dev_promotion_preflight_summary.v1" },
+    "outcome": { "enum": ["READY", "FAILED"] },
+    "workflowRunRecordId": { "type": ["string", "null"] },
+    "finalizationWorkflowRunId": { "type": ["string", "null"] },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositoryCode",
+        "environmentCode",
+        "configProfileCode",
+        "devBranch",
+        "mainBranch",
+        "expectedMainSha",
+        "remoteUrl",
+        "currentRevision"
+      ],
+      "properties": {
+        "repositoryCode": { "type": "string" },
+        "environmentCode": { "type": "string" },
+        "configProfileCode": { "type": "string" },
+        "devBranch": { "type": "string" },
+        "mainBranch": { "type": "string" },
+        "expectedMainSha": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{40,64}$" },
+        "remoteUrl": { "type": ["string", "null"] },
+        "currentRevision": { "type": ["string", "null"] }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflowCode",
+        "workflowVersionId",
+        "versionNumber",
+        "mergeApprovalRequired",
+        "agentMustStop",
+        "terminalObservationRequired"
+      ],
+      "properties": {
+        "workflowCode": { "type": "string" },
+        "workflowVersionId": { "type": ["string", "null"] },
+        "versionNumber": { "type": "number" },
+        "mergeApprovalRequired": { "type": "boolean" },
+        "agentMustStop": { "type": "boolean" },
+        "terminalObservationRequired": { "type": "boolean" }
+      }
+    },
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principalCode",
+        "principalId",
+        "authMode",
+        "userId",
+        "sessionId",
+        "agentId",
+        "instructionSource",
+        "instructionRef",
+        "triggerSource",
+        "triggerType",
+        "requestedAt"
+      ],
+      "properties": {
+        "principalCode": { "type": ["string", "null"] },
+        "principalId": { "type": ["string", "null"] },
+        "authMode": { "type": ["string", "null"] },
+        "userId": { "type": ["string", "null"] },
+        "sessionId": { "type": ["string", "null"] },
+        "agentId": { "type": ["string", "null"] },
+        "instructionSource": { "type": "string" },
+        "instructionRef": { "type": ["string", "null"] },
+        "triggerSource": { "type": ["string", "null"] },
+        "triggerType": { "type": ["string", "null"] },
+        "requestedAt": { "type": ["string", "null"] }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promotionAdmissionId",
+        "workflowExecutionAdmissionId",
+        "idempotencyKeyHash",
+        "requestDigest",
+        "status"
+      ],
+      "properties": {
+        "promotionAdmissionId": { "type": ["string", "null"] },
+        "workflowExecutionAdmissionId": { "type": ["string", "null"] },
+        "idempotencyKeyHash": { "type": ["string", "null"] },
+        "requestDigest": { "type": ["string", "null"] },
+        "status": { "type": "string" }
+      }
+    },
+    "finalizationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receiptSha256", "outcome", "validationOutcome", "readinessOutcome"],
+      "properties": {
+        "receiptSha256": { "type": ["string", "null"] },
+        "outcome": { "type": "string" },
+        "validationOutcome": { "type": "string" },
+        "readinessOutcome": { "type": "string" }
+      }
+    },
+    "sourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "digest",
+        "baseRevision",
+        "manifestDigest",
+        "sqlManifestDigest",
+        "configurationRevisionDigest",
+        "fileCount",
+        "excludedGeneratedOutputs"
+      ],
+      "properties": {
+        "digest": { "type": ["string", "null"] },
+        "baseRevision": { "type": ["string", "null"] },
+        "manifestDigest": { "type": ["string", "null"] },
+        "sqlManifestDigest": { "type": ["string", "null"] },
+        "configurationRevisionDigest": { "type": ["string", "null"] },
+        "fileCount": { "type": "number" },
+        "excludedGeneratedOutputs": { "type": "boolean" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "pendingCount",
+        "pendingOrdinals",
+        "planDigest",
+        "manifestDigest",
+        "databaseName",
+        "systemIdentifier"
+      ],
+      "properties": {
+        "outcome": { "type": "string" },
+        "pendingCount": { "type": "number" },
+        "pendingOrdinals": { "type": "array", "items": { "type": "number" } },
+        "planDigest": { "type": ["string", "null"] },
+        "manifestDigest": { "type": ["string", "null"] },
+        "databaseName": { "type": ["string", "null"] },
+        "systemIdentifier": { "type": ["string", "null"] }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "status"],
+        "properties": {
+          "code": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "changedPaths": { "type": "array", "items": { "type": "string" } },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "completedAt", "durationMs"],
+      "properties": {
+        "startedAt": { "type": ["string", "null"] },
+        "completedAt": { "type": ["string", "null"] },
+        "durationMs": { "type": "number" }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

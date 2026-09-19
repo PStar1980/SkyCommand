@@ -12,6 +12,7 @@ const {
   createDatabaseUpgradeToolResult,
 } = require('../../../../packages/db_upgrade/src/databaseUpgradeResult');
 const databaseUpgradeApplyRequestService = require('./databaseUpgradeApplyRequestService');
+const promotionPreflight = require('../../../../packages/dev-finalization/src/promotionPreflight');
 const {
   DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
   DEVELOPMENT_PROMOTION_TOOL_PERMISSION_CODES,
@@ -31,6 +32,10 @@ const DEVELOPMENT_PROMOTION_PERMISSION_CODE = 'WORKFLOW_RUN';
 const DEVELOPMENT_PROMOTION_TRIGGER_SOURCE = 'ASSISTANT';
 const DEVELOPMENT_PROMOTION_TRIGGER_TYPE = 'ASSISTANT';
 const DEVELOPMENT_PROMOTION_MAX_COMMIT_MESSAGE_LENGTH = 300;
+const DEVELOPMENT_PROMOTION_MAX_IDEMPOTENCY_KEY_LENGTH = 200;
+const DEVELOPMENT_PROMOTION_FINALIZATION_WORKFLOW_CODE = 'dev_change_finalize';
+const DEVELOPMENT_PROMOTION_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TERMINAL_STATUSES = new Set(['SUCCESS', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
 
 function createHttpError(statusCode, message, details = {}) {
@@ -177,7 +182,8 @@ function assertExactDevelopmentPromotionBody(body = {}) {
     });
   }
 
-  const unexpectedFields = Object.keys(body).filter((key) => key !== 'commitMessage');
+  const allowedFields = new Set(['commitMessage', 'finalizationWorkflowRunId', 'idempotencyKey']);
+  const unexpectedFields = Object.keys(body).filter((key) => !allowedFields.has(key));
   if (unexpectedFields.length > 0) {
     throw createHttpError(400, 'Development Promotion request contains unsupported fields.', {
       code: 'ASSISTANT_DEV_PROMOTION_UNEXPECTED_FIELDS',
@@ -214,6 +220,47 @@ function validateDevelopmentPromotionCommitMessage(value) {
   }
 
   return commitMessage;
+}
+
+function validateDevelopmentPromotionFinalizationWorkflowRunId(value) {
+  if (
+    typeof value !== 'string' ||
+    !DEVELOPMENT_PROMOTION_UUID_PATTERN.test(value.trim())
+  ) {
+    throw createHttpError(
+      400,
+      'finalizationWorkflowRunId must be a valid DEV finalization workflow run id.',
+      { code: 'ASSISTANT_DEV_PROMOTION_FINALIZATION_REF_INVALID' },
+    );
+  }
+  return value.trim();
+}
+
+function validateDevelopmentPromotionIdempotencyKey(value) {
+  if (typeof value !== 'string') {
+    throw createHttpError(400, 'idempotencyKey must be a string.', {
+      code: 'ASSISTANT_DEV_PROMOTION_IDEMPOTENCY_KEY_INVALID',
+    });
+  }
+  if (/[\u0000-\u001F\u007F-\u009F]/.test(value)) {
+    throw createHttpError(
+      400,
+      'idempotencyKey must be a single-line string without control characters.',
+      { code: 'ASSISTANT_DEV_PROMOTION_IDEMPOTENCY_KEY_INVALID' },
+    );
+  }
+  const idempotencyKey = value.trim();
+  if (!idempotencyKey || idempotencyKey.length > DEVELOPMENT_PROMOTION_MAX_IDEMPOTENCY_KEY_LENGTH) {
+    throw createHttpError(
+      400,
+      'idempotencyKey must be nonblank and no more than 200 characters.',
+      {
+        code: 'ASSISTANT_DEV_PROMOTION_IDEMPOTENCY_KEY_INVALID',
+        maxLength: DEVELOPMENT_PROMOTION_MAX_IDEMPOTENCY_KEY_LENGTH,
+      },
+    );
+  }
+  return idempotencyKey;
 }
 
 function hasExecutionPermission(automation, permissions = []) {
@@ -534,7 +581,9 @@ async function startDevelopmentPromotion({
   actor = null,
   session = null,
   context = {},
-  workflowExecutor = workflowExecutorService,
+  agentId = 'assistant-http',
+  workflowAgentExecution = workflowAgentExecutionService,
+  promotionValidator = promotionPreflight.validateFinalizationBinding,
 } = {}) {
   const config = getDevelopmentPromotionConfig();
 
@@ -560,34 +609,79 @@ async function startDevelopmentPromotion({
 
   assertExactDevelopmentPromotionBody(body);
   const commitMessage = validateDevelopmentPromotionCommitMessage(body.commitMessage);
-  const input = {
-    params: {
-      commitMessage,
-      repoName: config.repositoryCode,
+  const finalizationWorkflowRunId = validateDevelopmentPromotionFinalizationWorkflowRunId(
+    body.finalizationWorkflowRunId,
+  );
+  const idempotencyKey = validateDevelopmentPromotionIdempotencyKey(body.idempotencyKey);
+  const finalization = await promotionValidator({
+    finalizationWorkflowRunId,
+    environment: process.env,
+    verifyCurrent: true,
+  });
+  const requestedAt = new Date().toISOString();
+  const trustedContext = {
+    ...context,
+    agentId,
+    promotionAuthorization: {
+      instructionSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
+      triggerSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
+      triggerType: DEVELOPMENT_PROMOTION_TRIGGER_TYPE,
+      agentId,
+      instructionRef: context?.instructionRef || null,
+      requestedAt,
+      finalizationWorkflowRunId,
+      finalizationReceiptSha256: finalization.receipt?.receiptSha256 || null,
+      finalizationSourceIdentityDigest: finalization.sourceIdentity?.digest || null,
     },
-    runSource: 'assistant',
-    triggerType: DEVELOPMENT_PROMOTION_TRIGGER_TYPE,
   };
-
-  const result = await workflowExecutor.startWorkflowWithTemporal({
-    workflowCode: DEVELOPMENT_PROMOTION_WORKFLOW_CODE,
-    input,
-    user: actor,
+  const result = await workflowAgentExecution.startWorkflow({
+    request: {
+      workflowCode: DEVELOPMENT_PROMOTION_WORKFLOW_CODE,
+      parameters: {
+        commitMessage,
+        repoName: config.repositoryCode,
+        finalizationWorkflowRunId,
+      },
+      idempotencyKey,
+    },
+    principalCode: 'assistant-http',
+    authMode: 'ASSISTANT_SERVICE_TOKEN',
+    actor,
     session,
-    permissions,
-    context,
+    context: trustedContext,
   });
 
   return {
-    accepted: true,
-    started: Boolean(result?.started),
+    accepted: result?.accepted !== false,
+    reused: Boolean(result?.reused),
+    status: result?.status || null,
+    started: result?.status === 'STARTED',
+    admissionId: result?.admissionId || null,
     workflowCode: DEVELOPMENT_PROMOTION_WORKFLOW_CODE,
     repositoryCode: config.repositoryCode,
-    workflowRunRecordId: result?.run?.workflowRunRecordId || null,
-    temporalWorkflowId: result?.temporalWorkflow?.workflowId || null,
+    workflowRunRecordId: result?.workflowRunRecordId || null,
+    temporalWorkflowId: result?.temporalWorkflowId || null,
+    temporalRunId: result?.temporalRunId || null,
+    principal: result?.principal || null,
+    idempotency: result?.idempotency || null,
+    finalizationWorkflowCode: DEVELOPMENT_PROMOTION_FINALIZATION_WORKFLOW_CODE,
+    finalizationWorkflowRunId,
+    finalizationReceiptSha256: finalization.receipt?.receiptSha256 || null,
+    finalizationSourceIdentityDigest: finalization.sourceIdentity?.digest || null,
     triggerSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
-    humanApprovalRequired: true,
-    agentMustStop: true,
+    triggerType: DEVELOPMENT_PROMOTION_TRIGGER_TYPE,
+    humanApprovalRequired: false,
+    agentMustStop: false,
+    terminalObservationRequired: true,
+    terminalObservationPath: '/api/assistant/workflow-runs/{workflowRunRecordId}',
+    trustedAttribution: {
+      agentId,
+      userId: actor?.userId || null,
+      sessionId: session?.sessionId || null,
+      instructionSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
+      instructionRef: context?.instructionRef || null,
+      requestedAt,
+    },
   };
 }
 
@@ -684,8 +778,13 @@ function getCapabilities({
       permissionCode: developmentPromotion.permissionCode,
       requiredPermissionCodes: [...DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES],
       missingPermissionCodes,
-      humanApprovalRequired: true,
-      agentMustStop: true,
+      humanApprovalRequired: false,
+      agentMustStop: false,
+      terminalObservationRequired: true,
+      finalizationReceiptRequired: true,
+      finalizationWorkflowCode: DEVELOPMENT_PROMOTION_FINALIZATION_WORKFLOW_CODE,
+      requestFields: ['commitMessage', 'finalizationWorkflowRunId', 'idempotencyKey'],
+      ownershipReadPath: '/api/assistant/workflow-runs/{workflowRunRecordId}',
       blockedReason:
         developmentPromotion.blockedReason ||
         (missingPermissionCodes.length > 0
@@ -959,7 +1058,7 @@ function getOpenApiDocument() {
         post: {
           operationId: DEVELOPMENT_PROMOTION_CAPABILITY,
           description:
-            'Start only the governed SkyCommand Dev Promotion Local workflow. The workflow continues independently to its existing human Merge Approval node; the initiating Agent must stop after this receipt. This API does not expose polling or approval controls.',
+            'Start only the governed SkyCommand Development Promotion workflow after binding it to a successful reviewed DEV finalization receipt. The Assistant caller supplies a commit message, finalization workflow run id, and caller-scoped idempotency key. No second human approval is inserted; the initiating Agent must observe the generic workflow run to terminal status.',
           'x-required-permission-codes': [...DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES],
           requestBody: {
             required: true,
@@ -968,13 +1067,24 @@ function getOpenApiDocument() {
                 schema: {
                   type: 'object',
                   additionalProperties: false,
-                  required: ['commitMessage'],
+                  required: ['commitMessage', 'finalizationWorkflowRunId', 'idempotencyKey'],
                   properties: {
                     commitMessage: {
                       type: 'string',
                       minLength: 1,
                       maxLength: DEVELOPMENT_PROMOTION_MAX_COMMIT_MESSAGE_LENGTH,
                       description: 'Single-line commit message without control characters.',
+                    },
+                    finalizationWorkflowRunId: {
+                      type: 'string',
+                      format: 'uuid',
+                      description: 'Successful reviewed dev_change_finalize workflow run record id.',
+                    },
+                    idempotencyKey: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength: DEVELOPMENT_PROMOTION_MAX_IDEMPOTENCY_KEY_LENGTH,
+                      description: 'Caller-scoped key reused for safe retries of the same request.',
                     },
                   },
                 },
@@ -984,7 +1094,7 @@ function getOpenApiDocument() {
           responses: {
             202: {
               description:
-                'Promotion accepted and started; human Merge Approval is still required.',
+                'Promotion accepted and started; no additional human approval is required. The caller must observe the generic workflow run to terminal status.',
             },
             400: { description: 'Invalid or unsupported request fields/message.' },
             403: {
@@ -1171,6 +1281,15 @@ async function recordDevelopmentPromotionAudit({
       executor: 'temporal',
       permissionCode: DEVELOPMENT_PROMOTION_PERMISSION_CODE,
       success: Boolean(success),
+      finalizationWorkflowCode: DEVELOPMENT_PROMOTION_FINALIZATION_WORKFLOW_CODE,
+      finalizationWorkflowRunId: result?.finalizationWorkflowRunId || null,
+      finalizationReceiptSha256: result?.finalizationReceiptSha256 || null,
+      finalizationSourceIdentityDigest: result?.finalizationSourceIdentityDigest || null,
+      idempotencyKeyHash: result?.idempotency?.keyHash || null,
+      requestDigest: result?.idempotency?.requestDigest || null,
+      humanApprovalRequired: result?.humanApprovalRequired ?? null,
+      agentMustStop: result?.agentMustStop ?? null,
+      terminalObservationRequired: result?.terminalObservationRequired ?? null,
       authorizationErrorCode: errorCode,
     },
     ipAddress: context.ipAddress,
@@ -1181,6 +1300,8 @@ async function recordDevelopmentPromotionAudit({
 module.exports = {
   DEVELOPMENT_PROMOTION_CAPABILITY,
   DEVELOPMENT_PROMOTION_MAX_COMMIT_MESSAGE_LENGTH,
+  DEVELOPMENT_PROMOTION_MAX_IDEMPOTENCY_KEY_LENGTH,
+  DEVELOPMENT_PROMOTION_FINALIZATION_WORKFLOW_CODE,
   DEVELOPMENT_PROMOTION_PERMISSION_CODE,
   DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
   DEVELOPMENT_PROMOTION_TOOL_PERMISSION_CODES,
@@ -1221,4 +1342,6 @@ module.exports = {
   createDatabaseUpgradeApplyRequest,
   startAutomation,
   validateDevelopmentPromotionCommitMessage,
+  validateDevelopmentPromotionFinalizationWorkflowRunId,
+  validateDevelopmentPromotionIdempotencyKey,
 };

@@ -1299,7 +1299,24 @@ async function getWorkflowRun({ workflowRunRecordId, principalCode, authMode = n
     });
   }
 
-  const detail = await getWorkflowExecutorService().getWorkflowRun(admission.workflowRunRecordId);
+  if (['skyserver_dev_commit', 'skycommand-dev-promo-alt'].includes(admission.workflowCode)) {
+    try {
+      const { reconcileActivePromotionAdmissions } = require('../../../packages/dev-finalization/src/promotionPreflight');
+      await reconcileActivePromotionAdmissions({
+        repositoryCode: admission.repositoryCode,
+        environmentCode: admission.environmentCode,
+        configProfileCode: admission.configProfileCode,
+      });
+    } catch (error) {
+      // The durable workflow terminal activity remains authoritative; a read
+      // path must not hide an otherwise valid workflow result if recovery is
+      // temporarily unavailable.
+      console.warn('[SkyCommand] DEV promotion admission reconciliation deferred:', error?.message || error);
+    }
+  }
+
+  const refreshedAdmission = await loadAdmissionForRun(principal.principalId, normalizedRunId) || admission;
+  const detail = await getWorkflowExecutorService().getWorkflowRun(refreshedAdmission.workflowRunRecordId);
   return {
     principal: {
       principalId: principal.principalId,
@@ -1307,25 +1324,25 @@ async function getWorkflowRun({ workflowRunRecordId, principalCode, authMode = n
       authMode: principal.authMode,
     },
     admission: {
-      admissionId: admission.admissionId,
-      grantId: admission.grantId,
-      workflowRunRecordId: admission.workflowRunRecordId,
-      workflowCode: admission.workflowCode,
-      workflowDefinitionId: admission.workflowDefinitionId,
-      workflowVersionId: admission.workflowVersionId,
-      versionNumber: admission.versionNumber,
-      repositoryCode: admission.repositoryCode,
-      environmentCode: admission.environmentCode,
-      configProfileCode: admission.configProfileCode,
-      status: admission.status,
-      keyHash: admission.idempotencyKeyHash,
-      requestDigest: admission.requestDigest,
-      validatedParameterKeys: Object.keys(admission.validatedParameters).sort(),
-      createdAt: admission.createdAt,
-      startedAt: admission.startedAt,
-      completedAt: admission.completedAt,
+      admissionId: refreshedAdmission.admissionId,
+      grantId: refreshedAdmission.grantId,
+      workflowRunRecordId: refreshedAdmission.workflowRunRecordId,
+      workflowCode: refreshedAdmission.workflowCode,
+      workflowDefinitionId: refreshedAdmission.workflowDefinitionId,
+      workflowVersionId: refreshedAdmission.workflowVersionId,
+      versionNumber: refreshedAdmission.versionNumber,
+      repositoryCode: refreshedAdmission.repositoryCode,
+      environmentCode: refreshedAdmission.environmentCode,
+      configProfileCode: refreshedAdmission.configProfileCode,
+      status: refreshedAdmission.status,
+      keyHash: refreshedAdmission.idempotencyKeyHash,
+      requestDigest: refreshedAdmission.requestDigest,
+      validatedParameterKeys: Object.keys(refreshedAdmission.validatedParameters).sort(),
+      createdAt: refreshedAdmission.createdAt,
+      startedAt: refreshedAdmission.startedAt,
+      completedAt: refreshedAdmission.completedAt,
     },
-    ...sanitizeRunDetail(detail, admission),
+    ...sanitizeRunDetail(detail, refreshedAdmission),
   };
 }
 

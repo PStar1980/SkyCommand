@@ -1617,7 +1617,11 @@ SkyCommand/
 │   │       │   ├── 00138__governed_workflow_agent_execution.sql
 │   │       │   ├── 00139__governed_workflow_agent_docker_local_grant.sql
 │   │       │   ├── 00140__dev_change_finalize_r5.sql
-│   │       │   └── 00141__r5_final_naming_convention.sql
+│   │       │   ├── 00141__r5_final_naming_convention.sql
+│   │       │   ├── 00142__dev_promotion_r6_workflow_simplification.sql
+│   │       │   ├── 00143__github_dev_pr_merge_r6_correction.sql
+│   │       │   ├── 00144__r6_promotion_node_order_correction.sql
+│   │       │   └── 00145__dev_commit_r6_boundary_parameters.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1687,6 +1691,7 @@ SkyCommand/
 │   │       ├── lifecycle.js
 │   │       ├── packaging.js
 │   │       ├── preflight.js
+│   │       ├── promotionPreflight.js
 │   │       ├── readiness.js
 │   │       ├── receipt.js
 │   │       └── validation.js
@@ -1704,6 +1709,8 @@ SkyCommand/
 │   │       ├── gitBranchSyncResult.js
 │   │       ├── gitCommitResult.js
 │   │       ├── gitDevPullResult.js
+│   │       ├── github_dev_pr_merge.js
+│   │       ├── githubDevPrMergeResult.js
 │   │       ├── gitLocalSyncResult.js
 │   │       ├── gitPerformanceTelemetry.js
 │   │       ├── gitRepositoryStatusInspector.js
@@ -1859,11 +1866,13 @@ SkyCommand/
 │       │   ├── dev_finalization_readiness_summary.v1.schema.json
 │       │   ├── dev_finalization_summary.v1.schema.json
 │       │   ├── dev_finalization_validation_summary.v1.schema.json
+│       │   ├── dev_promotion_preflight_summary.v1.schema.json
 │       │   ├── git_branch_sync_summary.v1.schema.json
 │       │   ├── git_commit_summary.v1.schema.json
 │       │   ├── git_dev_pull_summary.v1.schema.json
 │       │   ├── git_local_sync_summary.v1.schema.json
 │       │   ├── git_repository_status.v1.schema.json
+│       │   ├── github_dev_pr_merge_summary.v1.schema.json
 │       │   ├── ingestion_run_summary.v1.schema.json
 │       │   ├── macro_ingestion_summary.v1.schema.json
 │       │   ├── postgresql_database_comparison_summary.v1.schema.json
@@ -1877,6 +1886,7 @@ SkyCommand/
 │       │       └── src/
 │       │           └── tool.js
 │       └── src/
+│           ├── devCommitParameterContract.js
 │           ├── gitDevPullPromotionRollup.js
 │           ├── index.js
 │           ├── jsonSchemaValidator.js
@@ -2253,7 +2263,10 @@ SkyCommand/
         │   │       └── databaseUpgradeSelfTest.js
         │   ├── dev-finalization/
         │   │   └── src/
-        │   │       └── devFinalizationSelfTest.js
+        │   │       ├── devFinalizationSelfTest.js
+        │   │       ├── promotionPreflightSelfTest.js
+        │   │       ├── r6CorrectionSelfTest.js
+        │   │       └── r6PromotionNodeOrderSelfTest.js
         │   ├── files/
         │   │   └── src/
         │   │       ├── repositoryArtifactConfigurationSelfTest.js
@@ -2264,6 +2277,7 @@ SkyCommand/
         │   │       ├── gitBranchSyncResultSelfTest.js
         │   │       ├── gitCommitResultSelfTest.js
         │   │       ├── gitDevPullResultSelfTest.js
+        │   │       ├── githubDevPrMergeSelfTest.js
         │   │       ├── gitLocalSyncResultSelfTest.js
         │   │       ├── gitRepositoryStatusSelfTest.js
         │   │       └── localRepoSyncLineageSelfTest.js
@@ -2312,6 +2326,7 @@ SkyCommand/
         │   │       └── supervisorSelfTest.js
         │   └── tools/
         │       └── src/
+        │           ├── devCommitToolContractSelfTest.js
         │           ├── gitDevPullPromotionRollupSelfTest.js
         │           ├── toolArgumentBindingSelfTest.js
         │           ├── toolResultSelfTest.js

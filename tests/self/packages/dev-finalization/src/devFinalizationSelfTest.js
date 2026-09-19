@@ -116,6 +116,20 @@ check('parses allowlisted R3 API patch', () => {
   assert.deepEqual(parsed.requestedKeys, ['API_TELEMETRY_RETENTION_DAYS']);
   assert.deepEqual(parsed.services, ['api']);
 });
+check('parses the finite assistant permission scope patch', () => {
+  const parsed = finalization.parseEnvironmentPatch({
+    SKYCOMMAND_ASSISTANT_PERMISSION_CODES:
+      'BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN,WORKFLOW_RUN,DEV_PROMOTION_PREFLIGHT,CAPABILITY_CATALOG_EXPORT,REPO_MAP_GENERATE,REPO_ZIP_GENERATE,GIT_COMMIT_RUN,GIT_DEV_PR_MERGE_RUN,GIT_MAIN_MERGE_RUN,GIT_LOCAL_SYNC_RUN,CORE_RUN_LOW_RISK_SCRIPT,CORE_RUN_MEDIUM_RISK_SCRIPT,CORE_RUN_HIGH_RISK_SCRIPT,DB_UPGRADE_PLAN,DB_UPGRADE_APPLY_REQUEST',
+  });
+  assert.deepEqual(parsed.requestedKeys, ['SKYCOMMAND_ASSISTANT_PERMISSION_CODES']);
+  assert.deepEqual(parsed.services, ['api']);
+});
+check('rejects an unregistered assistant permission code', () => {
+  assert.throws(
+    () => finalization.parseEnvironmentPatch({ SKYCOMMAND_ASSISTANT_PERMISSION_CODES: 'GIT_DEV_PR_MERGE_RUN,UNREGISTERED_PERMISSION' }),
+    { code: 'PATCH_VALUE_INVALID' },
+  );
+});
 check('rejects an unallowlisted configuration key', () => {
   assert.throws(() => finalization.parseEnvironmentPatch({ UNKNOWN_R5_KEY: 1 }), { code: 'RECONCILIATION_KEY_NOT_ALLOWLISTED' });
 });
