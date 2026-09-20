@@ -10,11 +10,37 @@ const HOST_AGENT_TOOL_CODES = new Set([
   'local_dev_pull',
   'dev_runtime_lifecycle',
 ]);
-const HOST_AGENT_RECENT_HEARTBEAT_SECONDS = 60;
+const HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY = 'SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS';
+const DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS = 60;
+const MIN_HOST_AGENT_HEALTH_FRESHNESS_SECONDS = 15;
+const MAX_HOST_AGENT_HEALTH_FRESHNESS_SECONDS = 600;
 const HOST_AGENT_LIVE_PROBE_TIMEOUT = '6 seconds';
 
 function toBoolean(value) {
   return value === true || value === 'true' || value === 't' || value === 1 || value === '1';
+}
+
+function getHostAgentHeartbeatFreshnessSeconds(environment = process.env) {
+  const rawValue = environment?.[HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY];
+  if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
+    return DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS;
+  }
+
+  const normalizedValue = String(rawValue).trim();
+  if (!/^\d+$/.test(normalizedValue)) {
+    return DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS;
+  }
+
+  const parsedValue = Number(normalizedValue);
+  if (
+    !Number.isSafeInteger(parsedValue) ||
+    parsedValue < MIN_HOST_AGENT_HEALTH_FRESHNESS_SECONDS ||
+    parsedValue > MAX_HOST_AGENT_HEALTH_FRESHNESS_SECONDS
+  ) {
+    return DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS;
+  }
+
+  return parsedValue;
 }
 
 function getSafeObject(value) {
@@ -29,6 +55,32 @@ function camelizeRow(row) {
   return Object.fromEntries(
     Object.entries(row || {}).map(([key, value]) => [toCamelCase(key), value]),
   );
+}
+
+function heartbeatTimestamp(value) {
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function isHeartbeatRecent(heartbeat, freshnessSeconds, now = Date.now()) {
+  const lastSeenAt = heartbeat?.lastSeenAt ?? heartbeat?.last_seen_at;
+  const timestamp = heartbeatTimestamp(lastSeenAt);
+  return timestamp !== null && timestamp >= now - freshnessSeconds * 1000;
+}
+
+function normalizeHeartbeat(heartbeat, freshnessSeconds, now = Date.now()) {
+  const normalized = camelizeRow(heartbeat);
+  const timestamp = heartbeatTimestamp(normalized.lastSeenAt);
+  const secondsSinceSeen =
+    timestamp === null
+      ? normalized.secondsSinceSeen ?? null
+      : Math.max(0, Math.floor((now - timestamp) / 1000));
+
+  return {
+    ...normalized,
+    secondsSinceSeen,
+    isRecent: isHeartbeatRecent(normalized, freshnessSeconds, now),
+  };
 }
 
 function normalizeExecutionTarget(value) {
@@ -95,9 +147,11 @@ function buildHostAgentState({
   heartbeats = [],
   error = null,
   liveProbe = null,
+  heartbeatFreshnessSeconds = getHostAgentHeartbeatFreshnessSeconds(),
+  now = Date.now(),
 }) {
   const normalizedHeartbeats = (Array.isArray(heartbeats) ? heartbeats : []).map((row) =>
-    camelizeRow(row),
+    normalizeHeartbeat(row, heartbeatFreshnessSeconds, now),
   );
   const recentHeartbeats = normalizedHeartbeats.filter(
     (heartbeat) =>
@@ -133,7 +187,7 @@ function buildHostAgentState({
     availabilitySource,
     heartbeatOnline,
     heartbeatDegraded: Boolean(enabled && liveProbeOnline && !heartbeatOnline),
-    heartbeatFreshnessSeconds: HOST_AGENT_RECENT_HEARTBEAT_SECONDS,
+    heartbeatFreshnessSeconds,
     recentHeartbeatCount: recentHeartbeats.length,
     totalKnownAgents: normalizedHeartbeats.length,
     latestHeartbeat,
@@ -147,15 +201,15 @@ async function loadHostAgentHeartbeats({ namespace, taskQueue }) {
   const { query } = require('../../../../packages/db/src/connection');
   const result = await query(
     `
-      SELECT *
-      FROM worker.vw_temporal_worker_heartbeats
-      WHERE namespace = $1
-        AND task_queue = $2
+      SELECT h.*
+      FROM worker.temporal_worker_heartbeats h
+      WHERE h.namespace = $1
+        AND h.task_queue = $2
         AND (
-          metadata ->> 'role' = 'HOST_AGENT'
-          OR metadata ->> 'executionTarget' = 'HOST'
+          h.metadata ->> 'role' = 'HOST_AGENT'
+          OR h.metadata ->> 'executionTarget' = 'HOST'
         )
-      ORDER BY last_seen_at DESC
+      ORDER BY h.last_seen_at DESC
       LIMIT 12
     `,
     [namespace, taskQueue],
@@ -227,9 +281,10 @@ async function getHostAgentAvailability({
     process.env.SKYCOMMAND_HOST_AGENT_TASK_QUEUE || DEFAULT_HOST_AGENT_TASK_QUEUE,
   );
   const enabled = toBoolean(process.env.SKYCOMMAND_HOST_AGENT_ENABLED);
+  const heartbeatFreshnessSeconds = getHostAgentHeartbeatFreshnessSeconds();
 
   if (!enabled) {
-    return buildHostAgentState({ enabled, taskQueue, namespace });
+    return buildHostAgentState({ enabled, taskQueue, namespace, heartbeatFreshnessSeconds });
   }
 
   let heartbeats = [];
@@ -249,6 +304,7 @@ async function getHostAgentAvailability({
     namespace,
     heartbeats,
     error: heartbeatError,
+    heartbeatFreshnessSeconds,
   });
 
   if (heartbeatState.online) {
@@ -276,6 +332,7 @@ async function getHostAgentAvailability({
     heartbeats,
     error: heartbeatError,
     liveProbe,
+    heartbeatFreshnessSeconds,
   });
 }
 
@@ -338,13 +395,18 @@ async function assertWorkflowExecutionTargetsAvailable(
 }
 
 module.exports = {
+  DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY,
   HOST_AGENT_LIVE_PROBE_TIMEOUT,
-  HOST_AGENT_RECENT_HEARTBEAT_SECONDS,
+  MAX_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  MIN_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
   assertWorkflowExecutionTargetsAvailable,
   buildHostAgentState,
   getHostAgentAvailability,
+  getHostAgentHeartbeatFreshnessSeconds,
   getHostExecutionNodes,
   getNodeExecutionTarget,
+  isHeartbeatRecent,
   loadHostAgentHeartbeats,
   probeHostAgentLive,
 };

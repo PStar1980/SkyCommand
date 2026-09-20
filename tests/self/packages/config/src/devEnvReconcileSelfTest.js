@@ -104,6 +104,37 @@ async function run() {
     cleanup(changedRoot);
   }
 
+  const heartbeatRoot = fixtureRoot();
+  try {
+    const result = runReconcile(heartbeatRoot, {
+      SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS: 45,
+    });
+    assert.equal(result.outcome, 'CHANGED');
+    assert.deepEqual(result.changedKeys, ['SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS']);
+    assert.deepEqual(result.envExample.changedKeys, ['SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS']);
+    assert.equal(result.classifications[0].classification, 'NON_SECRET_APPLICATION');
+    assert.equal(result.restart.required, true);
+    assert.deepEqual(result.restart.services, ['api']);
+    assert.equal(
+      fs
+        .readFileSync(path.join(heartbeatRoot, '.env'), 'utf8')
+        .includes('SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS=45'),
+      true,
+    );
+    assert.equal(
+      fs
+        .readFileSync(path.join(heartbeatRoot, '.env.example'), 'utf8')
+        .includes('SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS=60'),
+      true,
+    );
+    const repeated = runReconcile(heartbeatRoot, {
+      SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS: 45,
+    });
+    assert.equal(repeated.outcome, 'NO_CHANGES');
+  } finally {
+    cleanup(heartbeatRoot);
+  }
+
   const exampleRoot = fixtureRoot({
     env: [
       'UNRELATED_SETTING=preserve-me',
@@ -160,6 +191,7 @@ async function run() {
   for (const [patch, code] of [
     [{ UNKNOWN_SETTING: 1 }, 'RECONCILIATION_KEY_NOT_ALLOWLISTED'],
     [{ API_TELEMETRY_RETENTION_DAYS: 0 }, 'PATCH_VALUE_INVALID'],
+    [{ SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS: 14 }, 'PATCH_VALUE_INVALID'],
     [{ PGDATABASE: 'other_database' }, 'PROTECTED_CONFIGURATION_KEY'],
     [{ JWT_SECRET: syntheticSecret }, 'SECRET_KEY_NOT_ALLOWED'],
     [{ SKYCOMMAND_ASSISTANT_PERMISSION_CODES: 'GIT_DEV_PR_MERGE_RUN,UNREGISTERED_PERMISSION' }, 'PATCH_VALUE_INVALID'],

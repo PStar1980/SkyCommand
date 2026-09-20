@@ -7,9 +7,14 @@ const sourceDir = sourceDirectoryForTest(__filename);
 const assert = require('node:assert/strict');
 
 const {
+  DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY,
+  MAX_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  MIN_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
   assertWorkflowExecutionTargetsAvailable,
   buildHostAgentState,
   getHostAgentAvailability,
+  getHostAgentHeartbeatFreshnessSeconds,
   getHostExecutionNodes,
   getNodeExecutionTarget,
 } = require('./workflowExecutionPreflightService');
@@ -41,6 +46,75 @@ async function expectWorkflowError(promise, expectedCode, expectedStatusCode) {
 }
 
 async function main() {
+  assert.equal(
+    getHostAgentHeartbeatFreshnessSeconds({}),
+    DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  );
+  assert.equal(
+    getHostAgentHeartbeatFreshnessSeconds({
+      [HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY]: String(MIN_HOST_AGENT_HEALTH_FRESHNESS_SECONDS),
+    }),
+    MIN_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  );
+  assert.equal(
+    getHostAgentHeartbeatFreshnessSeconds({
+      [HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY]: String(MAX_HOST_AGENT_HEALTH_FRESHNESS_SECONDS),
+    }),
+    MAX_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  );
+  for (const invalidValue of ['14', '601', '60.5', 'not-a-number']) {
+    assert.equal(
+      getHostAgentHeartbeatFreshnessSeconds({
+        [HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY]: invalidValue,
+      }),
+      DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+    );
+  }
+
+  const recencyNow = Date.parse('2026-09-19T12:00:00.000Z');
+  const configuredHeartbeatState = buildHostAgentState({
+    enabled: true,
+    namespace: 'default',
+    taskQueue: 'skycommand-host-local',
+    heartbeatFreshnessSeconds: 60,
+    now: recencyNow,
+    heartbeats: [
+      {
+        status: 'ONLINE',
+        last_seen_at: '2026-09-19T11:59:30.000Z',
+        is_recent: false,
+      },
+      {
+        status: 'ONLINE',
+        last_seen_at: '2026-09-19T11:58:30.000Z',
+        is_recent: true,
+      },
+    ],
+  });
+  assert.equal(configuredHeartbeatState.heartbeatFreshnessSeconds, 60);
+  assert.equal(configuredHeartbeatState.recentHeartbeatCount, 1);
+  assert.equal(configuredHeartbeatState.online, true);
+  assert.equal(configuredHeartbeatState.heartbeats[0].isRecent, true);
+  assert.equal(configuredHeartbeatState.heartbeats[1].isRecent, false);
+
+  const narrowHeartbeatState = buildHostAgentState({
+    enabled: true,
+    namespace: 'default',
+    taskQueue: 'skycommand-host-local',
+    heartbeatFreshnessSeconds: 15,
+    now: recencyNow,
+    heartbeats: [
+      {
+        status: 'ONLINE',
+        last_seen_at: '2026-09-19T11:59:30.000Z',
+        is_recent: true,
+      },
+    ],
+  });
+  assert.equal(narrowHeartbeatState.heartbeatFreshnessSeconds, 15);
+  assert.equal(narrowHeartbeatState.recentHeartbeatCount, 0);
+  assert.equal(narrowHeartbeatState.status, 'STALE');
+
   assert.equal(getNodeExecutionTarget({ config: { executionTarget: 'host_agent' } }), 'HOST_AGENT');
   assert.equal(getNodeExecutionTarget({ targetConfig: { executionTarget: 'HOST' } }), 'HOST');
   assert.equal(
@@ -126,6 +200,10 @@ async function main() {
   });
   assert.equal(freshHeartbeatAvailability.online, true);
   assert.equal(freshHeartbeatAvailability.availabilitySource, 'HEARTBEAT');
+  assert.equal(
+    freshHeartbeatAvailability.heartbeatFreshnessSeconds,
+    DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  );
   assert.equal(freshProbeCalled, false);
 
   const liveProbeFallback = await getHostAgentAvailability({
