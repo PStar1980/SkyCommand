@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { sourceDirectoryForTest } = require('../../../../_support/sourceTestBootstrap.js');
 
@@ -16,6 +17,13 @@ const { resolveApiHealthUrl } = require(path.join(repositoryRoot, 'packages/dev-
 const {
   applyR5RepositoryZipParameters,
 } = require(path.join(repositoryRoot, 'packages/dev-finalization/src/packaging'));
+const {
+  DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY,
+  buildHostAgentState,
+  getHostAgentHeartbeatFreshnessSeconds,
+} = require(path.join(repositoryRoot, 'apps/api/src/services/workflowExecutionPreflightService'));
+const { CONFIGURATION_ALLOWLIST } = require(path.join(repositoryRoot, 'packages/config/src/devEnvReconcile'));
 
 const schemas = {
   preflight: require(path.join(repositoryRoot, 'packages/tools/contracts/dev_finalization_preflight_summary.v1.schema.json')),
@@ -115,6 +123,69 @@ check('parses allowlisted R3 API patch', () => {
   const parsed = finalization.parseEnvironmentPatch({ API_TELEMETRY_RETENTION_DAYS: 31 });
   assert.deepEqual(parsed.requestedKeys, ['API_TELEMETRY_RETENTION_DAYS']);
   assert.deepEqual(parsed.services, ['api']);
+});
+check('parses the R8 Host Agent freshness patch and scopes restart to API', () => {
+  const key = 'SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS';
+  const parsed = finalization.parseEnvironmentPatch({ [key]: 45 });
+  assert.deepEqual(parsed.requestedKeys, [key]);
+  assert.deepEqual(parsed.services, ['api']);
+  assert.equal(CONFIGURATION_ALLOWLIST[key].classification, 'NON_SECRET_APPLICATION');
+  assert.equal(CONFIGURATION_ALLOWLIST[key].minimum, 15);
+  assert.equal(CONFIGURATION_ALLOWLIST[key].maximum, 600);
+  assert.deepEqual(CONFIGURATION_ALLOWLIST[key].restartServices, ['api']);
+});
+check('uses the typed Host Agent freshness default, bounds, and timestamp recency', () => {
+  assert.equal(
+    getHostAgentHeartbeatFreshnessSeconds({}),
+    DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  );
+  assert.equal(
+    getHostAgentHeartbeatFreshnessSeconds({ [HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY]: '45' }),
+    45,
+  );
+  assert.equal(
+    getHostAgentHeartbeatFreshnessSeconds({ [HOST_AGENT_HEALTH_FRESHNESS_ENV_KEY]: '601' }),
+    DEFAULT_HOST_AGENT_HEALTH_FRESHNESS_SECONDS,
+  );
+  const now = Date.parse('2026-09-19T12:00:00.000Z');
+  const state = buildHostAgentState({
+    enabled: true,
+    namespace: 'default',
+    taskQueue: 'skycommand-host-local',
+    heartbeatFreshnessSeconds: 60,
+    now,
+    heartbeats: [
+      { status: 'ONLINE', last_seen_at: '2026-09-19T11:59:30.000Z', is_recent: false },
+      { status: 'ONLINE', last_seen_at: '2026-09-19T11:58:30.000Z', is_recent: true },
+    ],
+  });
+  assert.equal(state.heartbeatFreshnessSeconds, 60);
+  assert.equal(state.recentHeartbeatCount, 1);
+  assert.equal(state.online, true);
+});
+check('R8 heartbeat migration is additive and idempotent', () => {
+  const migrationDirectory = path.join(repositoryRoot, 'packages/db_build/src/migrations');
+  const migrationPath = path.join(
+    migrationDirectory,
+    '00148__host_agent_heartbeat_freshness_index.sql',
+  );
+  const migration = fs.readFileSync(migrationPath, 'utf8');
+  assert.match(
+    migration,
+    /CREATE INDEX IF NOT EXISTS idx_temporal_worker_heartbeats_host_agent_lookup/i,
+  );
+  assert.match(
+    migration,
+    /ON worker\.temporal_worker_heartbeats \(namespace, task_queue, last_seen_at DESC\)/i,
+  );
+  assert.match(migration, /metadata ->> 'role' = 'HOST_AGENT'/i);
+  assert.match(migration, /metadata ->> 'executionTarget' = 'HOST'/i);
+  assert.doesNotMatch(migration, /\b(?:DROP|ALTER TABLE|DELETE FROM|UPDATE)\b/i);
+  const ordinals = fs
+    .readdirSync(migrationDirectory)
+    .map((name) => Number(name.match(/^(\d{5})__/i)?.[1]))
+    .filter(Number.isInteger);
+  assert.equal(Math.max(...ordinals), 148);
 });
 check('parses the finite assistant permission scope patch', () => {
   const parsed = finalization.parseEnvironmentPatch({

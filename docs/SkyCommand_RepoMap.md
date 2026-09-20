@@ -291,6 +291,11 @@ SkyCommand/
 │   └── browser/
 │       ├── automations/
 │       │   ├── .gitkeep
+│       │   ├── 18d10c68-0efc-42f7-ae03-ee71a4f1f80d/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 70ca8783-2172-4a27-81a7-bd26e157ab77/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
@@ -1625,7 +1630,8 @@ SkyCommand/
 │   │       │   ├── 00144__r6_promotion_node_order_correction.sql
 │   │       │   ├── 00145__dev_commit_r6_boundary_parameters.sql
 │   │       │   ├── 00146__r6_human_agent_parity_and_recovery.sql
-│   │       │   └── 00147__retire_d2_database_upgrade_surfaces.sql
+│   │       │   ├── 00147__retire_d2_database_upgrade_surfaces.sql
+│   │       │   └── 00148__host_agent_heartbeat_freshness_index.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql

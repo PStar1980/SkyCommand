@@ -25,6 +25,8 @@ const TOOL_CODE = 'dev_finalization_validate';
 const REPOSITORY_ROOT = path.resolve(__dirname, '../../..');
 const VALIDATION_PROFILE = 'r5-dev-finalization-v1';
 const SYNTAX_FILES = Object.freeze([
+  'apps/api/src/services/workflowExecutionPreflightService.js',
+  'packages/config/src/devEnvReconcile.js',
   'packages/dev-finalization/src/finalization.js',
   'packages/dev-finalization/src/finalizationResult.js',
   'packages/dev-finalization/src/preflight.js',
