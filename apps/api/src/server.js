@@ -21,6 +21,10 @@ const temporalRoutes = require('./routes/temporal.routes');
 const workflowRoutes = require('./routes/workflow.routes');
 const publicRoutes = require('./routes/public.routes');
 const skywebRoutes = require('./routes/skyweb.routes');
+const agentProjectRoutes = require('./routes/agent.routes');
+const agentDefinitionRoutes = require('./routes/agentDefinition.routes');
+const agentRuntimeRoutes = require('./routes/agentRuntime.routes');
+const agentExecutionRoutes = require('./routes/agentExecution.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 const apiTelemetryService = require('./services/apiTelemetryService');
@@ -80,6 +84,10 @@ function createApp() {
   app.use('/api/temporal', temporalRoutes);
   app.use('/api/workflows', workflowRoutes);
   app.use('/api/skyweb', skywebRoutes);
+  app.use('/api/agent-projects', agentProjectRoutes);
+  app.use('/api/agents', agentDefinitionRoutes);
+  app.use('/api/agent-runtimes', agentRuntimeRoutes);
+  app.use('/api/agent-executions', agentExecutionRoutes);
 
   if (process.env.SERVE_ADMIN_WEB === 'true') {
     const adminWebPath = path.resolve(__dirname, '../../admin-web/dist');

@@ -4,6 +4,8 @@ This directory contains the Phase 0 baseline, design contracts, and certificatio
 
 Phase 0 is intentionally non-executable. Under the v1.2 post-R8 amendment it is a **delta-certification gate** over the accepted R8 baseline, not a mandate to repeat completed remediation. Reuse current receipts, migration/ledger evidence, capability catalogue, Repo Map/ZIP, workflow history, tests and governance artifacts when still valid; refresh only stale evidence and Agent-specific gaps. Phase 0 adds no Agent admission route, runtime worker, provider adapter, Temporal Agent workflow, scheduler target, or Admin-Web execution control. The contracts and fixtures are source-controlled preparation for later phases and are validated by `npm run agent-phase0:self-test`.
 
+The bounded Phase 19.1 slice now supplies the registry metadata and advisory preview surfaces described by the refreshed delta evidence: Agent Projects and Manage Agents can bind registered Project/repository/workspace/runtime/account/profile/revision records and display policy-effective authority. This does not add an Agent start, Run, Session, provider, scheduler, or writable-workspace path.
+
 ## Evidence set
 
 - `baseline-manifest.json` — reviewed repository/plan identity, migration and seed inventory, and known baseline gaps.

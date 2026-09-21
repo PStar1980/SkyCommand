@@ -7,24 +7,32 @@
   "required": [
     "contract",
     "snapshotId",
+    "authorityKind",
     "policyRevision",
     "digest",
     "evaluatedAt",
     "requested",
     "configured",
     "granted",
+    "executionSurfaces",
     "constraints",
-    "obligations"
+    "obligations",
+    "denials",
+    "differences",
+    "runtimeConfiguration"
   ],
   "properties": {
     "contract": { "const": "agent_authority_snapshot.v1" },
     "snapshotId": { "type": "string", "minLength": 1 },
+    "authorityKind": { "type": "string", "enum": ["POLICY_EFFECTIVE", "RUNTIME_COMPATIBLE"] },
     "policyRevision": { "type": "string", "minLength": 1 },
-    "digest": { "type": "string", "minLength": 1 },
+    "sourcePolicyRevision": { "type": ["string", "null"] },
+    "digest": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
     "evaluatedAt": { "type": "string", "format": "date-time" },
     "requested": { "$ref": "#/$defs/scope" },
     "configured": { "$ref": "#/$defs/scope" },
     "granted": { "$ref": "#/$defs/scope" },
+    "executionSurfaces": { "$ref": "#/$defs/executionSurfacePolicy" },
     "constraints": {
       "type": "object",
       "additionalProperties": false,
@@ -35,21 +43,137 @@
         "maxConcurrentChildren": { "type": ["integer", "null"], "minimum": 0 }
       }
     },
-    "obligations": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 1 }
-    }
+    "obligations": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "denials": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
+    "differences": { "type": "array", "items": { "$ref": "#/$defs/difference" } },
+    "runtimeConfiguration": { "$ref": "#/$defs/runtimeConfiguration" }
   },
   "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
     "scope": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["actions", "resources", "environments", "dataClasses"],
+      "required": ["capabilities", "actions", "resources", "environments", "dataClasses"],
       "properties": {
-        "actions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "resources": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "environments": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "dataClasses": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "capabilities": { "$ref": "#/$defs/stringList" },
+        "actions": { "$ref": "#/$defs/stringList" },
+        "resources": { "$ref": "#/$defs/stringList" },
+        "environments": { "$ref": "#/$defs/stringList" },
+        "dataClasses": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["ALLOW", "READ_ONLY", "DENY", "EXPLICIT_APPROVAL_REQUIRED"]
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "REPOSITORY_FILE_EDIT",
+        "LOCAL_SHELL",
+        "SKYCOMMAND_MCP_API",
+        "SKYCOMMAND_UI_COMPUTER_USE",
+        "GENERAL_DESKTOP_COMPUTER_USE",
+        "EXTERNAL_BROWSER",
+        "CONNECTED_APP_READ",
+        "CONNECTED_APP_MUTATION",
+        "REMOTE_DEVICE",
+        "PLAYWRIGHT_REGISTERED"
+      ]
+    },
+    "surfaceDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "mode"],
+      "properties": {
+        "surface": { "$ref": "#/$defs/surface" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "policyLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surfaces"],
+      "properties": {
+        "surfaces": { "type": "array", "items": { "$ref": "#/$defs/surfaceDecision" }, "uniqueItems": true }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "reason"],
+      "properties": {
+        "from": { "$ref": "#/$defs/surface" },
+        "to": { "$ref": "#/$defs/surface" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "executionSurfacePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "policyRevision", "requested", "configured", "granted", "permittedTransitions"],
+      "properties": {
+        "contract": { "const": "execution_surface_policy.v1" },
+        "policyRevision": { "type": "string", "minLength": 1 },
+        "requested": { "$ref": "#/$defs/policyLayer" },
+        "configured": { "$ref": "#/$defs/policyLayer" },
+        "granted": { "$ref": "#/$defs/policyLayer" },
+        "permittedTransitions": { "type": "array", "items": { "$ref": "#/$defs/transition" }, "uniqueItems": true }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension", "value", "reason"],
+      "properties": {
+        "dimension": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "difference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension", "requested", "effective"],
+      "properties": {
+        "dimension": { "type": "string", "minLength": 1 },
+        "requested": { "type": "string", "minLength": 1 },
+        "effective": { "type": "string", "minLength": 1 }
+      }
+    },
+    "runtimeConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "runtimeInstallationId",
+        "configurationRevision",
+        "configurationDigest",
+        "capabilityManifestRevision",
+        "capabilityManifestDigest",
+        "runtimeProfile",
+        "freshnessStatus"
+      ],
+      "properties": {
+        "contract": { "const": "agent_runtime_configuration_identity.v1" },
+        "runtimeInstallationId": { "type": "string", "minLength": 1 },
+        "reviewedSourceRevision": { "type": ["string", "null"] },
+        "configurationRevision": { "type": "string", "minLength": 1 },
+        "configurationDigest": { "type": "string", "minLength": 1 },
+        "capabilityManifestRevision": { "type": "string", "minLength": 1 },
+        "capabilityManifestDigest": { "type": "string", "minLength": 1 },
+        "runtimeProfile": { "type": "string", "minLength": 1 },
+        "processGeneration": { "type": ["string", "null"] },
+        "serviceGeneration": { "type": ["string", "null"] },
+        "processStartedAt": { "type": ["string", "null"], "format": "date-time" },
+        "observedAt": { "type": ["string", "null"], "format": "date-time" },
+        "freshnessStatus": { "type": "string", "enum": ["CURRENT", "STALE_RECONCILABLE", "STALE_BLOCKED", "UNKNOWN"] },
+        "evidence": { "type": ["object", "null"], "additionalProperties": { "type": ["string", "number", "boolean", "null"] } }
       }
     }
   }

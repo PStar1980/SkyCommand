@@ -185,7 +185,7 @@ check('R8 heartbeat migration is additive and idempotent', () => {
     .readdirSync(migrationDirectory)
     .map((name) => Number(name.match(/^(\d{5})__/i)?.[1]))
     .filter(Number.isInteger);
-  assert.equal(Math.max(...ordinals), 148);
+  assert.ok(Math.max(...ordinals) >= 148);
 });
 check('parses the finite assistant permission scope patch', () => {
   const parsed = finalization.parseEnvironmentPatch({

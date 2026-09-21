@@ -7,9 +7,10 @@ const ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..');
 const CONTRACTS = path.join(ROOT, 'packages/agents/contracts');
 const FIXTURES = path.join(ROOT, 'tests/fixtures/agentic-ai/phase-0');
 const APPROVED_PLAN_RELATIVE_PATH =
-  'docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md';
+  'docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md';
 const { validateJsonSchema } = require(path.join(ROOT, 'packages/tools/src/jsonSchemaValidator'));
 const { validateToolResult } = require(path.join(ROOT, 'packages/tools/src/toolResultContract'));
+const { evaluateAuthority } = require(path.join(ROOT, 'packages/agents/src/authority'));
 
 const schemaFiles = [
   'agent_command.v1.schema.json',
@@ -20,6 +21,8 @@ const schemaFiles = [
   'agent_run_summary.v1.schema.json',
   'agent_error.v1.schema.json',
   'fake_runtime_case.v1.schema.json',
+  'execution_surface_policy.v1.schema.json',
+  'agent_runtime_configuration_identity.v1.schema.json',
 ];
 
 function readJson(relativePath) {
@@ -58,8 +61,8 @@ function run() {
   );
   assert.equal(
     baseline.baselineValidationFindings.length,
-    2,
-    'two baseline validation findings are persisted',
+    3,
+    'three baseline validation findings are persisted',
   );
   baseline.baselineValidationFindings.forEach((finding) => {
     assert.equal(finding.classification, 'EXISTING_UNRELATED_FAILURE');
@@ -95,23 +98,40 @@ function run() {
   );
 
   const scope = {
+    capabilities: ['READ_ONLY_OBSERVATION'],
     actions: ['AGENT_READ'],
     resources: ['project:read-only'],
     environments: ['LOCAL'],
     dataClasses: ['PUBLIC'],
   };
-  const authority = {
-    contract: 'agent_authority_snapshot.v1',
+  const authority = evaluateAuthority({
     snapshotId: 'authority-phase0-1',
     policyRevision: 'policy-1',
-    digest: 'authority-digest-1',
-    evaluatedAt: '2026-09-14T00:00:00.000Z',
     requested: scope,
     configured: scope,
     granted: scope,
+    requestedSurfaces: { surfaces: [{ surface: 'LOCAL_SHELL', mode: 'READ_ONLY', reason: 'Fixture read-only scope.' }] },
+    configuredSurfaces: { surfaces: [{ surface: 'LOCAL_SHELL', mode: 'READ_ONLY', reason: 'Fixture read-only scope.' }] },
+    grantedSurfaces: { surfaces: [{ surface: 'LOCAL_SHELL', mode: 'READ_ONLY', reason: 'Fixture read-only scope.' }] },
     constraints: { maxDurationMs: 60000, maxChildren: 0, maxConcurrentChildren: 0 },
     obligations: ['READ_ONLY'],
-  };
+    runtimeConfiguration: {
+      contract: 'agent_runtime_configuration_identity.v1',
+      runtimeInstallationId: 'installation-1',
+      reviewedSourceRevision: null,
+      configurationRevision: 'fixture-1',
+      configurationDigest: 'A'.repeat(64),
+      capabilityManifestRevision: 'fixture-1',
+      capabilityManifestDigest: 'B'.repeat(64),
+      runtimeProfile: 'FAKE_DISABLED',
+      processGeneration: null,
+      serviceGeneration: null,
+      processStartedAt: null,
+      observedAt: null,
+      freshnessStatus: 'UNKNOWN',
+      evidence: null,
+    },
+  });
   assertValid(authority, schemas['agent_authority_snapshot.v1.schema.json'], 'authority snapshot');
 
   const locator = {
@@ -291,32 +311,42 @@ function run() {
   assert.equal(
     migrationNames.length,
     baseline.databaseBuildInventory.migrationCount,
-    'baseline migration count remains reproducible',
+    'current migration inventory matches refreshed evidence',
   );
   assert.equal(
     migrationNames.at(-1),
     baseline.databaseBuildInventory.lastMigration,
-    'baseline last migration remains unchanged',
+    'current last migration matches refreshed evidence',
   );
   assert.equal(
     seedNames.length,
     baseline.databaseBuildInventory.seedCount,
-    'baseline seed count remains reproducible',
+    'current seed inventory matches refreshed evidence',
   );
   assert.equal(
     seedNames.at(-1),
     baseline.databaseBuildInventory.lastSeed,
-    'baseline last seed remains unchanged',
+    'current last seed matches refreshed evidence',
   );
   assert.equal(
-    fs.existsSync(path.join(ROOT, 'packages/agents/src')),
-    false,
-    'Phase 0 adds no Agent runtime source',
+    fs.existsSync(path.join(ROOT, 'packages/agents/src/authority.js')),
+    true,
+    'Phase 19.1 authority evaluator exists',
   );
   assert.equal(
-    fs.existsSync(path.join(ROOT, 'packages/db_build/src/migrations/00128__agent_phase0.sql')),
+    fs.existsSync(path.join(ROOT, 'packages/db_build/src/migrations/00149__agent_registry_foundation.sql')),
+    true,
+    'Phase 19.1 registry migration exists',
+  );
+  assert.equal(
+    fs.existsSync(path.join(ROOT, 'apps/api/src/routes/agentExecution.routes.js')),
+    true,
+    'Phase 19.1 preview route exists',
+  );
+  assert.equal(
+    fs.existsSync(path.join(ROOT, 'apps/api/src/routes/agentRun.routes.js')),
     false,
-    'Phase 0 adds no migration',
+    'Phase 19.1 adds no Agent Run route',
   );
 
   console.log('[agent-phase0:self-test] PASS');

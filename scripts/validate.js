@@ -10,6 +10,11 @@ const syntaxExtensions = new Set(['.cjs', '.js', '.mjs']);
 
 const routineSelfTests = [
   'agent-phase0:self-test',
+  'agent-phase19:self-test',
+  'agent-registry:self-test',
+  'agent-registry-audit:self-test',
+  'agent-registry-isolation:self-test',
+  'agent-registry-ui:self-test',
   'db-health:self-test',
   'db-build:self-test',
   'db-upgrade:self-test',

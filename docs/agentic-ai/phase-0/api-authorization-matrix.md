@@ -1,6 +1,17 @@
-# Phase 0 API and authorization matrix
+# Phase 0 / Phase 19.1 API and authorization matrix
 
-This is a pre-implementation authorization contract. It does not add routes.
+The Phase 0 portions remain a pre-implementation authorization contract. Phase 19.1 implements only the bounded registry and advisory preview rows marked below; it does not implement Run/Session/execution rows.
+
+## Phase 19.1 implemented surface
+
+| Route family | Purpose | Required gate | Boundary |
+| ------------ | ------- | ------------- | -------- |
+| `/api/agent-projects` | Project visibility, membership-scoped reads, registered repository/workspace bindings | `AGENT_PROJECT_READ` / `AGENT_PROJECT_MANAGE` plus project right | Registered repository/path IDs only; `READ_ONLY` workspace mode only; no raw roots |
+| `/api/agents` | Agent definitions and immutable versions | `AGENT_READ` / `AGENT_MANAGE` | Provider-neutral metadata; no launch or run state |
+| `/api/agent-runtimes` | Runtime/install/account/capability metadata | `AGENT_RUNTIME_READ` / `AGENT_RUNTIME_MANAGE` | Safe metadata only; no credentials; execution flags remain false |
+| `POST /api/agent-executions/preview` | Advisory effective-authority calculation and audit | `AGENT_AUTHORITY_PREVIEW` + `AGENT_ACCOUNT_USE` plus project right | Server resolves identity and registered IDs; no execution side effect |
+
+The Phase 19.1 permission seed grants these permissions only to `SUPER_ADMIN`; it creates no Agent Run permission.
 
 | Operation class                 | Public input                                         | Server-derived/pinned context                                                       | Required authorization gate                                             |
 | ------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |

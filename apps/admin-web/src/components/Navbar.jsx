@@ -106,6 +106,9 @@ const COMMAND_SEARCH_ALIASES = {
   roles: '/admin/roles',
   privileges: '/admin/privileges',
   audit: '/access-control/user-history',
+  agents: '/agents/projects',
+  'agent projects': '/agents/projects',
+  'manage agents': '/agents/manage',
 };
 
 const ICON_PATHS = {
@@ -219,6 +222,10 @@ function createNavGroups(hasPermission, hasRole) {
     hasPermission('ADMIN_ROLE_READ') ||
     hasPermission('ADMIN_PERMISSION_READ') ||
     hasPermission('AUDIT_READ');
+  const canViewAgents =
+    hasPermission('AGENT_PROJECT_READ') ||
+    hasPermission('AGENT_READ') ||
+    hasPermission('AGENT_RUNTIME_READ');
 
   return [
     {
@@ -561,6 +568,27 @@ function createNavGroups(hasPermission, hasRole) {
           icon: '◎',
           visible: canViewDocker,
           description: 'Network topology',
+        },
+      ],
+    },
+    {
+      label: 'Agents',
+      icon: '✦',
+      visible: canViewAgents,
+      items: [
+        {
+          label: 'Agent Projects',
+          to: '/agents/projects',
+          icon: '⌂',
+          visible: hasPermission('AGENT_PROJECT_READ'),
+          description: 'Project and workspace registry',
+        },
+        {
+          label: 'Manage Agents',
+          to: '/agents/manage',
+          icon: '✦',
+          visible: hasPermission('AGENT_READ'),
+          description: 'Definitions and authority preview',
         },
       ],
     },

@@ -40,6 +40,8 @@ import WorkflowApprovals from './pages/WorkflowApprovals.jsx';
 import { WorkflowHistory, WorkflowStart } from './pages/SkyWorkflows.jsx';
 import { BrowserTestAdd, BrowserTestManage, BrowserTestOperations, BrowserTestRun, BrowserTestSuites } from './pages/BrowserTests.jsx';
 import { BrowserAutomationAdd, BrowserAutomationManage, BrowserAutomationOperations, BrowserAutomationRun } from './pages/BrowserAutomations.jsx';
+import AgentProjects from './pages/AgentProjects.jsx';
+import ManageAgents from './pages/ManageAgents.jsx';
 import './index.css';
 import './App.css';
 
@@ -456,6 +458,23 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="AUDIT_READ">
                   <AuditEvents />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="agents/projects"
+              element={
+                <ProtectedRoute permissionCode="AGENT_PROJECT_READ">
+                  <AgentProjects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="agents/manage"
+              element={
+                <ProtectedRoute permissionCode="AGENT_READ">
+                  <ManageAgents />
                 </ProtectedRoute>
               }
             />

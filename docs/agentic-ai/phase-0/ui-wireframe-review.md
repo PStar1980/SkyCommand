@@ -1,6 +1,11 @@
 # Phase 0 Admin-Web wireframe review
 
-Phase 0 reviews existing static surfaces and specifies future information architecture only. No Agent navigation, launch control, or execution route is added.
+Phase 0 reviews existing static surfaces and specifies future information architecture. Phase 19.1 adds only the bounded Agent Projects and Manage Agents metadata/preview surfaces; no Agent launch control, Run/Session route, or execution route is added.
+
+| Current Phase 19.1 surface | Implemented presentation contract |
+| ------------------------- | --------------------------------- |
+| Agent Projects             | Visible Projects only; edit metadata, membership, registered repository/workspace bindings, and Project→Agent allow rules. |
+| Manage Agents              | Project-scoped Agent/revision selection, runtime/account/profile metadata, immutable revision creation, and complete advisory authority preview. |
 
 | Future surface      | Existing analogous surface reviewed                    | Required Phase 0 presentation contract                                                                                    |
 | ------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |

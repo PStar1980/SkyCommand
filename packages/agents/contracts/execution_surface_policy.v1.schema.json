@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution_surface_policy.v1.schema.json",
+  "title": "SkyCommand Execution Surface Policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "policyRevision", "requested", "configured", "granted", "permittedTransitions"],
+  "properties": {
+    "contract": { "const": "execution_surface_policy.v1" },
+    "policyRevision": { "type": "string", "minLength": 1 },
+    "requested": { "$ref": "#/$defs/policyLayer" },
+    "configured": { "$ref": "#/$defs/policyLayer" },
+    "granted": { "$ref": "#/$defs/policyLayer" },
+    "permittedTransitions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/transition" },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "mode": {
+      "type": "string",
+      "enum": ["ALLOW", "READ_ONLY", "DENY", "EXPLICIT_APPROVAL_REQUIRED"]
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "REPOSITORY_FILE_EDIT",
+        "LOCAL_SHELL",
+        "SKYCOMMAND_MCP_API",
+        "SKYCOMMAND_UI_COMPUTER_USE",
+        "GENERAL_DESKTOP_COMPUTER_USE",
+        "EXTERNAL_BROWSER",
+        "CONNECTED_APP_READ",
+        "CONNECTED_APP_MUTATION",
+        "REMOTE_DEVICE",
+        "PLAYWRIGHT_REGISTERED"
+      ]
+    },
+    "surfaceDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "mode"],
+      "properties": {
+        "surface": { "$ref": "#/$defs/surface" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "policyLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surfaces"],
+      "properties": {
+        "surfaces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surfaceDecision" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "reason"],
+      "properties": {
+        "from": { "$ref": "#/$defs/surface" },
+        "to": { "$ref": "#/$defs/surface" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
