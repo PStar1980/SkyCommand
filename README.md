@@ -4,7 +4,7 @@
 
 <br>
 
-<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=22&duration=2600&pause=1100&color=D4AF37&center=true&vCenter=true&width=900&lines=Deterministic+Workflow+Automation;Durable+Execution+with+Temporal;Structured+Tool+Results;Human-in-the-Loop+Approvals;Git+%2B+Docker+Operations;Telemetry-First+Performance+Tuning" alt="Animated SkyCommand capability statement" />
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=22&duration=2600&pause=1100&color=D4AF37&center=true&vCenter=true&width=900&lines=Deterministic+Workflow+Automation;Durable+Execution+with+Temporal;Structured+Tool+Results;Playwright+Browser+Automation;Git+%2B+Docker+Operations;Agentic+AI+Control+Plane" alt="Animated SkyCommand capability statement" />
 
 <br>
 
@@ -70,7 +70,9 @@ SkyCommand can be used as a standalone workflow control plane: register tools, c
 - **Structured execution evidence** — versioned ToolResult contracts, typed workflow bindings, focused output, and summaries.
 - **Telemetry-first observability** — phase timing, workflow/tool diagnostics, runtime analytics, and execution history.
 - **Guarded Git & Docker automation** — repository promotion, host-native synchronization, infrastructure operations, and durable audit evidence.
-- **Extensible architecture** — script-based tools, reusable workflows, schedules, listeners, and optional Host Agent execution.
+- **Playwright automation** — managed browser tests and automations with dedicated Browser Worker execution, interactive/headless modes, screenshots, and run evidence.
+- **Agentic AI foundation** — provider-neutral agent identity, governed execution, request-scoped capabilities, managed workspaces, and durable observability are the next active implementation phase.
+- **Extensible architecture** — script-based tools, reusable workflows, schedules, listeners, browser automation, and optional Host Agent execution.
 
 <div align="center">
   <a href="docs/images/readme/Dashboard.png">
@@ -141,6 +143,8 @@ A quick visual tour of the current SkyCommand experience. Click any thumbnail to
 | **Workflows**        | Versioned definitions, visual graph editing, runtime parameters, deterministic control flow, conditions, waits, approvals, retries, nested execution, summaries, node output history, and run control |
 | **Tools**            | Managed catalogue, dynamic parameters, permission-aware execution, structured contracts, telemetry, execution history, retry policy, concurrency, and timeout controls                                |
 | **Automation**       | Scheduled and listener-driven execution, worker-backed dispatch, future-dated and recurring schedules, and workflow/tool automation                                                                   |
+| **Playwright**       | Managed browser tests and automations, dedicated Browser Worker execution, interactive/headless modes, screenshots, run history, and browser evidence                                                  |
+| **Agentic AI**       | **In progress:** provider-neutral agent identity, governed execution, request-scoped capabilities, managed workspaces, approvals, recovery, and durable agent evidence                                  |
 | **Observability**    | Command dashboards, workflow/tool statistics, focused node output, API evidence, worker state, readiness, notifications, and structured performance telemetry                                         |
 | **Git repositories** | Repository catalogue, intelligence, map/ZIP artifacts, development promotion, watcher-safe synchronization, and guarded Host Agent Git operations                                                     |
 | **Docker**           | Projects, containers, images, storage, networks, lifecycle operations, cleanup controls, live metrics, events, bounded logs, diagnostics, and application-stack observability                         |
@@ -165,6 +169,7 @@ flowchart LR
         Temporal["Temporal Server"]
         TWorker["Temporal Worker<br/>durable workflows"]
         NWorker["Node Worker<br/>schedules + listeners"]
+        BWorker["Browser Worker<br/>Playwright automation"]
     end
 
     Host["SkyCommand Host Agent<br/>Windows-native activity worker"]
@@ -182,6 +187,8 @@ flowchart LR
     TWorker --> Sources
     NWorker --> PG
     NWorker --> Temporal
+    Temporal --> BWorker
+    BWorker --> Systems
     TWorker -->|dedicated host activity queue| Host
     Host --> Git
     Host --> Engine
@@ -483,9 +490,11 @@ The README is intentionally the **front door**, not the complete operations manu
 | Phase 15   | ✅     | Add managed tool onboarding, contract validation, controlled execution, and recovery proof.                       |
 | Phase 16   | ✅     | Build portable ingestion/data contracts with quality, freshness, recovery, and consumer contracts.                |
 | Phase 17   | ✅     | Operate Docker infrastructure with guarded controls, deep observability, diagnostics, and durable audit evidence. |
+| Phase 18   | ✅     | Add managed Playwright testing and browser automation with dedicated worker execution and evidence.               |
+| Phase 19   | 🚧     | Integrate governed Agentic AI with provider-neutral agents, scoped capabilities, workspaces, and observability.   |
 | Continuous | 🔄     | Expand reusable tools, workflows, diagnostics, tests, documentation, and UI polish.                               |
 
-The Phase 17 provider/target boundary intentionally leaves room for a future **Kubernetes** sibling provider; no Kubernetes runtime is currently implemented in SkyCommand.
+The Phase 17 provider/target boundary intentionally leaves room for a future **Kubernetes** sibling provider; no Kubernetes runtime is currently implemented in SkyCommand. Phase 19 is the active roadmap direction and will introduce Agentic AI incrementally behind the existing deterministic workflow, permission, evidence, and recovery boundaries.
 
 ---
 
