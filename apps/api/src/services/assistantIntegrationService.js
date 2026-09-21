@@ -1,8 +1,8 @@
 const authService = require('./authService');
 const browserAutomationExecutionService = require('./browserAutomationExecutionService');
 const browserAutomationRegistryService = require('./browserAutomationRegistryService');
-const workflowExecutorService = require('./workflowExecutorService');
 const workflowAgentExecutionService = require('./workflowAgentExecutionService');
+const developmentPromotionStartService = require('./developmentPromotionStartService');
 const promotionPreflight = require('../../../../packages/dev-finalization/src/promotionPreflight');
 const {
   DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
@@ -383,104 +383,19 @@ async function startDevelopmentPromotion({
   workflowAgentExecution = workflowAgentExecutionService,
   promotionValidator = promotionPreflight.validateFinalizationBinding,
 } = {}) {
-  const config = getDevelopmentPromotionConfig();
-
-  if (!config.enabled) {
-    throw createHttpError(
-      503,
-      'Assistant development promotion is disabled or not safely configured.',
-      {
-        code: config.blockedReason || 'ASSISTANT_DEV_PROMOTION_DISABLED',
-        workflowCode: config.workflowCode,
-        repositoryCode: config.repositoryCode,
-      },
-    );
-  }
-
-  const missingPermissionCodes = getMissingDevelopmentPromotionPermissionCodes(permissions);
-  if (missingPermissionCodes.length > 0) {
-    throw createHttpError(403, 'Assistant development promotion permission scope is incomplete.', {
-      code: 'ASSISTANT_DEV_PROMOTION_PERMISSION_SCOPE_MISSING',
-      missingPermissionCodes,
-    });
-  }
-
-  assertExactDevelopmentPromotionBody(body);
-  const commitMessage = validateDevelopmentPromotionCommitMessage(body.commitMessage);
-  const finalizationWorkflowRunId = validateDevelopmentPromotionFinalizationWorkflowRunId(
-    body.finalizationWorkflowRunId,
-  );
-  const idempotencyKey = validateDevelopmentPromotionIdempotencyKey(body.idempotencyKey);
-  const finalization = await promotionValidator({
-    finalizationWorkflowRunId,
-    environment: process.env,
-    verifyCurrent: true,
-  });
-  const requestedAt = new Date().toISOString();
-  const trustedContext = {
-    ...context,
-    agentId,
-    promotionAuthorization: {
-      instructionSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
-      triggerSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
-      triggerType: DEVELOPMENT_PROMOTION_TRIGGER_TYPE,
-      agentId,
-      instructionRef: context?.instructionRef || null,
-      requestedAt,
-      finalizationWorkflowRunId,
-      finalizationReceiptSha256: finalization.receipt?.receiptSha256 || null,
-      finalizationSourceIdentityDigest: finalization.sourceIdentity?.digest || null,
-    },
-  };
-  const result = await workflowAgentExecution.startWorkflow({
-    request: {
-      workflowCode: DEVELOPMENT_PROMOTION_WORKFLOW_CODE,
-      parameters: {
-        commitMessage,
-        repoName: config.repositoryCode,
-        finalizationWorkflowRunId,
-      },
-      idempotencyKey,
-    },
-    principalCode: 'assistant-http',
-    authMode: 'ASSISTANT_SERVICE_TOKEN',
+  return developmentPromotionStartService.startAssistantDevelopmentPromotion({
+    body,
+    permissions,
     actor,
     session,
-    context: trustedContext,
+    context,
+    agentId,
+    workflowAgentExecution,
+    promotionValidator,
+    config: getDevelopmentPromotionConfig(),
+    requiredPermissionCodes: DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
+    assertExactBody: assertExactDevelopmentPromotionBody,
   });
-
-  return {
-    accepted: result?.accepted !== false,
-    reused: Boolean(result?.reused),
-    status: result?.status || null,
-    started: result?.status === 'STARTED',
-    admissionId: result?.admissionId || null,
-    workflowCode: DEVELOPMENT_PROMOTION_WORKFLOW_CODE,
-    repositoryCode: config.repositoryCode,
-    workflowRunRecordId: result?.workflowRunRecordId || null,
-    temporalWorkflowId: result?.temporalWorkflowId || null,
-    temporalRunId: result?.temporalRunId || null,
-    principal: result?.principal || null,
-    idempotency: result?.idempotency || null,
-    finalizationWorkflowCode: DEVELOPMENT_PROMOTION_FINALIZATION_WORKFLOW_CODE,
-    finalizationWorkflowRunId,
-    finalizationReceiptSha256: finalization.receipt?.receiptSha256 || null,
-    finalizationSourceIdentityDigest: finalization.sourceIdentity?.digest || null,
-    triggerSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
-    triggerType: DEVELOPMENT_PROMOTION_TRIGGER_TYPE,
-    humanApprovalRequired: false,
-    agentMustStop: false,
-    terminalObservationRequired: true,
-    terminalObservationPath: '/api/assistant/workflow-runs/{workflowRunRecordId}',
-    trustedAttribution: {
-      agentId,
-      userId: actor?.userId || null,
-      sessionId: session?.sessionId || null,
-      instructionSource: DEVELOPMENT_PROMOTION_TRIGGER_SOURCE,
-      instructionRef: context?.instructionRef || null,
-      requestedAt,
-    },
-  };
 }
 
 async function startWorkflowExecution({

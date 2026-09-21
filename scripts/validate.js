@@ -54,6 +54,7 @@ const routineSelfTests = [
   'workflow-agent-execution:integration:self-test',
   'r7-database-upgrade-cleanup:self-test',
   'assistant-development-promotion:self-test',
+  'development-promotion-start:self-test',
   'mcp-gateway:self-test',
   'git-repository-status:self-test',
   'git-commit:self-test',

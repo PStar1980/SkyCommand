@@ -1,6 +1,7 @@
 const authService = require('../services/authService');
 const workflowExecutorService = require('../services/workflowExecutorService');
 const workflowAgentExecutionService = require('../services/workflowAgentExecutionService');
+const developmentPromotionStartService = require('../services/developmentPromotionStartService');
 const workflowHealthService = require('../services/workflowHealthService');
 const { createLiveTelemetryEnvelope } = require('../utils/liveTelemetryEnvelope');
 
@@ -637,28 +638,50 @@ async function createDefinition(req, res, next) {
 
 async function startWorkflow(req, res, next) {
   try {
-    const context = authService.getRequestContext(req);
+    const context = {
+      ...authService.getRequestContext(req),
+      requestId: req.requestId || null,
+      sessionId: req.session?.sessionId || null,
+    };
     const body = req.body || {};
     const input = body.input || body;
     const executorMode = String(body.executorMode || input.executorMode || 'temporal')
       .trim()
       .toLowerCase();
-    const execute =
-      executorMode === 'inline'
-        ? workflowExecutorService.executeWorkflow
-        : workflowExecutorService.startWorkflowWithTemporal;
-    const result = await execute({
-      workflowCode: req.params.workflowCode,
-      input,
-      user: req.user,
-      session: req.session,
-      permissions: req.permissions || [],
-      context,
-    });
+    const workflowCode = req.params.workflowCode;
+    const isDevelopmentPromotion =
+      developmentPromotionStartService.DEVELOPMENT_PROMOTION_WORKFLOW_CODES.includes(workflowCode);
+
+    if (isDevelopmentPromotion && executorMode === 'inline') {
+      const error = new Error('Development Promotion must use the governed Temporal start path.');
+      error.statusCode = 409;
+      error.details = { code: 'DEV_PROMOTION_TEMPORAL_REQUIRED', workflowCode };
+      throw error;
+    }
+
+    const result = isDevelopmentPromotion
+      ? await developmentPromotionStartService.startManualDevelopmentPromotion({
+          workflowCode,
+          input,
+          user: req.user,
+          session: req.session,
+          permissions: req.permissions || [],
+          context,
+        })
+      : await (executorMode === 'inline'
+          ? workflowExecutorService.executeWorkflow
+          : workflowExecutorService.startWorkflowWithTemporal)({
+          workflowCode,
+          input,
+          user: req.user,
+          session: req.session,
+          permissions: req.permissions || [],
+          context,
+        });
 
     res.status(result.started ? 202 : result.ok ? 200 : 500).json({
       ok: result.ok,
-      executorMode,
+      executorMode: isDevelopmentPromotion ? 'temporal' : executorMode,
       ...result,
     });
   } catch (error) {
