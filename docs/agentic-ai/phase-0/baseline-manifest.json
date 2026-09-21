@@ -1,29 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "contract": "skycommand_agent_phase0_baseline.v1",
-  "reviewedAt": "2026-09-14T04:37:29.311Z",
+  "reviewedAt": "2026-09-21T17:37:59.9240834Z",
   "approvedPlan": {
-    "sourceControlledPath": "docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.0_APPROVED.md",
-    "sha256": "57904DE25EC8C03CEF31238C1122169E9A784C5F2D4E3E3851C7007BF315F8B9",
+    "sourceControlledPath": "docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md",
+    "sha256": "82E3DFF2D2791363BC694DBB1FA6FE300DEC6A4575DECC6BED1F66170A69DE79",
     "suppliedArchiveSha256": "7B8CE3C58E703C197A5A602690451513999B09CA913C49E3AA19B44E620AB803",
     "briefSha256": "BAA9F58CB535976D3548B86745D4C61E8D0F80A6B9BD5B6F1BFC60CBA7DBA236"
   },
   "repository": {
-    "gitCommit": "ed8d51a1954a99667a57d6979ab7e3d3abc631a3",
+    "gitCommit": "d0432be553451aa970b8b172d8a7afbeee39a3ec",
     "branchAtReview": "dev",
-    "workingTreeCleanAtReview": true,
+    "workingTreeCleanAtReview": false,
     "nodeVersionAtReview": "v24.11.0",
     "temporalDependencyRange": "^1.18.1"
   },
   "databaseBuildInventory": {
     "migrationDirectory": "packages/db_build/src/migrations",
-    "migrationCount": 74,
+    "migrationCount": 96,
     "firstMigration": "00002__schema_macro.sql",
-    "lastMigration": "00126__assistant_browser_automation_opt_in.sql",
+    "lastMigration": "00149__agent_registry_foundation.sql",
     "seedDirectory": "packages/db_build/src/seeds",
-    "seedCount": 51,
+    "seedCount": 52,
     "firstSeed": "00004__data_indicators.sql",
-    "lastSeed": "00127__assistant_browser_automation_reference_seed.sql",
+    "lastSeed": "00150__agent_registry_permissions.sql",
     "sharedGlobalNumericOrdering": true,
     "destructiveBuildBehavior": "db:build drops and recreates its named target database"
   },
@@ -36,6 +36,9 @@
     "packages/temporal/src/activities/skyCommandWorkflowActivities.js",
     "apps/worker/src/schedulers/schedulePoller.js",
     "packages/tools/src/toolResultContract.js",
+    "packages/agents/src/authority.js",
+    "apps/api/src/services/agentRegistryService.js",
+    "apps/admin-web/src/pages/ManageAgents.jsx",
     "tests/self",
     "tests/browser"
   ],
@@ -46,6 +49,53 @@
     "externalAgentTransportEnabled": false,
     "historicalMigrationsModified": false,
     "existingRuntimeBehaviorModified": false
+  },
+  "phase19_1Boundary": {
+    "registryMetadataEnabled": true,
+    "authorityPreviewEnabled": true,
+    "agentExecutionEnabled": false,
+    "agentRunsOrSessionsImplemented": false,
+    "providerLaunchEnabled": false,
+    "schedulerIntegrationEnabled": false,
+    "managedWritableWorkspacesEnabled": false,
+    "productionEnvironmentExecutionEnabled": false,
+    "promotionAuthorized": false,
+    "executionSurfaceModes": ["ALLOW", "READ_ONLY", "DENY", "EXPLICIT_APPROVAL_REQUIRED"],
+    "runtimeFreshnessStatuses": ["CURRENT", "STALE_RECONCILABLE", "STALE_BLOCKED", "UNKNOWN"]
+  },
+  "phase19_1Evidence": {
+    "operatingRulesPath": "docs/development/SkyCommand_Development_Operating_Rules_v1.5.md",
+    "operatingRulesSha256": "9250A415663FDB762325CB0A581C7237563D0AFC175E5DB82F901F1878366C73",
+    "workOrderTemplatePath": "docs/development/Codex_Development_Work_Order_Template.md",
+    "workOrderTemplateSha256": "E08911DD6DB493DBEEC0FBDD044011E826EB261653BBB648E393918A74E94032",
+    "agentInstructionsPath": "AGENTS.md",
+    "agentInstructionsSha256": "A30D8F6668C3E1AFFE67879C7FB22A72A0E1562A2230D101408575C380E898EF",
+    "migrationOrdinal": 149,
+    "seedOrdinal": 150,
+    "databasePlanOutcome": "PLAN_READY",
+    "databasePlanPendingCount": 0,
+    "databaseLedgerVerification": "VERIFIED",
+    "databaseDrift": false,
+    "runtimeExecutionFlag": false,
+    "acceptanceCorrection": {
+      "objectScopedTwoUserIsolation": "PASS",
+      "fullExecutionSurfaceIntersection": "PASS",
+      "numericConstraintIntersection": "PASS",
+      "runtimeAccountEntitlementPreviewGate": "PASS",
+      "executionAdmission": "DISABLED_PHASE_19_1",
+      "promotionAuthorized": false,
+      "phase19_2Entered": false
+    }
+  },
+  "historicalBaseline": {
+    "reviewedAt": "2026-09-14T04:37:29.311Z",
+    "approvedPlanPath": "docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.0_APPROVED.md",
+    "approvedPlanSha256": "57904DE25EC8C03CEF31238C1122169E9A784C5F2D4E3E3851C7007BF315F8B9",
+    "gitCommit": "ed8d51a1954a99667a57d6979ab7e3d3abc631a3",
+    "migrationCount": 74,
+    "lastMigration": "00126__assistant_browser_automation_opt_in.sql",
+    "seedCount": 51,
+    "lastSeed": "00127__assistant_browser_automation_reference_seed.sql"
   },
   "baselineValidationFindings": [
     {
@@ -67,6 +117,16 @@
       "location": "tests/self/apps/api/src/services/schedulerWorkflowParametersSelfTest.js:42",
       "phase0Regression": false,
       "disposition": "Not modified; outside Phase 0 scope."
+    },
+    {
+      "code": "TOOL_ONBOARDING_SELF_TEST",
+      "command": "npm run tool-onboarding:self-test",
+      "observedAt": "2026-09-21",
+      "classification": "EXISTING_UNRELATED_FAILURE",
+      "message": "Tool onboarding static-analysis assertion rejects an existing finalizationReceiptSha256 reference in the unchanged Workflow Executor service.",
+      "location": "tests/self/apps/api/src/services/toolOnboardingSelfTest.js:281",
+      "phase0Regression": false,
+      "disposition": "Not modified; the referenced Workflow Executor source is unchanged and outside Phase 19.1 scope."
     }
   ],
   "knownDiscrepancies": [

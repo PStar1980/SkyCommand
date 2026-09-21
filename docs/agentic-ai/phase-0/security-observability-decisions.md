@@ -2,7 +2,7 @@
 
 ## Decisions applied to the preparation artifacts
 
-1. Agent execution remains disabled. Phase 0 adds no route, worker, credential broker, runtime process, schedule target, workflow node, or production permission.
+1. Agent execution remains disabled. Phase 19.1 adds registry and advisory-preview routes only; it adds no worker, credential broker, runtime process, schedule target, workflow node, Agent Run/Session route, or production permission.
 2. The current Host Agent is treated as a privileged infrastructure principal, not an AI Agent runtime. Future AI runtime workers must use a distinct security principal and containment boundary.
 3. Authority is an intersection of user/run-as principal, caller grant, Agent revision, Project, invocation, environment, runtime/account data-release rules, containment, and requested narrowing. Approval is an obligation inside that ceiling.
 4. Identity fields are immutable evidence: initiating user, initiating actor, immediate requesting actor, executing Agent, root, parent, orchestration owner, and trigger source are not interchangeable.
@@ -12,6 +12,8 @@
 8. Request-level execution-surface authority is distinct from capability authority. Availability of Computer Use, browser control, Apps/Plugins, remote-device access, MCP, local shell, or another interface does not grant permission to use it. Surface transitions preserve the same operation/retry/idempotency context and must be observable.
 9. Human UI and authorized agent surfaces converge on the same governed Tool/Workflow/preflight/recovery/receipt semantics; agent governance must not create an agent-only operational path.
 10. Runtime-dependent acceptance records source/configuration/capability identity and effective process generation/freshness so stale runtime state can be reconciled without being mislabeled as source drift.
+11. Phase 19.1 records `CURRENT`, `STALE_RECONCILABLE`, `STALE_BLOCKED`, and `UNKNOWN` runtime freshness explicitly. `UNKNOWN` is preserved; preview cannot synthesize health or enable execution.
+12. Phase 19.1 audit metadata contains safe IDs, policy revisions, authority digest, denial count, eligibility reasons, and the disabled execution outcome; repository roots, credentials, and secret values are excluded.
 
 ## Mandatory audit/evidence vocabulary
 
