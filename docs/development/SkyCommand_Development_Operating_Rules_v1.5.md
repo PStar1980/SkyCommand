@@ -1,11 +1,11 @@
-# SkyCommand Development Operating Rules v1.4
+# SkyCommand Development Operating Rules v1.5
 
 **Status:** Active development governance  
-**Revision:** 2026-09-20 — Post-R8 accepted DEV baseline and request-level execution-surface governance  
-**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.3.md`  
+**Revision:** 2026-09-21 — Agentic AI v1.2 alignment, runtime-freshness governance, and retired-remediation cleanup  
+**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.4.md`  
 **Applies to:** Paul, Sky/ChatGPT, Codex/Luna/Astra, future coding agents, and any agent operating on the SkyCommand repository  
-**Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`  
-**Immediate pre-Phase-1 remediation authority:** `docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md`
+**Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md`  
+**Historical remediation status:** R0–R8 accepted; the retired remediation plan is historical evidence only and is not an active authority or required working-tree document.
 
 ## Transition scope and precedence
 
@@ -122,6 +122,16 @@ Rules:
 SkyCommand's development workflows are shared operational surfaces for humans and agents. Paul may manually run **Dev Change Finalization**, **Dev Promotion Local**, and permitted recovery controls through the SkyCommand UI. Agent execution-surface restrictions do not restrict Paul's own manual UI use.
 
 Human UI execution and authorized agent execution must converge on the same registered Workflow definitions, preflights, permission checks, receipts, and evidence. Governance added for agent autonomy must not make the normal human development path unusable or require agent-only ceremony.
+
+### 3.6 Runtime configuration identity and governed reconciliation
+
+When acceptance depends on a running process, treat source/configuration validity and runtime freshness as separate facts.
+
+Where supported, record or verify the effective source revision, non-secret configuration revision/digest, capability-manifest revision, service/worker/Host Agent/MCP generation or startup identity, and freshness evidence needed by the affected runtime profile.
+
+A stale runtime is not automatically source/configuration drift. If the current work order permits routine DEV lifecycle operations, use the registered/governed reconcile, rebuild, restart, or refresh action required to bring the affected service to the reviewed state, then rerun readiness. Do not stop solely to ask Paul for a ceremonial restart that the authorized path can safely perform.
+
+Runtime reconciliation does not authorize production work, broader service mutation, secret disclosure, direct Git mutation, or bypass of Host Agent/Supervisor boundaries. Record the lifecycle action and resulting runtime identity in the completion evidence.
 
 ## 4. Database development policy
 
@@ -385,7 +395,7 @@ The remediation plan remains authoritative historical/acceptance context, but it
 
 Agentic AI Phase 1 may now begin when Paul/Sky issue an explicit scoped work order. Phase 1 does not inherit unrestricted `DEV_LOCAL` host authority merely because the local Codex/Luna development agent has it. Managed-agent isolation, workspace certification, resource grants, and later Phase 3.5 boundaries remain governed by the approved architecture.
 
-Future agentic work orders should use `docs/development/Luna_Development_Work_Order_Template.md` or an equivalent request that explicitly states task scope, promotion boundary, recovery policy, and request-level execution-surface permissions.
+Future agentic work orders should use `docs/development/Codex_Development_Work_Order_Template.md` or an equivalent request that explicitly states task scope, promotion boundary, recovery policy, and request-level execution-surface permissions.
 
 The continuing acceptance standard is:
 
@@ -395,7 +405,7 @@ The continuing acceptance standard is:
 
 These rules remain active until Paul explicitly approves another revision.
 
-A coding agent may recommend changes but must not silently rewrite its own authority. This v1.4 revision records the Paul-authorized post-R8 `DEV_LOCAL` operating model, request-level execution-surface governance, human/agent workflow parity, and the transition into scoped Agentic AI integration.
+A coding agent may recommend changes but must not silently rewrite its own authority. This v1.5 revision records the Paul-authorized post-R8 `DEV_LOCAL` operating model, request-level execution-surface governance, human/agent workflow parity, runtime-configuration freshness/reconciliation, and alignment with the Agentic AI v1.2 implementation amendments.
 
 ## 15. Accepted execution and evidence requirements
 

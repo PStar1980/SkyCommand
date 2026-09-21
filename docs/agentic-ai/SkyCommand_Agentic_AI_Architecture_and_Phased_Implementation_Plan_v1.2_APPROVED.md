@@ -1,13 +1,15 @@
-# SkyCommand Agentic AI Architecture & Phased Implementation Plan — v1.1 APPROVED
+# SkyCommand Agentic AI Architecture & Phased Implementation Plan — v1.2 APPROVED
 
-**Status:** Approved engineering blueprint v1.1; original v1.0 design retained with the scoped Autonomous DEV amendment below.  
-**Baseline:** Supplied lightweight SkyCommand repository and complete architecture brief, reviewed September 13, 2026.  
-**Review disposition:** Astra Ultra's architecture is accepted with one deliberate product amendment: **Phase 3.5 — Managed Development Workspace & Controlled Code Modification**. This keeps Astra's isolation/authority model while making the first release useful for real software-development work.  
+**Status:** Approved engineering blueprint v1.2; v1.1 architecture retained with the accepted post-R8 operational amendments below.  
+**Baseline:** Original lightweight SkyCommand repository and architecture brief reviewed September 13, 2026; Autonomous DEV R0–R8 acceptance baseline confirmed September 20–21, 2026.  
+**Review disposition:** The v1.1 architecture remains the foundation. v1.2 keeps **Phase 3.5 — Managed Development Workspace & Controlled Code Modification** and adds the accepted post-R8 lessons: request-level execution-surface authority, human/agent parity, runtime-configuration freshness and governed reconciliation, delta-based Phase 0 verification, automatic promotion-handoff evidence, and non-blocking second-provider sequencing.  
 **Release boundary:** Phases 0–8, including Phase 3.5, deliver controlled local v1. Phase 9 is a separately gated future external integration release. No application implementation was performed by the planning exercise itself.
 
-## September 16, 2026 — Approved Autonomous DEV transition amendment
+## September 16, 2026 — Approved Autonomous DEV transition amendment (historical record)
 
-Paul accepted the review recommendations. This amendment governs the pre-Phase-1 remediation and takes precedence over older operator-procedure wording for that scope only. It does not claim implementation or acceptance.
+This section records the pre-Phase-1 transition decision as it existed on September 16. The September 21 post-R8 amendment below supersedes its implementation-status wording while preserving it as historical architecture evidence.
+
+Paul accepted the review recommendations. This amendment governed the pre-Phase-1 remediation and took precedence over older operator-procedure wording for that scope only. It did not itself claim implementation or acceptance.
 
 - Complete R0–R8 under `docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md` and `docs/development/SkyCommand_Development_Operating_Rules_v1.2.md` before Agentic AI Phase 1.
 - Current operator-authorized local Codex/Luna remediation may edit the approved DEV checkout and perform scoped routine local operations. Future SkyCommand-managed Agent Runs retain the isolation, live-checkout prohibition, managed credentials, and Phase 3.5 workspace requirements throughout this architecture. Never transfer the local operator's host authority into a managed runtime.
@@ -18,6 +20,24 @@ Paul accepted the review recommendations. This amendment governs the pre-Phase-1
 - Idempotent start, ledger reconciliation, concurrent-run exclusion, and crash/retry/drift acceptance supplement the zero-intervention criterion.
 
 The existing v1.0 baseline hash, source observations, original roadmap, and examples below are historical design evidence. They are not fresh verification of the September 16 archive or live deployment. References to original phase gates and isolation remain in force outside this explicitly scoped local remediation amendment.
+
+## September 21, 2026 — Approved post-R8 Agentic AI implementation amendment
+
+R0–R8 are accepted as the Autonomous DEV implementation, finalization, recovery, and promotion baseline. The retired remediation plan remains historical evidence only; it is no longer an active prerequisite or standing execution authority. Agentic AI work proceeds under scoped work orders, the active Development Operating Rules, and this architecture.
+
+The following amendments refine implementation order and authority without weakening the isolation, promotion, production, or least-privilege boundaries:
+
+- **Request-level execution surfaces become first-class authority.** The Run/ExecutionContext must carry an explicit surface policy covering applicable repository/local-shell, SkyCommand MCP/API, SkyCommand UI through Computer Use/browser control, general desktop control, connected Apps/Plugins, remote-device control, and registered browser/Playwright surfaces. Availability of a capability never implies authority to use it.
+- **Surface substitution preserves the same operation.** Switching interfaces never creates a new authorization, idempotency key, recovery allowance, or retry budget. Any permitted substitution records requested surface, effective surface, reason, actor/session, human intervention, and the underlying governed operation/run.
+- **Human and agent execution share one operational core.** Manual UI, MCP/API, scheduler, workflow, and managed-Agent entry paths converge on the same registered Tool/Workflow definitions, admission/preflight checks, recovery semantics, receipts, and evidence. Agent governance must not make the normal human UI path unusable or create agent-only ceremony.
+- **Runtime freshness is explicit evidence.** Where behavior depends on live processes, admission/preflight compares reviewed source/configuration/capability identity with the running API/worker/Host Agent/MCP/runtime generation. A stale runtime is a distinct condition from source/configuration drift. When the current request authorizes routine DEV lifecycle work, use a governed reconcile/refresh action rather than stopping for a ceremonial human restart.
+- **Phase 0 becomes delta certification against the accepted R8 baseline.** Reuse current receipts, migration/ledger evidence, capability catalogue, repository map/ZIP, workflow history, tests, and governance artifacts when still valid. Re-verify only stale evidence and Agent-specific gaps; do not repeat the completed remediation as a discovery exercise.
+- **Phase 1 should ship a thin vertical foundation before broad administration polish.** Prove one Project → one Agent definition → one runtime installation/account binding → one workspace binding → one principal/effective-authority preview, while retaining schema and tests for multi-user/provider expansion. Broader management UX can follow behind disabled execution gates.
+- **Human waits are policy outcomes, not the default execution model.** `ALLOW` executes, `DENY` rejects, and `EXPLICIT_APPROVAL_REQUIRED` creates the durable interaction wait. The existence of an approval subsystem does not add approvals to ordinary permitted work.
+- **Managed development automatically emits promotion-handoff evidence.** Successful Phase 3.5 workspace finalization produces the immutable baseline/diff/validation/source/config/runtime evidence needed by the existing Development Promotion boundary. A separate “prepare handoff” human checkpoint is not required. The later explicit promotion instruction remains the authorization event; automatic handoff creation never means automatic commit/merge/push/deploy/publication.
+- **Second-provider certification runs in parallel.** Phase 4 OpenClaw conformance remains required before broad multi-provider v1 acceptance, but it does not unnecessarily block Codex-focused Phase 5 delegation or Phase 6 `AGENT_TASK` work once the common contract is proven by one certified real provider plus the deliberately divergent fake runtime. No multi-provider release claim is made until the second real provider passes its enabled capability matrix.
+
+All previous non-negotiable containment, managed-workspace, production, promotion, immutable-evidence, and authority-ceiling requirements remain in force.
 
 ## 1. Executive architecture
 
@@ -78,6 +98,10 @@ The diagram has two related paths. Starting an agent goes through the Agent Exec
 9. Terminal execution results are immutable. Corrections and late telemetry are appended as evidence revisions.
 10. Every phase retains working Tool, Workflow, Scheduler, Access Control, and Playwright behavior.
 11. Writable development occurs only inside an isolated SkyCommand-managed workspace under an explicit development profile. An Agent never writes directly to the registered live checkout, and code modification never implies permission to merge, push, deploy, publish, or alter SkyCommand's control plane.
+12. Execution-surface authority is explicit per request/Run and may only narrow effective authority. Global Computer Use, browser sessions, Apps/Plugins, remote-device access, MCP servers, or local applications never create authority by mere availability.
+13. A surface transition is the same logical operation for authorization, retry, recovery and idempotency. It is observable and cannot reset budgets or conceal a bypass.
+14. Runtime-dependent acceptance compares reviewed source/configuration/capability identity with the effective running generation; stale runtime state is reconciled or fails closed rather than being confused with source drift.
+15. Human UI and authorized agent entry surfaces converge on the same governed operation definitions, preflights, receipts and recovery semantics.
 
 ## 2. Repository baseline and verified gaps
 
@@ -101,7 +125,7 @@ Paths below are relative to the supplied archive's `SkyCommand/` root. They are 
 | `packages/db_build/src/db_build.js:19` shares global ordering between migrations/seeds; its documented build command drops and recreates the target database. | Never use `db:build` as an in-place production upgrade. Establish a reviewed incremental upgrade path and applied-change ledger. |
 | Existing `packages/host-agent` performs privileged host Git/Docker work and loads broad environment configuration. | The new Agent Runtime Worker is a different service and security principal. Do not confuse “Host Agent” with an AI Agent or run AI inside that privileged worker. |
 
-The brief's successful Codex/browser run is accepted as supplied evidence. This review did not rerun it. The lightweight archive's referenced self-test suite and deployed database/worker configuration require verification against the full checkout in Phase 0; absence from this package is not proof the full repository lacks them.
+The brief's successful Codex/browser run is retained as supplied historical evidence. Under the v1.2 post-R8 amendment, Phase 0 verifies only evidence that is stale or Agent-specific relative to the accepted current R8 baseline; absence from the original lightweight planning package is not proof the current full repository lacks it.
 
 ## 3. Explicit domain model
 
@@ -114,6 +138,8 @@ The brief's successful Codex/browser run is accepted as supplied evidence. This 
 | **Agent Definition** | Registered Agent identity: stable ID/code/name and lifecycle. Has immutable revisions containing instructions, required adapter capabilities, runtime binding, default model/reasoning, authority profile, output contract, delegation targets and limits. A runtime switch creates a new revision. |
 | **Agent Runtime Type** | Adapter family, e.g. `CODEX`, `OPENCLAW`, `CLAUDE_CODE`, `LOCAL`. Code strings in a registry, not provider-specific columns or a database enum requiring a migration for every provider. |
 | **Runtime Installation** | Pinned executable/image, adapter version, host, verified protocol schema, capability manifest, isolation class and health. Disabling it prevents new execution and optionally revokes active leases. |
+| **Runtime Configuration Identity** | Evidence binding the effective running API/worker/Host Agent/MCP/runtime generation to source revision, non-secret configuration digest, capability-manifest revision, startup/generation identity and freshness. Used to distinguish stale process state from source/configuration drift and to drive governed reconciliation. |
+| **Execution Surface Policy** | Request/Run-scoped allow/read-only/deny/approval-required policy for applicable execution surfaces plus explicitly permitted fallback transitions. Surface authority is separate from capability authority; both must permit an effect. |
 | **Runtime Execution Cell** | Isolated live process/container/VM and its private state. In v1, owned by one Agent Session with one leased Run at a time; identity includes principal, Project, Agent revision, account and security fingerprint. An Installation can host multiple independently isolated cells. |
 | **Runtime Account Binding** | Credential reference, provider account/workspace identity, owner/trust domain and usage visibility policy. Multiple Agents can use one account, so account quota is not a per-Agent budget. |
 | **Agent Session** | SkyCommand-owned conversation container bound to Project, principal, Agent revision, runtime/account, security fingerprint and provider conversation reference. Contains sequential Runs. Session creation, last activity, history access and archive status are independent of execution status. |
@@ -129,7 +155,7 @@ The brief's successful Codex/browser run is accepted as supplied evidence. This 
 | **Initiating Actor** | Actual root trigger actor: authenticated user, scheduler service or authorized external client. Retain client/service identity separately from human sponsorship. |
 | **Requesting Actor** | Immediate caller of a command: user, workflow service, scheduler, external client, or authenticated parent Agent Run. A delegated Run keeps the root initiating user and records the parent as requester. |
 | **Trigger Source** | Immediate source: `MANUAL`, `WORKFLOW`, `SCHEDULER`, `AGENT_DELEGATION`, `EXTERNAL_ASSISTANT`; structured source reference and immutable root trigger also retained. Existing browser `ASSISTANT` origin remains compatible. |
-| **Authority Snapshot** | Immutable normalized capabilities, resource predicates, data boundaries, constraints, approval conditions, resolved policy revisions and delegation ceiling. Includes requested, configured and granted differences. |
+| **Authority Snapshot** | Immutable normalized capabilities, resource predicates, data boundaries, constraints, approval conditions, request-level execution-surface policy, permitted surface transitions, resolved policy revisions and delegation ceiling. Includes requested, configured and granted differences. |
 | **Interaction Request** | Durable approval or user-input request with exact action/input digest, run/turn/operation, eligible responders, expiry, decision and delivery state. |
 | **Capability Execution Link** | Run/tool-call to existing Browser/Tool/Workflow/Git execution record. Carries root scope, immediate caller and authority receipt without replacing that execution's native ID. |
 | **Artifact / Result / Audit Event** | Artifacts are protected evidence with checksums and provenance. Results are validated immutable summaries. Audit records capture attributed decisions/actions, independently of optional provider telemetry. |
@@ -262,6 +288,12 @@ For Manual, the sponsoring principal is the authenticated human and the caller g
 
 `InvocationAuthority` includes every inherited layer: a Schedule invoking Workflow W invoking Agent A is constrained by both the schedule grant and W's pinned invocation profile. Agent A invoking W2 cannot use W2's administrator service account to broaden its authority. All agent-accessible nested paths carry the same context and further narrow it.
 
+### Execution-surface authority
+
+Capability authority and execution-surface authority are independent dimensions of effective authority. A Run may be allowed to perform an operation but denied from performing it through a particular interface. The effective surface set is the intersection of the work-order/request policy, entry-surface eligibility, current principal/grant, Project/Agent/environment policy, and runtime containment. An approval may satisfy an `EXPLICIT_APPROVAL_REQUIRED` surface condition, but it cannot enlarge the underlying operation/resource ceiling.
+
+A failure on one surface does not authorize another. When an explicitly permitted fallback is used, the same logical operation identity, idempotency/recovery state, retry budget and causal lineage continue across the transition.
+
 ### Identity and policy enforcement
 
 The API authenticates the user or service/client and resolves an `ExecutionContext.v1`: request ID, initiating user/principal, original actor, immediate actor, Project, source, root/parent references, definition versions, authority digest and trace ID. Client-supplied `userId`, `agentId`, parent/root IDs, permissions or provider credentials are never trusted as proof. For a delegated call they come from the parent grant; for a Workflow they come from the durable parent context.
@@ -318,6 +350,12 @@ Use a dedicated trusted supervisor outside each untrusted runtime sandbox. The s
 Default observer/research deployment is a dedicated local container/VM execution cell with read-only Project snapshot, writable scratch/artifact directory, controlled provider/MCP egress and disabled native host-level shell/write/spawn paths. **Phase 3.5 adds a separately certified `DEVELOPMENT_WORKSPACE` profile** whose runtime may edit only a SkyCommand-managed isolated workspace and execute approved build/test/validation commands inside the containment boundary. This is not a generic SkyCommand host-shell capability: no host control sockets, API/worker secrets, arbitrary host paths, live-checkout writes, or unapproved network/package-install paths are inherited. The isolation boundary must survive the model finding alternative execution facilities; tool hiding is defense in depth, not the boundary. Windows-native operation is an additional certified profile requiring equivalent process-tree termination and filesystem/network containment. Do not silently run unrestricted on the host because the default isolation is inconvenient.
 
 Credential/account data and provider history are partitioned by principal/Project security domain and authority fingerprint. In v1 use one Agent Session per runtime cell, with one leased Run at a time and a per-run/epoch MCP proxy channel. A narrower child gets its own cell; it cannot share a parent's global configuration or credential routing merely because both belong to the same Project/user. Runtime Installation identifies the reusable version/image, not a shared live process. Do not reuse the user's interactive desktop Codex home or personal OpenClaw Gateway. Code/instructions are pinned snapshots; provider config, plugins, startup hooks, auto-update, memory, native cron and remote-control endpoints are managed and immutable during a Run. Where controlled code edits are later enabled, write only to a dedicated workspace; merging/publishing/deploying remains a governed SkyCommand capability.
+
+### Runtime configuration identity and reconciliation
+
+For runtime-dependent behavior, SkyCommand records and compares the reviewed source revision, non-secret configuration digest, capability-manifest revision, runtime installation/profile, process/service generation and freshness timestamps required by that profile. Admission/readiness must report `CURRENT`, `STALE_RECONCILABLE`, `STALE_BLOCKED`, or an equivalently typed condition rather than collapsing stale processes into source drift.
+
+A governed runtime reconciliation action may rebuild/restart/reload only the affected services permitted by the active request and environment policy, then re-evaluate readiness. Reconciliation is an execution effect with its own durable evidence; it is not a prompt-level workaround and must never cross production or Host Agent containment boundaries.
 
 ### Codex mapping and certification
 
@@ -492,6 +530,12 @@ SkyCommand gateway receipts are authoritative for governed tool calls; provider 
 
 OpenClaw usage APIs may expose account windows and token-derived local cost estimates. Preserve those source semantics instead of treating every returned currency field as billing evidence. [OpenClaw usage RPCs](https://docs.openclaw.ai/gateway/protocol/rpc-system-and-channels), [OpenClaw usage and costs](https://docs.openclaw.ai/reference/api-usage-costs).
 
+### Execution-surface and runtime-freshness trace
+
+Every Agent Run records the requested and effective execution surface for material operations, authority source/revision, surface-transition reason, actor/session, human intervention, and the linked Tool/Workflow/capability execution ID when one exists. A UI click, MCP call, local command, connected-App action, or remote-device action is an interface fact; the underlying governed operation remains the canonical effect.
+
+Where live-process state matters, record the reviewed source/configuration/capability identity and the observed runtime generation/freshness used for acceptance. Reconciliation/restart actions are linked to the operation that required them. This trace is mandatory for alternate-surface recovery and prevents interface changes from hiding repeated or unauthorized work.
+
 ### Structured result contract
 
 Reuse the existing ToolResult envelope for workflow consumers:
@@ -645,13 +689,13 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 | 8 | Integrated multi-user v1 release, recovery and operations readiness | Controlled local v1 |
 | 9 | Future external Assistant boundary and adapter expansion | Separate post-v1 release |
 
-### Phase 0 — Baseline, design contracts and certification preparation
+### Phase 0 — Accepted-baseline delta certification and Agent contract preparation
 
-**Objective.** Make the implementation baseline and non-negotiable boundaries reproducible before adding schema or executing a model.
+**Objective.** Certify the accepted R8 development baseline for Agentic AI by reusing current evidence, refreshing only stale facts, and closing Agent-specific contract/certification gaps before adding execution schema or launching a model.
 
-**Rationale/dependencies.** No dependency on new application behavior. Resolve archive-versus-deployed assumptions, missing tests and destructive database-build conventions first. This phase reduces the largest risk of an otherwise detailed plan: implementing against an incomplete baseline.
+**Rationale/dependencies.** R0–R8 already established the active DEV upgrade/finalization/promotion baseline. Phase 0 must not repeat that remediation as a repository rediscovery exercise. Treat current finalization receipts, migration/ledger evidence, capability catalogue, Repo Map/ZIP, workflow history, tests and active governance as baseline evidence when still valid; verify deltas, missing Agent-specific controls, runtime versions, isolation assumptions and replay fixtures only.
 
-**Schema/migrations.** Inventory deployed schema/views/permissions and migration history on a restored copy. Design the incremental upgrade ledger, baseline procedure, next ordinal allocation and restore evidence. Do not run `db:build` against an existing deployment. Deliver reviewed schema/relationship specifications for Sections 3 and 6.
+**Schema/migrations.** Confirm the accepted incremental upgrade ledger/baseline and current migration/seed state from R8 evidence, refreshing restored-copy checks only where stale or required by Agent schema design. Allocate new ordinals additively; do not run `db:build` against an existing deployment. Deliver reviewed schema/relationship specifications for Sections 3 and 6 without re-proving already accepted remediation behavior.
 
 **Backend/services.** Finalize package seams for `packages/agents`, API Agent Execution/Capability Authorization services, supervisor and credential broker. Define JSON Schemas for commands, authority, events, results, errors and capability manifests. Produce an entry-surface-to-service traceability matrix.
 
@@ -667,9 +711,9 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **Observability.** Finalize telemetry availability/scope rules, source vocabulary, retention, correlation IDs and mandatory audit events. Define measurable cancellation/admission targets and test instrumentation.
 
-**Tests.** Obtain the full self-test suite; inventory the declared Assistant/MCP/browser/workflow/scheduler tests and replay fixtures. Reproduce the existing read-only MCP/browser smoke test only in an authorized isolated environment. Record failures before changing application behavior.
+**Tests.** Reuse the accepted R8 validation baseline and full self-test inventory where current; refresh changed/stale suites, representative Temporal replay fixtures and Agent-specific Assistant/MCP/browser/workflow/scheduler coverage. Reproduce the read-only MCP/browser smoke test only when its evidence is stale or needed for the current certification. Preserve known baseline failures separately from new regressions.
 
-**Acceptance criteria.** All fifteen request requirements map to contracts/phases/tests; repository baseline and missing artifacts are recorded; upgrade path avoids destructive rebuild; every entry path and provider has a concrete certification matrix; no unresolved security-critical default is silently delegated to implementation.
+**Acceptance criteria.** All fifteen request requirements map to contracts/phases/tests; the accepted R8 baseline is explicitly referenced with only stale or Agent-specific gaps refreshed; upgrade path remains non-destructive; every entry path and provider has a concrete certification matrix; request-level execution surfaces and runtime-freshness evidence are defined; no unresolved security-critical default is silently delegated to implementation.
 
 **Rollback/backward compatibility.** Documentation/fixtures only; no runtime behavior changes. Baseline failures remain visible rather than being overwritten as new-agent regressions.
 
@@ -683,7 +727,7 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **Schema/migrations.** Add Project/membership/repository/workspace tables; runtime/install/account references; Agent definitions/versions/profiles; execution-principal types; execution-scope/run/session/authority skeleton; versioned telemetry schemas. Create immutable IDs, indexes and required constraints. Add upgrade ledger and least-privilege grants. Seed no executable Agent with wildcard authority.
 
-**Backend/services.** Implement registry CRUD, revision pinning, repository/workspace resolution, policy intersection and data classification checks. Add entitlement checks for account use. Introduce mandatory ExecutionContext construction and durable admission/audit transaction helpers. Execution remains gated off.
+**Backend/services.** Implement the minimum complete vertical foundation first: one Project → one Agent definition/revision → one runtime installation/account binding → one registered workspace binding → one principal/effective-authority preview. The underlying schema/services remain multi-user/provider ready. Implement registry CRUD needed by this slice, revision pinning, repository/workspace resolution, policy intersection, request-level execution-surface policy, runtime-configuration identity, data classification and account entitlement checks. Introduce mandatory ExecutionContext construction and durable admission/audit transaction helpers. Execution remains gated off.
 
 **Temporal work.** Define versioned workflow/activity contracts and task queues without dispatching real runtimes. Verify workflow bundles import no nondeterministic provider/client modules. Register compatibility metadata for future deployments.
 
@@ -691,7 +735,7 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **API changes.** Add registry, Project and runtime-capability APIs plus execution preview. Reject caller-provided authoritative identity/permission/lineage fields. Use ETags/expected revisions for configuration edits.
 
-**UI changes.** Add Manage Agents, Project membership/workspace forms, runtime health/features and read-only effective-authority preview. Hide start controls until Phase 2/3 gates; clearly distinguish registered Agent from existing Host Agent.
+**UI changes.** Add only the management surfaces required to exercise the thin vertical slice: Manage Agents, minimal Project membership/workspace binding, runtime health/features, runtime-freshness status and read-only effective-authority/surface preview. Hide start controls until Phase 2/3 gates; clearly distinguish registered Agent from existing Host Agent. Broader administrative polish must not block the execution kernel.
 
 **Security/permissions.** Add explicit Agent and Project rights, account-use/management separation, resource predicates and denied-by-default profiles. Runtime containment participates in admission compatibility. All list/detail/preview routes enforce object access.
 
@@ -703,9 +747,9 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **Rollback/backward compatibility.** Disable new registry routes/UI and retain additive data. Old binaries ignore new tables. Do not remove shared permission data or downgrade schemas. Existing repository/Compose Project behavior remains unchanged.
 
-**Items deferred.** Provider credentials provisioning UI, real Runs, live telemetry, workflow/scheduler invocation, delegation, session sharing and external access.
+**Items deferred.** Broad administration polish beyond the thin vertical slice, provider credentials provisioning UI, real Runs, live telemetry, workflow/scheduler invocation, delegation, session sharing and external access.
 
-### Phase 2 — Durable execution kernel, governed MCP and human waits
+### Phase 2 — Durable execution kernel, governed MCP and policy-driven human waits
 
 **Objective.** Prove admission, execution, recovery, cancellation and approvals end-to-end using fake runtimes before exposing a real provider.
 
@@ -713,7 +757,7 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **Schema/migrations.** Complete admission/idempotency records, outbox/inbox, provider-operation journal, Turns, temporal segments, grants/epochs, leases, execution links, interactions/decisions, events/artifacts/results and budget reservations. Add unique keys, parent-closing barrier and dispatch-owner fields. Mandatory audit writes share the admission transaction.
 
-**Backend/services.** Implement common admission, supervisor command/reconciliation service, bounded observer, finalizer, artifact ingestion and root-stop reconciler. Add managed run-token authentication and Capability Authorization Service wrapping the existing browser service. Server binds user/Agent/Project/root to status and artifact access. Add effect-invocation idempotency before dispatch; do not rely on browser safety metadata as deduplication.
+**Backend/services.** Implement common admission, supervisor command/reconciliation service, bounded observer, finalizer, artifact ingestion and root-stop reconciler. Add managed run-token authentication and Capability Authorization Service wrapping the existing browser service. Server binds user/Agent/Project/root to status and artifact access. Add effect-invocation idempotency before dispatch; do not rely on browser safety metadata as deduplication. Evaluate operation and execution-surface policy explicitly: `ALLOW` executes, `DENY` rejects, and `EXPLICIT_APPROVAL_REQUIRED` creates the durable interaction wait; do not add approval waits to ordinary permitted actions.
 
 **Temporal work.** Implement `AgentRunWorkflow.v1`, deterministic states/timers, activity retries, persisted command-ID signals, durable interaction waits and bounded cleanup. Root start uses outbox; child-ready interfaces exist but delegation is off. Keep provider sends separate from replay-safe reads/control retries.
 
@@ -779,9 +823,9 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **Runtime-adapter work.** Certify Codex against the `DEVELOPMENT_WORKSPACE` capability profile. The adapter/supervisor must prove the model sees only the managed workspace as writable project state and cannot reach the registered live checkout, Docker socket, Host Agent credentials, SkyCommand secrets, unrelated repositories or arbitrary host paths. Permit runtime-native file editing and bounded shell/build/test execution only inside the isolated cell. Provider-native subagent spawning, uncontrolled plugins, startup hooks, self-reconfiguration and unapproved network/package installation remain disabled. Later runtimes may advertise this profile only after passing the same conformance suite.
 
-**API changes.** Extend Run preview/start with registered workspace mode and validation profile selection derived from Project/Agent policy. Add authorized workspace evidence endpoints for summary, changed files, diff/patch artifact, validation receipts and disposition. Add an explicit `prepare-promotion-handoff` command that creates evidence/input for the existing Development Promotion path but **does not** merge, commit, push, publish or deploy by itself. Never expose raw host paths or arbitrary command execution endpoints.
+**API changes.** Extend Run preview/start with registered workspace mode and validation profile selection derived from Project/Agent policy. Add authorized workspace evidence endpoints for summary, changed files, diff/patch artifact, validation receipts, runtime/configuration identity, disposition and the automatically generated promotion-handoff evidence. Normal successful workspace finalization creates or refreshes this immutable handoff idempotently; no separate human `prepare-promotion-handoff` checkpoint is required. The handoff **does not** merge, commit, push, publish or deploy by itself. Never expose raw host paths or arbitrary command execution endpoints.
 
-**UI changes.** Run Agent shows `Managed Development Workspace` only for eligible Project/Agent/runtime combinations and clearly explains that the Agent edits an isolated workspace. Agent Operations adds baseline revision, workspace state, changed-file count, diff/patch viewer/download, validation results and `Prepare Promotion Handoff`. Make `Discard`, `Quarantine/Retain`, and promotion handoff explicit operations with confirmation/authorization as appropriate. The UI must never imply that Agent completion means the changes are promoted.
+**UI changes.** Run Agent shows `Managed Development Workspace` only for eligible Project/Agent/runtime combinations and clearly explains that the Agent edits an isolated workspace. Agent Operations adds baseline revision, workspace state, changed-file count, diff/patch viewer/download, validation results, runtime/configuration identity and a read-only Promotion Handoff evidence view. `Discard` and `Quarantine/Retain` remain explicit operations as appropriate. Promotion itself remains a separately authorized action. The UI must never imply that Agent completion means the changes are promoted.
 
 **Security/permissions.** Introduce explicit capabilities such as `AGENT_WORKSPACE_CREATE`, `AGENT_WORKSPACE_WRITE`, `AGENT_VALIDATION_RUN`, `AGENT_WORKSPACE_DIFF_READ` and `AGENT_PROMOTION_HANDOFF_PREPARE`, intersected with user, Project, Agent, environment, runtime and root ceilings. `AGENT_WORKSPACE_WRITE` grants no direct repository push/merge/deploy rights. Deny production environments. Filesystem enforcement is supervisor/OS/container backed, not prompt based. Validation profiles use registered commands/working directories and bounded environment variables. Default network egress remains provider/MCP plus explicitly certified Project needs; package installation or external downloads require a separately governed policy.
 
@@ -793,13 +837,13 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **Rollback/backward compatibility.** Disable `MANAGED_DEVELOPMENT` admission and new workspace creation first. Stop/drain or quarantine active writable Runs using the certified supervisor, preserve their evidence/workspaces according to retention policy, and leave Phase 3 read-only Codex execution available. Additive schema remains. No rollback copies unfinished workspace changes into the live checkout.
 
-**Items deferred.** Automatic merge/commit/push/deploy/publication; direct writes to the user's live checkout; production changes; arbitrary host shell; arbitrary network/package installation; shared writable workspaces; concurrent writers to one workspace; automatic conflict resolution/rebase; database mutation outside separately governed capabilities; autonomous promotion after validation; writable OpenClaw/Claude/local-runtime support until each adapter passes the same development-workspace certification.
+**Items deferred.** Automatic merge/commit/push/deploy/publication; direct writes to the user's live checkout; production changes; arbitrary host shell; arbitrary network/package installation; shared writable workspaces; concurrent writers to one workspace; automatic conflict resolution/rebase; database mutation outside separately governed capabilities; autonomous promotion after validation. Automatic creation of promotion-handoff evidence is **not** promotion. Writable OpenClaw/Claude/local-runtime support remains deferred until each adapter passes the same development-workspace certification.
 
 ### Phase 4 — OpenClaw adapter and provider-neutrality gate
 
 **Objective.** Execute the same registered task/result contract through an independently governed OpenClaw runtime without changing the core schema, policy, scheduler or UI model.
 
-**Rationale/dependencies.** Depends on Phases 2–3 contracts/Operations. Phase 3.5's managed-workspace contract is provider-neutral but writable support is an optional certified runtime capability; OpenClaw does not have to receive write authority merely to prove provider neutrality. Perform protocol research/certification in parallel with Phase 3/3.5 where possible; second-provider acceptance precedes broad v1 claims.
+**Rationale/dependencies.** Depends on Phases 2–3 contracts/Operations. Phase 3.5's managed-workspace contract is provider-neutral but writable support is an optional certified runtime capability; OpenClaw does not have to receive write authority merely to prove provider neutrality. Perform protocol research/certification in parallel with Phase 3/3.5 where possible. OpenClaw acceptance is required before broad multi-provider v1 claims, but it is not a serial blocker for Codex-focused Phase 5/6 work once the common provider-neutral contract is proven by the certified Codex adapter plus the deliberately divergent fake runtime.
 
 **Schema/migrations.** Add OpenClaw installation/account/Agent revisions and certification evidence as registry data. Store provider session/run references and recovery generation in generic fields/extensions. Any required new core field must represent a provider-neutral concept and trigger contract review.
 
@@ -829,7 +873,7 @@ Each phase is a separately reviewable change set with a feature gate and recorde
 
 **Objective.** Allow an Agent to request children through SkyCommand with complete lineage, authority monotonicity, bounded resource use and reliable parent result delivery.
 
-**Rationale/dependencies.** Depends on Phase 2 kernel and certified real adapters. Guardrails are part of this phase's first enabled behavior, not a follow-up milestone.
+**Rationale/dependencies.** Depends on the Phase 2 kernel, at least one certified real adapter, and provider-neutral contract evidence from the deliberately divergent fake runtime. A second real provider may certify in parallel and remains mandatory before broad multi-provider v1 acceptance, but it does not block Codex-focused delegation/workflow composition. Guardrails are part of this phase's first enabled behavior, not a follow-up milestone.
 
 **Schema/migrations.** Enable delegation intents, stable task fingerprints/repeat keys, parent-closing barrier, ancestry records, root/parent budget reservations and separate active/resident/open quotas. Add/verify constraints and indexes for child admission and duplicate detection.
 
@@ -1072,12 +1116,12 @@ If R3 instead calls an approved Workflow W2 that contains an Agent node, W2 is t
 3. Temporal dispatches R7 through the fenced supervisor. The Codex cell receives W1 as its writable project root plus its governed MCP inventory. Runtime-native file editing and bounded build/test shell behavior are confined to W1 and the certified cell policy.
 4. Codex modifies source files and invokes registered validations. SkyCommand/supervisor records canonical command receipts, exit statuses, artifacts and resource events. Governed SkyCommand capabilities still pass through MCP and live effect authorization.
 5. Before finalization, SkyCommand captures a changed-file manifest and content-addressed diff/patch against B1, validates required test evidence and validates `agent_run_summary.v1`. "Tests passed" in model text cannot replace validation receipts.
-6. U1 reviews Agent Operations: baseline B1, changed files, diff, validation results, usage/authority and artifacts. U1 may discard/retain W1 or explicitly prepare a Development Promotion handoff. Agent completion alone does not modify the live checkout, merge, push or deploy.
-7. A later separately authorized promotion/apply process consumes the handoff evidence under its own policy. Its result is linked back to E5/R7 rather than rewriting the Agent Run's immutable outcome.
+6. Successful workspace finalization automatically emits immutable Development Promotion handoff evidence containing the pinned baseline, diff/changed-file manifest, validation, source/configuration/runtime identity and relevant receipts. U1 reviews Agent Operations and may discard/retain W1. Agent completion and handoff creation alone do not modify the live checkout, merge, push or deploy.
+7. A later separately authorized promotion/apply process consumes the already-generated handoff evidence under its own policy. Its result is linked back to E5/R7 rather than rewriting the Agent Run's immutable outcome.
 
 ## 17. Implementation order and critical path
 
-The critical path is **baseline/upgrade readiness → explicit identity and authority → durable admission/effect receipts and supervisor fencing → certified Codex Manual read-only execution → certified Managed Development Workspace/code-modification path → second-runtime conformance → bounded delegation → workflow composition → unique authorized schedule firing → integrated recovery/release**.
+The critical path is **accepted-baseline delta certification → explicit identity/authority/execution-surface policy → durable admission/effect receipts and supervisor fencing → certified Codex Manual read-only execution → certified Managed Development Workspace/code-modification path → bounded delegation → workflow composition → unique authorized schedule firing → integrated recovery/release**. Second-runtime/OpenClaw conformance proceeds in parallel after the common contracts stabilize and must pass before broad multi-provider v1 acceptance.
 
 Parallel work after contracts stabilize:
 
@@ -1105,7 +1149,7 @@ These are policy/product choices, not invitations to improvise the security mode
 | Retention/backups and eligible readers | Adopt Section 11 defaults subject to organizational needs; define session owner, metadata observer and artifact reader roles separately. | Phase 1 / Phase 8 |
 | Human responders and unattended-wait behavior | Project-authorized responders, exact-action approval, deadline expiry fails/cancels according to pinned contract; no automatic approval. | Phase 2 / Phase 7 |
 | Schedule run-as ownership and transfer | Explicit named active user plus narrow stored grant; transfer requires reauthorization, missed occurrences default skipped. | Phase 7 |
-| Writable-development support | **Approved for v1 through Phase 3.5 only:** isolated SkyCommand-managed development workspace, bounded runtime-native edit/build/test behavior, canonical diff/validation evidence and explicit promotion handoff. No direct writes to the live SkyCommand checkout; no automatic merge/push/deploy/publication. | Phase 0 policy choice / Phase 3.5 certification |
+| Writable-development support | **Approved for v1 through Phase 3.5 only:** isolated SkyCommand-managed development workspace, bounded runtime-native edit/build/test behavior, canonical diff/validation evidence and automatic immutable promotion-handoff evidence. A later explicit promotion instruction remains required. No direct writes to the live SkyCommand checkout; no automatic merge/push/deploy/publication. | Phase 0 policy choice / Phase 3.5 certification |
 | External clients and authentication hosting | Select actual client/transport and user-authorization integration after v1. No assumption that ChatGPT availability constitutes authorization. | Phase 9 |
 
 Additional evidence needed from the full repository/deployment: current migration state, complete self-tests, representative Temporal histories, registered production environments/capabilities, credential storage conventions, host isolation tooling and installed Codex/OpenClaw versions. Missing evidence blocks the relevant enablement gate; it does not justify weakening the contract.
@@ -1115,6 +1159,20 @@ Additional evidence needed from the full repository/deployment: current migratio
 The Astra Ultra blueprint is approved as the architectural foundation with one intentional product amendment adopted during Sky review: **managed writable development is part of controlled local v1 rather than deferred wholesale beyond v1**. The amendment does **not** relax Astra's core safety model. It narrows write authority to an isolated SkyCommand-managed development workspace, keeps direct live-checkout and control-plane writes prohibited, requires canonical diff/validation evidence, and leaves merge/commit/push/deploy/publication under separate governance.
 
 This amendment exists because SkyCommand's first practical Agentic AI release must be capable of producing real software changes while preserving the principle that the reasoning runtime does not own promotion authority. Phase 3 remains the read-only proving ground; Phase 3.5 is the explicit bridge from safe observation to useful development execution.
+
+## 19.1 v1.2 post-R8 amendment record
+
+The v1.2 amendment is an operational refinement based on the accepted R0–R8 Autonomous DEV implementation. It does not weaken the v1.0/v1.1 security architecture.
+
+The amendment establishes five implementation rules that future phases must preserve:
+
+1. authority includes request-level execution-surface policy and observable surface transitions;
+2. human and agent entry surfaces share one governed operational core;
+3. runtime/configuration freshness is a first-class preflight and reconciliation concern;
+4. managed-development finalization automatically creates promotion-handoff evidence while promotion remains a separate human-authorized boundary;
+5. provider-neutrality certification may progress in parallel so a second provider does not become a serial blocker for Codex-focused delegation/`AGENT_TASK`, while multi-provider v1 acceptance still requires the second provider.
+
+Phase 0 is henceforth a delta-certification gate over the accepted R8 baseline rather than a mandate to re-run completed remediation work.
 
 ## 20. Final ready-to-implement checklist
 

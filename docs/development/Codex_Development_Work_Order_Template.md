@@ -1,4 +1,4 @@
-# Luna Development Work Order Template
+# Codex/Luna Development Work Order Template
 
 > **Use:** Copy this file for a new development request and replace bracketed placeholders. Delete sections that are genuinely not applicable; do not leave ambiguous placeholders in an executable work order.
 >
@@ -47,7 +47,7 @@ Use one of: `ALLOW`, `READ_ONLY`, `DENY`, `EXPLICIT_APPROVAL_REQUIRED`.
 Read and follow before implementation:
 
 - `AGENTS.md`
-- `docs/development/SkyCommand_Development_Operating_Rules_v1.4.md`
+- `docs/development/SkyCommand_Development_Operating_Rules_v1.5.md`
 - `[phase/remediation/architecture document relevant to this task]`
 
 Where they conflict, use the active Development Operating Rules and the narrower scope of this work order. Do not silently rewrite governance or broaden the task.
@@ -60,7 +60,7 @@ Inspect the live/current development state needed for this task. At minimum, as 
 - relevant source implementation and tests;
 - registered Tool/Workflow definitions and current published versions;
 - database identity, migration/seed ledger, pending changes, and drift state;
-- runtime/Host Agent health and affected services;
+- runtime/Host Agent health and affected services, including effective runtime generation/freshness when behavior depends on live process state;
 - non-secret configuration key presence/classification;
 - current Capability Catalogue / Repo Map / generated evidence when useful.
 
@@ -88,7 +88,9 @@ Preserve unrelated newer work and historical applied migrations/receipts. Prefer
 
 - Rebuild/restart only affected services unless a broader governed lifecycle action is explicitly authorized.
 - Preserve Host Agent/Supervisor safety boundaries.
-- If runtime configuration changes require service refresh, perform the required governed refresh before acceptance testing.
+- Treat reviewed source/configuration state and effective running-process state as separate evidence.
+- If runtime configuration or deployed source changes require service refresh, perform the required governed reconcile/rebuild/restart before acceptance testing when the request authorizes that lifecycle surface.
+- Record the resulting runtime generation/freshness evidence when available; do not misclassify stale runtime state as source/configuration drift.
 
 ## 5. Recovery and retry policy
 
@@ -122,6 +124,7 @@ Acceptance requires, as applicable:
 - required runtime and Host Agent checks are healthy;
 - generated Capability Catalogue / Repo Map / Repo ZIP / receipt are current;
 - receipt/source/configuration/database identity is internally consistent;
+- runtime generation/freshness is consistent with the reviewed state where applicable;
 - `git diff --check` passes;
 - working tree contains only expected reviewable changes.
 
