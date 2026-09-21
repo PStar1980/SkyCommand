@@ -17,3 +17,9 @@ Only SkyCommand will admit Agent Runs. Runtime adapters will translate protocol 
 ## Server-derived context
 
 Public request fields may contain task input, selected registered identifiers, requested narrowing, and an idempotency key. The server must derive authenticated actor, sponsoring user/run-as user, Project membership, Agent revision, root/parent lineage, permissions, runtime/account grants, provider credentials, workspace paths, and effective authority. Client-supplied identity, permission, root/parent IDs, provider thread IDs, raw filesystem paths, and credentials are never authoritative.
+
+## v1.2 execution-surface rule
+
+Entry surface and execution-surface authority are separate concepts. A Run may be admitted from one entry surface while individual effects are restricted to a narrower set of execution surfaces by the request/Run policy. Any permitted fallback between MCP/API, SkyCommand UI through Computer Use/browser control, local shell, connected Apps/Plugins, remote-device control, or registered Playwright/browser automation preserves the same logical operation, authorization ceiling, idempotency/recovery state and retry budget.
+
+Human UI and authorized agent entry paths must converge on the same registered Tool/Workflow definitions, preflights, recovery semantics and durable receipts. Runtime-dependent operations also carry/verify effective runtime-generation freshness so a stale process can be distinguished from source/configuration drift.

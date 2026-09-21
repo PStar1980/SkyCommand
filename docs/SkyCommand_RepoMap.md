@@ -1441,7 +1441,7 @@ SkyCommand/
 │   ├── SkyCommand_Temporal_Workflow_Architecture_Plan.md
 │   ├── SkyCommand_Tool_Authoring_Guide.md
 │   ├── agentic-ai/
-│   │   ├── SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md
+│   │   ├── SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md
 │   │   └── phase-0/
 │   │       ├── api-authorization-matrix.md
 │   │       ├── baseline-manifest.json
@@ -1463,7 +1463,7 @@ SkyCommand/
 │   ├── audits/
 │   ├── development/
 │   │   ├── Codex_Development_Work_Order_Template.md
-│   │   └── SkyCommand_Development_Operating_Rules_v1.4.md
+│   │   └── SkyCommand_Development_Operating_Rules_v1.5.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
 │   ├── generated/

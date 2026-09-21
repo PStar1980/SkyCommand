@@ -1,17 +1,16 @@
 # AGENTS.md — SkyCommand Autonomous Development Agent Rules
 
-Read and follow `docs/development/SkyCommand_Development_Operating_Rules_v1.4.md` before making changes.
+Read and follow `docs/development/SkyCommand_Development_Operating_Rules_v1.5.md` before making changes.
 
-The completed Autonomous DEV remediation remains documented in:
-`docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md`
+R0–R8 Autonomous DEV remediation is accepted historical evidence. The retired remediation plan is not an active working-tree authority and does not need to remain in the current repository.
 
 The authoritative long-range Agentic AI roadmap remains:
-`docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`
+`docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md`
 
 Use the current development request/work-order template when preparing new implementation instructions:
-`docs/development/Luna_Development_Work_Order_Template.md`
+`docs/development/Codex_Development_Work_Order_Template.md`
 
-The v1.4 Operating Rules supersede earlier active development-governance procedures where they conflict.
+The v1.5 Operating Rules supersede earlier active development-governance procedures where they conflict.
 
 ## Current development baseline
 
@@ -128,6 +127,14 @@ Subject to the request-level execution-surface policy, the agent may, without ad
 - Do not create per-operation approval flags when Workflow/Tool permission already expresses authority.
 - `.env.example` contains non-secret defaults/documentation only; `.env` remains local and untracked.
 - Configuration tooling must report key names/classification, never secret values.
+
+## Runtime freshness and reconciliation
+
+- Treat source/configuration correctness and effective running-process state as separate facts.
+- When relevant, verify the running API/worker/Host Agent/MCP/runtime generation against the reviewed source/configuration/capability state.
+- A stale runtime is not automatically source drift.
+- When the work order authorizes routine DEV lifecycle work, use the governed reconcile/rebuild/restart/refresh path rather than stopping to ask Paul to perform it manually.
+- Preserve the same operation/retry/authorization context across any permitted interface or lifecycle recovery, and report the resulting runtime evidence.
 
 ## Git and promotion
 

@@ -9,10 +9,13 @@
 5. Provider session IDs never substitute for SkyCommand Run IDs. Provider sends are uncertain until reconciled; cancellation revokes future authority before physical stoppage is reported.
 6. Telemetry carries source, scope, freshness, and availability. Unknown usage/quota/context/cost/model/reasoning stays unknown; progress text is not evidence.
 7. Existing Tool, Workflow, Scheduler, Access Control, MCP, and Playwright behavior is preserved. Managed-linked reads will require resource ACLs in later phases; legacy Assistant compatibility is explicit and browser-only.
+8. Request-level execution-surface authority is distinct from capability authority. Availability of Computer Use, browser control, Apps/Plugins, remote-device access, MCP, local shell, or another interface does not grant permission to use it. Surface transitions preserve the same operation/retry/idempotency context and must be observable.
+9. Human UI and authorized agent surfaces converge on the same governed Tool/Workflow/preflight/recovery/receipt semantics; agent governance must not create an agent-only operational path.
+10. Runtime-dependent acceptance records source/configuration/capability identity and effective process generation/freshness so stale runtime state can be reconciled without being mislabeled as source drift.
 
 ## Mandatory audit/evidence vocabulary
 
-Use explicit availability values such as `REPORTED`, `NOT_REPORTED`, `UNSUPPORTED`, and `UNKNOWN`; do not coerce absent values to zero. Record correlation IDs, authority digest, policy revisions, source event identity/cursor, command/operation IDs, and stop/reconciliation evidence. Results and artifacts are immutable after terminal publication; late telemetry is an evidence revision.
+Use explicit availability values such as `REPORTED`, `NOT_REPORTED`, `UNSUPPORTED`, and `UNKNOWN`; do not coerce absent values to zero. Record correlation IDs, authority digest, policy revisions, requested/effective execution surface, surface-transition reason, human intervention, runtime source/configuration/capability identity and generation/freshness where applicable, source event identity/cursor, command/operation IDs, and stop/reconciliation evidence. Results and artifacts are immutable after terminal publication; late telemetry is an evidence revision.
 
 ## Open owner decisions
 
