@@ -1,19 +1,19 @@
-# SkyCommand Development Operating Rules v1.3
+# SkyCommand Development Operating Rules v1.4
 
 **Status:** Active development governance  
-**Revision:** 2026-09-18 — Post-R6 autonomous DEV promotion baseline  
-**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.2.md`  
+**Revision:** 2026-09-20 — Post-R8 accepted DEV baseline and request-level execution-surface governance  
+**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.3.md`  
 **Applies to:** Paul, Sky/ChatGPT, Codex/Luna/Astra, future coding agents, and any agent operating on the SkyCommand repository  
 **Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`  
 **Immediate pre-Phase-1 remediation authority:** `docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md`
 
 ## Transition scope and precedence
 
-R0–R6 establish the accepted Autonomous DEV implementation and promotion baseline. R7 cleanup and R8 one-instruction acceptance remain separate scoped remediation steps. Agentic AI Phase 1 remains blocked until R8 acceptance.
+R0–R8 are complete and establish the accepted Autonomous DEV implementation, finalization, recovery, and promotion baseline. Agentic AI Phase 1 is no longer blocked by the remediation gate; it may begin only through separately scoped work orders under the approved long-range architecture.
 
 These operating rules govern the operator-authorized local Codex/Luna development workflow in the approved DEV checkout. The long-range architecture governs future SkyCommand-managed Agent Runs: those agents remain isolated from the live checkout, control-plane secrets, Docker socket, and privileged Host Agent. Their writable access begins only through the certified Phase 3.5 managed-workspace path. Local operator access does not become blanket authority for managed agents.
 
-The assigned work order limits implementation scope. R0–R8 are sequential acceptance gates, not blanket permission to implement every phase. Required routine operations within an assigned step remain autonomous. R2's bootstrap exception is closed: the registered database-upgrade capability is now the normal mutation path for canonical DEV migrations/seeds. R3 configuration reconciliation, R4 governed agent execution, R5 Dev Change Finalization, and R6 governed promotion are the normal accepted DEV boundaries where applicable.
+The assigned work order limits implementation scope. Completion of R0–R8 is acceptance history, not blanket permission to implement later roadmap phases. Required routine operations within an assigned task remain autonomous. The registered database-upgrade capability is the normal mutation path for canonical DEV migrations/seeds; typed configuration reconciliation, governed agent execution, Dev Change Finalization, governed recovery, and Development Promotion are the accepted DEV boundaries where applicable.
 
 No instruction here overrides runtime access controls. A genuine inaccessible capability is a blocker, not a request for a ceremonial second approval.
 
@@ -89,6 +89,39 @@ When Paul later explicitly instructs promotion:
 The intended human pattern is therefore:
 
 **instruction → autonomous implementation → human review/testing → promotion instruction → autonomous promotion → receipt.**
+
+### 3.4 Request-level execution-surface policy
+
+Execution-surface authority is defined by the current request/work order. Global availability of a capability does not by itself authorize its use for every task.
+
+Each work order should explicitly classify the execution surfaces relevant to that request. Typical surfaces include:
+
+- repository/file editing;
+- local shell/command execution;
+- SkyCommand MCP/API;
+- SkyCommand UI through Computer Use or browser control;
+- general desktop Computer Use;
+- browser control outside SkyCommand;
+- connected Apps/Plugins such as GitHub, Dropbox, Drive, Outlook, or Gmail;
+- remote-device/control surfaces.
+
+A request may mark a surface **ALLOW**, **READ_ONLY**, **DENY**, or **EXPLICIT_APPROVAL_REQUIRED**. These permissions are scoped to that request only and do not change global Codex/ChatGPT settings, installed integrations, registered MCP capabilities, or future-task authority.
+
+Rules:
+
+- Possession of a capability does not constitute authorization to use it.
+- A connected App, authenticated browser session, enabled Computer Use integration, or exposed MCP tool is capability evidence, not task authority.
+- A permission error, stale wrapper, unavailable Tool, or failed Workflow on one surface does not authorize switching to a more privileged surface.
+- Surface substitution is allowed only when the request explicitly permits that fallback, or Paul explicitly authorizes it during the task.
+- Surface permissions do not override operation-level hard boundaries elsewhere in these rules.
+- When an allowed UI/Computer Use action invokes a SkyCommand Workflow, Tool, or recovery control, the underlying SkyCommand operation remains the governed action and should retain its normal receipt/evidence.
+- If a legacy work order contains no execution-surface section, use only the ordinary repository/local-shell and explicitly permitted SkyCommand Tool/Workflow surfaces required by that task. Do not infer Computer Use, browser-control, remote-device, or connected-App mutation authority.
+
+### 3.5 Human and agent parity
+
+SkyCommand's development workflows are shared operational surfaces for humans and agents. Paul may manually run **Dev Change Finalization**, **Dev Promotion Local**, and permitted recovery controls through the SkyCommand UI. Agent execution-surface restrictions do not restrict Paul's own manual UI use.
+
+Human UI execution and authorized agent execution must converge on the same registered Workflow definitions, preflights, permission checks, receipts, and evidence. Governance added for agent autonomy must not make the normal human development path unusable or require agent-only ceremony.
 
 ## 4. Database development policy
 
@@ -184,7 +217,9 @@ A local configuration Tool/node should:
 
 Within an assigned `DEV_LOCAL` task, an agent may autonomously use local Docker lifecycle operations and repository-local commands required to make and validate the change, including rebuilding/restarting affected SkyCommand services.
 
-The agent may use registered Host Agent/local capabilities that are allowlisted to its identity and required by the task.
+The agent may use registered Host Agent/local capabilities that are allowlisted to its identity, required by the task, and permitted by the request-level execution-surface policy.
+
+When Computer Use, browser control, connected Apps/Plugins, or remote-device control is permitted by the current request, those surfaces remain bounded by the same task scope and operation-level rules. They must not be used to bypass a SkyCommand permission, preflight, promotion boundary, database boundary, or secret-handling rule.
 
 The following still require a separately scoped reason/instruction:
 
@@ -290,6 +325,10 @@ The `capability_catalog_export` Tool must be registered and incorporated into th
 - Observability must not require a human to authorize every normal DEV action.
 - Failure evidence should identify the failed boundary and safe error code without leaking secrets.
 - Generated snapshots should identify source revision, environment, generation time, and data source.
+- Until SkyCommand has a native Agent Execution Trace, an agent completion report must identify the execution surfaces it actually used and any surface substitutions made during the task.
+- Computer Use/browser/App activity that invokes SkyCommand should be correlated to the underlying Workflow/Tool/recovery receipt when possible; a UI click is not a substitute for durable operational evidence.
+- Target Agent Execution Trace fields include requested surface, effective surface, authority source, actor/session, relevant Workflow/Tool/run identifiers, recovery/retry count, human intervention, surface transitions, and terminal result.
+- A change of interface does not reset retry, recovery, idempotency, or authorization budgets for the underlying operation.
 
 ## 11. Stop conditions
 
@@ -316,6 +355,7 @@ Stop before completion when:
 - repository/database drift makes deterministic continuation unsafe;
 - a destructive/non-idempotent operation outside the allowed contract is required;
 - an allowlisted capability needed for completion genuinely does not exist or fails unrecoverably;
+- completion would require an execution surface that the current request does not authorize;
 - continuing would require changing the governing architecture/phase rather than implementing the assigned task.
 
 Otherwise, complete the task first and report afterward.
@@ -332,25 +372,30 @@ At completion report:
 6. tests/validation with exact results;
 7. generated artifacts/evidence;
 8. material discrepancies or remaining blockers;
-9. final Git status and concise diff summary.
+9. execution surfaces used, including any Computer Use/browser/App/remote-device use, surface substitution, and human intervention;
+10. final Git status and concise diff summary.
 
 Then stop for Paul/Sky review.
 
-## 13. Remediation gate before Agentic AI Phase 1
+## 13. R8 acceptance and Agentic AI Phase 1 entry
 
-R0–R6 are the accepted implementation/promotion baseline. R7 cleanup and R8 one-instruction end-to-end acceptance remain outstanding remediation gates.
+R0–R8 are accepted as the completed Autonomous DEV remediation baseline. The one-instruction implementation path and separately authorized one-instruction DEV promotion path have been exercised through the governed finalization, recovery, PR merge, remote synchronization, local synchronization, and receipt boundaries.
 
-Do not begin the approved Agentic AI Phase 1 implementation until R7/R8 are completed and the Autonomous DEV remediation plan's one-instruction implementation and separate one-instruction promotion acceptance tests pass.
+The remediation plan remains authoritative historical/acceptance context, but its numbered steps are not standing authority to re-run old remediation work or broaden a new task.
 
-The acceptance standard is not "many safety gates exist." It is:
+Agentic AI Phase 1 may now begin when Paul/Sky issue an explicit scoped work order. Phase 1 does not inherit unrestricted `DEV_LOCAL` host authority merely because the local Codex/Luna development agent has it. Managed-agent isolation, workspace certification, resource grants, and later Phase 3.5 boundaries remain governed by the approved architecture.
 
-> Paul gives one development instruction; the authorized agent completes the entire local development turn without Paul intervention, leaves a reviewable final state with complete evidence, and stops.
+Future agentic work orders should use `docs/development/Luna_Development_Work_Order_Template.md` or an equivalent request that explicitly states task scope, promotion boundary, recovery policy, and request-level execution-surface permissions.
+
+The continuing acceptance standard is:
+
+> Paul gives one scoped instruction; the authorized agent completes the permitted local development turn without routine Paul intervention, leaves a reviewable final state with complete evidence, and stops. Any use of elevated or alternate execution surfaces is explicit in the request and observable in the result.
 
 ## 14. Change to these rules
 
 These rules remain active until Paul explicitly approves another revision.
 
-A coding agent may recommend changes but must not silently rewrite its own authority. This v1.3 revision records the Paul-authorized post-R6 `DEV_LOCAL` operating model and the governed promotion chain.
+A coding agent may recommend changes but must not silently rewrite its own authority. This v1.4 revision records the Paul-authorized post-R8 `DEV_LOCAL` operating model, request-level execution-surface governance, human/agent workflow parity, and the transition into scoped Agentic AI integration.
 
 ## 15. Accepted execution and evidence requirements
 
@@ -368,3 +413,7 @@ A coding agent may recommend changes but must not silently rewrite its own autho
 - The GitHub PR merge is workflow-owned and returns durable PR/merge evidence. Subsequent remote and local synchronization must verify the final approved SHA/state.
 - Reconcile the expected source changes caused by workflow-owned commit/PR merge/remote sync/local sync in the final receipt. Do not silently absorb unrelated concurrent edits.
 - Successful development and promotion acceptance requires crash/retry/concurrency/drift checks as specified in remediation R8, in addition to zero intermediate Paul actions.
+- R7 retires obsolete D2 database-upgrade request/apply Assistant/Admin-Web/MCP surfaces and the related temporary permission/configuration scope while preserving historical execution records.
+- R8 treats Host Agent heartbeat freshness as timestamp-based runtime evidence. The accepted DEV configuration uses an allowlisted configurable freshness threshold bounded to the implemented safe range; stale or unrecognized runtime configuration fails closed until reconciled and the affected runtime is refreshed.
+- R8 acceptance does not authorize hidden surface escalation. Computer Use, browser control, connected Apps/Plugins, and remote-device capabilities are governed per request and must be observable when used.
+- Recovery budget follows the underlying durable operation across interfaces. A retry through the SkyCommand UI after an MCP/API attempt is the same recovery budget unless the work order explicitly says otherwise.

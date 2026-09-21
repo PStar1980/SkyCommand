@@ -1,18 +1,21 @@
 # AGENTS.md — SkyCommand Autonomous Development Agent Rules
 
-Read and follow `docs/development/SkyCommand_Development_Operating_Rules_v1.3.md` before making changes.
+Read and follow `docs/development/SkyCommand_Development_Operating_Rules_v1.4.md` before making changes.
 
-During the Autonomous DEV remediation, also follow:
+The completed Autonomous DEV remediation remains documented in:
 `docs/development/SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md`
 
 The authoritative long-range Agentic AI roadmap remains:
 `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.1_APPROVED.md`
 
-The v1.3 Operating Rules supersede earlier active development-governance procedures where they conflict.
+Use the current development request/work-order template when preparing new implementation instructions:
+`docs/development/Luna_Development_Work_Order_Template.md`
 
-## Current remediation boundary
+The v1.4 Operating Rules supersede earlier active development-governance procedures where they conflict.
 
-R0–R6 establish the accepted Autonomous DEV implementation/promotion baseline. R7 cleanup and R8 one-instruction acceptance remain separate scoped remediation steps. Agentic AI Phase 1 remains blocked until R8 acceptance.
+## Current development baseline
+
+R0–R8 are complete and establish the accepted Autonomous DEV implementation, finalization, recovery, and promotion baseline. Agentic AI Phase 1 may now proceed only through separately scoped work orders under the approved architecture.
 
 These rules govern operator-authorized local development in the approved `DEV_LOCAL` checkout. Future SkyCommand-managed Agent Runs remain subject to the isolation and authority boundaries in the long-range architecture; local checkout/host access does not automatically transfer to managed agents.
 
@@ -22,29 +25,45 @@ Complete only the assigned work order/phase. A normal implementation instruction
 
 SkyCommand development automation exists to remove routine human intervention.
 
-For an explicitly assigned `DEV_LOCAL` task, the task instruction authorizes the agent to complete the work end-to-end within the assigned scope. The agent must not stop to ask Paul to perform routine implementation steps that the agent can perform through an allowed local action, registered Tool, or permitted Workflow.
+For an explicitly assigned `DEV_LOCAL` task, the task instruction authorizes the agent to complete the work end-to-end within the assigned scope and request-level execution-surface policy. The agent must not stop to ask Paul to perform routine implementation steps that the agent can perform through an authorized local action, registered Tool, or permitted Workflow.
 
 Normal implementation sequence:
 
 1. Receive one scoped implementation instruction.
-2. Inspect repository/runtime reality.
-3. Make the required source/configuration changes.
-4. Perform all required local development operations autonomously.
-5. Run the registered **Dev Change Finalization** Workflow.
-6. Verify final state, receipts, structured results, and generated evidence.
-7. Report the completed reviewable DEV result and stop for Paul/Sky review.
+2. Read its request-level execution-surface policy.
+3. Inspect repository/runtime reality.
+4. Make the required source/configuration changes.
+5. Perform all required authorized local development operations autonomously.
+6. Run the registered **Dev Change Finalization** Workflow.
+7. Verify final state, receipts, structured results, and generated evidence.
+8. Report the completed reviewable DEV result and stop for Paul/Sky review.
 
 Human review belongs at the end of the development turn, not between routine implementation steps.
+
+## Request-level execution surfaces
+
+Execution-surface authority is defined per request/work order, not by the mere existence of a global Codex/ChatGPT capability.
+
+- A connected or available capability is not authorization to use it.
+- Global Computer Use, browser control, remote-device access, connected Apps/Plugins, MCP servers, authenticated browser sessions, and local applications remain available only when the current request permits their use.
+- The work order may allow, deny, restrict to read-only, or require additional explicit approval for each execution surface.
+- Do not switch to Computer Use, browser control, a connected App/Plugin, or another more privileged surface merely because the preferred SkyCommand/MCP/Tool path is denied, unavailable, stale, or failing.
+- A permission failure on one surface does not create authority on another surface.
+- If the current request explicitly permits fallback or surface substitution, the agent may use that fallback within the same task authority and retry/recovery budget, and must report the transition.
+- Surface permissions never override operation-level hard boundaries such as production restrictions, direct Git mutation rules, database mutation rules, promotion boundaries, or secret handling.
+- When an authorized browser/Computer Use action invokes SkyCommand UI controls, the underlying SkyCommand Workflow/Tool/recovery action remains the governed operation and should be tied to its durable receipt when possible.
+
+If a legacy request omits an execution-surface section, use only the ordinary repository/local-shell and explicitly permitted SkyCommand Tool/Workflow surfaces needed for the task. Do not infer authorization for Computer Use, browser control, remote-device control, or connected-App mutation.
 
 ## Workflow-first execution
 
 - SkyCommand Workflows are the preferred orchestration boundary.
 - Agent identities are granted server-side permission to specific Workflows and Tools.
-- If the current agent is permitted to run a Workflow, invoking that Workflow requires no additional per-run human approval unless the Workflow represents a separately authorized environment/release boundary.
+- If the current agent is permitted to run a Workflow and the current request permits that execution surface, invoking that Workflow requires no additional per-run human approval unless the Workflow represents a separately authorized environment/release boundary.
 - MCP/API connectivity does not create authority by itself. Use the registered identity/context and SkyCommand permission checks.
 - When a registered Workflow or Tool already performs an operation, use it rather than recreating the operation with direct shell/database/Git calls.
 - Run **Dev Change Finalization** before stopping after a source/configuration development change unless the assigned work order explicitly establishes another accepted boundary.
-- The agent may autonomously poll/inspect its own Workflow runs, use registered recovery/retry behavior, and collect final structured results.
+- The agent may autonomously poll/inspect its own Workflow runs, use registered recovery/retry behavior, and collect final structured results when the work order authorizes those surfaces/actions.
 
 ## Development Promotion
 
@@ -67,9 +86,15 @@ Registered variants may include additional non-mutating governance/evidence node
 
 `Merge GitHub Dev PR` owns the governed `dev -> main` GitHub PR merge boundary. Agents must not replace it with direct Git/GitHub mutation or ask Paul to perform the same merge manually once promotion has already been explicitly authorized.
 
+## Human and agent parity
+
+The same server-side development Workflows must remain usable by Paul through the SkyCommand UI as well as by authorized agents through MCP/API. Agent execution-surface restrictions do not prohibit Paul from manually running **Dev Change Finalization**, **Dev Promotion Local**, or permitted recovery controls.
+
+Human UI execution and agent execution must converge on the same authoritative Workflow definitions, preflights, permission checks, receipts, and evidence. Do not introduce agent-only ceremony that makes the normal human development path unusable.
+
 ## Allowed inside an assigned DEV_LOCAL task
 
-The agent may, without additional human intervention:
+Subject to the request-level execution-surface policy, the agent may, without additional human intervention:
 
 - read and edit repository source files within task scope;
 - read/query the development database, including schema/catalog/metadata inspection;
@@ -112,6 +137,14 @@ The agent may, without additional human intervention:
 - A user instruction to promote is sufficient authorization to start the permitted DEV promotion Workflow and allow that Workflow to complete its registered DEV steps without another Paul approval checkpoint.
 - Production deployment/publication remains outside this DEV rule.
 
+## Recovery and retry semantics
+
+- Recovery authority belongs to the underlying operation/run, not to the interface used to invoke it.
+- Switching from MCP/API to UI/Computer Use, or between any other permitted surfaces, does not create a fresh retry budget.
+- Prefer recovery of the existing durable Workflow/run when the work order permits recovery.
+- Do not create a replacement run merely because another surface is available unless the work order explicitly authorizes a replacement.
+- Preserve completed checkpoints and report the exact surface used for each recovery action when surface substitution occurs.
+
 ## Hard boundaries
 
 Without a separate explicit instruction, do not:
@@ -122,7 +155,8 @@ Without a separate explicit instruction, do not:
 - expose secrets;
 - perform unrelated destructive host/OS/network actions;
 - expand the assigned task into another remediation/roadmap phase;
-- bypass SkyCommand permissions, preflight/review binding, or fabricate authority.
+- bypass SkyCommand permissions, preflight/review binding, or fabricate authority;
+- use an unapproved execution surface as a workaround for a denied or unavailable authorized path.
 
 ## Completion contract
 
@@ -132,9 +166,10 @@ Before stopping an implementation turn, the agent must:
 2. verify database/configuration/runtime state relevant to the task;
 3. run appropriate validation/tests;
 4. retain structured Tool/Workflow receipts and material evidence;
-5. report files changed, database/configuration actions, Workflows run, validation results, discrepancies, final Git status, and concise diff summary;
-6. stop for Paul/Sky review.
+5. report files changed, database/configuration actions, Workflows run, validation results, discrepancies, final Git status, concise diff summary, and execution surfaces used;
+6. explicitly disclose any Computer Use, browser control, connected App/Plugin, remote-device control, or other surface substitution used during the task;
+7. stop for Paul/Sky review.
 
 After a separately authorized promotion, the agent must observe the promotion to terminal state, report the final promotion receipt and branch/SHA/PR/synchronization evidence, then stop.
 
-Routine execution is autonomous. Review, promotion intent, governance changes, and release direction remain human.
+Routine execution is autonomous. Review, promotion intent, request-level surface authority, governance changes, and release direction remain human.

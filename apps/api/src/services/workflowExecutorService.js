@@ -2521,6 +2521,28 @@ function buildNodeParameters(node, requestInput = {}, executionContext = {}) {
   });
 }
 
+function buildTrustedPromotionAuthorization(context = {}) {
+  const source = getSafeObject(context?.promotionAuthorization);
+  const allowedKeys = [
+    'instructionSource',
+    'triggerSource',
+    'triggerType',
+    'agentId',
+    'actorUserId',
+    'instructionRef',
+    'requestId',
+    'requestedAt',
+    'finalizationWorkflowRunId',
+    'finalizationReceiptSha256',
+    'finalizationSourceIdentityDigest',
+  ];
+  return allowedKeys.reduce((result, key) => {
+    if (source[key] === undefined || source[key] === null) return result;
+    result[key] = String(source[key]).slice(0, 512);
+    return result;
+  }, {});
+}
+
 function buildWorkflowRunAuthorization({ input = {}, user = null, context = {}, permissions = [] } = {}) {
   const safeInput = getSafeObject(input);
   const runtimeParameters = getWorkflowRuntimeParams(safeInput);
@@ -2552,11 +2574,24 @@ async function insertWorkflowRun({
   user,
   context,
   permissions = [],
+  session = null,
   status = 'RUNNING',
   metadata = {},
   workflowRunRecordId = null,
 } = {}) {
   const safeInput = getSafeObject(input);
+  const promotionAuthorization = buildTrustedPromotionAuthorization(context);
+  const requestContext = {
+    ipAddress: context?.ipAddress || null,
+    userAgent: context?.userAgent || null,
+    requestId: context?.requestId || null,
+    sessionId: context?.sessionId || session?.sessionId || null,
+    executionContext: getSafeObject(context?.executionContext),
+    authorization: buildWorkflowRunAuthorization({ input: safeInput, user, context, permissions }),
+  };
+  if (Object.keys(promotionAuthorization).length > 0) {
+    requestContext.promotionAuthorization = promotionAuthorization;
+  }
   const result = await query(
     `
       INSERT INTO worker.workflow_run_records (
@@ -2587,12 +2622,7 @@ async function insertWorkflowRun({
       safeInput.triggerType || 'MANUAL',
       status,
       JSON.stringify(safeInput),
-      JSON.stringify({
-        ipAddress: context?.ipAddress || null,
-        userAgent: context?.userAgent || null,
-        executionContext: getSafeObject(context?.executionContext),
-        authorization: buildWorkflowRunAuthorization({ input: safeInput, user, context, permissions }),
-      }),
+      JSON.stringify(requestContext),
       user?.userId || null,
       JSON.stringify({
         executor: 'skycommand_workflow_executor_v1',
@@ -6576,6 +6606,7 @@ async function startWorkflowWithTemporal({
       user,
       context,
       permissions,
+      session,
       status: 'QUEUED',
       workflowRunRecordId,
       metadata: {
@@ -8013,6 +8044,22 @@ async function getWorkflowRunTelemetry(workflowRunRecordId) {
   };
 }
 
+async function findWorkflowRunByPromotionIdentity({ workflowCode, idempotencyKeyHash } = {}) {
+  const result = await query(
+    `
+      SELECT workflow_run_record_id, workflow_code, status, input, temporal_workflow_id,
+             temporal_run_id, created_at, started_at, completed_at
+      FROM worker.workflow_run_records
+      WHERE workflow_code = $1
+        AND input #>> '{promotionRequest,idempotencyKeyHash}' = $2
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [workflowCode, idempotencyKeyHash],
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   WorkflowServiceError,
   completeWorkflowNodeRun,
@@ -8040,6 +8087,7 @@ module.exports = {
   getWorkflowDefinitionForVersion,
   getWorkflowDefinitionForManage,
   getWorkflowRun,
+  findWorkflowRunByPromotionIdentity,
   getWorkflowRunDiagnostics,
   getWorkflowRunTelemetry,
   getWorkflowNodeOutputsForRun,

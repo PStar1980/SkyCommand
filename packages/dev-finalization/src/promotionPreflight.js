@@ -14,6 +14,7 @@ const {
   normalizedRelativePath,
   readDatabasePlan,
 } = require('./finalization');
+const { readStoredPromotionIdentity } = require('./promotionIdentity');
 
 const TOOL_CODE = 'dev_promotion_preflight';
 const OUTPUT_TYPE = 'dev_promotion_preflight_summary.v1';
@@ -275,8 +276,8 @@ async function loadPromotionAdmission(workflowRunRecordId, queryFn = defaultQuer
             a.workflow_execution_admission_id,
             a.workflow_execution_principal_id,
             a.workflow_execution_resource_grant_id,
-            a.idempotency_key_hash,
-            a.request_digest,
+            COALESCE(a.idempotency_key_hash, r.input #>> '{promotionRequest,idempotencyKeyHash}') AS idempotency_key_hash,
+            COALESCE(a.request_digest, r.input #>> '{promotionRequest,requestDigest}') AS request_digest,
             a.workflow_definition_id AS admission_workflow_definition_id,
             a.workflow_version_id AS admission_workflow_version_id,
             a.version_number AS admission_version_number,
@@ -389,14 +390,32 @@ function trustedAttribution(admission) {
       executionContext.authMode || admission.auth_mode || (admission.started_by_user_id ? 'HUMAN_SESSION' : null),
     ),
     userId: nullableText(admission.started_by_user_id),
-    sessionId: nullableText(requestContext.sessionId),
+    sessionId: nullableText(requestContext.sessionId || authorization.sessionId),
     agentId: nullableText(authorization.agentId || requestContext.agentId),
-    instructionSource: text(admission.run_source).toLowerCase() === 'assistant' ? 'ASSISTANT' : 'OPERATOR',
+    instructionSource: text(
+      authorization.instructionSource,
+      text(admission.run_source).toLowerCase() === 'assistant' ? 'ASSISTANT' : 'OPERATOR',
+    ),
     instructionRef: nullableText(authorization.instructionRef),
-    triggerSource: nullableText(admission.run_source),
-    triggerType: nullableText(admission.trigger_type),
+    triggerSource: nullableText(authorization.triggerSource || admission.run_source),
+    triggerType: nullableText(authorization.triggerType || admission.trigger_type),
     requestedAt: nullableText(authorization.requestedAt || admission.created_at),
   };
+}
+
+function resolvePromotionAdmissionIdentity(admission) {
+  const identity = readStoredPromotionIdentity({
+    admission,
+    promotionRequest: safeObject(admission?.workflow_input).promotionRequest,
+  });
+  if (!identity) {
+    reject(
+      'R6_PROMOTION_IDEMPOTENCY_INVALID',
+      'The promotion start did not establish a valid canonical idempotency identity.',
+      { workflowRunRecordId: nullableText(admission?.workflow_run_record_id) },
+    );
+  }
+  return identity;
 }
 
 function getPromotionParameters(admission) {
@@ -948,6 +967,7 @@ async function validatePromotionCommitBoundary({
 
 async function beginPromotionAdmission({ admission, finalization, queryFn = defaultQuery } = {}) {
   const attribution = trustedAttribution(admission);
+  const identity = resolvePromotionAdmissionIdentity(admission);
   try {
     const result = await queryFunction(queryFn)(
       "INSERT INTO worker.dev_promotion_admissions (dev_promotion_admission_id, workflow_execution_admission_id, workflow_run_record_id, principal_code, principal_id, repository_code, environment_code, config_profile_code, workflow_code, workflow_version_id, version_number, idempotency_key_hash, request_digest, finalization_workflow_run_record_id, finalization_receipt_sha256, finalization_source_identity_digest, trusted_attribution, authorization_source, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, 'PREFLIGHT_RUNNING') RETURNING *",
@@ -963,8 +983,8 @@ async function beginPromotionAdmission({ admission, finalization, queryFn = defa
         admission.workflow_code,
         admission.workflow_version_id,
         admission.version_number,
-        admission.idempotency_key_hash,
-        admission.request_digest,
+        identity.idempotencyKeyHash,
+        identity.requestDigest,
         finalization.finalizationWorkflowRunId,
         finalization.receipt.receiptSha256,
         finalization.sourceIdentity.digest,
@@ -982,7 +1002,8 @@ async function beginPromotionAdmission({ admission, finalization, queryFn = defa
     const existing = result.rows[0];
     if (!existing) throw error;
     if (existing.workflow_run_record_id !== admission.workflow_run_record_id) reject('R6_PROMOTION_CONCURRENT_EDIT', 'Another R6 Development Promotion run is already admitted for this DEV scope.', { ownerWorkflowRunRecordId: existing.workflow_run_record_id });
-    if (existing.request_digest !== admission.request_digest || existing.finalization_workflow_run_record_id !== finalization.finalizationWorkflowRunId) reject('R6_PROMOTION_IDEMPOTENCY_CONFLICT', 'The R6 promotion run is already bound to a different request.');
+    const existingIdentity = readStoredPromotionIdentity({ admission: existing });
+    if (!existingIdentity || existingIdentity.idempotencyKeyHash !== identity.idempotencyKeyHash || existingIdentity.requestDigest !== identity.requestDigest || existing.finalization_workflow_run_record_id !== finalization.finalizationWorkflowRunId) reject('R6_PROMOTION_IDEMPOTENCY_CONFLICT', 'The R6 promotion run is already bound to a different request.');
     return existing;
   }
 }
@@ -1083,8 +1104,14 @@ async function executePreflight(args = []) {
   });
   await assertWorkflowGraph(admission.workflow_version_id, workflowCode);
   await assertNoOtherPromotion(input.workflowRunId, governanceScope);
+  const admissionIdentity = resolvePromotionAdmissionIdentity(admission);
+  const admissionWithIdentity = {
+    ...admission,
+    idempotency_key_hash: admissionIdentity.idempotencyKeyHash,
+    request_digest: admissionIdentity.requestDigest,
+  };
   const promotionAdmission = await beginPromotionAdmission({
-    admission: { ...admission, authorization_source: authorizationSource },
+    admission: { ...admissionWithIdentity, authorization_source: authorizationSource },
     finalization,
   });
   let current;
@@ -1102,7 +1129,13 @@ async function executePreflight(args = []) {
     ).catch(() => {});
     throw error;
   }
-  const output = buildPreflightOutput({ admission, finalization, current, promotionAdmission, startedAt });
+  const output = buildPreflightOutput({
+    admission: admissionWithIdentity,
+    finalization,
+    current,
+    promotionAdmission,
+    startedAt,
+  });
   await authorizePromotionAdmission({ promotionAdmission, output, finalization });
   return output;
 }
@@ -1267,6 +1300,8 @@ module.exports = {
   hasPermissionCodes,
   isAssistantPromotionRun,
   isHumanPromotionRun,
+  beginPromotionAdmission,
+  resolvePromotionAdmissionIdentity,
   trustedAttribution,
   validateCurrentSource,
   validateFinalizationBinding,

@@ -232,6 +232,7 @@ SkyCommand/
 │   │       │   ├── browserTestRegistryService.js
 │   │       │   ├── browserTestSuiteService.js
 │   │       │   ├── developmentPromotionPermissionContract.js
+│   │       │   ├── developmentPromotionStartService.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
 │   │       │   ├── infrastructureService.js
@@ -1461,10 +1462,8 @@ SkyCommand/
 │   │   └── worker_schema_ERD.png
 │   ├── audits/
 │   ├── development/
-│   │   ├── Luna_R0_R1_Work_Order.md
-│   │   ├── SkyCommand_Autonomous_DEV_Workflow_Remediation_Plan_v1.1.md
-│   │   ├── SkyCommand_Database_Upgrade.md
-│   │   └── SkyCommand_Development_Operating_Rules_v1.3.md
+│   │   ├── Codex_Development_Work_Order_Template.md
+│   │   └── SkyCommand_Development_Operating_Rules_v1.4.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
 │   ├── generated/
@@ -1701,6 +1700,7 @@ SkyCommand/
 │   │       ├── lifecycle.js
 │   │       ├── packaging.js
 │   │       ├── preflight.js
+│   │       ├── promotionIdentity.js
 │   │       ├── promotionPreflight.js
 │   │       ├── readiness.js
 │   │       ├── receipt.js
@@ -2211,6 +2211,7 @@ SkyCommand/
         │               ├── browserTestObservabilitySelfTest.js
         │               ├── browserTestRegistrySelfTest.js
         │               ├── browserTestSuiteSelfTest.js
+        │               ├── developmentPromotionStartSelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js
         │               ├── infrastructureServiceSelfTest.js

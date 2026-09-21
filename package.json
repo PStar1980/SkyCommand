@@ -333,6 +333,7 @@
     "workflow-agent-execution:integration:self-test": "node tests/self/apps/api/src/services/workflowAgentExecutionIntegrationSelfTest.js",
     "r7-database-upgrade-cleanup:self-test": "node tests/self/r7DatabaseUpgradeCleanupSelfTest.js",
     "assistant-development-promotion:self-test": "node tests/self/apps/api/src/services/assistantDevelopmentPromotionSelfTest.js",
+    "development-promotion-start:self-test": "node tests/self/apps/api/src/services/developmentPromotionStartSelfTest.js",
     "mcp:gateway": "node scripts/mcp/skycommandMcpGateway.js",
     "mcp-gateway:self-test": "node tests/self/scripts/mcp/skycommandMcpGatewaySelfTest.js"
   },
