@@ -29,6 +29,7 @@ function AgentOperations() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [interactionInput, setInteractionInput] = useState({});
 
   const selectedRun = useMemo(() => runs.find((run) => run.runId === selectedId) || null, [runs, selectedId]);
   const canCancel = hasPermission('AGENT_RUN_CANCEL_OWN') || hasPermission('AGENT_RUN_CANCEL_PROJECT');
@@ -106,17 +107,32 @@ function AgentOperations() {
     }
   }
 
+  async function decideInteraction(interaction, decision) {
+    if (!interaction?.interactionId || !['PENDING', 'SAVED', 'DELIVERED'].includes(String(interaction.status).toUpperCase())) return;
+    setError('');
+    try {
+      const body = interaction.interactionType === 'USER_INPUT'
+        ? { decision: 'SUBMIT', input: { answer: interactionInput[interaction.interactionId] || '' } }
+        : { decision };
+      await agentService.decideAgentInteraction(interaction.interactionId, body);
+      setNotice('Interaction decision saved. Delivery and application remain separate durable states.');
+      await Promise.all([loadRuns(true), loadDetail(detail.runId, true)]);
+    } catch (actionError) {
+      setError(actionError.message || 'Interaction decision could not be saved.');
+    }
+  }
+
   return (
     <>
       <PageHeader
         actions={<button className="btn sky-btn-ghost" disabled={loading} onClick={() => loadRuns()} type="button">{loading ? 'Refreshing…' : 'Refresh'}</button>}
         kicker="Agents · Operations"
-        subtitle="Durable Phase 19.2B Agent Runs, managed Browser capability effects, authority snapshots, provider-operation journals, normalized events, and immutable results."
+        subtitle="Durable Phase 19.2C Agent Runs, approval and user-input waits, managed Browser effects, authority snapshots, provider-operation journals, recovery evidence, and immutable results."
         title="Agent Operations"
       />
       <DismissibleAlert tone="danger">{error}</DismissibleAlert>
       <DismissibleAlert tone="success">{notice}</DismissibleAlert>
-      <DismissibleAlert tone="info">Controlled source-backed fake runtime execution and one bounded managed Browser Automation capability are enabled in Phase 19.2B. Real providers, generic capability effects, scheduler execution, delegation, writable development workspaces, and external Agent execution remain disabled.</DismissibleAlert>
+      <DismissibleAlert tone="info">Controlled source-backed fake runtime execution, durable approval/user-input waits, and one bounded managed Browser Automation capability are enabled in Phase 19.2C. Real providers, generic capability effects, scheduler execution, delegation, writable development workspaces, and external Agent execution remain disabled.</DismissibleAlert>
 
       <div className="row g-3 mt-1">
         <div className="col-xl-5">
@@ -151,9 +167,11 @@ function AgentOperations() {
                 <tr><th>Authority snapshot</th><td className="sky-mono">{detail.authoritySnapshot?.digest || '—'}</td></tr>
                 <tr><th>Runtime identity</th><td><span className="sky-pill sky-pill-info">{runtimeIdentity(detail.runtimeKind)}</span><div className="small sky-muted">Fake-runtime scenario / case: {detail.fakeRuntimeCaseId || 'UNKNOWN'}</div></td></tr>
                 <tr><th>Runtime Worker</th><td>{detail.runtimeCell?.workerIdentity || '—'} · {detail.runtimeCell?.workerGeneration || '—'}<div className="small sky-muted">{detail.runtimeCell?.taskQueue || '—'} · {detail.runtimeCell?.readinessStatus || 'UNKNOWN'}</div></td></tr>
-                <tr><th>Containment</th><td className="small">{containmentEntries(detail.runtimeCell?.containmentProfile).length ? <div className="d-flex flex-wrap gap-2">{containmentEntries(detail.runtimeCell.containmentProfile).map((entry) => <span className="sky-pill sky-pill-info" key={entry.key}>{entry.label}: {entry.value}</span>)}</div> : 'Not yet observed.'}</td></tr>
+                <tr><th>Containment</th><td className="small">{containmentEntries(detail.runtimeCell?.containmentProfile).length ? <div className="d-flex flex-wrap gap-2">{containmentEntries(detail.runtimeCell.containmentProfile).map((entry) => <span className="sky-pill sky-pill-info" key={entry.key}>{entry.label}: {entry.value}</span>)}</div> : 'Not yet observed.'}{detail.runtimeCell?.quarantineState ? <div className="mt-2">Runtime cell: <StatusPill status={detail.runtimeCell.quarantineState} />{detail.runtimeCell.quarantineReason ? <span className="ms-2 text-danger">{detail.runtimeCell.quarantineReason}</span> : null}</div> : null}</td></tr>
                 <tr><th>Created / terminal</th><td>{formatDate(detail.createdAt)} · {formatDate(detail.terminalAt)}</td></tr>
               </tbody></table></div>
+
+              <div className="mt-3"><div className="sky-page-kicker mb-2">Durable Interactions</div>{(detail.interactions || []).length === 0 ? <div className="sky-empty-state py-3">No approval or user-input wait was requested by this run.</div> : <div className="table-responsive"><table className="table table-sm sky-table"><thead><tr><th>Type / operation</th><th>State / expiry</th><th>Decision delivery</th><th>Application</th><th>Action</th></tr></thead><tbody>{(detail.interactions || []).map((interaction) => { const open = ['PENDING', 'SAVED', 'DELIVERED'].includes(String(interaction.status).toUpperCase()); return <tr key={interaction.interactionId}><td><div className="fw-semibold">{interaction.interactionType}</div><div className="small sky-muted">{interaction.operationKind}</div><div className="small">{interaction.prompt}</div><div className="small sky-mono">{interaction.interactionId}</div></td><td><StatusPill status={interaction.status} /><div className="small">Expires {formatDate(interaction.expiresAt)}</div>{interaction.statusReason ? <div className="small text-danger">{interaction.statusReason}</div> : null}</td><td>{interaction.decision ? <><StatusPill status={interaction.decision.deliveryState} /><div className="small sky-muted">Saved {formatDate(interaction.savedAt)} · Delivered {formatDate(interaction.decision.deliveredAt)} · Ack {formatDate(interaction.decision.acknowledgedAt)}</div></> : 'PENDING'}</td><td>{interaction.decision ? <><StatusPill status={interaction.decision.applicationStatus} /><div className="small sky-muted">Applied {formatDate(interaction.decision.appliedAt)}{interaction.decision.applicationReason ? ` · ${interaction.decision.applicationReason}` : ''}</div></> : 'PENDING'}</td><td>{open && interaction.interactionType === 'APPROVAL' ? <div className="d-flex gap-1"><button className="btn btn-sm sky-btn-primary" onClick={() => decideInteraction(interaction, 'APPROVE')} type="button">Approve</button><button className="btn btn-sm sky-btn-ghost" onClick={() => decideInteraction(interaction, 'REJECT')} type="button">Reject</button></div> : open && interaction.interactionType === 'USER_INPUT' ? <div className="d-flex gap-1"><input aria-label={`Answer for ${interaction.interactionId}`} className="form-control form-control-sm" value={interactionInput[interaction.interactionId] || ''} onChange={(event) => setInteractionInput((current) => ({ ...current, [interaction.interactionId]: event.target.value }))} placeholder="Validated answer" /><button className="btn btn-sm sky-btn-primary" onClick={() => decideInteraction(interaction, 'SUBMIT')} type="button">Submit</button></div> : <span className="small sky-muted">No action</span>}</td></tr>; })}</tbody></table></div>}</div>
 
               <div className="mt-3"><div className="sky-page-kicker mb-2">Provider Operation Journal</div><div className="table-responsive"><table className="table table-sm sky-table"><thead><tr><th>Operation</th><th>State</th><th>Certainty</th><th>Fence</th></tr></thead><tbody>{(detail.providerOperations || []).map((operation) => <tr key={operation.operationId}><td className="sky-mono">{operation.operationType}<div className="small sky-muted">{operation.operationId.slice(0, 12)}</div></td><td><StatusPill status={operation.state} /></td><td>{operation.outcomeCertainty}</td><td>{operation.fenceEpoch}</td></tr>)}</tbody></table></div></div>
 

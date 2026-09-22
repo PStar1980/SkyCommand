@@ -21,6 +21,7 @@ const { getTemporalConfig } = require('../../../../packages/temporal/src/config'
 const { dispatchAgentRun } = require('./agentRunDispatcher');
 const { normalizeRuntimeIdentity, projectRuntimeIdentity } = require('./agentRuntimeProjection');
 const agentCapabilityAuthorizationService = require('./agentCapabilityAuthorizationService');
+const agentInteractionService = require('./agentInteractionService');
 
 const MAX_INSTRUCTION_LENGTH = 20000;
 const MAX_LIMIT = 100;
@@ -434,6 +435,7 @@ function toRunSummary(row) {
     status: row.status,
     outcome: row.outcome,
     stopState: row.stop_state,
+    stopEvidence: row.stop_evidence || {},
     revocationEpoch: row.revocation_epoch,
     stableTemporalWorkflowId: row.stable_temporal_workflow_id,
     authoritySnapshot: row.authority_snapshot || null,
@@ -453,7 +455,7 @@ async function getRunRow(runId, actor, { includeEvidence = false } = {}) {
             d.agent_code, v.revision AS agent_revision,
             pw.environment_code,
             jsonb_build_object('authoritySnapshotId', a.authority_snapshot_id, 'digest', a.digest, 'snapshot', a.snapshot) AS authority_snapshot,
-            CASE WHEN rc.runtime_cell_id IS NULL THEN NULL ELSE jsonb_build_object('runtimeCellId', rc.runtime_cell_id, 'runtimeKind', rc.runtime_kind, 'adapterVersion', rc.adapter_version, 'taskQueue', rc.task_queue, 'workerIdentity', rc.worker_identity, 'workerGeneration', rc.worker_generation, 'readinessStatus', rc.readiness_status, 'observedAt', rc.observed_at, 'heartbeatAt', rc.heartbeat_at, 'containmentProfile', rc.containment_profile) END AS runtime_cell,
+            CASE WHEN rc.runtime_cell_id IS NULL THEN NULL ELSE jsonb_build_object('runtimeCellId', rc.runtime_cell_id, 'runtimeKind', rc.runtime_kind, 'adapterVersion', rc.adapter_version, 'taskQueue', rc.task_queue, 'workerIdentity', rc.worker_identity, 'workerGeneration', rc.worker_generation, 'readinessStatus', rc.readiness_status, 'observedAt', rc.observed_at, 'heartbeatAt', rc.heartbeat_at, 'containmentProfile', rc.containment_profile, 'quarantineState', rc.quarantine_state, 'quarantineReason', rc.quarantine_reason, 'quarantinedAt', rc.quarantined_at, 'quarantineEvidence', rc.quarantine_evidence, 'quarantineClearedAt', rc.quarantine_cleared_at) END AS runtime_cell,
             res.result_status,
             res.result AS terminal_result,
             capability_counts.capability_effect_count
@@ -484,13 +486,14 @@ async function getRunRow(runId, actor, { includeEvidence = false } = {}) {
   const row = result.rows[0];
   const summary = toRunSummary(row);
   if (!includeEvidence) return summary;
-  const [events, operations, resultRow, capabilityEffects] = await Promise.all([
+  const [events, operations, resultRow, capabilityEffects, interactions] = await Promise.all([
     query(`SELECT agent_event_id AS "eventId", event_sequence AS "sequence", event_type AS "eventType", event_scope AS "scope", source_kind AS "sourceKind", source_instance AS "sourceInstance", source_cursor AS "sourceCursor", availability, freshness, observed_at AS "observedAt", payload FROM worker.agent_events WHERE agent_run_id = $1 ORDER BY event_sequence`, [runId]),
     query(`SELECT provider_operation_id AS "operationId", operation_key AS "operationKey", operation_type AS "operationType", provider_operation_reference AS "providerOperationReference", input_digest AS "inputDigest", fence_epoch AS "fenceEpoch", state, outcome_certainty AS "outcomeCertainty", outcome, created_at AS "createdAt", updated_at AS "updatedAt" FROM worker.agent_provider_operations WHERE agent_run_id = $1 ORDER BY created_at`, [runId]),
     query(`SELECT agent_result_id AS "resultId", result_status AS "resultStatus", result_digest AS "resultDigest", result, published_at AS "publishedAt" FROM worker.agent_results WHERE agent_run_id = $1`, [runId]),
     agentCapabilityAuthorizationService.getManagedCapabilityEffects(runId),
+    agentInteractionService.listAgentInteractionsForRun(runId),
   ]);
-  return { ...summary, executionContext: row.execution_context, authoritySnapshot: row.authority_snapshot, events: events.rows, providerOperations: operations.rows, capabilityEffects, result: resultRow.rows[0] || null };
+  return { ...summary, executionContext: row.execution_context, authoritySnapshot: row.authority_snapshot, events: events.rows, providerOperations: operations.rows, capabilityEffects, interactions: interactions, result: resultRow.rows[0] || null };
 }
 
 async function admitAgentRun(req, body = {}) {
@@ -751,6 +754,7 @@ async function cancelAgentRun(req, runId) {
       return { runId: id, workflowId: row.stable_temporal_workflow_id, status: 'CANCEL_REQUESTED', revocationEpoch: nextEpoch, idempotent: false };
     });
   } catch (error) { throw error; }
+  await agentInteractionService.cancelAgentInteractionsForRun({ runId: id, reason: 'RUN_CANCEL_REQUESTED' });
   if (!result.idempotent) {
     try { await signalRun(result.workflowId, 'agentRunCancel', { reason: 'run_cancel_requested', revocationEpoch: result.revocationEpoch }); }
     catch (error) { result.signalState = 'PENDING_RECONCILIATION'; result.signalErrorCode = error?.code || 'TEMPORAL_SIGNAL_UNAVAILABLE'; }
@@ -777,6 +781,9 @@ async function stopExecutionScope(req, scopeId) {
     }
     return { executionScopeId: id, status: 'STOP_REQUESTED', revocationEpoch: nextEpoch, runs: runs.rows.map((run) => ({ runId: run.agent_run_id, workflowId: run.stable_temporal_workflow_id })) };
   });
+  for (const run of result.runs) {
+    await agentInteractionService.cancelAgentInteractionsForRun({ runId: run.runId, reason: 'ROOT_STOP_REQUESTED' });
+  }
   for (const run of result.runs) {
     try { await signalRun(run.workflowId, 'agentRootStop', { reason: 'root_stop_requested', revocationEpoch: result.revocationEpoch }); }
     catch (error) { run.signalState = 'PENDING_RECONCILIATION'; run.signalErrorCode = error?.code || 'TEMPORAL_SIGNAL_UNAVAILABLE'; }

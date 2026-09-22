@@ -192,6 +192,7 @@ SkyCommand/
 │   │       ├── controllers/
 │   │       │   ├── adminController.js
 │   │       │   ├── agentController.js
+│   │       │   ├── agentInteractionController.js
 │   │       │   ├── agentRunController.js
 │   │       │   ├── assistantIntegrationController.js
 │   │       │   ├── authController.js
@@ -218,6 +219,7 @@ SkyCommand/
 │   │       │   ├── agent.routes.js
 │   │       │   ├── agentDefinition.routes.js
 │   │       │   ├── agentExecution.routes.js
+│   │       │   ├── agentInteraction.routes.js
 │   │       │   ├── agentRun.routes.js
 │   │       │   ├── agentRuntime.routes.js
 │   │       │   ├── assistantIntegration.routes.js
@@ -241,6 +243,7 @@ SkyCommand/
 │   │       │   ├── adminReadService.js
 │   │       │   ├── agentCapabilityAuthorizationService.js
 │   │       │   ├── agentExecutionService.js
+│   │       │   ├── agentInteractionService.js
 │   │       │   ├── agentRegistryService.js
 │   │       │   ├── agentRunDispatcher.js
 │   │       │   ├── agentRuntimeProjection.js
@@ -263,6 +266,7 @@ SkyCommand/
 │   │       │   ├── legacyMacroFreshnessAdapter.js
 │   │       │   ├── macroReadService.js
 │   │       │   ├── notificationService.js
+│   │       │   ├── orchestratorRefreshService.js
 │   │       │   ├── productionReadinessService.js
 │   │       │   ├── publicMacroService.js
 │   │       │   ├── scriptExecutionService.js
@@ -320,7 +324,22 @@ SkyCommand/
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
 │       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 081f3a8e-ddd2-46b4-a350-5022283af0b4/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 0fa07f13-94b9-4dec-9611-cffa2212a657/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 1077c1de-7c87-45e7-bfa1-0098aca9b382/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 11bc1c98-1c91-40b5-aca6-12f78ee4c9cd/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -335,7 +354,22 @@ SkyCommand/
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
 │       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 5925488a-f3fa-4dc6-bff3-5f601d26a3ca/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 61e64c32-14d3-45ba-b2de-502c5307409f/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 70ca8783-2172-4a27-81a7-bd26e157ab77/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 7189eeb6-8f69-4ecb-853c-fc824489b144/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -356,6 +390,26 @@ SkyCommand/
 │       │   │   └── screenshots/
 │       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 93fe49ba-a722-4cc8-970d-5365c0538b77/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 9c66b36b-be56-470f-8053-c638d973afcf/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 9e640d84-0f2f-4ebd-bf96-a830817ef482/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── ab9cf610-0417-4b59-8578-f2b1be4334a9/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── b68e2528-5aa5-4c0e-85f6-b3b33c1206d4/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -1686,7 +1740,9 @@ SkyCommand/
 │   │       │   ├── 00148__host_agent_heartbeat_freshness_index.sql
 │   │       │   ├── 00149__agent_registry_foundation.sql
 │   │       │   ├── 00151__agent_run_kernel.sql
-│   │       │   └── 00153__agent_capability_effects.sql
+│   │       │   ├── 00153__agent_capability_effects.sql
+│   │       │   ├── 00155__agent_interactions_recovery_hardening.sql
+│   │       │   └── 00156__temporal_orchestrator_refresh_operations.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -2208,12 +2264,14 @@ SkyCommand/
     │           └── workflowOperationsPerformance.spec.js
     ├── fixtures/
     │   └── agentic-ai/
-    │       └── phase-0/
-    │           ├── fake-runtime-ambiguous-send.json
-    │           ├── fake-runtime-ephemeral-absent-usage.json
-    │           ├── fake-runtime-persistent-delayed-usage.json
-    │           ├── fake-runtime-rejected-send.json
-    │           └── phase0-gate.json
+    │       ├── phase-0/
+    │       │   ├── fake-runtime-ambiguous-send.json
+    │       │   ├── fake-runtime-ephemeral-absent-usage.json
+    │       │   ├── fake-runtime-persistent-delayed-usage.json
+    │       │   ├── fake-runtime-rejected-send.json
+    │       │   └── phase0-gate.json
+    │       └── phase-2/
+    │           └── phase19-2c-failpoint-matrix.json
     └── self/
         ├── r7DatabaseUpgradeCleanupSelfTest.js
         ├── apps/
@@ -2269,6 +2327,8 @@ SkyCommand/
         │               ├── agentCapabilityCredentialEvidenceSelfTest.js
         │               ├── agentCapabilityExecutionSelfTest.js
         │               ├── agentExecutionSelfTest.js
+        │               ├── agentInteractionLiveAcceptanceSelfTest.js
+        │               ├── agentInteractionRecoverySelfTest.js
         │               ├── agentRegistryAuditSelfTest.js
         │               ├── agentRegistryIsolationSelfTest.js
         │               ├── agentRegistrySelfTest.js
@@ -2286,6 +2346,7 @@ SkyCommand/
         │               ├── infrastructureServiceSelfTest.js
         │               ├── legacyMacroFreshnessAdapterSelfTest.js
         │               ├── notificationFoundationSelfTest.js
+        │               ├── orchestratorRefreshSelfTest.js
         │               ├── phase15ClosureReadinessSelfTest.js
         │               ├── playwrightSchedulerSelfTest.js
         │               ├── schedulerWorkflowParametersSelfTest.js

@@ -1,4 +1,5 @@
 const assistantIntegrationService = require('../services/assistantIntegrationService');
+const orchestratorRefreshService = require('../services/orchestratorRefreshService');
 const authService = require('../services/authService');
 
 function sendError(res, error, next) {
@@ -150,6 +151,34 @@ async function getWorkflowExecutionRun(req, res, next) {
   }
 }
 
+async function startOrchestratorRefresh(req, res, next) {
+  try {
+    const result = await orchestratorRefreshService.startTemporalWorkerRefresh({
+      request: req.body || {},
+      permissions: req.permissions || [],
+      principalCode: req.assistantIntegration?.principalCode || 'assistant-http',
+      actor: req.user,
+      session: req.session,
+      requestContext: authService.getRequestContext(req),
+    });
+    return res.status(result.reused ? 200 : 202).json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getOrchestratorRefresh(req, res, next) {
+  try {
+    const result = await orchestratorRefreshService.getTemporalWorkerRefresh({
+      operationId: req.params.operationId,
+      principalCode: req.assistantIntegration?.principalCode || 'assistant-http',
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
 async function getRun(req, res, next) {
   try {
     const run = await assistantIntegrationService.getRun(req.params.workflowId, { actor: req.user });
@@ -186,8 +215,10 @@ module.exports = {
   getOpenApi,
   getRun,
   getWorkflowExecutionRun,
+  getOrchestratorRefresh,
   listAutomations,
   startDevelopmentPromotion,
   startWorkflowExecution,
+  startOrchestratorRefresh,
   startAutomation,
 };

@@ -84,6 +84,7 @@ function getSupervisorConfig(repositoryRoot) {
       process.env.SKYCOMMAND_SUPERVISOR_PROJECT_NAME,
       process.env.SKYCOMMAND_DOCKER_SELF_PROJECT_NAME || DEFAULT_SUPERVISOR_PROJECT_NAME,
     ),
+    dockerExecutable: normalizeText(process.env.SKYCOMMAND_DOCKER_EXECUTABLE, 'docker'),
     host: normalizeText(process.env.SKYCOMMAND_SUPERVISOR_HOST, DEFAULT_SUPERVISOR_HOST),
     port: normalizePort(process.env.SKYCOMMAND_SUPERVISOR_PORT),
     runtimeServices: parseRuntimeServices(process.env.SKYCOMMAND_SUPERVISOR_RUNTIME_SERVICES),

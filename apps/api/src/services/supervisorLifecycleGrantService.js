@@ -48,6 +48,7 @@ async function authorizeRuntimeControl({
   actor = {},
   session = {},
   requestContext = {},
+  operationId = null,
   auditRecorder = defaultAuditRecorder,
   nowMs = Date.now(),
 } = {}) {
@@ -84,6 +85,7 @@ async function authorizeRuntimeControl({
     action: normalizedAction,
     subject: actor?.userId || actor?.username || actor?.email || 'unknown',
     sessionId: session?.sessionId || null,
+    operationId,
     ttlSeconds: getGrantTtlSeconds(),
     nowMs,
   });
@@ -92,7 +94,9 @@ async function authorizeRuntimeControl({
     ? 'SkyCommand web frontend'
     : normalizedAction === 'REBUILD_BACKEND'
       ? 'SkyCommand API and worker backend'
-      : 'SkyCommand backend runtime';
+      : normalizedAction === 'REBUILD_TEMPORAL_WORKER'
+        ? 'the SkyCommand Temporal orchestrator worker'
+        : 'SkyCommand backend runtime';
   const message = `${normalizedAction} authorized for the ${resourceLabel} through the host-native Supervisor.`;
 
   // High-risk self-lifecycle control fails closed if the authorization audit cannot be persisted.
@@ -111,6 +115,7 @@ async function authorizeRuntimeControl({
       grantId: issued.payload.nonce,
       expiresAt: issued.expiresAt,
       requestedAction: normalizedAction,
+      operationId: operationId || null,
     },
     ipAddress: requestContext?.ipAddress || null,
     userAgent: requestContext?.userAgent || null,

@@ -243,6 +243,19 @@ function relativeArtifactRoot(runtimeConfig, executionId) {
   return path.relative(sourceRoot, runRoot).replace(/\\/g, '/');
 }
 
+function normalizeArtifactRelativePath(value) {
+  let normalized = normalizeText(value).replace(/\\/g, '/');
+  try {
+    normalized = decodeURIComponent(normalized).replace(/\\/g, '/');
+  } catch (_error) {
+    return null;
+  }
+  if (!normalized || normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) return null;
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '..' || segment === '')) return null;
+  return segments.join('/');
+}
+
 function loadSummaryFromDisk(row) {
   if (!row?.artifact_root) return null;
   const runtimeConfig = getBrowserRuntimeConfig();
@@ -330,8 +343,8 @@ function sanitizeRunRow(row, artifacts = []) {
 async function replaceRunArtifacts(client, browserAutomationRunId, artifacts = []) {
   await client.query('DELETE FROM worker.browser_automation_artifacts WHERE browser_automation_run_id = $1', [browserAutomationRunId]);
   for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
-    const relativePath = normalizeText(artifact.relativePath).replace(/\\/g, '/');
-    if (!relativePath || relativePath.includes('../') || relativePath.startsWith('/')) continue;
+    const relativePath = normalizeArtifactRelativePath(artifact.relativePath);
+    if (!relativePath) continue;
     let kind = normalizeText(artifact.kind || artifact.type, 'ATTACHMENT').toUpperCase();
     const allowedKinds = new Set(['TRACE', 'SCREENSHOT', 'VIDEO', 'REPORT', 'ATTACHMENT', 'DOWNLOAD', 'FILE']);
     if (!allowedKinds.has(kind)) kind = 'ATTACHMENT';
@@ -552,12 +565,20 @@ async function getArtifact({ workflowId, artifactId, actor = null, internalManag
   const runtimeConfig = getBrowserRuntimeConfig();
   const sourceRoot = path.resolve(runtimeConfig.sourceRepositoryRoot || process.cwd());
   const runRoot = path.resolve(sourceRoot, row.artifact_root || '');
-  const absolutePath = path.resolve(runRoot, row.relative_path);
-  if (!absolutePath.startsWith(`${runRoot}${path.sep}`) || !fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+  let realRunRoot;
+  let realArtifactPath;
+  try {
+    realRunRoot = fs.realpathSync(runRoot);
+    const absolutePath = path.resolve(realRunRoot, row.relative_path);
+    realArtifactPath = fs.realpathSync(absolutePath);
+  } catch (_error) {
+    throw createHttpError(404, 'Playwright Automation artifact file is unavailable.');
+  }
+  if (!realArtifactPath.startsWith(`${realRunRoot}${path.sep}`) || !fs.existsSync(realArtifactPath) || !fs.statSync(realArtifactPath).isFile()) {
     throw createHttpError(404, 'Playwright Automation artifact file is unavailable.');
   }
   return {
-    absolutePath,
+    absolutePath: realArtifactPath,
     name: row.artifact_name,
     contentType: row.content_type || 'application/octet-stream',
     kind: row.artifact_kind,

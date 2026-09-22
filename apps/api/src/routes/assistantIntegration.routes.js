@@ -12,6 +12,11 @@ router.get(
   '/workflow-runs/:workflowRunRecordId',
   assistantIntegrationController.getWorkflowExecutionRun,
 );
+router.post('/orchestrator-refresh/runs', assistantIntegrationController.startOrchestratorRefresh);
+router.get(
+  '/orchestrator-refresh/runs/:operationId',
+  assistantIntegrationController.getOrchestratorRefresh,
+);
 router.get(
   '/browser-automation-runs/:workflowId/artifacts/:artifactId',
   assistantIntegrationController.getArtifact,

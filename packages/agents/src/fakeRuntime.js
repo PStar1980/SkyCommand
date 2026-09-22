@@ -96,6 +96,56 @@ const FAKE_RUNTIME_FIXTURES = Object.freeze({
     expectedDisposition: 'RECOVERY_REQUIRED',
     notes: 'The fake provider send is UNKNOWN while the managed Browser effect remains durably reconciled.',
   }),
+  'approval-required-success': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'approval-required-success',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'The bounded managed Browser effect waits for one explicit durable approval before dispatch.',
+  }),
+  'approval-revoked-during-wait': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'approval-revoked-during-wait',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'ABSENT',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'A saved approval is blocked when the run authority epoch changes while the workflow waits.',
+  }),
+  'approval-expiry': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'approval-expiry',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'ABSENT',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'The approval interaction has a short deterministic expiry for acceptance testing.',
+  }),
+  'user-input-success': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'user-input-success',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'The runtime receives one validated bounded user-input payload after a durable wait.',
+  }),
+  'user-input-restart': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'user-input-restart',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'The durable user-input wait can be replayed after a workflow worker restart.',
+  }),
 });
 
 const MANAGED_BROWSER_CASES = new Set([
@@ -104,10 +154,19 @@ const MANAGED_BROWSER_CASES = new Set([
   'browser-capability-revoked-before-dispatch',
   'browser-capability-unknown-dispatch',
   'browser-capability-unknown-send',
+  'approval-required-success',
+  'approval-revoked-during-wait',
+  'approval-expiry',
 ]);
+
+const USER_INPUT_CASES = new Set(['user-input-success', 'user-input-restart']);
 
 function isManagedBrowserCase(caseId) {
   return MANAGED_BROWSER_CASES.has(String(caseId || '').trim());
+}
+
+function isUserInputCase(caseId) {
+  return USER_INPUT_CASES.has(String(caseId || '').trim());
 }
 
 function normalizeWorkerIdentity(input = {}) {
@@ -151,7 +210,7 @@ function buildEvent({ operationId, sequence, eventType, scope = 'RUN', workerIde
   return event;
 }
 
-function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId, instruction, workerIdentity, cancellationRequested = false, managedCapabilityRequest = null } = {}) {
+function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId, instruction, workerIdentity, cancellationRequested = false, managedCapabilityRequest = null, userInput = null } = {}) {
   const fixture = resolveFakeRuntimeCase(caseId, runtimeKind);
   const instance = normalizeWorkerIdentity({ workerIdentity });
   const instructionDigest = sha256Digest({ instruction: String(instruction || '') });
@@ -247,7 +306,21 @@ function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId
   events.push(buildEvent({ operationId, sequence: sequence++, eventType: 'USAGE_OBSERVED', workerIdentity: instance, availability: usage.availability, freshness: usage.freshness, payload: { measurements: usage.measurements, delayed: fixture.usageBehavior === 'DELAYED' } }));
 
   const taskOutputCandidate = fixture.sendAcceptance === 'ACKNOWLEDGED'
-    ? { message: 'Deterministic fake runtime result.', caseId: fixture.caseId, runtimeKind, providerTurnId, sessionModel: fixture.sessionModel, instructionDigest, capabilitiesExecuted: [] }
+    ? {
+      message: 'Deterministic fake runtime result.',
+      caseId: fixture.caseId,
+      runtimeKind,
+      providerTurnId,
+      sessionModel: fixture.sessionModel,
+      instructionDigest,
+      capabilitiesExecuted: [],
+      ...(isUserInputCase(fixture.caseId)
+        ? {
+          userInputAccepted: Boolean(userInput && typeof userInput === 'object' && !Array.isArray(userInput)),
+          userInputDigest: userInput && typeof userInput === 'object' && !Array.isArray(userInput) ? sha256Digest(userInput) : null,
+        }
+        : {}),
+    }
     : null;
   return {
     adapterContract: AGENT_RUNTIME_ADAPTER_CONTRACT,
@@ -303,7 +376,11 @@ function reconcileFakeRuntime({ fixture, operationId, workerIdentity, reconcilia
 
 module.exports = {
   FAKE_RUNTIME_FIXTURES,
+  MANAGED_BROWSER_CASES,
+  USER_INPUT_CASES,
   resolveFakeRuntimeCase,
   executeFakeRuntime,
   reconcileFakeRuntime,
+  isManagedBrowserCase,
+  isUserInputCase,
 };

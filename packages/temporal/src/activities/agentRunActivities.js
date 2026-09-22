@@ -7,6 +7,7 @@ const {
 } = require('../../../agents/src/agentRunKernel');
 const { query, pool } = require('../../../db/src/connection');
 const agentCapabilityAuthorizationService = require('../../../../apps/api/src/services/agentCapabilityAuthorizationService');
+const agentInteractionService = require('../../../../apps/api/src/services/agentInteractionService');
 
 function safeObject(value, fallback = {}) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
@@ -205,11 +206,39 @@ async function dispatchManagedCapabilityActivity({ effectId, credential, runtime
   return agentCapabilityAuthorizationService.dispatchManagedCapability({ effectId, credential, runtimeWorker, simulateUnknownDispatch });
 }
 
+async function createAgentInteractionActivity(input = {}) {
+  return agentInteractionService.createAgentInteraction(input);
+}
+
+async function loadAgentInteractionActivity(input = {}) {
+  return agentInteractionService.loadAgentInteractionActivity(input);
+}
+
+async function acknowledgeAgentInteractionDeliveryActivity(input = {}) {
+  return agentInteractionService.acknowledgeAgentInteractionDelivery(input);
+}
+
+async function applyAgentInteractionDecisionActivity(input = {}) {
+  return agentInteractionService.applyAgentInteractionDecision(input);
+}
+
+async function expireAgentInteractionActivity(input = {}) {
+  return agentInteractionService.expireInteractionActivity(input);
+}
+
+async function cancelAgentInteractionsActivity(input = {}) {
+  return agentInteractionService.cancelAgentInteractionsForRun(input);
+}
+
+async function reconcileQuarantinedRuntimeActivity(input = {}) {
+  return agentInteractionService.reconcileQuarantinedRuntimeActivity(input);
+}
+
 function normalizeRuntimeEvents(runtimeResult = {}) {
   return Array.isArray(runtimeResult.events) ? runtimeResult.events : [];
 }
 
-async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult = null, reconciliation = null, temporalRunId = null, capabilityEffects = [] } = {}) {
+async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult = null, reconciliation = null, temporalRunId = null, capabilityEffects = [], interactionOutcome = null } = {}) {
   return withTransaction(async (client) => {
     const run = await loadRun(client, runId, true);
     if (!run) throw new Error('Agent Run not found while finalizing.');
@@ -218,10 +247,13 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
     const recoveryRequired = reconciliation?.disposition === 'RECOVERY_REQUIRED'
       || runtimeResult?.sendAcceptance === 'UNKNOWN' && !reconciliation;
     const rejected = runtimeResult?.sendAcceptance === 'REJECTED_BEFORE_ACCEPTANCE';
-    const status = stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : rejected ? 'FAILED' : 'COMPLETED';
-    const outcome = stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : rejected ? 'SAFE_TO_REJECT' : 'SUCCESS';
+    const interactionBlocked = ['BLOCKED', 'EXPIRED', 'REJECTED', 'CANCELED'].includes(String(interactionOutcome || '').toUpperCase());
+    const status = stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : interactionBlocked || rejected ? 'FAILED' : 'COMPLETED';
+    const outcome = stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'SAFE_TO_REJECT' : 'SUCCESS';
+    const physicalStopConfirmed = runtimeResult?.physicalStop?.state === 'CONFIRMED';
+    const stopUnconfirmed = stopRequested && !physicalStopConfirmed;
     const stopState = stopRequested
-      ? (runtimeResult?.physicalStop?.state === 'CONFIRMED' ? 'CONFIRMED' : 'UNCONFIRMED')
+      ? (physicalStopConfirmed ? 'CONFIRMED' : 'UNCONFIRMED')
       : 'NONE';
     const worker = safeObject(runtimeResult?.worker);
     const runtimeEvents = normalizeRuntimeEvents(runtimeResult);
@@ -278,6 +310,18 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
            updated_at = CURRENT_TIMESTAMP`,
         [runId, run.runtime_code, runtimeResult.adapterVersion || 'fake-runtime-adapter.v1', runtimeResult.worker?.taskQueue || 'skycommand-agent-runtime-local', worker.identity || null, worker.generation || null, worker.processId || null, worker.hostname || null, JSON.stringify(runtimeResult.containmentProfile || { liveCheckoutMount: false, arbitraryHostFilesystem: false, dockerSocket: false, githubCredentials: false, hostAgentCredentials: false, supervisorCredentials: false, providerCredentials: false })],
       );
+      if (stopUnconfirmed) {
+        await client.query(
+          `UPDATE worker.agent_runtime_cells
+              SET quarantine_state = 'QUARANTINED',
+                  quarantine_reason = $2,
+                  quarantined_at = COALESCE(quarantined_at, CURRENT_TIMESTAMP),
+                  quarantine_evidence = COALESCE(quarantine_evidence, '{}'::jsonb) || $3::jsonb,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE agent_run_id = $1`,
+          [runId, 'PHYSICAL_STOP_NOT_CONFIRMED', JSON.stringify({ requestedAt: new Date().toISOString(), workerGeneration: worker.generation || null, workerIdentity: worker.identity || null, physicalStop: runtimeResult?.physicalStop || null })],
+        );
+      }
     }
 
     for (const event of runtimeEvents) {
@@ -385,7 +429,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       operationId: operation?.operationId || null,
       caseId: run.fake_runtime_case_id,
       stopState,
-      errorCode: recoveryRequired ? 'PROVIDER_SEND_UNKNOWN' : rejected ? 'PROVIDER_REJECTED_BEFORE_ACCEPTANCE' : null,
+      errorCode: recoveryRequired ? 'PROVIDER_SEND_UNKNOWN' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'PROVIDER_REJECTED_BEFORE_ACCEPTANCE' : stopUnconfirmed ? 'PHYSICAL_STOP_NOT_CONFIRMED' : null,
       capabilityEffects: safeCapabilityEffects,
     });
     const digest = resultDigest(summary);
@@ -401,22 +445,30 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
     if (!isTerminalStatus(run.status)) {
       await client.query(
         `UPDATE worker.agent_runs
-            SET status = $2, outcome = $3, stop_state = $4, terminal_at = CURRENT_TIMESTAMP
+            SET status = $2, outcome = $3, stop_state = $4,
+                stop_evidence = stop_evidence || $5::jsonb,
+                terminal_at = CURRENT_TIMESTAMP
           WHERE agent_run_id = $1`,
-        [runId, status, outcome, stopState],
+        [runId, status, outcome, stopState, JSON.stringify({ physicalStop: runtimeResult?.physicalStop || null, worker: worker || null, interactionOutcome: interactionOutcome || null, quarantineState: stopUnconfirmed ? 'QUARANTINED' : 'NOT_APPLICABLE' })],
       );
     }
     await client.query(
       `UPDATE worker.agent_resource_leases
-          SET lease_state = CASE WHEN $2 = 'CANCELED' THEN 'REVOKED' ELSE 'RELEASED' END,
-              released_at = CURRENT_TIMESTAMP
+          SET lease_state = CASE WHEN $2 = 'UNCONFIRMED' THEN 'QUARANTINED' WHEN $2 = 'CANCELED' THEN 'REVOKED' ELSE 'RELEASED' END,
+              released_at = CASE WHEN $2 = 'UNCONFIRMED' THEN NULL ELSE CURRENT_TIMESTAMP END,
+              quarantined_at = CASE WHEN $2 = 'UNCONFIRMED' THEN COALESCE(quarantined_at, CURRENT_TIMESTAMP) ELSE quarantined_at END,
+              quarantine_reason = CASE WHEN $2 = 'UNCONFIRMED' THEN 'PHYSICAL_STOP_NOT_CONFIRMED' ELSE quarantine_reason END,
+              quarantine_evidence = CASE WHEN $2 = 'UNCONFIRMED' THEN COALESCE(quarantine_evidence, '{}'::jsonb) || $3::jsonb ELSE quarantine_evidence END
         WHERE agent_run_id = $1 AND lease_state = 'ACTIVE'`,
-      [runId, status],
+      [runId, stopState, JSON.stringify({ workerGeneration: worker.generation || null, workerIdentity: worker.identity || null, physicalStop: runtimeResult?.physicalStop || null })],
     );
     await client.query(
-      `UPDATE worker.agent_sessions SET status = CASE WHEN $2 IN ('CANCELED', 'RECOVERY_REQUIRED') THEN 'RECOVERY_REQUIRED' ELSE 'CLOSED' END WHERE session_id = $1`,
-      [run.session_id, status],
+      `UPDATE worker.agent_sessions SET status = CASE WHEN $2 IN ('CANCELED', 'RECOVERY_REQUIRED') OR $3 = 'UNCONFIRMED' THEN 'RECOVERY_REQUIRED' ELSE 'CLOSED' END WHERE session_id = $1`,
+      [run.session_id, status, stopState],
     );
+    if (stopUnconfirmed) {
+      await client.query(`UPDATE worker.execution_scopes SET status = 'RECOVERY_REQUIRED', stop_reason = COALESCE(stop_reason, 'PHYSICAL_STOP_NOT_CONFIRMED'), stopped_at = COALESCE(stopped_at, CURRENT_TIMESTAMP) WHERE execution_scope_id = $1`, [run.execution_scope_id]);
+    }
     await client.query(
       `UPDATE auth.execution_grants
           SET grant_state = 'EXPIRED',
@@ -445,7 +497,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       turnId: operation?.turnId || null,
       eventType: 'RUN_TERMINAL_RESULT_PUBLISHED',
       sourceCursor: `result:${resultId || digest}`,
-      payload: { status, outcome, resultId, resultDigest: digest, stopState },
+      payload: { status, outcome, resultId, resultDigest: digest, stopState, interactionOutcome: interactionOutcome || null, quarantineState: stopUnconfirmed ? 'QUARANTINED' : 'NOT_APPLICABLE' },
     });
 
     return { runId, status, outcome, resultId, resultDigest: digest, summary };
@@ -472,6 +524,13 @@ module.exports = {
   prepareManagedCapabilityEffectActivity,
   revokeManagedCapabilityBeforeDispatchActivity,
   dispatchManagedCapabilityActivity,
+  createAgentInteractionActivity,
+  loadAgentInteractionActivity,
+  acknowledgeAgentInteractionDeliveryActivity,
+  applyAgentInteractionDecisionActivity,
+  expireAgentInteractionActivity,
+  cancelAgentInteractionsActivity,
+  reconcileQuarantinedRuntimeActivity,
   finalizeAgentRunActivity,
   getAgentRunStateActivity,
 };

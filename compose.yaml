@@ -274,6 +274,10 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       SKYCOMMAND_CONFIG_PROFILE: DOCKER_LOCAL
       SKYCOMMAND_RUNTIME_ENV: docker
+      # The host-native Supervisor remains the only Docker mutation plane. The
+      # explicit host gateway keeps the API-to-Supervisor refresh seam separate
+      # from the browser's loopback bootstrap URL.
+      SKYCOMMAND_SUPERVISOR_API_URL: http://host.docker.internal:${SKYCOMMAND_SUPERVISOR_PORT:-17170}
       SKYCOMMAND_DOCKER_RUNTIME_LABEL: Docker API
       SKYCOMMAND_DOCKER_GIT_CHECK_COMMAND: npm run api:docker:git:check
       SKYCOMMAND_SCRIPT_RUNTIME_ROOT: /app

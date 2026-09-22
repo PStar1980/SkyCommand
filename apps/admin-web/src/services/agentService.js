@@ -28,6 +28,9 @@ const agentService = {
   getAgentRunResult: (runId) => api.get(`/api/agent-runs/${runId}/result`),
   cancelAgentRun: (runId) => api.post(`/api/agent-runs/${runId}/cancel`, {}),
   stopExecutionScope: (scopeId) => api.post(`/api/execution-scopes/${scopeId}/stop`, {}),
+  listAgentInteractions: (query) => api.get('/api/agent-interactions', { query }),
+  getAgentInteraction: (interactionId) => api.get(`/api/agent-interactions/${interactionId}`),
+  decideAgentInteraction: (interactionId, body) => api.post(`/api/agent-interactions/${interactionId}/decision`, body),
 };
 
 export default agentService;
