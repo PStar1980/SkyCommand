@@ -148,6 +148,8 @@
     "agent-phase0:self-test": "node tests/self/packages/agents/src/phase0ContractsSelfTest.js",
     "agent-phase19:self-test": "node tests/self/packages/agents/src/phase19AuthoritySelfTest.js",
     "agent-phase19-2a:self-test": "node tests/self/packages/agents/src/phase19_2aKernelSelfTest.js",
+    "agent-phase19-2b:self-test": "node tests/self/apps/api/src/services/agentCapabilityExecutionSelfTest.js",
+    "agent-phase19-2b:credential-self-test": "node tests/self/apps/api/src/services/agentCapabilityCredentialEvidenceSelfTest.js",
     "agent-execution:self-test": "node tests/self/apps/api/src/services/agentExecutionSelfTest.js",
     "agent-runtime-containment:self-test": "node tests/self/scripts/docker/agentRuntimeWorkerContainmentSelfTest.js",
     "agent-operations-ui:self-test": "node tests/self/apps/admin-web/src/pages/agentOperationsUiSelfTest.js",

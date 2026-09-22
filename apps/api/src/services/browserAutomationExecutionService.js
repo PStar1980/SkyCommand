@@ -79,9 +79,45 @@ function permissionCodeSet(permissions = []) {
 function normalizeActor(actor = null) {
   if (!actor || typeof actor !== 'object') return { userId: null, label: null };
   const userId = actor.userId || actor.user_id || actor.id || null;
+  const roleCodes = [...new Set((actor.roleCodes || actor.role_codes || [])
+    .map((role) => String(role || '').trim().toUpperCase())
+    .filter(Boolean))];
   return {
     userId: userId && UUID_PATTERN.test(String(userId)) ? String(userId) : null,
     label: normalizeText(actor.displayName || actor.display_name || actor.username || actor.email || userId) || null,
+    roleCodes,
+    adminAll: roleCodes.includes('SUPER_ADMIN') || roleCodes.includes('ADMIN_ALL'),
+  };
+}
+
+function managedBrowserAccessClause({ actor = null, values = [], internalManaged = false } = {}) {
+  if (internalManaged) return { sql: '', values };
+  const normalized = normalizeActor(actor);
+  if (normalized.adminAll) return { sql: '', values };
+  if (!normalized.userId) {
+    return {
+      sql: 'AND managed_effect_id IS NULL',
+      values,
+    };
+  }
+  const userParameter = values.length + 1;
+  return {
+    sql: `AND (
+      managed_effect_id IS NULL
+      OR managed_initiating_user_id = $${userParameter}
+      OR EXISTS (
+        SELECT 1
+          FROM core.project_members managed_pm
+          JOIN core.project_member_rights managed_pr
+            ON managed_pr.project_member_id = managed_pm.project_member_id
+           AND managed_pr.right_code = 'PROJECT_READ'
+           AND managed_pr.active = TRUE
+         WHERE managed_pm.project_id = managed_project_id
+           AND managed_pm.user_id = $${userParameter}
+           AND managed_pm.membership_state = 'ACTIVE'
+      )
+    )`,
+    values: [...values, normalized.userId],
   };
 }
 
@@ -271,6 +307,21 @@ function sanitizeRunRow(row, artifacts = []) {
     durationMs: row.duration_ms === null || row.duration_ms === undefined ? null : Number(row.duration_ms),
     artifactCount: Number(row.artifact_count || artifacts.length || 0),
     artifacts,
+    managed: row.managed_effect_id ? {
+      effectId: row.managed_effect_id,
+      projectId: row.managed_project_id || null,
+      executionScopeId: row.managed_execution_scope_id || null,
+      agentRunId: row.managed_agent_run_id || null,
+      sessionId: row.managed_session_id || null,
+      turnId: row.managed_turn_id || null,
+      agentDefinitionId: row.managed_agent_definition_id || null,
+      definitionVersionId: row.managed_definition_version_id || null,
+      initiatingUserId: row.managed_initiating_user_id || null,
+      initiatingActor: row.managed_initiating_actor_snapshot || null,
+      authoritySnapshotId: row.managed_authority_snapshot_id || null,
+      authorityEpoch: row.managed_authority_epoch ?? null,
+      policyRevision: row.managed_policy_revision || null,
+    } : null,
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
   };
@@ -305,10 +356,18 @@ async function replaceRunArtifacts(client, browserAutomationRunId, artifacts = [
   }
 }
 
-async function getLedgerRowByWorkflowId(workflowId) {
+async function getLedgerRowByWorkflowId(workflowId, access = {}) {
+  const acl = managedBrowserAccessClause({
+    actor: access.actor,
+    internalManaged: access.internalManaged,
+    values: [workflowId],
+  });
   const result = await query(
-    `SELECT * FROM worker.vw_browser_automation_runs WHERE temporal_workflow_id = $1 LIMIT 1`,
-    [workflowId],
+    `SELECT * FROM worker.vw_browser_automation_runs
+      WHERE temporal_workflow_id = $1
+      ${acl.sql}
+      LIMIT 1`,
+    acl.values,
   );
   return result.rows[0] || null;
 }
@@ -379,7 +438,7 @@ async function persistObservedRun(row, { temporalStatus, description = null, res
   }
 }
 
-async function reconcileRun(row) {
+async function reconcileRun(row, access = {}) {
   if (TERMINAL_STATUSES.has(String(row.status || '').toUpperCase()) && row.result_summary) return row;
   const runtimeConfig = getBrowserRuntimeConfig();
   const connection = await Connection.connect({ address: runtimeConfig.temporalAddress });
@@ -401,10 +460,10 @@ async function reconcileRun(row) {
   } finally {
     await connection.close();
   }
-  return getLedgerRowByWorkflowId(row.temporal_workflow_id);
+  return getLedgerRowByWorkflowId(row.temporal_workflow_id, access);
 }
 
-async function listRuns(filters = {}) {
+async function listRuns(filters = {}, access = {}) {
   const values = [];
   const clauses = [];
   const search = normalizeText(filters.search || filters.query || filters.q);
@@ -429,6 +488,10 @@ async function listRuns(filters = {}) {
   const sideEffectLevel = normalizeText(filters.sideEffectLevel).toUpperCase();
   if (sideEffectLevel) { values.push(sideEffectLevel); clauses.push(`side_effect_level = $${values.length}`); }
 
+  const managedAcl = managedBrowserAccessClause({ actor: access.actor, internalManaged: access.internalManaged, values });
+  if (managedAcl.sql) clauses.push(managedAcl.sql.replace(/^AND\s+/i, ''));
+  values.splice(0, values.length, ...managedAcl.values);
+
   const limit = normalizePageSize(filters.limit);
   const offset = normalizeOffset(filters.offset);
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -445,7 +508,7 @@ async function listRuns(filters = {}) {
   const rows = [...result.rows];
   for (let index = 0; index < rows.length; index += 1) {
     if (!['STARTED', 'RUNNING'].includes(String(rows[index].status || '').toUpperCase())) continue;
-    try { rows[index] = await reconcileRun(rows[index]); } catch (_error) { /* keep durable row visible */ }
+    try { rows[index] = await reconcileRun(rows[index], access); } catch (_error) { /* keep durable row visible */ }
   }
   return {
     items: rows.map((row) => sanitizeRunRow(row)),
@@ -455,32 +518,34 @@ async function listRuns(filters = {}) {
   };
 }
 
-async function getRun(workflowId) {
+async function getRun(workflowId, access = {}) {
   const id = normalizeText(workflowId);
   if (!id || !/^skycommand-browser-automation-[A-Za-z0-9_-]+$/.test(id)) {
     throw createHttpError(400, 'Invalid Playwright Automation workflowId.');
   }
-  let row = await getLedgerRowByWorkflowId(id);
+  let row = await getLedgerRowByWorkflowId(id, access);
   if (!row) throw createHttpError(404, 'Playwright Automation run not found.');
-  row = await reconcileRun(row);
+  row = await reconcileRun(row, access);
   const artifacts = await loadArtifactsForRun(row.browser_automation_run_id, id);
   return sanitizeRunRow(row, artifacts);
 }
 
-async function getArtifact({ workflowId, artifactId }) {
+async function getArtifact({ workflowId, artifactId, actor = null, internalManaged = false }) {
   const id = normalizeText(workflowId);
   if (!id || !/^skycommand-browser-automation-[A-Za-z0-9_-]+$/.test(id)) {
     throw createHttpError(400, 'Invalid Playwright Automation workflowId.');
   }
   const artifactUuid = normalizeText(artifactId);
   if (!UUID_PATTERN.test(artifactUuid)) throw createHttpError(400, 'artifactId must be a valid UUID.');
+  const acl = managedBrowserAccessClause({ actor, internalManaged, values: [id, artifactUuid] });
   const result = await query(
     `SELECT r.artifact_root, a.*
      FROM worker.browser_automation_artifacts a
      JOIN worker.browser_automation_runs r ON r.browser_automation_run_id = a.browser_automation_run_id
      WHERE r.temporal_workflow_id = $1 AND a.artifact_id = $2
+       ${acl.sql}
      LIMIT 1`,
-    [id, artifactUuid],
+    acl.values,
   );
   const row = result.rows[0];
   if (!row) throw createHttpError(404, 'Playwright Automation artifact not found.');
@@ -499,7 +564,15 @@ async function getArtifact({ workflowId, artifactId }) {
   };
 }
 
-async function startRegisteredAutomation({ automationCode, body = {}, permissions = [], actor = null, triggerSource = 'MANUAL' }) {
+async function startRegisteredAutomation({
+  automationCode,
+  body = {},
+  permissions = [],
+  actor = null,
+  triggerSource = 'MANUAL',
+  preallocatedExecution = null,
+  managedContext = null,
+}) {
   const automation = await browserAutomationRegistryService.getBrowserAutomationByCode(automationCode, { includeDisabled: false });
   if (!automation) throw createHttpError(404, 'Playwright Automation not found or disabled.');
   if (automation.scriptRepository?.repoCode !== 'SkyCommand') {
@@ -536,11 +609,41 @@ async function startRegisteredAutomation({ automationCode, body = {}, permission
   }
 
   const runtimeConfig = getBrowserRuntimeConfig();
-  const workflowId = buildWorkflowId(automation.automationCode);
-  const executionId = randomUUID();
+  const workflowId = normalizeText(preallocatedExecution?.workflowId) || buildWorkflowId(automation.automationCode);
+  const executionId = normalizeText(preallocatedExecution?.executionId) || randomUUID();
   const actorInfo = normalizeActor(actor);
   const sourceCommit = resolveGitHeadSha(runtimeConfig.sourceRepositoryRoot || process.cwd());
   const artifactRoot = relativeArtifactRoot(runtimeConfig, executionId);
+
+  if (managedContext?.effectId) {
+    const existingManaged = await query(
+      `SELECT * FROM worker.vw_browser_automation_runs
+        WHERE managed_effect_id = $1
+        LIMIT 1`,
+      [managedContext.effectId],
+    );
+    if (existingManaged.rows[0]) {
+      const existing = existingManaged.rows[0];
+      return {
+        automation,
+        execution: {
+          browserAutomationRunId: existing.browser_automation_run_id,
+          executionId: existing.execution_id,
+          workflowId: existing.temporal_workflow_id,
+          runId: existing.temporal_run_id || null,
+          status: existing.status || 'STARTED',
+          taskQueue: runtimeConfig.taskQueue,
+          executionMode: existing.execution_mode || executionMode,
+          environmentCode: existing.environment_code || environment.environmentCode,
+          parameters: existing.parameters || parameters,
+          sourceCommit: existing.source_commit_sha || sourceCommit,
+          artifactRoot: existing.artifact_root || artifactRoot,
+          managedEffectId: managedContext.effectId,
+          replayed: true,
+        },
+      };
+    }
+  }
 
   let browserAutomationRunId;
   const db = await pool.connect();
@@ -570,8 +673,12 @@ async function startRegisteredAutomation({ automationCode, body = {}, permission
          execution_id, automation_id, automation_code, automation_label, category_code,
          temporal_workflow_id, temporal_status, status, trigger_source,
          initiated_by_user_id, initiated_by_label, environment_code, browser_type, execution_mode,
-         parameters, source_repo_code, source_commit_sha, side_effect_level, idempotency_mode, risk_code, artifact_root
-       ) VALUES ($1,$2,$3,$4,$5,$6,'STARTED','STARTED',$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,$19)
+         parameters, source_repo_code, source_commit_sha, side_effect_level, idempotency_mode, risk_code, artifact_root,
+         managed_effect_id, managed_project_id, managed_execution_scope_id, managed_agent_run_id,
+         managed_session_id, managed_turn_id, managed_agent_definition_id, managed_definition_version_id,
+         managed_initiating_user_id, managed_initiating_actor_snapshot, managed_authority_snapshot_id,
+         managed_authority_epoch, managed_policy_revision
+       ) VALUES ($1,$2,$3,$4,$5,$6,'STARTED','STARTED',$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30,$31,$32)
        RETURNING browser_automation_run_id`,
       [
         executionId,
@@ -593,6 +700,19 @@ async function startRegisteredAutomation({ automationCode, body = {}, permission
         automation.idempotencyMode,
         automation.riskCode,
         artifactRoot,
+        managedContext?.effectId || null,
+        managedContext?.projectId || null,
+        managedContext?.executionScopeId || null,
+        managedContext?.agentRunId || null,
+        managedContext?.sessionId || null,
+        managedContext?.turnId || null,
+        managedContext?.agentDefinitionId || null,
+        managedContext?.definitionVersionId || null,
+        managedContext?.initiatingUserId || null,
+        managedContext?.initiatingActor ? JSON.stringify(managedContext.initiatingActor) : null,
+        managedContext?.authoritySnapshotId || null,
+        managedContext?.authorityEpoch ?? null,
+        managedContext?.policyRevision || null,
       ],
     );
     browserAutomationRunId = insert.rows[0].browser_automation_run_id;
@@ -667,6 +787,7 @@ async function startRegisteredAutomation({ automationCode, body = {}, permission
         parameters,
         sourceCommit,
         artifactRoot,
+        managedEffectId: managedContext?.effectId || null,
       },
     };
   } catch (error) {
@@ -684,6 +805,7 @@ async function startRegisteredAutomation({ automationCode, body = {}, permission
 }
 
 module.exports = {
+  buildWorkflowId,
   createHttpError,
   getArtifact,
   getRun,

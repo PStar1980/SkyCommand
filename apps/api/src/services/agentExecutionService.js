@@ -20,6 +20,7 @@ const { getAgentRuntimeTaskQueue } = require('../../../../packages/agents/src/ru
 const { getTemporalConfig } = require('../../../../packages/temporal/src/config');
 const { dispatchAgentRun } = require('./agentRunDispatcher');
 const { normalizeRuntimeIdentity, projectRuntimeIdentity } = require('./agentRuntimeProjection');
+const agentCapabilityAuthorizationService = require('./agentCapabilityAuthorizationService');
 
 const MAX_INSTRUCTION_LENGTH = 20000;
 const MAX_LIMIT = 100;
@@ -250,6 +251,7 @@ async function resolveAgentSelection(client, request, project, workspace) {
             i.configuration_digest, i.process_generation, i.service_generation,
             i.process_started_at, i.observed_at, i.freshness_status,
             i.capability_manifest,
+            i.capability_manifest_revision,
             r.runtime_code, r.runtime_name,
             a.account_code, a.account_state, a.account_policy,
             a.execution_enabled AS account_execution_enabled,
@@ -284,7 +286,7 @@ async function resolveAgentSelection(client, request, project, workspace) {
 }
 
 function assertFakeRuntimeEligibility(selected) {
-  if (!['FAKE_PERSISTENT', 'FAKE_EPHEMERAL'].includes(selected.runtime_code)) throw new AgentExecutionServiceError(422, 'AGENT_REAL_RUNTIME_DISABLED', 'Only source-controlled internal fake runtimes are executable in Phase 19.2A.');
+  if (!['FAKE_PERSISTENT', 'FAKE_EPHEMERAL'].includes(selected.runtime_code)) throw new AgentExecutionServiceError(422, 'AGENT_REAL_RUNTIME_DISABLED', 'Only source-controlled internal fake runtimes are executable in the bounded Phase 19.2B path.');
   if (selected.installation_enabled !== true || selected.certification_state !== 'CERTIFIED' || selected.installation_execution_enabled !== true || selected.installation_enablement_source !== 'INTERNAL_FAKE_FIXTURE') throw new AgentExecutionServiceError(422, 'AGENT_RUNTIME_NOT_EXECUTION_READY', 'The fake runtime installation is not certified, enabled, fresh, and source-controlled for execution.');
   if (selected.freshness_status !== 'CURRENT') throw new AgentExecutionServiceError(422, 'AGENT_RUNTIME_STALE', 'The fake runtime installation freshness is not CURRENT.');
   if (selected.account_state !== 'CONFIGURED' || selected.account_execution_enabled !== true || selected.account_enablement_source !== 'INTERNAL_FAKE_FIXTURE') throw new AgentExecutionServiceError(422, 'AGENT_ACCOUNT_NOT_EXECUTION_READY', 'The fake runtime account is not configured and execution-enabled by the internal fixture.');
@@ -326,7 +328,7 @@ function buildAuthority({ request, project, workspace, selected, runtimeConfigur
     requestedConstraints: request.constraints,
     configuredConstraints: intersectConstraints([projectPolicy.constraints, workspacePolicy.constraints, definitionPolicy.constraints]),
     grantedConstraints: intersectConstraints([capabilityPolicy.constraints, runtimePolicy.constraints, accountPolicy.constraints]),
-    obligations: ['REGISTERED_WORKSPACE_ONLY', 'INTERNAL_FAKE_RUNTIME_ONLY', 'NO_AGENT_CAPABILITY_EFFECTS', 'NO_PROVIDER_CREDENTIALS'],
+    obligations: ['REGISTERED_WORKSPACE_ONLY', 'INTERNAL_FAKE_RUNTIME_ONLY', 'MANAGED_BROWSER_CAPABILITY_ONLY', 'NO_PROVIDER_CREDENTIALS'],
     runtimeConfiguration,
   });
   const requestedSurfaceModes = new Map(authority.executionSurfaces.requested.surfaces.map((entry) => [entry.surface, entry.mode]));
@@ -437,6 +439,7 @@ function toRunSummary(row) {
     authoritySnapshot: row.authority_snapshot || null,
     runtimeCell: row.runtime_cell || null,
     resultStatus: row.result_status || null,
+    capabilityEffectCount: Number(row.capability_effect_count || 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     terminalAt: row.terminal_at,
@@ -452,7 +455,8 @@ async function getRunRow(runId, actor, { includeEvidence = false } = {}) {
             jsonb_build_object('authoritySnapshotId', a.authority_snapshot_id, 'digest', a.digest, 'snapshot', a.snapshot) AS authority_snapshot,
             CASE WHEN rc.runtime_cell_id IS NULL THEN NULL ELSE jsonb_build_object('runtimeCellId', rc.runtime_cell_id, 'runtimeKind', rc.runtime_kind, 'adapterVersion', rc.adapter_version, 'taskQueue', rc.task_queue, 'workerIdentity', rc.worker_identity, 'workerGeneration', rc.worker_generation, 'readinessStatus', rc.readiness_status, 'observedAt', rc.observed_at, 'heartbeatAt', rc.heartbeat_at, 'containmentProfile', rc.containment_profile) END AS runtime_cell,
             res.result_status,
-            res.result AS terminal_result
+            res.result AS terminal_result,
+            capability_counts.capability_effect_count
        FROM worker.agent_runs ar
        JOIN core.agent_runtime_installations i ON i.installation_id = ar.installation_id
        JOIN core.agent_runtimes r ON r.agent_runtime_id = i.agent_runtime_id
@@ -461,8 +465,13 @@ async function getRunRow(runId, actor, { includeEvidence = false } = {}) {
        JOIN core.agent_definition_versions v ON v.definition_version_id = ar.definition_version_id
        JOIN core.project_workspaces pw ON pw.project_workspace_id = ar.project_workspace_id
        LEFT JOIN worker.agent_authority_snapshots a ON a.agent_run_id = ar.agent_run_id
-       LEFT JOIN worker.agent_runtime_cells rc ON rc.agent_run_id = ar.agent_run_id
-       LEFT JOIN worker.agent_results res ON res.agent_run_id = ar.agent_run_id
+            LEFT JOIN worker.agent_runtime_cells rc ON rc.agent_run_id = ar.agent_run_id
+            LEFT JOIN worker.agent_results res ON res.agent_run_id = ar.agent_run_id
+            LEFT JOIN LATERAL (
+              SELECT COUNT(*)::int AS capability_effect_count
+              FROM worker.agent_capability_effects ce
+              WHERE ce.agent_run_id = ar.agent_run_id
+            ) capability_counts ON TRUE
       WHERE ar.agent_run_id = $1
         AND ($2::boolean = TRUE OR $3::uuid IS NULL OR EXISTS (
           SELECT 1 FROM core.project_members pm
@@ -475,12 +484,13 @@ async function getRunRow(runId, actor, { includeEvidence = false } = {}) {
   const row = result.rows[0];
   const summary = toRunSummary(row);
   if (!includeEvidence) return summary;
-  const [events, operations, resultRow] = await Promise.all([
+  const [events, operations, resultRow, capabilityEffects] = await Promise.all([
     query(`SELECT agent_event_id AS "eventId", event_sequence AS "sequence", event_type AS "eventType", event_scope AS "scope", source_kind AS "sourceKind", source_instance AS "sourceInstance", source_cursor AS "sourceCursor", availability, freshness, observed_at AS "observedAt", payload FROM worker.agent_events WHERE agent_run_id = $1 ORDER BY event_sequence`, [runId]),
     query(`SELECT provider_operation_id AS "operationId", operation_key AS "operationKey", operation_type AS "operationType", provider_operation_reference AS "providerOperationReference", input_digest AS "inputDigest", fence_epoch AS "fenceEpoch", state, outcome_certainty AS "outcomeCertainty", outcome, created_at AS "createdAt", updated_at AS "updatedAt" FROM worker.agent_provider_operations WHERE agent_run_id = $1 ORDER BY created_at`, [runId]),
     query(`SELECT agent_result_id AS "resultId", result_status AS "resultStatus", result_digest AS "resultDigest", result, published_at AS "publishedAt" FROM worker.agent_results WHERE agent_run_id = $1`, [runId]),
+    agentCapabilityAuthorizationService.getManagedCapabilityEffects(runId),
   ]);
-  return { ...summary, executionContext: row.execution_context, authoritySnapshot: row.authority_snapshot, events: events.rows, providerOperations: operations.rows, result: resultRow.rows[0] || null };
+  return { ...summary, executionContext: row.execution_context, authoritySnapshot: row.authority_snapshot, events: events.rows, providerOperations: operations.rows, capabilityEffects, result: resultRow.rows[0] || null };
 }
 
 async function admitAgentRun(req, body = {}) {
@@ -536,7 +546,7 @@ async function admitAgentRun(req, body = {}) {
         reviewedSourceRevision: selected.reviewed_source_revision,
         configurationRevision: selected.configuration_revision,
         configurationDigest: selected.configuration_digest,
-        capabilityManifestRevision: 'phase19.2a',
+        capabilityManifestRevision: selected.capability_manifest_revision || 'phase19.2a',
         capabilityManifestDigest: sha256Digest(selected.capability_manifest || {}),
         runtimeProfile: selected.runtime_profile,
         processGeneration: runtimeReadiness.workerIdentity,
@@ -603,11 +613,11 @@ async function admitAgentRun(req, body = {}) {
            account_binding_id, capability_profile_id, initiating_user_id,
            initiating_principal_id, initiating_actor_kind, initiating_actor_id,
            initiating_actor_snapshot, requesting_actor_kind, requesting_actor_id,
-           trigger_source, instruction, fake_runtime_case_id, requested_authority,
+           trigger_source, instruction, deadline_at, fake_runtime_case_id, requested_authority,
            execution_context, submitted_intent_digest, resolved_spec_digest,
            stable_temporal_workflow_id, status, revocation_epoch
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $13, $14, 'MANUAL', $16, $17, $18::jsonb, $19::jsonb, $20, $21, $22, 'ADMITTED', 0)`,
-        [agentRunId, rootExecutionId, sessionId, project.project_id, selected.definition_id, selected.definition_version_id, workspace.project_workspace_id, selected.installation_id, selected.account_binding_id, selected.capability_profile_id, actor.userId, principal.execution_principal_id, initiatingActor.kind, initiatingActor.id, JSON.stringify(initiatingActor), request.instruction, fakeCase.caseId, JSON.stringify({ requested: request.requestedScope, surfaces: request.requestedExecutionSurfaces, constraints: request.constraints }), JSON.stringify(executionContext), submittedIntentDigest, resolvedSpecDigest, stableWorkflowId],
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $13, $14, 'MANUAL', $16, $17, $18, $19::jsonb, $20::jsonb, $21, $22, $23, 'ADMITTED', 0)`,
+        [agentRunId, rootExecutionId, sessionId, project.project_id, selected.definition_id, selected.definition_version_id, workspace.project_workspace_id, selected.installation_id, selected.account_binding_id, selected.capability_profile_id, actor.userId, principal.execution_principal_id, initiatingActor.kind, initiatingActor.id, JSON.stringify(initiatingActor), request.instruction, deadlineAt, fakeCase.caseId, JSON.stringify({ requested: request.requestedScope, surfaces: request.requestedExecutionSurfaces, constraints: request.constraints }), JSON.stringify(executionContext), submittedIntentDigest, resolvedSpecDigest, stableWorkflowId],
       );
       const authoritySnapshotResult = await client.query(
         `INSERT INTO worker.agent_authority_snapshots (agent_run_id, execution_scope_id, digest, snapshot) VALUES ($1, $2, $3, $4::jsonb) RETURNING authority_snapshot_id`,
@@ -656,7 +666,8 @@ async function listAgentRuns(req, options = {}) {
     `SELECT ar.*, r.runtime_code, p.project_code, p.project_name, d.agent_code, v.revision AS agent_revision, pw.environment_code,
             jsonb_build_object('snapshotId', a.authority_snapshot_id, 'digest', a.digest) AS authority_snapshot,
             CASE WHEN rc.runtime_cell_id IS NULL THEN NULL ELSE jsonb_build_object('runtimeKind', rc.runtime_kind, 'workerGeneration', rc.worker_generation, 'readinessStatus', rc.readiness_status, 'observedAt', rc.observed_at) END AS runtime_cell,
-            res.result_status
+            res.result_status,
+            (SELECT COUNT(*)::int FROM worker.agent_capability_effects ce WHERE ce.agent_run_id = ar.agent_run_id) AS capability_effect_count
        FROM worker.agent_runs ar
        JOIN core.agent_runtime_installations i ON i.installation_id = ar.installation_id
        JOIN core.agent_runtimes r ON r.agent_runtime_id = i.agent_runtime_id

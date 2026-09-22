@@ -6,6 +6,7 @@ const {
   resultDigest,
 } = require('../../../agents/src/agentRunKernel');
 const { query, pool } = require('../../../db/src/connection');
+const agentCapabilityAuthorizationService = require('../../../../apps/api/src/services/agentCapabilityAuthorizationService');
 
 function safeObject(value, fallback = {}) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
@@ -192,11 +193,23 @@ async function prepareProviderOperationActivity({ runId, instruction, deadlineAt
   });
 }
 
+async function prepareManagedCapabilityEffectActivity({ runId, operationId, turnId, caseId } = {}) {
+  return agentCapabilityAuthorizationService.prepareManagedCapabilityEffect({ runId, operationId, turnId, caseId });
+}
+
+async function revokeManagedCapabilityBeforeDispatchActivity({ runId, effectId } = {}) {
+  return agentCapabilityAuthorizationService.revokeBeforeDispatch({ runId, effectId });
+}
+
+async function dispatchManagedCapabilityActivity({ effectId, credential, runtimeWorker, simulateUnknownDispatch = false } = {}) {
+  return agentCapabilityAuthorizationService.dispatchManagedCapability({ effectId, credential, runtimeWorker, simulateUnknownDispatch });
+}
+
 function normalizeRuntimeEvents(runtimeResult = {}) {
   return Array.isArray(runtimeResult.events) ? runtimeResult.events : [];
 }
 
-async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult = null, reconciliation = null, temporalRunId = null } = {}) {
+async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult = null, reconciliation = null, temporalRunId = null, capabilityEffects = [] } = {}) {
   return withTransaction(async (client) => {
     const run = await loadRun(client, runId, true);
     if (!run) throw new Error('Agent Run not found while finalizing.');
@@ -263,7 +276,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
            heartbeat_at = EXCLUDED.heartbeat_at,
            containment_profile = EXCLUDED.containment_profile,
            updated_at = CURRENT_TIMESTAMP`,
-        [runId, run.runtime_code, runtimeResult.adapterVersion || 'fake-runtime-adapter.v1', runtimeResult.worker?.taskQueue || 'skycommand-agent-runtime-local', worker.identity || null, worker.generation || null, worker.processId || null, worker.hostname || null, JSON.stringify({ liveCheckoutMount: false, dockerSocket: false, githubCredentials: false, hostAgentCredentials: false, supervisorCredentials: false, providerCredentials: false })],
+        [runId, run.runtime_code, runtimeResult.adapterVersion || 'fake-runtime-adapter.v1', runtimeResult.worker?.taskQueue || 'skycommand-agent-runtime-local', worker.identity || null, worker.generation || null, worker.processId || null, worker.hostname || null, JSON.stringify(runtimeResult.containmentProfile || { liveCheckoutMount: false, arbitraryHostFilesystem: false, dockerSocket: false, githubCredentials: false, hostAgentCredentials: false, supervisorCredentials: false, providerCredentials: false })],
       );
     }
 
@@ -300,6 +313,59 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       });
     }
 
+    const safeCapabilityEffects = (Array.isArray(capabilityEffects) ? capabilityEffects : []).map((effect) => ({
+      effectId: effect?.effectId || null,
+      effectKey: effect?.effectKey || null,
+      capabilityKind: effect?.capabilityKind || null,
+      capabilityCode: effect?.capabilityCode || null,
+      capabilityVersion: effect?.capabilityVersion || null,
+      authorityDecision: effect?.authorityDecision || null,
+      authorityEpoch: effect?.authorityEpoch ?? null,
+      policyRevision: effect?.policyRevision || null,
+      executionSurfaceDecision: effect?.executionSurfaceDecision || {},
+      managedCredential: effect?.managedCredential ? {
+        grantId: effect.managedCredential.grantId || null,
+        reference: effect.managedCredential.reference || null,
+        credentialFingerprint: effect.managedCredential.credentialFingerprint || null,
+        audience: effect.managedCredential.audience || null,
+        issuedAt: effect.managedCredential.issuedAt || null,
+        expiresAt: effect.managedCredential.expiresAt || null,
+        state: effect.managedCredential.state === 'ACTIVE' ? 'EXPIRED' : effect.managedCredential.state || null,
+        closedAt: effect.managedCredential.closedAt || null,
+        revokedAt: effect.managedCredential.revokedAt || null,
+        expiredAt: effect.managedCredential.expiredAt || null,
+        statusReason: effect.managedCredential.statusReason || null,
+        revocationEpoch: effect.managedCredential.revocationEpoch ?? null,
+      } : null,
+      nativeBrowserExecutionId: effect?.nativeBrowserExecutionId || null,
+      nativeBrowserWorkflowId: effect?.nativeBrowserWorkflowId || null,
+      browserAutomationRunId: effect?.browserAutomationRunId || null,
+      runtimeWorker: effect?.runtimeWorker || null,
+      dispatchState: effect?.dispatchState || null,
+      outcomeCertainty: effect?.outcomeCertainty || null,
+      denialReason: effect?.denialReason || null,
+      reconciliation: effect?.reconciliation || {},
+      result: effect?.result || null,
+      browserResult: effect?.browserResult || null,
+      replayed: Boolean(effect?.replayed),
+      denied: Boolean(effect?.denied),
+    }));
+    for (const effect of safeCapabilityEffects) {
+      await appendEvent(client, {
+        runId,
+        sessionId: run.session_id,
+        executionScopeId: run.execution_scope_id,
+        turnId: operation?.turnId || null,
+        eventType: 'AGENT_CAPABILITY_EFFECT_RECORDED',
+        sourceKind: 'SKYCOMMAND_AGENT_CAPABILITY_AUTHORIZATION',
+        sourceInstance: effect.runtimeWorker?.identity || 'control-plane',
+        sourceCursor: `capability:${effect.effectId}:final:${effect.dispatchState || 'UNKNOWN'}`,
+        availability: effect.denied ? 'ERROR' : 'REPORTED',
+        freshness: 'CURRENT',
+        payload: effect,
+      });
+    }
+
     const summary = buildTerminalSummary({
       runId,
       sessionId: run.session_id,
@@ -320,6 +386,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       caseId: run.fake_runtime_case_id,
       stopState,
       errorCode: recoveryRequired ? 'PROVIDER_SEND_UNKNOWN' : rejected ? 'PROVIDER_REJECTED_BEFORE_ACCEPTANCE' : null,
+      capabilityEffects: safeCapabilityEffects,
     });
     const digest = resultDigest(summary);
     const resultInsert = await client.query(
@@ -349,6 +416,21 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
     await client.query(
       `UPDATE worker.agent_sessions SET status = CASE WHEN $2 IN ('CANCELED', 'RECOVERY_REQUIRED') THEN 'RECOVERY_REQUIRED' ELSE 'CLOSED' END WHERE session_id = $1`,
       [run.session_id, status],
+    );
+    await client.query(
+      `UPDATE auth.execution_grants
+          SET grant_state = 'EXPIRED',
+              revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP),
+              grant_metadata = jsonb_set(
+                COALESCE(grant_metadata, '{}'::jsonb),
+                '{lifecycleReason}',
+                to_jsonb('AGENT_RUN_TERMINAL'::text),
+                TRUE
+              )
+        WHERE agent_run_id = $1
+          AND grant_kind = 'MANAGED_CAPABILITY'
+          AND grant_state = 'ACTIVE'`,
+      [runId],
     );
     if (temporalRunId) {
       await client.query(
@@ -387,6 +469,9 @@ async function getAgentRunStateActivity({ runId } = {}) {
 module.exports = {
   markAgentRunStateActivity,
   prepareProviderOperationActivity,
+  prepareManagedCapabilityEffectActivity,
+  revokeManagedCapabilityBeforeDispatchActivity,
+  dispatchManagedCapabilityActivity,
   finalizeAgentRunActivity,
   getAgentRunStateActivity,
 };

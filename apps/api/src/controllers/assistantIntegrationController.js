@@ -152,7 +152,7 @@ async function getWorkflowExecutionRun(req, res, next) {
 
 async function getRun(req, res, next) {
   try {
-    const run = await assistantIntegrationService.getRun(req.params.workflowId);
+    const run = await assistantIntegrationService.getRun(req.params.workflowId, { actor: req.user });
     return res.json({ ok: true, run });
   } catch (error) {
     return sendError(res, error, next);
@@ -164,6 +164,7 @@ async function getArtifact(req, res, next) {
     const artifact = await assistantIntegrationService.getArtifact({
       workflowId: req.params.workflowId,
       artifactId: req.params.artifactId,
+      actor: req.user,
     });
     res.type(artifact.contentType || 'application/octet-stream');
     const disposition =
