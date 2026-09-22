@@ -9,6 +9,7 @@ const DEFAULT_RUNTIME_SERVICES = [
   'temporal-worker',
   'browser-worker',
   'node-worker',
+  'agent-runtime-worker',
   'api',
 ];
 const DEFAULT_BACKEND_REBUILD_SERVICES = [
@@ -16,12 +17,14 @@ const DEFAULT_BACKEND_REBUILD_SERVICES = [
   'temporal-worker',
   'browser-worker',
   'node-worker',
+  'agent-runtime-worker',
 ];
 const FINALIZATION_REBUILD_SERVICES = Object.freeze([
   'api',
   'temporal-worker',
   'browser-worker',
   'node-worker',
+  'agent-runtime-worker',
   'web',
 ]);
 const DEFAULT_STARTUP_TIMEOUT_MS = 180000;

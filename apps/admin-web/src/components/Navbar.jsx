@@ -108,6 +108,8 @@ const COMMAND_SEARCH_ALIASES = {
   audit: '/access-control/user-history',
   agents: '/agents/projects',
   'agent projects': '/agents/projects',
+  'agent operations': '/agents/operations',
+  'agent runs': '/agents/operations',
   'manage agents': '/agents/manage',
 };
 
@@ -225,7 +227,8 @@ function createNavGroups(hasPermission, hasRole) {
   const canViewAgents =
     hasPermission('AGENT_PROJECT_READ') ||
     hasPermission('AGENT_READ') ||
-    hasPermission('AGENT_RUNTIME_READ');
+    hasPermission('AGENT_RUNTIME_READ') ||
+    hasPermission('AGENT_RUN');
 
   return [
     {
@@ -576,6 +579,13 @@ function createNavGroups(hasPermission, hasRole) {
       icon: '✦',
       visible: canViewAgents,
       items: [
+        {
+          label: 'Agent Operations',
+          to: '/agents/operations',
+          icon: '▶',
+          visible: hasPermission('AGENT_RUN'),
+          description: 'Durable fake Agent Runs and evidence',
+        },
         {
           label: 'Agent Projects',
           to: '/agents/projects',

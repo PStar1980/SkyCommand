@@ -74,7 +74,7 @@ async function executePreflight(args = []) {
   const changedPaths = manifestChangedPaths(sourceIdentity.files, latest?.source_identity_manifest || []);
   const classified = classifyChangedPaths(changedPaths);
   const services = [...new Set([...classified.services, ...patchInfo.services])];
-  const orderedServices = ['api', 'temporal-worker', 'browser-worker', 'node-worker', 'web'].filter((service) => services.includes(service));
+  const orderedServices = ['api', 'temporal-worker', 'browser-worker', 'node-worker', 'agent-runtime-worker', 'web'].filter((service) => services.includes(service));
   const sourceChanged =
     !latest || String(latest.source_identity_digest || '').toUpperCase() !== sourceIdentity.digest;
   const lifecycleRequired = orderedServices.length > 0;

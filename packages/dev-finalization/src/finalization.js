@@ -28,6 +28,7 @@ const FINALIZATION_SERVICE_ORDER = Object.freeze([
   'temporal-worker',
   'browser-worker',
   'node-worker',
+  'agent-runtime-worker',
   'web',
 ]);
 const FINALIZATION_ORCHESTRATOR_SERVICE = 'temporal-worker';
@@ -205,6 +206,17 @@ function classifyChangedPaths(changedPaths = []) {
     }
     if (normalized.startsWith('apps/browser-worker/') || normalized.startsWith('packages/browser/')) {
       services.add('browser-worker');
+    }
+    if (
+      normalized.startsWith('apps/agent-runtime-worker/') ||
+      normalized.startsWith('packages/agents/') ||
+      normalized === 'docker/agent-runtime-worker.dockerfile' ||
+      normalized === 'docker/agent-runtime-worker.package.json' ||
+      normalized === 'packages/temporal/src/config.js' ||
+      normalized === 'packages/tools/src/jsonSchemaValidator.js' ||
+      normalized === 'compose.yaml'
+    ) {
+      services.add('agent-runtime-worker');
     }
     if (
       normalized.startsWith('packages/temporal/') ||

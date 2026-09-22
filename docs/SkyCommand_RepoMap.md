@@ -124,6 +124,8 @@ SkyCommand/
 │   │       │   ├── AdminRoles.jsx
 │   │       │   ├── AdminSessions.jsx
 │   │       │   ├── AdminUsers.jsx
+│   │       │   ├── AgentOperations.jsx
+│   │       │   ├── agentOperationsPresentation.mjs
 │   │       │   ├── AgentProjects.jsx
 │   │       │   ├── ApiDashboard.jsx
 │   │       │   ├── AuditEvents.jsx
@@ -178,6 +180,11 @@ SkyCommand/
 │   │           ├── tablePageSize.js
 │   │           ├── tableSorting.js
 │   │           └── workflowCategories.js
+│   ├── agent-runtime-worker/
+│   │   └── src/
+│   │       ├── activities.js
+│   │       ├── health.js
+│   │       └── index.js
 │   ├── api/
 │   │   └── src/
 │   │       ├── index.js
@@ -185,6 +192,7 @@ SkyCommand/
 │   │       ├── controllers/
 │   │       │   ├── adminController.js
 │   │       │   ├── agentController.js
+│   │       │   ├── agentRunController.js
 │   │       │   ├── assistantIntegrationController.js
 │   │       │   ├── authController.js
 │   │       │   ├── browserAutomationController.js
@@ -210,12 +218,14 @@ SkyCommand/
 │   │       │   ├── agent.routes.js
 │   │       │   ├── agentDefinition.routes.js
 │   │       │   ├── agentExecution.routes.js
+│   │       │   ├── agentRun.routes.js
 │   │       │   ├── agentRuntime.routes.js
 │   │       │   ├── assistantIntegration.routes.js
 │   │       │   ├── auth.routes.js
 │   │       │   ├── browserAutomation.routes.js
 │   │       │   ├── browserTest.routes.js
 │   │       │   ├── browserTestSuite.routes.js
+│   │       │   ├── executionScope.routes.js
 │   │       │   ├── infrastructure.routes.js
 │   │       │   ├── ingestion.routes.js
 │   │       │   ├── macro.routes.js
@@ -229,7 +239,10 @@ SkyCommand/
 │   │       ├── services/
 │   │       │   ├── adminActionService.js
 │   │       │   ├── adminReadService.js
+│   │       │   ├── agentExecutionService.js
 │   │       │   ├── agentRegistryService.js
+│   │       │   ├── agentRunDispatcher.js
+│   │       │   ├── agentRuntimeProjection.js
 │   │       │   ├── apiDockerPreflight.js
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryService.js
@@ -1413,6 +1426,8 @@ SkyCommand/
 │       └── skycommand/
 │           └── commandCenterStatus.js
 ├── docker/
+│   ├── agent-runtime-worker.Dockerfile
+│   ├── agent-runtime-worker.package.json
 │   ├── api.Dockerfile
 │   ├── api.package.json
 │   ├── browser-worker.Dockerfile
@@ -1502,13 +1517,18 @@ SkyCommand/
 │   │   │   ├── agent_run_summary.v1.schema.json
 │   │   │   ├── agent_runtime_configuration_identity.v1.schema.json
 │   │   │   ├── agent_runtime_locator.v1.schema.json
+│   │   │   ├── execution_context.v1.schema.json
 │   │   │   ├── execution_surface_policy.v1.schema.json
 │   │   │   └── fake_runtime_case.v1.schema.json
 │   │   └── src/
+│   │       ├── agentRunKernel.js
 │   │       ├── authority.js
 │   │       ├── canonical.js
+│   │       ├── executionContext.js
+│   │       ├── fakeRuntime.js
 │   │       ├── index.js
-│   │       └── runtimeConfiguration.js
+│   │       ├── runtimeConfiguration.js
+│   │       └── runtimeWorker.js
 │   ├── auth/
 │   │   └── src/
 │   │       ├── createAdminUser.js
@@ -1647,7 +1667,8 @@ SkyCommand/
 │   │       │   ├── 00146__r6_human_agent_parity_and_recovery.sql
 │   │       │   ├── 00147__retire_d2_database_upgrade_surfaces.sql
 │   │       │   ├── 00148__host_agent_heartbeat_freshness_index.sql
-│   │       │   └── 00149__agent_registry_foundation.sql
+│   │       │   ├── 00149__agent_registry_foundation.sql
+│   │       │   └── 00151__agent_run_kernel.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1700,7 +1721,8 @@ SkyCommand/
 │   │           ├── 00122__browser_test_suites_seed.sql
 │   │           ├── 00124__playwright_scheduler_bridges_seed.sql
 │   │           ├── 00127__assistant_browser_automation_reference_seed.sql
-│   │           └── 00150__agent_registry_permissions.sql
+│   │           ├── 00150__agent_registry_permissions.sql
+│   │           └── 00152__agent_run_permissions_and_fake_runtime.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -1875,10 +1897,12 @@ SkyCommand/
 │   │       ├── temporalHealth.js
 │   │       ├── worker.js
 │   │       ├── activities/
+│   │       │   ├── agentRunActivities.js
 │   │       │   ├── fredActivities.js
 │   │       │   ├── index.js
 │   │       │   └── skyCommandWorkflowActivities.js
 │   │       └── workflows/
+│   │           ├── agentRunWorkflow.js
 │   │           ├── fredIngestionWorkflow.js
 │   │           ├── hostAgentWorkflow.js
 │   │           ├── index.js
@@ -2193,6 +2217,7 @@ SkyCommand/
         │   │       │   ├── adminSessionsSurfaceSelfTest.js
         │   │       │   ├── adminUserHistorySurfaceSelfTest.js
         │   │       │   ├── adminUsersSurfaceSelfTest.js
+        │   │       │   ├── agentOperationsUiSelfTest.js
         │   │       │   ├── agentRegistryUiSelfTest.js
         │   │       │   ├── apiDashboardSelfTest.js
         │   │       │   ├── approvalHistorySelfTest.js
@@ -2222,6 +2247,7 @@ SkyCommand/
         │   └── api/
         │       └── src/
         │           └── services/
+        │               ├── agentExecutionSelfTest.js
         │               ├── agentRegistryAuditSelfTest.js
         │               ├── agentRegistryIsolationSelfTest.js
         │               ├── agentRegistrySelfTest.js
@@ -2266,6 +2292,7 @@ SkyCommand/
         │   ├── agents/
         │   │   └── src/
         │   │       ├── phase0ContractsSelfTest.js
+        │   │       ├── phase19_2aKernelSelfTest.js
         │   │       └── phase19AuthoritySelfTest.js
         │   ├── browser/
         │   │   └── src/
@@ -2369,6 +2396,7 @@ SkyCommand/
         │           └── workflowResultContextSelfTest.js
         └── scripts/
             ├── docker/
+            │   ├── agentRuntimeWorkerContainmentSelfTest.js
             │   ├── apiDockerSelfTest.js
             │   ├── browserWorkerDockerSelfTest.js
             │   ├── coreDockerCompatibilitySelfTest.js

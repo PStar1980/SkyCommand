@@ -7,6 +7,7 @@ const { query } = require('../../../packages/db/src/connection');
 const workerNodeService = require('./jobs/workerNodeService');
 const { startSchedulePoller, getPollIntervalSeconds } = require('./schedulers/schedulePoller');
 const { startListenerPoller } = require('./listeners/listenerPoller');
+const { startAgentRunOutboxDispatcher } = require('../../api/src/services/agentRunDispatcher');
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') {
@@ -204,6 +205,9 @@ async function startWorker() {
   if (listenerEnabled) {
     stopHandles.push(startListenerPoller({ workerNode }));
   }
+
+  stopHandles.push(startAgentRunOutboxDispatcher());
+  console.log('[SkyCommand Worker] Agent Run durable outbox dispatcher started.');
 
   let stopping = false;
 

@@ -22,6 +22,12 @@ const agentService = {
   createAccount: (installationId, body) => api.post(`/api/agent-runtimes/installations/${installationId}/accounts`, body),
   createCapabilityProfile: (body) => api.post('/api/agent-runtimes/capability-profiles', body),
   previewAuthority: (body) => api.post('/api/agent-executions/preview', body),
+  listAgentRuns: (query) => api.get('/api/agent-runs', { query }),
+  getAgentRun: (runId) => api.get(`/api/agent-runs/${runId}`),
+  getAgentRunEvents: (runId) => api.get(`/api/agent-runs/${runId}/events`),
+  getAgentRunResult: (runId) => api.get(`/api/agent-runs/${runId}/result`),
+  cancelAgentRun: (runId) => api.post(`/api/agent-runs/${runId}/cancel`, {}),
+  stopExecutionScope: (scopeId) => api.post(`/api/execution-scopes/${scopeId}/stop`, {}),
 };
 
 export default agentService;
