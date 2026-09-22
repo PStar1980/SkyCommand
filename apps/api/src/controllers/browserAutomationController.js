@@ -55,7 +55,7 @@ async function startAutomation(req, res, next) {
 
 async function listRuns(req, res, next) {
   try {
-    const payload = await browserAutomationExecutionService.listRuns(req.query || {});
+    const payload = await browserAutomationExecutionService.listRuns(req.query || {}, { actor: req.user });
     return res.json({ ok: true, ...payload });
   } catch (error) {
     return sendError(res, error, next);
@@ -64,7 +64,7 @@ async function listRuns(req, res, next) {
 
 async function getRun(req, res, next) {
   try {
-    const run = await browserAutomationExecutionService.getRun(req.params.workflowId);
+    const run = await browserAutomationExecutionService.getRun(req.params.workflowId, { actor: req.user });
     return res.json({ ok: true, run });
   } catch (error) {
     return sendError(res, error, next);
@@ -76,6 +76,7 @@ async function getArtifact(req, res, next) {
     const artifact = await browserAutomationExecutionService.getArtifact({
       workflowId: req.params.workflowId,
       artifactId: req.params.artifactId,
+      actor: req.user,
     });
     res.type(artifact.contentType || 'application/octet-stream');
     const disposition = String(artifact.kind || '').toUpperCase() === 'SCREENSHOT' ? 'inline' : 'attachment';

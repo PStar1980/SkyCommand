@@ -42,6 +42,8 @@ async function agentRunWorkflow(input = {}) {
   const temporalRunId = workflowInfo().runId;
   const context = input.executionContext || {};
   const runtimeCase = input.fakeRuntimeCase || {};
+  const runtimeCaseId = String(runtimeCase.caseId || '').trim();
+  const managedCapabilityCase = runtimeCaseId.startsWith('browser-capability-');
 
   await controlActivities.markAgentRunStateActivity({ runId, status: 'QUEUED', reason: 'temporal_workflow_started' });
   const stateAfterQueue = await controlActivities.getAgentRunStateActivity({ runId });
@@ -72,6 +74,15 @@ async function agentRunWorkflow(input = {}) {
     });
   }
 
+  const managedCapability = managedCapabilityCase
+    ? await controlActivities.prepareManagedCapabilityEffectActivity({
+      runId,
+      operationId: operation.operationId,
+      turnId: operation.turnId,
+      caseId: runtimeCaseId,
+    })
+    : null;
+
   await controlActivities.markAgentRunStateActivity({ runId, status: 'RUNNING', reason: 'fake_runtime_operation_started' });
   const runtimeResult = await runtimeActivities.executeFakeRuntimeActivity({
     runId,
@@ -81,7 +92,58 @@ async function agentRunWorkflow(input = {}) {
     runtimeKind: operation.runtimeKind,
     caseId: operation.fakeRuntimeCaseId || runtimeCase.caseId,
     cancellationRequested: control.stopRequested,
+    managedCapabilityRequest: managedCapability?.capabilityRequest || null,
   });
+
+  const capabilityEffects = [];
+  const invocations = Array.isArray(runtimeResult.capabilityInvocations) ? runtimeResult.capabilityInvocations : [];
+  if (managedCapability?.effect?.effectId && invocations.length > 0) {
+    if (runtimeCaseId === 'browser-capability-revoked-before-dispatch') {
+      await controlActivities.revokeManagedCapabilityBeforeDispatchActivity({ runId, effectId: managedCapability.effect.effectId });
+      control.stopRequested = true;
+    }
+    for (const invocation of invocations) {
+      capabilityEffects.push(await controlActivities.dispatchManagedCapabilityActivity({
+        effectId: invocation.effectId || managedCapability.effect.effectId,
+        credential: invocation.credential || null,
+        runtimeWorker: runtimeResult.worker || null,
+        simulateUnknownDispatch: runtimeCaseId === 'browser-capability-unknown-dispatch',
+      }));
+    }
+  }
+
+  const redactedCapabilityInvocations = invocations.map((invocation) => ({
+    effectId: invocation.effectId || null,
+    effectKey: invocation.effectKey || null,
+    audience: invocation.audience || null,
+    capabilityKind: invocation.capabilityKind || null,
+    capabilityCode: invocation.capabilityCode || null,
+    capabilityVersion: invocation.capabilityVersion || null,
+    requestDigest: invocation.requestDigest || null,
+    deliveryIndex: invocation.deliveryIndex || null,
+  }));
+  const redactedRuntimeResult = {
+    ...runtimeResult,
+    capabilityInvocations: redactedCapabilityInvocations,
+    taskOutputCandidate: runtimeResult.taskOutputCandidate
+      ? {
+        ...runtimeResult.taskOutputCandidate,
+        capabilitiesExecuted: capabilityEffects.map((effect) => ({
+          effectId: effect.effectId || null,
+          capabilityKind: effect.capabilityKind || null,
+          capabilityCode: effect.capabilityCode || null,
+          authorityDecision: effect.authorityDecision || null,
+          dispatchState: effect.dispatchState || null,
+          outcomeCertainty: effect.outcomeCertainty || null,
+          browserAutomationRunId: effect.browserAutomationRunId || null,
+          nativeBrowserWorkflowId: effect.nativeBrowserWorkflowId || null,
+          browserResult: effect.browserResult || null,
+          replayed: Boolean(effect.replayed),
+          denied: Boolean(effect.denied),
+        })),
+      }
+      : runtimeResult.taskOutputCandidate,
+  };
 
   let reconciliation = null;
   if (runtimeResult.sendAcceptance === 'UNKNOWN') {
@@ -103,8 +165,9 @@ async function agentRunWorkflow(input = {}) {
     runId,
     temporalRunId,
     operation,
-    runtimeResult,
+    runtimeResult: redactedRuntimeResult,
     reconciliation,
+    capabilityEffects,
   });
 }
 

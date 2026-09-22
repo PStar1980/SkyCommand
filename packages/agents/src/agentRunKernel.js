@@ -71,6 +71,7 @@ function buildTerminalSummary({
   usage = null,
   operationId = null,
   caseId = null,
+  capabilityEffects = [],
   stopState = 'NONE',
   errorCode = null,
 } = {}) {
@@ -127,6 +128,7 @@ function buildTerminalSummary({
       caseId,
       operationId,
       stopState,
+      capabilityEffects: Array.isArray(capabilityEffects) ? capabilityEffects : [],
     },
   };
 

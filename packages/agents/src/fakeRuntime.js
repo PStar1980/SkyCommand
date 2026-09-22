@@ -46,7 +46,69 @@ const FAKE_RUNTIME_FIXTURES = Object.freeze({
     expectedDisposition: 'SAFE_TO_REJECT',
     notes: 'The provider rejected before accepting the turn.',
   }),
+  'browser-capability-success': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'browser-capability-success',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'The fake runtime requests one bounded managed Browser Automation capability.',
+  }),
+  'browser-capability-duplicate-retry': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'browser-capability-duplicate-retry',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'The fake runtime deliberately delivers the same managed capability request twice.',
+  }),
+  'browser-capability-revoked-before-dispatch': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'browser-capability-revoked-before-dispatch',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'The managed capability grant is revoked before native Browser dispatch.',
+  }),
+  'browser-capability-unknown-dispatch': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'browser-capability-unknown-dispatch',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'ACKNOWLEDGED',
+    expectedDisposition: 'OBSERVE_AND_RECONCILE',
+    notes: 'Native Browser start acknowledgement is treated as unknown and reconciled by its preallocated id.',
+  }),
+  'browser-capability-unknown-send': Object.freeze({
+    contract: 'fake_runtime_case.v1',
+    caseId: 'browser-capability-unknown-send',
+    runtimeKind: 'FAKE_PERSISTENT',
+    sessionModel: 'PERSISTENT',
+    usageBehavior: 'DELAYED',
+    sendAcceptance: 'UNKNOWN',
+    expectedDisposition: 'RECOVERY_REQUIRED',
+    notes: 'The fake provider send is UNKNOWN while the managed Browser effect remains durably reconciled.',
+  }),
 });
+
+const MANAGED_BROWSER_CASES = new Set([
+  'browser-capability-success',
+  'browser-capability-duplicate-retry',
+  'browser-capability-revoked-before-dispatch',
+  'browser-capability-unknown-dispatch',
+  'browser-capability-unknown-send',
+]);
+
+function isManagedBrowserCase(caseId) {
+  return MANAGED_BROWSER_CASES.has(String(caseId || '').trim());
+}
 
 function normalizeWorkerIdentity(input = {}) {
   return String(input.workerIdentity || process.env.AGENT_RUNTIME_WORKER_IDENTITY || `${os.hostname()}:${process.pid}`).trim();
@@ -89,7 +151,7 @@ function buildEvent({ operationId, sequence, eventType, scope = 'RUN', workerIde
   return event;
 }
 
-function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId, instruction, workerIdentity, cancellationRequested = false } = {}) {
+function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId, instruction, workerIdentity, cancellationRequested = false, managedCapabilityRequest = null } = {}) {
   const fixture = resolveFakeRuntimeCase(caseId, runtimeKind);
   const instance = normalizeWorkerIdentity({ workerIdentity });
   const instructionDigest = sha256Digest({ instruction: String(instruction || '') });
@@ -128,6 +190,7 @@ function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId
       events,
       usage: { availability: 'NOT_REPORTED', observationsRef: operationId, scope: 'RUN', source: runtimeKind, freshness: 'UNKNOWN', measurements: [] },
       taskOutputCandidate: null,
+      capabilityInvocations: [],
       physicalStop: { state: 'CONFIRMED', evidence: 'fake_runtime_never_sent' },
       worker: { identity: instance, generation: String(process.env.AGENT_RUNTIME_WORKER_GENERATION || `local-${process.pid}`), processId: process.pid, hostname: os.hostname() },
     };
@@ -139,6 +202,39 @@ function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId
       ? { eventType: 'TURN_ACCEPTANCE_UNKNOWN', availability: 'ERROR', freshness: 'CURRENT', payload: { providerTurnId, certainty: 'UNKNOWN' } }
       : { eventType: 'TURN_REJECTED', availability: 'ERROR', freshness: 'CURRENT', payload: { rejection: 'FAKE_REJECTED_BEFORE_ACCEPTANCE' } };
   events.push(buildEvent({ operationId, sequence: sequence++, eventType: sendEvent.eventType, availability: sendEvent.availability, freshness: sendEvent.freshness, workerIdentity: instance, payload: sendEvent.payload }));
+
+  const capabilityInvocations = [];
+  if (isManagedBrowserCase(fixture.caseId) && managedCapabilityRequest) {
+    const deliveryCount = fixture.caseId === 'browser-capability-duplicate-retry' ? 2 : 1;
+    for (let deliveryIndex = 1; deliveryIndex <= deliveryCount; deliveryIndex += 1) {
+      events.push(buildEvent({
+        operationId,
+        sequence: sequence++,
+        eventType: 'CAPABILITY_INVOCATION_REQUESTED',
+        workerIdentity: instance,
+        payload: {
+          effectId: managedCapabilityRequest.effectId || null,
+          effectKey: managedCapabilityRequest.effectKey || null,
+          capabilityKind: managedCapabilityRequest.capabilityKind || null,
+          capabilityCode: managedCapabilityRequest.capabilityCode || null,
+          capabilityVersion: managedCapabilityRequest.capabilityVersion || null,
+          requestDigest: managedCapabilityRequest.requestDigest || null,
+          deliveryIndex,
+        },
+      }));
+      capabilityInvocations.push({
+        effectId: managedCapabilityRequest.effectId || null,
+        effectKey: managedCapabilityRequest.effectKey || null,
+        credential: managedCapabilityRequest.credential || null,
+        audience: managedCapabilityRequest.audience || null,
+        capabilityKind: managedCapabilityRequest.capabilityKind || null,
+        capabilityCode: managedCapabilityRequest.capabilityCode || null,
+        capabilityVersion: managedCapabilityRequest.capabilityVersion || null,
+        requestDigest: managedCapabilityRequest.requestDigest || null,
+        deliveryIndex,
+      });
+    }
+  }
 
   if (fixture.sendAcceptance === 'ACKNOWLEDGED') {
     events.push(buildEvent({ operationId, sequence: sequence++, eventType: 'PROGRESS', workerIdentity: instance, payload: { phase: 'structured_result_ready', progress: 1 } }));
@@ -164,6 +260,7 @@ function executeFakeRuntime({ caseId, runtimeKind, operationId, runId, sessionId
     outcomeCertainty: fixture.sendAcceptance === 'ACKNOWLEDGED' ? 'ACKNOWLEDGED' : fixture.sendAcceptance === 'REJECTED_BEFORE_ACCEPTANCE' ? 'REJECTED' : 'UNKNOWN',
     events,
     usage,
+    capabilityInvocations,
     taskOutputCandidate,
     physicalStop: { state: 'NOT_REQUESTED', evidence: 'fake_runtime_completed_without_stop_request' },
     worker: { identity: instance, generation: String(process.env.AGENT_RUNTIME_WORKER_GENERATION || `local-${process.pid}`), processId: process.pid, hostname: os.hostname() },

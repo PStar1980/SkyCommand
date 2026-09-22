@@ -428,8 +428,8 @@ async function getWorkflowExecutionRun({
   });
 }
 
-async function getRun(workflowId) {
-  const run = await browserAutomationExecutionService.getRun(workflowId);
+async function getRun(workflowId, { actor = null } = {}) {
+  const run = await browserAutomationExecutionService.getRun(workflowId, { actor });
   if (String(run?.triggerSource || '').toUpperCase() !== 'ASSISTANT') {
     throw createHttpError(404, 'Assistant Playwright Automation run not found.', {
       code: 'ASSISTANT_RUN_NOT_FOUND',
@@ -438,9 +438,9 @@ async function getRun(workflowId) {
   return sanitizeRun(run);
 }
 
-async function getArtifact({ workflowId, artifactId }) {
-  await getRun(workflowId);
-  return browserAutomationExecutionService.getArtifact({ workflowId, artifactId });
+async function getArtifact({ workflowId, artifactId, actor = null }) {
+  await getRun(workflowId, { actor });
+  return browserAutomationExecutionService.getArtifact({ workflowId, artifactId, actor });
 }
 
 function getCapabilities({

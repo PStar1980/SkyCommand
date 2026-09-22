@@ -239,6 +239,7 @@ SkyCommand/
 │   │       ├── services/
 │   │       │   ├── adminActionService.js
 │   │       │   ├── adminReadService.js
+│   │       │   ├── agentCapabilityAuthorizationService.js
 │   │       │   ├── agentExecutionService.js
 │   │       │   ├── agentRegistryService.js
 │   │       │   ├── agentRunDispatcher.js
@@ -314,7 +315,22 @@ SkyCommand/
 │   └── browser/
 │       ├── automations/
 │       │   ├── .gitkeep
+│       │   ├── 03c41757-c2df-4349-baa9-7fe713018d1e/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 0fa07f13-94b9-4dec-9611-cffa2212a657/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 18d10c68-0efc-42f7-ae03-ee71a4f1f80d/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 56ef4638-420a-4c0f-a405-d6ea7b3db9f2/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -1668,7 +1684,8 @@ SkyCommand/
 │   │       │   ├── 00147__retire_d2_database_upgrade_surfaces.sql
 │   │       │   ├── 00148__host_agent_heartbeat_freshness_index.sql
 │   │       │   ├── 00149__agent_registry_foundation.sql
-│   │       │   └── 00151__agent_run_kernel.sql
+│   │       │   ├── 00151__agent_run_kernel.sql
+│   │       │   └── 00153__agent_capability_effects.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1722,7 +1739,8 @@ SkyCommand/
 │   │           ├── 00124__playwright_scheduler_bridges_seed.sql
 │   │           ├── 00127__assistant_browser_automation_reference_seed.sql
 │   │           ├── 00150__agent_registry_permissions.sql
-│   │           └── 00152__agent_run_permissions_and_fake_runtime.sql
+│   │           ├── 00152__agent_run_permissions_and_fake_runtime.sql
+│   │           └── 00154__agent_browser_capability_fixture.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -2247,6 +2265,8 @@ SkyCommand/
         │   └── api/
         │       └── src/
         │           └── services/
+        │               ├── agentCapabilityCredentialEvidenceSelfTest.js
+        │               ├── agentCapabilityExecutionSelfTest.js
         │               ├── agentExecutionSelfTest.js
         │               ├── agentRegistryAuditSelfTest.js
         │               ├── agentRegistryIsolationSelfTest.js
