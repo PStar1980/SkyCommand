@@ -23,6 +23,7 @@ const schemaFiles = [
   'fake_runtime_case.v1.schema.json',
   'execution_surface_policy.v1.schema.json',
   'agent_runtime_configuration_identity.v1.schema.json',
+  'execution_context.v1.schema.json',
 ];
 
 function readJson(relativePath) {
@@ -175,6 +176,7 @@ function run() {
     observedAt: '2026-09-14T00:00:01.000Z',
     source: { kind: 'FAKE_RUNTIME', instance: 'fixture-1', cursor: 'cursor-1' },
     availability: 'REPORTED',
+    freshness: 'CURRENT',
     payload: { phase: 'late-telemetry' },
     measurements: [
       { name: 'input_tokens', value: null, unit: 'tokens', availability: 'NOT_REPORTED' },
@@ -309,24 +311,24 @@ function run() {
     .filter((name) => name.endsWith('.sql'))
     .sort();
   assert.equal(
-    migrationNames.length,
-    baseline.databaseBuildInventory.migrationCount,
-    'current migration inventory matches refreshed evidence',
+    migrationNames.length >= baseline.databaseBuildInventory.migrationCount,
+    true,
+    'current migration inventory retains the reviewed baseline',
   );
   assert.equal(
-    migrationNames.at(-1),
+    migrationNames[baseline.databaseBuildInventory.migrationCount - 1],
     baseline.databaseBuildInventory.lastMigration,
-    'current last migration matches refreshed evidence',
+    'reviewed baseline migrations remain unchanged before additive Phase 19.2A migration',
   );
   assert.equal(
-    seedNames.length,
-    baseline.databaseBuildInventory.seedCount,
-    'current seed inventory matches refreshed evidence',
+    seedNames.length >= baseline.databaseBuildInventory.seedCount,
+    true,
+    'current seed inventory retains the reviewed baseline',
   );
   assert.equal(
-    seedNames.at(-1),
+    seedNames[baseline.databaseBuildInventory.seedCount - 1],
     baseline.databaseBuildInventory.lastSeed,
-    'current last seed matches refreshed evidence',
+    'reviewed baseline seeds remain unchanged before additive Phase 19.2A seed',
   );
   assert.equal(
     fs.existsSync(path.join(ROOT, 'packages/agents/src/authority.js')),
@@ -345,8 +347,8 @@ function run() {
   );
   assert.equal(
     fs.existsSync(path.join(ROOT, 'apps/api/src/routes/agentRun.routes.js')),
-    false,
-    'Phase 19.1 adds no Agent Run route',
+    true,
+    'Phase 19.2A Agent Run route exists',
   );
 
   console.log('[agent-phase0:self-test] PASS');

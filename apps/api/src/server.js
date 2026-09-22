@@ -25,6 +25,8 @@ const agentProjectRoutes = require('./routes/agent.routes');
 const agentDefinitionRoutes = require('./routes/agentDefinition.routes');
 const agentRuntimeRoutes = require('./routes/agentRuntime.routes');
 const agentExecutionRoutes = require('./routes/agentExecution.routes');
+const agentRunRoutes = require('./routes/agentRun.routes');
+const executionScopeRoutes = require('./routes/executionScope.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 const apiTelemetryService = require('./services/apiTelemetryService');
@@ -88,6 +90,8 @@ function createApp() {
   app.use('/api/agents', agentDefinitionRoutes);
   app.use('/api/agent-runtimes', agentRuntimeRoutes);
   app.use('/api/agent-executions', agentExecutionRoutes);
+  app.use('/api/agent-runs', agentRunRoutes);
+  app.use('/api/execution-scopes', executionScopeRoutes);
 
   if (process.env.SERVE_ADMIN_WEB === 'true') {
     const adminWebPath = path.resolve(__dirname, '../../admin-web/dist');

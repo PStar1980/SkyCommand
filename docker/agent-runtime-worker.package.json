@@ -1,0 +1,9 @@
+{
+  "name": "skycommand-agent-runtime-worker-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal isolated fake Agent Runtime Worker dependency manifest.",
+  "dependencies": {
+    "@temporalio/worker": "1.18.1"
+  }
+}

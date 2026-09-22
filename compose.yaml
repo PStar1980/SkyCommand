@@ -127,6 +127,42 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  agent-runtime-worker:
+    build:
+      context: .
+      dockerfile: docker/agent-runtime-worker.Dockerfile
+    image: skycommand-agent-runtime-worker:local
+    container_name: skycommand-agent-runtime-worker
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      AGENT_RUNTIME_TASK_QUEUE: skycommand-agent-runtime-local
+      AGENT_RUNTIME_WORKER_GENERATION: ${AGENT_RUNTIME_WORKER_GENERATION:-compose-local}
+      AGENT_RUNTIME_WORKER_IDENTITY: agent-runtime-worker-compose
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "1000:1000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - apps/agent-runtime-worker/src/health.js
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 20s
+
   browser-worker:
     build:
       context: .

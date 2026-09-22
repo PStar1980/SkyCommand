@@ -12,6 +12,7 @@
     "observedAt",
     "source",
     "availability",
+    "freshness",
     "payload"
   ],
   "properties": {
@@ -32,7 +33,11 @@
     },
     "availability": {
       "type": "string",
-      "enum": ["REPORTED", "NOT_REPORTED", "UNSUPPORTED", "UNKNOWN"]
+      "enum": ["REPORTED", "NOT_REPORTED", "UNSUPPORTED", "ERROR"]
+    },
+    "freshness": {
+      "type": "string",
+      "enum": ["CURRENT", "STALE", "UNKNOWN"]
     },
     "payload": { "type": "object" },
     "measurements": {
@@ -47,7 +52,7 @@
           "unit": { "type": ["string", "null"] },
           "availability": {
             "type": "string",
-            "enum": ["REPORTED", "NOT_REPORTED", "UNSUPPORTED", "UNKNOWN"]
+            "enum": ["REPORTED", "NOT_REPORTED", "UNSUPPORTED", "ERROR"]
           }
         }
       }

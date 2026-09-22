@@ -179,7 +179,7 @@ function AgentProjects() {
       <PageHeader kicker="Agents · Project registry" title="Agent Projects" subtitle="Register Project ownership, policy, repository/workspace bindings, membership, and Agent allow rules for authority preview." />
       <DismissibleAlert tone="danger">{error}</DismissibleAlert>
       <DismissibleAlert tone="success">{success}</DismissibleAlert>
-      <DismissibleAlert tone="info">Agent execution is disabled/not implemented in Phase 19.1. This page manages registered metadata and preview inputs only.</DismissibleAlert>
+      <DismissibleAlert tone="info">Controlled source-backed fake runtime execution is enabled in Phase 19.2A. Real providers, capability effects, scheduler execution, delegation, writable development workspaces, and external Agent execution remain disabled.</DismissibleAlert>
 
       {canManage && <Panel title="Create Agent Project" subtitle="Project paths must be selected from the registered repository catalogue.">
         <form className="row g-3" onSubmit={createProject}>

@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution_context.v1.schema.json",
+  "title": "SkyCommand Agent Execution Context v1",
+  "description": "Server-derived, immutable context pinned at Agent Run admission. Caller input is not authoritative identity or lineage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "contextId",
+    "request",
+    "initiatingUser",
+    "initiatingActor",
+    "requestingActor",
+    "project",
+    "agent",
+    "workspace",
+    "rootExecutionId",
+    "sessionId",
+    "runId",
+    "triggerSource",
+    "authoritySnapshot",
+    "executionSurfacePolicy",
+    "runtime",
+    "environmentProfile",
+    "admission"
+  ],
+  "properties": {
+    "contract": { "const": "execution_context.v1" },
+    "contextId": { "type": "string", "minLength": 1 },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "traceId"],
+      "properties": {
+        "requestId": { "type": "string", "minLength": 1 },
+        "traceId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "initiatingUser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["userId", "principalId"],
+      "properties": {
+        "userId": { "type": ["string", "null"] },
+        "principalId": { "type": "string", "minLength": 1 },
+        "displayNameSnapshot": { "type": ["string", "null"] }
+      }
+    },
+    "initiatingActor": { "$ref": "#/$defs/actor" },
+    "requestingActor": { "$ref": "#/$defs/actor" },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectId", "projectCode", "policyRevision"],
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1 },
+        "projectCode": { "type": "string", "minLength": 1 },
+        "policyRevision": { "type": "string", "minLength": 1 }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["definitionId", "versionId", "revision", "contentDigest"],
+      "properties": {
+        "definitionId": { "type": "string", "minLength": 1 },
+        "versionId": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 1 },
+        "contentDigest": { "type": "string", "minLength": 1 }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectWorkspaceId", "environmentCode", "workspaceMode"],
+      "properties": {
+        "projectWorkspaceId": { "type": "string", "minLength": 1 },
+        "environmentCode": { "type": "string", "minLength": 1 },
+        "workspaceMode": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rootExecutionId": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "triggerSource": {
+      "type": "string",
+      "enum": ["MANUAL", "WORKFLOW", "SCHEDULER", "AGENT_DELEGATION", "EXTERNAL_ASSISTANT"]
+    },
+    "authoritySnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotId", "digest"],
+      "properties": {
+        "snapshotId": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+      }
+    },
+    "executionSurfacePolicy": { "$ref": "#/$defs/executionSurfacePolicy" },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtimeKind", "installationId", "accountBindingId", "capabilityProfileId", "configurationRevision", "configurationDigest", "workerTaskQueue"],
+      "properties": {
+        "runtimeKind": { "type": "string", "minLength": 1 },
+        "installationId": { "type": "string", "minLength": 1 },
+        "accountBindingId": { "type": "string", "minLength": 1 },
+        "capabilityProfileId": { "type": "string", "minLength": 1 },
+        "configurationRevision": { "type": "string", "minLength": 1 },
+        "configurationDigest": { "type": "string", "minLength": 1 },
+        "workerTaskQueue": { "type": "string", "minLength": 1 },
+        "workerGeneration": { "type": ["string", "null"] }
+      }
+    },
+    "environmentProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["environmentCode", "profileCode"],
+      "properties": {
+        "environmentCode": { "type": "string", "minLength": 1 },
+        "profileCode": { "type": "string", "minLength": 1 }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["admissionRequestId", "submittedIntentDigest", "resolvedSpecDigest"],
+      "properties": {
+        "admissionRequestId": { "type": "string", "minLength": 1 },
+        "submittedIntentDigest": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
+        "resolvedSpecDigest": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+      }
+    }
+  },
+  "$defs": {
+    "mode": {
+      "type": "string",
+      "enum": ["ALLOW", "READ_ONLY", "DENY", "EXPLICIT_APPROVAL_REQUIRED"]
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "REPOSITORY_FILE_EDIT",
+        "LOCAL_SHELL",
+        "SKYCOMMAND_MCP_API",
+        "SKYCOMMAND_UI_COMPUTER_USE",
+        "GENERAL_DESKTOP_COMPUTER_USE",
+        "EXTERNAL_BROWSER",
+        "CONNECTED_APP_READ",
+        "CONNECTED_APP_MUTATION",
+        "REMOTE_DEVICE",
+        "PLAYWRIGHT_REGISTERED"
+      ]
+    },
+    "surfaceDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "mode"],
+      "properties": {
+        "surface": { "$ref": "#/$defs/surface" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "policyLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surfaces"],
+      "properties": {
+        "surfaces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surfaceDecision" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "reason"],
+      "properties": {
+        "from": { "$ref": "#/$defs/surface" },
+        "to": { "$ref": "#/$defs/surface" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "executionSurfacePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "policyRevision", "requested", "configured", "granted", "permittedTransitions"],
+      "properties": {
+        "contract": { "const": "execution_surface_policy.v1" },
+        "policyRevision": { "type": "string", "minLength": 1 },
+        "requested": { "$ref": "#/$defs/policyLayer" },
+        "configured": { "$ref": "#/$defs/policyLayer" },
+        "granted": { "$ref": "#/$defs/policyLayer" },
+        "permittedTransitions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/transition" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "displayNameSnapshot": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
