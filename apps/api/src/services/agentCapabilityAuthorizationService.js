@@ -21,6 +21,9 @@ const MANAGED_BROWSER_CASES = Object.freeze({
   'browser-capability-revoked-before-dispatch': { duplicateDeliveries: 1, revokeBeforeDispatch: true, simulateUnknownDispatch: false },
   'browser-capability-unknown-dispatch': { duplicateDeliveries: 1, revokeBeforeDispatch: false, simulateUnknownDispatch: true },
   'browser-capability-unknown-send': { duplicateDeliveries: 1, revokeBeforeDispatch: false, simulateUnknownDispatch: false },
+  'approval-required-success': { duplicateDeliveries: 1, revokeBeforeDispatch: false, simulateUnknownDispatch: false, requiresApproval: true },
+  'approval-revoked-during-wait': { duplicateDeliveries: 1, revokeBeforeDispatch: false, simulateUnknownDispatch: false, requiresApproval: true },
+  'approval-expiry': { duplicateDeliveries: 1, revokeBeforeDispatch: false, simulateUnknownDispatch: false, requiresApproval: true, approvalTtlMs: 1500 },
 });
 
 function createCapabilityError(code, message, details = {}) {
@@ -314,7 +317,7 @@ async function loadAutomation() {
   return { automation, reason: null };
 }
 
-async function evaluateLiveAuthorization(client, run, request) {
+async function evaluateLiveAuthorization(client, run, request, { approvalApplied = false } = {}) {
   if (!run) return { decision: 'DENY', reason: 'AGENT_RUN_NOT_FOUND' };
   if (run.scope_status !== 'ACTIVE' || ['CANCEL_REQUESTED', 'CANCELLING', 'CANCELED'].includes(run.status)) {
     return { decision: 'DENY', reason: 'RUN_OR_ROOT_REVOKED' };
@@ -351,7 +354,7 @@ async function evaluateLiveAuthorization(client, run, request) {
     };
   }
 
-  if (automation.requiresConfirmation) {
+  if (automation.requiresConfirmation && !approvalApplied) {
     return { decision: 'EXPLICIT_APPROVAL_REQUIRED', reason: 'REGISTERED_AUTOMATION_REQUIRES_CONFIRMATION' };
   }
 
@@ -472,7 +475,10 @@ async function prepareManagedCapabilityEffect({ runId, operationId, turnId, case
       };
     }
 
-    const authorization = await evaluateLiveAuthorization(client, run, request);
+    const evaluatedAuthorization = await evaluateLiveAuthorization(client, run, request);
+    const authorization = evaluatedAuthorization.decision === 'ALLOW' && caseConfig.requiresApproval
+      ? { ...evaluatedAuthorization, decision: 'EXPLICIT_APPROVAL_REQUIRED', reason: 'PHASE19_2C_DURABLE_APPROVAL_REQUIRED' }
+      : evaluatedAuthorization;
     const effectId = randomUUID();
     const executionGrantId = authorization.decision === 'ALLOW' ? randomUUID() : null;
     const managedCredentialReference = executionGrantId ? `grant:${executionGrantId}` : null;
@@ -677,6 +683,120 @@ async function revokeBeforeDispatch({ runId, effectId } = {}) {
       payload: { effectId, revocationEpoch: nextEpoch, nativeBrowserExecutionStarted: false },
     });
     return { effectId, runId, revocationEpoch: nextEpoch, decision: 'DENY', reason: 'REVOCATION_EPOCH_CHANGED_BEFORE_DISPATCH' };
+  });
+}
+
+async function approveManagedCapabilityEffect({ effectId } = {}) {
+  return withTransaction(async (client) => {
+    const effect = await loadEffect(client, effectId, true);
+    if (!effect) throw createCapabilityError('AGENT_CAPABILITY_EFFECT_NOT_FOUND', 'Managed capability effect not found while applying approval.');
+    const run = await loadRun(client, effect.agent_run_id, true);
+    if (!run) throw createCapabilityError('AGENT_RUN_NOT_FOUND', 'Agent Run not found while applying managed capability approval.');
+    if (effect.dispatch_state === 'COMPLETED') {
+      return { allowed: true, replayed: true, effect: safeEffect(effect, effect), capabilityRequest: null };
+    }
+    if (effect.authority_decision !== 'EXPLICIT_APPROVAL_REQUIRED' || !['APPROVAL_REQUIRED', 'INTENT'].includes(effect.dispatch_state)) {
+      return { allowed: false, reason: effect.denial_reason || 'MANAGED_CAPABILITY_APPROVAL_NOT_PENDING', effect: safeEffect(effect, effect), capabilityRequest: null };
+    }
+    const request = buildManagedRequest(effect.request_metadata?.caseId || effect.request_metadata?.case_id || '');
+    const authorization = await evaluateLiveAuthorization(client, run, request, { approvalApplied: true });
+    if (authorization.decision !== 'ALLOW') {
+      await client.query(
+        `UPDATE worker.agent_capability_effects
+            SET authority_decision = 'DENY', dispatch_state = 'DENIED', outcome_certainty = 'REJECTED', denial_reason = $2
+          WHERE agent_capability_effect_id = $1`,
+        [effectId, authorization.reason || 'CURRENT_AUTHORITY_REJECTED_AFTER_APPROVAL'],
+      );
+      const denied = await loadEffect(client, effectId);
+      return { allowed: false, reason: authorization.reason || 'CURRENT_AUTHORITY_REJECTED_AFTER_APPROVAL', effect: safeEffect(denied, denied), capabilityRequest: null };
+    }
+
+    const existingGrant = await client.query(
+      `SELECT execution_grant_id, grant_state, credential_hash, credential_expires_at,
+              grant_audience, granted_at, revoked_at, grant_metadata, revocation_epoch
+         FROM auth.execution_grants
+        WHERE capability_effect_id = $1 AND grant_kind = 'MANAGED_CAPABILITY'
+        FOR UPDATE`,
+      [effectId],
+    );
+    if (existingGrant.rowCount > 0 && existingGrant.rows[0].grant_state === 'ACTIVE') {
+      // The raw credential is intentionally non-reconstructible. If an earlier
+      // attempt issued it but did not dispatch, fail closed and reconcile rather
+      // than minting a second credential for the same effect.
+      return { allowed: false, reason: 'MANAGED_CREDENTIAL_ALREADY_ISSUED_REQUIRES_RECONCILIATION', effect: safeEffect(effect, existingGrant.rows[0]), capabilityRequest: null };
+    }
+
+    const credential = randomBytes(32).toString('base64url');
+    const grantId = randomUUID();
+    const nativeExecutionId = effect.native_browser_execution_id || randomUUID();
+    const nativeWorkflowId = effect.native_browser_workflow_id || browserAutomationExecutionService.buildWorkflowId(CAPABILITY_CODE);
+    const expiresAt = new Date(Date.now() + CREDENTIAL_TTL_MS);
+    const grantResult = await client.query(
+      `INSERT INTO auth.execution_grants (
+         execution_grant_id, execution_scope_id, agent_run_id, principal_id, grant_kind,
+         authority_snapshot_id, revocation_epoch, grant_state, capability_effect_id,
+         grant_audience, credential_hash, credential_expires_at, grant_metadata
+       ) VALUES ($1,$2,$3,$4,'MANAGED_CAPABILITY',$5,$6,'ACTIVE',$7,$8,$9,$10,$11::jsonb)
+       RETURNING execution_grant_id, grant_audience, credential_hash, credential_expires_at,
+                 grant_state, granted_at, revoked_at, grant_metadata, revocation_epoch`,
+      [
+        grantId,
+        run.execution_scope_id,
+        run.agent_run_id,
+        run.initiating_principal_id,
+        run.authority_snapshot_id,
+        Math.max(Number(run.revocation_epoch), Number(run.scope_revocation_epoch)),
+        effectId,
+        MANAGED_CREDENTIAL_AUDIENCE,
+        hashCredential(credential),
+        expiresAt.toISOString(),
+        JSON.stringify({ capabilityKind: CAPABILITY_KIND, capabilityCode: CAPABILITY_CODE, effectId, credentialReference: `grant:${grantId}`, approvalApplied: true }),
+      ],
+    );
+    await client.query(
+      `UPDATE worker.agent_capability_effects
+          SET authority_decision = 'ALLOW',
+              dispatch_state = 'INTENT',
+              outcome_certainty = 'UNKNOWN',
+              denial_reason = NULL,
+              managed_credential_reference = $2,
+              native_browser_execution_id = $3,
+              native_browser_workflow_id = $4,
+              authority_epoch = $5,
+              execution_surface_decision = $6::jsonb
+        WHERE agent_capability_effect_id = $1`,
+      [effectId, `grant:${grantId}`, nativeExecutionId, nativeWorkflowId, Math.max(Number(run.revocation_epoch), Number(run.scope_revocation_epoch)), JSON.stringify(authorization.executionSurfaceDecision || { surface: CAPABILITY_SURFACE, mode: 'ALLOW' })],
+    );
+    await appendEvent(client, {
+      run,
+      eventType: 'AGENT_CAPABILITY_APPROVAL_APPLIED',
+      sourceCursor: `capability:${effectId}:approval-applied`,
+      availability: 'REPORTED',
+      payload: {
+        effectId,
+        authorityDecision: 'ALLOW',
+        authorityEpoch: Math.max(Number(run.revocation_epoch), Number(run.scope_revocation_epoch)),
+        managedCredential: safeManagedCredential(effect, grantResult.rows[0]),
+      },
+    });
+    const updated = await loadEffect(client, effectId);
+    return {
+      allowed: true,
+      replayed: false,
+      effect: safeEffect(updated, grantResult.rows[0]),
+      capabilityRequest: {
+        effectId,
+        effectKey: effect.effect_key,
+        credential,
+        audience: MANAGED_CREDENTIAL_AUDIENCE,
+        capabilityKind: CAPABILITY_KIND,
+        capabilityCode: CAPABILITY_CODE,
+        capabilityVersion: CAPABILITY_VERSION,
+        environmentCode: CAPABILITY_ENVIRONMENT,
+        parameters: effect.request_metadata?.parameters || {},
+        requestDigest: effect.request_digest,
+      },
+    };
   });
 }
 
@@ -922,6 +1042,7 @@ module.exports = {
   getManagedCapabilityEffects,
   hashCredential,
   isManagedCredentialValid,
+  approveManagedCapabilityEffect,
   isManagedBrowserCase,
   prepareManagedCapabilityEffect,
   revokeBeforeDispatch,

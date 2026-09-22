@@ -5,7 +5,14 @@ const { buildChildProcessEnvironment } = require('../../core/src/repositoryEnvir
 const { FINALIZATION_REBUILD_SERVICES } = require('./config');
 
 const execFileAsync = promisify(execFile);
-const ALLOWED_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'REBUILD_WEB', 'REBUILD_BACKEND']);
+const ALLOWED_ACTIONS = new Set([
+  'START',
+  'STOP',
+  'RESTART',
+  'REBUILD_WEB',
+  'REBUILD_BACKEND',
+  'REBUILD_TEMPORAL_WORKER',
+]);
 const FINALIZATION_SERVICE_SET = new Set(FINALIZATION_REBUILD_SERVICES);
 
 class SupervisorRuntimeError extends Error {
@@ -66,10 +73,11 @@ function buildComposeArgs(config, args = []) {
 async function executeDocker(config, args, options = {}) {
   const executor = options.executor || execFileAsync;
   const timeout = Number(options.timeout || config.controlTimeoutMs || 180000);
+  const dockerExecutable = normalizeText(config.dockerExecutable, 'docker');
 
   try {
     const childEnvironment = buildChildProcessEnvironment(config.repositoryRoot, process.env);
-    return await executor('docker', buildComposeArgs(config, args), {
+    return await executor(dockerExecutable, buildComposeArgs(config, args), {
       cwd: config.repositoryRoot,
       encoding: 'utf8',
       timeout,
@@ -313,6 +321,9 @@ async function controlRuntime(config, action, options = {}) {
   if (normalized === 'STOP') return stopRuntime(config, options);
   if (normalized === 'REBUILD_WEB') return rebuildWeb(config, options);
   if (normalized === 'REBUILD_BACKEND') return rebuildBackend(config, options);
+  if (normalized === 'REBUILD_TEMPORAL_WORKER') {
+    return rebuildServices(config, ['temporal-worker'], options);
+  }
   return restartRuntime(config, options);
 }
 

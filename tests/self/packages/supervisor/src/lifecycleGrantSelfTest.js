@@ -67,6 +67,26 @@ verifyLifecycleGrant(backendRebuildGrant.token, {
   nowMs: nowMs + 10_000,
 });
 
+const refreshOperationId = '123e4567-e89b-12d3-a456-426614174000';
+const temporalWorkerGrant = issueLifecycleGrant({
+  secret,
+  action: 'rebuild_temporal_worker',
+  operationId: refreshOperationId,
+  subject: 'user-123',
+  sessionId: 'session-456',
+  ttlSeconds: 45,
+  nowMs,
+  nonce: 'grant-temporal-worker-nonce',
+});
+assert.equal(temporalWorkerGrant.payload.action, 'REBUILD_TEMPORAL_WORKER');
+assert.equal(temporalWorkerGrant.payload.operationId, refreshOperationId);
+const verifiedTemporalWorkerGrant = verifyLifecycleGrant(temporalWorkerGrant.token, {
+  secret,
+  action: 'REBUILD_TEMPORAL_WORKER',
+  nowMs: nowMs + 10_000,
+});
+assert.equal(verifiedTemporalWorkerGrant.operationId, refreshOperationId);
+
 assert.throws(
   () => verifyLifecycleGrant(issued.token, { secret: 'wrong-secret', action: 'RESTART', nowMs }),
   /signature is invalid/i,

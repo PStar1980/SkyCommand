@@ -1,0 +1,23 @@
+{
+  "phase": "19.2C",
+  "testOnly": true,
+  "productionEnabled": false,
+  "failpoints": [
+    { "id": "request-commit-before-wait-notification", "expected": "durable-request-remains-open-and-workflow-reloads-it" },
+    { "id": "decision-commit-before-signal", "expected": "outbox-remains-pending-and-dispatches-the-decision" },
+    { "id": "lost-delivery-ack", "expected": "decision-replay-is-idempotent-and-delivery-is-observable" },
+    { "id": "duplicate-decision-signal", "expected": "one-decision-application-and-one-native-effect" },
+    { "id": "worker-restart-with-pending-request", "expected": "workflow-reloads-request-and-waits-without-duplicate-request" },
+    { "id": "worker-restart-after-decision-save-before-apply", "expected": "decision-is-applied-once-after-replay" },
+    { "id": "interaction-expiry-race", "expected": "expiry-wins-or-saved-decision-is-applied-once" },
+    { "id": "authority-revocation-during-wait", "expected": "late-decision-blocked-and-effect-denied" },
+    { "id": "root-stop-during-wait", "expected": "interaction-canceled-and-run-stop-evidence-remains-durable" },
+    { "id": "stop-before-runtime-dispatch", "expected": "no-native-effect-and-no-false-physical-stop" },
+    { "id": "lease-release-race", "expected": "lease-release-is-idempotent-and-quarantine-is-preserved" },
+    { "id": "unconfirmed-physical-stop", "expected": "runtime-cell-and-lease-enter-quarantine" },
+    { "id": "quarantine-clear-without-evidence", "expected": "clearance-is-rejected" },
+    { "id": "quarantine-reconciliation", "expected": "confirmed-worker-generation-and-cursor-clear-quarantine" },
+    { "id": "unknown-provider-send", "expected": "reconciliation-retries-observation-without-blind-resend" },
+    { "id": "immutable-result-publication-replay", "expected": "one-result-and-no-conflicting-terminal-overwrite" }
+  ]
+}

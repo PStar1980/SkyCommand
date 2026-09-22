@@ -47,6 +47,35 @@ async function claimOutbox(runId = null) {
   });
 }
 
+async function claimInteractionOutbox(interactionId = null) {
+  return withTransaction(async (client) => {
+    const result = await client.query(
+      `SELECT * FROM worker.execution_outbox
+        WHERE event_type = 'AGENT_INTERACTION_DECISION'
+          AND (
+            dispatch_state IN ('PENDING', 'RECONCILING', 'FAILED')
+            OR (dispatch_state = 'DISPATCHING' AND claimed_at <= CURRENT_TIMESTAMP - INTERVAL '30 seconds')
+          )
+          AND available_at <= CURRENT_TIMESTAMP
+          AND ($1::uuid IS NULL OR interaction_request_id = $1)
+        ORDER BY created_at
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED`,
+      [interactionId],
+    );
+    if (result.rowCount === 0) return null;
+    const row = result.rows[0];
+    const updated = await client.query(
+      `UPDATE worker.execution_outbox
+          SET dispatch_state = 'DISPATCHING', attempts = attempts + 1, claimed_at = CURRENT_TIMESTAMP
+        WHERE execution_outbox_id = $1
+        RETURNING *`,
+      [row.execution_outbox_id],
+    );
+    return updated.rows[0];
+  });
+}
+
 async function markDispatchFailure(outboxId, error) {
   await withTransaction(async (client) => {
     await client.query(
@@ -119,6 +148,72 @@ async function dispatchAgentRun(runId) {
   }
 }
 
+async function dispatchClaimedInteractionOutbox(outbox) {
+  const config = getTemporalConfig();
+  const connection = await Connection.connect({ address: config.address });
+  try {
+    const client = new Client({ connection, namespace: config.namespace });
+    const payload = outbox.payload || {};
+    const workflowId = payload.workflowId || `agent-run/${payload.runId || outbox.aggregate_id}`;
+    await client.workflow.getHandle(workflowId).signal('agentInteractionDecision', {
+      interactionRequestId: payload.interactionRequestId || outbox.interaction_request_id,
+      decisionId: payload.decisionId || outbox.interaction_decision_id,
+    });
+    await withTransaction(async (db) => {
+      await db.query(
+        `UPDATE worker.execution_outbox
+            SET dispatch_state = 'DISPATCHED', dispatched_at = CURRENT_TIMESTAMP, last_error_code = NULL, last_error_message = NULL
+          WHERE execution_outbox_id = $1`,
+        [outbox.execution_outbox_id],
+      );
+      await db.query(
+        `UPDATE worker.agent_interaction_decisions
+            SET delivery_state = CASE WHEN delivery_state = 'PENDING' THEN 'DISPATCHED' ELSE delivery_state END,
+                delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP), version = version + 1
+          WHERE agent_interaction_decision_id = $1`,
+        [outbox.interaction_decision_id],
+      );
+    });
+    return { dispatched: true, interactionRequestId: outbox.interaction_request_id, decisionId: outbox.interaction_decision_id, workflowId };
+  } finally {
+    await connection.close();
+  }
+}
+
+async function dispatchAgentInteractionDecision(interactionId) {
+  const outbox = await claimInteractionOutbox(interactionId);
+  if (!outbox) return { dispatched: false, reason: 'NO_PENDING_INTERACTION_OUTBOX' };
+  try {
+    return await dispatchClaimedInteractionOutbox(outbox);
+  } catch (error) {
+    await markDispatchFailure(outbox.execution_outbox_id, error);
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE worker.agent_interaction_decisions
+            SET delivery_state = 'FAILED', version = version + 1
+          WHERE agent_interaction_decision_id = $1`,
+        [outbox.interaction_decision_id],
+      );
+    });
+    throw error;
+  }
+}
+
+async function dispatchAgentInteractionOutboxBatch(limit = 10) {
+  const results = [];
+  for (let index = 0; index < limit; index += 1) {
+    const outbox = await claimInteractionOutbox();
+    if (!outbox) break;
+    try {
+      results.push(await dispatchClaimedInteractionOutbox(outbox));
+    } catch (error) {
+      await markDispatchFailure(outbox.execution_outbox_id, error);
+      results.push({ dispatched: false, interactionRequestId: outbox.interaction_request_id, errorCode: error?.code || 'AGENT_INTERACTION_SIGNAL_FAILED' });
+    }
+  }
+  return results;
+}
+
 async function dispatchAgentRunOutboxBatch(limit = 10) {
   const results = [];
   for (let index = 0; index < limit; index += 1) {
@@ -139,6 +234,7 @@ function startAgentRunOutboxDispatcher({ intervalMs = 2000 } = {}) {
   const poll = () => {
     if (stopped) return;
     dispatchAgentRunOutboxBatch().catch((error) => console.warn(`[AgentExecution] Outbox dispatcher poll failed: ${error.message}`));
+    dispatchAgentInteractionOutboxBatch().catch((error) => console.warn(`[AgentInteraction] Outbox dispatcher poll failed: ${error.message}`));
   };
   poll();
   const timer = setInterval(poll, intervalMs);
@@ -154,5 +250,7 @@ function startAgentRunOutboxDispatcher({ intervalMs = 2000 } = {}) {
 module.exports = {
   dispatchAgentRun,
   dispatchAgentRunOutboxBatch,
+  dispatchAgentInteractionDecision,
+  dispatchAgentInteractionOutboxBatch,
   startAgentRunOutboxDispatcher,
 };

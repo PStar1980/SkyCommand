@@ -32,10 +32,10 @@ assert.match(page, /containmentEntries/);
 assert.doesNotMatch(projects, /Phase 19\.1|execution is disabled\/not implemented/i);
 assert.doesNotMatch(manageAgents, /Phase 19\.1|execution is disabled\/not implemented/i);
 for (const pageSource of [page, projects, manageAgents]) {
-  assert.match(pageSource, /Controlled source-backed fake runtime execution and one bounded managed Browser Automation capability are enabled in Phase 19\.2B/);
-  assert.match(pageSource, /Real providers, generic capability effects, scheduler execution, delegation, writable development workspaces, and external Agent execution remain disabled/);
+  assert.match(pageSource, /Controlled source-backed fake runtime execution.*Phase 19\.2C/);
+  assert.match(pageSource, /(?:Real providers|Real provider execution).*scheduler execution.*delegation.*writable development workspaces.*external Agent execution remain disabled/);
 }
-assert.match(manageAgents, /Phase 19\.2B bounded fake-runtime and managed Browser capability admission/);
+assert.match(manageAgents, /Phase 19\.2C bounded fake-runtime, durable interaction, and managed Browser capability admission/);
 assert.match(manageAgents, /this preview cannot start a run/);
 for (const endpoint of ['/api/agent-runs', '/api/execution-scopes']) assert.match(service, new RegExp(endpoint.replace(/[/-]/g, '\\$&')));
 assert.match(main, /path="agents\/operations"/);
@@ -55,7 +55,7 @@ assert.match(navbar, /hasPermission\('AGENT_RUN'\)/);
     { key: 'dockerSocket', label: 'Docker socket', value: 'ABSENT (FALSE)' },
     { key: 'providerCredentials', label: 'Provider credential', value: 'ABSENT (FALSE)' },
   ]);
-  console.log('✅ Phase 19.2B Agent Operations UI contract self-test passed.');
+  console.log('✅ Phase 19.2C Agent Operations UI contract self-test passed.');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

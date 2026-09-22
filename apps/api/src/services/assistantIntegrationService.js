@@ -2,6 +2,7 @@ const authService = require('./authService');
 const browserAutomationExecutionService = require('./browserAutomationExecutionService');
 const browserAutomationRegistryService = require('./browserAutomationRegistryService');
 const workflowAgentExecutionService = require('./workflowAgentExecutionService');
+const orchestratorRefreshService = require('./orchestratorRefreshService');
 const developmentPromotionStartService = require('./developmentPromotionStartService');
 const promotionPreflight = require('../../../../packages/dev-finalization/src/promotionPreflight');
 const {
@@ -491,6 +492,7 @@ function getCapabilities({
           : null),
     },
     workflowAgentExecution: workflowAgentExecutionService.getCapabilitySummary(),
+    orchestratorRefresh: orchestratorRefreshService.getCapabilitySummary(permissionCodes),
     safety: {
       assistantOptInRequired: true,
       confirmationRequiredAutomationsBlocked: true,
@@ -515,6 +517,8 @@ function getCapabilities({
       developmentPromotionStart: '/api/assistant/development-promotion/runs',
       workflowAgentStart: '/api/assistant/workflow-runs',
       workflowAgentRun: '/api/assistant/workflow-runs/{workflowRunRecordId}',
+      orchestratorRefreshStart: '/api/assistant/orchestrator-refresh/runs',
+      orchestratorRefreshRun: '/api/assistant/orchestrator-refresh/runs/{operationId}',
     },
   };
 }
@@ -592,6 +596,58 @@ function getOpenApiDocument() {
           responses: {
             200: { description: 'Safe run status and node outcome receipt.' },
             404: { description: 'Run not found or not owned by this principal.' },
+          },
+        },
+      },
+      '/orchestrator-refresh/runs': {
+        post: {
+          operationId: orchestratorRefreshService.ORCHESTRATOR_REFRESH_CAPABILITY,
+          description:
+            'Start the fixed DEV-only temporal-worker refresh through the host-native Supervisor. The target service, action, environment, repository, and Compose scope are server-bound; only the caller-scoped idempotency key is accepted. The signed Supervisor grant is transient and never returned or persisted.',
+          'x-required-permission-codes': [orchestratorRefreshService.ORCHESTRATOR_REFRESH_PERMISSION],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['idempotencyKey'],
+                  properties: {
+                    idempotencyKey: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength: orchestratorRefreshService.ORCHESTRATOR_REFRESH_MAX_IDEMPOTENCY_KEY_LENGTH,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            202: { description: 'Temporal-worker refresh accepted by the Supervisor.' },
+            200: { description: 'Existing idempotent refresh operation reused.' },
+            403: { description: 'Assistant permission scope is missing.' },
+            409: { description: 'Idempotency conflict.' },
+          },
+        },
+      },
+      '/orchestrator-refresh/runs/{operationId}': {
+        get: {
+          operationId: 'skycommand_temporal_worker_refresh_get',
+          description:
+            'Read durable temporal-worker refresh evidence and reconcile it against the Supervisor status, Temporal pollers, and the heartbeat ledger. Raw grants and credentials are never returned.',
+          parameters: [
+            {
+              name: 'operationId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            200: { description: 'Safe refresh operation status and evidence.' },
+            404: { description: 'Refresh operation not found for this principal.' },
           },
         },
       },

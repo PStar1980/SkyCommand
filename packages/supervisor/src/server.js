@@ -88,6 +88,7 @@ function authorizeLifecycleGrant(req, action) {
   return {
     method: 'SIGNED_GRANT',
     grantId: payload.nonce,
+    operationId: payload.operationId || null,
   };
 }
 
@@ -119,6 +120,7 @@ async function handleControl(req, res, action) {
     return;
   }
 
+  let authorization = null;
   if (action === 'START') {
     if (!isBootstrapRequestAllowed(req) && !requireControlToken(req)) {
       json(res, 403, {
@@ -129,7 +131,6 @@ async function handleControl(req, res, action) {
       return;
     }
   } else {
-    let authorization = null;
     try {
       authorization = authorizeControlRequest(req, action);
     } catch (authorizationError) {
@@ -149,11 +150,25 @@ async function handleControl(req, res, action) {
       }, getCorsHeaders(req));
       return;
     }
+
+    if (
+      action === 'REBUILD_TEMPORAL_WORKER' &&
+      (authorization.method !== 'SIGNED_GRANT' || !authorization.operationId)
+    ) {
+      json(res, 403, {
+        ok: false,
+        code: 'SKYCOMMAND_SUPERVISOR_OPERATION_ID_REQUIRED',
+        error: 'Temporal-worker refresh requires a signed grant bound to a durable operation identity.',
+      }, getCorsHeaders(req));
+      return;
+    }
   }
 
   const operation = {
+    operationId: authorization?.operationId || null,
     action,
     requestedAt: new Date().toISOString(),
+    targetService: action === 'REBUILD_TEMPORAL_WORKER' ? 'temporal-worker' : null,
   };
   activeOperation = operation;
 
@@ -171,6 +186,7 @@ async function handleControl(req, res, action) {
         status: 'SUCCEEDED',
         completedAt: new Date().toISOString(),
         runtimeStatus: result?.status?.runtimeStatus || null,
+        services: result?.services || null,
       };
       console.log(`[SkyCommand Supervisor] ${action} completed: ${result.status.runtimeStatus}`);
     } catch (error) {
@@ -239,6 +255,11 @@ async function requestHandler(req, res) {
 
     if (req.method === 'POST' && req.url === '/runtime/rebuild-backend') {
       await handleControl(req, res, 'REBUILD_BACKEND');
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/runtime/rebuild-temporal-worker') {
+      await handleControl(req, res, 'REBUILD_TEMPORAL_WORKER');
       return;
     }
 

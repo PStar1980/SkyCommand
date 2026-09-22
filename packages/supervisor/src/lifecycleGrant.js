@@ -5,7 +5,13 @@ const GRANT_ISSUER = 'skycommand-api';
 const GRANT_VERSION = 1;
 const DEFAULT_GRANT_TTL_SECONDS = 45;
 const MAX_GRANT_TTL_SECONDS = 120;
-const ALLOWED_GRANT_ACTIONS = new Set(['STOP', 'RESTART', 'REBUILD_WEB', 'REBUILD_BACKEND']);
+const ALLOWED_GRANT_ACTIONS = new Set([
+  'STOP',
+  'RESTART',
+  'REBUILD_WEB',
+  'REBUILD_BACKEND',
+  'REBUILD_TEMPORAL_WORKER',
+]);
 
 class SupervisorGrantError extends Error {
   constructor(message, code = 'SKYCOMMAND_SUPERVISOR_GRANT_INVALID') {
@@ -78,6 +84,7 @@ function issueLifecycleGrant({
   action,
   subject,
   sessionId,
+  operationId,
   ttlSeconds = DEFAULT_GRANT_TTL_SECONDS,
   nowMs = Date.now(),
   nonce = randomUUID(),
@@ -92,6 +99,7 @@ function issueLifecycleGrant({
     action: normalizedAction,
     sub: normalizeText(subject) || 'unknown',
     sid: normalizeText(sessionId) || null,
+    operationId: normalizeText(operationId) || null,
     nonce: normalizeText(nonce) || randomUUID(),
     iat: issuedAt,
     exp: issuedAt + ttl,
@@ -144,6 +152,13 @@ function verifyLifecycleGrant(token, {
     throw new SupervisorGrantError(
       'SkyCommand Supervisor lifecycle grant claims are invalid.',
       'SKYCOMMAND_SUPERVISOR_GRANT_CLAIMS_INVALID',
+    );
+  }
+
+  if (payload.operationId !== undefined && payload.operationId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(payload.operationId))) {
+    throw new SupervisorGrantError(
+      'SkyCommand Supervisor lifecycle grant operation identity is invalid.',
+      'SKYCOMMAND_SUPERVISOR_GRANT_OPERATION_INVALID',
     );
   }
 

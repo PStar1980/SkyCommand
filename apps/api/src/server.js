@@ -26,12 +26,14 @@ const agentDefinitionRoutes = require('./routes/agentDefinition.routes');
 const agentRuntimeRoutes = require('./routes/agentRuntime.routes');
 const agentExecutionRoutes = require('./routes/agentExecution.routes');
 const agentRunRoutes = require('./routes/agentRun.routes');
+const agentInteractionRoutes = require('./routes/agentInteraction.routes');
 const executionScopeRoutes = require('./routes/executionScope.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 const apiTelemetryService = require('./services/apiTelemetryService');
 const { apiTelemetryMiddleware } = require('./middleware/apiTelemetryMiddleware');
 const apiDockerPreflight = require('./services/apiDockerPreflight');
+const { startAgentRunOutboxDispatcher } = require('./services/agentRunDispatcher');
 
 function createApp() {
   const app = express();
@@ -91,6 +93,7 @@ function createApp() {
   app.use('/api/agent-runtimes', agentRuntimeRoutes);
   app.use('/api/agent-executions', agentExecutionRoutes);
   app.use('/api/agent-runs', agentRunRoutes);
+  app.use('/api/agent-interactions', agentInteractionRoutes);
   app.use('/api/execution-scopes', executionScopeRoutes);
 
   if (process.env.SERVE_ADMIN_WEB === 'true') {
@@ -195,6 +198,8 @@ async function startServer() {
   const app = createApp();
   const server = app.listen(port, () => {
     console.log(`[SkyCommand API] Listening on port ${port}`);
+    const outboxDispatcher = startAgentRunOutboxDispatcher();
+    server.once('close', () => outboxDispatcher.stop());
 
     runStartupMaintenance().catch((error) => {
       console.warn('[SkyCommand API] Startup maintenance failed:', error.message);
