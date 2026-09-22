@@ -1,7 +1,7 @@
 # SkyCommand Development Operating Rules v1.5
 
 **Status:** Active development governance  
-**Revision:** 2026-09-21 — Agentic AI v1.2 alignment, runtime-freshness governance, and retired-remediation cleanup  
+**Revision:** 2026-09-22 — Agentic AI v1.2 alignment, runtime-freshness governance, retired-remediation cleanup, and mandatory finalization-receipt reporting  
 **Supersedes:** `SkyCommand_Development_Operating_Rules_v1.4.md`  
 **Applies to:** Paul, Sky/ChatGPT, Codex/Luna/Astra, future coding agents, and any agent operating on the SkyCommand repository  
 **Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md`  
@@ -307,6 +307,25 @@ Target responsibility:
 
 The finalization receipt is the canonical reviewed-state binding for subsequent promotion. Generated artifacts must be classified so receipt/ZIP generation does not recursively invalidate source identity. If embedding the canonical receipt inside the ZIP would make its own recorded ZIP hash self-referential, keep the receipt external and bind it to the final ZIP by recorded hash instead.
 
+### 8.1 Mandatory finalization receipt reporting
+
+Every successful **Dev Change Finalization** completion report must surface the canonical promotion-binding fields directly to Paul/Sky. At minimum report:
+
+- finalization Workflow/run ID;
+- terminal status;
+- effective finalization/runtime profile;
+- canonical receipt path;
+- canonical receipt SHA-256;
+- reviewed source identity/digest;
+- database state, including pending-change/drift result;
+- readiness result.
+
+The model completion message is presentation, not authority: the durable Workflow/finalization records and receipt remain canonical evidence. However, omitting the receipt SHA from the completion report creates avoidable promotion-time rediscovery and should be treated as an observability defect.
+
+If the structured finalization result does not already expose the full receipt SHA-256, the authorized agent should resolve it from the authoritative finalization record and, where the local canonical receipt is available, independently hash the receipt bytes and confirm the values match before reporting. Do **not** regenerate, rewrite, or rerun finalization merely to make the hash available. A mismatch is a real evidence discrepancy and must be reported rather than concealed.
+
+A later promotion instruction should bind to both the reviewed finalization run/receipt ID and the reviewed receipt SHA-256. Promotion preflight must still independently verify that binding and fail closed on drift; displaying the SHA during finalization does not weaken preflight.
+
 Nodes may be conditionally skipped when no relevant change exists, but the Workflow should remain idempotent and safe to run after every development turn.
 
 The reasoning agent decides what source/configuration changes are required. The Workflow nodes perform deterministic execution and produce evidence.
@@ -332,6 +351,7 @@ The `capability_catalog_export` Tool must be registered and incorporated into th
 - Existing unrelated baseline failures remain visible and must not be relabeled as current regressions.
 - Newly introduced unexplained failures block completion.
 - Preserve relevant structured outputs, migration ledger entries, execution receipts, workflow runs, test results, artifact hashes, diffs, and source revision evidence.
+- Successful Dev Change Finalization reporting must include the finalization run ID, canonical receipt path, canonical receipt SHA-256, source identity, effective profile, database state, and readiness result required by §8.1.
 - Observability must not require a human to authorize every normal DEV action.
 - Failure evidence should identify the failed boundary and safe error code without leaking secrets.
 - Generated snapshots should identify source revision, environment, generation time, and data source.
@@ -381,9 +401,10 @@ At completion report:
 5. Docker/runtime actions performed;
 6. tests/validation with exact results;
 7. generated artifacts/evidence;
-8. material discrepancies or remaining blockers;
-9. execution surfaces used, including any Computer Use/browser/App/remote-device use, surface substitution, and human intervention;
-10. final Git status and concise diff summary.
+8. when Dev Change Finalization ran, the mandatory finalization receipt block from §8.1, including run ID, receipt path, receipt SHA-256, source identity, profile, database state, and readiness;
+9. material discrepancies or remaining blockers;
+10. execution surfaces used, including any Computer Use/browser/App/remote-device use, surface substitution, and human intervention;
+11. final Git status and concise diff summary.
 
 Then stop for Paul/Sky review.
 

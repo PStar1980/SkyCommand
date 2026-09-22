@@ -1503,7 +1503,8 @@ SkyCommand/
 │   ├── audits/
 │   ├── development/
 │   │   ├── Codex_Development_Work_Order_Template.md
-│   │   └── SkyCommand_Development_Operating_Rules_v1.5.md
+│   │   ├── SkyCommand_Development_Operating_Rules_v1.5.md
+│   │   └── SkyCommand_v1.5_Finalization_Receipt_Reporting_Amendment_Work_Order.md
 │   ├── examples/
 │   │   └── codex-skycommand-mcp.config.toml
 │   ├── generated/
