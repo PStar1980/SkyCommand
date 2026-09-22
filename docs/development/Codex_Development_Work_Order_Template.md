@@ -123,12 +123,32 @@ Acceptance requires, as applicable:
 - database pending count/drift/ledger state are correct;
 - required runtime and Host Agent checks are healthy;
 - generated Capability Catalogue / Repo Map / Repo ZIP / receipt are current;
+- the completion report surfaces the finalization run ID, canonical receipt path, canonical receipt SHA-256, source identity, effective profile, database state, and readiness result;
 - receipt/source/configuration/database identity is internally consistent;
 - runtime generation/freshness is consistent with the reviewed state where applicable;
 - `git diff --check` passes;
 - working tree contains only expected reviewable changes.
 
 Do not start Development Promotion during an implementation work order when `Promotion authorized by this work order` is `NO`.
+
+### Mandatory finalization receipt block
+
+When **Dev Change Finalization** succeeds, the completion report must include this block with real values:
+
+```text
+Finalization
+- Run ID: <workflow/run id>
+- Status: <terminal status>
+- Profile: <effective finalization/runtime profile>
+- Receipt path: <canonical receipt path>
+- Receipt SHA-256: <64-character canonical SHA-256>
+- Source identity: <reviewed source identity/digest>
+- Database: <current/pending/drift summary>
+- Readiness: <readiness result>
+```
+
+The durable finalization record/receipt is authoritative; this block is its human-readable presentation. If the structured result omits the SHA, resolve it from the authoritative finalization record and, where available, independently hash the canonical local receipt bytes. The two must match. Do not regenerate or rewrite the receipt merely to obtain or change the SHA.
+
 
 ## 7. Promotion boundary
 
@@ -143,6 +163,7 @@ The expected mutation order remains:
 For a promotion-specific request, record:
 
 - **Reviewed finalization run/receipt ID:** `[ID]`
+- **Reviewed finalization receipt SHA-256:** `[64-character SHA-256]`
 - **Authorized commit message:** `[message]`
 - **Promotion recovery policy:** `[policy]`
 - **Promotion execution-surface policy:** `[surface permissions, if different from implementation]`
@@ -159,7 +180,8 @@ At minimum disclose:
 - any human intervention;
 - any execution-surface substitution;
 - any use of Computer Use, browser control, connected Apps/Plugins, or remote-device control, including the application/site and the governed operation invoked;
-- terminal result and durable receipts/evidence.
+- terminal result and durable receipts/evidence;
+- when finalization ran, its run ID, canonical receipt path, receipt SHA-256, source identity, profile, database state, and readiness.
 
 If Computer Use/browser activity invokes SkyCommand, identify the underlying Workflow/Tool/recovery receipt when available.
 
@@ -189,6 +211,7 @@ Return a concise report containing:
 - Tool/Workflow run IDs and structured outcomes;
 - tests/validation with exact results and known baseline limitations;
 - generated artifacts and hashes/paths as applicable;
+- when Dev Change Finalization ran, the mandatory finalization receipt block (run ID, receipt path, receipt SHA-256, source identity, profile, database state, readiness);
 - execution surfaces actually used, surface substitutions, retries/recovery, and human intervention;
 - material discrepancies or remaining blockers;
 - final Git status and concise diff summary;
