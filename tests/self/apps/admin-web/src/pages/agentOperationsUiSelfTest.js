@@ -31,10 +31,14 @@ assert.match(page, /Fake-runtime scenario \/ case:/);
 assert.match(page, /containmentEntries/);
 assert.doesNotMatch(projects, /Phase 19\.1|execution is disabled\/not implemented/i);
 assert.doesNotMatch(manageAgents, /Phase 19\.1|execution is disabled\/not implemented/i);
-for (const pageSource of [page, projects, manageAgents]) {
+for (const pageSource of [page, projects]) {
   assert.match(pageSource, /Controlled source-backed fake runtime execution.*Phase 19\.2C/);
   assert.match(pageSource, /(?:Real providers|Real provider execution).*scheduler execution.*delegation.*writable development workspaces.*external Agent execution remain disabled/);
 }
+assert.match(manageAgents, /Phase 19\.2C fake-runtime execution.*bounded Browser Automation pilot remain unchanged/);
+assert.match(manageAgents, /Phase 19\.3A0 managed Codex cell is bootstrap-only.*does not enable real Agent Runs.*Codex Turn/);
+assert.match(manageAgents, /Controlled source-backed fake-runtime admission/);
+assert.match(manageAgents, /Real providers.*scheduler execution.*delegation.*writable development workspaces.*external Agent execution remain disabled/);
 assert.match(manageAgents, /Phase 19\.2C bounded fake-runtime, durable interaction, and managed Browser capability admission/);
 assert.match(manageAgents, /this preview cannot start a run/);
 for (const endpoint of ['/api/agent-runs', '/api/execution-scopes']) assert.match(service, new RegExp(endpoint.replace(/[/-]/g, '\\$&')));

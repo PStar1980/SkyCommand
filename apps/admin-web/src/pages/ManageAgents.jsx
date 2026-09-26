@@ -28,6 +28,8 @@ function ManageAgents() {
   const [agents, setAgents] = useState([]);
   const [previewAgents, setPreviewAgents] = useState([]);
   const [runtimes, setRuntimes] = useState({ runtimes: [], installations: [], accounts: [], capabilityProfiles: [] });
+  const [managedCodex, setManagedCodex] = useState(null);
+  const [managedCodexError, setManagedCodexError] = useState('');
   const [projects, setProjects] = useState([]);
   const [projectDetails, setProjectDetails] = useState({});
   const [selectedAgent, setSelectedAgent] = useState('');
@@ -81,6 +83,15 @@ function ManageAgents() {
         canPreview ? agentService.listProjects({ limit: 200 }) : Promise.resolve({ items: [] }),
       ]);
       setRuntimes(runtimeResult);
+      if (canRuntimeManage) {
+        try {
+          setManagedCodex(await agentService.getManagedCodex());
+          setManagedCodexError('');
+        } catch (statusError) {
+          setManagedCodex(null);
+          setManagedCodexError(statusError.message || 'Managed Codex runtime status is unavailable.');
+        }
+      }
       setProjects(projectResult.items || []);
       const projectId = previewForm.projectId || projectResult.items?.[0]?.projectId || '';
       if (projectId) { setPreviewForm((current) => ({ ...current, projectId })); await loadProject(projectId); }
@@ -102,6 +113,49 @@ function ManageAgents() {
     try { await action(); setSuccess(message); await reload(); }
     catch (saveError) { setError(saveError.message || 'The Agent registry change could not be saved.'); }
     finally { setSaving(false); }
+  }
+
+  async function runManagedCodexAction(action, message) {
+    setSaving(true); setError(''); setSuccess('');
+    try {
+      await action();
+      setSuccess(message);
+      setManagedCodex(await agentService.getManagedCodex());
+      setManagedCodexError('');
+    } catch (actionError) {
+      setError(actionError.message || 'Managed Codex account operation failed.');
+    } finally { setSaving(false); }
+  }
+
+  function startManagedCodexEnrollment() {
+    return runManagedCodexAction(
+      () => agentService.startManagedCodexEnrollment(),
+      'Managed Codex device-code enrollment started. Complete provider verification in your own browser, then reconcile this same operation.',
+    );
+  }
+
+  function reconcileManagedCodexEnrollment() {
+    const enrollmentId = managedCodex?.enrollment?.enrollmentId;
+    if (!enrollmentId) return;
+    return runManagedCodexAction(
+      () => agentService.reconcileManagedCodexEnrollment(enrollmentId),
+      'Reconciled the existing managed Codex enrollment operation.',
+    );
+  }
+
+  function refreshManagedCodexAccount() {
+    return runManagedCodexAction(
+      () => agentService.refreshManagedCodexAccount(),
+      'Refreshed safe managed Codex account metadata.',
+    );
+  }
+
+  function logoutManagedCodexAccount() {
+    if (!window.confirm('Log out and revoke the SkyCommand-managed Codex pilot account? This does not affect your desktop Codex session.')) return;
+    return runManagedCodexAction(
+      () => agentService.logoutManagedCodexAccount(),
+      'Logged out and revoked the managed Codex pilot binding. Agent execution remains disabled.',
+    );
   }
 
   async function createAgent(event) {
@@ -197,11 +251,40 @@ function ManageAgents() {
       <PageHeader kicker="Agents · Registry" title="Manage Agents" subtitle="Register provider-neutral runtimes, accounts, profiles, immutable Agent revisions, and complete advisory authority previews." />
       <DismissibleAlert tone="danger">{error}</DismissibleAlert>
       <DismissibleAlert tone="success">{success}</DismissibleAlert>
-      <DismissibleAlert tone="info">Controlled source-backed fake runtime execution, durable approval and user-input interactions, and the bounded managed Browser Automation pilot are enabled in Phase 19.2C. Real provider execution, unapproved or generic capability effects, scheduler execution, delegation and child Agents, writable development workspaces, and external Agent execution remain disabled.</DismissibleAlert>
+      <DismissibleAlert tone="info">Phase 19.2C fake-runtime execution and its bounded Browser Automation pilot remain unchanged. The Phase 19.3A0 managed Codex cell is bootstrap-only: provider enrollment does not enable real Agent Runs, Browser capability invocation, or a Codex Turn.</DismissibleAlert>
+
+      {canRuntimeManage && <Panel className="mt-3" title="SkyCommand-managed Codex pilot" subtitle="Dedicated Linux app-server cell and managed account binding. This is separate from the interactive Codex Desktop session.">
+        {managedCodexError && <div className="alert alert-warning" role="status">{managedCodexError}</div>}
+        {managedCodex && <>
+          <div className="row g-3 mb-3">
+            <div className="col-md-3"><strong>Bootstrap readiness</strong><div><code>{managedCodex.runtime?.readiness || 'UNINSTALLED'}</code></div><div className="small text-muted">{managedCodex.runtime?.readinessReason || 'Runtime registration is not available.'}</div></div>
+            <div className="col-md-3"><strong>Installation</strong><div><code>{managedCodex.runtime?.certificationState || 'UNVERIFIED'}</code> · <code>{managedCodex.runtime?.freshnessStatus || 'UNKNOWN'}</code></div><div className="small text-muted">MCP {managedCodex.runtime?.mcpReachability || 'UNREACHABLE'} · Provider {managedCodex.runtime?.providerReachability || 'UNKNOWN'}</div></div>
+            <div className="col-md-3"><strong>Managed account</strong><div><code>{managedCodex.account?.accountState || 'UNCONFIGURED'}</code> · {managedCodex.account?.accountAlias || 'Managed Codex Pilot'}</div><div className="small text-muted">Auth {managedCodex.account?.authMode || 'chatgptDeviceCode'}{managedCodex.account?.planType ? ` · Plan ${managedCodex.account.planType}` : ''}</div></div>
+            <div className="col-md-3"><strong>Execution gate</strong><div><code>DISABLED</code></div><div className="small text-muted">No provider Turn or Browser capability is invoked in 19.3A0.</div></div>
+          </div>
+          {managedCodex.enrollment?.state === 'PENDING_USER' && managedCodex.enrollment?.userCode && <div className="alert alert-info" role="status">
+            <strong>Complete managed account verification</strong>
+            <p className="mb-2">Open the provider page in your own browser. Enter this one-time code there; never send your password, cookies, or tokens to SkyCommand.</p>
+            <p className="mb-2"><a href={managedCodex.enrollment.verificationUrl} target="_blank" rel="noreferrer">Open the OpenAI Codex device verification page</a></p>
+            <p className="mb-1">User code: <code className="fs-5 user-select-all">{managedCodex.enrollment.userCode}</code></p>
+            <p className="small mb-0">Enrollment reference: <code>{managedCodex.enrollment.enrollmentId}</code>{managedCodex.enrollment.expiresAt ? ` · Expires ${new Date(managedCodex.enrollment.expiresAt).toLocaleString()}` : ''}</p>
+            <button className="btn sky-btn-primary mt-3" disabled={saving} onClick={reconcileManagedCodexEnrollment} type="button">I completed verification — reconcile this enrollment</button>
+          </div>}
+          {managedCodex.enrollment?.state === 'RECONCILIATION_REQUIRED' && <div className="alert alert-warning" role="status">The original enrollment outcome is uncertain. Reconcile this same operation before any new login attempt. Reference <code>{managedCodex.enrollment.enrollmentId}</code>.</div>}
+          <div className="d-flex flex-wrap gap-2">
+            <button className="btn sky-btn-primary" disabled={saving || managedCodex.account?.accountState !== 'UNCONFIGURED' || managedCodex.runtime?.certificationState !== 'CERTIFIED' || managedCodex.enrollment?.state === 'PENDING_USER' || managedCodex.enrollment?.state === 'RECONCILIATION_REQUIRED'} onClick={startManagedCodexEnrollment} type="button">Start managed login</button>
+            <button className="btn sky-btn-ghost" disabled={saving || !managedCodex.account} onClick={refreshManagedCodexAccount} type="button">Refresh account status</button>
+            <button className="btn btn-outline-danger" disabled={saving || managedCodex.account?.accountState !== 'CONFIGURED'} onClick={logoutManagedCodexAccount} type="button">Logout and revoke managed binding</button>
+          </div>
+          {managedCodex.account?.usage && <details className="mt-3"><summary>Safe usage observations</summary><pre className="small bg-light p-2 mt-2 rounded">{json(managedCodex.account.usage)}</pre></details>}
+          {managedCodex.account?.rateLimits && <details className="mt-2"><summary>Safe rate-limit observations</summary><pre className="small bg-light p-2 mt-2 rounded">{json(managedCodex.account.rateLimits)}</pre></details>}
+          <p className="small text-muted mt-3 mb-0">Managed home: <code>{managedCodex.runtime?.managedHomeReference || 'docker-volume:skycommand_codex_managed_home'}</code> · Runtime generation: <code>{managedCodex.runtime?.runtimeGeneration || 'not observed'}</code></p>
+        </>}
+      </Panel>}
 
       {canManage && <Panel title="Register Agent definition" subtitle="Definitions are metadata; revisions are immutable and require registered runtime/account/profile references."><form className="row g-3" onSubmit={createAgent}><div className="col-md-4"><label className="form-label" htmlFor="agent-code">Agent code</label><input id="agent-code" className="form-control" value={form.agentCode} onChange={(event) => setForm({ ...form, agentCode: event.target.value })} required /></div><div className="col-md-4"><label className="form-label" htmlFor="agent-name">Agent name</label><input id="agent-name" className="form-control" value={form.agentName} onChange={(event) => setForm({ ...form, agentName: event.target.value })} required /></div><div className="col-md-4"><label className="form-label" htmlFor="agent-description">Description</label><input id="agent-description" className="form-control" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></div><div className="col-12"><button className="btn sky-btn-primary" disabled={saving} type="submit">Register Agent</button></div></form></Panel>}
 
-      {canRuntimeManage && <Panel className="mt-3" title="Runtime, account, and capability registration" subtitle="These records define the controlled source-backed fake-runtime entitlement and policy boundary. Real-provider and unapproved or generic capability execution remains disabled; the bounded Phase 19.2C Browser Automation pilot is fixture-only.">
+      {canRuntimeManage && <Panel className="mt-3" title="Runtime, account, and capability registration" subtitle="Provider-neutral registry for fake and managed runtimes. The Codex bootstrap binding remains non-executable; the Phase 19.2C Browser Automation pilot remains fixture-only.">
         <div className="row g-3">
           <form className="col-lg-4" onSubmit={createRuntime}><h3 className="h6">Runtime</h3><input aria-label="Runtime code" className="form-control mb-2" placeholder="Runtime code" value={runtimeForm.runtimeCode} onChange={(event) => setRuntimeForm({ ...runtimeForm, runtimeCode: event.target.value })} required /><input aria-label="Runtime name" className="form-control mb-2" placeholder="Runtime name" value={runtimeForm.runtimeName} onChange={(event) => setRuntimeForm({ ...runtimeForm, runtimeName: event.target.value })} required /><button className="btn sky-btn-ghost" type="submit">Register runtime</button></form>
           <form className="col-lg-4" onSubmit={createInstallation}><h3 className="h6">Installation</h3><p className="small text-muted">New metadata starts <code>UNVERIFIED</code>, <code>UNKNOWN</code>, and disabled. Only an authoritative runtime/certification path can establish readiness.</p><select aria-label="Runtime" className="form-select mb-2" value={installationForm.runtimeId} onChange={(event) => setInstallationForm({ ...installationForm, runtimeId: event.target.value })} required><option value="">Runtime…</option>{runtimes.runtimes?.map((runtime) => <option key={runtime.agentRuntimeId} value={runtime.agentRuntimeId}>{runtime.runtimeName}</option>)}</select><input aria-label="Installation code" className="form-control mb-2" placeholder="Installation code" value={installationForm.installationCode} onChange={(event) => setInstallationForm({ ...installationForm, installationCode: event.target.value })} required /><textarea aria-label="Capability manifest" className="form-control mb-2 font-monospace" rows="3" value={installationForm.capabilityManifest} onChange={(event) => setInstallationForm({ ...installationForm, capabilityManifest: event.target.value })} /><button className="btn sky-btn-ghost" type="submit">Register installation</button></form>

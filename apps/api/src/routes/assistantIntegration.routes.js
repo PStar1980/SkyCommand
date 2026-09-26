@@ -7,6 +7,13 @@ const router = express.Router();
 router.use(requireAssistantIntegration);
 router.get('/capabilities', assistantIntegrationController.getCapabilities);
 router.get('/openapi.json', assistantIntegrationController.getOpenApi);
+router.get('/managed-codex', assistantIntegrationController.getManagedCodexStatus);
+router.post('/managed-codex/enrollments', assistantIntegrationController.startManagedCodexEnrollment);
+router.post('/managed-codex/enrollments/:enrollmentId/reconcile', assistantIntegrationController.reconcileManagedCodexEnrollment);
+router.post('/managed-codex/account/refresh', assistantIntegrationController.refreshManagedCodexAccount);
+router.post('/managed-codex/account/logout', assistantIntegrationController.logoutManagedCodexAccount);
+router.post('/managed-codex/runtime-lifecycle', assistantIntegrationController.startManagedCodexLifecycle);
+router.get('/managed-codex/runtime-lifecycle/:operationId', assistantIntegrationController.getManagedCodexLifecycle);
 router.post('/workflow-runs', assistantIntegrationController.startWorkflowExecution);
 router.get(
   '/workflow-runs/:workflowRunRecordId',
@@ -16,6 +23,11 @@ router.post('/orchestrator-refresh/runs', assistantIntegrationController.startOr
 router.get(
   '/orchestrator-refresh/runs/:operationId',
   assistantIntegrationController.getOrchestratorRefresh,
+);
+router.post('/runtime-refresh/runs', assistantIntegrationController.startDevRuntimeRefresh);
+router.get(
+  '/runtime-refresh/runs/:operationId',
+  assistantIntegrationController.getDevRuntimeRefresh,
 );
 router.get(
   '/browser-automation-runs/:workflowId/artifacts/:artifactId',

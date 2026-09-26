@@ -1,0 +1,120 @@
+services:
+  auth-egress-proxy:
+    profiles: ["isolated-codex-auth-ab"]
+    build:
+      context: ../../../apps/codex-egress-proxy
+      dockerfile: Dockerfile
+    image: skycommand-codex-auth-ab-egress:local
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+    restart: "no"
+    environment:
+      CODEX_EGRESS_PROXY_PORT: "3128"
+      CODEX_EGRESS_ALLOWLIST_PATH: /etc/skycommand/provider-allowlist.txt
+      CODEX_EGRESS_AUTH_AB_MODE: "1"
+      CODEX_EGRESS_AUTH_AB_FINGERPRINT_KEY: ${CODEX_EGRESS_AUTH_AB_FINGERPRINT_KEY:-}
+    volumes:
+      - type: bind
+        source: ../../codex-provider-allowlist.txt
+        target: /etc/skycommand/provider-allowlist.txt
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      auth_client:
+        aliases: ["codex-auth-ab-egress"]
+      auth_uplink: {}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3128/healthz').then(async r=>{if(!r.ok||!(await r.json()).ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+
+  auth-ab-baseline:
+    profiles: ["isolated-codex-auth-ab"]
+    build:
+      context: ..
+      dockerfile: auth-ab/Dockerfile
+    image: skycommand-codex-auth-ab-runtime:local
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2.0
+    logging:
+      driver: "none"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=96m,uid=10001,gid=10001,mode=1777
+      - /probe-home:rw,noexec,nosuid,nodev,size=96m,uid=10001,gid=10001,mode=0700
+    environment:
+      HOME: /probe-home
+      CODEX_HOME: /probe-home/codex
+      CODEX_DISABLE_AUTOUPDATE: "1"
+      SKYCOMMAND_PROBE_EXECUTION_DISABLED: "1"
+      SKYCOMMAND_AUTH_AB_EXECUTION_DISABLED: "1"
+      CODEX_AUTH_AB_EXPECTED_POLICY_DIGEST: 855E57700B5CC7C377934BADA5884B811A5DCFA58C9F6AA8655EBA7B119E0879
+      HTTP_PROXY: http://codex-auth-ab-egress:3128
+      HTTPS_PROXY: http://codex-auth-ab-egress:3128
+      http_proxy: http://codex-auth-ab-egress:3128
+      https_proxy: http://codex-auth-ab-egress:3128
+      NO_PROXY: localhost,127.0.0.1,codex-auth-ab-egress
+      no_proxy: localhost,127.0.0.1,codex-auth-ab-egress
+      TMPDIR: /tmp
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      NO_COLOR: "1"
+    networks: [auth_client]
+    command: ["baseline"]
+    restart: "no"
+
+  auth-ab-candidate:
+    profiles: ["isolated-codex-auth-ab"]
+    image: skycommand-codex-auth-ab-runtime:local
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2.0
+    logging:
+      driver: "none"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=96m,uid=10001,gid=10001,mode=1777
+      - /probe-home:rw,noexec,nosuid,nodev,size=96m,uid=10001,gid=10001,mode=0700
+    environment:
+      HOME: /probe-home
+      CODEX_HOME: /probe-home/codex
+      CODEX_DISABLE_AUTOUPDATE: "1"
+      SKYCOMMAND_PROBE_EXECUTION_DISABLED: "1"
+      SKYCOMMAND_AUTH_AB_EXECUTION_DISABLED: "1"
+      CODEX_AUTH_AB_EXPECTED_POLICY_DIGEST: 855E57700B5CC7C377934BADA5884B811A5DCFA58C9F6AA8655EBA7B119E0879
+      HTTP_PROXY: http://codex-auth-ab-egress:3128
+      HTTPS_PROXY: http://codex-auth-ab-egress:3128
+      http_proxy: http://codex-auth-ab-egress:3128
+      https_proxy: http://codex-auth-ab-egress:3128
+      NO_PROXY: localhost,127.0.0.1,codex-auth-ab-egress
+      no_proxy: localhost,127.0.0.1,codex-auth-ab-egress
+      TMPDIR: /tmp
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      NO_COLOR: "1"
+    networks: [auth_client]
+    command: ["candidate"]
+    restart: "no"
+
+networks:
+  auth_client:
+    internal: true
+  auth_uplink:
+    driver: bridge

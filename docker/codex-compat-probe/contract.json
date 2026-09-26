@@ -1,0 +1,24 @@
+{
+  "schema": "SKYCOMMAND_CODEX_COMPAT_PROBE_CONTRACT_V1",
+  "platform": {
+    "os": "linux",
+    "cpu": "x64"
+  },
+  "baseline": {
+    "wrapperVersion": "0.155.0-alpha.9.2",
+    "wrapperIntegrity": "sha512-n3fVPDCeGLa0d/vmx/3QdOEn1+b0Phsj9/CqMHFbrW3GMxNy6dMvnhdM8/x3Wg+OBDCudkmQNt8ryapRsl9twQ==",
+    "platformAlias": "@openai/codex-linux-x64",
+    "platformVersion": "0.155.0-alpha.9.2-linux-x64",
+    "platformIntegrity": "sha512-tnUaq2ejXz8afrEODlmlph3yoZlSXgOFj8mFww2+kyG6rep1sKaelqkyHB2L3V/vYVHzF3gfiurZWwh7+ClebA=="
+  },
+  "candidate": {
+    "wrapperVersion": "0.156.1",
+    "wrapperIntegrity": "sha512-nI1iVl/n2SO2lSvlwEsJx63zdSI4C4Me2gR7AG0OWMJiGSakz2tY2hx43E39Zq5aEoeB5bZjJXzp5Sqhog6vyA==",
+    "wrapperShasum": "21a6a1f6226562c56ccece8f7ebea5bda1fe3768",
+    "platformAlias": "@openai/codex-linux-x64",
+    "platformVersion": "0.156.1-linux-x64",
+    "platformIntegrity": "sha512-2ePo0wgOcnONKsuzp8vBjOmNY+IdsKaouaDDIdiKq9HOWNuV/GI22OeXft2A/1GaoL71ictO0/pLAsCEnQ6wew==",
+    "platformShasum": "04927933fda85cbe2ad2cdd5b62f92875a8ab8b2",
+    "optionalDependencySpec": "npm:@openai/codex@0.156.1-linux-x64"
+  }
+}

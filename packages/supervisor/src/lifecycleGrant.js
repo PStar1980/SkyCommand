@@ -11,6 +11,7 @@ const ALLOWED_GRANT_ACTIONS = new Set([
   'REBUILD_WEB',
   'REBUILD_BACKEND',
   'REBUILD_TEMPORAL_WORKER',
+  'REBUILD_CODEX_BOOTSTRAP',
 ]);
 
 class SupervisorGrantError extends Error {

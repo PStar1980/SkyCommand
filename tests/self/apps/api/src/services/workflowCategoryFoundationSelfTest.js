@@ -184,12 +184,25 @@ assert(
 );
 
 
+const normalizeRunRowStart = workflowService.indexOf('function normalizeRunRow(row)');
+const listWorkflowRunsStart = workflowService.indexOf('async function listWorkflowRuns(filters = {})');
+const normalizeRunRowSource = workflowService.slice(
+  normalizeRunRowStart,
+  workflowService.indexOf('\nfunction ', normalizeRunRowStart + 1),
+);
+const listWorkflowRunsSource = workflowService.slice(
+  listWorkflowRunsStart,
+  workflowService.indexOf('async function getWorkflowRunById', listWorkflowRunsStart),
+);
+
 assert(
-  workflowService.includes('workflowCategoryCode:')
-    && workflowService.includes('workflowCategoryDisplayName:')
-    && workflowService.includes("const rawCategoryCode = String(filters.categoryCode || '').trim();")
-    && workflowService.includes('workflow_category_code = $${values.length}')
-    && workflowService.includes('category: "LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), \'\'), workflow_category_code))"'),
+  normalizeRunRowStart >= 0
+    && listWorkflowRunsStart >= 0
+    && normalizeRunRowSource.includes('workflowCategoryCode:')
+    && normalizeRunRowSource.includes('workflowCategoryDisplayName:')
+    && listWorkflowRunsSource.includes("const rawCategoryCode = String(filters.categoryCode || '').trim();")
+    && listWorkflowRunsSource.includes('workflow_category_code = $${values.length}')
+    && /category:\s*["']LOWER\(COALESCE\(NULLIF\(BTRIM\(workflow_category_display_name\), ''\), workflow_category_code\)\)["']/.test(listWorkflowRunsSource),
   'Workflow run history must normalize, filter, and sort category metadata for Workflow Operations.',
 );
 

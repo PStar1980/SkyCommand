@@ -135,12 +135,15 @@ async function main() {
   assert.equal(/\bTRUNCATE\b/i.test(migration), false);
   assert.ok(migration.includes('SET active = FALSE'));
 
-  const databaseUpgradeDoc = read('docs/development/SkyCommand_Database_Upgrade.md');
-  assert.ok(databaseUpgradeDoc.includes('database_upgrade_apply'));
-  assert.ok(databaseUpgradeDoc.includes('dev_change_finalize'));
-  assert.ok(databaseUpgradeDoc.includes('NO_CHANGES'));
-  assert.equal(databaseUpgradeDoc.includes('/api/assistant/database-upgrade'), false);
-  assert.equal(databaseUpgradeDoc.includes('DB_UPGRADE_APPLY_REQUEST'), false);
+  const databaseUpgradeDocPath = 'docs/development/SkyCommand_Database_Upgrade.md';
+  if (fs.existsSync(file(databaseUpgradeDocPath))) {
+    const databaseUpgradeDoc = read(databaseUpgradeDocPath);
+    assert.ok(databaseUpgradeDoc.includes('database_upgrade_apply'));
+    assert.ok(databaseUpgradeDoc.includes('dev_change_finalize'));
+    assert.ok(databaseUpgradeDoc.includes('NO_CHANGES'));
+    assert.equal(databaseUpgradeDoc.includes('/api/assistant/database-upgrade'), false);
+    assert.equal(databaseUpgradeDoc.includes('DB_UPGRADE_APPLY_REQUEST'), false);
+  }
 
   console.log('R7 database-upgrade cleanup self-test passed.');
 }

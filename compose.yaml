@@ -163,6 +163,195 @@ services:
     restart: unless-stopped
     stop_grace_period: 20s
 
+  codex-managed-volume-init:
+    build:
+      context: .
+      dockerfile: docker/codex-control-bridge.Dockerfile
+    image: skycommand-codex-control-bridge:local
+    container_name: skycommand-codex-managed-volume-init
+    user: "0:0"
+    command: ["node", "apps/codex-control-bridge/src/credentialInit.js"]
+    environment:
+      CODEX_BRIDGE_TOKEN_DIR: /run/codex-api-bridge
+      CODEX_RUNTIME_TOKEN_DIR: /run/codex-runtime-control
+      CODEX_MANAGED_HOME: /var/lib/codex
+    volumes:
+      - codex_api_bridge_token:/run/codex-api-bridge
+      - codex_runtime_control_token:/run/codex-runtime-control
+      - codex_managed_home:/var/lib/codex
+    restart: "no"
+
+  codex-mcp-gateway:
+    build:
+      context: .
+      dockerfile: docker/codex-mcp-gateway.Dockerfile
+    image: skycommand-codex-mcp-gateway:local
+    container_name: skycommand-codex-mcp-gateway
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "1000:1000"
+    networks:
+      - codex_mcp_internal
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3981/healthz').then(async r=>{if(!r.ok||!(await r.json()).ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 10s
+    pids_limit: 96
+    mem_limit: 256m
+
+  codex-egress-proxy:
+    build:
+      context: .
+      dockerfile: docker/codex-egress-proxy.Dockerfile
+    image: skycommand-codex-egress-proxy:local
+    container_name: skycommand-codex-egress-proxy
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "1000:1000"
+    networks:
+      - codex_provider_internal
+      - codex_provider_egress
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3128/healthz').then(async r=>{if(!r.ok||!(await r.json()).ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 10s
+    pids_limit: 96
+    mem_limit: 256m
+
+  codex-agent-runtime-worker:
+    build:
+      context: .
+      dockerfile: docker/codex-agent-runtime/Dockerfile
+    image: skycommand-codex-agent-runtime-worker:local
+    container_name: skycommand-codex-agent-runtime-worker
+    depends_on:
+      codex-managed-volume-init:
+        condition: service_completed_successfully
+      codex-mcp-gateway:
+        condition: service_healthy
+      codex-egress-proxy:
+        condition: service_healthy
+    environment:
+      CODEX_RUNTIME_GENERATION: phase19-3a0
+      CODEX_RUNTIME_CONTROL_TOKEN_FILE: /run/codex-runtime-control/runtime-control-token
+      CODEX_RUNTIME_CONTROL_PORT: 4219
+      CODEX_MANAGED_MCP_URL: http://skycommand-codex-mcp-gateway:3981/mcp
+      HTTP_PROXY: http://skycommand-codex-egress-proxy:3128
+      HTTPS_PROXY: http://skycommand-codex-egress-proxy:3128
+      NO_PROXY: skycommand-codex-mcp-gateway,localhost,127.0.0.1
+      http_proxy: http://skycommand-codex-egress-proxy:3128
+      https_proxy: http://skycommand-codex-egress-proxy:3128
+      no_proxy: skycommand-codex-mcp-gateway,localhost,127.0.0.1
+      CODEX_DISABLE_AUTOUPDATE: "1"
+      CODEX_RUNTIME_BUILD_ID: phase19-3a0-codex-cli-0.154.0
+    volumes:
+      - codex_managed_home:/var/lib/codex
+      - codex_runtime_control_token:/run/codex-runtime-control:ro
+    networks:
+      codex_runtime_control:
+        aliases:
+          - codex-agent-runtime-worker-runtime-control
+      codex_mcp_internal: {}
+      codex_provider_internal: {}
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "1000:1000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - apps/codex-agent-runtime-worker/src/healthcheck.js
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 45s
+    restart: unless-stopped
+    stop_grace_period: 15s
+    pids_limit: 256
+    mem_limit: 3g
+
+  codex-control-bridge:
+    build:
+      context: .
+      dockerfile: docker/codex-control-bridge.Dockerfile
+    image: skycommand-codex-control-bridge:local
+    container_name: skycommand-codex-control-bridge
+    depends_on:
+      codex-managed-volume-init:
+        condition: service_completed_successfully
+      codex-agent-runtime-worker:
+        condition: service_healthy
+    environment:
+      CODEX_CONTROL_BRIDGE_PORT: 4220
+      CODEX_RUNTIME_WORKER_URL: http://codex-agent-runtime-worker-runtime-control:4219
+      CODEX_BRIDGE_TOKEN_FILE: /run/codex-api-bridge/api-bridge-token
+      CODEX_RUNTIME_TOKEN_FILE: /run/codex-runtime-control/runtime-control-token
+    volumes:
+      - codex_api_bridge_token:/run/codex-api-bridge:ro
+      - codex_runtime_control_token:/run/codex-runtime-control:ro
+    networks:
+      codex_api_control:
+        aliases:
+          - codex-control-bridge-api-control
+      codex_runtime_control: {}
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "1000:1000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://codex-control-bridge-api-control:4220/healthz').then(async r=>{const p=await r.json();if(r.status!==200||p.ok!==true)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 10s
+    pids_limit: 96
+    mem_limit: 256m
+
   browser-worker:
     build:
       context: .
@@ -278,6 +467,11 @@ services:
       # explicit host gateway keeps the API-to-Supervisor refresh seam separate
       # from the browser's loopback bootstrap URL.
       SKYCOMMAND_SUPERVISOR_API_URL: http://host.docker.internal:${SKYCOMMAND_SUPERVISOR_PORT:-17170}
+      CODEX_CONTROL_BRIDGE_URL: http://codex-control-bridge-api-control:4220
+      CODEX_CONTROL_BRIDGE_TOKEN_FILE: /run/codex-api-bridge/api-bridge-token
+      # Fingerprint the mounted checkout used by the host Supervisor's Compose build,
+      # not the API image's baked /app source that is authorizing the rebuild.
+      SKYCOMMAND_MANAGED_CODEX_SOURCE_ROOT: /workspace/SkyEco System/SkyCommand System/SkyCommand
       SKYCOMMAND_DOCKER_RUNTIME_LABEL: Docker API
       SKYCOMMAND_DOCKER_GIT_CHECK_COMMAND: npm run api:docker:git:check
       SKYCOMMAND_SCRIPT_RUNTIME_ROOT: /app
@@ -299,6 +493,9 @@ services:
       GIT_COMMITTER_NAME: "${SKYCOMMAND_GIT_AUTHOR_NAME:-}"
       GIT_COMMITTER_EMAIL: "${SKYCOMMAND_GIT_AUTHOR_EMAIL:-}"
       SERVE_ADMIN_WEB: "false"
+    networks:
+      default: {}
+      codex_api_control: {}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -307,6 +504,7 @@ services:
       - type: bind
         source: ${SKYCOMMAND_DOCKER_WORKSPACE_ROOT:-.}
         target: /workspace/SkyEco System
+      - codex_api_bridge_token:/run/codex-api-bridge:ro
     secrets:
       - source: github_token
         target: skycommand_github_token
@@ -359,6 +557,33 @@ volumes:
     name: skycommand_postgres_data
   temporal_data:
     name: skycommand_temporal_data
+  codex_managed_home:
+    name: skycommand_codex_managed_home
+  codex_api_bridge_token:
+    name: skycommand_codex_api_bridge_token
+  codex_runtime_control_token:
+    name: skycommand_codex_runtime_control_token
+
+networks:
+  codex_api_control:
+    name: skycommand_codex_api_control
+    driver: bridge
+    internal: true
+  codex_runtime_control:
+    name: skycommand_codex_runtime_control
+    driver: bridge
+    internal: true
+  codex_mcp_internal:
+    name: skycommand_codex_mcp_internal
+    driver: bridge
+    internal: true
+  codex_provider_internal:
+    name: skycommand_codex_provider_internal
+    driver: bridge
+    internal: true
+  codex_provider_egress:
+    name: skycommand_codex_provider_egress
+    driver: bridge
 
 secrets:
   github_token:

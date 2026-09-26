@@ -1,5 +1,6 @@
 const assistantIntegrationService = require('../services/assistantIntegrationService');
 const orchestratorRefreshService = require('../services/orchestratorRefreshService');
+const devRuntimeRefreshService = require('../services/devRuntimeRefreshService');
 const authService = require('../services/authService');
 
 function sendError(res, error, next) {
@@ -30,6 +31,117 @@ async function getCapabilities(req, res, next) {
 async function getOpenApi(req, res, next) {
   try {
     return res.json(assistantIntegrationService.getOpenApiDocument());
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getManagedCodexStatus(req, res, next) {
+  try {
+    const status = await assistantIntegrationService.getManagedCodexStatus({
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.json({ ok: true, ...status });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function startManagedCodexEnrollment(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.startManagedCodexEnrollment({
+      body: req.body || {},
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.status(result.reused ? 200 : 202).json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function reconcileManagedCodexEnrollment(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.reconcileManagedCodexEnrollment({
+      enrollmentId: req.params.enrollmentId,
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function refreshManagedCodexAccount(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.refreshManagedCodexAccount({
+      body: req.body || {},
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function logoutManagedCodexAccount(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.logoutManagedCodexAccount({
+      body: req.body || {},
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function startManagedCodexLifecycle(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.startManagedCodexLifecycle({
+      body: req.body || {},
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.status(result.reused ? 200 : 202).json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getManagedCodexLifecycle(req, res, next) {
+  try {
+    const result = await assistantIntegrationService.getManagedCodexLifecycle({
+      operationId: req.params.operationId,
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.json({ ok: true, ...result });
   } catch (error) {
     return sendError(res, error, next);
   }
@@ -179,6 +291,37 @@ async function getOrchestratorRefresh(req, res, next) {
   }
 }
 
+async function startDevRuntimeRefresh(req, res, next) {
+  try {
+    const result = await devRuntimeRefreshService.startDevRuntimeRefresh({
+      request: req.body || {},
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId || 'assistant-http',
+      principalCode: req.assistantIntegration?.principalCode || 'assistant-http',
+      actor: req.user,
+      session: req.session,
+      requestContext: authService.getRequestContext(req),
+    });
+    return res.status(result.reused ? 200 : 202).json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getDevRuntimeRefresh(req, res, next) {
+  try {
+    const result = await devRuntimeRefreshService.getDevRuntimeRefresh({
+      operationId: req.params.operationId,
+      principalCode: req.assistantIntegration?.principalCode || 'assistant-http',
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId || 'assistant-http',
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
 async function getRun(req, res, next) {
   try {
     const run = await assistantIntegrationService.getRun(req.params.workflowId, { actor: req.user });
@@ -213,12 +356,21 @@ module.exports = {
   getAutomation,
   getCapabilities,
   getOpenApi,
+  getManagedCodexStatus,
+  startManagedCodexLifecycle,
+  getManagedCodexLifecycle,
+  startManagedCodexEnrollment,
+  reconcileManagedCodexEnrollment,
+  refreshManagedCodexAccount,
+  logoutManagedCodexAccount,
   getRun,
   getWorkflowExecutionRun,
   getOrchestratorRefresh,
+  getDevRuntimeRefresh,
   listAutomations,
   startDevelopmentPromotion,
   startWorkflowExecution,
   startOrchestratorRefresh,
+  startDevRuntimeRefresh,
   startAutomation,
 };

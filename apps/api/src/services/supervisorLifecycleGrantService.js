@@ -9,6 +9,10 @@ const RUNTIME_CONTROL_PERMISSION = 'INFRASTRUCTURE_DOCKER_CONTROL';
 const RUNTIME_CONTROL_EVENT_TYPE = 'SKYCOMMAND_RUNTIME_CONTROL_AUTHORIZED';
 const RUNTIME_RESOURCE_TYPE = 'skycommand_runtime';
 const RUNTIME_RESOURCE_ID = 'skycommand';
+const ALLOWED_RUNTIME_CONTROL_PERMISSION_CODES = new Set([
+  RUNTIME_CONTROL_PERMISSION,
+  'DEV_RUNTIME_LIFECYCLE',
+]);
 
 async function defaultAuditRecorder(event) {
   const authService = require('./authService');
@@ -49,6 +53,7 @@ async function authorizeRuntimeControl({
   session = {},
   requestContext = {},
   operationId = null,
+  permissionCode = RUNTIME_CONTROL_PERMISSION,
   auditRecorder = defaultAuditRecorder,
   nowMs = Date.now(),
 } = {}) {
@@ -71,6 +76,27 @@ async function authorizeRuntimeControl({
     );
   }
 
+  const normalizedPermissionCode = String(permissionCode || '')
+    .trim()
+    .toUpperCase();
+  if (!ALLOWED_RUNTIME_CONTROL_PERMISSION_CODES.has(normalizedPermissionCode)) {
+    throw createServiceError(
+      403,
+      'SKYCOMMAND_RUNTIME_CONTROL_PERMISSION_NOT_ALLOWED',
+      'The requested runtime lifecycle permission is not allowlisted.',
+    );
+  }
+  if (
+    normalizedPermissionCode === 'DEV_RUNTIME_LIFECYCLE' &&
+    !['REBUILD_TEMPORAL_WORKER', 'REBUILD_CODEX_BOOTSTRAP'].includes(normalizedAction)
+  ) {
+    throw createServiceError(
+      403,
+      'SKYCOMMAND_RUNTIME_CONTROL_PERMISSION_ACTION_MISMATCH',
+      'DEV runtime lifecycle authority is limited to registered worker refresh actions.',
+    );
+  }
+
   const secret = getGrantSecret();
   if (!secret) {
     throw createServiceError(
@@ -90,13 +116,16 @@ async function authorizeRuntimeControl({
     nowMs,
   });
 
-  const resourceLabel = normalizedAction === 'REBUILD_WEB'
-    ? 'SkyCommand web frontend'
-    : normalizedAction === 'REBUILD_BACKEND'
-      ? 'SkyCommand API and worker backend'
-      : normalizedAction === 'REBUILD_TEMPORAL_WORKER'
-        ? 'the SkyCommand Temporal orchestrator worker'
-        : 'SkyCommand backend runtime';
+  const resourceLabel =
+    normalizedAction === 'REBUILD_WEB'
+      ? 'SkyCommand web frontend'
+      : normalizedAction === 'REBUILD_BACKEND'
+        ? 'SkyCommand API and worker backend'
+        : normalizedAction === 'REBUILD_TEMPORAL_WORKER'
+          ? 'the SkyCommand Temporal orchestrator worker'
+          : normalizedAction === 'REBUILD_CODEX_BOOTSTRAP'
+            ? 'the fixed managed Codex bootstrap runtime cell'
+            : 'SkyCommand backend runtime';
   const message = `${normalizedAction} authorized for the ${resourceLabel} through the host-native Supervisor.`;
 
   // High-risk self-lifecycle control fails closed if the authorization audit cannot be persisted.
@@ -111,7 +140,7 @@ async function authorizeRuntimeControl({
     message,
     metadata: {
       transport: 'SUPERVISOR_SIGNED_GRANT',
-      permissionCode: RUNTIME_CONTROL_PERMISSION,
+      permissionCode: normalizedPermissionCode,
       grantId: issued.payload.nonce,
       expiresAt: issued.expiresAt,
       requestedAction: normalizedAction,
@@ -135,6 +164,7 @@ async function authorizeRuntimeControl({
 module.exports = {
   RUNTIME_CONTROL_EVENT_TYPE,
   RUNTIME_CONTROL_PERMISSION,
+  ALLOWED_RUNTIME_CONTROL_PERMISSION_CODES,
   RUNTIME_RESOURCE_ID,
   RUNTIME_RESOURCE_TYPE,
   authorizeRuntimeControl,

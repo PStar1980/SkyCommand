@@ -82,6 +82,28 @@ authorizeRuntimeControl({
     });
     assert.equal(auditEvents.length, 3);
 
+    return authorizeRuntimeControl({
+      action: 'REBUILD_CODEX_BOOTSTRAP',
+      operationId: '123e4567-e89b-12d3-a456-426614174000',
+      confirmed: true,
+      actor: { userId: 'user-1', username: 'paul' },
+      session: { sessionId: 'session-1', appCode: 'SKYSERVER_ADMIN' },
+      requestContext: { ipAddress: '127.0.0.1', userAgent: 'self-test' },
+      auditRecorder: async (event) => auditEvents.push(event),
+      nowMs: nowMs + 3000,
+    });
+  })
+  .then((codexRebuildResult) => {
+    assert.equal(codexRebuildResult.authorization.action, 'REBUILD_CODEX_BOOTSTRAP');
+    const claims = verifyLifecycleGrant(codexRebuildResult.authorization.grant, {
+      secret: process.env.SKYCOMMAND_SUPERVISOR_GRANT_SECRET,
+      action: 'REBUILD_CODEX_BOOTSTRAP',
+      nowMs: nowMs + 5_000,
+    });
+    assert.equal(claims.operationId, '123e4567-e89b-12d3-a456-426614174000');
+    assert.equal(auditEvents.at(-1).metadata.operationId, '123e4567-e89b-12d3-a456-426614174000');
+    assert.match(auditEvents.at(-1).message, /managed Codex bootstrap runtime cell/i);
+
     return assert.rejects(
       () => authorizeRuntimeControl({ action: 'STOP', confirmed: false }),
       /explicit confirmation/i,
