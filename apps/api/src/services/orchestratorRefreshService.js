@@ -524,6 +524,7 @@ module.exports = {
   getSupervisorBaseUrl,
   getTemporalWorkerRefresh,
   isFreshHeartbeat,
+  loadTemporalHeartbeats,
   normalizeHeartbeat,
   normalizeIdempotencyKey,
   postSupervisorRefresh,

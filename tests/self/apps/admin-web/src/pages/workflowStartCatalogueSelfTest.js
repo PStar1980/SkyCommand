@@ -355,18 +355,19 @@ assert(
 
 
 assert(
-  workflowSource.includes('await loadRunDetail(stillVisible.workflowRunRecordId);\n        return items;') &&
+  /if \(stillVisible\) \{[\s\S]*?await loadRunDetail\(stillVisible\.workflowRunRecordId, \{ quiet: true, telemetry: false \}\);[\s\S]*?return items;[\s\S]*?\}/.test(workflowSource) &&
     workflowSource.includes('const loadedRuns = (await loadRuns(filters, { keepSelection })) || [];') &&
-    workflowSource.includes('if (!isHistoryMode) {\n        await loadDefinitions({ keepSelection });\n      }'),
-  'Workflow Operations manual refresh must preserve selected-run data, return the refreshed run collection, and avoid reloading unrelated definitions.',
+    /if \(!isHistoryMode\) \{\s*await loadDefinitions\(\{ keepSelection \}\);\s*\}/.test(workflowSource),
+  'Workflow Operations manual refresh must preserve selected-run data, refresh selected-run detail quietly without duplicate telemetry, return the refreshed run collection, and avoid reloading unrelated definitions.',
 );
 
 assert(
-  workflowSource.includes("structuredToolResult?.outputType === 'git_local_sync_summary.v1'") &&
-    workflowSource.includes('function GitLocalSyncOutput({ toolResult })') &&
-    workflowSource.includes('Four-way synchronized') &&
-    workflowSource.includes('Host sync command'),
-  'Workflow operation detail must render guarded host local-sync evidence and copy-ready follow-up guidance.',
+  workflowSource.includes('<StructuredToolResultDisplay toolResult={structuredToolResult} />') &&
+    structuredToolResultSource.includes("'git_local_sync_summary.v1': GitLocalSyncOutput") &&
+    structuredToolResultSource.includes('function GitLocalSyncOutput({ toolResult })') &&
+    structuredToolResultSource.includes('Four-way synchronized') &&
+    structuredToolResultSource.includes('Host sync command'),
+  'Workflow operation detail must delegate structured output to the shared renderer, which must retain guarded host local-sync evidence and copy-ready follow-up guidance.',
 );
 
 assert(

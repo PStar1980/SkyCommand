@@ -69,6 +69,29 @@ async function fetchProbe(name, url, timeoutMs = 8000) {
   }
 }
 
+async function fetchCodexReadinessProbe(url, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    const payload = await response.json().catch(() => ({}));
+    const ready = response.ok && payload.ok === true && payload.readiness === 'CURRENT';
+    return {
+      name: 'managed_codex_readiness',
+      status: ready ? 'PASS' : 'FAIL',
+      detail: `${String(payload.readiness || 'UNKNOWN').slice(0, 48)} ${new URL(url).hostname}`,
+    };
+  } catch (error) {
+    return {
+      name: 'managed_codex_readiness',
+      status: 'FAIL',
+      detail: `${text(error?.name, 'FETCH_ERROR')} ${new URL(url).hostname}`,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function registrationProbe() {
   const workflow = await query(
     `
@@ -122,6 +145,11 @@ async function executeReadiness(args = []) {
     ? await fetchProbe('web_health', 'http://web:8080/healthz')
     : { name: 'web_health', status: 'NOT_REQUESTED', detail: 'web was outside the R5 lifecycle scope' };
   probes.push(webProbe);
+
+  if (lifecycleServices.includes('codex-agent-runtime-worker')) {
+    const apiBase = resolveApiHealthUrl(process.env).replace(/\/_health$/, '');
+    probes.push(await fetchCodexReadinessProbe(`${apiBase}/_health/codex`));
+  }
 
   const registration = await registrationProbe();
   probes.push({
@@ -205,6 +233,7 @@ module.exports = {
   TOOL_CODE,
   executeReadiness,
   fetchProbe,
+  fetchCodexReadinessProbe,
   main,
   registrationProbe,
   resolveApiHealthUrl,

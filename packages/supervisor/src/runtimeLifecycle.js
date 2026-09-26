@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { buildChildProcessEnvironment } = require('../../core/src/repositoryEnvironment');
-const { FINALIZATION_REBUILD_SERVICES } = require('./config');
+const { CODEX_BOOTSTRAP_REBUILD_SERVICES, FINALIZATION_REBUILD_SERVICES } = require('./config');
 
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTIONS = new Set([
@@ -12,6 +12,7 @@ const ALLOWED_ACTIONS = new Set([
   'REBUILD_WEB',
   'REBUILD_BACKEND',
   'REBUILD_TEMPORAL_WORKER',
+  'REBUILD_CODEX_BOOTSTRAP',
 ]);
 const FINALIZATION_SERVICE_SET = new Set(FINALIZATION_REBUILD_SERVICES);
 
@@ -26,6 +27,28 @@ class SupervisorRuntimeError extends Error {
 
 function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
+}
+
+function isDockerEngineUnavailable(raw) {
+  const text = normalizeText(raw);
+  if (!text) return false;
+
+  if (/cannot connect to the docker daemon|is the docker daemon running/i.test(text)) {
+    return true;
+  }
+
+  if (/docker desktop.*(?:not running|unavailable|failed to start)/i.test(text)) {
+    return true;
+  }
+
+  const referencesDockerEndpoint =
+    /docker_engine|dockerdesktoplinuxengine|docker\.sock/i.test(text);
+  const endpointFailure =
+    /connection refused|cannot connect|error during connect|no such file|system cannot find|not found|access is denied|permission denied/i.test(
+      text,
+    );
+
+  return referencesDockerEndpoint && endpointFailure;
 }
 
 function assertConfig(config = {}) {
@@ -93,9 +116,7 @@ async function executeDocker(config, args, options = {}) {
       .map((item) => normalizeText(item))
       .filter(Boolean)
       .join('\n');
-    const daemonUnavailable = /daemon|docker desktop|pipe|cannot connect|connection refused/i.test(
-      raw,
-    );
+    const daemonUnavailable = isDockerEngineUnavailable(raw);
 
     throw new SupervisorRuntimeError(
       daemonUnavailable
@@ -307,6 +328,21 @@ async function rebuildServices(config, services, options = {}) {
   };
 }
 
+async function rebuildCodexBootstrap(config, options = {}) {
+  const services = [...CODEX_BOOTSTRAP_REBUILD_SERVICES];
+  const result = await executeDocker(
+    config,
+    ['up', '-d', '--build', '--force-recreate', ...services],
+    { ...options, timeout: config.rebuildTimeoutMs || config.controlTimeoutMs },
+  );
+  return {
+    action: 'REBUILD_CODEX_BOOTSTRAP',
+    services,
+    stdout: normalizeText(result.stdout),
+    status: await getRuntimeStatus(config, options),
+  };
+}
+
 async function controlRuntime(config, action, options = {}) {
   const normalized = normalizeText(action).toUpperCase();
   if (!ALLOWED_ACTIONS.has(normalized)) {
@@ -324,6 +360,7 @@ async function controlRuntime(config, action, options = {}) {
   if (normalized === 'REBUILD_TEMPORAL_WORKER') {
     return rebuildServices(config, ['temporal-worker'], options);
   }
+  if (normalized === 'REBUILD_CODEX_BOOTSTRAP') return rebuildCodexBootstrap(config, options);
   return restartRuntime(config, options);
 }
 
@@ -332,12 +369,15 @@ module.exports = {
   SupervisorRuntimeError,
   buildComposeArgs,
   executeDocker,
+  isDockerEngineUnavailable,
   controlRuntime,
   getRuntimeStatus,
   FINALIZATION_REBUILD_SERVICES,
+  CODEX_BOOTSTRAP_REBUILD_SERVICES,
   FINALIZATION_SERVICE_SET,
   normalizeFinalizationServices,
   rebuildServices,
+  rebuildCodexBootstrap,
   parseComposePsOutput,
   rebuildBackend,
   rebuildWeb,

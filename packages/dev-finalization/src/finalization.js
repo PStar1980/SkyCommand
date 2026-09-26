@@ -29,6 +29,11 @@ const FINALIZATION_SERVICE_ORDER = Object.freeze([
   'browser-worker',
   'node-worker',
   'agent-runtime-worker',
+  'codex-managed-volume-init',
+  'codex-egress-proxy',
+  'codex-mcp-gateway',
+  'codex-agent-runtime-worker',
+  'codex-control-bridge',
   'web',
 ]);
 const FINALIZATION_ORCHESTRATOR_SERVICE = 'temporal-worker';
@@ -218,6 +223,25 @@ function classifyChangedPaths(changedPaths = []) {
     ) {
       services.add('agent-runtime-worker');
     }
+    if (
+      normalized.startsWith('apps/codex-agent-runtime-worker/') ||
+      normalized === 'docker/codex-agent-runtime.dockerfile' ||
+      normalized.startsWith('docker/codex-agent-runtime/')
+    ) services.add('codex-agent-runtime-worker');
+    if (
+      normalized.startsWith('apps/codex-egress-proxy/') ||
+      normalized === 'docker/codex-egress-proxy.dockerfile' ||
+      normalized === 'docker/codex-provider-allowlist.txt'
+    ) services.add('codex-egress-proxy');
+    if (
+      normalized.startsWith('apps/codex-mcp-gateway/') ||
+      normalized === 'docker/codex-mcp-gateway.dockerfile'
+    ) services.add('codex-mcp-gateway');
+    if (
+      normalized.startsWith('apps/codex-control-bridge/') ||
+      normalized === 'docker/codex-control-bridge.dockerfile'
+    ) services.add('codex-control-bridge');
+    if (normalized === 'compose.yaml') services.add('codex-managed-volume-init');
     if (
       normalized.startsWith('packages/temporal/') ||
       normalized.startsWith('apps/api/') ||

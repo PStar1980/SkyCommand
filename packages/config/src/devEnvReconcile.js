@@ -26,6 +26,7 @@ const REQUIRED_SECRET_KEYS = Object.freeze(['PGPASSWORD', 'JWT_SECRET']);
 const ENV_FILE_NAME = '.env';
 const ENV_EXAMPLE_FILE_NAME = '.env.example';
 const ASSISTANT_PERMISSION_SCOPE_KEY = 'SKYCOMMAND_ASSISTANT_PERMISSION_CODES';
+const ASSISTANT_AGENT_ID_KEY = 'SKYCOMMAND_ASSISTANT_AGENT_ID';
 const ALLOWLISTED_ASSISTANT_PERMISSION_CODES = Object.freeze([
   'BROWSER_AUTOMATION_READ',
   'BROWSER_AUTOMATION_RUN',
@@ -41,6 +42,10 @@ const ALLOWLISTED_ASSISTANT_PERMISSION_CODES = Object.freeze([
   'CORE_RUN_LOW_RISK_SCRIPT',
   'CORE_RUN_MEDIUM_RISK_SCRIPT',
   'CORE_RUN_HIGH_RISK_SCRIPT',
+  'MANAGED_CODEX_READ',
+  'MANAGED_CODEX_ENROLL',
+  'MANAGED_CODEX_LIFECYCLE',
+  'DEV_RUNTIME_LIFECYCLE',
 ]);
 const ALLOWLISTED_ASSISTANT_PERMISSION_CODE_SET = new Set(ALLOWLISTED_ASSISTANT_PERMISSION_CODES);
 
@@ -95,6 +100,17 @@ const CONFIGURATION_ALLOWLIST = Object.freeze({
     restartServices: Object.freeze(['api', 'worker', 'cli']),
     restartReasonCode: 'PROCESS_START_CONFIGURATION',
     allowedValues: ALLOWLISTED_ASSISTANT_PERMISSION_CODES,
+  }),
+  [ASSISTANT_AGENT_ID_KEY]: Object.freeze({
+    type: 'identifier',
+    classification: 'NON_SECRET_ASSISTANT_IDENTITY',
+    allowAdd: true,
+    allowUpdate: true,
+    examplePolicy: 'SAFE_DEFAULT',
+    exampleDefault: 'assistant-http',
+    restartRequired: true,
+    restartServices: Object.freeze(['api', 'worker', 'cli']),
+    restartReasonCode: 'PROCESS_START_CONFIGURATION',
   }),
 });
 
@@ -206,9 +222,12 @@ function normalizePermissionCodesValue(value, definition, key, source = 'request
     .split(',')
     .map((code) => code.trim())
     .filter(Boolean);
-  const valid = codes.length > 0 && codes.every((code) => (
-    /^[A-Z][A-Z0-9_]{0,127}$/.test(code) && ALLOWLISTED_ASSISTANT_PERMISSION_CODE_SET.has(code)
-  ));
+  const valid =
+    codes.length > 0 &&
+    codes.every(
+      (code) =>
+        /^[A-Z][A-Z0-9_]{0,127}$/.test(code) && ALLOWLISTED_ASSISTANT_PERMISSION_CODE_SET.has(code),
+    );
   const unique = new Set(codes);
   if (!valid || unique.size !== codes.length) {
     throw reconcileError(source === 'existing' ? 'EXISTING_VALUE_INVALID' : 'PATCH_VALUE_INVALID', {
@@ -218,6 +237,17 @@ function normalizePermissionCodesValue(value, definition, key, source = 'request
   }
 
   return codes.join(',');
+}
+
+function normalizeIdentifierValue(value, definition, key, source = 'requested') {
+  const normalized = String(value ?? '').trim();
+  if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(normalized)) {
+    throw reconcileError(source === 'existing' ? 'EXISTING_VALUE_INVALID' : 'PATCH_VALUE_INVALID', {
+      key,
+      classification: definition.classification,
+    });
+  }
+  return normalized;
 }
 
 function normalizeDefinitionValue(key, value, source = 'requested') {
@@ -232,6 +262,10 @@ function normalizeDefinitionValue(key, value, source = 'requested') {
 
   if (definition.type === 'permission_codes') {
     return normalizePermissionCodesValue(value, definition, key, source);
+  }
+
+  if (definition.type === 'identifier') {
+    return normalizeIdentifierValue(value, definition, key, source);
   }
 
   throw reconcileError('PATCH_VALUE_INVALID', {
@@ -812,10 +846,7 @@ async function verifyRegisteredDevContext({
     throw reconcileError('REGISTERED_CONTEXT_INVALID');
   }
 
-  if (
-    normalizeRoot(bindingResult.rows[0].root_path) !==
-    normalizeRoot(resolvedRepositoryRoot)
-  ) {
+  if (normalizeRoot(bindingResult.rows[0].root_path) !== normalizeRoot(resolvedRepositoryRoot)) {
     throw reconcileError('REGISTERED_CONTEXT_INVALID');
   }
 

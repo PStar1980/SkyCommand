@@ -17,6 +17,11 @@ const workflowService = fs.readFileSync(
   path.join(repoRoot, 'apps/api/src/services/workflowExecutorService.js'),
   'utf8',
 );
+const approvalListStart = workflowService.indexOf('async function listWorkflowApprovalRequests(filters = {})');
+const approvalListEnd = workflowService.indexOf('async function getWorkflowApprovalRequestsForRun', approvalListStart);
+const approvalListSource = approvalListStart >= 0 && approvalListEnd > approvalListStart
+  ? workflowService.slice(approvalListStart, approvalListEnd)
+  : '';
 
 const checks = [
   [approvalPage.includes('<h1 className="sky-page-title">Approval History</h1>'), 'Approval History title is required.'],
@@ -32,7 +37,7 @@ const checks = [
   [navbar.includes("label: 'Approval History'"), 'Workflow navigation must use Approval History.'],
   [workflowService.includes('COUNT(*)::integer AS total') && workflowService.includes('OFFSET $${offsetParameter}'), 'Approval API must support complete server-side pagination.'],
   [workflowService.includes('requested_by_display_name') && workflowService.includes('decided_by_display_name'), 'Approval search must include requester and decision-maker identity.'],
-  [workflowService.includes('workflow_category_code = $${values.length}') && workflowService.includes("category: \"LOWER(COALESCE(NULLIF(BTRIM(workflow_category_display_name), ''), workflow_category_code))\""), 'Approval API must filter and sort by workflow category.'],
+  [approvalListSource.includes('workflow_category_code = $${values.length}') && /category:\s*["']LOWER\(COALESCE\(NULLIF\(BTRIM\(workflow_category_display_name\), ''\), workflow_category_code\)\)["']/.test(approvalListSource), 'Approval API must filter and sort by workflow category.'],
   [workflowService.includes('facets: {') && workflowService.includes('categories:') && workflowService.includes('roles:') && workflowService.includes('users:'), 'Approval API category/role/user facets are required.'],
 ];
 

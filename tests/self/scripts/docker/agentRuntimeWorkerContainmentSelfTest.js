@@ -9,10 +9,13 @@ const worker = fs.readFileSync(path.join(root, 'apps/agent-runtime-worker/src/in
 const activities = fs.readFileSync(path.join(root, 'apps/agent-runtime-worker/src/activities.js'), 'utf8');
 const health = fs.readFileSync(path.join(root, 'apps/agent-runtime-worker/src/health.js'), 'utf8');
 
-const serviceStart = compose.indexOf('  agent-runtime-worker:');
-const nextService = compose.indexOf('\n  browser-worker:', serviceStart + 4);
-const service = compose.slice(serviceStart, nextService > serviceStart ? nextService : undefined);
+const serviceHeader = '  agent-runtime-worker:';
+const serviceStart = compose.indexOf(serviceHeader);
 assert.notEqual(serviceStart, -1, 'dedicated Agent Runtime Worker service is declared');
+const afterHeader = serviceStart + serviceHeader.length;
+const nextServiceMatch = compose.slice(afterHeader).match(/\n  [A-Za-z0-9_-]+:\s*\n/);
+const nextService = nextServiceMatch ? afterHeader + nextServiceMatch.index : compose.length;
+const service = compose.slice(serviceStart, nextService);
 assert.match(service, /docker\/agent-runtime-worker\.Dockerfile/);
 assert.match(service, /TEMPORAL_ADDRESS: temporal:7233/);
 assert.match(service, /AGENT_RUNTIME_TASK_QUEUE/);

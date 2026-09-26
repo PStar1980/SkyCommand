@@ -1,0 +1,4 @@
+# Provider destinations are added only after they are observed from the pinned
+# app-server during the controlled Phase 19.3A0 authentication probe.
+auth.openai.com
+chatgpt.com

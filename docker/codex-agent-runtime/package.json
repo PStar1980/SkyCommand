@@ -1,0 +1,20 @@
+{
+  "name": "skycommand-codex-agent-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pinned isolated Codex app-server bootstrap runtime for Phase 19.3A0.",
+  "dependencies": {
+    "@openai/codex": "0.154.0"
+  },
+  "skycommandRuntimeCertification": {
+    "schema": "SKYCOMMAND_CODEX_RUNTIME_CERTIFICATION_V1",
+    "packageVersion": "0.154.0",
+    "wrapperPackageIntegrity": "sha512-FV/x1OHXYv/ifjf3mXj9ThTTAWcUZN6cGIRQRhRxkKNOPuImu1WW0c8ev1vUkE9XGH90dEnYG1tBjIkxRikg0w==",
+    "linuxX64PackageIntegrity": "sha512-a4FI3A8sGtwGrOqltrPbrS2hajrHQG591EwmRfiRoLMb10VxdBtUGW4gu6IJVYENiYGA7k3P4jlRHEoCZU/s9Q==",
+    "installedArtifactSha256": "F33339F26FA435E61CCE918F591350D1DF98AD4963DDB76BB2185E30E78989B3",
+    "primaryProtocolSchemaDigest": "24DF528ACEC2952E6B96C1C2B061F98E60177D059E12C90CF318621380C9DE9E",
+    "versionedProtocolSchemaDigests": {
+      "v2": "7B9E7D385FFFEF8D428CC5490B56CE9C393BD3ED7BC7CCD730956387E723EC05"
+    }
+  }
+}

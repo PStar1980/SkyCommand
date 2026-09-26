@@ -11,6 +11,10 @@ function assert(condition, message) {
 }
 
 const source = fs.readFileSync(path.join(sourceDir, 'SkyWorkflows.jsx'), 'utf8');
+const structuredDisplaySource = fs.readFileSync(
+  path.join(sourceDir, '..', 'components', 'tools', 'StructuredToolResultDisplay.jsx'),
+  'utf8',
+);
 
 
 assert(
@@ -22,8 +26,9 @@ assert(
   'The Database Health renderer must present overview and per-database tables.',
 );
 assert(
-  source.includes("structuredToolResult?.outputType === 'database_health_summary.v1'"),
-  'Focused node output must select the Database Health renderer by output contract.',
+  source.includes('<StructuredToolResultDisplay toolResult={structuredToolResult} />') &&
+    structuredDisplaySource.includes("'database_health_summary.v1': DatabaseHealthOutput"),
+  'Focused node output must delegate Database Health rendering through the registered structured-output contract.',
 );
 assert(
   source.includes('function DatabaseBuildOutput({ toolResult })'),
@@ -34,8 +39,9 @@ assert(
   'The Database Build renderer must present grouped totals and ordered SQL rows.',
 );
 assert(
-  source.includes("structuredToolResult?.outputType === 'database_build_summary.v1'"),
-  'Focused node output must select the Database Build renderer by output contract.',
+  source.includes('<StructuredToolResultDisplay toolResult={structuredToolResult} />') &&
+    structuredDisplaySource.includes("'database_build_summary.v1': DatabaseBuildOutput"),
+  'Focused node output must delegate Database Build rendering through the registered structured-output contract.',
 );
 
 assert(
@@ -63,8 +69,9 @@ assert(
   'The database synchronization summary must include compact build checkpoints without copying every SQL row.',
 );
 assert(
-  source.includes("structuredToolResult?.outputType === 'postgresql_database_comparison_summary.v1'"),
-  'Focused node output must select the PostgreSQL comparison renderer by output contract.',
+  source.includes('<StructuredToolResultDisplay toolResult={structuredToolResult} />') &&
+    structuredDisplaySource.includes("'postgresql_database_comparison_summary.v1': DatabaseComparisonOutput"),
+  'Focused node output must delegate PostgreSQL comparison rendering through the registered structured-output contract.',
 );
 
 console.log('Workflow database output self-test passed.');

@@ -3,29 +3,50 @@ const path = require('node:path');
 const DEFAULT_SUPERVISOR_HOST = '127.0.0.1';
 const DEFAULT_SUPERVISOR_PORT = 17170;
 const DEFAULT_SUPERVISOR_PROJECT_NAME = 'skycommand';
-const DEFAULT_RUNTIME_SERVICES = [
+const DEFAULT_RUNTIME_SERVICES = Object.freeze([
   'postgres',
   'temporal',
   'temporal-worker',
   'browser-worker',
   'node-worker',
   'agent-runtime-worker',
+  'codex-egress-proxy',
+  'codex-mcp-gateway',
+  'codex-agent-runtime-worker',
+  'codex-control-bridge',
   'api',
-];
-const DEFAULT_BACKEND_REBUILD_SERVICES = [
+]);
+const DEFAULT_BACKEND_REBUILD_SERVICES = Object.freeze([
   'api',
   'temporal-worker',
   'browser-worker',
   'node-worker',
   'agent-runtime-worker',
-];
+  'codex-egress-proxy',
+  'codex-mcp-gateway',
+  'codex-agent-runtime-worker',
+  'codex-control-bridge',
+]);
 const FINALIZATION_REBUILD_SERVICES = Object.freeze([
   'api',
   'temporal-worker',
   'browser-worker',
   'node-worker',
   'agent-runtime-worker',
+  'codex-managed-volume-init',
+  'codex-egress-proxy',
+  'codex-mcp-gateway',
+  'codex-agent-runtime-worker',
+  'codex-control-bridge',
   'web',
+]);
+const CODEX_BOOTSTRAP_REBUILD_SERVICES = Object.freeze([
+  'api',
+  'codex-managed-volume-init',
+  'codex-egress-proxy',
+  'codex-mcp-gateway',
+  'codex-agent-runtime-worker',
+  'codex-control-bridge',
 ]);
 const DEFAULT_STARTUP_TIMEOUT_MS = 180000;
 const DEFAULT_CONTROL_TIMEOUT_MS = 180000;
@@ -47,26 +68,40 @@ function normalizePositiveNumber(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function parseServiceList(value, fallback) {
+function parseServiceList(value, canonicalServices, environmentKey) {
   const configured = normalizeText(value);
-  if (!configured) return [...fallback];
+  if (!configured) return [...canonicalServices];
 
-  const services = [...new Set(
-    configured
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
-  )];
+  const services = configured.split(',').map((item) => item.trim());
+  const canonicalSet = new Set(canonicalServices);
+  const isExactCanonicalSet =
+    services.length === canonicalSet.size &&
+    new Set(services).size === canonicalSet.size &&
+    services.every((service) => canonicalSet.has(service));
 
-  return services.length > 0 ? services : [...fallback];
+  if (!isExactCanonicalSet) {
+    console.warn(
+      `[SkyCommand Supervisor] Ignoring non-canonical ${environmentKey}; service inventories are source-controlled.`,
+    );
+  }
+
+  return [...canonicalServices];
 }
 
 function parseRuntimeServices(value) {
-  return parseServiceList(value, DEFAULT_RUNTIME_SERVICES);
+  return parseServiceList(
+    value,
+    DEFAULT_RUNTIME_SERVICES,
+    'SKYCOMMAND_SUPERVISOR_RUNTIME_SERVICES',
+  );
 }
 
 function parseBackendRebuildServices(value) {
-  return parseServiceList(value, DEFAULT_BACKEND_REBUILD_SERVICES);
+  return parseServiceList(
+    value,
+    DEFAULT_BACKEND_REBUILD_SERVICES,
+    'SKYCOMMAND_SUPERVISOR_BACKEND_REBUILD_SERVICES',
+  );
 }
 
 function getSupervisorConfig(repositoryRoot) {
@@ -131,6 +166,7 @@ module.exports = {
   DEFAULT_SUPERVISOR_PORT,
   DEFAULT_SUPERVISOR_PROJECT_NAME,
   DEFAULT_WEB_SERVICE,
+  CODEX_BOOTSTRAP_REBUILD_SERVICES,
   FINALIZATION_REBUILD_SERVICES,
   getSupervisorConfig,
   normalizePort,

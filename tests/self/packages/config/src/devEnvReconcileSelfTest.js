@@ -111,7 +111,9 @@ async function run() {
     });
     assert.equal(result.outcome, 'CHANGED');
     assert.deepEqual(result.changedKeys, ['SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS']);
-    assert.deepEqual(result.envExample.changedKeys, ['SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS']);
+    assert.deepEqual(result.envExample.changedKeys, [
+      'SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS',
+    ]);
     assert.equal(result.classifications[0].classification, 'NON_SECRET_APPLICATION');
     assert.equal(result.restart.required, true);
     assert.deepEqual(result.restart.services, ['api']);
@@ -194,7 +196,11 @@ async function run() {
     [{ SKYCOMMAND_HOST_AGENT_HEALTH_FRESHNESS_SECONDS: 14 }, 'PATCH_VALUE_INVALID'],
     [{ PGDATABASE: 'other_database' }, 'PROTECTED_CONFIGURATION_KEY'],
     [{ JWT_SECRET: syntheticSecret }, 'SECRET_KEY_NOT_ALLOWED'],
-    [{ SKYCOMMAND_ASSISTANT_PERMISSION_CODES: 'GIT_DEV_PR_MERGE_RUN,UNREGISTERED_PERMISSION' }, 'PATCH_VALUE_INVALID'],
+    [
+      { SKYCOMMAND_ASSISTANT_PERMISSION_CODES: 'GIT_DEV_PR_MERGE_RUN,UNREGISTERED_PERMISSION' },
+      'PATCH_VALUE_INVALID',
+    ],
+    [{ SKYCOMMAND_ASSISTANT_AGENT_ID: 'codex local' }, 'PATCH_VALUE_INVALID'],
   ]) {
     const directory = fixtureRoot();
     try {
@@ -226,6 +232,10 @@ async function run() {
     'CORE_RUN_LOW_RISK_SCRIPT',
     'CORE_RUN_MEDIUM_RISK_SCRIPT',
     'CORE_RUN_HIGH_RISK_SCRIPT',
+    'MANAGED_CODEX_READ',
+    'MANAGED_CODEX_ENROLL',
+    'MANAGED_CODEX_LIFECYCLE',
+    'DEV_RUNTIME_LIFECYCLE',
   ].join(',');
   const permissionRoot = fixtureRoot({
     env: [
@@ -233,24 +243,47 @@ async function run() {
       `PGPASSWORD=${syntheticSecret}`,
       `JWT_SECRET=${syntheticSecret}`,
       `SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN`,
+      'SKYCOMMAND_ASSISTANT_AGENT_ID=assistant-http',
     ].join('\n'),
     example: [
       'SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN',
+      'SKYCOMMAND_ASSISTANT_AGENT_ID=assistant-http',
     ].join('\n'),
   });
   try {
     const result = runReconcile(permissionRoot, {
       SKYCOMMAND_ASSISTANT_PERMISSION_CODES: permissionScope,
+      SKYCOMMAND_ASSISTANT_AGENT_ID: 'codex-local',
     });
     assert.equal(result.outcome, 'CHANGED');
-    assert.deepEqual(result.changedKeys, ['SKYCOMMAND_ASSISTANT_PERMISSION_CODES']);
+    assert.deepEqual(result.changedKeys, [
+      'SKYCOMMAND_ASSISTANT_AGENT_ID',
+      'SKYCOMMAND_ASSISTANT_PERMISSION_CODES',
+    ]);
     assert.deepEqual(result.envExample.changedKeys, []);
+    assert.equal(
+      fs.readFileSync(path.join(permissionRoot, '.env'), 'utf8').includes('DEV_RUNTIME_LIFECYCLE'),
+      true,
+    );
+    assert.equal(
+      fs
+        .readFileSync(path.join(permissionRoot, '.env.example'), 'utf8')
+        .includes('DEV_RUNTIME_LIFECYCLE'),
+      false,
+    );
     assert.equal(
       fs.readFileSync(path.join(permissionRoot, '.env'), 'utf8').includes('GIT_DEV_PR_MERGE_RUN'),
       true,
     );
+    assert.equal(
+      fs
+        .readFileSync(path.join(permissionRoot, '.env'), 'utf8')
+        .includes('SKYCOMMAND_ASSISTANT_AGENT_ID=codex-local'),
+      true,
+    );
     const repeated = runReconcile(permissionRoot, {
       SKYCOMMAND_ASSISTANT_PERMISSION_CODES: permissionScope,
+      SKYCOMMAND_ASSISTANT_AGENT_ID: 'codex-local',
     });
     assert.equal(repeated.outcome, 'NO_CHANGES');
   } finally {

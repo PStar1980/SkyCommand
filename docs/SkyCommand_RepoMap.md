@@ -202,6 +202,7 @@ SkyCommand/
 │   │       │   ├── infrastructureController.js
 │   │       │   ├── ingestionController.js
 │   │       │   ├── macroController.js
+│   │       │   ├── managedCodexController.js
 │   │       │   ├── notificationController.js
 │   │       │   ├── publicMacroController.js
 │   │       │   ├── skywebController.js
@@ -259,12 +260,15 @@ SkyCommand/
 │   │       │   ├── browserTestSuiteService.js
 │   │       │   ├── developmentPromotionPermissionContract.js
 │   │       │   ├── developmentPromotionStartService.js
+│   │       │   ├── devRuntimeRefreshProfileRegistry.js
+│   │       │   ├── devRuntimeRefreshService.js
 │   │       │   ├── dockerEventStreamService.js
 │   │       │   ├── dockerTelemetryStreamService.js
 │   │       │   ├── infrastructureService.js
 │   │       │   ├── ingestionStatusService.js
 │   │       │   ├── legacyMacroFreshnessAdapter.js
 │   │       │   ├── macroReadService.js
+│   │       │   ├── managedCodexBootstrapService.js
 │   │       │   ├── notificationService.js
 │   │       │   ├── orchestratorRefreshService.js
 │   │       │   ├── productionReadinessService.js
@@ -300,6 +304,25 @@ SkyCommand/
 │   │   └── src/
 │   │       ├── health.js
 │   │       └── index.js
+│   ├── codex-agent-runtime-worker/
+│   │   └── src/
+│   │       ├── appServerClient.js
+│   │       ├── healthcheck.js
+│   │       ├── index.js
+│   │       └── packageArtifactAttestation.js
+│   ├── codex-control-bridge/
+│   │   └── src/
+│   │       ├── credentialInit.js
+│   │       └── index.js
+│   ├── codex-egress-proxy/
+│   │   ├── Dockerfile
+│   │   └── src/
+│   │       ├── authAbDiagnostics.js
+│   │       ├── index.js
+│   │       └── policy.js
+│   ├── codex-mcp-gateway/
+│   │   └── src/
+│   │       └── index.js
 │   └── worker/
 │       └── src/
 │           ├── index.js
@@ -320,6 +343,11 @@ SkyCommand/
 │       ├── automations/
 │       │   ├── .gitkeep
 │       │   ├── 03c41757-c2df-4349-baa9-7fe713018d1e/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 07960245-fc4f-4ce8-8a06-6ea2faf9f159/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -345,6 +373,11 @@ SkyCommand/
 │       │   │   └── screenshots/
 │       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 18d10c68-0efc-42f7-ae03-ee71a4f1f80d/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 48db7873-9783-489a-962c-6348fec08c9b/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -410,6 +443,11 @@ SkyCommand/
 │       │   │   └── screenshots/
 │       │   │       └── Command Center Status Snapshot.png
 │       │   ├── b68e2528-5aa5-4c0e-85f6-b3b33c1206d4/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── bb8e7ea6-b975-402f-8fcc-9e00f2f68628/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -1503,6 +1541,10 @@ SkyCommand/
 │   ├── browser-worker.Dockerfile
 │   ├── browser-worker.Dockerfile.dockerignore
 │   ├── browser-worker.package.json
+│   ├── codex-control-bridge.Dockerfile
+│   ├── codex-egress-proxy.Dockerfile
+│   ├── codex-mcp-gateway.Dockerfile
+│   ├── codex-provider-allowlist.txt
 │   ├── empty-github-token
 │   ├── git-credential-skycommand.js
 │   ├── git-credential-skycommand.sh
@@ -1512,7 +1554,34 @@ SkyCommand/
 │   ├── temporal-worker.package.json
 │   ├── web.Dockerfile
 │   ├── web.nginx.conf
-│   └── web.package.json
+│   ├── web.package.json
+│   ├── codex-agent-runtime/
+│   │   ├── config.toml
+│   │   ├── Dockerfile
+│   │   ├── package-lock.json
+│   │   └── package.json
+│   └── codex-compat-probe/
+│       ├── auth-boundary-contract.js
+│       ├── auth-boundary-preflight.js
+│       ├── compose-0.154.0.yaml
+│       ├── compose.yaml
+│       ├── contract.js
+│       ├── contract.json
+│       ├── Dockerfile
+│       ├── packageSetup.js
+│       ├── probe.js
+│       ├── README.md
+│       ├── auth-ab/
+│       │   ├── compose.yaml
+│       │   ├── contract.js
+│       │   ├── Dockerfile
+│       │   ├── orchestrator.js
+│       │   ├── README.md
+│       │   └── runner.js
+│       └── candidates/
+│           └── codex-0.154.0/
+│               ├── contract.json
+│               └── README.md
 ├── docs/
 │   ├── PLAYWRIGHT_PHASE10_SCHEDULING.md
 │   ├── PLAYWRIGHT_PHASE11_5_MCP_GATEWAY.md
@@ -1536,19 +1605,23 @@ SkyCommand/
 │   ├── SkyCommand_Tool_Authoring_Guide.md
 │   ├── agentic-ai/
 │   │   ├── SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md
-│   │   └── phase-0/
-│   │       ├── api-authorization-matrix.md
-│   │       ├── baseline-manifest.json
-│   │       ├── component-boundaries.md
-│   │       ├── entry-surface-traceability.md
-│   │       ├── phase0-requirements-matrix.md
-│   │       ├── README.md
-│   │       ├── runtime-certification-matrix.md
-│   │       ├── schema-relationship-spec.md
-│   │       ├── security-observability-decisions.md
-│   │       ├── temporal-history-and-version-inventory.md
-│   │       ├── ui-wireframe-review.md
-│   │       └── validation-and-rollback-inventory.md
+│   │   ├── phase-0/
+│   │   │   ├── api-authorization-matrix.md
+│   │   │   ├── baseline-manifest.json
+│   │   │   ├── component-boundaries.md
+│   │   │   ├── entry-surface-traceability.md
+│   │   │   ├── phase0-requirements-matrix.md
+│   │   │   ├── README.md
+│   │   │   ├── runtime-certification-matrix.md
+│   │   │   ├── schema-relationship-spec.md
+│   │   │   ├── security-observability-decisions.md
+│   │   │   ├── temporal-history-and-version-inventory.md
+│   │   │   ├── ui-wireframe-review.md
+│   │   │   └── validation-and-rollback-inventory.md
+│   │   └── phase-19.3a/
+│   │       ├── authenticated-ab-investigation-closeout.md
+│   │       ├── DEV_Runtime_Refresh_Assistant_Capability.md
+│   │       └── one-leg-pinned-runtime-authentication-boundary-diagnostic.md
 │   ├── assets/
 │   │   ├── auth_schema_ERD.png
 │   │   ├── core_schema_ERD.png
@@ -1742,7 +1815,9 @@ SkyCommand/
 │   │       │   ├── 00151__agent_run_kernel.sql
 │   │       │   ├── 00153__agent_capability_effects.sql
 │   │       │   ├── 00155__agent_interactions_recovery_hardening.sql
-│   │       │   └── 00156__temporal_orchestrator_refresh_operations.sql
+│   │       │   ├── 00156__temporal_orchestrator_refresh_operations.sql
+│   │       │   ├── 00157__managed_runtime_enrollment_operations.sql
+│   │       │   └── 00160__assistant_dev_runtime_refresh_operations.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1797,7 +1872,9 @@ SkyCommand/
 │   │           ├── 00127__assistant_browser_automation_reference_seed.sql
 │   │           ├── 00150__agent_registry_permissions.sql
 │   │           ├── 00152__agent_run_permissions_and_fake_runtime.sql
-│   │           └── 00154__agent_browser_capability_fixture.sql
+│   │           ├── 00154__agent_browser_capability_fixture.sql
+│   │           ├── 00158__managed_codex_bootstrap_registry.sql
+│   │           └── 00159__managed_codex_account_binding_repair.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -2275,6 +2352,11 @@ SkyCommand/
     └── self/
         ├── r7DatabaseUpgradeCleanupSelfTest.js
         ├── apps/
+        │   ├── codexAgentRuntimeBootstrapSelfTest.js
+        │   ├── codexCompatibilityAuthAbSelfTest.js
+        │   ├── codexCompatibilityAuthBoundaryPreflightSelfTest.js
+        │   ├── codexCompatibilityAuthBoundarySelfTest.js
+        │   ├── codexCompatibilityProbeSelfTest.js
         │   ├── admin-web/
         │   │   └── src/
         │   │       ├── components/
@@ -2341,6 +2423,7 @@ SkyCommand/
         │               ├── browserTestRegistrySelfTest.js
         │               ├── browserTestSuiteSelfTest.js
         │               ├── developmentPromotionStartSelfTest.js
+        │               ├── devRuntimeRefreshSelfTest.js
         │               ├── dockerEventStreamServiceSelfTest.js
         │               ├── dockerTelemetryStreamServiceSelfTest.js
         │               ├── infrastructureServiceSelfTest.js
@@ -2396,7 +2479,8 @@ SkyCommand/
         │   │   └── src/
         │   │       ├── assistantWorkflowRunAttributionSelfTest.js
         │   │       ├── dbBuildResultSelfTest.js
-        │   │       └── devChangeFinalizeNamingSelfTest.js
+        │   │       ├── devChangeFinalizeNamingSelfTest.js
+        │   │       └── managedCodexAccountBindingRepairSeedSelfTest.js
         │   ├── db_upgrade/
         │   │   └── src/
         │   │       ├── databaseUpgradeCliSelfTest.js

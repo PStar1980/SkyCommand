@@ -57,7 +57,13 @@ assert.match(service, /runtimeCompatibleAuthority/);
 assert.match(service, /executionAdmission/);
 assert.match(service, /evaluateRuntimeCompatibility/);
 assert.doesNotMatch(service, /SELECT[^;]*root_path/is);
-assert.doesNotMatch(routes, /agent-runs|sessions|launch|start/i);
+const registeredRoutePaths = [...routes.matchAll(/router\.(?:get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g)]
+  .map((match) => match[1]);
+for (const routePath of registeredRoutePaths) {
+  assert.doesNotMatch(routePath, /agent-runs|sessions|launch|start/i);
+}
+assert.match(routes, /router\.post\(\s*['"]\/managed-codex\/enrollments['"]/);
+assert.match(routes, /router\.post\(\s*['"]\/managed-codex\/enrollments\/:enrollmentId\/reconcile['"]/);
 assert.match(routes, /router\.post\(\s*['"]\/preview['"]/);
 assert.match(routes, /memberships/);
 assert.match(routes, /router\.patch\(.*:definitionId/);

@@ -2,6 +2,8 @@ const crypto = require('node:crypto');
 
 const DEFAULT_ASSISTANT_PERMISSION_CODES = ['BROWSER_AUTOMATION_READ', 'BROWSER_AUTOMATION_RUN'];
 const DEFAULT_ASSISTANT_PRINCIPAL_CODE = 'assistant-http';
+const DEV_RUNTIME_REFRESH_PERMISSION = 'DEV_RUNTIME_LIFECYCLE';
+const DEV_RUNTIME_REFRESH_AGENT_ID = 'codex-local';
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -17,6 +19,10 @@ function getAssistantIntegrationConfig() {
     .map((value) => value.trim().toUpperCase())
     .filter(Boolean);
 
+  const configuredAgentId = String(process.env.SKYCOMMAND_ASSISTANT_AGENT_ID || '').trim();
+  const validConfiguredAgentId = /^[A-Za-z0-9_.:-]{1,64}$/.test(configuredAgentId)
+    ? configuredAgentId
+    : '';
   return {
     enabled: parseBoolean(process.env.SKYCOMMAND_ASSISTANT_INTEGRATION_ENABLED, false),
     token: String(process.env.SKYCOMMAND_ASSISTANT_API_TOKEN || '').trim(),
@@ -32,6 +38,8 @@ function getAssistantIntegrationConfig() {
           process.env.SKYCOMMAND_ASSISTANT_PRINCIPAL_CODE || DEFAULT_ASSISTANT_PRINCIPAL_CODE,
         ).trim()
       : DEFAULT_ASSISTANT_PRINCIPAL_CODE,
+    agentId: validConfiguredAgentId || null,
+    agentIdPinned: Boolean(validConfiguredAgentId),
   };
 }
 
@@ -77,6 +85,22 @@ function buildPermission(permissionCode) {
 }
 
 function applyAssistantIdentity(req, config, agentId = 'assistant-http') {
+  // DEV runtime authority requires both an explicit permission-scope opt-in
+  // and the trusted host identity pin. It is never header-selectable.
+  const runtimeRefreshPermissionConfigured = config.permissionCodes.includes(
+    DEV_RUNTIME_REFRESH_PERMISSION,
+  );
+  const permissionCodes = [
+    ...new Set([
+      ...config.permissionCodes.filter((code) => code !== DEV_RUNTIME_REFRESH_PERMISSION),
+      ...(config.agentIdPinned &&
+      config.agentId === DEV_RUNTIME_REFRESH_AGENT_ID &&
+      agentId === DEV_RUNTIME_REFRESH_AGENT_ID &&
+      runtimeRefreshPermissionConfigured
+        ? [DEV_RUNTIME_REFRESH_PERMISSION]
+        : []),
+    ]),
+  ];
   req.sessionToken = null;
   req.session = {
     sessionId: null,
@@ -91,10 +115,10 @@ function applyAssistantIdentity(req, config, agentId = 'assistant-http') {
     status: 'ACTIVE',
     isSystemUser: true,
   };
-  req.permissions = config.permissionCodes.map(buildPermission);
+  req.permissions = permissionCodes.map(buildPermission);
   req.assistantIntegration = {
     enabled: true,
-    permissionCodes: [...config.permissionCodes],
+    permissionCodes,
     agentId,
     principalCode: config.principalCode,
   };
@@ -128,13 +152,19 @@ function requireAssistantIntegration(req, res, next) {
     });
   }
 
-  applyAssistantIdentity(req, config, extractAssistantAgentId(req));
+  applyAssistantIdentity(
+    req,
+    config,
+    config.agentIdPinned ? config.agentId : extractAssistantAgentId(req),
+  );
   return next();
 }
 
 module.exports = {
   DEFAULT_ASSISTANT_PERMISSION_CODES,
   DEFAULT_ASSISTANT_PRINCIPAL_CODE,
+  DEV_RUNTIME_REFRESH_AGENT_ID,
+  DEV_RUNTIME_REFRESH_PERMISSION,
   extractAssistantAgentId,
   extractAssistantToken,
   getAssistantIntegrationConfig,

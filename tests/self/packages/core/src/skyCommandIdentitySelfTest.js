@@ -102,9 +102,16 @@ assert(identityVerification.includes('ON tool.script_repo_id = repository.repo_i
 assert(!identityVerification.includes('ON tool.repo_id = repository.repo_id'));
 
 const readme = read('README.md');
-assert(readme.startsWith('# SkyCommand\n'));
+assert(
+  readme.includes('apps/admin-web/public/brand/skycommand-logo-lockup.png') &&
+    readme.includes('alt="SkyCommand"'),
+  'README must preserve the canonical SkyCommand brand identity.',
+);
+assert(readme.includes('## ⚙️ Overview'));
+assert(
+  readme.includes('**SkyCommand** is a developer-focused workflow automation platform'),
+  'README overview must identify the product as SkyCommand.',
+);
 assert(readme.includes('https://github.com/PStar1980/SkyCommand'));
-assert(readme.includes('stable PostgreSQL application keys'));
-assert(readme.includes('retained as durable protocol identifiers'));
 
 console.log('✅ SkyCommand repository identity changeover self-test passed.');

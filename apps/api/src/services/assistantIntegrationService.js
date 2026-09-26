@@ -3,7 +3,9 @@ const browserAutomationExecutionService = require('./browserAutomationExecutionS
 const browserAutomationRegistryService = require('./browserAutomationRegistryService');
 const workflowAgentExecutionService = require('./workflowAgentExecutionService');
 const orchestratorRefreshService = require('./orchestratorRefreshService');
+const devRuntimeRefreshService = require('./devRuntimeRefreshService');
 const developmentPromotionStartService = require('./developmentPromotionStartService');
+const managedCodexBootstrapService = require('./managedCodexBootstrapService');
 const promotionPreflight = require('../../../../packages/dev-finalization/src/promotionPreflight');
 const {
   DEVELOPMENT_PROMOTION_REQUIRED_PERMISSION_CODES,
@@ -17,6 +19,10 @@ const DEVELOPMENT_PROMOTION_REPOSITORY_CODE = 'SkyCommand';
 const DEVELOPMENT_PROMOTION_PERMISSION_CODE = 'WORKFLOW_RUN';
 const DEVELOPMENT_PROMOTION_TRIGGER_SOURCE = 'ASSISTANT';
 const DEVELOPMENT_PROMOTION_TRIGGER_TYPE = 'ASSISTANT';
+const MANAGED_CODEX_READ_PERMISSION = 'MANAGED_CODEX_READ';
+const MANAGED_CODEX_ENROLL_PERMISSION = 'MANAGED_CODEX_ENROLL';
+const MANAGED_CODEX_LIFECYCLE_PERMISSION = 'MANAGED_CODEX_LIFECYCLE';
+const MANAGED_CODEX_AGENT_ID = 'codex-local';
 const DEVELOPMENT_PROMOTION_MAX_COMMIT_MESSAGE_LENGTH = 300;
 const DEVELOPMENT_PROMOTION_MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const DEVELOPMENT_PROMOTION_FINALIZATION_WORKFLOW_CODE = 'dev_change_finalize';
@@ -429,6 +435,107 @@ async function getWorkflowExecutionRun({
   });
 }
 
+function assertManagedCodexPermission({ permissions = [], agentId = '' } = {}, requiredCodes = []) {
+  if (agentId !== MANAGED_CODEX_AGENT_ID) {
+    throw createHttpError(403, 'Managed Codex bootstrap is restricted to the registered codex-local principal.', {
+      code: 'MANAGED_CODEX_PRINCIPAL_NOT_ALLOWED',
+    });
+  }
+  const granted = new Set([...permissionCodeSet(permissions)].map((code) => code.toUpperCase()));
+  if (!requiredCodes.some((code) => granted.has(code))) {
+    throw createHttpError(403, 'The Assistant principal lacks the required managed Codex permission.', {
+      code: 'MANAGED_CODEX_PERMISSION_SCOPE_MISSING',
+      requiredPermissionCodes: requiredCodes,
+    });
+  }
+}
+
+function buildManagedCodexRequest({
+  permissions = [],
+  agentId = MANAGED_CODEX_AGENT_ID,
+  actor = null,
+  session = null,
+  context = {},
+} = {}) {
+  const headers = { 'user-agent': context.userAgent || '' };
+  return {
+    user: actor || { userId: null },
+    session: session || { appCode: 'SKYSERVER_ADMIN', authMode: 'ASSISTANT_SERVICE_TOKEN' },
+    assistantIntegration: { enabled: true, agentId },
+    permissions: [...permissionCodeSet(permissions)].map((permissionCode) => ({ permissionCode })),
+    headers,
+    ip: context.ipAddress || null,
+    socket: { remoteAddress: context.ipAddress || null },
+    get(name) { return headers[String(name || '').toLowerCase()] || ''; },
+  };
+}
+
+function assertEmptyManagedCodexBody(body = {}) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length) {
+    throw createHttpError(400, 'Managed Codex operation accepts no caller-supplied fields.', {
+      code: 'MANAGED_CODEX_INVALID_REQUEST',
+    });
+  }
+}
+
+async function getManagedCodexStatus({ permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_READ_PERMISSION, MANAGED_CODEX_ENROLL_PERMISSION]);
+  return managedCodexBootstrapService.getManagedCodex(buildManagedCodexRequest({ permissions, agentId, actor, session, context }));
+}
+
+async function startManagedCodexEnrollment({ body = {}, permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_ENROLL_PERMISSION]);
+  assertEmptyManagedCodexBody(body);
+  return managedCodexBootstrapService.startEnrollment(buildManagedCodexRequest({ permissions, agentId, actor, session, context }));
+}
+
+async function reconcileManagedCodexEnrollment({ enrollmentId, permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_ENROLL_PERMISSION]);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(enrollmentId || ''))) {
+    throw createHttpError(400, 'enrollmentId must be a UUID.', { code: 'MANAGED_CODEX_ENROLLMENT_ID_INVALID' });
+  }
+  return managedCodexBootstrapService.reconcileEnrollment(enrollmentId, buildManagedCodexRequest({ permissions, agentId, actor, session, context }));
+}
+
+async function refreshManagedCodexAccount({ body = {}, permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_ENROLL_PERMISSION]);
+  assertEmptyManagedCodexBody(body);
+  return managedCodexBootstrapService.refreshManagedAccount(buildManagedCodexRequest({ permissions, agentId, actor, session, context }));
+}
+
+async function logoutManagedCodexAccount({ body = {}, permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_ENROLL_PERMISSION]);
+  assertEmptyManagedCodexBody(body);
+  return managedCodexBootstrapService.logoutManagedAccount(buildManagedCodexRequest({ permissions, agentId, actor, session, context }));
+}
+
+function assertManagedCodexLifecycleBody(body = {}) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+    || Object.keys(body).length !== 1 || !MANAGED_CODEX_LIFECYCLE_UUID_PATTERN.test(String(body.operationId || ''))) {
+    throw createHttpError(400, 'Managed Codex lifecycle requires exactly one UUID operationId.', {
+      code: 'MANAGED_CODEX_LIFECYCLE_INVALID_REQUEST',
+    });
+  }
+}
+
+const MANAGED_CODEX_LIFECYCLE_UUID_PATTERN = DEVELOPMENT_PROMOTION_UUID_PATTERN;
+
+async function startManagedCodexLifecycle({ body = {}, permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_LIFECYCLE_PERMISSION]);
+  assertManagedCodexLifecycleBody(body);
+  const request = buildManagedCodexRequest({ permissions, agentId, actor, session, context });
+  return managedCodexBootstrapService.startManagedCodexLifecycle(body.operationId, request);
+}
+
+async function getManagedCodexLifecycle({ operationId, permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_LIFECYCLE_PERMISSION]);
+  if (!MANAGED_CODEX_LIFECYCLE_UUID_PATTERN.test(String(operationId || ''))) {
+    throw createHttpError(400, 'operationId must be a UUID.', { code: 'MANAGED_CODEX_LIFECYCLE_ID_INVALID' });
+  }
+  const request = buildManagedCodexRequest({ permissions, agentId, actor, session, context });
+  return managedCodexBootstrapService.getManagedCodexLifecycle(operationId, request);
+}
+
 async function getRun(workflowId, { actor = null } = {}) {
   const run = await browserAutomationExecutionService.getRun(workflowId, { actor });
   if (String(run?.triggerSource || '').toUpperCase() !== 'ASSISTANT') {
@@ -493,6 +600,21 @@ function getCapabilities({
     },
     workflowAgentExecution: workflowAgentExecutionService.getCapabilitySummary(),
     orchestratorRefresh: orchestratorRefreshService.getCapabilitySummary(permissionCodes),
+    devRuntimeRefresh: devRuntimeRefreshService.getDevRuntimeRefreshCapabilitySummary(permissionCodes, agentId),
+    managedCodexBootstrap: {
+      enabled: agentId === MANAGED_CODEX_AGENT_ID,
+      executionEnabled: false,
+      permissions: {
+        read: permissionCodes.includes(MANAGED_CODEX_READ_PERMISSION),
+        enroll: permissionCodes.includes(MANAGED_CODEX_ENROLL_PERMISSION),
+        lifecycle: permissionCodes.includes(MANAGED_CODEX_LIFECYCLE_PERMISSION),
+      },
+      status: '/api/assistant/managed-codex',
+      enrollmentStart: '/api/assistant/managed-codex/enrollments',
+      enrollmentReconcile: '/api/assistant/managed-codex/enrollments/{enrollmentId}/reconcile',
+      lifecycleStart: '/api/assistant/managed-codex/runtime-lifecycle',
+      lifecycleStatus: '/api/assistant/managed-codex/runtime-lifecycle/{operationId}',
+    },
     safety: {
       assistantOptInRequired: true,
       confirmationRequiredAutomationsBlocked: true,
@@ -519,6 +641,8 @@ function getCapabilities({
       workflowAgentRun: '/api/assistant/workflow-runs/{workflowRunRecordId}',
       orchestratorRefreshStart: '/api/assistant/orchestrator-refresh/runs',
       orchestratorRefreshRun: '/api/assistant/orchestrator-refresh/runs/{operationId}',
+      devRuntimeRefreshStart: '/api/assistant/runtime-refresh/runs',
+      devRuntimeRefreshRun: '/api/assistant/runtime-refresh/runs/{operationId}',
     },
   };
 }
@@ -548,6 +672,48 @@ function getOpenApiDocument() {
         get: {
           operationId: 'getSkyCommandAssistantCapabilities',
           responses: { 200: { description: 'Integration capabilities' } },
+        },
+      },
+      '/managed-codex': {
+        get: {
+          operationId: 'skycommand_managed_codex_status',
+          'x-required-permission-codes': [MANAGED_CODEX_READ_PERMISSION],
+          description: 'Read the fixed managed Codex bootstrap and account-certification state. Agent execution is disabled.',
+          responses: { 200: { description: 'Safe managed runtime and account status.' }, 403: { description: 'Managed Codex read permission is missing.' } },
+        },
+      },
+      '/managed-codex/enrollments': {
+        post: {
+          operationId: 'skycommand_managed_codex_enrollment_start',
+          'x-required-permission-codes': [MANAGED_CODEX_ENROLL_PERMISSION],
+          description: 'Start or reuse the one managed ChatGPT device-code enrollment. No caller fields or credentials are accepted.',
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, maxProperties: 0 } } } },
+          responses: { 202: { description: 'Device-code operation started or reconciled.' }, 403: { description: 'Managed Codex enrollment permission is missing.' }, 503: { description: 'Reconcile the same durable operation before retrying.' } },
+        },
+      },
+      '/managed-codex/enrollments/{enrollmentId}/reconcile': {
+        post: {
+          operationId: 'skycommand_managed_codex_enrollment_reconcile',
+          'x-required-permission-codes': [MANAGED_CODEX_ENROLL_PERMISSION],
+          parameters: [{ name: 'enrollmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { 200: { description: 'Same durable device-code operation reconciled.' }, 403: { description: 'Managed Codex enrollment permission is missing.' } },
+        },
+      },
+      '/managed-codex/runtime-lifecycle': {
+        post: {
+          operationId: 'skycommand_managed_codex_runtime_lifecycle_start',
+          'x-required-permission-codes': [MANAGED_CODEX_LIFECYCLE_PERMISSION],
+          description: 'Start only the fixed, signed-grant Supervisor bootstrap rebuild under the supplied durable operation UUID.',
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['operationId'], properties: { operationId: { type: 'string', format: 'uuid' } } } } } },
+          responses: { 202: { description: 'Fixed bootstrap rebuild accepted.' }, 409: { description: 'Reconcile the existing operation.' } },
+        },
+      },
+      '/managed-codex/runtime-lifecycle/{operationId}': {
+        get: {
+          operationId: 'skycommand_managed_codex_runtime_lifecycle_get',
+          'x-required-permission-codes': [MANAGED_CODEX_LIFECYCLE_PERMISSION],
+          parameters: [{ name: 'operationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { 200: { description: 'Same Supervisor operation and readiness reconciliation.' }, 404: { description: 'Lifecycle operation not found.' } },
         },
       },
       '/workflow-runs': {
@@ -648,6 +814,61 @@ function getOpenApiDocument() {
           responses: {
             200: { description: 'Safe refresh operation status and evidence.' },
             404: { description: 'Refresh operation not found for this principal.' },
+          },
+        },
+      },
+      '/runtime-refresh/runs': {
+        post: {
+          operationId: devRuntimeRefreshService.DEV_RUNTIME_REFRESH_CAPABILITY,
+          description:
+            'Start or reuse one source-controlled DEV runtime refresh profile through the signed Host Supervisor. The request accepts only profileCode and idempotencyKey; action, services, repository, environment, lifecycle profile, Supervisor route, and evidence rules are fixed server-side. The short-lived operation-bound grant is never persisted or returned. This is separate from managed-Codex lifecycle attempts.',
+          'x-required-permission-codes': [devRuntimeRefreshService.DEV_RUNTIME_REFRESH_PERMISSION],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['profileCode', 'idempotencyKey'],
+                  properties: {
+                    profileCode: { type: 'string', enum: ['CODEX_BOOTSTRAP', 'TEMPORAL_WORKER'] },
+                    idempotencyKey: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength:
+                        devRuntimeRefreshService.DEV_RUNTIME_REFRESH_MAX_IDEMPOTENCY_KEY_LENGTH,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            202: { description: 'Registered runtime refresh accepted.' },
+            200: { description: 'The existing idempotent operation was reused or reconciled.' },
+            403: { description: 'Agent identity, permission, or profile is not authorized.' },
+            409: { description: 'Idempotency conflict or Supervisor is busy.' },
+          },
+        },
+      },
+      '/runtime-refresh/runs/{operationId}': {
+        get: {
+          operationId: 'skycommand_dev_runtime_refresh_get',
+          description:
+            'Reconcile one principal-owned operation against its registered Supervisor action and bounded profile-specific runtime evidence. No grants, paths, commands, credentials, or unrestricted Supervisor output are returned.',
+          'x-required-permission-codes': [devRuntimeRefreshService.DEV_RUNTIME_REFRESH_PERMISSION],
+          parameters: [
+            {
+              name: 'operationId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            200: { description: 'Safe lifecycle, Supervisor, and runtime-freshness projection.' },
+            404: { description: 'Operation not found for this principal.' },
           },
         },
       },
@@ -896,6 +1117,8 @@ module.exports = {
   getMissingDevelopmentPromotionPermissionCodes,
   getOpenApiDocument,
   getRun,
+  getManagedCodexLifecycle,
+  getManagedCodexStatus,
   listAutomations,
   recordDevelopmentPromotionAudit,
   recordInvocationAudit,
@@ -903,6 +1126,11 @@ module.exports = {
   sanitizeRun,
   startDevelopmentPromotion,
   startWorkflowExecution,
+  startManagedCodexLifecycle,
+  startManagedCodexEnrollment,
+  reconcileManagedCodexEnrollment,
+  refreshManagedCodexAccount,
+  logoutManagedCodexAccount,
   getWorkflowExecutionRun,
   startAutomation,
   validateDevelopmentPromotionCommitMessage,

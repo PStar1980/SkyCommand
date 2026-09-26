@@ -1,0 +1,36 @@
+name: skycommand-codex-compat-0154
+services:
+  codex-compat-probe-0154:
+    profiles: ["isolated-codex-compat-0154"]
+    image: skycommand-codex-compat-probe:0.154.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SKYCOMMAND_CODEX_COMPAT_PROFILE: codex-0.154.0
+    platform: linux/amd64
+    init: true
+    user: "10001:10001"
+    read_only: true
+    network_mode: none
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=96m,uid=10001,gid=10001,mode=1777
+      - /probe-home:rw,noexec,nosuid,nodev,size=96m,uid=10001,gid=10001,mode=0700
+    environment:
+      HOME: /probe-home
+      CODEX_HOME: /probe-home/codex
+      CODEX_DISABLE_AUTOUPDATE: "1"
+      SKYCOMMAND_PROBE_EXECUTION_DISABLED: "1"
+      SKYCOMMAND_CODEX_COMPAT_PROFILE: codex-0.154.0
+      TMPDIR: /tmp
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      NO_COLOR: "1"
+    command: ["node", "/opt/codex-compat-probe/probe.js"]
+    restart: "no"

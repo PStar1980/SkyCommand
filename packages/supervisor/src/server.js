@@ -152,13 +152,13 @@ async function handleControl(req, res, action) {
     }
 
     if (
-      action === 'REBUILD_TEMPORAL_WORKER' &&
+      ['REBUILD_TEMPORAL_WORKER', 'REBUILD_CODEX_BOOTSTRAP'].includes(action) &&
       (authorization.method !== 'SIGNED_GRANT' || !authorization.operationId)
     ) {
       json(res, 403, {
         ok: false,
         code: 'SKYCOMMAND_SUPERVISOR_OPERATION_ID_REQUIRED',
-        error: 'Temporal-worker refresh requires a signed grant bound to a durable operation identity.',
+        error: 'This worker/runtime rebuild requires a signed grant bound to a durable operation identity.',
       }, getCorsHeaders(req));
       return;
     }
@@ -168,7 +168,11 @@ async function handleControl(req, res, action) {
     operationId: authorization?.operationId || null,
     action,
     requestedAt: new Date().toISOString(),
-    targetService: action === 'REBUILD_TEMPORAL_WORKER' ? 'temporal-worker' : null,
+    targetService: action === 'REBUILD_TEMPORAL_WORKER'
+      ? 'temporal-worker'
+      : action === 'REBUILD_CODEX_BOOTSTRAP'
+        ? 'codex-managed-bootstrap'
+        : null,
   };
   activeOperation = operation;
 
@@ -260,6 +264,11 @@ async function requestHandler(req, res) {
 
     if (req.method === 'POST' && req.url === '/runtime/rebuild-temporal-worker') {
       await handleControl(req, res, 'REBUILD_TEMPORAL_WORKER');
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/runtime/rebuild-codex-bootstrap') {
+      await handleControl(req, res, 'REBUILD_CODEX_BOOTSTRAP');
       return;
     }
 

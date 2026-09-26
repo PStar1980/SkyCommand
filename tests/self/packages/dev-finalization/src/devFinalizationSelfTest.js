@@ -81,6 +81,29 @@ check('classifies web source changes', () => {
 check('classifies browser worker changes', () => {
   assert.deepEqual(finalization.classifyChangedPaths(['apps/browser-worker/src/index.js']).services, ['browser-worker']);
 });
+check('classifies managed Codex runtime services and Compose bootstrap changes', () => {
+  assert.deepEqual(
+    finalization.classifyChangedPaths([
+      'apps/codex-agent-runtime-worker/src/index.js',
+      'apps/codex-egress-proxy/src/index.js',
+      'apps/codex-mcp-gateway/src/index.js',
+      'apps/codex-control-bridge/src/index.js',
+      'docker/codex-agent-runtime/config.toml',
+      'compose.yaml',
+    ]).services,
+    [
+      'api',
+      'temporal-worker',
+      'node-worker',
+      'agent-runtime-worker',
+      'codex-managed-volume-init',
+      'codex-egress-proxy',
+      'codex-mcp-gateway',
+      'codex-agent-runtime-worker',
+      'codex-control-bridge',
+    ],
+  );
+});
 check('defers the active Temporal orchestrator while retaining safe services', () => {
   assert.deepEqual(
     finalization.selectLifecycleServices(['api', 'temporal-worker', 'node-worker']),

@@ -24,6 +24,7 @@ const skywebRoutes = require('./routes/skyweb.routes');
 const agentProjectRoutes = require('./routes/agent.routes');
 const agentDefinitionRoutes = require('./routes/agentDefinition.routes');
 const agentRuntimeRoutes = require('./routes/agentRuntime.routes');
+const managedCodexBootstrap = require('./services/managedCodexBootstrapService');
 const agentExecutionRoutes = require('./routes/agentExecution.routes');
 const agentRunRoutes = require('./routes/agentRun.routes');
 const agentInteractionRoutes = require('./routes/agentInteraction.routes');
@@ -45,6 +46,14 @@ function createApp() {
 
   app.get('/_health', (req, res) => {
     res.json({ ok: true, service: 'SkyCommand API' });
+  });
+
+  app.get('/_health/codex', async (_req, res) => {
+    try {
+      res.json(await managedCodexBootstrap.getBootstrapReadiness());
+    } catch (_error) {
+      res.status(503).json({ ok: false, readiness: 'RUNTIME_OFFLINE', executionEnabled: false });
+    }
   });
 
   app.get('/_db/health', async (req, res) => {

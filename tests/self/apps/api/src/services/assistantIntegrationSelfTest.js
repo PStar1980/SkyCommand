@@ -53,12 +53,23 @@ function run() {
       "'/openapi.json'",
       "'/workflow-runs'",
       "'/workflow-runs/:workflowRunRecordId'",
+      "'/managed-codex/enrollments'",
+      "'/managed-codex/runtime-lifecycle'",
+      "'/managed-codex/runtime-lifecycle/:operationId'",
       "'/browser-automations/:automationCode/runs'",
       "'/browser-automation-runs/:workflowId'",
       "'/browser-automation-runs/:workflowId/artifacts/:artifactId'",
     ],
     'Assistant integration routes',
   );
+
+  const reconcile = require(path.join(ROOT, 'packages/config/src/devEnvReconcile'));
+  const managedConfig = reconcile.normalizePatch({
+    SKYCOMMAND_ASSISTANT_AGENT_ID: 'codex-local',
+    SKYCOMMAND_ASSISTANT_PERMISSION_CODES: 'BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN,MANAGED_CODEX_READ,MANAGED_CODEX_ENROLL,MANAGED_CODEX_LIFECYCLE',
+  });
+  assert.equal(managedConfig.SKYCOMMAND_ASSISTANT_AGENT_ID, 'codex-local');
+  assert.throws(() => reconcile.normalizePatch({ SKYCOMMAND_ASSISTANT_AGENT_ID: 'codex local' }));
 
   const middlewareSource = read('apps/api/src/middleware/assistantIntegrationMiddleware.js');
   includesAll(
@@ -81,6 +92,11 @@ function run() {
       'getOpenApiDocument',
       'workflowAgentExecution',
       'startWorkflowExecution',
+      'MANAGED_CODEX_READ',
+      'MANAGED_CODEX_ENROLL',
+      'MANAGED_CODEX_LIFECYCLE',
+      'startManagedCodexLifecycle',
+      'assertManagedCodexLifecycleBody',
     ],
     'Assistant integration service',
   );
@@ -121,6 +137,7 @@ function run() {
       'SKYCOMMAND_ASSISTANT_API_TOKEN=',
       'SKYCOMMAND_ASSISTANT_PERMISSION_CODES=BROWSER_AUTOMATION_READ,BROWSER_AUTOMATION_RUN',
       'SKYCOMMAND_ASSISTANT_PRINCIPAL_CODE=assistant-http',
+      'SKYCOMMAND_ASSISTANT_AGENT_ID=assistant-http',
     ],
     'Assistant environment configuration',
   );
@@ -140,6 +157,12 @@ function run() {
     'assistant-http',
   );
   assert.equal(middleware.getAssistantIntegrationConfig().principalCode, 'assistant-http');
+  const originalPinnedAgentId = process.env.SKYCOMMAND_ASSISTANT_AGENT_ID;
+  process.env.SKYCOMMAND_ASSISTANT_AGENT_ID = 'codex-local';
+  assert.equal(middleware.getAssistantIntegrationConfig().agentIdPinned, true);
+  assert.equal(middleware.getAssistantIntegrationConfig().agentId, 'codex-local');
+  if (originalPinnedAgentId === undefined) delete process.env.SKYCOMMAND_ASSISTANT_AGENT_ID;
+  else process.env.SKYCOMMAND_ASSISTANT_AGENT_ID = originalPinnedAgentId;
 
   console.log('[assistant-integration:self-test] PASS');
 }
