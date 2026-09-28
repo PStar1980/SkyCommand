@@ -39,6 +39,22 @@ Normal implementation sequence:
 
 Human review belongs at the end of the development turn, not between routine implementation steps.
 
+## Architecture and delegated-execution invariants
+
+These rules are mandatory for every assigned task:
+
+- **Sky/ChatGPT is the supervising architect and primary source-design/coding authority.** Paul owns product direction and final acceptance/promotion intent.
+- **Luna/Codex or any replacement execution model is Sky's delegated eyes and hands in the authorized environment.** Default duties are inspection, bounded command execution, exact directed patch/edit application when delegated, testing, evidence collection, and environment interaction.
+- Execution agents must not independently redesign architecture, expand scope, create cross-component contracts, alter established Tool semantics, or add unrelated refactors/cleanup. Unexpected architectural implications must be surfaced to Sky before implementation continues.
+- **A registered Tool must remain independently executable** by itself or as a Workflow node. A Tool may depend on declared data/configuration/durable artifacts, but not on another named Tool having executed first or on hidden workflow history.
+- **Workflows compose independent Tools.** Ordering, branching, gating, and sequencing belong in orchestration; sibling Tools must not absorb or enforce each other's workflow semantics.
+- **Prefer the smallest safe change.** If a small requirement touches unrelated stable components, introduces new services/state/lifecycle machinery, or materially changes existing behavior, stop for architectural review.
+- **Preserve working behavior and performance.** Passing tests does not excuse unrelated behavior changes, extra rebuilds/restarts, longer execution, avoidable retries, or materially slower workflows.
+- **Governance must reduce risk and human effort, not create ceremony.** Prefer deterministic automated validation/recovery over new manual steps or duplicate checks.
+- An implementation/execution report is evidence, not acceptance. Sky must review the actual diff/source and architecture before recommending acceptance.
+
+Design shorthand: **a Tool may depend on data; it may not depend on history.**
+
 ## Request-level execution surfaces
 
 Execution-surface authority is defined per request/work order, not by the mere existence of a global Codex/ChatGPT capability.

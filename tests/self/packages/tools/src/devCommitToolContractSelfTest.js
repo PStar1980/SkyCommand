@@ -48,14 +48,35 @@ assertValid({
   workflowRunId: null,
 });
 
-const migration = read('packages/db_build/src/migrations/00145__dev_commit_r6_boundary_parameters.sql');
-assert.doesNotMatch(migration, /^\s*(BEGIN|COMMIT)\s*;\s*$/m);
-assert.match(migration, /'repoName'[\s\S]*?10/);
-assert.match(migration, /'commitMessage'[\s\S]*?20/);
-assert.match(migration, /'finalizationWorkflowRunId'[\s\S]*?30/);
-assert.match(migration, /'workflowRunId'[\s\S]*?40/);
-assert.match(migration, /required[\s\S]*?FALSE/);
-assert.match(migration, /argument_mode[\s\S]*?'POSITIONAL'/);
+const boundaryMigration = read('packages/db_build/src/migrations/00145__dev_commit_r6_boundary_parameters.sql');
+assert.doesNotMatch(boundaryMigration, /^\s*(BEGIN|COMMIT)\s*;\s*$/m);
+assert.match(boundaryMigration, /'repoName'[\s\S]*?10/);
+assert.match(boundaryMigration, /'commitMessage'[\s\S]*?20/);
+assert.match(boundaryMigration, /'finalizationWorkflowRunId'[\s\S]*?30/);
+assert.match(boundaryMigration, /'workflowRunId'[\s\S]*?40/);
+assert.match(boundaryMigration, /required[\s\S]*?FALSE/);
+assert.match(boundaryMigration, /argument_mode[\s\S]*?'POSITIONAL'/);
+
+const gateMigration = read('packages/db_build/src/migrations/00161__development_promotion_secret_leak_gate.sql');
+assert.match(gateMigration, /secret_leak_gate_node/);
+assert.match(gateMigration, /repo_zip_node_to_secret_leak_gate_node/);
+assert.match(gateMigration, /secret_leak_gate_node_to_dev_commit_node/);
+
+const decouplingMigration = read('packages/db_build/src/migrations/00162__development_promotion_secret_leak_gate_decoupling.sql');
+for (const parameterName of [
+  'secretLeakGateSourceIdentityDigest',
+  'secretLeakGateArtifactIdentityDigest',
+  'secretLeakGateCapabilityCatalogJsonPath',
+  'secretLeakGateCapabilityCatalogXlsxPath',
+  'secretLeakGateRepositoryMapPath',
+  'secretLeakGateRepositoryZipPath',
+]) {
+  assert.match(decouplingMigration, new RegExp(`'${parameterName}'`));
+}
+assert.match(decouplingMigration, /DELETE FROM core\.tool_parameters/);
+assert.match(decouplingMigration, /SET input_parameters = baseline\.input_parameters/);
+assert.match(decouplingMigration, /config = baseline\.config/);
+assert.match(decouplingMigration, /pinnedVersionNumber', 24/);
 
 for (const relativePath of [
   'apps/api/src/services/scriptExecutionService.js',
@@ -71,5 +92,10 @@ const devCommitSource = read('packages/git/src/dev_commit.js');
 assert.match(devCommitSource, /finalizationWorkflowRunId/);
 assert.match(devCommitSource, /workflowRunId/);
 assert.match(devCommitSource, /R6_PROMOTION_COMMIT_BOUNDARY_ARGUMENTS_INVALID/);
+assert.doesNotMatch(devCommitSource, /secretLeakGate|SECRET_LEAK_GATE/);
 
-console.log('Dev Commit R6 Tool contract self-test passed.');
+const hostActivitySource = read('packages/host-agent/src/activities.js');
+assert.doesNotMatch(hostActivitySource, /secretLeakGateSourceIdentityDigest/);
+assert.doesNotMatch(hostActivitySource, /secretLeakGateRepositoryZipPath/);
+
+console.log('Dev Commit independent Tool contract self-test passed.');
