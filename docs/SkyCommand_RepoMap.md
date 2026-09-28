@@ -10,6 +10,7 @@ SkyCommand/
 ├── change.log
 ├── compose.yaml
 ├── eslint.config.mjs
+├── LICENSE
 ├── nodemon.json
 ├── package-lock.json
 ├── package.json
