@@ -1,0 +1,60 @@
+SkyCommand Source-Available License 1.0
+
+Copyright (c) 2026 Paul Sattaur. All rights reserved.
+
+1. Ownership
+
+SkyCommand, including its original source code, documentation, architecture,
+designs, workflows, and other original materials, is owned by Paul Sattaur.
+This license grants limited permission to use SkyCommand. It does not transfer
+ownership or any intellectual property rights.
+
+2. Permitted Use
+
+You may download, install, and run unmodified copies of SkyCommand for personal,
+educational, evaluation, and other non-commercial purposes.
+
+You may make copies reasonably necessary to install, run, and back up SkyCommand
+for those permitted purposes.
+
+3. Restrictions
+
+Unless you have prior written permission from Paul Sattaur, you may not:
+
+- modify, adapt, translate, or create derivative works from SkyCommand;
+- distribute, publish, sublicense, sell, rent, lease, or otherwise provide
+  SkyCommand or copies of SkyCommand to another person or organization;
+- use SkyCommand for commercial purposes, paid services, or revenue-generating
+  activities;
+- offer SkyCommand, or a substantially similar derivative of SkyCommand, as a
+  hosted, managed, or software-as-a-service product;
+- remove or alter copyright, ownership, attribution, or license notices; or
+- use the SkyCommand name, logos, or branding except to identify an unmodified
+  copy of SkyCommand.
+
+4. Third-Party Software
+
+Third-party software, libraries, packages, and other components included with or
+used by SkyCommand remain subject to their respective licenses. This license
+applies only to material for which Paul Sattaur owns the applicable rights.
+
+5. Termination
+
+Your permission under this license ends automatically if you violate these terms.
+Upon termination, you must stop using SkyCommand and delete copies in your
+possession or control, except where retention is required by law.
+
+6. No Warranty
+
+SKYCOMMAND IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, PAUL SATTAUR WILL NOT BE LIABLE FOR ANY
+CLAIM, LOSS, DAMAGE, OR OTHER LIABILITY ARISING FROM OR RELATED TO SKYCOMMAND OR
+ITS USE.
+
+7. Separate Licensing
+
+Commercial use, modification rights, redistribution rights, integration rights,
+or other permissions may be granted separately in writing by Paul Sattaur.
