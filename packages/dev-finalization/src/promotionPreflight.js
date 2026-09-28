@@ -21,8 +21,8 @@ const OUTPUT_TYPE = 'dev_promotion_preflight_summary.v1';
 const REPOSITORY_CODE = 'SkyCommand';
 const PROMOTION_WORKFLOW_CODE = 'skyserver_dev_commit';
 const PROMOTION_WORKFLOW_VARIANTS = Object.freeze({
-  skyserver_dev_commit: 22,
-  'skycommand-dev-promo-alt': 8,
+  skyserver_dev_commit: 24,
+  'skycommand-dev-promo-alt': 10,
 });
 const FINALIZATION_WORKFLOW_CODE = 'dev_change_finalize';
 const PRIMARY_R6_VERSION = PROMOTION_WORKFLOW_VARIANTS.skyserver_dev_commit;
@@ -31,12 +31,96 @@ const TERMINAL_WORKFLOW_STATUSES = ['COMPLETED', 'FAILED', 'CANCELED', 'CANCELLE
 const VALID_PROMOTION_RUN_STATUSES = ['QUEUED', 'RUNNING', 'ADMITTED', 'STARTING', 'STARTED'];
 const HUMAN_PROMOTION_RUN_SOURCES = ['manual', 'api'];
 const HUMAN_PROMOTION_TRIGGER_TYPES = ['MANUAL', 'API'];
+const PROMOTION_GRAPH_REQUIRED_TARGETS = Object.freeze({
+  promotion_preflight_node: 'dev_promotion_preflight',
+  local_dev_pull_node: 'local_dev_pull',
+  capability_catalog_node: 'capability_catalog_export',
+  repo_map_node: 'repo_map_generate',
+  repo_zip_node: 'repo_zip_generate',
+  secret_leak_gate_node: 'secret_leak_gate',
+  dev_commit_node: 'dev_commit',
+  github_dev_pr_merge_node: 'github_dev_pr_merge',
+  merge_sync_node: 'main_merge',
+  local_repo_sync_node: 'local_repo_sync',
+  dev_promotion_summary: null,
+});
+const PROMOTION_GRAPH_REQUIRED_TYPES = Object.freeze({
+  promotion_preflight_node: 'TOOL',
+  local_dev_pull_node: 'TOOL',
+  capability_catalog_node: 'TOOL',
+  repo_map_node: 'TOOL',
+  repo_zip_node: 'TOOL',
+  secret_leak_gate_node: 'TOOL',
+  dev_commit_node: 'TOOL',
+  github_dev_pr_merge_node: 'TOOL',
+  merge_sync_node: 'TOOL',
+  local_repo_sync_node: 'TOOL',
+  dev_promotion_summary: 'SUMMARY',
+});
+const PROMOTION_GRAPH_STAGE_KEYS = Object.freeze({
+  skyserver_dev_commit: Object.freeze([
+    'promotion_preflight_node',
+    'capability_catalog_node',
+    'repo_map_node',
+    'repo_zip_node',
+    'secret_leak_gate_node',
+    'dev_commit_node',
+    'github_dev_pr_merge_node',
+    'merge_sync_node',
+    'local_repo_sync_node',
+    'dev_promotion_summary',
+  ]),
+  'skycommand-dev-promo-alt': Object.freeze([
+    'promotion_preflight_node',
+    'local_dev_pull_node',
+    'capability_catalog_node',
+    'repo_map_node',
+    'repo_zip_node',
+    'secret_leak_gate_node',
+    'dev_commit_node',
+    'github_dev_pr_merge_node',
+    'merge_sync_node',
+    'local_repo_sync_node',
+    'dev_promotion_summary',
+  ]),
+});
+const PROMOTION_NON_MUTATING_TARGET_CODES = new Set([
+  'dev_promotion_preflight',
+  'local_dev_pull',
+  'capability_catalog_export',
+  'repo_map_generate',
+  'repo_zip_generate',
+  'secret_leak_gate',
+  'promotion_evidence_snapshot',
+  'promotion_readiness_check',
+]);
+const PROMOTION_NON_MUTATING_NODE_TYPES = new Set(['CONDITION', 'GATE', 'WAIT', 'EVIDENCE']);
+const PROMOTION_GIT_MUTATION_NODE_KEYS = new Set([
+  'dev_commit_node',
+  'github_dev_pr_merge_node',
+  'merge_sync_node',
+  'local_repo_sync_node',
+]);
+const PROMOTION_GIT_MUTATION_TARGET_CODES = new Set([
+  'dev_commit',
+  'github_dev_pr_merge',
+  'main_merge',
+  'local_repo_sync',
+]);
+const PROMOTION_GRAPH_PROTECTED_EDGES = Object.freeze([
+  ['secret_leak_gate_node', 'dev_commit_node'],
+  ['dev_commit_node', 'github_dev_pr_merge_node'],
+  ['github_dev_pr_merge_node', 'merge_sync_node'],
+  ['merge_sync_node', 'local_repo_sync_node'],
+  ['local_repo_sync_node', 'dev_promotion_summary'],
+]);
 const PROMOTION_REQUIRED_PERMISSION_CODES = Object.freeze([
   'WORKFLOW_RUN',
   'DEV_PROMOTION_PREFLIGHT',
   'CAPABILITY_CATALOG_EXPORT',
   'REPO_MAP_GENERATE',
   'REPO_ZIP_GENERATE',
+  'SECRET_LEAK_GATE',
   'GIT_COMMIT_RUN',
   'GIT_DEV_PR_MERGE_RUN',
   'GIT_MAIN_MERGE_RUN',
@@ -695,6 +779,172 @@ async function assertNoOtherPromotion(workflowRunRecordId, scope, queryFn = defa
   if (activeResult.rows[0]) reject('R6_PROMOTION_CONCURRENT_EDIT', 'Another R6 Development Promotion run is already admitted for this DEV scope.', { ownerWorkflowRunRecordId: activeResult.rows[0].workflow_run_record_id });
 }
 
+function normalizePromotionGraphNode(node = {}) {
+  const displayOrder = Number(node.display_order ?? node.displayOrder);
+  return {
+    nodeKey: text(node.node_key ?? node.nodeKey),
+    nodeTypeCode: text(node.node_type_code ?? node.nodeTypeCode).toUpperCase(),
+    targetCode: nullableText(node.target_code ?? node.targetCode),
+    displayOrder: Number.isFinite(displayOrder) ? displayOrder : null,
+  };
+}
+
+function normalizePromotionGraphEdge(edge = {}) {
+  return {
+    edgeType: text(edge.edge_type ?? edge.edgeType).toUpperCase(),
+    fromNodeKey: text(edge.from_node_key ?? edge.fromNodeKey),
+    toNodeKey: text(edge.to_node_key ?? edge.toNodeKey),
+  };
+}
+
+function isPromotionGitMutationNode(node) {
+  return PROMOTION_GIT_MUTATION_NODE_KEYS.has(node.nodeKey) || PROMOTION_GIT_MUTATION_TARGET_CODES.has(node.targetCode);
+}
+
+function isAllowedPromotionNonMutatingNode(node) {
+  if (isPromotionGitMutationNode(node)) return false;
+  if (Object.prototype.hasOwnProperty.call(PROMOTION_GRAPH_REQUIRED_TARGETS, node.nodeKey)) return true;
+  if (node.nodeTypeCode === 'TOOL') return PROMOTION_NON_MUTATING_TARGET_CODES.has(node.targetCode);
+  return PROMOTION_NON_MUTATING_NODE_TYPES.has(node.nodeTypeCode);
+}
+
+function validatePromotionWorkflowGraph({ workflowCode, versionNumber, status, nodes = [], edges = [] } = {}) {
+  const normalizedWorkflowCode = text(workflowCode);
+  const expectedVersion = PROMOTION_WORKFLOW_VARIANTS[normalizedWorkflowCode];
+  const stageKeys = PROMOTION_GRAPH_STAGE_KEYS[normalizedWorkflowCode] || [];
+  const violations = [];
+  const normalizedNodes = safeArray(nodes).map(normalizePromotionGraphNode);
+  const normalizedEdges = safeArray(edges).map(normalizePromotionGraphEdge);
+  const nodeByKey = new Map();
+
+  if (!expectedVersion || text(status).toUpperCase() !== 'PUBLISHED' || Number(versionNumber) !== expectedVersion) {
+    violations.push('PUBLISHED_VERSION_INVALID');
+  }
+  if (!stageKeys.length) violations.push('WORKFLOW_VARIANT_UNSUPPORTED');
+
+  for (const node of normalizedNodes) {
+    if (!node.nodeKey || node.displayOrder === null || nodeByKey.has(node.nodeKey)) {
+      violations.push(`NODE_IDENTITY_INVALID:${node.nodeKey || '<missing>'}`);
+      continue;
+    }
+    nodeByKey.set(node.nodeKey, node);
+    if (!Object.prototype.hasOwnProperty.call(PROMOTION_GRAPH_REQUIRED_TARGETS, node.nodeKey) && !isAllowedPromotionNonMutatingNode(node)) {
+      violations.push(`UNKNOWN_OR_MUTATING_NODE:${node.nodeKey}`);
+    }
+  }
+
+  for (const [nodeKey, expectedTarget] of Object.entries(PROMOTION_GRAPH_REQUIRED_TARGETS)) {
+    if (!stageKeys.includes(nodeKey)) continue;
+    const matches = normalizedNodes.filter((node) => node.nodeKey === nodeKey);
+    if (matches.length !== 1) {
+      violations.push(`REQUIRED_NODE_INVALID:${nodeKey}`);
+      continue;
+    }
+    const node = matches[0];
+    if (node.nodeTypeCode !== PROMOTION_GRAPH_REQUIRED_TYPES[nodeKey]) {
+      violations.push(`REQUIRED_NODE_TYPE_INVALID:${nodeKey}`);
+    }
+    if (expectedTarget === null ? node.targetCode !== null : node.targetCode !== expectedTarget) {
+      violations.push(`REQUIRED_NODE_TARGET_INVALID:${nodeKey}`);
+    }
+  }
+
+  if (normalizedNodes.some((node) => node.nodeTypeCode === 'HUMAN_APPROVAL')) {
+    violations.push('HUMAN_APPROVAL_NOT_ALLOWED');
+  }
+
+  const edgeEndpointInvalid = normalizedEdges.some((edge) => !edge.fromNodeKey || !edge.toNodeKey || !nodeByKey.has(edge.fromNodeKey) || !nodeByKey.has(edge.toNodeKey));
+  if (edgeEndpointInvalid) violations.push('EDGE_ENDPOINT_INVALID');
+
+  const edgeCount = (fromKey, toKey, edgeType = null) => normalizedEdges.filter((edge) => edge.fromNodeKey === fromKey && edge.toNodeKey === toKey && (!edgeType || edge.edgeType === edgeType)).length;
+  const sequentialEdges = normalizedEdges.filter((edge) => edge.edgeType === 'SEQUENTIAL');
+  const adjacency = new Map();
+  for (const edge of sequentialEdges) {
+    if (!nodeByKey.has(edge.fromNodeKey) || !nodeByKey.has(edge.toNodeKey)) continue;
+    const outgoing = adjacency.get(edge.fromNodeKey) || [];
+    outgoing.push(edge.toNodeKey);
+    adjacency.set(edge.fromNodeKey, outgoing);
+  }
+
+  const directRequiredEdges = new Set(PROMOTION_GRAPH_PROTECTED_EDGES.map(([fromKey, toKey]) => `${fromKey}->${toKey}`));
+  for (const [fromKey, toKey] of PROMOTION_GRAPH_PROTECTED_EDGES) {
+    if (edgeCount(fromKey, toKey, 'SEQUENTIAL') !== 1 || edgeCount(fromKey, toKey) !== 1) {
+      violations.push(`REQUIRED_EDGE_INVALID:${fromKey}->${toKey}`);
+    }
+  }
+
+  const mutationPredecessors = new Map([
+    ['dev_commit_node', 'secret_leak_gate_node'],
+    ['github_dev_pr_merge_node', 'dev_commit_node'],
+    ['merge_sync_node', 'github_dev_pr_merge_node'],
+    ['local_repo_sync_node', 'merge_sync_node'],
+    ['dev_promotion_summary', 'local_repo_sync_node'],
+  ]);
+  for (const [targetKey, expectedFromKey] of mutationPredecessors) {
+    for (const edge of normalizedEdges.filter((candidate) => candidate.toNodeKey === targetKey)) {
+      if (edge.fromNodeKey !== expectedFromKey || edge.edgeType !== 'SEQUENTIAL') {
+        violations.push(`MUTATION_BYPASS:${edge.fromNodeKey}->${targetKey}`);
+      }
+    }
+  }
+
+  const hasForwardPath = (fromKey, toKey) => {
+    const fromNode = nodeByKey.get(fromKey);
+    const toNode = nodeByKey.get(toKey);
+    if (!fromNode || !toNode || fromNode.displayOrder >= toNode.displayOrder) return false;
+    const visited = new Set([fromKey]);
+    const queue = [fromKey];
+    while (queue.length) {
+      const currentKey = queue.shift();
+      for (const nextKey of adjacency.get(currentKey) || []) {
+        if (nextKey === toKey) return true;
+        if (visited.has(nextKey)) continue;
+        const nextNode = nodeByKey.get(nextKey);
+        const currentNode = nodeByKey.get(currentKey);
+        if (!nextNode || !currentNode || nextNode.displayOrder <= currentNode.displayOrder || nextNode.displayOrder >= toNode.displayOrder) continue;
+        if (!isAllowedPromotionNonMutatingNode(nextNode)) continue;
+        visited.add(nextKey);
+        queue.push(nextKey);
+      }
+    }
+    return false;
+  };
+
+  for (let index = 0; index < stageKeys.length - 1; index += 1) {
+    const fromKey = stageKeys[index];
+    const toKey = stageKeys[index + 1];
+    const fromNode = nodeByKey.get(fromKey);
+    const toNode = nodeByKey.get(toKey);
+    if (!fromNode || !toNode) continue;
+    if (fromNode.displayOrder >= toNode.displayOrder) violations.push(`CORE_STAGE_ORDER_INVALID:${fromKey}->${toKey}`);
+    if (!hasForwardPath(fromKey, toKey)) violations.push(`REQUIRED_PATH_MISSING:${fromKey}->${toKey}`);
+  }
+
+  for (const edge of sequentialEdges) {
+    if (!nodeByKey.has(edge.fromNodeKey) || !nodeByKey.has(edge.toNodeKey)) continue;
+    const fromNode = nodeByKey.get(edge.fromNodeKey);
+    const toNode = nodeByKey.get(edge.toNodeKey);
+    if (fromNode.displayOrder >= toNode.displayOrder) violations.push(`SEQUENTIAL_ORDER_INVALID:${edge.fromNodeKey}->${edge.toNodeKey}`);
+  }
+
+  const summaryNode = nodeByKey.get('dev_promotion_summary');
+  const maxDisplayOrder = normalizedNodes.reduce((max, node) => Math.max(max, node.displayOrder ?? Number.NEGATIVE_INFINITY), Number.NEGATIVE_INFINITY);
+  if (!summaryNode || summaryNode.displayOrder !== maxDisplayOrder || normalizedNodes.some((node) => node.nodeKey !== 'dev_promotion_summary' && node.displayOrder >= summaryNode.displayOrder)) {
+    violations.push('TERMINAL_SUMMARY_NOT_LAST');
+  }
+  if (normalizedEdges.some((edge) => edge.fromNodeKey === 'dev_promotion_summary')) violations.push('TERMINAL_SUMMARY_HAS_OUTGOING_EDGE');
+
+  return {
+    valid: violations.length === 0,
+    workflowCode: normalizedWorkflowCode,
+    versionNumber: Number(versionNumber),
+    expectedVersion: expectedVersion || null,
+    requiredStageKeys: stageKeys,
+    protectedEdges: [...directRequiredEdges],
+    violations: [...new Set(violations)],
+  };
+}
+
 async function assertWorkflowGraph(workflowVersionId, expectedWorkflowCode = null, queryFn = defaultQuery) {
   const metadataResult = await queryFunction(queryFn)(
     `SELECT d.workflow_code, v.version_number, v.status
@@ -707,11 +957,11 @@ async function assertWorkflowGraph(workflowVersionId, expectedWorkflowCode = nul
   const metadata = metadataResult?.rows?.[0];
   const workflowCode = text(expectedWorkflowCode || metadata?.workflow_code);
   const expectedVersion = PROMOTION_WORKFLOW_VARIANTS[workflowCode];
-  if (!metadata || !expectedVersion || metadata.status !== 'PUBLISHED' || Number(metadata.version_number) !== expectedVersion) {
+  if (!metadata || !expectedVersion || (expectedWorkflowCode && text(metadata.workflow_code) !== text(expectedWorkflowCode)) || text(metadata.status).toUpperCase() !== 'PUBLISHED' || Number(metadata.version_number) !== expectedVersion) {
     reject('R6_PROMOTION_WORKFLOW_GRAPH_INVALID', 'The admitted Development Promotion workflow is not an allowed published correction version.', { workflowVersionId, workflowCode, expectedVersion });
   }
   const nodeResult = await queryFunction(queryFn)(
-    `SELECT node_key, node_type_code, target_code
+    `SELECT node_key, node_type_code, target_code, display_order
        FROM worker.workflow_nodes
       WHERE workflow_version_id = $1`,
     [workflowVersionId],
@@ -726,26 +976,17 @@ async function assertWorkflowGraph(workflowVersionId, expectedWorkflowCode = nul
   );
   const nodes = nodeResult?.rows || [];
   const edges = edgeResult?.rows || [];
-  const count = (predicate) => nodes.filter(predicate).length;
-  const edgeCount = (fromKey, toKey) => edges.filter((edge) => edge.from_node_key === fromKey && edge.to_node_key === toKey && text(edge.edge_type).toUpperCase() === 'SEQUENTIAL').length;
-  const predecessorChain = workflowCode === PROMOTION_WORKFLOW_CODE
-    ? ['promotion_preflight_node', 'capability_catalog_node', 'repo_map_node', 'repo_zip_node', 'dev_commit_node']
-    : ['promotion_preflight_node', 'local_dev_pull_node', 'capability_catalog_node', 'repo_map_node', 'repo_zip_node', 'dev_commit_node'];
-  const chainValid = predecessorChain.slice(0, -1).every((key, index) => edgeCount(key, predecessorChain[index + 1]) === 1);
-  const valid =
-    count((node) => node.node_type_code === 'HUMAN_APPROVAL') === 0 &&
-    count((node) => node.node_key === 'promotion_preflight_node' && node.target_code === 'dev_promotion_preflight') === 1 &&
-    count((node) => node.node_key === 'github_dev_pr_merge_node' && node.target_code === 'github_dev_pr_merge') === 1 &&
-    edgeCount('dev_commit_node', 'github_dev_pr_merge_node') === 1 &&
-    edgeCount('github_dev_pr_merge_node', 'merge_sync_node') === 1 &&
-    edgeCount('merge_sync_node', 'local_repo_sync_node') === 1 &&
-    edgeCount('local_repo_sync_node', 'dev_promotion_summary') === 1 &&
-    edgeCount('dev_commit_node', 'merge_sync_node') === 0 &&
-    chainValid;
-  if (!valid) {
-    reject('R6_PROMOTION_WORKFLOW_GRAPH_INVALID', 'The admitted Development Promotion workflow does not match the GitHub PR merge graph contract.', { workflowVersionId, workflowCode, versionNumber: metadata.version_number });
+  const graphContract = validatePromotionWorkflowGraph({
+    workflowCode,
+    versionNumber: metadata.version_number,
+    status: metadata.status,
+    nodes,
+    edges,
+  });
+  if (!graphContract.valid) {
+    reject('R6_PROMOTION_WORKFLOW_GRAPH_INVALID', 'The admitted Development Promotion workflow does not match the GitHub PR merge graph contract.', { workflowVersionId, workflowCode, versionNumber: metadata.version_number, violations: graphContract.violations });
   }
-  return { workflowCode, versionNumber: Number(metadata.version_number), nodes, edges };
+  return { workflowCode, versionNumber: Number(metadata.version_number), nodes, edges, graphContract };
 }
 
 async function validateCurrentSource({
@@ -1298,6 +1539,7 @@ module.exports = {
   renderConsole,
   assertPromotionRunAuthorization,
   hasPermissionCodes,
+  validatePromotionWorkflowGraph,
   isAssistantPromotionRun,
   isHumanPromotionRun,
   beginPromotionAdmission,

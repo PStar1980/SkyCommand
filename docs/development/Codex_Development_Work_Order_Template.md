@@ -3,6 +3,8 @@
 > **Use:** Copy this file for a new development request and replace bracketed placeholders. Delete sections that are genuinely not applicable; do not leave ambiguous placeholders in an executable work order.
 >
 > **Authority rule:** This work order defines authority for this request only. Global Codex/ChatGPT capabilities, connected Apps, authenticated browser sessions, Computer Use, remote-device access, MCP servers, and local applications do not create task authority by themselves.
+>
+> **Role rule:** The execution agent is Sky's delegated eyes and hands in the authorized environment, not the architectural authority. Sky/ChatGPT owns architecture, source design/coding decisions, integration review, and acceptance review unless this work order explicitly delegates a narrow mechanical edit.
 
 ## Work order identity
 
@@ -14,6 +16,8 @@
 - **Authorized implementation scope:** `[exact files/features/runtime/data boundaries]`
 - **Explicitly out of scope:** `[next phase / production / unrelated cleanup / etc.]`
 - **Promotion authorized by this work order:** `NO`
+- **Execution-agent role:** `EYES_AND_HANDS`
+- **Source-edit delegation:** `[NONE / exact bounded patch or mechanical edit scope]`
 
 A normal implementation work order ends with **Dev Change Finalization** and a reviewable working tree. Promotion requires a separate explicit instruction unless this work order clearly says otherwise and identifies the reviewed finalization receipt.
 
@@ -52,6 +56,19 @@ Read and follow before implementation:
 
 Where they conflict, use the active Development Operating Rules and the narrower scope of this work order. Do not silently rewrite governance or broaden the task.
 
+### 2.1 Mandatory architecture and delegation guardrails
+
+- The execution agent is a bounded environment operator: inspect, run directed commands, apply only explicitly delegated exact/bounded edits, execute tests, and gather evidence.
+- Do not independently redesign architecture, introduce new abstractions/services/state, broaden scope, or change unrelated stable components. If the task appears to require any of those, stop that expansion and report it to Sky.
+- A registered Tool must remain independently executable outside a Workflow. It may depend on declared inputs/configuration/durable artifacts, but not on hidden predecessor state or another named Tool having executed first.
+- Workflow ordering/gating belongs to orchestration. Do not make sibling Tools import or understand one another merely to enforce Workflow sequence.
+- Prefer the smallest safe implementation and preserve existing behavior. New complexity must be necessary to the explicit objective.
+- Treat performance as an acceptance criterion. Avoid unnecessary rebuilds/restarts, duplicate validation, long waits, retries, and manual checkpoints.
+- Governance must reduce risk while reducing human work; do not create approval ceremony where deterministic automation can safely perform the same control.
+- Passing tests or completing the work order does not establish architectural acceptance. Sky reviews the actual resulting diff/source before acceptance.
+
+Design shorthand: **a Tool may depend on data; it may not depend on history.**
+
 ## 3. Establish current facts before changing anything
 
 Inspect the live/current development state needed for this task. At minimum, as applicable:
@@ -73,6 +90,8 @@ Implement only the authorized scope:
 1. `[requirement]`
 2. `[requirement]`
 3. `[requirement]`
+
+Unless **Source-edit delegation** above explicitly authorizes a bounded mechanical edit/patch, the execution agent must not author source changes. Its role is inspection, execution, testing, and evidence collection under Sky's direction.
 
 Preserve unrelated newer work and historical applied migrations/receipts. Prefer additive, idempotent, deterministic changes. Reuse registered SkyCommand capabilities where they already exist rather than creating a parallel manual path.
 

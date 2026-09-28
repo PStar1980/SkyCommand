@@ -18,7 +18,7 @@ function humanAdmission(overrides = {}) {
     workflow_definition_id: '44444444-4444-4444-8444-444444444444',
     workflow_version_id: '55555555-5555-4555-8555-555555555555',
     workflow_code: 'skyserver_dev_commit',
-    version_number: 22,
+    version_number: 24,
     workflow_run_status: 'RUNNING',
     status: 'RUNNING',
     run_source: 'manual',

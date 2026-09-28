@@ -33,7 +33,7 @@ function definition() {
     workflowDefinitionId: WORKFLOW_DEFINITION_ID,
     workflowCode: 'skyserver_dev_commit',
     publishedVersionId: WORKFLOW_VERSION_ID,
-    publishedVersionNumber: 22,
+    publishedVersionNumber: 24,
   };
 }
 
@@ -56,7 +56,7 @@ function buildManualAdmission({ identity, requestDigest = identity.requestDigest
     workflow_definition_id: WORKFLOW_DEFINITION_ID,
     workflow_version_id: WORKFLOW_VERSION_ID,
     workflow_code: 'skyserver_dev_commit',
-    version_number: 22,
+    version_number: 24,
     workflow_run_status: 'RUNNING',
     status: 'RUNNING',
     run_source: 'manual',

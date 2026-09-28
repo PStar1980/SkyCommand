@@ -41,8 +41,8 @@ assert.match(correction, /requires_confirmation = FALSE/);
 assert.doesNotMatch(correction, /DO\s+\$[A-Za-z0-9_]+\$/);
 assert.doesNotMatch(correction, /(?<![A-Za-z0-9_])(?:COMMIT|ROLLBACK|START\s+TRANSACTION)(?![A-Za-z0-9_])/i);
 
-assert.match(preflightSource, /skyserver_dev_commit:\s*22/);
-assert.match(preflightSource, /skycommand-dev-promo-alt.*:\s*8/);
+assert.match(preflightSource, /skyserver_dev_commit:\s*24/);
+assert.match(preflightSource, /skycommand-dev-promo-alt.*:\s*10/);
 assert.match(preflightSource, /github_dev_pr_merge_node/);
 assert.match(preflightSource, /R6_PROMOTION_REMOTE_MAIN_UNAVAILABLE/);
 assert.match(preflightSource, /terminal_receipt/);

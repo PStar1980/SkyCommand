@@ -29,8 +29,8 @@ assert.match(migration, /snapshot_edges IS DISTINCT FROM live_edges/);
 assert.match(migration, /pinnedWorkflowVersionId', primary_version_id/);
 assert.match(migration, /pinnedVersionNumber', 22/);
 assert.match(migration, /alternate Assistant grant must remain absent/);
-assert.match(preflight, /skyserver_dev_commit: 22/);
-assert.match(preflight, /'skycommand-dev-promo-alt': 8/);
+assert.match(preflight, /skyserver_dev_commit: 24/);
+assert.match(preflight, /'skycommand-dev-promo-alt': 10/);
 assert.doesNotMatch(migration, /DO\s+\$[A-Za-z0-9_]+\$/);
 assert.doesNotMatch(migration, /(?<![A-Za-z0-9_])(?:COMMIT|ROLLBACK|START\s+TRANSACTION)(?![A-Za-z0-9_])/i);
 

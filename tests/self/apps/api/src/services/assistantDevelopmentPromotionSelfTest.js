@@ -81,6 +81,7 @@ async function run() {
       'CAPABILITY_CATALOG_EXPORT',
       'REPO_MAP_GENERATE',
       'REPO_ZIP_GENERATE',
+      'SECRET_LEAK_GATE',
     ]);
     assert.ok(
       toolPermissionCodes.every((permissionCode) => requiredPermissionCodes.includes(permissionCode)),

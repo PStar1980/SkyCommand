@@ -1,10 +1,10 @@
 # SkyCommand Development Operating Rules v1.5
 
-**Status:** Active development governance  
-**Revision:** 2026-09-22 — Agentic AI v1.2 alignment, runtime-freshness governance, retired-remediation cleanup, and mandatory finalization-receipt reporting  
-**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.4.md`  
-**Applies to:** Paul, Sky/ChatGPT, Codex/Luna/Astra, future coding agents, and any agent operating on the SkyCommand repository  
-**Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md`  
+**Status:** Active development governance
+**Revision:** 2026-09-27 — adds simplicity, tool-independence, delegated-execution, minimal-change, performance, and anti-bureaucracy governance; retains Agentic AI v1.2 alignment and mandatory finalization-receipt reporting
+**Supersedes:** `SkyCommand_Development_Operating_Rules_v1.4.md`
+**Applies to:** Paul, Sky/ChatGPT, Codex/Luna/Astra, future coding agents, and any agent operating on the SkyCommand repository
+**Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md`
 **Historical remediation status:** R0–R8 accepted; the retired remediation plan is historical evidence only and is not an active authority or required working-tree document.
 
 ## Transition scope and precedence
@@ -36,6 +36,23 @@ The system should prefer:
 - environment-scoped standing permissions over per-operation feature flags;
 - idempotent migrations/seeds over ad-hoc database mutation.
 
+### 1.1 Core architecture and efficiency invariants
+
+These invariants apply to every development change unless Paul explicitly authorizes a narrower exception:
+
+- **Prefer the simplest safe solution.** Do not add services, lifecycle layers, persistent state, gates, contracts, or abstractions unless the requirement demonstrably needs them.
+- **A Tool is independently executable.** A registered SkyCommand Tool must be able to run by itself through its authorized execution surface or be composed into one or more Workflows.
+- **A Tool may depend on declared data, not execution history.** Explicit inputs, configuration, durable artifacts, and registered infrastructure dependencies are valid. Hidden predecessor state or a requirement that another named Tool ran first is not.
+- **Workflows compose Tools; Tools do not absorb sibling Tools.** Ordering, branching, gating, and sequencing belong to orchestration. A Tool must not import, embed, or enforce a sibling Tool's workflow semantics merely because both appear in the same Workflow.
+- **Keep the change surface minimal.** A small requirement should normally produce a small change. If a change appears to require unrelated stable Tools/subsystems to change, stop for architectural review before expanding scope.
+- **Preserve working behavior by default.** New functionality must not alter unrelated Tool contracts, Workflow behavior, runtime lifecycle, promotion/finalization behavior, or APIs unless the requirement explicitly calls for it.
+- **Performance is part of correctness.** Materially slower execution, extra rebuilds/restarts, longer waits, excess retries, or unnecessary resource use are regressions unless required, measured, and accepted.
+- **Governance must reduce risk without creating avoidable human work.** Do not add approval ceremony, manual checkpoints, duplicate validation, or lifecycle hurdles when a simpler deterministic control provides the same safety.
+- **Fail clearly and quickly.** Validate external dependencies and hard preconditions early rather than allowing routine runs to wait for long timeouts when unavailability can be determined sooner.
+- **Prefer deterministic automation over agent judgment for repetitive work.** Testing, evidence gathering, routine validation, recovery, and other mechanical operations should move into deterministic Tools/Workflows where practical.
+
+A useful design test is: **a Tool may depend on data; it may not depend on history.**
+
 ## 2. Development ownership and task authority
 
 - Paul owns product direction, final acceptance, promotion intent, release intent, and changes to these governance rules.
@@ -45,6 +62,20 @@ The system should prefer:
 - An agent must not silently continue into the next roadmap phase.
 - Within an assigned `DEV_LOCAL` task, the work order itself authorizes the routine local operations necessary to complete that task, subject to the hard boundaries in these rules.
 - An implementation agent must not stop merely because a routine step requires a database upgrade, local `.env` reconciliation, local Docker rebuild/restart, validation run, artifact generation, or an allowlisted SkyCommand Tool/Workflow.
+
+### 2.1 Supervising architect and delegated execution roles
+
+The default local-development responsibility split is explicit:
+
+- **Paul sets the objective and owns final acceptance/promotion intent.**
+- **Sky/ChatGPT is the supervising architect, primary source-design/coding authority, integration reviewer, and acceptance reviewer.**
+- **Luna/Codex or any replacement execution model is Sky's delegated eyes and hands in the authorized environment.** Its default role is inspection, bounded command execution, applying exact directed edits/patches when delegated, test execution, evidence collection, and environment interaction.
+- An execution agent does **not** independently own architecture, abstraction design, subsystem boundaries, scope expansion, cross-component contracts, or acceptance.
+- If a delegated task appears to require an unrelated component change, architectural expansion, new persistent state/service, or a change to an established Tool contract, the execution agent must stop that expansion and report the dependency to Sky.
+- Opportunistic refactors, cleanup, redesign, feature additions, or unrelated fixes are prohibited unless explicitly authorized.
+- An execution agent's completion report and passing tests are evidence, not architectural approval. Sky must independently review the actual resulting diff/source for scope, coupling, tool independence, backward compatibility, runtime/performance impact, and unnecessary complexity before recommending acceptance.
+
+The objective of delegation is to remove routine work from Paul, not to transfer architectural decision-making to the execution agent or create a human message-relay loop.
 
 ## 3. Workflow-centered authority model
 

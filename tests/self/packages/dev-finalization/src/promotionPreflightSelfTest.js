@@ -96,7 +96,7 @@ function readyOutput() {
     workflow: {
       workflowCode: 'skyserver_dev_commit',
       workflowVersionId: '33333333-3333-4333-8333-333333333333',
-      versionNumber: 22,
+      versionNumber: 24,
       mergeApprovalRequired: false,
       agentMustStop: false,
       terminalObservationRequired: true,
@@ -218,7 +218,7 @@ async function run() {
   assert.equal(ready.success, true);
   assert.equal(ready.outputType, 'dev_promotion_preflight_summary.v1');
   assert.equal(ready.output.outcome, 'READY');
-  assert.equal(ready.output.workflow.versionNumber, 22);
+  assert.equal(ready.output.workflow.versionNumber, 24);
   assert.equal(ready.output.workflow.mergeApprovalRequired, false);
   assert.equal(ready.output.principal.userId, null);
 

@@ -1817,7 +1817,9 @@ SkyCommand/
 │   │       │   ├── 00155__agent_interactions_recovery_hardening.sql
 │   │       │   ├── 00156__temporal_orchestrator_refresh_operations.sql
 │   │       │   ├── 00157__managed_runtime_enrollment_operations.sql
-│   │       │   └── 00160__assistant_dev_runtime_refresh_operations.sql
+│   │       │   ├── 00160__assistant_dev_runtime_refresh_operations.sql
+│   │       │   ├── 00161__development_promotion_secret_leak_gate.sql
+│   │       │   └── 00162__development_promotion_secret_leak_gate_decoupling.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1896,6 +1898,7 @@ SkyCommand/
 │   │       ├── promotionPreflight.js
 │   │       ├── readiness.js
 │   │       ├── receipt.js
+│   │       ├── secretLeakGate.js
 │   │       └── validation.js
 │   ├── files/
 │   │   └── src/
@@ -2081,7 +2084,8 @@ SkyCommand/
 │       │   ├── macro_ingestion_summary.v1.schema.json
 │       │   ├── postgresql_database_comparison_summary.v1.schema.json
 │       │   ├── repository_map_summary.v1.schema.json
-│       │   └── repository_package_summary.v1.schema.json
+│       │   ├── repository_package_summary.v1.schema.json
+│       │   └── secret_leak_gate_summary.v1.schema.json
 │       ├── custom/
 │       │   └── _template/
 │       │       ├── example_greeting_summary.v1.schema.json
@@ -2490,11 +2494,14 @@ SkyCommand/
         │   │   └── src/
         │   │       ├── devCommitScopeSelfTest.js
         │   │       ├── devFinalizationSelfTest.js
+        │   │       ├── promotionGraphContractSelfTest.js
         │   │       ├── promotionPreflightSelfTest.js
         │   │       ├── r6CorrectionSelfTest.js
         │   │       ├── r6HumanAgentParityRecoverySelfTest.js
         │   │       ├── r6PromotionNodeOrderSelfTest.js
-        │   │       └── receiptPathPersistenceSelfTest.js
+        │   │       ├── receiptPathPersistenceSelfTest.js
+        │   │       ├── secretLeakGatePromotionWorkflowSelfTest.js
+        │   │       └── secretLeakGateSelfTest.js
         │   ├── files/
         │   │   └── src/
         │   │       ├── repositoryArtifactConfigurationSelfTest.js
