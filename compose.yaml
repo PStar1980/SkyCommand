@@ -124,6 +124,8 @@ services:
     secrets:
       - source: github_token
         target: skycommand_github_token
+    networks:
+      default: {}
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -142,6 +144,13 @@ services:
       AGENT_RUNTIME_TASK_QUEUE: skycommand-agent-runtime-local
       AGENT_RUNTIME_WORKER_GENERATION: ${AGENT_RUNTIME_WORKER_GENERATION:-compose-local}
       AGENT_RUNTIME_WORKER_IDENTITY: agent-runtime-worker-compose
+      CODEX_CONTROL_BRIDGE_URL: http://codex-control-bridge-api-control:4220
+      CODEX_CONTROL_BRIDGE_TOKEN_FILE: /run/codex-api-bridge/api-bridge-token
+    volumes:
+      - codex_api_bridge_token:/run/codex-api-bridge:ro
+    networks:
+      - default
+      - codex_api_control
     init: true
     read_only: true
     tmpfs:
@@ -187,6 +196,19 @@ services:
       dockerfile: docker/codex-mcp-gateway.Dockerfile
     image: skycommand-codex-mcp-gateway:local
     container_name: skycommand-codex-mcp-gateway
+    depends_on:
+      codex-managed-volume-init:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    environment:
+      CODEX_MCP_INVOCATION_ENABLED: "true"
+      CODEX_RUNTIME_TOKEN_FILE: /run/codex-runtime-control/runtime-control-token
+      CODEX_API_BRIDGE_TOKEN_FILE: /run/codex-api-bridge/api-bridge-token
+      CODEX_API_INTERNAL_URL: http://api:7171
+    volumes:
+      - codex_runtime_control_token:/run/codex-runtime-control:ro
+      - codex_api_bridge_token:/run/codex-api-bridge:ro
     init: true
     read_only: true
     tmpfs:
@@ -198,6 +220,7 @@ services:
     user: "1000:1000"
     networks:
       - codex_mcp_internal
+      - codex_api_control
     healthcheck:
       test:
         - CMD
@@ -260,7 +283,8 @@ services:
       codex-egress-proxy:
         condition: service_healthy
     environment:
-      CODEX_RUNTIME_GENERATION: phase19-3a0
+      CODEX_RUNTIME_GENERATION: phase19-3a1
+      CODEX_AGENT_EXECUTION_ENABLED: "true"
       CODEX_RUNTIME_CONTROL_TOKEN_FILE: /run/codex-runtime-control/runtime-control-token
       CODEX_RUNTIME_CONTROL_PORT: 4219
       CODEX_MANAGED_MCP_URL: http://skycommand-codex-mcp-gateway:3981/mcp

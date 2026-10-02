@@ -63,10 +63,15 @@ function evaluateRuntimeCompatibility({ installation = {}, requiredCapabilities 
   const required = normalizeCapabilities(requiredCapabilities);
   const declared = normalizeCapabilities(installation.capabilityManifest || installation.manifestCapabilities);
   const reasons = [];
+  const realCodexPilot = installation.runtimeCode === 'OPENAI_CODEX_APP_SERVER';
 
   if (installation.enabled !== true) reasons.push('RUNTIME_INSTALLATION_DISABLED');
   if (installation.certificationState !== 'CERTIFIED') reasons.push('RUNTIME_NOT_CERTIFIED');
-  if (installation.executionEnabled !== false) reasons.push('RUNTIME_EXECUTION_FLAG_INVALID');
+  if (realCodexPilot) {
+    if (installation.executionEnabled !== true) reasons.push('RUNTIME_EXECUTION_FLAG_INVALID');
+    if (installation.executionEnablementSource !== 'GOVERNED_CODEX_PILOT') reasons.push('RUNTIME_EXECUTION_SOURCE_INVALID');
+    if (installation.runtimeProfile !== 'CODEX_READ_ONLY_PILOT') reasons.push('RUNTIME_PROFILE_NOT_CERTIFIED');
+  } else if (installation.executionEnabled !== false) reasons.push('RUNTIME_EXECUTION_FLAG_INVALID');
   if (installation.freshnessStatus !== 'CURRENT') reasons.push(`RUNTIME_FRESHNESS_${installation.freshnessStatus || 'UNKNOWN'}`);
 
   const missingCapabilities = required.filter((capability) => !declared.includes(capability));
@@ -79,8 +84,8 @@ function evaluateRuntimeCompatibility({ installation = {}, requiredCapabilities 
     requiredCapabilities: required,
     declaredCapabilities: declared,
     missingCapabilities,
-    executionEnabled: false,
-    phase: '19.1',
+    executionEnabled: realCodexPilot,
+    phase: realCodexPilot ? '19.3A1' : '19.1',
   };
 }
 
@@ -88,14 +93,48 @@ function runtimeEligibility({ installation = {}, account = {}, requiredCapabilit
   const compatibility = evaluateRuntimeCompatibility({ installation, requiredCapabilities });
   const reasons = [...compatibility.reasons];
   if (account.accountState !== 'CONFIGURED') reasons.push('RUNTIME_ACCOUNT_NOT_CONFIGURED');
-  if (account.executionEnabled !== false) reasons.push('ACCOUNT_EXECUTION_FLAG_INVALID');
+  if (compatibility.executionEnabled ? account.executionEnabled !== true : account.executionEnabled !== false) reasons.push('ACCOUNT_EXECUTION_FLAG_INVALID');
 
   return {
     eligible: reasons.length === 0,
     runtimeCompatible: compatibility.compatible,
     reasons: [...new Set(reasons)],
-    executionEnabled: false,
-    phase: '19.1',
+    executionEnabled: compatibility.executionEnabled,
+    phase: compatibility.phase,
+  };
+}
+
+function resolvePersistedRecoveryRuntime({ executionContext = {}, expectedRuntimeKind = null } = {}) {
+  const runtime = executionContext && typeof executionContext === 'object' && !Array.isArray(executionContext)
+    ? executionContext.runtime
+    : null;
+  if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime) || runtime.recoverySupported !== true || !text(runtime.runtimeKind)) {
+    return { status: 'UNSUPPORTED', runtime: null };
+  }
+
+  const runtimeKind = text(runtime.runtimeKind);
+  if (expectedRuntimeKind && runtimeKind !== text(expectedRuntimeKind)) {
+    return { status: 'IDENTITY_MISMATCH', runtime: null };
+  }
+
+  const runtimeMode = text(runtime.runtimeMode);
+  if (!['FIXTURE', 'PROVIDER_BACKED'].includes(runtimeMode)) {
+    return { status: 'INVALID', runtime: null };
+  }
+  const providerBacked = runtime.providerBacked === true;
+  if ((runtimeMode === 'PROVIDER_BACKED') !== providerBacked) {
+    return { status: 'INVALID', runtime: null };
+  }
+
+  return {
+    status: 'READY',
+    runtime: {
+      runtimeKind,
+      runtimeMode,
+      providerBacked,
+      recoverySupported: true,
+      adapterVersion: runtime.adapterVersion ? text(runtime.adapterVersion) : null,
+    },
   };
 }
 
@@ -113,7 +152,9 @@ function safeRuntimeInstallation(row = {}) {
     containmentClass: row.containmentClass || row.containment_class || null,
     certificationState: row.certificationState || row.certification_state || 'UNVERIFIED',
     enabled: row.enabled === true,
-    executionEnabled: false,
+    executionEnabled: row.runtimeCode === 'OPENAI_CODEX_APP_SERVER' || row.runtime_code === 'OPENAI_CODEX_APP_SERVER'
+      ? row.executionEnabled === true || row.execution_enabled === true
+      : false,
     configurationRevision: row.configurationRevision || row.configuration_revision || null,
     configurationDigest: row.configurationDigest || row.configuration_digest || null,
     processGeneration: row.processGeneration || row.process_generation || null,
@@ -127,6 +168,7 @@ module.exports = {
   RUNTIME_FRESHNESS_STATUSES,
   evaluateRuntimeCompatibility,
   normalizeRuntimeConfigurationIdentity,
+  resolvePersistedRecoveryRuntime,
   runtimeEligibility,
   safeRuntimeInstallation,
 };

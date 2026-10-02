@@ -8,6 +8,7 @@ router.use(requireAssistantIntegration);
 router.get('/capabilities', assistantIntegrationController.getCapabilities);
 router.get('/openapi.json', assistantIntegrationController.getOpenApi);
 router.get('/managed-codex', assistantIntegrationController.getManagedCodexStatus);
+router.get('/managed-codex/diagnostics', assistantIntegrationController.getManagedCodexDiagnostics);
 router.post('/managed-codex/enrollments', assistantIntegrationController.startManagedCodexEnrollment);
 router.post('/managed-codex/enrollments/:enrollmentId/reconcile', assistantIntegrationController.reconcileManagedCodexEnrollment);
 router.post('/managed-codex/account/refresh', assistantIntegrationController.refreshManagedCodexAccount);

@@ -26,10 +26,12 @@ function handler(callback, statusCode = 200) {
 
 module.exports = {
   admit: handler((req) => agentExecutionService.admitAgentRun(req, req.body), 202),
+  options: handler((req) => agentExecutionService.getAgentRunOptions(req)),
   list: handler((req) => agentExecutionService.listAgentRuns(req, req.query)),
   detail: handler((req) => agentExecutionService.getAgentRun(req, req.params.runId)),
   events: handler((req) => agentExecutionService.getAgentRunEvents(req, req.params.runId)),
   result: handler((req) => agentExecutionService.getAgentRunResult(req, req.params.runId)),
   cancel: handler((req) => agentExecutionService.cancelAgentRun(req, req.params.runId)),
+  recover: handler((req) => agentExecutionService.recoverAgentRun(req, req.params.runId, req.body)),
   stopScope: handler((req) => agentExecutionService.stopExecutionScope(req, req.params.scopeId)),
 };

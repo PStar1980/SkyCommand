@@ -18,7 +18,7 @@ async function getCapabilities(req, res, next) {
   try {
     return res.json({
       ok: true,
-      capabilities: assistantIntegrationService.getCapabilities({
+      capabilities: await assistantIntegrationService.getCapabilitiesWithRuntimeReadiness({
         permissionCodes: req.assistantIntegration?.permissionCodes || [],
         agentId: req.assistantIntegration?.agentId || 'assistant-http',
       }),
@@ -46,6 +46,21 @@ async function getManagedCodexStatus(req, res, next) {
       context: authService.getRequestContext(req),
     });
     return res.json({ ok: true, ...status });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function getManagedCodexDiagnostics(req, res, next) {
+  try {
+    const diagnostics = await assistantIntegrationService.getManagedCodexDiagnostics({
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId,
+      actor: req.user,
+      session: req.session,
+      context: authService.getRequestContext(req),
+    });
+    return res.json({ ok: true, ...diagnostics });
   } catch (error) {
     return sendError(res, error, next);
   }
@@ -357,6 +372,7 @@ module.exports = {
   getCapabilities,
   getOpenApi,
   getManagedCodexStatus,
+  getManagedCodexDiagnostics,
   startManagedCodexLifecycle,
   getManagedCodexLifecycle,
   startManagedCodexEnrollment,

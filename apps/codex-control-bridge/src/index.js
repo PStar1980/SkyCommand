@@ -22,12 +22,18 @@ const ROUTES = new Map([
   ['/v1/runtime/health', ['GET', '/health']],
   ['/v1/account/read', ['POST', '/account/read']],
   ['/v1/account/metadata', ['POST', '/account/metadata']],
+  ['/v1/diagnostics/compatibility', ['POST', '/diagnostics/compatibility']],
   ['/v1/account/logout', ['POST', '/account/logout']],
+  ['/v1/runtime/execute', ['POST', '/runtime/execute']],
+  ['/v1/runtime/start', ['POST', '/runtime/start']],
+  ['/v1/runtime/observe', ['POST', '/runtime/observe']],
+  ['/v1/runtime/reconcile', ['POST', '/runtime/reconcile']],
+  ['/v1/runtime/interrupt', ['POST', '/runtime/interrupt']],
 ]);
 const MAX_BODY_BYTES = 16 * 1024;
 const SAFE_RPC_METHODS = new Set([
   'account/read', 'account/login/start', 'account/login/cancel', 'account/logout',
-  'account/rateLimits/read', 'account/usage/read',
+  'account/rateLimits/read', 'account/usage/read', 'model/list', 'mcpServerStatus/list',
 ]);
 const RPC_STAGE_BY_METHOD = Object.freeze({
   'account/read': 'ACCOUNT_READ',
@@ -36,6 +42,8 @@ const RPC_STAGE_BY_METHOD = Object.freeze({
   'account/logout': 'ACCOUNT_LOGOUT',
   'account/rateLimits/read': 'ACCOUNT_RATE_LIMITS_READ',
   'account/usage/read': 'ACCOUNT_USAGE_READ',
+  'model/list': 'MODEL_LIST',
+  'mcpServerStatus/list': 'MCP_SERVER_STATUS_LIST',
 });
 const SAFE_RPC_OUTCOMES = new Set(['SUCCEEDED', 'JSON_RPC_ERROR', 'TIMEOUT', 'TRANSPORT_ERROR']);
 const ACCOUNT_READ_ERROR_CLASSIFICATIONS = new Set([
@@ -304,7 +312,7 @@ function createServer(options = {}) {
         return send(response, healthy ? 200 : 503, {
           ok: healthy,
           service: 'CODEX_CONTROL_BRIDGE',
-          profile: 'CODEX_MANAGED_BOOTSTRAP',
+          profile: worker.payload?.executionEnabled === true ? 'CODEX_READ_ONLY_PILOT' : 'CODEX_MANAGED_BOOTSTRAP',
           runtimeReadiness: worker.payload?.readiness || 'RUNTIME_OFFLINE',
         });
       } catch (_error) {

@@ -3,6 +3,7 @@ const {
   assertTransition,
   buildTerminalSummary,
   isTerminalStatus,
+  normalizeUsageForSummary,
   resultDigest,
 } = require('../../../agents/src/agentRunKernel');
 const { query, pool } = require('../../../db/src/connection');
@@ -84,7 +85,7 @@ async function loadRun(client, runId, forUpdate = false) {
   const result = await client.query(
     `SELECT ar.*, s.session_model, s.status AS session_status,
             es.status AS scope_status, es.revocation_epoch AS scope_revocation_epoch,
-            d.agent_code, v.revision AS agent_revision,
+            d.agent_code, v.revision AS agent_revision, v.configuration AS definition_configuration,
             r.runtime_code, i.adapter_version, i.runtime_profile,
             pw.environment_code, pw.workspace_mode
        FROM worker.agent_runs ar
@@ -136,6 +137,10 @@ async function prepareProviderOperationActivity({ runId, instruction, deadlineAt
       return { canceled: true, runId, fenceEpoch: Math.max(run.revocation_epoch, run.scope_revocation_epoch) };
     }
 
+    const runtimeContext = safeObject(run.execution_context).runtime || {};
+    const runtimeMode = runtimeContext.runtimeMode === 'PROVIDER_BACKED' ? 'PROVIDER_BACKED' : 'FIXTURE';
+    const providerBacked = runtimeContext.providerBacked === true;
+    const recoverySupported = runtimeContext.recoverySupported === true;
     const turnInputDigest = sha256Digest({ instruction: String(instruction || '') });
     const turnResult = await client.query(
       `INSERT INTO worker.agent_turns (agent_run_id, session_id, turn_number, input_digest, status)
@@ -154,7 +159,7 @@ async function prepareProviderOperationActivity({ runId, instruction, deadlineAt
        ) VALUES ($1, $2, $3, $4, 'SUBMIT_TURN', $5, $6, $7, $8, 'JOURNALED', 'UNKNOWN')
        ON CONFLICT (operation_key) DO NOTHING
        RETURNING *`,
-      [operationKey, runId, turn.agent_turn_id, run.session_id, `fake-operation:${operationKey}`, turnInputDigest, Math.max(run.revocation_epoch, run.scope_revocation_epoch), deadlineAt],
+      [operationKey, runId, turn.agent_turn_id, run.session_id, `${run.runtime_code === 'OPENAI_CODEX_APP_SERVER' ? 'codex' : 'fake'}-operation:${operationKey}`, turnInputDigest, Math.max(run.revocation_epoch, run.scope_revocation_epoch), deadlineAt],
     );
     const operation = operationResult.rows[0] || (await client.query('SELECT * FROM worker.agent_provider_operations WHERE operation_key = $1', [operationKey])).rows[0];
     await client.query(
@@ -186,11 +191,194 @@ async function prepareProviderOperationActivity({ runId, instruction, deadlineAt
       runId,
       fenceEpoch: operation.fence_epoch,
       inputDigest: operation.input_digest,
+      providerOperationReference: operation.provider_operation_reference,
+      deadlineAt: operation.deadline_at,
       runtimeKind: run.runtime_code,
+      runtimeMode,
+      providerBacked,
+      recoverySupported,
+      adapterVersion: run.adapter_version || runtimeContext.adapterVersion || null,
       runtimeProfile: run.runtime_profile,
       fakeRuntimeCaseId: run.fake_runtime_case_id,
+      managedCapabilityCase: safeObject(run.definition_configuration).managedCapabilityCase || null,
+      providerModel: safeObject(run.definition_configuration).model || null,
+      providerReasoningEffort: safeObject(run.definition_configuration).reasoningEffort || null,
       instruction: String(instruction || ''),
     };
+  });
+}
+
+function projectDurableProviderObservation(runtimeResult = {}) {
+  if (!runtimeResult || typeof runtimeResult !== 'object' || Array.isArray(runtimeResult)
+    || runtimeResult.providerBacked !== true) return null;
+  const providerTurnId = typeof runtimeResult.providerTurnId === 'string' ? runtimeResult.providerTurnId.slice(0, 160) : null;
+  const providerSessionReference = typeof runtimeResult.providerSessionReference === 'string' ? runtimeResult.providerSessionReference.slice(0, 160) : null;
+  const providerOperationReference = typeof runtimeResult.providerOperationReference === 'string' ? runtimeResult.providerOperationReference.slice(0, 240) : null;
+  const terminalStatus = typeof runtimeResult.providerTerminalStatus === 'string'
+    ? runtimeResult.providerTerminalStatus.toUpperCase().slice(0, 40) : 'UNKNOWN';
+  const terminal = ['COMPLETED', 'FAILED', 'CANCELED', 'CANCELLED', 'INTERRUPTED'].includes(terminalStatus);
+  if (!providerTurnId || !terminal) return null;
+  return {
+    schemaVersion: 'AGENT_PROVIDER_TERMINAL_OBSERVATION_V1',
+    providerBacked: true,
+    sendAcceptance: runtimeResult.sendAcceptance === 'ACKNOWLEDGED' ? 'ACKNOWLEDGED' : runtimeResult.sendAcceptance === 'REJECTED_BEFORE_ACCEPTANCE' ? 'REJECTED_BEFORE_ACCEPTANCE' : 'UNKNOWN',
+    outcomeCertainty: typeof runtimeResult.outcomeCertainty === 'string' ? runtimeResult.outcomeCertainty.slice(0, 40) : 'UNKNOWN',
+    providerTerminalStatus: terminalStatus,
+    providerTerminalFailure: runtimeResult.providerTerminalFailure === true,
+    providerTurnId,
+    providerSessionReference,
+    providerOperationReference,
+    requestedModel: typeof runtimeResult.requestedModel === 'string' ? runtimeResult.requestedModel.slice(0, 120) : null,
+    observedModel: typeof runtimeResult.observedModel === 'string' ? runtimeResult.observedModel.slice(0, 120) : null,
+    requestedReasoningEffort: typeof runtimeResult.requestedReasoningEffort === 'string' ? runtimeResult.requestedReasoningEffort.slice(0, 40) : null,
+    observedReasoningEffort: typeof runtimeResult.observedReasoningEffort === 'string' ? runtimeResult.observedReasoningEffort.slice(0, 40) : null,
+    providerErrorCode: typeof runtimeResult.providerErrorCode === 'string' ? runtimeResult.providerErrorCode.slice(0, 80) : null,
+    providerErrorKind: typeof runtimeResult.providerErrorKind === 'string' ? runtimeResult.providerErrorKind.slice(0, 80) : null,
+    providerErrorHttpStatusCode: Number.isSafeInteger(runtimeResult.providerErrorHttpStatusCode) ? runtimeResult.providerErrorHttpStatusCode : null,
+    providerErrorMessageDigest: typeof runtimeResult.providerErrorMessageDigest === 'string' && /^[a-f0-9]{64}$/i.test(runtimeResult.providerErrorMessageDigest)
+      ? runtimeResult.providerErrorMessageDigest.toUpperCase() : null,
+    providerErrorMessageClass: typeof runtimeResult.providerErrorMessageClass === 'string' ? runtimeResult.providerErrorMessageClass.slice(0, 80) : null,
+    providerErrorAdditionalDetails: safeObject(runtimeResult.providerErrorAdditionalDetails, null),
+    usage: safeObject(runtimeResult.usage, null),
+    physicalStop: safeObject(runtimeResult.physicalStop, null),
+    terminalConfirmation: typeof runtimeResult.terminalConfirmation === 'string' ? runtimeResult.terminalConfirmation.slice(0, 40) : null,
+    worker: safeObject(runtimeResult.worker, null),
+    containmentProfile: safeObject(runtimeResult.containmentProfile, null),
+    egressEvidence: safeObject(runtimeResult.egressEvidence, null),
+    capabilityInvocations: Array.isArray(runtimeResult.capabilityInvocations) ? runtimeResult.capabilityInvocations.map((entry) => ({
+      effectId: entry?.effectId || null,
+      effectKey: entry?.effectKey || null,
+      audience: entry?.audience || null,
+      capabilityKind: entry?.capabilityKind || null,
+      capabilityCode: entry?.capabilityCode || null,
+      capabilityVersion: entry?.capabilityVersion || null,
+      requestDigest: entry?.requestDigest || null,
+      deliveryIndex: entry?.deliveryIndex || null,
+    })) : [],
+    taskOutputCandidate: safeObject(runtimeResult.taskOutputCandidate, null),
+    policyViolation: typeof runtimeResult.policyViolation === 'string' ? runtimeResult.policyViolation.slice(0, 120) : null,
+    recoveryRequired: runtimeResult.recoveryRequired === true,
+    observedAt: new Date().toISOString(),
+  };
+}
+
+function projectRuntimeEvidenceBoundary(value) {
+  // Persist only the small, adapter-returned observation cursor, never an
+  // arbitrary provider payload or credential. Keep the Temporal layer neutral.
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || !/^[A-Z][A-Z0-9_]{1,63}$/.test(String(value.schemaVersion || ''))
+    || !/^[0-9a-f-]{36}$/i.test(String(value.generation || ''))
+    || !Number.isSafeInteger(value.cursor) || value.cursor < 0
+    || !Number.isSafeInteger(value.pendingConnects) || value.pendingConnects < 0
+    || typeof value.observedAt !== 'string' || !Number.isFinite(Date.parse(value.observedAt))) return null;
+  return {
+    schemaVersion: value.schemaVersion,
+    generation: value.generation,
+    cursor: value.cursor,
+    pendingConnects: value.pendingConnects,
+    observedAt: new Date(value.observedAt).toISOString(),
+  };
+}
+
+async function recordProviderAcceptanceActivity({ runId, operationId, turnId, providerTurnId, providerSessionReference, providerOperationReference, threadId = null, runtimeEvidenceBoundary = null } = {}) {
+  return withTransaction(async (client) => {
+    const run = await loadRun(client, runId, true);
+    if (!run) throw new Error('Agent Run not found while recording provider acceptance.');
+    await client.query(
+      `UPDATE worker.agent_provider_operations
+          SET state = 'ACKNOWLEDGED', outcome_certainty = 'ACKNOWLEDGED',
+              outcome = jsonb_build_object(
+                'sendAcceptance', 'ACKNOWLEDGED',
+                'providerOperationReference', CAST($2 AS text),
+                'providerTurnId', CAST($3 AS text),
+                'providerSessionReference', CAST($4 AS text),
+                'threadId', CAST($5 AS text),
+                'runtimeEvidenceBoundary', $6::jsonb
+              )
+        WHERE provider_operation_id = $1`,
+      [operationId, providerOperationReference || null, providerTurnId || null, providerSessionReference || null, threadId || null, JSON.stringify(projectRuntimeEvidenceBoundary(runtimeEvidenceBoundary))],
+    );
+    await client.query(
+      `UPDATE worker.agent_turns
+          SET provider_turn_id = $2, provider_session_reference = $3, status = 'ACKNOWLEDGED'
+        WHERE agent_turn_id = $1`,
+      [turnId, providerTurnId || null, providerSessionReference || null],
+    );
+    await appendEvent(client, {
+      runId,
+      sessionId: run.session_id,
+      executionScopeId: run.execution_scope_id,
+      turnId,
+      eventType: 'PROVIDER_OPERATION_ACCEPTED',
+      sourceKind: 'SKYCOMMAND_AGENT_RUNTIME_ADAPTER',
+      sourceInstance: 'codex-agent-runtime-worker',
+      sourceCursor: `operation:${operationId}:accepted`,
+      payload: {
+        operationId,
+        providerOperationReference: providerOperationReference || null,
+        providerTurnId: providerTurnId || null,
+        providerSessionReference: providerSessionReference || null,
+        threadId: threadId || null,
+      },
+    });
+    return { runId, operationId, turnId, providerTurnId: providerTurnId || null, acknowledged: true };
+  });
+}
+
+async function recordProviderObservationActivity({ runId, operationId, turnId, runtimeResult } = {}) {
+  const observation = projectDurableProviderObservation(runtimeResult);
+  if (!observation) return { runId, operationId, recorded: false, reason: 'TERMINAL_PROVIDER_OBSERVATION_NOT_AVAILABLE' };
+  return withTransaction(async (client) => {
+    const run = await loadRun(client, runId, true);
+    if (!run) throw new Error('Agent Run not found while recording provider observation.');
+    const operationResult = await client.query(
+      `SELECT provider_operation_reference, outcome
+         FROM worker.agent_provider_operations
+        WHERE provider_operation_id = $1 AND agent_run_id = $2 AND agent_turn_id = $3
+        FOR UPDATE`,
+      [operationId, runId, turnId],
+    );
+    if (operationResult.rowCount !== 1) throw new Error('Provider operation not found while recording terminal observation.');
+    const existing = safeObject(operationResult.rows[0].outcome);
+    const expectedReference = operationResult.rows[0].provider_operation_reference || null;
+    if (expectedReference && observation.providerOperationReference && expectedReference !== observation.providerOperationReference) {
+      throw new Error('Provider operation reference mismatch while recording terminal observation.');
+    }
+    const priorObservation = safeObject(existing.durableTerminalObservation, null);
+    if (priorObservation) {
+      if (priorObservation.providerTurnId !== observation.providerTurnId
+        || (priorObservation.providerOperationReference && observation.providerOperationReference
+          && priorObservation.providerOperationReference !== observation.providerOperationReference)) {
+        throw new Error('Conflicting terminal provider observation already exists for this operation.');
+      }
+      return { runId, operationId, recorded: false, idempotent: true, digest: sha256Digest(priorObservation), observation: priorObservation };
+    }
+    const durableObservation = {
+      ...observation,
+      providerOperationReference: observation.providerOperationReference || expectedReference || null,
+    };
+    await client.query(
+      `UPDATE worker.agent_provider_operations
+          SET outcome = COALESCE(outcome, '{}'::jsonb) || jsonb_build_object('durableTerminalObservation', $2::jsonb)
+        WHERE provider_operation_id = $1`,
+      [operationId, JSON.stringify(durableObservation)],
+    );
+    const digest = sha256Digest(durableObservation);
+    await appendEvent(client, {
+      runId,
+      sessionId: run.session_id,
+      executionScopeId: run.execution_scope_id,
+      turnId,
+      eventType: 'PROVIDER_TERMINAL_OBSERVED',
+      sourceKind: 'SKYCOMMAND_AGENT_RUNTIME_ADAPTER',
+      sourceInstance: durableObservation.worker?.identity || 'runtime-worker',
+      sourceCursor: `operation:${operationId}:terminal-observed`,
+      availability: 'REPORTED',
+      freshness: 'CURRENT',
+      observedAt: durableObservation.observedAt,
+      payload: durableObservation,
+    });
+    return { runId, operationId, recorded: true, idempotent: false, digest, observation: durableObservation };
   });
 }
 
@@ -204,6 +392,10 @@ async function revokeManagedCapabilityBeforeDispatchActivity({ runId, effectId }
 
 async function dispatchManagedCapabilityActivity({ effectId, credential, runtimeWorker, simulateUnknownDispatch = false } = {}) {
   return agentCapabilityAuthorizationService.dispatchManagedCapability({ effectId, credential, runtimeWorker, simulateUnknownDispatch });
+}
+
+async function getManagedCapabilityEffectsActivity({ runId } = {}) {
+  return agentCapabilityAuthorizationService.getManagedCapabilityEffects(runId);
 }
 
 async function createAgentInteractionActivity(input = {}) {
@@ -244,32 +436,37 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
     if (!run) throw new Error('Agent Run not found while finalizing.');
 
     const stopRequested = ['CANCEL_REQUESTED', 'CANCELLING', 'CANCELED'].includes(run.status) || run.scope_status !== 'ACTIVE';
-    const recoveryRequired = reconciliation?.disposition === 'RECOVERY_REQUIRED'
-      || runtimeResult?.sendAcceptance === 'UNKNOWN' && !reconciliation;
     const rejected = runtimeResult?.sendAcceptance === 'REJECTED_BEFORE_ACCEPTANCE';
+    const providerTerminalFailed = runtimeResult?.providerBacked === true && runtimeResult?.providerTerminalFailure === true;
     const interactionBlocked = ['BLOCKED', 'EXPIRED', 'REJECTED', 'CANCELED'].includes(String(interactionOutcome || '').toUpperCase());
-    const status = stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : interactionBlocked || rejected ? 'FAILED' : 'COMPLETED';
-    const outcome = stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'SAFE_TO_REJECT' : 'SUCCESS';
     const physicalStopConfirmed = runtimeResult?.physicalStop?.state === 'CONFIRMED';
-    const stopUnconfirmed = stopRequested && !physicalStopConfirmed;
+    const providerTerminalUnconfirmed = stopRequested
+      && runtimeResult?.providerBacked === true
+      && runtimeResult?.terminalConfirmation !== 'CONFIRMED';
+    const stopUnconfirmed = stopRequested && (!physicalStopConfirmed || providerTerminalUnconfirmed);
+    const recoveryRequired = reconciliation?.disposition === 'RECOVERY_REQUIRED'
+      || runtimeResult?.sendAcceptance === 'UNKNOWN' && !reconciliation
+      || stopUnconfirmed;
+    const status = recoveryRequired ? 'RECOVERY_REQUIRED' : stopRequested ? 'CANCELED' : interactionBlocked || rejected || providerTerminalFailed ? 'FAILED' : 'COMPLETED';
+    const outcome = recoveryRequired ? 'RECOVERY_REQUIRED' : stopRequested ? 'CANCELED' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'SAFE_TO_REJECT' : providerTerminalFailed ? 'PROVIDER_TERMINAL_FAILED' : 'SUCCESS';
     const stopState = stopRequested
-      ? (physicalStopConfirmed ? 'CONFIRMED' : 'UNCONFIRMED')
+      ? (stopUnconfirmed ? 'UNCONFIRMED' : 'CONFIRMED')
       : 'NONE';
     const worker = safeObject(runtimeResult?.worker);
     const runtimeEvents = normalizeRuntimeEvents(runtimeResult);
 
     if (operation?.operationId) {
-      const operationState = stopRequested
-        ? 'CANCELED'
-        : recoveryRequired
+      const operationState = recoveryRequired
           ? 'RECOVERY_REQUIRED'
+          : stopRequested
+            ? 'CANCELED'
           : rejected
             ? 'REJECTED'
             : 'COMPLETED';
-      const certainty = stopRequested
-        ? 'NOT_CONFIRMED'
-        : recoveryRequired
+      const certainty = recoveryRequired
           ? 'UNKNOWN'
+          : stopRequested
+            ? 'NOT_CONFIRMED'
           : rejected
             ? 'REJECTED'
             : 'ACKNOWLEDGED';
@@ -284,7 +481,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
             SET provider_turn_id = $2, provider_session_reference = $3,
                 status = $4, output_digest = $5
           WHERE agent_turn_id = $1`,
-        [operation.turnId, runtimeResult?.providerTurnId || null, runtimeResult?.providerSessionReference || null, stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : rejected ? 'REJECTED' : 'COMPLETED', runtimeResult?.taskOutputCandidate ? sha256Digest(runtimeResult.taskOutputCandidate) : null],
+        [operation.turnId, runtimeResult?.providerTurnId || null, runtimeResult?.providerSessionReference || null, stopRequested ? 'CANCELED' : recoveryRequired ? 'RECOVERY_REQUIRED' : rejected ? 'REJECTED' : providerTerminalFailed ? 'FAILED' : 'COMPLETED', runtimeResult?.taskOutputCandidate ? sha256Digest(runtimeResult.taskOutputCandidate) : null],
       );
     }
 
@@ -324,6 +521,11 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       }
     }
 
+    const defaultRuntimeSourceKind = runtimeResult?.providerBacked === true
+      ? 'OPENAI_CODEX_APP_SERVER'
+      : 'FAKE_RUNTIME_WORKER';
+    const defaultRuntimeSourceInstance = worker.generation || worker.identity
+      || (runtimeResult?.providerBacked === true ? 'managed-codex-runtime' : 'unknown-runtime-worker');
     for (const event of runtimeEvents) {
       await appendEvent(client, {
         runId,
@@ -332,13 +534,28 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
         turnId: operation?.turnId || null,
         eventType: event.eventType || 'RUNTIME_EVENT',
         eventScope: event.scope || 'RUN',
-        sourceKind: event.source?.kind || 'FAKE_RUNTIME_WORKER',
-        sourceInstance: event.source?.instance || 'unknown-runtime-worker',
+        sourceKind: event.source?.kind || defaultRuntimeSourceKind,
+        sourceInstance: event.source?.instance || defaultRuntimeSourceInstance,
         sourceCursor: event.source?.cursor || `${event.eventId || 'event'}:${event.eventType || 'RUNTIME_EVENT'}`,
         availability: ['REPORTED', 'NOT_REPORTED', 'UNSUPPORTED', 'ERROR'].includes(event.availability) ? event.availability : 'ERROR',
         freshness: ['CURRENT', 'STALE', 'UNKNOWN'].includes(event.freshness) ? event.freshness : 'UNKNOWN',
         observedAt: event.observedAt || new Date().toISOString(),
         payload: { contract: event.contract, eventId: event.eventId, payload: safeObject(event.payload), measurements: event.measurements || null },
+      });
+    }
+    if (runtimeResult?.providerBacked === true && runtimeResult?.egressEvidence) {
+      await appendEvent(client, {
+        runId,
+        sessionId: run.session_id,
+        executionScopeId: run.execution_scope_id,
+        turnId: operation?.turnId || null,
+        eventType: 'PROVIDER_EGRESS_OBSERVATION',
+        sourceKind: 'SKYCOMMAND_MANAGED_EGRESS_PROXY',
+        sourceInstance: runtimeResult?.worker?.generation || 'unknown-runtime-generation',
+        sourceCursor: `provider-egress:${operation?.operationId || runId}:terminal`,
+        availability: runtimeResult.egressEvidence.availability === 'UNAVAILABLE' ? 'NOT_REPORTED' : 'REPORTED',
+        freshness: 'CURRENT',
+        payload: runtimeResult.egressEvidence,
       });
     }
     if (reconciliation) {
@@ -410,6 +627,12 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       });
     }
 
+    const summaryUsage = normalizeUsageForSummary({
+      usage: runtimeResult?.usage ?? null,
+      operationId: operation?.operationId || null,
+      runtimeKind: run.runtime_code,
+    });
+
     const summary = buildTerminalSummary({
       runId,
       sessionId: run.session_id,
@@ -425,11 +648,36 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       status,
       outcome,
       taskOutput: status === 'COMPLETED' ? runtimeResult?.taskOutputCandidate || null : null,
-      usage: runtimeResult?.usage || null,
+      usage: summaryUsage,
       operationId: operation?.operationId || null,
       caseId: run.fake_runtime_case_id,
       stopState,
-      errorCode: recoveryRequired ? 'PROVIDER_SEND_UNKNOWN' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'PROVIDER_REJECTED_BEFORE_ACCEPTANCE' : stopUnconfirmed ? 'PHYSICAL_STOP_NOT_CONFIRMED' : null,
+      providerEvidence: runtimeResult?.providerBacked === true ? {
+        providerSessionReference: runtimeResult?.providerSessionReference || null,
+        providerTurnId: runtimeResult?.providerTurnId || null,
+        providerOperationReference: runtimeResult?.providerOperationReference || operation?.providerOperationReference || null,
+        requestedModel: runtimeResult?.requestedModel || null,
+        observedModel: runtimeResult?.observedModel || null,
+        requestedReasoningEffort: runtimeResult?.requestedReasoningEffort || null,
+        observedReasoningEffort: runtimeResult?.observedReasoningEffort || null,
+        providerErrorCode: runtimeResult?.providerErrorCode || null,
+        providerErrorKind: runtimeResult?.providerErrorKind || null,
+        providerErrorHttpStatusCode: runtimeResult?.providerErrorHttpStatusCode || null,
+        providerErrorMessageDigest: runtimeResult?.providerErrorMessageDigest || null,
+        providerErrorMessageClass: runtimeResult?.providerErrorMessageClass || null,
+        providerErrorAdditionalDetails: safeObject(runtimeResult?.providerErrorAdditionalDetails, null),
+        providerTerminalStatus: runtimeResult?.providerTerminalStatus || null,
+        egressEvidence: runtimeResult?.egressEvidence || null,
+        usageSource: summaryUsage.availability === 'REPORTED' ? 'OPENAI_CODEX_APP_SERVER' : 'NOT_REPORTED',
+        usageFreshness: summaryUsage.freshness || 'UNKNOWN',
+        rateLimits: runtimeResult?.rateLimits || null,
+        accountUsage: runtimeResult?.accountUsage || null,
+        mcpCapabilityInvocationCount: Array.isArray(runtimeResult?.capabilityInvocations) ? runtimeResult.capabilityInvocations.length : 0,
+        physicalStop: runtimeResult?.physicalStop || null,
+        terminalConfirmation: runtimeResult?.terminalConfirmation || null,
+        worker: runtimeResult?.worker || null,
+      } : null,
+      errorCode: stopUnconfirmed ? (providerTerminalUnconfirmed ? 'PROVIDER_TERMINAL_CONFIRMATION_UNKNOWN' : 'PHYSICAL_STOP_NOT_CONFIRMED') : recoveryRequired ? 'PROVIDER_SEND_UNKNOWN' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'PROVIDER_REJECTED_BEFORE_ACCEPTANCE' : providerTerminalFailed ? 'PROVIDER_TERMINAL_FAILED' : null,
       capabilityEffects: safeCapabilityEffects,
     });
     const digest = resultDigest(summary);
@@ -463,7 +711,13 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       [runId, stopState, JSON.stringify({ workerGeneration: worker.generation || null, workerIdentity: worker.identity || null, physicalStop: runtimeResult?.physicalStop || null })],
     );
     await client.query(
-      `UPDATE worker.agent_sessions SET status = CASE WHEN $2 IN ('CANCELED', 'RECOVERY_REQUIRED') OR $3 = 'UNCONFIRMED' THEN 'RECOVERY_REQUIRED' ELSE 'CLOSED' END WHERE session_id = $1`,
+      `UPDATE worker.agent_sessions
+          SET status = CASE
+            WHEN $2 IN ('CANCELED', 'RECOVERY_REQUIRED') OR $3 = 'UNCONFIRMED' THEN 'RECOVERY_REQUIRED'
+            WHEN session_model = 'PERSISTENT' AND $2 = 'COMPLETED' THEN 'ACTIVE'
+            ELSE 'CLOSED'
+          END
+        WHERE session_id = $1`,
       [run.session_id, status, stopState],
     );
     if (stopUnconfirmed) {
@@ -480,7 +734,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
                 TRUE
               )
         WHERE agent_run_id = $1
-          AND grant_kind = 'MANAGED_CAPABILITY'
+          AND grant_kind IN ('ROOT_RUN', 'MANAGED_CAPABILITY')
           AND grant_state = 'ACTIVE'`,
       [runId],
     );
@@ -521,9 +775,12 @@ async function getAgentRunStateActivity({ runId } = {}) {
 module.exports = {
   markAgentRunStateActivity,
   prepareProviderOperationActivity,
+  recordProviderAcceptanceActivity,
+  recordProviderObservationActivity,
   prepareManagedCapabilityEffectActivity,
   revokeManagedCapabilityBeforeDispatchActivity,
   dispatchManagedCapabilityActivity,
+  getManagedCapabilityEffectsActivity,
   createAgentInteractionActivity,
   loadAgentInteractionActivity,
   acknowledgeAgentInteractionDeliveryActivity,

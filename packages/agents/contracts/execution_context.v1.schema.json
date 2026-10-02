@@ -103,6 +103,10 @@
       "required": ["runtimeKind", "installationId", "accountBindingId", "capabilityProfileId", "configurationRevision", "configurationDigest", "workerTaskQueue"],
       "properties": {
         "runtimeKind": { "type": "string", "minLength": 1 },
+        "runtimeMode": { "type": "string", "enum": ["FIXTURE", "PROVIDER_BACKED"] },
+        "providerBacked": { "type": "boolean" },
+        "recoverySupported": { "type": "boolean" },
+        "adapterVersion": { "type": ["string", "null"] },
         "installationId": { "type": "string", "minLength": 1 },
         "accountBindingId": { "type": "string", "minLength": 1 },
         "capabilityProfileId": { "type": "string", "minLength": 1 },

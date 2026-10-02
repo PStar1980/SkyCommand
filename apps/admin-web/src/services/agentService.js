@@ -29,6 +29,7 @@ const agentService = {
   previewAuthority: (body) => api.post('/api/agent-executions/preview', body),
   listAgentRuns: (query) => api.get('/api/agent-runs', { query }),
   getAgentRun: (runId) => api.get(`/api/agent-runs/${runId}`),
+  getAgentRunOptions: () => api.get('/api/agent-runs/options'),
   getAgentRunEvents: (runId) => api.get(`/api/agent-runs/${runId}/events`),
   getAgentRunResult: (runId) => api.get(`/api/agent-runs/${runId}/result`),
   cancelAgentRun: (runId) => api.post(`/api/agent-runs/${runId}/cancel`, {}),

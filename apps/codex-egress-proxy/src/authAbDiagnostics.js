@@ -75,6 +75,7 @@ class AuthAbPhaseJournal {
     this.readMonotonicNs = options.monotonicNs || monotonicNs;
     this.events = [];
     this.cursor = 0;
+    this.pendingConnects = 0;
     this.active = null;
     this.phaseCounts = new Map();
     this.pendingByPhase = new Map();
@@ -82,12 +83,14 @@ class AuthAbPhaseJournal {
   }
 
   beginConnect() {
+    this.pendingConnects += 1;
     const token = this.active?.token || null;
     if (token) this.pendingByPhase.set(token, (this.pendingByPhase.get(token) || 0) + 1);
     return token;
   }
 
   finishConnect(token, host, port, decision, reason) {
+    this.pendingConnects = Math.max(0, this.pendingConnects - 1);
     const event = {
       host,
       port,
@@ -176,6 +179,7 @@ class AuthAbPhaseJournal {
   safeSnapshot() {
     return {
       cursor: this.cursor,
+      pendingConnects: this.pendingConnects,
       count: this.events.length,
       events: this.events.map((event) => projectAuthAbEvent(event, this.key)),
     };

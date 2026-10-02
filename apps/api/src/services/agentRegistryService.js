@@ -1280,6 +1280,9 @@ async function previewAuthority(req, body = {}) {
     evidence: { certificationState: selected.certification_state },
   });
   const runtimeInstallation = {
+    runtimeCode: selected.runtime_code,
+    runtimeProfile: selected.runtime_profile,
+    executionEnablementSource: selected.installation_enablement_source,
     enabled: selected.installation_enabled === true,
     certificationState: selected.certification_state || 'UNVERIFIED',
     executionEnabled: selected.installation_execution_enabled === true,
@@ -1314,7 +1317,7 @@ async function previewAuthority(req, body = {}) {
       enabled: runtimeInstallation.enabled,
       certificationState: runtimeInstallation.certificationState,
       freshnessStatus: runtimeInstallation.freshnessStatus,
-      executionEnabled: false,
+      executionEnabled: selected.runtime_code === 'OPENAI_CODEX_APP_SERVER' && selected.installation_execution_enabled === true,
     },
     accountEntitlement: {
       entitled: accountEntitlement.entitled,
