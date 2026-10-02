@@ -45,6 +45,9 @@ for (const marker of [
   'REVOCATION_EPOCH_CHANGED_BEFORE_DISPATCH',
   'simulatedUnknownDispatch',
 ]) assert.match(authorization, new RegExp(marker));
+assert.match(authorization, /async function isAuthorizedInternalServiceRun\(client, run\)/);
+assert.match(authorization, /principal_code = 'internal:agent-run'/);
+assert.match(authorization, /if \(await isAuthorizedInternalServiceRun\(client, run\)\) return true/);
 assert.match(authorization, /hashCredential\(credential\)/);
 assert.match(authorization, /credential_hash/);
 assert.match(authorization, /credentialReference/);
@@ -53,6 +56,8 @@ assert.match(authorization, /issuedAt/);
 assert.match(authorization, /revokedAt/);
 assert.match(authorization, /isManagedCredentialValid/);
 assert.match(authorization, /credential\s*:\s*managedCredential/);
+assert.match(authorization, /'RECOVERY_REQUIRED'/);
+assert.match(authorization, /'COMPLETED', 'FAILED', 'TIMED_OUT'/);
 assert.match(authorization, /WHERE e\.agent_capability_effect_id = \$1/);
 assert.match(browser, /managedBrowserAccessClause/);
 assert.match(browser, /managed_effect_id IS NULL/);
@@ -77,7 +82,7 @@ const managed = fakeRuntime.executeFakeRuntime({
   managedCapabilityRequest: {
     effectId: 'effect-1',
     effectKey: 'browser:command-center-status-snapshot:browser-capability-duplicate-retry',
-    credential: 'raw-test-credential',
+    credential: 'test-managed-capability-credential',
     audience: 'SKYCOMMAND_MANAGED_AGENT_CAPABILITY',
     capabilityKind: 'BROWSER_AUTOMATION',
     capabilityCode: 'command-center-status-snapshot',
@@ -87,11 +92,11 @@ const managed = fakeRuntime.executeFakeRuntime({
 });
 assert.equal(managed.capabilityInvocations.length, 2);
 assert.equal(managed.events.filter((event) => event.eventType === 'CAPABILITY_INVOCATION_REQUESTED').length, 2);
-assert.ok(managed.capabilityInvocations.every((invocation) => invocation.credential === 'raw-test-credential'));
-assert.ok(managed.events.every((event) => !JSON.stringify(event).includes('raw-test-credential')));
+assert.ok(managed.capabilityInvocations.every((invocation) => invocation.credential === 'test-managed-capability-credential'));
+assert.ok(managed.events.every((event) => !JSON.stringify(event).includes('test-managed-capability-credential')));
 assert.equal(fakeRuntime.resolveFakeRuntimeCase('browser-capability-unknown-send', 'FAKE_PERSISTENT').sendAcceptance, 'UNKNOWN');
 
-const rawCredential = 'raw-test-credential';
+const rawCredential = 'test-managed-capability-credential';
 const grantId = '00000000-0000-4000-8000-000000000001';
 const issuedAt = new Date(Date.now() - 1000).toISOString();
 const expiresAt = new Date(Date.now() + 60_000).toISOString();
@@ -122,8 +127,8 @@ assert.equal(credentialService.isManagedCredentialValid({ grant, credential: raw
 assert.equal(credentialService.isManagedCredentialValid({ grant: { ...grant, grant_state: 'REVOKED' }, credential: rawCredential, run, effect }), false);
 assert.equal(credentialService.isManagedCredentialValid({ grant: { ...grant, credential_expires_at: issuedAt }, credential: rawCredential, run, effect }), false);
 assert.equal(credentialService.isManagedCredentialValid({ grant, credential: rawCredential, run: { scope_revocation_epoch: 8 }, effect }), false);
-assert.equal(credentialService.isManagedCredentialValid({ grant, credential: 'wrong-credential', run, effect }), false);
+assert.equal(credentialService.isManagedCredentialValid({ grant, credential: 'test-invalid-managed-credential', run, effect }), false);
 assert.notEqual(safeCredential.credentialFingerprint, rawCredential);
-assert.doesNotMatch(JSON.stringify(safeCredential), /raw-test-credential/);
+assert.doesNotMatch(JSON.stringify(safeCredential), /test-managed-capability-credential/);
 
 console.log('✅ Phase 19.2B managed capability authorization/effect contract self-test passed.');

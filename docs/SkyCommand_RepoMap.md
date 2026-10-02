@@ -149,6 +149,7 @@ SkyCommand/
 │   │       │   ├── ProductionReadiness.jsx
 │   │       │   ├── ReadinessDashboard.jsx
 │   │       │   ├── repositoryAdminUtils.js
+│   │       │   ├── RunAgent.jsx
 │   │       │   ├── SchedulerControl.jsx
 │   │       │   ├── ScriptExecutions.jsx
 │   │       │   ├── SkyWorkflows.jsx
@@ -229,6 +230,7 @@ SkyCommand/
 │   │       │   ├── browserAutomation.routes.js
 │   │       │   ├── browserTest.routes.js
 │   │       │   ├── browserTestSuite.routes.js
+│   │       │   ├── codexInternal.routes.js
 │   │       │   ├── executionScope.routes.js
 │   │       │   ├── infrastructure.routes.js
 │   │       │   ├── ingestion.routes.js
@@ -310,7 +312,8 @@ SkyCommand/
 │   │       ├── appServerClient.js
 │   │       ├── healthcheck.js
 │   │       ├── index.js
-│   │       └── packageArtifactAttestation.js
+│   │       ├── packageArtifactAttestation.js
+│   │       └── runtimeEgressEvidence.js
 │   ├── codex-control-bridge/
 │   │   └── src/
 │   │       ├── credentialInit.js
@@ -453,7 +456,12 @@ SkyCommand/
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
 │       │   │       └── Command Center Status Snapshot.png
-│       │   └── bd570f67-6409-41db-ba22-20dc6a92b4ef/
+│       │   ├── bd570f67-6409-41db-ba22-20dc6a92b4ef/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   └── d2011fe5-f0b2-4056-a7cf-a34046084c38/
 │       │       ├── skycommand-automation-summary.json
 │       │       ├── downloads/
 │       │       └── screenshots/
@@ -1820,7 +1828,9 @@ SkyCommand/
 │   │       │   ├── 00157__managed_runtime_enrollment_operations.sql
 │   │       │   ├── 00160__assistant_dev_runtime_refresh_operations.sql
 │   │       │   ├── 00161__development_promotion_secret_leak_gate.sql
-│   │       │   └── 00162__development_promotion_secret_leak_gate_decoupling.sql
+│   │       │   ├── 00162__development_promotion_secret_leak_gate_decoupling.sql
+│   │       │   ├── 00163__agent_real_codex_read_only_run.sql
+│   │       │   └── 00165__agent_turn_failed_status_and_recovery_segment_hardening.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1877,7 +1887,9 @@ SkyCommand/
 │   │           ├── 00152__agent_run_permissions_and_fake_runtime.sql
 │   │           ├── 00154__agent_browser_capability_fixture.sql
 │   │           ├── 00158__managed_codex_bootstrap_registry.sql
-│   │           └── 00159__managed_codex_account_binding_repair.sql
+│   │           ├── 00159__managed_codex_account_binding_repair.sql
+│   │           ├── 00164__phase19_3a1_codex_read_only_pilot.sql
+│   │           └── 00166__phase19_3a1_codex_model_catalog_alignment.sql
 │   ├── db_compare/
 │   │   └── src/
 │   │       └── db_object_compare.js
@@ -2357,7 +2369,10 @@ SkyCommand/
     └── self/
         ├── r7DatabaseUpgradeCleanupSelfTest.js
         ├── apps/
+        │   ├── agentPhase19_3A1CorrectiveSelfTest.js
         │   ├── codexAgentRuntimeBootstrapSelfTest.js
+        │   ├── codexAgentRuntimeEgressEvidenceSelfTest.js
+        │   ├── codexAgentRuntimePilotSelfTest.js
         │   ├── codexCompatibilityAuthAbSelfTest.js
         │   ├── codexCompatibilityAuthBoundaryPreflightSelfTest.js
         │   ├── codexCompatibilityAuthBoundarySelfTest.js
@@ -2416,10 +2431,12 @@ SkyCommand/
         │               ├── agentExecutionSelfTest.js
         │               ├── agentInteractionLiveAcceptanceSelfTest.js
         │               ├── agentInteractionRecoverySelfTest.js
+        │               ├── agentProjectInstructionContainmentSelfTest.js
         │               ├── agentRegistryAuditSelfTest.js
         │               ├── agentRegistryIsolationSelfTest.js
         │               ├── agentRegistrySelfTest.js
         │               ├── apiTelemetryPolicySelfTest.js
+        │               ├── assistantCapabilityReportingSelfTest.js
         │               ├── assistantDevelopmentPromotionSelfTest.js
         │               ├── assistantIntegrationSelfTest.js
         │               ├── browserAutomationExecutionSelfTest.js

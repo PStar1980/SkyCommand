@@ -8,6 +8,13 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const {
+  sanitizeBoundary,
+  validatedSnapshot,
+  readEgressSnapshot,
+  initialEgressBoundary,
+  egressWindowEvidence,
+} = require('./runtimeEgressEvidence');
+const {
   CodexAppServerClient,
   CodexAppServerError,
   safeLoginStateDiagnostic,
@@ -58,6 +65,8 @@ const DOCKER_MANAGED_FILE_MOUNT_TARGETS = new Set([
 const client = new CodexAppServerClient();
 let lastProviderContactAt = null;
 let controlToken = null;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const REAL_RUNTIME_ADAPTER = 'codex-app-server-readonly.v1';
 
 function providerReachabilityState() {
   return {
@@ -367,14 +376,16 @@ async function buildHealth(runtimeClient = client, options = {}) {
     identityMismatchFields.add('observedProtocolSchemaDigest');
   }
   const assessedIdentity = { ...identity, identityMismatchFields: [...identityMismatchFields] };
-  let proxy = { status: 'UNREACHABLE', policyDigest: null, allowedHostCount: null, observedDestinations: [] };
+  let proxy = { status: 'UNREACHABLE', policyDigest: null, allowedHostCount: null, observedDestinations: [], diagnosticCursorAvailable: false };
   try {
     const result = await fetcher('http://skycommand-codex-egress-proxy:3128/healthz', { signal: AbortSignal.timeout(3000) });
     const body = await result.json();
     let observedDestinations = [];
+    let diagnosticCursorAvailable = false;
     try {
       const diagnostics = await fetcher('http://skycommand-codex-egress-proxy:3128/diagnostics', { signal: AbortSignal.timeout(3000) });
       const record = await diagnostics.json();
+      diagnosticCursorAvailable = Boolean(diagnostics.ok && validatedSnapshot(record));
       observedDestinations = Array.isArray(record.events)
         ? record.events.slice(-80).map((item) => ({
           host: String(item.host || '').toLowerCase().slice(0, 253),
@@ -384,7 +395,7 @@ async function buildHealth(runtimeClient = client, options = {}) {
         }))
         : [];
     } catch (_error) { /* proxy health remains independently represented */ }
-    proxy = { status: result.ok && body.ok ? 'CURRENT' : 'UNREACHABLE', policyDigest: body.policyDigest || null, allowedHostCount: Number.isInteger(body.allowedHostCount) ? body.allowedHostCount : null, observedDestinations };
+    proxy = { status: result.ok && body.ok ? 'CURRENT' : 'UNREACHABLE', policyDigest: body.policyDigest || null, allowedHostCount: Number.isInteger(body.allowedHostCount) ? body.allowedHostCount : null, observedDestinations, diagnosticCursorAvailable };
   } catch (_error) { /* safe status only */ }
 
   let mcp = { status: 'UNREACHABLE', reason: 'MCP_PROBE_NOT_COMPLETED', tools: [] };
@@ -434,18 +445,270 @@ async function buildHealth(runtimeClient = client, options = {}) {
     configurationDigest: identity.configurationDigest,
     networkPolicyDigest: proxy.policyDigest,
     observedProviderDestinations: proxy.observedDestinations,
+    egressDiagnosticCaptureReady: proxy.diagnosticCursorAvailable,
     ...providerReachabilityState(),
     mcpReachability: mcp.status,
     mcpFailureReason: mcp.reason || null,
     mcpTools: mcp.tools,
     managedHomeReference: 'docker-volume:skycommand_codex_managed_home',
-    executionEnabled: false,
+    executionEnabled: runtimeClient.executionEnabled === true && readiness.ok === true,
     containment: constraints,
     readiness: readiness.readiness,
     readinessCode: readiness.readinessCode,
     failedCondition: readiness.failedCondition,
     observedAt: new Date().toISOString(),
   };
+}
+
+function assertPilotOperationBody(body = {}) {
+  const allowed = new Set(['runId', 'operationId', 'sessionId', 'instruction', 'model', 'reasoningEffort', 'deadlineAt', 'timeoutMs', 'managedCapabilityRequest', 'providerTurnId', 'providerSessionReference', 'providerOperationReference', 'threadId', 'runtimeEvidenceBoundary']);
+  for (const key of Object.keys(body || {})) if (!allowed.has(key)) throw Object.assign(new Error('The Codex pilot operation body contains an unsupported field.'), { code: 'CODEX_PILOT_INPUT_NOT_ALLOWED' });
+  for (const key of ['runId', 'operationId', 'sessionId']) {
+    if (body[key] !== undefined && !UUID_PATTERN.test(String(body[key]))) throw Object.assign(new Error('The Codex pilot operation identity is invalid.'), { code: 'CODEX_PILOT_ID_INVALID' });
+  }
+  for (const key of ['providerTurnId', 'providerSessionReference', 'providerOperationReference', 'threadId']) {
+    if (body[key] !== undefined && body[key] !== null
+      && (typeof body[key] !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(body[key]))) {
+      throw Object.assign(new Error('The Codex pilot provider reference is invalid.'), { code: 'CODEX_PILOT_PROVIDER_REFERENCE_INVALID' });
+    }
+  }
+  if (body.runtimeEvidenceBoundary !== undefined && body.runtimeEvidenceBoundary !== null
+    && !sanitizeBoundary(body.runtimeEvidenceBoundary)) throw Object.assign(new Error('The Codex runtime observation boundary is invalid.'), { code: 'CODEX_RUNTIME_EVIDENCE_BOUNDARY_INVALID' });
+  if (body.instruction !== undefined && (typeof body.instruction !== 'string' || !body.instruction.trim() || body.instruction.length > 20000)) throw Object.assign(new Error('The Codex pilot instruction is invalid.'), { code: 'CODEX_PILOT_INSTRUCTION_INVALID' });
+  if (body.model !== undefined && (typeof body.model !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(body.model))) throw Object.assign(new Error('The Codex pilot model is invalid.'), { code: 'CODEX_PILOT_MODEL_INVALID' });
+  if (body.reasoningEffort !== undefined && body.reasoningEffort !== null && !['low', 'medium', 'high'].includes(body.reasoningEffort)) throw Object.assign(new Error('The Codex pilot reasoning effort is invalid.'), { code: 'CODEX_PILOT_REASONING_INVALID' });
+  if (body.timeoutMs !== undefined && (!Number.isInteger(body.timeoutMs) || body.timeoutMs < 1000 || body.timeoutMs > 120000)) throw Object.assign(new Error('The Codex pilot observation timeout is invalid.'), { code: 'CODEX_PILOT_TIMEOUT_INVALID' });
+}
+
+function buildManagedMcpContextUrl(pathname, mcpUrl = MCP_URL) {
+  if (!['/context/bind', '/context/result'].includes(pathname)) {
+    throw Object.assign(new Error('The managed Codex MCP context route is not allowlisted.'), { code: 'CODEX_MCP_CONTEXT_ROUTE_NOT_ALLOWED' });
+  }
+  const endpoint = new URL(mcpUrl);
+  if (!['/mcp', '/mcp/'].includes(endpoint.pathname)) {
+    throw Object.assign(new Error('The managed Codex MCP endpoint is not the pinned route.'), { code: 'CODEX_MCP_ENDPOINT_INVALID' });
+  }
+  endpoint.pathname = pathname;
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+async function callManagedMcpContext(pathname, body = {}, method = 'POST') {
+  const response = await fetch(buildManagedMcpContextUrl(pathname), {
+    method,
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${controlToken || readControlToken()}`,
+      ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+    },
+    ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(10000),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok !== true) throw Object.assign(new Error('The managed Codex MCP context was not accepted.'), { code: payload.code || 'CODEX_MCP_CONTEXT_FAILED' });
+  return payload;
+}
+
+function runtimeWorkerMetadata(runtimeClient) {
+  const identity = runtimeClient.identity();
+  return {
+    identity: `codex-agent-runtime-worker:${os.hostname()}`,
+    generation: identity.runtimeGeneration || null,
+    taskQueue: 'codex-runtime-control',
+    observedAt: new Date().toISOString(),
+  };
+}
+
+function safeProviderRejection(error, body = {}, runtimeClient = client) {
+  const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(error.code)
+    ? error.code
+    : 'CODEX_PROVIDER_OPERATION_REJECTED';
+  return {
+    runtimeKind: 'OPENAI_CODEX_APP_SERVER',
+    adapterVersion: REAL_RUNTIME_ADAPTER,
+    providerBacked: true,
+    capabilityDispatchMode: 'RUNTIME',
+    sendAcceptance: 'REJECTED_BEFORE_ACCEPTANCE',
+    outcomeCertainty: 'REJECTED',
+    providerSessionReference: body.providerSessionReference || null,
+    providerTurnId: body.providerTurnId || null,
+    threadId: body.threadId || null,
+    providerOperationReference: body.providerOperationReference || null,
+    requestedModel: body.model || null,
+    requestedReasoningEffort: body.reasoningEffort || null,
+    observedModel: null,
+    observedReasoningEffort: null,
+    usage: null,
+    physicalStop: { state: 'NOT_REQUESTED', evidence: 'provider_operation_rejected_before_acceptance' },
+    worker: runtimeWorkerMetadata(runtimeClient),
+    containmentProfile: containment(),
+    events: [],
+    capabilityInvocations: [],
+    taskOutputCandidate: null,
+    recoveryRequired: false,
+    providerErrorCode: code,
+  };
+}
+
+async function bindManagedCapabilityContext(body, runtimeClient) {
+  if (runtimeClient.executionEnabled !== true) throw Object.assign(new Error('The managed Codex runtime is disabled for Agent Run execution.'), { code: 'CODEX_AGENT_EXECUTION_DISABLED' });
+  assertPilotOperationBody(body);
+  const capability = body.managedCapabilityRequest;
+  if (!capability || capability.effectId === undefined || typeof capability.credential !== 'string' || capability.capabilityCode !== 'command-center-status-snapshot') {
+    throw Object.assign(new Error('The real Codex pilot requires the server-prepared managed Browser capability credential.'), { code: 'CODEX_MANAGED_CAPABILITY_CONTEXT_REQUIRED' });
+  }
+  const identity = runtimeClient.identity();
+  await callManagedMcpContext('/context/bind', {
+    effectId: capability.effectId,
+    credential: capability.credential,
+    generation: identity.runtimeGeneration || null,
+  });
+  return capability;
+}
+
+async function startCodexRuntime(body, runtimeClient = client) {
+  let result;
+  let boundary = null;
+  try {
+    await bindManagedCapabilityContext(body, runtimeClient);
+    boundary = initialEgressBoundary(await readEgressSnapshot());
+    if (!boundary) throw Object.assign(new Error('The bounded proxy observation boundary is unavailable; do not submit a diagnostic provider Turn.'), { code: 'CODEX_EGRESS_DIAGNOSTICS_UNAVAILABLE' });
+    result = await runtimeClient.submitManagedTurn({
+      instruction: body.instruction,
+      model: body.model || null,
+      reasoningEffort: body.reasoningEffort || null,
+      operationReference: body.providerOperationReference || `codex:${body.operationId}`,
+    });
+  } catch (error) {
+    return {
+      ...safeProviderRejection(error, body, runtimeClient),
+      egressEvidence: egressWindowEvidence(boundary, await readEgressSnapshot()),
+    };
+  }
+  return {
+    ...result,
+    runtimeEvidenceBoundary: boundary,
+    adapterVersion: REAL_RUNTIME_ADAPTER,
+    providerBacked: true,
+    capabilityDispatchMode: 'RUNTIME',
+    worker: runtimeWorkerMetadata(runtimeClient),
+    containmentProfile: containment(),
+  };
+}
+
+async function observeCodexRuntime(body, runtimeClient = client) {
+  if (runtimeClient.executionEnabled !== true) throw Object.assign(new Error('The managed Codex runtime is disabled for Agent Run observation.'), { code: 'CODEX_AGENT_EXECUTION_DISABLED' });
+  assertPilotOperationBody(body);
+  let result;
+  try {
+    result = await runtimeClient.observeManagedTurn({
+      providerTurnId: body.providerTurnId,
+      providerSessionReference: body.providerSessionReference || null,
+      threadId: body.threadId || null,
+      operationReference: body.providerOperationReference || null,
+      model: body.model || null,
+      reasoningEffort: body.reasoningEffort || null,
+      deadlineAt: body.deadlineAt || null,
+      timeoutMs: body.timeoutMs || 120000,
+    });
+  } catch (error) {
+    return {
+      ...safeProviderRejection(error, body, runtimeClient),
+      sendAcceptance: 'UNKNOWN',
+      outcomeCertainty: 'UNKNOWN',
+      recoveryRequired: true,
+      providerErrorCode: error.code || 'CODEX_PROVIDER_OBSERVATION_UNKNOWN',
+    };
+  }
+  // Snapshot immediately at terminal observation, before account/usage RPCs can
+  // create unrelated CONNECT decisions. Lack of complete evidence never blocks
+  // provider execution and must never be reported as proof of no egress denial.
+  const egressEvidence = result.providerTerminalStatus && result.providerTerminalStatus !== 'UNKNOWN'
+    ? egressWindowEvidence(body.runtimeEvidenceBoundary, await readEgressSnapshot())
+    : null;
+  const [rateLimits, accountUsage] = await Promise.all([
+    runtimeClient.readRateLimits().catch(() => null),
+    runtimeClient.readUsage().catch(() => null),
+  ]);
+  const contextResult = await callManagedMcpContext('/context/result', {}, 'GET').catch(() => null);
+  const capabilityInvocations = contextResult?.invocation ? [
+    {
+      effectId: contextResult.invocation.effectId,
+      effectKey: contextResult.invocation.effectKey || null,
+      capabilityKind: 'BROWSER_AUTOMATION',
+      capabilityCode: 'command-center-status-snapshot',
+      capabilityVersion: 'registered.v1',
+      requestDigest: contextResult.invocation.requestDigest || null,
+      deliveryIndex: 1,
+      credential: null,
+    },
+  ] : [];
+  const identity = runtimeClient.identity();
+  return {
+    ...result,
+    adapterVersion: REAL_RUNTIME_ADAPTER,
+    providerBacked: true,
+    capabilityDispatchMode: 'RUNTIME',
+    worker: {
+      identity: `codex-agent-runtime-worker:${os.hostname()}`,
+      generation: identity.runtimeGeneration || null,
+      taskQueue: 'codex-runtime-control',
+      observedAt: new Date().toISOString(),
+    },
+    containmentProfile: containment(),
+    rateLimits: rateLimits ? { source: 'OPENAI_CODEX_APP_SERVER', freshness: 'CURRENT', observedAt: new Date().toISOString(), value: rateLimits } : null,
+    accountUsage: accountUsage ? { source: 'OPENAI_CODEX_APP_SERVER', freshness: 'CURRENT', observedAt: new Date().toISOString(), value: accountUsage } : null,
+    capabilityInvocations,
+    egressEvidence,
+    events: (Array.isArray(runtimeClient.events) ? runtimeClient.events : []).slice(-40),
+    policyViolation: result.providerTerminalStatus === 'COMPLETED'
+      && result.providerTerminalFailure !== true
+      && result.outcomeCertainty === 'ACKNOWLEDGED'
+      && capabilityInvocations.length !== 1
+      ? 'CODEX_REQUIRED_MANAGED_CAPABILITY_NOT_INVOKED'
+      : null,
+  };
+}
+
+async function executeCodexRuntime(body, runtimeClient = client) {
+  const started = await startCodexRuntime(body, runtimeClient);
+  if (started.sendAcceptance !== 'ACKNOWLEDGED' || !started.providerTurnId) return started;
+  return observeCodexRuntime({
+    ...body,
+    providerTurnId: started.providerTurnId,
+    providerSessionReference: started.providerSessionReference,
+    providerOperationReference: started.providerOperationReference,
+    threadId: started.threadId,
+    runtimeEvidenceBoundary: started.runtimeEvidenceBoundary,
+  }, runtimeClient);
+}
+
+async function reconcileCodexRuntime(body, runtimeClient = client) {
+  if (runtimeClient.executionEnabled !== true) throw Object.assign(new Error('The managed Codex runtime is disabled for Agent Run reconciliation.'), { code: 'CODEX_AGENT_EXECUTION_DISABLED' });
+  assertPilotOperationBody(body);
+  const result = await runtimeClient.reconcileManagedTurn({
+    providerTurnId: body.providerTurnId,
+    providerSessionReference: body.providerSessionReference,
+    operationReference: body.providerOperationReference,
+    model: body.model || null,
+    reasoningEffort: body.reasoningEffort || null,
+  });
+  return {
+    ...result,
+    egressEvidence: result.providerTerminalStatus && result.providerTerminalStatus !== 'UNKNOWN'
+      ? egressWindowEvidence(body.runtimeEvidenceBoundary, await readEgressSnapshot())
+      : null,
+    adapterVersion: REAL_RUNTIME_ADAPTER,
+    worker: { identity: `codex-agent-runtime-worker:${os.hostname()}`, generation: runtimeClient.identity().runtimeGeneration || null, taskQueue: 'codex-runtime-control', observedAt: new Date().toISOString() },
+    containmentProfile: containment(),
+  };
+}
+
+async function interruptCodexRuntime(body, runtimeClient = client) {
+  if (runtimeClient.executionEnabled !== true) throw Object.assign(new Error('The managed Codex runtime is disabled for Agent Run interruption.'), { code: 'CODEX_AGENT_EXECUTION_DISABLED' });
+  assertPilotOperationBody(body);
+  return runtimeClient.interruptManagedTurn({ providerTurnId: body.providerTurnId, threadId: body.threadId });
 }
 
 async function readRecentProviderEgressDenials(sinceMs, fetcher = fetch) {
@@ -549,10 +812,39 @@ function createControlServer(options = {}) {
         const [rateLimits, usage] = await Promise.all([runtimeClient.readRateLimits(), runtimeClient.readUsage()]);
         return send(res, 200, { ok: true, account, rateLimits, usage, source: 'CODEX_APP_SERVER', observedAt: new Date().toISOString() });
       }
+      if (req.method === 'POST' && pathname === '/diagnostics/compatibility') {
+        const keys = Object.keys(body || {});
+        if (keys.some((key) => !['requestedModel', 'requestedReasoningEffort'].includes(key))) {
+          return send(res, 400, { ok: false, code: 'CODEX_DIAGNOSTIC_REQUEST_INVALID' });
+        }
+        const requestedModel = typeof body.requestedModel === 'string' && /^[a-z0-9][a-z0-9._:-]{0,79}$/i.test(body.requestedModel)
+          ? body.requestedModel
+          : null;
+        const requestedReasoningEffort = typeof body.requestedReasoningEffort === 'string' && /^[a-z][a-z0-9_-]{0,23}$/i.test(body.requestedReasoningEffort)
+          ? body.requestedReasoningEffort.toLowerCase()
+          : null;
+        const diagnostics = await runtimeClient.readCompatibilityDiagnostics({ requestedModel, requestedReasoningEffort });
+        return send(res, 200, { ok: true, diagnostics });
+      }
       if (req.method === 'POST' && pathname === '/account/logout') {
         const account = await runtimeClient.logout();
         lastProviderContactAt = null;
         return send(res, 200, { ok: true, account, executionEnabled: false });
+      }
+      if (req.method === 'POST' && pathname === '/runtime/execute') {
+        return send(res, 200, { ok: true, result: await executeCodexRuntime(body, runtimeClient) });
+      }
+      if (req.method === 'POST' && pathname === '/runtime/start') {
+        return send(res, 200, { ok: true, result: await startCodexRuntime(body, runtimeClient) });
+      }
+      if (req.method === 'POST' && pathname === '/runtime/observe') {
+        return send(res, 200, { ok: true, result: await observeCodexRuntime(body, runtimeClient) });
+      }
+      if (req.method === 'POST' && pathname === '/runtime/reconcile') {
+        return send(res, 200, { ok: true, result: await reconcileCodexRuntime(body, runtimeClient) });
+      }
+      if (req.method === 'POST' && pathname === '/runtime/interrupt') {
+        return send(res, 200, { ok: true, result: await interruptCodexRuntime(body, runtimeClient) });
       }
       if (req.method === 'POST' && pathname === '/enrollment/cancel') {
         const loginId = String(body.loginId || '');
@@ -566,7 +858,7 @@ function createControlServer(options = {}) {
       const code = typeof candidateCode === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(candidateCode)
         ? candidateCode
         : 'CODEX_RUNTIME_OPERATION_FAILED';
-      const rpcDiagnostic = safeRpcDiagnostic(error?.details?.rpcDiagnostic);
+      const rpcDiagnostic = safeRpcDiagnostic(error?.details?.rpcDiagnostic, { allowRealExecution: runtimeClient.executionEnabled === true });
       return send(res, error.code === 'CODEX_LOGIN_ALREADY_PENDING' ? 409 : 503, {
         ok: false,
         code,
@@ -603,6 +895,11 @@ module.exports = {
   buildHealth,
   containment,
   createControlServer,
+  executeCodexRuntime,
+  startCodexRuntime,
+  observeCodexRuntime,
+  reconcileCodexRuntime,
+  interruptCodexRuntime,
   evaluateHealthReadiness,
   evaluateContainment,
   firstIdentityFailure,
@@ -610,6 +907,7 @@ module.exports = {
   isContainmentCompatible,
   listenOnRuntimeControlAddress,
   mcpProbe,
+  buildManagedMcpContextUrl,
   resolveRuntimeControlAddress,
   readBody,
   readRecentProviderEgressDenials,

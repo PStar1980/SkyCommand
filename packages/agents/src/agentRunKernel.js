@@ -55,6 +55,41 @@ function assertTransition(from, to) {
   }
 }
 
+
+function normalizeUsageForSummary({ usage = null, operationId = null, runtimeKind = null } = {}) {
+  const isObject = usage && typeof usage === 'object' && !Array.isArray(usage);
+  const canonical = isObject
+    && Object.prototype.hasOwnProperty.call(usage, 'availability')
+    && Object.prototype.hasOwnProperty.call(usage, 'observationsRef');
+
+  // Provider adapters may retain a small provider-native usage object as durable
+  // evidence. The Agent result contract is provider-neutral, so never pass that
+  // provider shape directly into agent_run_summary.v1. Preserve the observation
+  // through observationsRef and expose provider-specific detail only in the
+  // durable provider evidence record.
+  if (runtimeKind === 'OPENAI_CODEX_APP_SERVER' && !canonical) {
+    const reported = Boolean(isObject);
+    return {
+      availability: reported ? 'REPORTED' : 'NOT_REPORTED',
+      observationsRef: operationId || null,
+      scope: 'RUN',
+      source: runtimeKind,
+      freshness: reported ? 'CURRENT' : 'UNKNOWN',
+      measurements: [],
+    };
+  }
+
+  if (usage) return usage;
+  return {
+    availability: 'NOT_REPORTED',
+    observationsRef: operationId || null,
+    scope: 'RUN',
+    source: runtimeKind || null,
+    freshness: 'UNKNOWN',
+    measurements: [],
+  };
+}
+
 function buildTerminalSummary({
   runId,
   sessionId,
@@ -74,17 +109,15 @@ function buildTerminalSummary({
   operationId = null,
   caseId = null,
   capabilityEffects = [],
+  providerEvidence = null,
   stopState = 'NONE',
   errorCode = null,
 } = {}) {
-  const usageValue = usage || {
-    availability: 'NOT_REPORTED',
-    observationsRef: operationId,
-    scope: 'RUN',
-    source: runtimeKind,
-    freshness: 'UNKNOWN',
-    measurements: [],
-  };
+  const usageValue = normalizeUsageForSummary({
+    usage,
+    operationId,
+    runtimeKind,
+  });
   const summary = {
     runId,
     sessionId,
@@ -101,12 +134,12 @@ function buildTerminalSummary({
     status,
     outcome: outcome || null,
     summary: status === 'COMPLETED'
-      ? 'Fake Agent Run completed with a validated structured result.'
+      ? runtimeKind === 'OPENAI_CODEX_APP_SERVER' ? 'Managed Codex Agent Run completed with a validated provider-neutral structured result.' : 'Fake Agent Run completed with a validated structured result.'
       : status === 'CANCELED'
-        ? 'Fake Agent Run was canceled after authority revocation.'
-        : 'Fake Agent Run requires recovery or failed before a successful result.',
+        ? runtimeKind === 'OPENAI_CODEX_APP_SERVER' ? 'Managed Codex Agent Run was canceled after authority revocation.' : 'Fake Agent Run was canceled after authority revocation.'
+        : runtimeKind === 'OPENAI_CODEX_APP_SERVER' ? 'Managed Codex Agent Run requires recovery or failed before a successful result.' : 'Fake Agent Run requires recovery or failed before a successful result.',
     taskOutput,
-    taskOutputSchema: status === 'COMPLETED' ? 'fake-runtime-result.v1' : null,
+    taskOutputSchema: status === 'COMPLETED' ? runtimeKind === 'OPENAI_CODEX_APP_SERVER' ? 'agent-provider-result.v1' : 'fake-runtime-result.v1' : null,
     artifacts: [],
     changes: [],
     childRuns: [],
@@ -126,11 +159,12 @@ function buildTerminalSummary({
       ...(stopState !== 'NONE' ? [{ text: `Physical stop evidence is ${stopState}; authority revocation is recorded separately.`, kind: 'CANCELLATION', evidenceRef: operationId }] : []),
     ],
     extensions: {
-      fakeRuntime: true,
+      fakeRuntime: runtimeKind !== 'OPENAI_CODEX_APP_SERVER',
       caseId,
       operationId,
       stopState,
       capabilityEffects: Array.isArray(capabilityEffects) ? capabilityEffects : [],
+      providerEvidence: providerEvidence && typeof providerEvidence === 'object' ? providerEvidence : null,
     },
   };
 
@@ -148,6 +182,7 @@ module.exports = {
   isTerminalStatus,
   canTransition,
   assertTransition,
+  normalizeUsageForSummary,
   buildTerminalSummary,
   resultDigest,
 };

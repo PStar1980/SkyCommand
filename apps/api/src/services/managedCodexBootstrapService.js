@@ -36,7 +36,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/i;
 const SAFE_RPC_METHODS = new Set([
   'account/read', 'account/login/start', 'account/login/cancel', 'account/logout',
-  'account/rateLimits/read', 'account/usage/read',
+  'account/rateLimits/read', 'account/usage/read', 'model/list', 'mcpServerStatus/list',
 ]);
 const RPC_STAGE_BY_METHOD = Object.freeze({
   'account/read': 'ACCOUNT_READ',
@@ -45,6 +45,8 @@ const RPC_STAGE_BY_METHOD = Object.freeze({
   'account/logout': 'ACCOUNT_LOGOUT',
   'account/rateLimits/read': 'ACCOUNT_RATE_LIMITS_READ',
   'account/usage/read': 'ACCOUNT_USAGE_READ',
+  'model/list': 'MODEL_LIST',
+  'mcpServerStatus/list': 'MCP_SERVER_STATUS_LIST',
 });
 const SAFE_RPC_OUTCOMES = new Set(['SUCCEEDED', 'JSON_RPC_ERROR', 'TIMEOUT', 'TRANSPORT_ERROR']);
 const ACCOUNT_READ_ERROR_CLASSIFICATIONS = new Set([
@@ -79,8 +81,10 @@ const CODEX_BOOTSTRAP_FINGERPRINT_INPUTS = Object.freeze([
   'apps/codex-agent-runtime-worker/src/healthcheck.js',
   'apps/codex-agent-runtime-worker/src/index.js',
   'apps/codex-agent-runtime-worker/src/packageArtifactAttestation.js',
+  'apps/codex-agent-runtime-worker/src/runtimeEgressEvidence.js',
   'apps/codex-control-bridge/src/credentialInit.js',
   'apps/codex-control-bridge/src/index.js',
+  'apps/codex-egress-proxy/src/authAbDiagnostics.js',
   'apps/codex-egress-proxy/src/index.js',
   'apps/codex-egress-proxy/src/policy.js',
   'apps/codex-mcp-gateway/src/index.js',
@@ -1108,7 +1112,7 @@ function readinessFor({ health, accountState, activeOperation, certification }) 
   }
   if (accountState !== 'CONFIGURED') return { readiness: 'ACCOUNT_UNENROLLED', reason: 'The managed Codex pilot account is not enrolled.' };
   if (health.providerReachability !== 'CURRENT') return { readiness: 'PROVIDER_UNREACHABLE', reason: 'A current provider/authentication reachability check has not succeeded.' };
-  return { readiness: 'CURRENT', reason: 'Runtime, containment, provider, MCP, and managed account prerequisites are current; Agent execution remains disabled.' };
+  return { readiness: 'CURRENT', reason: 'Runtime, containment, provider, MCP, and managed account prerequisites are current for the registered managed Codex profile.' };
 }
 
 function enrollmentRuntimeReadiness({ installation, health, certification } = {}) {
@@ -1323,14 +1327,14 @@ async function persistRuntimeObservation(installation, health, certification, qu
   return { observation: safeObservation, certification: certified ? 'CERTIFIED' : 'UNVERIFIED', freshness };
 }
 
-async function readHealth({ queryExecutor = query, bridge = callBridge } = {}) {
+async function readHealth({ queryExecutor = query, bridge = callBridge, persistObservation = true } = {}) {
   const { installation } = await loadPilot(queryExecutor);
   if (!installation) return { installation: null, health: null, certification: expectedCertification() };
   const certification = expectedCertification();
   let health = null;
   try { health = (await bridge('/v1/runtime/health', 'GET')).health || null; }
   catch (_error) { health = null; }
-  await persistRuntimeObservation(installation, health, certification, queryExecutor);
+  if (persistObservation) await persistRuntimeObservation(installation, health, certification, queryExecutor);
   return { installation, health, certification };
 }
 
@@ -1352,7 +1356,7 @@ function safeManagedStatus({ installation, account, activeOperation, health, cer
       certificationState: installation?.certification_state || 'UNVERIFIED',
       freshnessStatus: installation?.freshness_status || 'UNKNOWN',
       enabled: installation?.enabled === true,
-      executionEnabled: false,
+      executionEnabled: installation?.execution_enabled === true,
       readiness: decision.readiness,
       readinessReason: decision.reason,
       readinessCode: decision.readinessCode || null,
@@ -1381,6 +1385,7 @@ function safeManagedStatus({ installation, account, activeOperation, health, cer
       runtimeGeneration: health?.runtimeGeneration || null,
       imageBuildId: health?.imageBuildId || null,
       mcpReachability: health?.mcpReachability || 'UNREACHABLE',
+      egressDiagnosticCaptureReady: health?.egressDiagnosticCaptureReady === true,
       providerReachability: health?.providerReachability || 'UNKNOWN',
       managedHomeReference: 'docker-volume:skycommand_codex_managed_home',
       containment: health?.containment || null,
@@ -1393,7 +1398,7 @@ function safeManagedStatus({ installation, account, activeOperation, health, cer
       accountCode: account.account_code,
       accountAlias: account.account_alias,
       accountState: account.account_state,
-      executionEnabled: false,
+      executionEnabled: account?.execution_enabled === true,
       authMode: metadata.authMode || AUTH_MODE,
       accountType: metadata.accountType || null,
       planType: metadata.planType || null,
@@ -1410,15 +1415,47 @@ async function getManagedCodex(request, dependencies = {}) {
   const queryExecutor = dependencies.queryExecutor || query;
   const { installation, account, activeOperation } = await loadPilot(queryExecutor, request);
   if (!installation) return safeManagedStatus({ installation: null, account: null, activeOperation: null, health: null, certification: expectedCertification() });
-  const { health, certification } = await readHealth(dependencies);
+  const { health, certification } = await readHealth({ ...dependencies, persistObservation: false });
   return safeManagedStatus({ installation, account, activeOperation, health, certification });
+}
+
+async function getCompatibilityDiagnostics(request, dependencies = {}) {
+  const queryExecutor = dependencies.queryExecutor || query;
+  const { installation, account } = await loadPilot(queryExecutor, request);
+  if (!installation || !account) throw serviceError(503, 'MANAGED_CODEX_BINDING_UNAVAILABLE', 'The managed Codex pilot binding is not registered.');
+  assertOwner(account, request);
+  const definition = await queryExecutor(
+    `SELECT v.configuration
+       FROM core.agent_definitions d
+       JOIN core.agent_definition_versions v ON v.definition_id = d.definition_id
+      WHERE d.agent_code = 'PHASE19_3A1_CODEX_READ_ONLY_OBSERVER'
+        AND d.active = TRUE
+      ORDER BY v.revision DESC
+      LIMIT 1`,
+  );
+  const configuration = definition.rows[0]?.configuration && typeof definition.rows[0].configuration === 'object'
+    ? definition.rows[0].configuration
+    : {};
+  const requestedModel = typeof configuration.model === 'string' ? configuration.model : null;
+  const requestedReasoningEffort = typeof configuration.reasoningEffort === 'string' ? configuration.reasoningEffort : null;
+  const payload = await (dependencies.bridge || callBridge)('/v1/diagnostics/compatibility', 'POST', {
+    requestedModel,
+    requestedReasoningEffort,
+  }, { timeoutMs: 30000 });
+  return {
+    profile: PROFILE,
+    requestedModel,
+    requestedReasoningEffort,
+    diagnostics: payload.diagnostics || null,
+    observedAt: new Date().toISOString(),
+  };
 }
 
 async function getBootstrapReadiness(dependencies = {}) {
   const queryExecutor = dependencies.queryExecutor || query;
   const { installation, account, activeOperation } = await loadPilot(queryExecutor);
   if (!installation) return { ok: false, readiness: 'UNINSTALLED', executionEnabled: false };
-  const { health, certification } = await readHealth(dependencies);
+  const { health, certification } = await readHealth({ ...dependencies, persistObservation: false });
   const decision = readinessFor({
     health,
     accountState: account?.account_state || 'UNCONFIGURED',
@@ -1429,7 +1466,7 @@ async function getBootstrapReadiness(dependencies = {}) {
     ok: decision.readiness === 'CURRENT',
     readiness: decision.readiness,
     readinessReason: decision.reason,
-    executionEnabled: false,
+    executionEnabled: installation.execution_enabled === true && account?.execution_enabled === true,
     runtimeGeneration: health?.runtimeGeneration || null,
     observedAt: health?.observedAt || new Date().toISOString(),
   };
@@ -1838,6 +1875,7 @@ module.exports = {
   expectedCertification,
   getManagedCodexLifecycle,
   getManagedCodex,
+  getCompatibilityDiagnostics,
   getBootstrapReadiness,
   readinessFor,
   readHealth,

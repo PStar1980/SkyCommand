@@ -18,6 +18,12 @@
 - **Promotion authorized by this work order:** `NO`
 - **Execution-agent role:** `EYES_AND_HANDS`
 - **Source-edit delegation:** `[NONE / exact bounded patch or mechanical edit scope]`
+- **Sky overlay package:** `[NONE / exact overlay filename]`
+- **Sky overlay local path:** `[NONE / exact absolute path supplied by Paul, e.g. C:\Users\pauls\Downloads\<overlay>.zip]`
+- **Sky overlay SHA-256:** `[NONE / 64-character SHA-256 supplied by Sky]`
+- **Overlay authority:** `[NONE / PLACE_EXACT_REPO_RELATIVE_FILES_ONLY / exact exception]`
+- **Finalization this turn:** `[YES / NO — if NO, state required Repo Map/Repo ZIP/evidence generation]`
+- **Playwright/browser validation:** `[NOT_REQUIRED / REQUIRED — list exact registered tests or browser checks]`
 
 A normal implementation work order ends with **Dev Change Finalization** and a reviewable working tree. Promotion requires a separate explicit instruction unless this work order clearly says otherwise and identifies the reviewed finalization receipt.
 
@@ -61,6 +67,7 @@ Where they conflict, use the active Development Operating Rules and the narrower
 - The execution agent is a bounded environment operator: inspect, run directed commands, apply only explicitly delegated exact/bounded edits, execute tests, and gather evidence.
 - Do not independently redesign architecture, introduce new abstractions/services/state, broaden scope, or change unrelated stable components. If the task appears to require any of those, stop that expansion and report it to Sky.
 - A registered Tool must remain independently executable outside a Workflow. It may depend on declared inputs/configuration/durable artifacts, but not on hidden predecessor state or another named Tool having executed first.
+- Tool scripts must not create Tool-specific environment-variable dependencies. A Tool may reference an existing shared application/infrastructure environment variable only when it is genuinely cross-cutting. Stable Tool-local values may be code constants; caller-selectable flexibility belongs in explicit registered Tool parameters with validation/default semantics. Do not add private `.env` / `.env.example` keys for one Tool.
 - Workflow ordering/gating belongs to orchestration. Do not make sibling Tools import or understand one another merely to enforce Workflow sequence.
 - Prefer the smallest safe implementation and preserve existing behavior. New complexity must be necessary to the explicit objective.
 - Treat performance as an acceptance criterion. Avoid unnecessary rebuilds/restarts, duplicate validation, long waits, retries, and manual checkpoints.
@@ -68,6 +75,18 @@ Where they conflict, use the active Development Operating Rules and the narrower
 - Passing tests or completing the work order does not establish architectural acceptance. Sky reviews the actual resulting diff/source before acceptance.
 
 Design shorthand: **a Tool may depend on data; it may not depend on history.**
+
+### 2.2 Sky-authored overlay relay contract
+
+When **Sky overlay package** is not `NONE`:
+
+- Paul only transports the package by downloading it and forwarding this work order/message plus the **exact local absolute ZIP path**. The supplied path is authoritative for the turn; do not assume a fixed Downloads directory.
+- Luna verifies the authorized checkout, exact package path, package SHA-256/manifest when provided, and package structure, then overlays the contained files into their repo-relative locations exactly. If the supplied absolute path is unavailable, Luna may perform only a bounded read-only exact-filename lookup in the user's standard Windows Downloads location. Use a discovered file only when exactly one match exists and the expected hash/manifest verifies; otherwise stop and report the mismatch.
+- Do not independently redesign, expand, refactor, or add source files beyond the overlay unless **Source-edit delegation** explicitly permits a bounded correction.
+- Record which files were placed/replaced and any package/path mismatch. A mismatch blocks further execution until reported to Sky.
+- After placement, run the validation matrix in this work order. API/CLI/self/integration tests are preferred by default. Run registered Playwright/browser validation only when this work order marks it `REQUIRED`.
+- If **Finalization this turn** is `YES`, Finalization runs only after prerequisite validation passes. If it is `NO`, do not run Finalization; generate only the requested repository evidence and stop.
+- Every file-changing turn returns a fresh Repo ZIP representing the resulting working tree: use the Finalization-generated ZIP when Finalization ran, otherwise run the registered Repo ZIP path. Include Repo Map/evidence as applicable, Playwright artifacts when required, and final working-tree status.
 
 ## 3. Establish current facts before changing anything
 
@@ -101,7 +120,8 @@ Preserve unrelated newer work and historical applied migrations/receipts. Prefer
 - Use the registered database-upgrade path; do not use ad-hoc mutating SQL or `db:build` on an existing DEV database.
 - Use typed/allowlisted configuration reconciliation for eligible non-secret values.
 - Preserve secrets and local-only values; never emit secret values.
-- Keep `.env.example` semantically aligned with applicable non-secret `.env` configuration introduced by the task. Do not reorder or normalize unrelated configuration solely for cosmetic reasons unless this work order explicitly includes that work.
+- Keep `.env.example` semantically aligned with applicable shared non-secret `.env` configuration introduced by the task. Do not reorder or normalize unrelated configuration solely for cosmetic reasons unless this work order explicitly includes that work.
+- Do **not** add Tool-specific `.env` / `.env.example` keys. Tool-local stable values belong in code constants; invocation flexibility belongs in explicit registered Tool parameters. A Tool may reference existing shared application/infrastructure variables when genuinely cross-cutting. Never hard-code secrets.
 
 ### Runtime requirements
 
@@ -132,9 +152,11 @@ If an additional execution surface would be required but is not authorized, stop
 
 ## 6. Validation and finalization
 
-Run the focused tests and repository validation appropriate to the change, including `[list specific tests/checks]`.
+If a Sky overlay package is supplied, first verify that the expected repo-relative files were placed successfully and that no unintended source files were introduced.
 
-Then run exactly one fresh governed **Dev Change Finalization** Workflow unless this work order explicitly defines another accepted boundary.
+Run the focused tests and repository validation appropriate to the change, including `[list specific tests/checks]`. Prefer API/CLI/self/integration tests as the default. When **Playwright/browser validation** is `REQUIRED`, run the exact registered Playwright/browser checks named by this work order and retain their result/artifact evidence.
+
+When **Finalization this turn** is `YES`, run exactly one fresh governed **Dev Change Finalization** Workflow after prerequisite validation succeeds unless this work order explicitly defines another accepted boundary. When it is `NO`, do not run Finalization; generate the requested Repo Map/Repo ZIP/evidence and stop at that boundary.
 
 Acceptance requires, as applicable:
 
@@ -229,11 +251,12 @@ Return a concise report containing:
 - runtime/service actions;
 - Tool/Workflow run IDs and structured outcomes;
 - tests/validation with exact results and known baseline limitations;
-- generated artifacts and hashes/paths as applicable;
+- generated artifacts and hashes/paths as applicable, including the fresh Repo ZIP/Repo Map requested for Sky's next review turn;
+- Playwright/browser results and artifact references when that validation was required;
 - when Dev Change Finalization ran, the mandatory finalization receipt block (run ID, receipt path, receipt SHA-256, source identity, profile, database state, readiness);
 - execution surfaces actually used, surface substitutions, retries/recovery, and human intervention;
 - material discrepancies or remaining blockers;
-- final Git status and concise diff summary;
+- final Git status and concise diff summary, explicitly stating whether the working tree is clean or reviewably dirty;
 - acceptance result for this work order.
 
 Then stop for Paul/Sky review. Do not continue into promotion or the next phase unless separately authorized.

@@ -1,7 +1,7 @@
 # SkyCommand Development Operating Rules v1.5
 
 **Status:** Active development governance
-**Revision:** 2026-09-27 — adds simplicity, tool-independence, delegated-execution, minimal-change, performance, and anti-bureaucracy governance; retains Agentic AI v1.2 alignment and mandatory finalization-receipt reporting
+**Revision:** 2026-09-30 — standardizes the Sky-authored overlay / Luna execution relay around an exact supplied local package path, deterministic return cadence, and fresh repository evidence; prohibits Tool-specific environment-variable dependencies in favor of shared configuration, stable code constants, or explicit Tool parameters; retains v1.5 simplicity, tool-independence, delegated-execution, Playwright-on-direction, Agentic AI v1.2 alignment, and mandatory finalization-receipt reporting
 **Supersedes:** `SkyCommand_Development_Operating_Rules_v1.4.md`
 **Applies to:** Paul, Sky/ChatGPT, Codex/Luna/Astra, future coding agents, and any agent operating on the SkyCommand repository
 **Long-range architecture authority:** `docs/agentic-ai/SkyCommand_Agentic_AI_Architecture_and_Phased_Implementation_Plan_v1.2_APPROVED.md`
@@ -75,13 +75,30 @@ The default local-development responsibility split is explicit:
 - Opportunistic refactors, cleanup, redesign, feature additions, or unrelated fixes are prohibited unless explicitly authorized.
 - An execution agent's completion report and passing tests are evidence, not architectural approval. Sky must independently review the actual resulting diff/source for scope, coupling, tool independence, backward compatibility, runtime/performance impact, and unnecessary complexity before recommending acceptance.
 
-The objective of delegation is to remove routine work from Paul, not to transfer architectural decision-making to the execution agent or create a human message-relay loop.
+The objective of delegation is to remove routine work from Paul without transferring architectural decision-making to the execution agent. Until SkyCommand automates the handoff, Paul may temporarily serve as the transport relay between Sky and Luna, but he should not be the workflow runner or permanent execution bottleneck.
+
+### 2.2 Manual Sky → Paul → Luna execution relay
+
+Until the equivalent orchestration is implemented inside SkyCommand, use the following manual relay as the preferred development operating model:
+
+1. **Paul/Sky define the objective and acceptance boundary.**
+2. **Sky owns implementation design and changed source.** Sky prepares a repo-relative overlay ZIP and the exact execution instruction for Luna. The overlay is the source change authority for that turn unless the instruction explicitly delegates a bounded corrective edit.
+3. **Paul is the transport bridge, not the workflow runner.** Paul downloads the Sky-authored ZIP and forwards Sky's message plus the **exact local absolute ZIP path** to Luna (for example, `C:\Users\pauls\Downloads\<overlay>.zip`). The supplied path is authoritative for that turn. Paul is not expected to unpack/place files, run command-line tests, run browser tests, execute Finalization, generate Repo Map/ZIP evidence, or execute Development Promotion.
+4. **Luna is the delegated file placer and execution runner.** Luna verifies the current checkout and supplied package, including package SHA-256/file manifest when Sky provides them, overlays repo-relative files into the authorized DEV checkout exactly as directed, then performs the API/CLI/test/workflow operations specified by Sky. If the supplied absolute path is unavailable, Luna may perform only a bounded read-only lookup for the **exact filename** in the user's standard Windows Downloads location; she may use it only when exactly one file matches and the expected hash/manifest verifies, and must report the path substitution. Zero/multiple matches or a hash/manifest mismatch blocks execution. Luna must not independently expand the patch, redesign architecture, or opportunistically fix unrelated issues.
+5. **Testing is directed by Sky.** API/CLI/self/integration tests are the default validation surface. When a frontend/browser-visible change is present and Sky directs it, Luna may execute the registered Playwright/browser test path and collect screenshots/artifacts/results. Browser testing is not implied for backend-only changes.
+6. **Finalization is an execution responsibility, not Paul's chore.** When Sky's instruction requires Finalization and prerequisite tests pass, Luna runs exactly the governed Finalization boundary specified by the work order, polls and performs recovery within the allowed contract, reports the mandatory receipt block, and returns the current Finalization-generated Repo ZIP/Repo Map evidence. When Sky explicitly requests an intermediate **file-changing** turn without Finalization, Luna runs the registered Repo Map/Repo ZIP generation path so the return packet still contains a fresh repository snapshot for Sky review, then stops.
+7. **Each Luna turn produces a relay packet for Sky.** For any file-changing turn, the packet includes Luna's completion response; a fresh Repo ZIP generated from the resulting working tree (through Finalization when it ran, otherwise through the registered Repo ZIP path); Repo Map/evidence as applicable; exact test/workflow results; Playwright output/artifacts when Sky required frontend/browser validation; and final working-tree status. If the tree remains dirty, Paul attaches a current Source Control/working-tree image when relaying the packet to Sky.
+8. **Sky reviews the returned implementation and evidence.** Passing tests do not by themselves establish architectural acceptance. Sky decides whether another overlay/correction is required or whether the change is ready for Paul acceptance.
+9. **Promotion remains separately authorized.** After Paul explicitly approves promotion, Sky provides the promotion execution instruction and Luna runs the registered Development Promotion path to terminal receipt.
+
+The manual relay is a learning scaffold, not the target end state. After the sequence is proven repeatedly, move stable mechanics into deterministic SkyCommand workflows so Paul no longer needs to relay messages or files manually.
 
 ## 3. Workflow-centered authority model
 
 ### 3.1 Workflow permission is the normal execution grant
 
 - Agents are granted server-side permission to specific SkyCommand Workflows and Tools.
+- A Sky-authored overlay package supplied through the current work order may grant bounded file-placement authority for the exact repo-relative files it contains. File placement does not grant independent source-design authority.
 - A permitted Workflow/Tool may be called autonomously by the agent without a second human approval for each invocation.
 - MCP/API connectivity never creates authority by itself; authority comes from the registered agent identity/context plus SkyCommand permission checks.
 - The same Workflow must behave consistently whether initiated by UI, scheduler, API, or an authorized agent, while preserving initiating actor and execution context.
@@ -228,18 +245,29 @@ The agent should not ask Paul to manually copy routine non-secret values between
 - `.env.example` must contain only safe examples/defaults/documentation.
 - Secret-required keys without an available authorized source must be reported as a true blocker; the agent must not invent a credential.
 
-### 5.3 Avoid environment-variable sprawl
+### 5.3 Avoid environment-variable sprawl and Tool-local environment dependencies
 
-Environment variables are runtime configuration, not a substitute for SkyCommand permissions or workflow state.
+Environment variables are runtime/process configuration, not a substitute for SkyCommand permissions, Workflow state, or Tool parameters.
 
-Before adding a new variable, prefer in this order:
+**Tool rule:** a registered Tool/script must not introduce or require an environment variable that exists only for that Tool. Tools may read existing shared application/infrastructure variables when those variables are genuinely common across subsystems, but Tool-local behavior must not depend on private `.env` / `.env.example` keys.
 
-1. existing registered Workflow/Tool configuration;
+For Tool behavior:
+
+1. use a stable constant in Tool code when the value is an implementation invariant/default and does not need caller selection;
+2. use an explicit registered Tool parameter, with validation and a documented/default value where appropriate, when callers need to vary the behavior;
+3. reference an existing shared application/infrastructure environment variable only when the value is genuinely cross-cutting process/runtime configuration;
+4. do not create a new environment variable merely to configure one Tool.
+
+For non-Tool runtime configuration, before adding a new environment variable prefer in this order:
+
+1. existing registered Workflow/application configuration;
 2. repository/environment metadata already stored in SkyCommand;
 3. a stable application setting with a clear runtime reason;
-4. a new environment variable only when process-start configuration is genuinely required.
+4. a new shared environment variable only when process-start configuration is genuinely required.
 
-Do not add per-invocation approval flags, duplicate permission flags, or temporary ceremony flags when the registered agent/workflow permission already expresses the policy.
+Do not add per-invocation approval flags, duplicate permission flags, temporary ceremony flags, or Tool-specific feature switches when registered permissions/parameters already express the policy. A value becoming configurable is not by itself a reason to move it into `.env`; expose it as a Tool parameter when the variability belongs to the invocation.
+
+Secrets and genuinely cross-cutting deployment/runtime configuration remain subject to the normal shared secret/configuration policy; this rule does not authorize hard-coding secrets or machine-specific secret material.
 
 As the Autonomous DEV remediation replaces temporary bootstrap gates, obsolete D2 bootstrap variables must be removed from active configuration and documentation rather than accumulated indefinitely.
 
@@ -433,9 +461,11 @@ At completion report:
 6. tests/validation with exact results;
 7. generated artifacts/evidence;
 8. when Dev Change Finalization ran, the mandatory finalization receipt block from §8.1, including run ID, receipt path, receipt SHA-256, source identity, profile, database state, and readiness;
-9. material discrepancies or remaining blockers;
-10. execution surfaces used, including any Computer Use/browser/App/remote-device use, surface substitution, and human intervention;
-11. final Git status and concise diff summary.
+9. fresh Repo ZIP / Repo Map / other requested repository-evidence artifacts generated from the resulting tree, with path/hash where available;
+10. Playwright/browser test results and artifact references when Sky directed frontend/browser validation;
+11. material discrepancies or remaining blockers;
+12. execution surfaces used, including any Computer Use/browser/App/remote-device use, surface substitution, and human intervention;
+13. final Git status and concise diff summary, plus a clear indication whether the working tree is clean or remains reviewably dirty.
 
 Then stop for Paul/Sky review.
 

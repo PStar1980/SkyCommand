@@ -70,6 +70,9 @@
     "supervisor:check": "node packages/supervisor/src/health.js",
     "supervisor:self-test": "node tests/self/packages/supervisor/src/supervisorSelfTest.js",
     "codex-bootstrap:self-test": "node tests/self/apps/codexAgentRuntimeBootstrapSelfTest.js",
+    "codex-agent-runtime-pilot:self-test": "node tests/self/apps/codexAgentRuntimePilotSelfTest.js",
+    "codex-agent-egress:self-test": "node tests/self/apps/codexAgentRuntimeEgressEvidenceSelfTest.js",
+    "agent-phase19-3a1-corrective:self-test": "node tests/self/apps/agentPhase19_3A1CorrectiveSelfTest.js",
     "codex-compat-probe:self-test": "node tests/self/apps/codexCompatibilityProbeSelfTest.js",
     "codex-compat-auth-ab:self-test": "node tests/self/apps/codexCompatibilityAuthAbSelfTest.js",
     "codex-compat-auth-boundary:self-test": "node tests/self/apps/codexCompatibilityAuthBoundarySelfTest.js",
@@ -356,7 +359,8 @@
     "assistant-development-promotion:self-test": "node tests/self/apps/api/src/services/assistantDevelopmentPromotionSelfTest.js",
     "development-promotion-start:self-test": "node tests/self/apps/api/src/services/developmentPromotionStartSelfTest.js",
     "mcp:gateway": "node scripts/mcp/skycommandMcpGateway.js",
-    "mcp-gateway:self-test": "node tests/self/scripts/mcp/skycommandMcpGatewaySelfTest.js"
+    "mcp-gateway:self-test": "node tests/self/scripts/mcp/skycommandMcpGatewaySelfTest.js",
+    "agent-project-instruction-containment:self-test": "node tests/self/apps/api/src/services/agentProjectInstructionContainmentSelfTest.js"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": [

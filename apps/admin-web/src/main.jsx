@@ -43,6 +43,7 @@ import { BrowserAutomationAdd, BrowserAutomationManage, BrowserAutomationOperati
 import AgentProjects from './pages/AgentProjects.jsx';
 import ManageAgents from './pages/ManageAgents.jsx';
 import AgentOperations from './pages/AgentOperations.jsx';
+import RunAgent from './pages/RunAgent.jsx';
 import './index.css';
 import './App.css';
 
@@ -463,6 +464,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
+            <Route
+              path="agents/run"
+              element={
+                <ProtectedRoute permissionCode="AGENT_RUN">
+                  <RunAgent />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="agents/operations"
               element={

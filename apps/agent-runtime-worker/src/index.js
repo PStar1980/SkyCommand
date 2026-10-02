@@ -9,7 +9,7 @@ async function startAgentRuntimeWorker() {
   const taskQueue = getAgentRuntimeTaskQueue();
   const identity = String(process.env.AGENT_RUNTIME_WORKER_IDENTITY || `agent-runtime-worker:${os.hostname()}:${process.pid}`).trim();
   const generation = String(process.env.AGENT_RUNTIME_WORKER_GENERATION || `local-${process.pid}`).trim();
-  console.log(`[AgentRuntimeWorker] Starting isolated fake runtime worker identity=${identity} generation=${generation}`);
+  console.log(`[AgentRuntimeWorker] Starting provider-neutral Agent Runtime Worker (fake fixtures plus bounded Codex bridge activities) identity=${identity} generation=${generation}`);
   console.log(`[AgentRuntimeWorker] address=${config.address} namespace=${config.namespace} taskQueue=${taskQueue}`);
   console.log('[AgentRuntimeWorker] containment=live-checkout:false,docker-socket:false,github-credentials:false,host-agent-credentials:false,supervisor-credentials:false,provider-credentials:false');
 

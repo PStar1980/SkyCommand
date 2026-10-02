@@ -24,7 +24,20 @@ assert.match(service, /no-new-privileges:true/);
 assert.match(service, /cap_drop:\s*\n\s*- ALL/);
 assert.match(service, /tmpfs:/);
 assert.match(service, /user: ['"]?1000:1000/);
-assert.doesNotMatch(service, /privileged:\s*true|env_file:|volumes:|secrets:|docker\.sock|network_mode:\s*host/i);
+assert.match(service, /CODEX_CONTROL_BRIDGE_TOKEN_FILE:\s*\/run\/codex-api-bridge\/api-bridge-token/);
+const volumeBlock = service.match(/\n\s{4}volumes:\s*\n((?:\s{6}- [^\n]+(?:\n|$))*)/);
+assert.ok(volumeBlock, 'Agent Runtime Worker declares the bounded control-bridge token volume');
+const volumeEntries = volumeBlock[1]
+  .split('\n')
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .map((line) => line.replace(/^-\s*/, ''));
+assert.deepEqual(volumeEntries, [
+  'codex_api_bridge_token:/run/codex-api-bridge:ro',
+], 'Agent Runtime Worker may mount only the read-only Codex API bridge token volume');
+assert.match(compose, /^  codex_api_bridge_token:\s*\n\s+name:\s*skycommand_codex_api_bridge_token\s*$/m);
+assert.doesNotMatch(service, /privileged:\s*true|env_file:|secrets:|docker\.sock|network_mode:\s*host/i);
+assert.doesNotMatch(service, /codex_runtime_control_token|codex_managed_home/);
 
 assert.match(dockerfile, /FROM node:/);
 assert.match(dockerfile, /COPY[^\n]*packages\/agents/);

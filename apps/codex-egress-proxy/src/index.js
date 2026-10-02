@@ -11,6 +11,7 @@ const { AuthAbPhaseJournal, projectAuthAbEvent } = require('./authAbDiagnostics'
 const PORT = Number(process.env.CODEX_EGRESS_PROXY_PORT || 3128);
 const POLICY_PATH = process.env.CODEX_EGRESS_ALLOWLIST_PATH || '/etc/skycommand/provider-allowlist.txt';
 const MAX_EVENTS = 80;
+const proxyGeneration = crypto.randomUUID();
 const AUTH_AB_MODE = process.env.CODEX_EGRESS_AUTH_AB_MODE === '1';
 const configuredFingerprintKey = process.env.CODEX_EGRESS_AUTH_AB_FINGERPRINT_KEY || '';
 if (AUTH_AB_MODE && !/^[A-F0-9]{64}$/i.test(configuredFingerprintKey)) {
@@ -33,7 +34,11 @@ function loadAllowlist() {
 }
 
 function record(host, port, decision, reason, phaseToken) {
-  const event = phaseJournal.finishConnect(phaseToken, host, port, decision, reason);
+  // Never let a malformed/unbounded CONNECT authority break diagnostics or
+  // persist its potentially sensitive raw text in the bounded journal.
+  const safeHost = typeof host === 'string' && host.length <= 253 && /^[A-Za-z0-9.-]+$/.test(host)
+    ? host : 'INVALID';
+  const event = phaseJournal.finishConnect(phaseToken, safeHost, port, decision, reason);
   const projected = AUTH_AB_MODE
     ? projectAuthAbEvent(event, phaseJournal.key)
     : { host: event.host, port: 443, decision: event.decision, reason: event.reason, observedAt: event.observedAt };
@@ -91,11 +96,32 @@ const server = http.createServer((request, response) => {
   }
   if (request.method === 'GET' && request.url === '/diagnostics') {
     if (AUTH_AB_MODE) {
-      sendJson(response, 200, phaseJournal.safeSnapshot());
+      sendJson(response, 200, {
+        ...phaseJournal.safeSnapshot(),
+        generation: proxyGeneration,
+        earliestRetainedCursor: phaseJournal.cursor - phaseJournal.events.length + 1,
+      });
     } else {
-      response.writeHead(200, { 'content-type': 'application/json' });
-      const events = phaseJournal.events.map(({ host, decision, reason, observedAt }) => ({ host, port: 443, decision, reason, observedAt }));
-      response.end(JSON.stringify({ events }));
+      const events = phaseJournal.events.map((event) => ({
+        cursor: event.cursor,
+        host: event.host,
+        destinationFingerprint: projectAuthAbEvent(event, phaseJournal.key).destinationFingerprint,
+        port: event.port,
+        decision: event.decision,
+        reason: event.reason,
+        observedAt: event.observedAt,
+      }));
+      response.writeHead(200, {
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      });
+      response.end(JSON.stringify({
+        generation: proxyGeneration,
+        cursor: phaseJournal.cursor,
+        pendingConnects: phaseJournal.pendingConnects,
+        earliestRetainedCursor: phaseJournal.cursor - phaseJournal.events.length + 1,
+        events,
+      }));
     }
     return;
   }

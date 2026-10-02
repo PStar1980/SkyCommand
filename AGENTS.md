@@ -39,6 +39,22 @@ Normal implementation sequence:
 
 Human review belongs at the end of the development turn, not between routine implementation steps.
 
+## Sky-authored overlay execution relay
+
+Until SkyCommand automates this development handoff, the preferred manual collaboration loop is:
+
+1. Paul/Sky define the requirement and acceptance boundary.
+2. Sky/ChatGPT owns architecture and source design, prepares a repo-relative overlay ZIP containing the exact changed files, and writes the execution instructions for Luna/Codex.
+3. Paul acts only as the transport bridge: download the Sky-authored ZIP, then forward Sky's instruction plus the **exact local absolute ZIP path** to Luna (for example, `C:\Users\pauls\Downloads\<overlay>.zip`). The supplied path is authoritative for that turn. Paul is not expected to unpack/place files, run tests, run Finalization, generate repository evidence, or operate Promotion.
+4. Luna/Codex verifies the supplied package, package hash/manifest when provided, and authorized target checkout, then overlays the files into their repo-relative locations exactly as directed. If the supplied absolute path is unavailable, Luna may perform only a bounded read-only lookup for the **exact filename** in the user's standard Windows Downloads location; use it only when there is exactly one matching file and its expected hash/manifest verifies, and report the path substitution. Zero/multiple matches or a hash/manifest mismatch blocks execution. Luna does not independently redesign or author additional source changes unless Sky's instruction explicitly delegates a bounded correction.
+5. Luna/Codex performs the tests and runtime/workflow actions directed by Sky. Prefer API/CLI/self/integration validation as the default technical surface. When frontend/browser behavior changed and Sky directs it, Luna may run the registered Playwright/browser validation path and return its artifacts/results.
+6. When Sky directs Finalization and the required tests pass, Luna runs the governed **Dev Change Finalization** Workflow, collects the mandatory receipt evidence, and returns the Finalization-generated current Repo ZIP/Repo Map evidence. When Sky explicitly directs no Finalization for an intermediate file-changing turn, Luna runs the registered Repo Map/Repo ZIP generation path so every returned file-changing turn has a fresh repository snapshot for Sky review, then stops.
+7. Paul relays Luna's completion packet back to Sky. The packet should include Luna's response, the fresh repository ZIP/evidence generated from the resulting working tree, Playwright results/artifacts when applicable, and visible working-tree status evidence when the tree is not clean.
+8. Sky reviews the returned source/evidence and decides whether a corrective overlay is needed or whether to recommend acceptance.
+9. Development Promotion remains separate. After Paul explicitly approves promotion, Sky provides the promotion instruction and Luna executes the registered promotion Workflow to terminal receipt.
+
+This relay is intentionally manual while the team learns the real operational edge cases. Once the sequence is stable, it should be encoded into deterministic SkyCommand workflows rather than preserving Paul as a permanent message relay.
+
 ## Architecture and delegated-execution invariants
 
 These rules are mandatory for every assigned task:
@@ -47,6 +63,7 @@ These rules are mandatory for every assigned task:
 - **Luna/Codex or any replacement execution model is Sky's delegated eyes and hands in the authorized environment.** Default duties are inspection, bounded command execution, exact directed patch/edit application when delegated, testing, evidence collection, and environment interaction.
 - Execution agents must not independently redesign architecture, expand scope, create cross-component contracts, alter established Tool semantics, or add unrelated refactors/cleanup. Unexpected architectural implications must be surfaced to Sky before implementation continues.
 - **A registered Tool must remain independently executable** by itself or as a Workflow node. A Tool may depend on declared data/configuration/durable artifacts, but not on another named Tool having executed first or on hidden workflow history.
+- **Tool scripts must not create Tool-specific environment-variable dependencies.** A Tool may read an existing shared application/infrastructure environment variable when that variable is genuinely common across subsystems, but a Tool must not introduce or require an environment key owned only by that Tool. Stable Tool-local implementation values may be constants in code. Behavior that needs caller-selected flexibility must be an explicit registered Tool parameter with validation/default semantics, not a private `.env` switch. Secrets and genuinely cross-cutting process-start configuration remain governed by the shared configuration policy.
 - **Workflows compose independent Tools.** Ordering, branching, gating, and sequencing belong in orchestration; sibling Tools must not absorb or enforce each other's workflow semantics.
 - **Prefer the smallest safe change.** If a small requirement touches unrelated stable components, introduces new services/state/lifecycle machinery, or materially changes existing behavior, stop for architectural review.
 - **Preserve working behavior and performance.** Passing tests does not excuse unrelated behavior changes, extra rebuilds/restarts, longer execution, avoidable retries, or materially slower workflows.
@@ -139,7 +156,8 @@ Subject to the request-level execution-surface policy, the agent may, without ad
 - Keep `.env.example` and `.env` aligned for applicable non-secret keys when the task introduces or changes such configuration; preserve local-only/secrets and unrelated values.
 - Never print, summarize, copy into chat/output, commit, package, or persist secret values into tracked files or structured results.
 - Preserve unrelated `.env` values and comments where practical.
-- Prefer updating existing configuration over introducing a new environment variable.
+- Prefer updating existing shared configuration over introducing a new environment variable.
+- Tool scripts must not add or depend on Tool-specific `.env` / `.env.example` keys. Tools may reference existing shared application/infrastructure variables, but Tool-local behavior belongs in code constants when stable or in explicit registered Tool parameters when configurable.
 - Do not create per-operation approval flags when Workflow/Tool permission already expresses authority.
 - `.env.example` contains non-secret defaults/documentation only; `.env` remains local and untracked.
 - Configuration tooling must report key names/classification, never secret values.

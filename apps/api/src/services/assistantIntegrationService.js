@@ -483,6 +483,11 @@ async function getManagedCodexStatus({ permissions = [], agentId, actor, session
   return managedCodexBootstrapService.getManagedCodex(buildManagedCodexRequest({ permissions, agentId, actor, session, context }));
 }
 
+async function getManagedCodexDiagnostics({ permissions = [], agentId, actor, session, context } = {}) {
+  assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_READ_PERMISSION]);
+  return managedCodexBootstrapService.getCompatibilityDiagnostics(buildManagedCodexRequest({ permissions, agentId, actor, session, context }));
+}
+
 async function startManagedCodexEnrollment({ body = {}, permissions = [], agentId, actor, session, context } = {}) {
   assertManagedCodexPermission({ permissions, agentId }, [MANAGED_CODEX_ENROLL_PERMISSION]);
   assertEmptyManagedCodexBody(body);
@@ -604,12 +609,16 @@ function getCapabilities({
     managedCodexBootstrap: {
       enabled: agentId === MANAGED_CODEX_AGENT_ID,
       executionEnabled: false,
+      legacyAssistantExecutionAuthorized: false,
+      authorityScope: 'LEGACY_ASSISTANT_BOOTSTRAP_ONLY',
+      runtimeReadinessSource: 'managedCodexBootstrapService.getBootstrapReadiness',
       permissions: {
         read: permissionCodes.includes(MANAGED_CODEX_READ_PERMISSION),
         enroll: permissionCodes.includes(MANAGED_CODEX_ENROLL_PERMISSION),
         lifecycle: permissionCodes.includes(MANAGED_CODEX_LIFECYCLE_PERMISSION),
       },
       status: '/api/assistant/managed-codex',
+      diagnostics: '/api/assistant/managed-codex/diagnostics',
       enrollmentStart: '/api/assistant/managed-codex/enrollments',
       enrollmentReconcile: '/api/assistant/managed-codex/enrollments/{enrollmentId}/reconcile',
       lifecycleStart: '/api/assistant/managed-codex/runtime-lifecycle',
@@ -647,6 +656,34 @@ function getCapabilities({
   };
 }
 
+async function getCapabilitiesWithRuntimeReadiness({
+  permissionCodes = [],
+  agentId = 'assistant-http',
+  runtimeReadiness = null,
+} = {}) {
+  const capabilities = getCapabilities({ permissionCodes, agentId });
+  const readiness = runtimeReadiness || await managedCodexBootstrapService.getBootstrapReadiness();
+  return {
+    ...capabilities,
+    managedCodexRuntime: {
+      selectedForAgent: agentId === MANAGED_CODEX_AGENT_ID,
+      profile: 'CODEX_READ_ONLY_PILOT',
+      readiness: readiness?.readiness || 'UNKNOWN',
+      readinessReason: readiness?.readinessReason || null,
+      ready: readiness?.ok === true && readiness?.executionEnabled === true,
+      executionEnabled: readiness?.executionEnabled === true,
+      freshness: readiness?.ok === true ? 'CURRENT' : 'STALE_BLOCKED',
+      runtimeGeneration: readiness?.runtimeGeneration || null,
+      observedAt: readiness?.observedAt || null,
+      source: 'managedCodexBootstrapService.getBootstrapReadiness',
+      authority: 'AGENT_RUN_SERVICE_ONLY',
+      legacyAssistantExecutionAuthorized: false,
+      startAuthorityPath: '/api/agent-runs',
+      optionsPath: '/api/agent-runs/options',
+    },
+  };
+}
+
 function getOpenApiDocument() {
   return {
     openapi: '3.1.0',
@@ -680,6 +717,14 @@ function getOpenApiDocument() {
           'x-required-permission-codes': [MANAGED_CODEX_READ_PERMISSION],
           description: 'Read the fixed managed Codex bootstrap and account-certification state. Agent execution is disabled.',
           responses: { 200: { description: 'Safe managed runtime and account status.' }, 403: { description: 'Managed Codex read permission is missing.' } },
+        },
+      },
+      '/managed-codex/diagnostics': {
+        get: {
+          operationId: 'skycommand_managed_codex_diagnostics',
+          'x-required-permission-codes': [MANAGED_CODEX_READ_PERMISSION],
+          description: 'Read sanitized app-server model-catalog and MCP-status diagnostics without starting a provider Turn.',
+          responses: { 200: { description: 'Sanitized compatibility diagnostics.' }, 403: { description: 'Managed Codex read permission is missing.' } },
         },
       },
       '/managed-codex/enrollments': {
@@ -1113,12 +1158,14 @@ module.exports = {
   getArtifact,
   getAutomation,
   getCapabilities,
+  getCapabilitiesWithRuntimeReadiness,
   getDevelopmentPromotionConfig,
   getMissingDevelopmentPromotionPermissionCodes,
   getOpenApiDocument,
   getRun,
   getManagedCodexLifecycle,
   getManagedCodexStatus,
+  getManagedCodexDiagnostics,
   listAutomations,
   recordDevelopmentPromotionAudit,
   recordInvocationAudit,

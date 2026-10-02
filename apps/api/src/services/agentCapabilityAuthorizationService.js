@@ -16,6 +16,10 @@ const BROWSER_WAIT_TIMEOUT_MS = 90 * 1000;
 const TERMINAL_BROWSER_STATUSES = new Set(['SUCCESS', 'FAILED', 'CANCELED', 'TERMINATED', 'TIMED_OUT']);
 
 const MANAGED_BROWSER_CASES = Object.freeze({
+  // Phase 19.3A1 is a real-provider request, but it deliberately reuses the
+  // same durable effect/credential/Browser dispatch contract as the fake
+  // fixtures. The case is a bounded policy label, not provider authority.
+  'codex-read-only-pilot': { duplicateDeliveries: 1, revokeBeforeDispatch: false, simulateUnknownDispatch: false },
   'browser-capability-success': { duplicateDeliveries: 1, revokeBeforeDispatch: false, simulateUnknownDispatch: false },
   'browser-capability-duplicate-retry': { duplicateDeliveries: 2, revokeBeforeDispatch: false, simulateUnknownDispatch: false },
   'browser-capability-revoked-before-dispatch': { duplicateDeliveries: 1, revokeBeforeDispatch: true, simulateUnknownDispatch: false },
@@ -253,7 +257,28 @@ async function appendEvent(client, { run, eventType, sourceCursor, payload = {},
   );
 }
 
+async function isAuthorizedInternalServiceRun(client, run) {
+  if (
+    run?.initiating_user_id
+    || run?.initiating_actor_kind !== 'INTERNAL_SERVICE'
+    || run?.initiating_actor_id !== 'internal:agent-run'
+    || !run?.initiating_principal_id
+  ) return false;
+  const result = await client.query(
+    `SELECT 1
+       FROM auth.execution_principals
+      WHERE execution_principal_id = $1
+        AND principal_type = 'SERVICE'
+        AND principal_code = 'internal:agent-run'
+        AND status = 'ACTIVE'
+      LIMIT 1`,
+    [run.initiating_principal_id],
+  );
+  return result.rowCount > 0;
+}
+
 async function hasCurrentBrowserPermission(client, run) {
+  if (await isAuthorizedInternalServiceRun(client, run)) return true;
   if (!run.initiating_user_id) return false;
   const result = await client.query(
     `SELECT 1
@@ -268,6 +293,17 @@ async function hasCurrentBrowserPermission(client, run) {
 }
 
 async function hasCurrentProjectRead(client, run) {
+  if (await isAuthorizedInternalServiceRun(client, run)) {
+    const project = await client.query(
+      `SELECT 1
+         FROM core.projects
+        WHERE project_id = $1
+          AND active = TRUE
+        LIMIT 1`,
+      [run.project_id],
+    );
+    return project.rowCount > 0;
+  }
   if (!run.initiating_user_id) return false;
   const admin = await client.query(
     `SELECT 1
@@ -319,7 +355,7 @@ async function loadAutomation() {
 
 async function evaluateLiveAuthorization(client, run, request, { approvalApplied = false } = {}) {
   if (!run) return { decision: 'DENY', reason: 'AGENT_RUN_NOT_FOUND' };
-  if (run.scope_status !== 'ACTIVE' || ['CANCEL_REQUESTED', 'CANCELLING', 'CANCELED'].includes(run.status)) {
+  if (run.scope_status !== 'ACTIVE' || ['COMPLETED', 'FAILED', 'TIMED_OUT', 'RECOVERY_REQUIRED', 'CANCEL_REQUESTED', 'CANCELLING', 'CANCELED'].includes(run.status)) {
     return { decision: 'DENY', reason: 'RUN_OR_ROOT_REVOKED' };
   }
   if (run.root_grant_state !== 'ACTIVE' || Number(run.root_grant_epoch) !== Number(run.scope_revocation_epoch)) {

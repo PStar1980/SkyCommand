@@ -14,6 +14,7 @@ const {
   assertTransition,
   buildTerminalSummary,
   canTransition,
+  normalizeUsageForSummary,
 } = require(path.join(root, 'packages/agents/src/agentRunKernel'));
 const { buildExecutionContext } = require(path.join(root, 'packages/agents/src/executionContext'));
 const { getAgentRuntimeTaskQueue } = require(path.join(root, 'packages/agents/src/runtimeWorker'));
@@ -126,6 +127,51 @@ function run() {
   });
   assert.equal(summary.status, 'COMPLETED');
   assert.equal(summary.usage.freshness, 'STALE');
+
+  const providerEmptyUsage = normalizeUsageForSummary({
+    usage: {},
+    operationId: 'provider-operation-empty',
+    runtimeKind: 'OPENAI_CODEX_APP_SERVER',
+  });
+  assert.deepEqual(providerEmptyUsage, {
+    availability: 'REPORTED',
+    observationsRef: 'provider-operation-empty',
+    scope: 'RUN',
+    source: 'OPENAI_CODEX_APP_SERVER',
+    freshness: 'CURRENT',
+    measurements: [],
+  });
+
+  const providerSummary = buildTerminalSummary({
+    runId: 'provider-run-1',
+    sessionId: 'provider-session-1',
+    projectId: 'project-1',
+    agentDefinitionId: 'definition-1',
+    agentRevision: 2,
+    runtimeKind: 'OPENAI_CODEX_APP_SERVER',
+    rootExecutionId: 'provider-root-1',
+    rootAgentRunId: 'provider-run-1',
+    initiatingUserId: 'user-1',
+    initiatingActor: { kind: 'USER', id: 'principal-1', displayNameSnapshot: 'Fixture User' },
+    triggerSource: 'MANUAL',
+    status: 'COMPLETED',
+    outcome: 'SUCCESS',
+    taskOutput: { kind: 'CODEX_AGENT_MESSAGE', message: 'status snapshot', providerStatus: 'COMPLETED', requestedModel: 'gpt-5.6-sol', observedModel: 'gpt-5.6-sol', requestedReasoningEffort: 'low', observedReasoningEffort: 'low', mcpCapabilityCount: 1 },
+    usage: {},
+    operationId: 'provider-operation-empty',
+  });
+  assert.equal(providerSummary.usage.availability, 'REPORTED');
+  assert.equal(providerSummary.usage.observationsRef, 'provider-operation-empty');
+  assert.equal(providerSummary.usage.measurements.length, 0);
+  assert.equal(Object.prototype.hasOwnProperty.call(providerSummary.usage, 'totalTokens'), false);
+
+  const providerNoUsage = normalizeUsageForSummary({
+    usage: null,
+    operationId: 'provider-operation-none',
+    runtimeKind: 'OPENAI_CODEX_APP_SERVER',
+  });
+  assert.equal(providerNoUsage.availability, 'NOT_REPORTED');
+  assert.equal(providerNoUsage.freshness, 'UNKNOWN');
 
   console.log('✅ Phase 19.2A Agent Run kernel self-test passed.');
 }

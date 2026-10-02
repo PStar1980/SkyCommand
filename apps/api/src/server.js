@@ -29,6 +29,7 @@ const agentExecutionRoutes = require('./routes/agentExecution.routes');
 const agentRunRoutes = require('./routes/agentRun.routes');
 const agentInteractionRoutes = require('./routes/agentInteraction.routes');
 const executionScopeRoutes = require('./routes/executionScope.routes');
+const codexInternalRoutes = require('./routes/codexInternal.routes');
 const authService = require('./services/authService');
 const scriptExecutionService = require('./services/scriptExecutionService');
 const apiTelemetryService = require('./services/apiTelemetryService');
@@ -55,6 +56,11 @@ function createApp() {
       res.status(503).json({ ok: false, readiness: 'RUNTIME_OFFLINE', executionEnabled: false });
     }
   });
+
+  // This route is reachable only on the isolated API-control network and is
+  // protected by the generated Codex bridge credential. It is deliberately
+  // not mounted under the user-facing API namespace.
+  app.use('/_internal/codex', codexInternalRoutes);
 
   app.get('/_db/health', async (req, res) => {
     try {

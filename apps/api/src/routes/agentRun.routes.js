@@ -7,10 +7,12 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.post('/', requirePermission('AGENT_RUN'), agentRunController.admit);
+router.get('/options', requirePermission('AGENT_RUN'), agentRunController.options);
 router.get('/', requirePermission('AGENT_RUN'), agentRunController.list);
 router.get('/:runId', requirePermission('AGENT_RUN'), agentRunController.detail);
 router.get('/:runId/events', requirePermission('AGENT_RUN'), agentRunController.events);
 router.get('/:runId/result', requirePermission('AGENT_RUN'), agentRunController.result);
 router.post('/:runId/cancel', requireAnyPermission(['AGENT_RUN_CANCEL_OWN', 'AGENT_RUN_CANCEL_PROJECT']), agentRunController.cancel);
+router.post('/:runId/recover', requirePermission('AGENT_RUN'), agentRunController.recover);
 
 module.exports = router;
