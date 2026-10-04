@@ -61,6 +61,7 @@ SkyCommand/
 │   │       │   ├── HumanApprovalParameterEditor.jsx
 │   │       │   ├── IngestionProfileEditor.jsx
 │   │       │   ├── Navbar.jsx
+│   │       │   ├── PlatformAvailabilityPanel.jsx
 │   │       │   ├── ProtectedRoute.jsx
 │   │       │   ├── RepositoryForm.jsx
 │   │       │   ├── RuntimeParameterSchemaEditor.jsx
@@ -128,6 +129,7 @@ SkyCommand/
 │   │       │   ├── AgentOperations.jsx
 │   │       │   ├── agentOperationsPresentation.mjs
 │   │       │   ├── AgentProjects.jsx
+│   │       │   ├── AgentSessions.jsx
 │   │       │   ├── ApiDashboard.jsx
 │   │       │   ├── AuditEvents.jsx
 │   │       │   ├── AutomationDashboard.jsx
@@ -196,6 +198,7 @@ SkyCommand/
 │   │       │   ├── agentController.js
 │   │       │   ├── agentInteractionController.js
 │   │       │   ├── agentRunController.js
+│   │       │   ├── agentSessionController.js
 │   │       │   ├── assistantIntegrationController.js
 │   │       │   ├── authController.js
 │   │       │   ├── browserAutomationController.js
@@ -225,6 +228,7 @@ SkyCommand/
 │   │       │   ├── agentInteraction.routes.js
 │   │       │   ├── agentRun.routes.js
 │   │       │   ├── agentRuntime.routes.js
+│   │       │   ├── agentSession.routes.js
 │   │       │   ├── assistantIntegration.routes.js
 │   │       │   ├── auth.routes.js
 │   │       │   ├── browserAutomation.routes.js
@@ -250,7 +254,9 @@ SkyCommand/
 │   │       │   ├── agentInteractionService.js
 │   │       │   ├── agentRegistryService.js
 │   │       │   ├── agentRunDispatcher.js
+│   │       │   ├── agentRuntimeAvailability.js
 │   │       │   ├── agentRuntimeProjection.js
+│   │       │   ├── agentSessionService.js
 │   │       │   ├── apiDockerPreflight.js
 │   │       │   ├── apiTelemetryPolicy.js
 │   │       │   ├── apiTelemetryService.js
@@ -276,6 +282,7 @@ SkyCommand/
 │   │       │   ├── orchestratorRefreshService.js
 │   │       │   ├── productionReadinessService.js
 │   │       │   ├── publicMacroService.js
+│   │       │   ├── runtimeControlService.js
 │   │       │   ├── scriptExecutionService.js
 │   │       │   ├── skycommandRepositoryService.js
 │   │       │   ├── skywebAlertPreferencesService.js
@@ -343,6 +350,7 @@ SkyCommand/
 │               ├── scheduleCalculator.js
 │               └── schedulePoller.js
 ├── artifacts/
+│   ├── agent-sessions/
 │   └── browser/
 │       ├── automations/
 │       │   ├── .gitkeep
@@ -422,6 +430,11 @@ SkyCommand/
 │       │   │   └── screenshots/
 │       │   │       └── Command Center Status Snapshot.png
 │       │   ├── 82bf1bfa-2c17-455b-80f7-1c3901d94fea/
+│       │   │   ├── skycommand-automation-summary.json
+│       │   │   ├── downloads/
+│       │   │   └── screenshots/
+│       │   │       └── Command Center Status Snapshot.png
+│       │   ├── 87270db8-b52f-46bb-aef8-b16da8cfc8d4/
 │       │   │   ├── skycommand-automation-summary.json
 │       │   │   ├── downloads/
 │       │   │   └── screenshots/
@@ -1533,10 +1546,183 @@ SkyCommand/
 │           │           ├── workflow-initialization-open.png
 │           │           └── attachments/
 │           │               └── Workflow-Initialization-Open-16ecac1af039d680fbf89a008fe762627008aeba.png
+│           ├── phase19-3b/
+│           │   ├── a1-baseline.json
+│           │   ├── database-plan-final.json
+│           │   ├── database-upgrade-result.json
+│           │   ├── final-git-status.txt
+│           │   ├── finalization-verification.json
+│           │   ├── finalization-workflow-status.json
+│           │   ├── historical-runtime-blocker.json
+│           │   ├── managed-codex-final-capabilities.json
+│           │   ├── r1-historical-reconciliation.json
+│           │   ├── runtime-lifecycle-admission.json
+│           │   ├── runtime-lifecycle-result.json
+│           │   ├── session-final-preflight.json
+│           │   ├── session-preflight.json
+│           │   ├── temporal-refresh-admission.json
+│           │   ├── temporal-refresh-result.json
+│           │   ├── zip-source-verification.json
+│           │   ├── playwright/
+│           │   │   ├── report/
+│           │   │   │   ├── index.html
+│           │   │   │   ├── data/
+│           │   │   │   │   ├── 0474a28136d65fefe8657c6b58c9635b0cb70f48.md
+│           │   │   │   │   ├── 1a1a8a980e27ae67b9363a72c3678dadfcfd55cc.md
+│           │   │   │   │   ├── 1e60a82600fa9c80f9fe7a108c2b1c93c077a0d0.webm
+│           │   │   │   │   ├── 2ed88d963d952140672acbfa9af5a9fd006a2bd5.png
+│           │   │   │   │   ├── 37fd3aaad1eb3dc7e38efa360cdd75cbb3829a0a.webm
+│           │   │   │   │   ├── 7a967f224e7695b28e2018bd44b3e812fa2c97af.webm
+│           │   │   │   │   ├── 7b1fc7026339d42015206b9f2cd545e9d98f1ce1.md
+│           │   │   │   │   ├── 8b08e2c7636b83fdd1447493d13d04c6a8b04f65.md
+│           │   │   │   │   └── a72a01dda0adcea54132d03f46df5eec4937752d.webm
+│           │   │   │   └── trace/
+│           │   │   │       ├── codeMirrorModule.DYBRYzYX.css
+│           │   │   │       ├── codicon.DCmgc-ay.ttf
+│           │   │   │       ├── defaultSettingsView.BDKsFU3c.css
+│           │   │   │       ├── index.BCnMPevh.js
+│           │   │   │       ├── index.CzXZzn5A.css
+│           │   │   │       ├── index.html
+│           │   │   │       ├── manifest.webmanifest
+│           │   │   │       ├── playwright-logo.svg
+│           │   │   │       ├── snapshot.html
+│           │   │   │       ├── snapshot.v8KI4P3m.js
+│           │   │   │       ├── sw.bundle.js
+│           │   │   │       ├── uiMode.Btcz36p_.css
+│           │   │   │       ├── uiMode.C2Efnu2P.js
+│           │   │   │       ├── uiMode.html
+│           │   │   │       ├── xtermModule.DYP7pi_n.css
+│           │   │   │       └── assets/
+│           │   │   │           ├── codeMirrorModule-Ds_H_9Yq.js
+│           │   │   │           ├── defaultSettingsView-D31xz8zv.js
+│           │   │   │           └── urlMatch-BYQrIQwR.js
+│           │   │   └── results/
+│           │   │       ├── .last-run.json
+│           │   │       ├── agents-agentSessions-Phase-36c5f-en-links-chronological-Runs-chromium/
+│           │   │       │   ├── error-context.md
+│           │   │       │   ├── test-failed-1.png
+│           │   │       │   └── video.webm
+│           │   │       ├── agents-agentSessions-Phase-c66d7-r-unknown-admission-outcome-chromium/
+│           │   │       │   ├── error-context.md
+│           │   │       │   ├── test-failed-1.png
+│           │   │       │   └── video.webm
+│           │   │       ├── agents-agentSessions-Phase-dd35c--history-and-the-active-Run-chromium/
+│           │   │       │   ├── error-context.md
+│           │   │       │   ├── test-failed-1.png
+│           │   │       │   └── video.webm
+│           │   │       └── agents-agentSessions-Phase-edcfe-ation-and-opens-the-new-Run-chromium/
+│           │   │           ├── error-context.md
+│           │   │           ├── test-failed-1.png
+│           │   │           └── video.webm
+│           │   ├── playwright-built/
+│           │   │   ├── report/
+│           │   │   │   ├── index.html
+│           │   │   │   ├── data/
+│           │   │   │   │   ├── 144d15ac1d6de2c2cc33ab1f611b446e57ec1fc8.webm
+│           │   │   │   │   ├── 1afbe67fbf3314105cd2e822c67c14d63c867709.png
+│           │   │   │   │   ├── 2234cb90527d6a4f4eacc39f52269601f6f62012.md
+│           │   │   │   │   ├── 23d102e94e0161d62758f52985d0b0bed0cc5cb9.md
+│           │   │   │   │   ├── 5d50130ba936c54370f4b5b3b2d1d0c0521463b5.webm
+│           │   │   │   │   ├── 71d6469d151f951a565ad45dc5f03dd232951e2c.md
+│           │   │   │   │   ├── 8e99d03e291f94dcd4f2b6306dc84c6bcf4413db.webm
+│           │   │   │   │   ├── edfb00c3e6f90be10d134b47e6851010dd3b10f6.webm
+│           │   │   │   │   └── f695460890c6691881e4c00a357e1b9691703d6f.md
+│           │   │   │   └── trace/
+│           │   │   │       ├── codeMirrorModule.DYBRYzYX.css
+│           │   │   │       ├── codicon.DCmgc-ay.ttf
+│           │   │   │       ├── defaultSettingsView.BDKsFU3c.css
+│           │   │   │       ├── index.BCnMPevh.js
+│           │   │   │       ├── index.CzXZzn5A.css
+│           │   │   │       ├── index.html
+│           │   │   │       ├── manifest.webmanifest
+│           │   │   │       ├── playwright-logo.svg
+│           │   │   │       ├── snapshot.html
+│           │   │   │       ├── snapshot.v8KI4P3m.js
+│           │   │   │       ├── sw.bundle.js
+│           │   │   │       ├── uiMode.Btcz36p_.css
+│           │   │   │       ├── uiMode.C2Efnu2P.js
+│           │   │   │       ├── uiMode.html
+│           │   │   │       ├── xtermModule.DYP7pi_n.css
+│           │   │   │       └── assets/
+│           │   │   │           ├── codeMirrorModule-Ds_H_9Yq.js
+│           │   │   │           ├── defaultSettingsView-D31xz8zv.js
+│           │   │   │           └── urlMatch-BYQrIQwR.js
+│           │   │   └── results/
+│           │   │       ├── .last-run.json
+│           │   │       ├── agents-agentSessions-Phase-36c5f-en-links-chronological-Runs-chromium/
+│           │   │       │   ├── error-context.md
+│           │   │       │   ├── test-failed-1.png
+│           │   │       │   └── video.webm
+│           │   │       ├── agents-agentSessions-Phase-c66d7-r-unknown-admission-outcome-chromium/
+│           │   │       │   ├── error-context.md
+│           │   │       │   ├── test-failed-1.png
+│           │   │       │   └── video.webm
+│           │   │       ├── agents-agentSessions-Phase-dd35c--history-and-the-active-Run-chromium/
+│           │   │       │   ├── error-context.md
+│           │   │       │   ├── test-failed-1.png
+│           │   │       │   └── video.webm
+│           │   │       └── agents-agentSessions-Phase-edcfe-ation-and-opens-the-new-Run-chromium/
+│           │   │           ├── error-context.md
+│           │   │           ├── test-failed-1.png
+│           │   │           └── video.webm
+│           │   ├── playwright-production/
+│           │   │   ├── skycommand-summary.json
+│           │   │   ├── report/
+│           │   │   │   ├── index.html
+│           │   │   │   └── data/
+│           │   │   │       ├── 60322b300bedd7cbeb3eec5fa7a60fd3d77eca44.png
+│           │   │   │       └── eb9ee5f1401f058c94bf9018c88bae8f0b209823.png
+│           │   │   └── results/
+│           │   │       ├── .last-run.json
+│           │   │       └── agents-agentSessions-Phase-36c5f-en-links-chronological-Runs-chromium/
+│           │   │           ├── agent-session-detail.png
+│           │   │           ├── agent-sessions-list.png
+│           │   │           └── attachments/
+│           │   │               ├── Agent-Session-detail-and-timeline-82990f8abdef8d1b59b5d5c5a339c79e44011ba7.png
+│           │   │               └── Agent-Sessions-list-7d411246f807a5eeb8a36c67891672c5ec4fde50.png
+│           │   └── playwright-ui-debug/
+│           │       ├── report/
+│           │       │   ├── index.html
+│           │       │   ├── data/
+│           │       │   │   ├── 1afbe67fbf3314105cd2e822c67c14d63c867709.png
+│           │       │   │   ├── 815953f52eeb91b29a5f5c70133be6c7f7991308.md
+│           │       │   │   └── c5cf5c8d47774f19a75a01a5aa96c8b685cd3f4e.webm
+│           │       │   └── trace/
+│           │       │       ├── codeMirrorModule.DYBRYzYX.css
+│           │       │       ├── codicon.DCmgc-ay.ttf
+│           │       │       ├── defaultSettingsView.BDKsFU3c.css
+│           │       │       ├── index.BCnMPevh.js
+│           │       │       ├── index.CzXZzn5A.css
+│           │       │       ├── index.html
+│           │       │       ├── manifest.webmanifest
+│           │       │       ├── playwright-logo.svg
+│           │       │       ├── snapshot.html
+│           │       │       ├── snapshot.v8KI4P3m.js
+│           │       │       ├── sw.bundle.js
+│           │       │       ├── uiMode.Btcz36p_.css
+│           │       │       ├── uiMode.C2Efnu2P.js
+│           │       │       ├── uiMode.html
+│           │       │       ├── xtermModule.DYP7pi_n.css
+│           │       │       └── assets/
+│           │       │           ├── codeMirrorModule-Ds_H_9Yq.js
+│           │       │           ├── defaultSettingsView-D31xz8zv.js
+│           │       │           └── urlMatch-BYQrIQwR.js
+│           │       └── results/
+│           │           ├── .last-run.json
+│           │           └── agents-agentSessions-Phase-36c5f-en-links-chronological-Runs-chromium/
+│           │               ├── error-context.md
+│           │               ├── test-failed-1.png
+│           │               └── video.webm
 │           ├── report/
-│           │   └── index.html
+│           │   ├── index.html
+│           │   └── data/
+│           │       └── d0a81104a1ba6c9f3cd6caf7b057396a505366a7.png
 │           └── results/
-│               └── .last-run.json
+│               ├── .last-run.json
+│               └── platformAvailability-Phase-e0d7b-tainers-from-a-runtime-card-chromium/
+│                   ├── platform-availability-start-state.png
+│                   └── attachments/
+│                       └── Platform-Availability-Start-state-0a4b1501edf4da483682e319ed6728727a18dc37.png
 ├── browser-automation/
 │   ├── README.md
 │   └── scripts/
@@ -1677,6 +1863,7 @@ SkyCommand/
 │   │       ├── agentRunKernel.js
 │   │       ├── authority.js
 │   │       ├── canonical.js
+│   │       ├── continuationResult.js
 │   │       ├── executionContext.js
 │   │       ├── fakeRuntime.js
 │   │       ├── index.js
@@ -1830,7 +2017,9 @@ SkyCommand/
 │   │       │   ├── 00161__development_promotion_secret_leak_gate.sql
 │   │       │   ├── 00162__development_promotion_secret_leak_gate_decoupling.sql
 │   │       │   ├── 00163__agent_real_codex_read_only_run.sql
-│   │       │   └── 00165__agent_turn_failed_status_and_recovery_segment_hardening.sql
+│   │       │   ├── 00165__agent_turn_failed_status_and_recovery_segment_hardening.sql
+│   │       │   ├── 00167__managed_agent_session_archive.sql
+│   │       │   └── 00168__agent_session_runtime_refresh_profile.sql
 │   │       └── seeds/
 │   │           ├── 00004__data_indicators.sql
 │   │           ├── 00010__data_indicators.sql
@@ -1949,6 +2138,8 @@ SkyCommand/
 │   │       ├── dockerSnapshot.js
 │   │       ├── dockerTelemetryBridge.js
 │   │       ├── health.js
+│   │       ├── supervisorProcessLifecycle.js
+│   │       ├── supervisorTaskLifecycle.js
 │   │       └── worker.js
 │   ├── ingestion/
 │   │   └── src/
@@ -2118,6 +2309,7 @@ SkyCommand/
 │           ├── toolResultTransport.js
 │           └── workflowResultContext.js
 ├── scripts/
+│   ├── agentSessionContinuationAcceptance.js
 │   ├── capabilityCatalogExport.js
 │   ├── validate.js
 │   ├── browser/
@@ -2343,8 +2535,11 @@ SkyCommand/
     │   ├── reporters/
     │   │   └── skyCommandReporter.js
     │   └── specs/
+    │       ├── platformAvailability.spec.js
     │       ├── access/
     │       │   └── .gitkeep
+    │       ├── agents/
+    │       │   └── agentSessions.spec.js
     │       ├── automation/
     │       │   └── .gitkeep
     │       ├── docker/
@@ -2370,9 +2565,11 @@ SkyCommand/
         ├── r7DatabaseUpgradeCleanupSelfTest.js
         ├── apps/
         │   ├── agentPhase19_3A1CorrectiveSelfTest.js
+        │   ├── agentProviderUnknownObservationSelfTest.js
         │   ├── codexAgentRuntimeBootstrapSelfTest.js
         │   ├── codexAgentRuntimeEgressEvidenceSelfTest.js
         │   ├── codexAgentRuntimePilotSelfTest.js
+        │   ├── codexAgentSessionContinuationSelfTest.js
         │   ├── codexCompatibilityAuthAbSelfTest.js
         │   ├── codexCompatibilityAuthBoundaryPreflightSelfTest.js
         │   ├── codexCompatibilityAuthBoundarySelfTest.js
@@ -2398,6 +2595,7 @@ SkyCommand/
         │   │       │   ├── adminUsersSurfaceSelfTest.js
         │   │       │   ├── agentOperationsUiSelfTest.js
         │   │       │   ├── agentRegistryUiSelfTest.js
+        │   │       │   ├── agentSessionsUiSelfTest.js
         │   │       │   ├── apiDashboardSelfTest.js
         │   │       │   ├── approvalHistorySelfTest.js
         │   │       │   ├── browserAutomationRegistryUiSelfTest.js
@@ -2428,13 +2626,17 @@ SkyCommand/
         │           └── services/
         │               ├── agentCapabilityCredentialEvidenceSelfTest.js
         │               ├── agentCapabilityExecutionSelfTest.js
+        │               ├── agentContinuationResultRevalidationSelfTest.js
         │               ├── agentExecutionSelfTest.js
+        │               ├── agentHistoricalAuthorityResidueSelfTest.js
+        │               ├── agentHistoricalRuntimeHoldReleaseSelfTest.js
         │               ├── agentInteractionLiveAcceptanceSelfTest.js
         │               ├── agentInteractionRecoverySelfTest.js
         │               ├── agentProjectInstructionContainmentSelfTest.js
         │               ├── agentRegistryAuditSelfTest.js
         │               ├── agentRegistryIsolationSelfTest.js
         │               ├── agentRegistrySelfTest.js
+        │               ├── agentSessionSelfTest.js
         │               ├── apiTelemetryPolicySelfTest.js
         │               ├── assistantCapabilityReportingSelfTest.js
         │               ├── assistantDevelopmentPromotionSelfTest.js
@@ -2454,6 +2656,7 @@ SkyCommand/
         │               ├── orchestratorRefreshSelfTest.js
         │               ├── phase15ClosureReadinessSelfTest.js
         │               ├── playwrightSchedulerSelfTest.js
+        │               ├── runtimeControlServiceSelfTest.js
         │               ├── schedulerWorkflowParametersSelfTest.js
         │               ├── skycommandRepositorySelfTest.js
         │               ├── structuredToolContractAssociationSelfTest.js
@@ -2543,7 +2746,8 @@ SkyCommand/
         │   │       ├── dockerResourceSelfTest.js
         │   │       ├── dockerSnapshotSelfTest.js
         │   │       ├── dockerTelemetryBridgeSelfTest.js
-        │   │       └── hostAgentSelfTest.js
+        │   │       ├── hostAgentSelfTest.js
+        │   │       └── supervisorProcessLifecycleSelfTest.js
         │   ├── ingestion/
         │   │   └── src/
         │   │       ├── catalogue/

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Install', 'Uninstall', 'Status', 'Start', 'Stop')]
+    [ValidateSet('Install', 'Uninstall', 'Status', 'Start', 'Stop', 'Restart')]
     [string]$Action = 'Status',
 
     [string]$TaskName = 'SkyCommand Supervisor'
@@ -55,6 +55,41 @@ function Get-SupervisorRunnerProcesses {
         Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
             Where-Object { $_.CommandLine -and $_.CommandLine -match $runnerPattern }
     )
+}
+
+function Assert-ExpectedStandaloneSupervisorProcess {
+    param([Parameter(Mandatory = $true)]$Process)
+
+    $serverPattern = [regex]::Escape($serverScript)
+    $repositoryPattern = [regex]::Escape($repositoryRoot)
+    $isExpectedExecutable = $Process.Name -and $Process.Name -match '^node(\.exe)?$'
+    $isExpectedCommand = $Process.CommandLine -and $Process.CommandLine -match $serverPattern -and $Process.CommandLine -match $repositoryPattern
+    if (-not ($isExpectedExecutable -and $isExpectedCommand)) {
+        throw "Refusing to adopt Supervisor PID $($Process.ProcessId) because it is not the expected SkyCommand Supervisor from repository $repositoryRoot."
+    }
+}
+
+function Stop-ValidatedStandaloneSupervisorProcesses {
+    param([Parameter(Mandatory = $true)][array]$Processes)
+
+    if ($Processes.Count -eq 0) { return }
+    $taskKillPath = (Get-Command taskkill.exe -ErrorAction Stop).Source
+    foreach ($process in $Processes) {
+        Assert-ExpectedStandaloneSupervisorProcess -Process $process
+    }
+    foreach ($process in $Processes) {
+        & $taskKillPath /PID ([int]$process.ProcessId) /T /F *> $null
+    }
+    for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
+        Start-Sleep -Milliseconds 100
+        if ((Get-SupervisorProcesses).Count -eq 0) {
+            Write-Host '[SkyCommand Supervisor] Validated standalone Supervisor stopped for managed scheduled-task adoption.'
+            return
+        }
+    }
+    $remaining = Get-SupervisorProcesses
+    $ids = ($remaining | ForEach-Object { $_.ProcessId }) -join ', '
+    throw "Validated standalone SkyCommand Supervisor process(es) did not terminate: $ids"
 }
 
 function Remove-StaleRunnerPidFile {
@@ -149,8 +184,7 @@ switch ($Action) {
         if ($existingTask) { Stop-SupervisorRuntime -Task $existingTask }
         $existingProcesses = Get-SupervisorProcesses
         if ($existingProcesses.Count -gt 0) {
-            $ids = ($existingProcesses | ForEach-Object { $_.ProcessId }) -join ', '
-            throw "A SkyCommand Supervisor is already running outside the scheduled task (PID(s): $ids). Stop it before installing automatic startup."
+            Stop-ValidatedStandaloneSupervisorProcesses -Processes $existingProcesses
         }
 
         $arguments = @(
@@ -217,6 +251,14 @@ switch ($Action) {
         if (-not $task) { throw "Scheduled task is not installed: $TaskName" }
         Stop-SupervisorRuntime -Task $task
         Write-Host "[SkyCommand Supervisor] Stop completed: $TaskName"
+    }
+
+    'Restart' {
+        $task = Get-SupervisorTask
+        if (-not $task) { throw "Scheduled task is not installed: $TaskName" }
+        Stop-SupervisorRuntime -Task $task
+        Start-ScheduledTask -TaskName $TaskName
+        Write-Host "[SkyCommand Supervisor] Restart requested: $TaskName"
     }
 
     'Status' {

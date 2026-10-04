@@ -63,6 +63,7 @@ async function executeCodexRuntimeActivity(input = {}) {
     deadlineAt: input.deadlineAt || null,
     providerOperationReference: input.providerOperationReference || null,
     managedCapabilityRequest: input.managedCapabilityRequest || null,
+    sessionBinding: input.sessionBinding || null,
   });
 }
 
@@ -96,6 +97,7 @@ async function startRuntimeActivity(input = {}) {
       deadlineAt: input.deadlineAt || null,
       providerOperationReference: input.providerOperationReference || null,
       managedCapabilityRequest: input.managedCapabilityRequest || null,
+      sessionBinding: input.sessionBinding || null,
     });
     return {
       ...result,

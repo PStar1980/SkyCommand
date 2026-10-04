@@ -16,6 +16,12 @@ const DEFAULT_RUNTIME_SERVICES = Object.freeze([
   'codex-control-bridge',
   'api',
 ]);
+const DEFAULT_PLATFORM_SERVICES = Object.freeze([
+  'web',
+  'temporal-volume-init',
+  ...DEFAULT_RUNTIME_SERVICES,
+  'codex-managed-volume-init',
+]);
 const DEFAULT_BACKEND_REBUILD_SERVICES = Object.freeze([
   'api',
   'temporal-worker',
@@ -39,6 +45,10 @@ const FINALIZATION_REBUILD_SERVICES = Object.freeze([
   'codex-agent-runtime-worker',
   'codex-control-bridge',
   'web',
+]);
+const AGENT_SESSION_RUNTIME_REBUILD_SERVICES = Object.freeze([
+  'api',
+  'node-worker',
 ]);
 const CODEX_BOOTSTRAP_REBUILD_SERVICES = Object.freeze([
   'api',
@@ -123,6 +133,7 @@ function getSupervisorConfig(repositoryRoot) {
     host: normalizeText(process.env.SKYCOMMAND_SUPERVISOR_HOST, DEFAULT_SUPERVISOR_HOST),
     port: normalizePort(process.env.SKYCOMMAND_SUPERVISOR_PORT),
     runtimeServices: parseRuntimeServices(process.env.SKYCOMMAND_SUPERVISOR_RUNTIME_SERVICES),
+    platformServices: [...DEFAULT_PLATFORM_SERVICES],
     backendRebuildServices: parseBackendRebuildServices(
       process.env.SKYCOMMAND_SUPERVISOR_BACKEND_REBUILD_SERVICES,
     ),
@@ -161,11 +172,13 @@ module.exports = {
   DEFAULT_CONTROL_TIMEOUT_MS,
   DEFAULT_REBUILD_TIMEOUT_MS,
   DEFAULT_RUNTIME_SERVICES,
+  DEFAULT_PLATFORM_SERVICES,
   DEFAULT_STARTUP_TIMEOUT_MS,
   DEFAULT_SUPERVISOR_HOST,
   DEFAULT_SUPERVISOR_PORT,
   DEFAULT_SUPERVISOR_PROJECT_NAME,
   DEFAULT_WEB_SERVICE,
+  AGENT_SESSION_RUNTIME_REBUILD_SERVICES,
   CODEX_BOOTSTRAP_REBUILD_SERVICES,
   FINALIZATION_REBUILD_SERVICES,
   getSupervisorConfig,

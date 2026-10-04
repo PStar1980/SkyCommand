@@ -203,6 +203,7 @@ async function prepareProviderOperationActivity({ runId, instruction, deadlineAt
       managedCapabilityCase: safeObject(run.definition_configuration).managedCapabilityCase || null,
       providerModel: safeObject(run.definition_configuration).model || null,
       providerReasoningEffort: safeObject(run.definition_configuration).reasoningEffort || null,
+      sessionBinding: safeObject(run.execution_context).sessionBinding || null,
       instruction: String(instruction || ''),
     };
   });
@@ -444,9 +445,13 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       && runtimeResult?.providerBacked === true
       && runtimeResult?.terminalConfirmation !== 'CONFIRMED';
     const stopUnconfirmed = stopRequested && (!physicalStopConfirmed || providerTerminalUnconfirmed);
+    const providerOutcomeUnknown = runtimeResult?.providerBacked === true && (runtimeResult.recoveryRequired === true
+      || runtimeResult.outcomeCertainty === 'UNKNOWN' || runtimeResult.providerTerminalStatus === 'UNKNOWN');
     const recoveryRequired = reconciliation?.disposition === 'RECOVERY_REQUIRED'
       || runtimeResult?.sendAcceptance === 'UNKNOWN' && !reconciliation
+      || providerOutcomeUnknown
       || stopUnconfirmed;
+    const holdProviderLease = recoveryRequired && runtimeResult?.providerBacked === true;
     const status = recoveryRequired ? 'RECOVERY_REQUIRED' : stopRequested ? 'CANCELED' : interactionBlocked || rejected || providerTerminalFailed ? 'FAILED' : 'COMPLETED';
     const outcome = recoveryRequired ? 'RECOVERY_REQUIRED' : stopRequested ? 'CANCELED' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'SAFE_TO_REJECT' : providerTerminalFailed ? 'PROVIDER_TERMINAL_FAILED' : 'SUCCESS';
     const stopState = stopRequested
@@ -472,7 +477,8 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
             : 'ACKNOWLEDGED';
       await client.query(
         `UPDATE worker.agent_provider_operations
-            SET state = $2, outcome_certainty = $3, outcome = $4::jsonb
+            SET state = $2, outcome_certainty = $3,
+                outcome = COALESCE(outcome, '{}'::jsonb) || $4::jsonb
           WHERE provider_operation_id = $1`,
         [operation.operationId, operationState, certainty, JSON.stringify({ runtimeResult: runtimeResult || null, reconciliation: reconciliation || null })],
       );
@@ -507,7 +513,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
            updated_at = CURRENT_TIMESTAMP`,
         [runId, run.runtime_code, runtimeResult.adapterVersion || 'fake-runtime-adapter.v1', runtimeResult.worker?.taskQueue || 'skycommand-agent-runtime-local', worker.identity || null, worker.generation || null, worker.processId || null, worker.hostname || null, JSON.stringify(runtimeResult.containmentProfile || { liveCheckoutMount: false, arbitraryHostFilesystem: false, dockerSocket: false, githubCredentials: false, hostAgentCredentials: false, supervisorCredentials: false, providerCredentials: false })],
       );
-      if (stopUnconfirmed) {
+      if (stopUnconfirmed || holdProviderLease) {
         await client.query(
           `UPDATE worker.agent_runtime_cells
               SET quarantine_state = 'QUARANTINED',
@@ -516,7 +522,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
                   quarantine_evidence = COALESCE(quarantine_evidence, '{}'::jsonb) || $3::jsonb,
                   updated_at = CURRENT_TIMESTAMP
             WHERE agent_run_id = $1`,
-          [runId, 'PHYSICAL_STOP_NOT_CONFIRMED', JSON.stringify({ requestedAt: new Date().toISOString(), workerGeneration: worker.generation || null, workerIdentity: worker.identity || null, physicalStop: runtimeResult?.physicalStop || null })],
+          [runId, stopUnconfirmed ? 'PHYSICAL_STOP_NOT_CONFIRMED' : 'PROVIDER_OUTCOME_UNKNOWN', JSON.stringify({ requestedAt: new Date().toISOString(), workerGeneration: worker.generation || null, workerIdentity: worker.identity || null, physicalStop: runtimeResult?.physicalStop || null, providerTurnId: runtimeResult?.providerTurnId || null, providerOperationReference: runtimeResult?.providerOperationReference || null })],
         );
       }
     }
@@ -677,7 +683,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
         terminalConfirmation: runtimeResult?.terminalConfirmation || null,
         worker: runtimeResult?.worker || null,
       } : null,
-      errorCode: stopUnconfirmed ? (providerTerminalUnconfirmed ? 'PROVIDER_TERMINAL_CONFIRMATION_UNKNOWN' : 'PHYSICAL_STOP_NOT_CONFIRMED') : recoveryRequired ? 'PROVIDER_SEND_UNKNOWN' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'PROVIDER_REJECTED_BEFORE_ACCEPTANCE' : providerTerminalFailed ? 'PROVIDER_TERMINAL_FAILED' : null,
+      errorCode: stopUnconfirmed ? (providerTerminalUnconfirmed ? 'PROVIDER_TERMINAL_CONFIRMATION_UNKNOWN' : 'PHYSICAL_STOP_NOT_CONFIRMED') : providerOutcomeUnknown ? 'PROVIDER_OUTCOME_UNKNOWN' : recoveryRequired ? 'PROVIDER_SEND_UNKNOWN' : interactionBlocked ? `INTERACTION_${String(interactionOutcome).toUpperCase()}` : rejected ? 'PROVIDER_REJECTED_BEFORE_ACCEPTANCE' : providerTerminalFailed ? 'PROVIDER_TERMINAL_FAILED' : null,
       capabilityEffects: safeCapabilityEffects,
     });
     const digest = resultDigest(summary);
@@ -702,13 +708,13 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
     }
     await client.query(
       `UPDATE worker.agent_resource_leases
-          SET lease_state = CASE WHEN $2 = 'UNCONFIRMED' THEN 'QUARANTINED' WHEN $2 = 'CANCELED' THEN 'REVOKED' ELSE 'RELEASED' END,
-              released_at = CASE WHEN $2 = 'UNCONFIRMED' THEN NULL ELSE CURRENT_TIMESTAMP END,
-              quarantined_at = CASE WHEN $2 = 'UNCONFIRMED' THEN COALESCE(quarantined_at, CURRENT_TIMESTAMP) ELSE quarantined_at END,
-              quarantine_reason = CASE WHEN $2 = 'UNCONFIRMED' THEN 'PHYSICAL_STOP_NOT_CONFIRMED' ELSE quarantine_reason END,
-              quarantine_evidence = CASE WHEN $2 = 'UNCONFIRMED' THEN COALESCE(quarantine_evidence, '{}'::jsonb) || $3::jsonb ELSE quarantine_evidence END
+          SET lease_state = CASE WHEN $2 = 'UNCONFIRMED' OR $4::boolean THEN 'QUARANTINED' WHEN $2 = 'CANCELED' THEN 'REVOKED' ELSE 'RELEASED' END,
+              released_at = CASE WHEN $2 = 'UNCONFIRMED' OR $4::boolean THEN NULL ELSE CURRENT_TIMESTAMP END,
+              quarantined_at = CASE WHEN $2 = 'UNCONFIRMED' OR $4::boolean THEN COALESCE(quarantined_at, CURRENT_TIMESTAMP) ELSE quarantined_at END,
+              quarantine_reason = CASE WHEN $2 = 'UNCONFIRMED' THEN 'PHYSICAL_STOP_NOT_CONFIRMED' WHEN $4::boolean THEN 'PROVIDER_OUTCOME_UNKNOWN' ELSE quarantine_reason END,
+              quarantine_evidence = CASE WHEN $2 = 'UNCONFIRMED' OR $4::boolean THEN COALESCE(quarantine_evidence, '{}'::jsonb) || $3::jsonb ELSE quarantine_evidence END
         WHERE agent_run_id = $1 AND lease_state = 'ACTIVE'`,
-      [runId, stopState, JSON.stringify({ workerGeneration: worker.generation || null, workerIdentity: worker.identity || null, physicalStop: runtimeResult?.physicalStop || null })],
+      [runId, stopState, JSON.stringify({ workerGeneration: worker.generation || null, workerIdentity: worker.identity || null, physicalStop: runtimeResult?.physicalStop || null, providerTurnId: runtimeResult?.providerTurnId || null, providerOperationReference: runtimeResult?.providerOperationReference || null }), holdProviderLease],
     );
     await client.query(
       `UPDATE worker.agent_sessions
@@ -720,8 +726,8 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
         WHERE session_id = $1`,
       [run.session_id, status, stopState],
     );
-    if (stopUnconfirmed) {
-      await client.query(`UPDATE worker.execution_scopes SET status = 'RECOVERY_REQUIRED', stop_reason = COALESCE(stop_reason, 'PHYSICAL_STOP_NOT_CONFIRMED'), stopped_at = COALESCE(stopped_at, CURRENT_TIMESTAMP) WHERE execution_scope_id = $1`, [run.execution_scope_id]);
+    if (stopUnconfirmed || holdProviderLease) {
+      await client.query(`UPDATE worker.execution_scopes SET status = 'RECOVERY_REQUIRED', stop_reason = COALESCE(stop_reason, $2), stopped_at = COALESCE(stopped_at, CURRENT_TIMESTAMP) WHERE execution_scope_id = $1`, [run.execution_scope_id, stopUnconfirmed ? 'PHYSICAL_STOP_NOT_CONFIRMED' : 'PROVIDER_OUTCOME_UNKNOWN']);
     }
     await client.query(
       `UPDATE auth.execution_grants
@@ -751,7 +757,7 @@ async function finalizeAgentRunActivity({ runId, operation = null, runtimeResult
       turnId: operation?.turnId || null,
       eventType: 'RUN_TERMINAL_RESULT_PUBLISHED',
       sourceCursor: `result:${resultId || digest}`,
-      payload: { status, outcome, resultId, resultDigest: digest, stopState, interactionOutcome: interactionOutcome || null, quarantineState: stopUnconfirmed ? 'QUARANTINED' : 'NOT_APPLICABLE' },
+      payload: { status, outcome, resultId, resultDigest: digest, stopState, interactionOutcome: interactionOutcome || null, quarantineState: stopUnconfirmed || holdProviderLease ? 'QUARANTINED' : 'NOT_APPLICABLE' },
     });
 
     return { runId, status, outcome, resultId, resultDigest: digest, summary };

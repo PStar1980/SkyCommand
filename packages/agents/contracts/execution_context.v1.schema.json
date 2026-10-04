@@ -125,6 +125,27 @@
         "profileCode": { "type": "string", "minLength": 1 }
       }
     },
+    "sessionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "priorRunId", "providerConversation", "adapterVersion", "model", "reasoningEffort"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["CONTINUE"] },
+        "priorRunId": { "type": "string", "minLength": 1 },
+        "providerConversation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conversationReference", "providerSessionReference"],
+          "properties": {
+            "conversationReference": { "type": "string", "minLength": 1, "maxLength": 160 },
+            "providerSessionReference": { "type": "string", "minLength": 1, "maxLength": 160 }
+          }
+        },
+        "adapterVersion": { "type": ["string", "null"] },
+        "model": { "type": ["string", "null"] },
+        "reasoningEffort": { "type": ["string", "null"] }
+      }
+    },
     "admission": {
       "type": "object",
       "additionalProperties": false,
@@ -132,7 +153,9 @@
       "properties": {
         "admissionRequestId": { "type": "string", "minLength": 1 },
         "submittedIntentDigest": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
-        "resolvedSpecDigest": { "type": "string", "pattern": "^[A-F0-9]{64}$" }
+        "resolvedSpecDigest": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
+        "deadlineAt": { "type": "string", "minLength": 1 },
+        "effectiveDeadlineMs": { "type": "integer", "minimum": 1000, "maximum": 900000 }
       }
     }
   },

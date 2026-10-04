@@ -33,5 +33,10 @@ module.exports = {
   result: handler((req) => agentExecutionService.getAgentRunResult(req, req.params.runId)),
   cancel: handler((req) => agentExecutionService.cancelAgentRun(req, req.params.runId)),
   recover: handler((req) => agentExecutionService.recoverAgentRun(req, req.params.runId, req.body)),
+  authorityResidue: handler((req) => agentExecutionService.inspectHistoricalAuthorityResidue(req, req.params.runId)),
+  reconcileAuthorityResidue: handler((req) => agentExecutionService.reconcileHistoricalAuthorityResidue(req, req.params.runId, req.body)),
+  continuationResultRevalidation: handler((req) => agentExecutionService.inspectContinuationResultRevalidation(req, req.params.runId)),
+  revalidateContinuationResult: handler((req) => agentExecutionService.revalidateContinuationResult(req, req.params.runId, req.body)),
+  releaseRuntimeHold: handler((req) => agentExecutionService.releaseHistoricalRuntimeHold(req, req.params.runId, req.body)),
   stopScope: handler((req) => agentExecutionService.stopExecutionScope(req, req.params.scopeId)),
 };

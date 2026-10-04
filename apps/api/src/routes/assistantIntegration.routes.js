@@ -26,6 +26,8 @@ router.get(
   assistantIntegrationController.getOrchestratorRefresh,
 );
 router.post('/runtime-refresh/runs', assistantIntegrationController.startDevRuntimeRefresh);
+router.get('/runtime-controls/status', assistantIntegrationController.getRuntimeControlStatus);
+router.post('/runtime-controls/runs', assistantIntegrationController.startRuntimeControl);
 router.get(
   '/runtime-refresh/runs/:operationId',
   assistantIntegrationController.getDevRuntimeRefresh,

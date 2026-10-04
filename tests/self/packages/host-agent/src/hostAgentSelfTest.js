@@ -21,6 +21,11 @@ const dockerResource = read('packages/host-agent/src/dockerResource.js');
 const migration = read('packages/db_build/src/migrations/00100__host_agent_local_repository_sync.sql');
 const packageJson = JSON.parse(read('package.json'));
 const envExample = read('.env.example');
+const supervisorTaskScript = read('scripts/powershell/SkyCommand-SupervisorTask.ps1');
+const { executeSupervisorProcessLifecycle } = require(path.join(
+  repoRoot,
+  'packages/host-agent/src/supervisorProcessLifecycle.js',
+));
 
 assert.match(localSync, /skyCommandHostAgentToolWorkflow/);
 assert.match(localSync, /SKYCOMMAND_HOST_AGENT_ENABLED/);
@@ -67,6 +72,11 @@ assert.match(activities, /DOCKER_CONTAINER_DETAIL_TOOL_CODE/);
 assert.match(activities, /DOCKER_CONTAINER_CONTROL_TOOL_CODE/);
 assert.match(activities, /DOCKER_RESOURCE_DETAIL_TOOL_CODE/);
 assert.match(activities, /DOCKER_RESOURCE_CONTROL_TOOL_CODE/);
+assert.match(activities, /SUPERVISOR_PROCESS_LIFECYCLE_TOOL_CODE/);
+assert.match(activities, /LEGACY_SUPERVISOR_TASK_LIFECYCLE_TOOL_CODE/);
+assert.match(activities, /temporal_host_agent_process_legacy_adapter/);
+assert.match(activities, /executeSupervisorProcessLifecycle/);
+assert.match(supervisorTaskScript, /'Restart' \{/);
 assert.match(activities, /executeDockerSnapshot/);
 assert.match(activities, /executeDockerComposeControl/);
 assert.match(activities, /executeDockerContainerDetail/);
@@ -106,4 +116,38 @@ assert.match(envExample, /SKYCOMMAND_DOCKER_EVENT_HEARTBEAT_MS=15000/);
 assert.match(envExample, /SKYCOMMAND_DOCKER_TELEMETRY_ENABLED=true/);
 assert.match(envExample, /SKYCOMMAND_DOCKER_TELEMETRY_INTERVAL_MS=5000/);
 
-console.log('✅ SkyCommand Host Agent self-test passed.');
+let supervisorProcesses = [];
+Promise.all([
+  executeSupervisorProcessLifecycle(
+    { action: 'START', operationId: '123e4567-e89b-42d3-a456-426614174001' },
+    {
+      platform: 'win32',
+      repositoryRoot: repoRoot,
+      processLister: async () => supervisorProcesses,
+      processLauncher: async () => {
+        supervisorProcesses = [{
+          processId: 4567,
+          name: 'node.exe',
+          commandLine: `node.exe "${path.join(repoRoot, 'packages/supervisor/src/server.js')}"`,
+          ownsConfiguredPort: true,
+        }];
+        return { processId: 4567 };
+      },
+      healthChecker: async () => ({ url: 'http://127.0.0.1:17170/health', payload: { ok: true } }),
+    },
+  ).then((result) => {
+    assert.equal(result.action, 'START_SUPERVISOR');
+    assert.equal(result.operationId, '123e4567-e89b-42d3-a456-426614174001');
+    assert.equal(result.outcome, 'COMPLETED');
+    assert.equal(result.transport, 'guarded_host_agent_process');
+  }),
+  assert.rejects(
+    () => executeSupervisorProcessLifecycle({ action: 'STOP' }, { platform: 'win32' }),
+    /not allowlisted/i,
+  ),
+]).then(() => {
+  console.log('✅ SkyCommand Host Agent self-test passed.');
+}).catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

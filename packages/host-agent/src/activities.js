@@ -7,6 +7,7 @@ const { executeMainMerge } = require('../../git/src/main_merge');
 const { executeLocalRepositorySync } = require('../../git/src/local_repo_sync');
 const { executeLocalDevPull } = require('../../git/src/local_dev_pull');
 const { executeDockerSnapshot } = require('./dockerSnapshot');
+const { executeSupervisorProcessLifecycle } = require('./supervisorProcessLifecycle');
 const { executeDevFinalizationLifecycle } = require('./devFinalizationLifecycle');
 const { getBrowserRuntimeConfig } = require('../../browser/src/config');
 const { runBrowserTest } = require('../../browser/src/browserTestRunner');
@@ -38,6 +39,8 @@ const DOCKER_SNAPSHOT_TOOL_CODE = '__docker_snapshot';
 const BROWSER_TEST_INTERACTIVE_TOOL_CODE = '__browser_test_interactive';
 const BROWSER_AUTOMATION_INTERACTIVE_TOOL_CODE = '__browser_automation_interactive';
 const DEV_FINALIZATION_LIFECYCLE_TOOL_CODE = '__dev_finalization_lifecycle';
+const SUPERVISOR_PROCESS_LIFECYCLE_TOOL_CODE = '__supervisor_process_lifecycle';
+const LEGACY_SUPERVISOR_TASK_LIFECYCLE_TOOL_CODE = '__supervisor_task_lifecycle';
 
 function normalizeText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
@@ -133,6 +136,34 @@ async function executeSkyCommandHostToolActivity(input = {}) {
         ok: true,
         toolCode,
         result,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        toolCode,
+        error: serializeError(error),
+      };
+    }
+  }
+
+  if ([SUPERVISOR_PROCESS_LIFECYCLE_TOOL_CODE, LEGACY_SUPERVISOR_TASK_LIFECYCLE_TOOL_CODE].includes(toolCode)) {
+    try {
+      const result = await executeSupervisorProcessLifecycle({
+        action: input.action,
+        operationId: input.operationId,
+      });
+      const legacyCompatibility = toolCode === LEGACY_SUPERVISOR_TASK_LIFECYCLE_TOOL_CODE;
+      return {
+        ok: true,
+        toolCode,
+        result: {
+          ...result,
+          outcome: legacyCompatibility ? 'REQUESTED' : result.outcome,
+          completedOutcome: legacyCompatibility ? result.outcome : null,
+          transport: legacyCompatibility
+            ? 'temporal_host_agent_process_legacy_adapter'
+            : 'temporal_host_agent_process',
+        },
       };
     } catch (error) {
       return {
@@ -446,6 +477,8 @@ module.exports = {
   BROWSER_TEST_INTERACTIVE_TOOL_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
   DEV_FINALIZATION_LIFECYCLE_TOOL_CODE,
+  SUPERVISOR_PROCESS_LIFECYCLE_TOOL_CODE,
+  LEGACY_SUPERVISOR_TASK_LIFECYCLE_TOOL_CODE,
   DEV_COMMIT_TOOL_CODE,
   GITHUB_DEV_PR_MERGE_TOOL_CODE,
   HOST_AGENT_HEALTH_TOOL_CODE,

@@ -6,48 +6,69 @@ import DismissibleAlert from './ui/DismissibleAlert.jsx';
 import StatusPill from './ui/StatusPill.jsx';
 
 const SUPERVISOR_POLL_MS = 4000;
+const SUPERVISOR_ACTIONS = {
+  REBUILD_FRONTEND: 'REBUILD_WEB',
+  REBUILD_BACKEND: 'REBUILD_BACKEND',
+  RESTART_RUNTIME: 'RESTART',
+  STOP_RUNTIME: 'STOP',
+};
 
 function getRuntimeStatusTone(status) {
   const normalized = String(status || '').toUpperCase();
   if (normalized === 'ONLINE') return 'ONLINE';
   if (['STARTING', 'PARTIAL'].includes(normalized)) return 'WARNING';
-  if (['STOPPED', 'UNAVAILABLE', 'DEGRADED'].includes(normalized)) return 'OFFLINE';
+  if (['STOPPED', 'UNAVAILABLE', 'DEGRADED', 'OFFLINE'].includes(normalized)) return 'OFFLINE';
   return 'INFO';
 }
 
 function confirmationMessage(action) {
-  if (action === 'STOP') {
+  if (action === 'STOP_RUNTIME') {
     return 'Stop the SkyCommand backend runtime? The web shell and Supervisor will stay online, but your current session will end and the login page will switch to Runtime Control.';
   }
-
-  if (action === 'REBUILD_WEB') {
-    return 'Rebuild the SkyCommand frontend from the current local source? The Supervisor will run docker compose up -d --build web, replace the web shell, and reload this page when the rebuild finishes. The backend runtime will stay online.';
+  if (action === 'REBUILD_FRONTEND') {
+    return 'Rebuild the SkyCommand frontend from the current local source? The Supervisor will rebuild the web service and reload this page when it finishes. The backend runtime will stay online.';
   }
-
   if (action === 'REBUILD_BACKEND') {
-    return 'Rebuild and recreate the SkyCommand API and worker services from the current local source? The Supervisor will run docker compose up -d --build --force-recreate api temporal-worker browser-worker node-worker. PostgreSQL, Temporal server, the web shell, and Supervisor will stay online.';
+    return 'Rebuild and recreate the SkyCommand API and worker services from the current local source? PostgreSQL, Temporal server, the web shell, and Supervisor will stay online.';
   }
-
-  return 'Restart the SkyCommand backend runtime? The web shell and Supervisor will stay online while PostgreSQL, Temporal, workers, and the API restart. Your current session will end and you will sign in again when the runtime is healthy.';
+  if (action === 'RESTART_RUNTIME') {
+    return 'Restart the SkyCommand backend runtime? Your current session will end and you will sign in again when the runtime is healthy.';
+  }
+  if (action === 'START_SUPERVISOR') return 'Start the host-native SkyCommand Supervisor through the registered Host Agent lifecycle path?';
+  if (action === 'RESTART_SUPERVISOR') return 'Restart the host-native SkyCommand Supervisor through the registered Host Agent lifecycle path?';
+  if (action === 'START_HOST_AGENT') return 'Start the host-native SkyCommand Host Agent through the Supervisor lifecycle path?';
+  if (action === 'RESTART_HOST_AGENT') return 'Restart the host-native SkyCommand Host Agent through the Supervisor lifecycle path?';
+  return 'Run this governed SkyCommand runtime lifecycle action?';
 }
 
-function SkyCommandRuntimeControls({ canControl = false, compact = false, onStatusChange = null }) {
-  const [runtimeStatus, setRuntimeStatus] = useState(null);
+function createOperationId() {
+  const operationId = globalThis.crypto?.randomUUID?.();
+  if (!operationId) throw new Error('A secure runtime-control operation ID could not be generated.');
+  return operationId;
+}
+
+function SkyCommandRuntimeControls({
+  canControl = false,
+  compact = false,
+  onStatusChange = null,
+  children = null,
+}) {
+  const [runtimeControlStatus, setRuntimeControlStatus] = useState(null);
   const [runtimeError, setRuntimeError] = useState('');
   const [busyAction, setBusyAction] = useState('');
 
   const refreshStatus = useCallback(async ({ signal } = {}) => {
     try {
-      const status = await supervisorService.getRuntimeStatus({ signal });
-      setRuntimeStatus(status);
+      const status = await infrastructureService.getSkyCommandRuntimeControlStatus({ signal });
+      setRuntimeControlStatus(status);
       onStatusChange?.(status);
       setRuntimeError('');
       return status;
     } catch (error) {
       if (error?.name === 'AbortError') return null;
-      setRuntimeStatus(null);
+      setRuntimeControlStatus(null);
       onStatusChange?.(null);
-      setRuntimeError('SkyCommand Supervisor status is unavailable.');
+      setRuntimeError('SkyCommand runtime status is unavailable to this session.');
       return null;
     }
   }, [onStatusChange]);
@@ -65,7 +86,6 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false, onStat
     }
 
     poll();
-
     return () => {
       active = false;
       controller?.abort();
@@ -79,29 +99,28 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false, onStat
 
     setBusyAction(action);
     setRuntimeError('');
-
     try {
-      const authorizationResult = await infrastructureService.authorizeSkyCommandRuntimeControl(action);
-      const grant = authorizationResult?.authorization?.grant;
-      if (!grant) throw new Error('SkyCommand runtime lifecycle authorization did not return a grant.');
-
-      const accepted = await supervisorService.controlRuntime(action, grant);
-
-      if (['REBUILD_WEB', 'REBUILD_BACKEND'].includes(action)) {
+      const accepted = await infrastructureService.controlSkyCommandRuntime(action, createOperationId());
+      if (['REBUILD_FRONTEND', 'REBUILD_BACKEND'].includes(action)) {
         await supervisorService.waitForOperationCompletion({
-          action,
+          action: SUPERVISOR_ACTIONS[action],
           requestedAt: accepted?.operation?.requestedAt,
         });
-        window.setTimeout(() => window.location.reload(), 750);
+        window.location.reload();
+        return;
+      }
+      if (['RESTART_RUNTIME', 'STOP_RUNTIME'].includes(action)) {
+        window.setTimeout(() => {
+          api.clearSessionToken();
+          window.location.replace('/login');
+        }, 500);
         return;
       }
 
-      // The API is intentionally part of the controlled runtime. Hand the browser back
-      // to the static shell before the current authenticated session becomes invalid.
-      window.setTimeout(() => {
-        api.clearSessionToken();
-        window.location.replace('/login');
-      }, 500);
+      window.setTimeout(async () => {
+        await refreshStatus();
+        setBusyAction('');
+      }, 1500);
     } catch (error) {
       const code = error?.details?.code || error?.code || error?.payload?.details?.code;
       setRuntimeError(
@@ -113,82 +132,49 @@ function SkyCommandRuntimeControls({ canControl = false, compact = false, onStat
     }
   }
 
-  const runtimeState = runtimeStatus?.runtimeStatus || 'UNKNOWN';
-  const supervisorState = runtimeStatus ? 'ONLINE' : 'UNKNOWN';
-  const runtimeOnline = runtimeState === 'ONLINE';
-  const runtimeActive = ['ONLINE', 'STARTING', 'PARTIAL', 'DEGRADED'].includes(runtimeState);
+  if (typeof children === 'function') {
+    return children({
+      busyAction,
+      controlRuntime,
+      refreshStatus,
+      runtimeControlStatus,
+      runtimeError,
+      clearRuntimeError: () => setRuntimeError(''),
+    });
+  }
+
+  const supervisor = runtimeControlStatus?.supervisor || {};
+  const runtimeState = supervisor.runtimeStatus || 'UNKNOWN';
+  const supervisorState = supervisor.status || 'UNKNOWN';
+  const availableActions = runtimeControlStatus?.availableActions || [];
+  const button = (action, label, tone = 'primary') => (
+    <button
+      className={`btn btn-sm ${tone === 'danger' ? 'sky-btn-danger' : tone === 'ghost' ? 'sky-btn-ghost' : 'sky-btn-primary'}`}
+      disabled={!canControl || Boolean(busyAction) || !availableActions.includes(action)}
+      onClick={() => controlRuntime(action)}
+      type="button"
+    >
+      {busyAction === action ? 'Working…' : label}
+    </button>
+  );
 
   return (
     <div className={compact ? 'sky-runtime-control-compact' : 'sky-runtime-control-workspace'}>
       <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div>
-          <div className="sky-page-kicker">SkyCommand runtime</div>
+          <div className="sky-page-kicker">Runtime control</div>
           <div className="d-flex flex-wrap align-items-center gap-2 mt-1">
             <StatusPill label={`Supervisor ${supervisorState}`} status={supervisorState} />
             <StatusPill label={`Backend ${runtimeState}`} status={getRuntimeStatusTone(runtimeState)} />
-            <StatusPill label="Web shell Online" status="ONLINE" />
           </div>
-          {!compact && (
-            <div className="small sky-muted mt-2">
-              Self-lifecycle actions are authorized by the API, handed off through a short-lived signed grant, and executed by the host-native Supervisor so the web shell can survive the backend transition.
-            </div>
-          )}
         </div>
-
         <div className="d-flex flex-wrap gap-2">
-          {!canControl ? (
-            <StatusPill label="Read only" status="INFO" />
-          ) : (
-            <>
-              <button
-                className="btn btn-sm sky-btn-primary"
-                disabled={Boolean(busyAction) || !runtimeActive}
-                onClick={() => controlRuntime('REBUILD_WEB')}
-                type="button"
-              >
-                {busyAction === 'REBUILD_WEB' ? 'Rebuilding…' : 'Rebuild Frontend'}
-              </button>
-              <button
-                className="btn btn-sm sky-btn-primary"
-                disabled={Boolean(busyAction) || !runtimeActive}
-                onClick={() => controlRuntime('REBUILD_BACKEND')}
-                type="button"
-              >
-                {busyAction === 'REBUILD_BACKEND' ? 'Rebuilding…' : 'Rebuild Backend'}
-              </button>
-              <button
-                className="btn btn-sm sky-btn-ghost"
-                disabled={Boolean(busyAction) || !runtimeOnline}
-                onClick={() => controlRuntime('RESTART')}
-                type="button"
-              >
-                {busyAction === 'RESTART' ? 'Restarting…' : 'Restart Runtime'}
-              </button>
-              <button
-                className="btn btn-sm sky-btn-danger"
-                disabled={Boolean(busyAction) || !runtimeActive}
-                onClick={() => controlRuntime('STOP')}
-                type="button"
-              >
-                {busyAction === 'STOP' ? 'Stopping…' : 'Stop Runtime'}
-              </button>
-            </>
-          )}
+          {button('REBUILD_FRONTEND', 'Rebuild Frontend')}
+          {button('REBUILD_BACKEND', 'Rebuild Backend')}
+          {button('RESTART_RUNTIME', 'Restart Runtime', 'ghost')}
+          {button('STOP_RUNTIME', 'Stop Runtime', 'danger')}
         </div>
       </div>
-
-      {runtimeStatus?.services?.length > 0 && !compact && (
-        <div className="d-flex flex-wrap gap-2 mt-3">
-          {runtimeStatus.services.map((service) => (
-            <StatusPill
-              key={service.service}
-              label={`${service.service} ${service.running ? 'running' : service.state || 'stopped'}`}
-              status={service.running ? (service.health === 'UNHEALTHY' ? 'ERROR' : 'ONLINE') : 'OFFLINE'}
-            />
-          ))}
-        </div>
-      )}
-
       {runtimeError && (
         <DismissibleAlert className="mt-3 mb-0" onDismiss={() => setRuntimeError('')} tone="danger">
           {runtimeError}

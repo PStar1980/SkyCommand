@@ -1,4 +1,4 @@
-# Codex/Luna Development Work Order Template
+# Codex Development Work Order Template
 
 > **Use:** Copy this file for a new development request and replace bracketed placeholders. Delete sections that are genuinely not applicable; do not leave ambiguous placeholders in an executable work order.
 >
@@ -9,6 +9,8 @@
 ## Work order identity
 
 - **Work order:** `[R#/phase/change name]`
+- **Work order filename:** `[exact work-order filename.md]`
+- **Work order local path:** `C:\Users\pauls\Downloads\[exact work-order filename.md]`
 - **Repository:** `[SkyCommand]`
 - **Environment:** `[DEV_LOCAL]`
 - **Requested by:** `[Paul/Sky]`
@@ -19,7 +21,7 @@
 - **Execution-agent role:** `EYES_AND_HANDS`
 - **Source-edit delegation:** `[NONE / exact bounded patch or mechanical edit scope]`
 - **Sky overlay package:** `[NONE / exact overlay filename]`
-- **Sky overlay local path:** `[NONE / exact absolute path supplied by Paul, e.g. C:\Users\pauls\Downloads\<overlay>.zip]`
+- **Sky overlay local path:** `[NONE / C:\Users\pauls\Downloads\<exact overlay filename>.zip]`
 - **Sky overlay SHA-256:** `[NONE / 64-character SHA-256 supplied by Sky]`
 - **Overlay authority:** `[NONE / PLACE_EXACT_REPO_RELATIVE_FILES_ONLY / exact exception]`
 - **Finalization this turn:** `[YES / NO — if NO, state required Repo Map/Repo ZIP/evidence generation]`
@@ -76,17 +78,34 @@ Where they conflict, use the active Development Operating Rules and the narrower
 
 Design shorthand: **a Tool may depend on data; it may not depend on history.**
 
-### 2.2 Sky-authored overlay relay contract
+### 2.2 Downloads-based work-order and overlay relay
+
+The standard local handoff folder is `C:\Users\pauls\Downloads`. Sky must provide a paste-ready Codex message with the exact full path and filename of this work order and, when applicable, its overlay ZIP. Paul downloads both files with those exact filenames and pastes the message. Codex reads the work order and overlay directly from disk; attaching either file or copying the work-order body into chat is not required.
+
+Use the named paths. A different folder or filename requires an explicit path override from Paul/Sky in the current instruction. If an exact file is missing or its supplied hash/manifest does not match, report the path and mismatch; do not search other folders, choose a similarly named or newer download, or silently select a `(1)`/other suffixed copy. Path-based retrieval does not enlarge source scope, surface authority, or operation budgets.
 
 When **Sky overlay package** is not `NONE`:
 
-- Paul only transports the package by downloading it and forwarding this work order/message plus the **exact local absolute ZIP path**. The supplied path is authoritative for the turn; do not assume a fixed Downloads directory.
-- Luna verifies the authorized checkout, exact package path, package SHA-256/manifest when provided, and package structure, then overlays the contained files into their repo-relative locations exactly. If the supplied absolute path is unavailable, Luna may perform only a bounded read-only exact-filename lookup in the user's standard Windows Downloads location. Use a discovered file only when exactly one match exists and the expected hash/manifest verifies; otherwise stop and report the mismatch.
+- Paul transports the work order and overlay through the standard Downloads folder and paste-ready note; routine source placement remains Codex's responsibility.
+- Codex reads the local work order first, verifies the authorized checkout, exact overlay path, package SHA-256/manifest when provided, and package structure, then overlays only its authorized repo-relative files.
 - Do not independently redesign, expand, refactor, or add source files beyond the overlay unless **Source-edit delegation** explicitly permits a bounded correction.
 - Record which files were placed/replaced and any package/path mismatch. A mismatch blocks further execution until reported to Sky.
 - After placement, run the validation matrix in this work order. API/CLI/self/integration tests are preferred by default. Run registered Playwright/browser validation only when this work order marks it `REQUIRED`.
 - If **Finalization this turn** is `YES`, Finalization runs only after prerequisite validation passes. If it is `NO`, do not run Finalization; generate only the requested repository evidence and stop.
 - Every file-changing turn returns a fresh Repo ZIP representing the resulting working tree: use the Finalization-generated ZIP when Finalization ran, otherwise run the registered Repo ZIP path. Include Repo Map/evidence as applicable, Playwright artifacts when required, and final working-tree status.
+
+### 2.3 Mandatory paste-ready Codex note
+
+Sky's response must include a complete copyable message; download links alone do not complete the handoff. Populate actual filenames and exact full paths, without unresolved placeholders in the executable message. For a work order with no overlay, explicitly state `Overlay: NONE`.
+
+```text
+Read and execute the Sky-authored work order from the local path below in the authorized checkout. Retrieve the files directly from disk; no chat attachments are required.
+
+Work order: C:\Users\pauls\Downloads\<exact work-order filename>.md
+Overlay: C:\Users\pauls\Downloads\<exact overlay filename>.zip
+
+Follow the work order's scope, hash/manifest checks, validation, operation budgets, and completion boundary. Return the required evidence and relay packet.
+```
 
 ## 3. Establish current facts before changing anything
 

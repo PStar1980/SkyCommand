@@ -500,6 +500,16 @@ async function testRuntimeControlNetworkBinding() {
     /apt-get|deb\.debian\.org/,
     'Codex runtime trust bootstrap must not depend on Debian package-repository network access',
   );
+  assert.match(
+    dockerfile,
+    /COPY --chown=node:node packages\/agents\/src\/continuationResult\.js \.\/packages\/agents\/src\/continuationResult\.js/,
+    'Codex runtime image must include the shared continuation-result module consumed by appServerClient',
+  );
+  assert.match(
+    dockerfile,
+    /RUN node -e "require\('\.\/apps\/codex-agent-runtime-worker\/src\/appServerClient\.js'\)"/,
+    'Codex runtime image build must smoke-load appServerClient so missing packaged dependencies fail during build',
+  );
 
   let probedUrl = null;
   const healthcheckOnControlNetwork = await captureHealthcheck({
@@ -553,8 +563,8 @@ const healthcheckFailure = await captureHealthcheck({
       readiness: 'PROVIDER_UNREACHABLE',
       readinessCode: 'CODEX_EGRESS_PROXY_UNAVAILABLE',
       failedCondition: 'EGRESS_PROXY',
-      token: 'must-never-be-logged',
-      privateProviderState: 'must-never-be-logged',
+      token: 'test-must-never-be-logged',
+      privateProviderState: 'test-must-never-be-logged',
     }),
   }),
 });
@@ -569,7 +579,7 @@ assert.deepEqual(JSON.parse(healthcheckFailure.output), {
   readinessCode: 'CODEX_EGRESS_PROXY_UNAVAILABLE',
   failedCondition: 'EGRESS_PROXY',
 });
-assert.equal(healthcheckFailure.output.includes('must-never-be-logged'), false);
+assert.equal(healthcheckFailure.output.includes('test-must-never-be-logged'), false);
 
 const healthcheckUnexpectedMountFailure = await captureHealthcheck({
   fetcher: async () => ({
@@ -583,7 +593,7 @@ const healthcheckUnexpectedMountFailure = await captureHealthcheck({
       containment: {
         unexpectedMountTargets: ['/usr/sbin/docker-init', '/host/private', '/bad/../secret', 'relative/path'],
         mountSources: ['/host/private/source'],
-        credential: 'must-never-be-logged',
+        credential: 'test-must-never-be-logged',
       },
     }),
   }),
@@ -600,7 +610,7 @@ assert.deepEqual(JSON.parse(healthcheckUnexpectedMountFailure.output), {
   unexpectedMountTargets: ['/usr/sbin/docker-init', '/host/private'],
 });
 assert.equal(healthcheckUnexpectedMountFailure.output.includes('source'), false);
-assert.equal(healthcheckUnexpectedMountFailure.output.includes('must-never-be-logged'), false);
+assert.equal(healthcheckUnexpectedMountFailure.output.includes('test-must-never-be-logged'), false);
 
 const healthcheckTransportFailure = await captureHealthcheck({
   fetcher: async () => { throw Object.assign(new Error('secret-bearing error text'), { cause: { code: 'ECONNREFUSED' } }); },
@@ -774,17 +784,33 @@ async function testControlBridgeNetworkBinding() {
   }
   assert.equal(apiClientUrl, 'http://codex-control-bridge-api-control:4220/v1/runtime/health');
 
+  // Exercise Fetch's configured-port policy without binding Docker's internal
+  // port on the host, where Windows may reserve it for another network.
+  const bridgePortAccepted = new Error('bridge port reached the test transport');
+  await assert.rejects(
+    fetch(`http://127.0.0.1:${CONTROL_BRIDGE_PORT}/healthz`, {
+      dispatcher: {
+        dispatch(options) {
+          assert.equal(new URL(options.origin).port, String(CONTROL_BRIDGE_PORT));
+          throw bridgePortAccepted;
+        },
+      },
+    }),
+    (error) => error.cause === bridgePortAccepted,
+    'Node Fetch must accept the configured internal bridge port before network I/O',
+  );
+
   const fetchProbe = http.createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ ok: true }));
   });
   await new Promise((resolve, reject) => {
     fetchProbe.once('error', reject);
-    fetchProbe.listen(4220, '127.0.0.1', resolve);
+    fetchProbe.listen(0, '127.0.0.1', resolve);
   });
   try {
-    const response = await fetch('http://127.0.0.1:4220/healthz');
-    assert.equal(response.status, 200, 'Node Fetch must accept and reach the selected internal bridge port');
+    const response = await fetch(`http://127.0.0.1:${fetchProbe.address().port}/healthz`);
+    assert.equal(response.status, 200, 'Node Fetch must reach the OS-assigned loopback test port');
     assert.deepEqual(await response.json(), { ok: true });
   } finally {
     await new Promise((resolve, reject) => fetchProbe.close((error) => (error ? reject(error) : resolve())));
@@ -934,15 +960,15 @@ async function testManagedCodexRpcDiagnostics() {
     id: 1,
     error: {
       code: -32603,
-      message: 'provider response must not escape: Bearer private-access-token',
+      message: 'provider response must not escape: Bearer test-private-access-token',
       data: {
         type: 'internal_error',
         reason: 'workspace_routing_unavailable',
-        accessToken: 'private-access-token',
-        refreshToken: 'private-refresh-token',
-        userCode: 'PRIVATE-CODE',
+        accessToken: 'test-private-access-token',
+        refreshToken: 'test-private-refresh-token',
+        userCode: 'TEST-PRIVATE-CODE',
         verificationUrl: 'https://auth.openai.com/codex/device?private=value',
-        providerPayload: { authorization: 'Bearer private-access-token' },
+        providerPayload: { authorization: 'Bearer test-private-access-token' },
       },
     },
   };
@@ -995,7 +1021,7 @@ async function testManagedCodexRpcDiagnostics() {
   assert.deepEqual(safeBridgeRpcDiagnostic(workerDiagnostic), workerDiagnostic);
   assert.deepEqual(safeApiRpcDiagnostic(workerDiagnostic), workerDiagnostic);
   const errorJson = JSON.stringify(rpcError.details);
-  for (const secret of ['private-access-token', 'private-refresh-token', 'PRIVATE-CODE', 'verificationUrl', 'providerPayload', 'Bearer']) {
+  for (const secret of ['test-private-access-token', 'test-private-refresh-token', 'TEST-PRIVATE-CODE', 'verificationUrl', 'providerPayload', 'Bearer']) {
     assert.equal(errorJson.includes(secret), false, `RPC diagnostics must not include ${secret}`);
   }
 
@@ -1084,7 +1110,7 @@ async function testManagedCodexRpcDiagnostics() {
 
   const arrayData = [];
   Object.defineProperty(arrayData, 'nested', { enumerable: true, get() { throw new Error('array error.data must not be inspected'); } });
-  arrayData.push({ token: 'must-not-traverse' });
+  arrayData.push({ token: 'test-must-not-traverse' });
   arrayData.toJSON = () => { throw new Error('array error.data must not be serialized'); };
   const arrayDataDiagnostic = (await captureRpcError('account/read', {
     code: -32603,
@@ -1094,7 +1120,7 @@ async function testManagedCodexRpcDiagnostics() {
   assert.equal(arrayDataDiagnostic.dataKind, 'ARRAY');
   assert.equal(arrayDataDiagnostic.dataDigest, null);
   assert.equal(arrayDataDiagnostic.dataSignals, null);
-  assert.equal(JSON.stringify(arrayDataDiagnostic).includes('must-not-traverse'), false);
+  assert.equal(JSON.stringify(arrayDataDiagnostic).includes('test-must-not-traverse'), false);
   assert.equal((await captureRpcError('account/read', { code: -32603, message: 'no data', data: null })).diagnostic.dataKind, 'NULL');
   assert.equal((await captureRpcError('account/read', { code: -32603, message: 'other data', data: 17 })).diagnostic.dataKind, 'OTHER');
   const absentMessageDiagnostic = (await captureRpcError('account/read', { code: -32603 })).diagnostic;
@@ -1155,7 +1181,7 @@ async function testManagedCodexRpcDiagnostics() {
     assert.deepEqual(safeApiRpcDiagnostic(classifiedDiagnostic), classifiedDiagnostic);
   }
 
-  const secretBearingRecognizedMessage = 'Workspace routing discovery failed; Bearer secret-token; device code PRIVATE-CODE; https://auth.openai.com/codex/device?secret=value';
+  const secretBearingRecognizedMessage = 'Workspace routing discovery failed; Bearer secret-token; device code TEST-PRIVATE-CODE; https://auth.openai.com/codex/device?secret=value';
   const secretMessageClient = new CodexAppServerClient();
   secretMessageClient.initialized = true;
   secretMessageClient.process = {
@@ -1183,7 +1209,7 @@ async function testManagedCodexRpcDiagnostics() {
     JSON.stringify(secretMessageError.details),
     JSON.stringify(secretMessageClient.loginStateDiagnostic()),
   ]) {
-    for (const secret of ['Workspace routing is unavailable', 'secret-token', 'PRIVATE-CODE', 'secret=value', 'Bearer']) {
+    for (const secret of ['Workspace routing is unavailable', 'secret-token', 'TEST-PRIVATE-CODE', 'secret=value', 'Bearer']) {
       assert.equal(serialized.includes(secret), false, `sanitized diagnostics must not include ${secret}`);
     }
   }
@@ -1288,7 +1314,7 @@ async function testManagedCodexRpcDiagnostics() {
     operationId: enrollmentId,
     loginId: 'private-login-reference',
     verificationUrl: 'https://auth.openai.com/codex/device?private=value',
-    userCode: 'PRIVATE-USER-CODE',
+    userCode: 'TEST-PRIVATE-USER-CODE',
     state: 'PENDING_USER',
     startedAt: new Date().toISOString(),
     completedAt: null,
@@ -1305,7 +1331,7 @@ async function testManagedCodexRpcDiagnostics() {
     params: {
       loginId: 'private-login-reference',
       success: true,
-      error: 'provider response with private-access-token',
+      error: 'provider response with test-private-access-token',
     },
   });
   const loginProjection = notificationClient.loginStateDiagnostic();
@@ -1321,28 +1347,28 @@ async function testManagedCodexRpcDiagnostics() {
   assert.equal(Object.hasOwn(loginProjection, 'authenticated'), false,
     'a completion notification is not an account authorization assertion');
   const loginProjectionJson = JSON.stringify(loginProjection);
-  for (const secret of ['private-login-reference', 'PRIVATE-USER-CODE', 'private=value', 'private-access-token', 'verificationUrl', 'userCode']) {
+  for (const secret of ['private-login-reference', 'TEST-PRIVATE-USER-CODE', 'private=value', 'test-private-access-token', 'verificationUrl', 'userCode']) {
     assert.equal(loginProjectionJson.includes(secret), false, `login-state projection must not include ${secret}`);
   }
 
   const unsafeRpc = {
     ...workerDiagnostic,
     rawMessage: 'must-not-survive',
-    headers: { authorization: 'Bearer private-access-token' },
+    headers: { authorization: 'Bearer test-private-access-token' },
     type: 'eyJhbGciOi-secret',
   };
   const bridgeSafeError = safeWorkerErrorPayload({
     ok: false,
     code: 'CODEX_RPC_ERROR',
-    message: 'Bearer private-access-token',
-    details: { rpcDiagnostic: unsafeRpc, providerResponse: { userCode: 'PRIVATE-CODE' } },
+    message: 'Bearer test-private-access-token',
+    details: { rpcDiagnostic: unsafeRpc, providerResponse: { userCode: 'TEST-PRIVATE-CODE' } },
   });
   assert.deepEqual(bridgeSafeError, {
     ok: false,
     code: 'CODEX_RPC_ERROR',
     details: { rpcDiagnostic: { ...workerDiagnostic, type: null } },
   });
-  assert.equal(JSON.stringify(bridgeSafeError).includes('private-access-token'), false);
+  assert.equal(JSON.stringify(bridgeSafeError).includes('test-private-access-token'), false);
 
   const runtimeToken = 'r'.repeat(48);
   const bridgeToken = 'b'.repeat(48);
@@ -1351,7 +1377,7 @@ async function testManagedCodexRpcDiagnostics() {
     client: {
       reconcileLogin: async () => {
         throw new CodexAppServerError('CODEX_RPC_ERROR', 'never-forward-this-message', {
-          rpcDiagnostic: { ...classifiedDiagnostic, headers: { authorization: 'Bearer private-access-token' } },
+          rpcDiagnostic: { ...classifiedDiagnostic, headers: { authorization: 'Bearer test-private-access-token' } },
           rawError: 'private provider data',
         });
       },
@@ -1397,7 +1423,7 @@ async function testManagedCodexRpcDiagnostics() {
     }), (error) => {
       assert.equal(error.code, 'CODEX_RPC_ERROR');
       assert.deepEqual(error.details.rpcDiagnostic, classifiedDiagnostic);
-      assert.equal(JSON.stringify(error.details).includes('private-access-token'), false);
+      assert.equal(JSON.stringify(error.details).includes('test-private-access-token'), false);
       assert.equal(JSON.stringify(error.details).includes('never-forward-this-message'), false);
       return true;
     }, 'the API should receive bounded diagnostics through the bridge without raw provider text');
@@ -1411,12 +1437,12 @@ async function testManagedCodexRpcDiagnostics() {
   const projected = safeApiLoginStateDiagnostic({
     ...loginProjection,
     loginReference: 'private-login-reference',
-    userCode: 'PRIVATE-USER-CODE',
+    userCode: 'TEST-PRIVATE-USER-CODE',
     verificationUrl: 'https://auth.openai.com/codex/device?private=value',
-    accessToken: 'private-access-token',
+    accessToken: 'test-private-access-token',
   });
   assert.deepEqual(projected, loginProjection);
-  assert.deepEqual(safeBridgeLoginStateDiagnostic({ ...loginProjection, userCode: 'PRIVATE-USER-CODE' }), loginProjection);
+  assert.deepEqual(safeBridgeLoginStateDiagnostic({ ...loginProjection, userCode: 'TEST-PRIVATE-USER-CODE' }), loginProjection);
 
   const healthBridgeToken = 'h'.repeat(48);
   const healthBridge = createControlBridgeServer({
@@ -1426,7 +1452,7 @@ async function testManagedCodexRpcDiagnostics() {
       payload: { ok: true, loginStateDiagnostic: {
         ...loginProjection,
         loginReference: 'private-login-reference',
-        userCode: 'PRIVATE-USER-CODE',
+        userCode: 'TEST-PRIVATE-USER-CODE',
         verificationUrl: 'https://auth.openai.com/codex/device?private=value',
         latestRpc: { ...classifiedDiagnostic, providerPayload: 'private' },
       } },
@@ -1443,7 +1469,7 @@ async function testManagedCodexRpcDiagnostics() {
     const payload = await response.json();
     assert.deepEqual(safeApiLoginStateDiagnostic(payload.health.loginStateDiagnostic), loginProjection,
       'bridge and API retain only the safe login-state projection');
-    assert.equal(JSON.stringify(payload.health.loginStateDiagnostic).includes('PRIVATE-USER-CODE'), false);
+    assert.equal(JSON.stringify(payload.health.loginStateDiagnostic).includes('TEST-PRIVATE-USER-CODE'), false);
   } finally {
     await new Promise((resolve, reject) => healthBridge.close((error) => (error ? reject(error) : resolve())));
   }
@@ -1452,7 +1478,7 @@ async function testManagedCodexRpcDiagnostics() {
     installation: { installation_id: 'pilot-installation' },
     account: null,
     activeOperation: null,
-    health: { ...certifiedRuntime.health, loginStateDiagnostic: { ...loginProjection, userCode: 'PRIVATE-USER-CODE' } },
+    health: { ...certifiedRuntime.health, loginStateDiagnostic: { ...loginProjection, userCode: 'TEST-PRIVATE-USER-CODE' } },
     certification: { ...certifiedRuntime.certification, installed: true },
   });
   assert.deepEqual(safeStatus.runtime.loginStateDiagnostic, loginProjection);
@@ -1524,7 +1550,7 @@ async function testManagedCodexRpcDiagnostics() {
       expectedProtocolSchemaDigest: EXPECTED_PRIMARY_PROTOCOL_SCHEMA_DIGEST,
       protocolSchemaDigest: EXPECTED_PRIMARY_PROTOCOL_SCHEMA_DIGEST,
     }),
-    loginStateDiagnostic: () => ({ ...loginProjection, userCode: 'PRIVATE-USER-CODE' }),
+    loginStateDiagnostic: () => ({ ...loginProjection, userCode: 'TEST-PRIVATE-USER-CODE' }),
   }, {
     fetcher: async (url) => ({
       ok: true,
@@ -1714,7 +1740,7 @@ async function testManagedCodexLogoutFixture() {
     operation_state: 'PENDING_USER',
     auth_mode: 'chatgptDeviceCode',
     verification_url: 'https://auth.openai.com/codex/device',
-    user_code: 'FIXTURE-CODE',
+    user_code: 'TEST-FIXTURE-CODE',
     created_at: '2026-09-26T00:00:00.000Z',
   };
   let selectCount = 0;
@@ -1824,12 +1850,12 @@ readRecentProviderEgressDenials(now - 100, async (url) => {
 
   const accepted = validateDeviceResponse({
     verificationUrl: 'https://auth.openai.com/codex/device',
-    userCode: 'ABCD-EFGH',
+    userCode: 'TEST-ABCD-EFGH',
     loginId: 'safe-reference-123',
   });
   assert.equal(accepted.loginReference, 'safe-reference-123');
   assert.throws(() => validateDeviceResponse({
-    verificationUrl: 'https://example.com/codex/device', userCode: 'ABCD-EFGH', loginId: 'x',
+    verificationUrl: 'https://example.com/codex/device', userCode: 'TEST-ABCD-EFGH', loginId: 'x',
   }), /unexpected device verification address/i);
   assert.deepEqual(safeProviderDestinations([
     { host: 'auth.openai.com', decision: 'DENY', reason: 'HOST_NOT_ALLOWLISTED' },
@@ -1923,6 +1949,16 @@ readRecentProviderEgressDenials(now - 100, async (url) => {
     }));
     assert.notEqual(changedProtocolCertificationFingerprint, baselineFingerprint,
       'changing the source-controlled expected protocol digest changes bootstrap identity');
+    const sharedContinuationResultPath = path.join(repositoryRoot, 'packages/agents/src/continuationResult.js');
+    const changedSharedContinuationResultFingerprint = bootstrapSourceConfigurationFingerprint(fingerprintFilesystem({
+      targetPath: sharedContinuationResultPath,
+      readTransform: (contents) => Buffer.concat([contents, Buffer.from('\0shared-continuation-result-change')]),
+    }));
+    assert.notEqual(
+      changedSharedContinuationResultFingerprint,
+      baselineFingerprint,
+      'changing the shared continuation-result module must change managed Codex bootstrap identity',
+    );
 
     const unavailableFingerprint = (error) => error.code === 'MANAGED_CODEX_FINGERPRINT_UNAVAILABLE';
     assert.throws(

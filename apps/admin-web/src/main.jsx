@@ -44,6 +44,7 @@ import AgentProjects from './pages/AgentProjects.jsx';
 import ManageAgents from './pages/ManageAgents.jsx';
 import AgentOperations from './pages/AgentOperations.jsx';
 import RunAgent from './pages/RunAgent.jsx';
+import AgentSessions from './pages/AgentSessions.jsx';
 import './index.css';
 import './App.css';
 
@@ -469,6 +470,22 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={
                 <ProtectedRoute permissionCode="AGENT_RUN">
                   <RunAgent />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="agents/sessions"
+              element={
+                <ProtectedRoute permissionCode="AGENT_RUN">
+                  <AgentSessions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="agents/sessions/:sessionId"
+              element={
+                <ProtectedRoute permissionCode="AGENT_RUN">
+                  <AgentSessions />
                 </ProtectedRoute>
               }
             />

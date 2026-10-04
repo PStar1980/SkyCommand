@@ -39,12 +39,15 @@ function EChartCard({
   const closeExpanded = useCallback(() => setIsExpanded(false), []);
 
   useEffect(() => {
-    if (!chartShellRef.current) {
+    const chartShell = chartShellRef.current;
+    if (!chartShell) {
       return undefined;
     }
 
+    let active = true;
     const updateAspectRatio = () => {
-      const rect = chartShellRef.current.getBoundingClientRect();
+      if (!active) return;
+      const rect = chartShell.getBoundingClientRect();
 
       if (rect.width > 0 && rect.height > 0) {
         setChartAspectRatio(rect.width / rect.height);
@@ -52,10 +55,11 @@ function EChartCard({
     };
 
     const resizeObserver = new ResizeObserver(updateAspectRatio);
-    resizeObserver.observe(chartShellRef.current);
+    resizeObserver.observe(chartShell);
     updateAspectRatio();
 
     return () => {
+      active = false;
       resizeObserver.disconnect();
     };
   }, []);

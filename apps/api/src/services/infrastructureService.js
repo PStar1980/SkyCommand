@@ -14,6 +14,7 @@ const DOCKER_CONTAINER_DETAIL_TOOL_CODE = '__docker_container_detail';
 const DOCKER_CONTAINER_CONTROL_TOOL_CODE = '__docker_container_control';
 const DOCKER_RESOURCE_DETAIL_TOOL_CODE = '__docker_resource_detail';
 const DOCKER_RESOURCE_CONTROL_TOOL_CODE = '__docker_resource_control';
+const SUPERVISOR_PROCESS_LIFECYCLE_TOOL_CODE = '__supervisor_process_lifecycle';
 const DOCKER_CONTROL_ACTIONS = new Set(['START', 'STOP', 'RESTART']);
 const DOCKER_CONTAINER_CONTROL_ACTIONS = new Set(['START', 'STOP', 'RESTART', 'PAUSE', 'UNPAUSE']);
 const DOCKER_RESOURCE_CONTROL_ACTIONS = new Set(['REMOVE']);
@@ -357,6 +358,7 @@ function buildUnavailableDockerOverview(availability = {}, error = null) {
 async function executeHostAgentWorkflow(input, {
   temporalConfig = getTemporalConfig(),
   workflowIdPrefix = 'skycommand-host-agent',
+  workflowId = null,
   workflowExecutionTimeout = '25 seconds',
 } = {}) {
   const { Connection, Client } = require('@temporalio/client');
@@ -373,7 +375,7 @@ async function executeHostAgentWorkflow(input, {
 
     return await client.workflow.execute('skyCommandHostAgentToolWorkflow', {
       taskQueue: temporalConfig.taskQueue,
-      workflowId: `${workflowIdPrefix}-${Date.now()}-${randomUUID().slice(0, 8)}`,
+      workflowId: workflowId || `${workflowIdPrefix}-${Date.now()}-${randomUUID().slice(0, 8)}`,
       workflowExecutionTimeout,
       args: [
         {
@@ -385,6 +387,33 @@ async function executeHostAgentWorkflow(input, {
   } finally {
     await connection.close().catch(() => {});
   }
+}
+
+async function dispatchSupervisorProcessLifecycle({ action, operationId }, options = {}) {
+  const { workflowExecutor = executeHostAgentWorkflow, ...executionOptions } = options;
+  const normalizedAction = normalizeText(action).toUpperCase();
+  const normalizedOperationId = normalizeText(operationId).toLowerCase();
+  if (!['START', 'RESTART'].includes(normalizedAction)) {
+    throw new Error('Supervisor task lifecycle action is not allowlisted.');
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(normalizedOperationId)) {
+    throw new Error('Supervisor process lifecycle operationId must be a UUID.');
+  }
+  const workflowId = `skycommand-supervisor-process-${normalizedOperationId}`;
+  const result = await workflowExecutor(
+    {
+      toolCode: SUPERVISOR_PROCESS_LIFECYCLE_TOOL_CODE,
+      action: normalizedAction,
+      operationId: normalizedOperationId,
+    },
+    {
+      ...executionOptions,
+      workflowId,
+      workflowIdPrefix: 'skycommand-supervisor-process',
+      workflowExecutionTimeout: '4 minutes',
+    },
+  );
+  return { ...result, workflowId };
 }
 
 async function dispatchDockerSnapshot(options = {}) {
@@ -1610,6 +1639,7 @@ module.exports = {
   DOCKER_OPERATION_EVENT_TYPES,
   DOCKER_PROVIDER_CODE,
   DOCKER_SNAPSHOT_TOOL_CODE,
+  SUPERVISOR_PROCESS_LIFECYCLE_TOOL_CODE,
   buildContainerControl,
   buildDockerTarget,
   buildProjectControl,
@@ -1624,6 +1654,7 @@ module.exports = {
   dispatchDockerResourceControl,
   dispatchDockerResourceDetail,
   dispatchDockerSnapshot,
+  dispatchSupervisorProcessLifecycle,
   findDockerContainer,
   findDockerImage,
   findDockerNetwork,

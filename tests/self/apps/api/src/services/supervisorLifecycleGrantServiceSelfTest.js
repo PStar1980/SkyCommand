@@ -104,6 +104,29 @@ authorizeRuntimeControl({
     assert.equal(auditEvents.at(-1).metadata.operationId, '123e4567-e89b-12d3-a456-426614174000');
     assert.match(auditEvents.at(-1).message, /managed Codex bootstrap runtime cell/i);
 
+
+    return authorizeRuntimeControl({
+      action: 'REBUILD_AGENT_SESSION_RUNTIME',
+      operationId: '223e4567-e89b-42d3-a456-426614174001',
+      permissionCode: 'DEV_RUNTIME_LIFECYCLE',
+      confirmed: true,
+      actor: { userId: 'user-1', username: 'paul' },
+      session: { sessionId: 'session-1', appCode: 'SKYSERVER_ADMIN' },
+      requestContext: { ipAddress: '127.0.0.1', userAgent: 'self-test' },
+      auditRecorder: async (event) => auditEvents.push(event),
+      nowMs: nowMs + 4000,
+    });
+  })
+  .then((agentSessionRefreshResult) => {
+    assert.equal(agentSessionRefreshResult.authorization.action, 'REBUILD_AGENT_SESSION_RUNTIME');
+    const claims = verifyLifecycleGrant(agentSessionRefreshResult.authorization.grant, {
+      secret: process.env.SKYCOMMAND_SUPERVISOR_GRANT_SECRET,
+      action: 'REBUILD_AGENT_SESSION_RUNTIME',
+      nowMs: nowMs + 5_000,
+    });
+    assert.equal(claims.operationId, '223e4567-e89b-42d3-a456-426614174001');
+    assert.match(auditEvents.at(-1).message, /Agent Session API \+ Node Worker runtime slice/i);
+
     return assert.rejects(
       () => authorizeRuntimeControl({ action: 'STOP', confirmed: false }),
       /explicit confirmation/i,

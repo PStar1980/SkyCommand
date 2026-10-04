@@ -12,6 +12,7 @@ const {
   controlDockerComposeProject,
   controlDockerContainer,
   controlDockerResource,
+  dispatchSupervisorProcessLifecycle,
   getDockerContainerDetail,
   getDockerOverview,
   getDockerResourceDetail,
@@ -112,6 +113,30 @@ assert.equal(selfContainerControl.allowed, false);
 assert.equal(selfContainerControl.mode, 'SELF_MANAGED_PROTECTED');
 
 (async () => {
+  const operationId = '223e4567-e89b-42d3-a456-426614174001';
+  let supervisorProcessDispatch = null;
+  const supervisorProcessResult = await dispatchSupervisorProcessLifecycle(
+    { action: 'START', operationId },
+    {
+      workflowExecutor: async (input, options) => {
+        supervisorProcessDispatch = { input, options };
+        return { outcome: 'REQUESTED' };
+      },
+    },
+  );
+  assert.deepEqual(supervisorProcessDispatch.input, {
+    toolCode: '__supervisor_process_lifecycle',
+    action: 'START',
+    operationId,
+  });
+  assert.equal(supervisorProcessDispatch.options.workflowId, `skycommand-supervisor-process-${operationId}`);
+  assert.equal(supervisorProcessDispatch.options.workflowExecutionTimeout, '4 minutes');
+  assert.equal(supervisorProcessResult.workflowId, `skycommand-supervisor-process-${operationId}`);
+  await assert.rejects(
+    () => dispatchSupervisorProcessLifecycle({ action: 'STOP', operationId }, { workflowExecutor: async () => ({}) }),
+    /not allowlisted/i,
+  );
+
   const overview = await getDockerOverview({
     availabilityLoader: async () => ({
       enabled: true,

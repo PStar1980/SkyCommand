@@ -16,6 +16,9 @@ const {
 const {
   loadRepositoryArtifactConfiguration,
 } = require('../../files/src/repositoryArtifactConfiguration');
+const {
+  CODEX_BOOTSTRAP_REBUILD_SERVICES,
+} = require('../../supervisor/src/config');
 
 const REPOSITORY_CODE = 'SkyCommand';
 const WORKFLOW_CODE = 'dev_change_finalize';
@@ -37,6 +40,20 @@ const FINALIZATION_SERVICE_ORDER = Object.freeze([
   'web',
 ]);
 const FINALIZATION_ORCHESTRATOR_SERVICE = 'temporal-worker';
+const CODEX_FINALIZATION_TRIGGER_SERVICES = Object.freeze(
+  CODEX_BOOTSTRAP_REBUILD_SERVICES.filter((service) => service !== 'api'),
+);
+const CODEX_RUNTIME_SHARED_SOURCE_PATHS = new Set(
+  ['packages/agents/src/continuationResult.js'].map(normalizedRelativePath),
+);
+
+function applyManagedCodexLifecycleClosure(services = []) {
+  const expanded = new Set(services);
+  if (CODEX_FINALIZATION_TRIGGER_SERVICES.some((service) => expanded.has(service))) {
+    for (const service of CODEX_BOOTSTRAP_REBUILD_SERVICES) expanded.add(service);
+  }
+  return expanded;
+}
 const SOURCE_EXCLUDED_DIRECTORY_NAMES = new Set([
   '.git',
   '.cache',
@@ -226,7 +243,8 @@ function classifyChangedPaths(changedPaths = []) {
     if (
       normalized.startsWith('apps/codex-agent-runtime-worker/') ||
       normalized === 'docker/codex-agent-runtime.dockerfile' ||
-      normalized.startsWith('docker/codex-agent-runtime/')
+      normalized.startsWith('docker/codex-agent-runtime/') ||
+      CODEX_RUNTIME_SHARED_SOURCE_PATHS.has(normalized)
     ) services.add('codex-agent-runtime-worker');
     if (
       normalized.startsWith('apps/codex-egress-proxy/') ||
@@ -266,14 +284,15 @@ function classifyChangedPaths(changedPaths = []) {
       services.add('node-worker');
     }
   }
+  const lifecycleServices = applyManagedCodexLifecycleClosure(services);
   return {
     changedPaths: [...new Set(reviewable)].sort(),
-    services: FINALIZATION_SERVICE_ORDER.filter((service) => services.has(service)),
+    services: FINALIZATION_SERVICE_ORDER.filter((service) => lifecycleServices.has(service)),
   };
 }
 
 function selectLifecycleServices(services = [], { deferOrchestrator = true } = {}) {
-  const requested = new Set(
+  const requested = applyManagedCodexLifecycleClosure(
     (Array.isArray(services) ? services : [])
       .map((service) => String(service || '').trim().toLowerCase())
       .filter(Boolean),
@@ -758,6 +777,7 @@ module.exports = {
   buildSourceIdentity,
   canonicalJson,
   classifyChangedPaths,
+  applyManagedCodexLifecycleClosure,
   databaseSummary,
   getLatestSuccessfulRun,
   getProfileCode,

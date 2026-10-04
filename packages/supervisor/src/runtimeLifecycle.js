@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { buildChildProcessEnvironment } = require('../../core/src/repositoryEnvironment');
-const { CODEX_BOOTSTRAP_REBUILD_SERVICES, FINALIZATION_REBUILD_SERVICES } = require('./config');
+const { AGENT_SESSION_RUNTIME_REBUILD_SERVICES, CODEX_BOOTSTRAP_REBUILD_SERVICES, FINALIZATION_REBUILD_SERVICES } = require('./config');
 
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTIONS = new Set([
@@ -13,6 +13,9 @@ const ALLOWED_ACTIONS = new Set([
   'REBUILD_BACKEND',
   'REBUILD_TEMPORAL_WORKER',
   'REBUILD_CODEX_BOOTSTRAP',
+  'REBUILD_AGENT_SESSION_RUNTIME',
+  'START_HOST_AGENT',
+  'RESTART_HOST_AGENT',
 ]);
 const FINALIZATION_SERVICE_SET = new Set(FINALIZATION_REBUILD_SERVICES);
 
@@ -169,10 +172,13 @@ async function getRuntimeStatus(config, options = {}) {
   assertConfig(config);
 
   let result;
+  const platformServices = Array.isArray(config.platformServices) && config.platformServices.length
+    ? config.platformServices
+    : config.runtimeServices;
   try {
     result = await executeDocker(
       config,
-      ['ps', '--all', '--format', 'json', ...config.runtimeServices],
+      ['ps', '--all', '--format', 'json', ...platformServices],
       { ...options, timeout: Math.min(config.controlTimeoutMs || 180000, 30000) },
     );
   } catch (error) {
@@ -180,7 +186,7 @@ async function getRuntimeStatus(config, options = {}) {
       return {
         engineStatus: 'OFFLINE',
         runtimeStatus: 'UNAVAILABLE',
-        services: config.runtimeServices.map((service) => ({
+        services: platformServices.map((service) => ({
           service,
           name: '',
           state: 'UNKNOWN',
@@ -199,7 +205,7 @@ async function getRuntimeStatus(config, options = {}) {
       .map((item) => [item.service, item]),
   );
 
-  const services = config.runtimeServices.map(
+  const services = platformServices.map(
     (service) =>
       observed.get(service) || {
         service,
@@ -210,11 +216,12 @@ async function getRuntimeStatus(config, options = {}) {
       },
   );
 
-  const runningCount = services.filter((item) => item.running).length;
-  const allRunning = runningCount === services.length;
+  const controlServices = services.filter((item) => config.runtimeServices.includes(item.service));
+  const runningCount = controlServices.filter((item) => item.running).length;
+  const allRunning = runningCount === controlServices.length;
   const anyRunning = runningCount > 0;
-  const hasStartingHealth = services.some((item) => item.running && item.health === 'STARTING');
-  const hasUnhealthy = services.some((item) => item.health === 'UNHEALTHY');
+  const hasStartingHealth = controlServices.some((item) => item.running && item.health === 'STARTING');
+  const hasUnhealthy = controlServices.some((item) => item.health === 'UNHEALTHY');
 
   let runtimeStatus = 'STOPPED';
   if (allRunning && !hasUnhealthy && !hasStartingHealth) runtimeStatus = 'ONLINE';
@@ -225,7 +232,7 @@ async function getRuntimeStatus(config, options = {}) {
     engineStatus: 'ONLINE',
     runtimeStatus,
     runningCount,
-    serviceCount: services.length,
+    serviceCount: controlServices.length,
     services,
   };
 }
@@ -328,6 +335,21 @@ async function rebuildServices(config, services, options = {}) {
   };
 }
 
+async function rebuildAgentSessionRuntime(config, options = {}) {
+  const services = [...AGENT_SESSION_RUNTIME_REBUILD_SERVICES];
+  const result = await executeDocker(
+    config,
+    ['up', '-d', '--build', '--force-recreate', ...services],
+    { ...options, timeout: config.rebuildTimeoutMs || config.controlTimeoutMs },
+  );
+  return {
+    action: 'REBUILD_AGENT_SESSION_RUNTIME',
+    services,
+    stdout: normalizeText(result.stdout),
+    status: await getRuntimeStatus(config, options),
+  };
+}
+
 async function rebuildCodexBootstrap(config, options = {}) {
   const services = [...CODEX_BOOTSTRAP_REBUILD_SERVICES];
   const result = await executeDocker(
@@ -341,6 +363,52 @@ async function rebuildCodexBootstrap(config, options = {}) {
     stdout: normalizeText(result.stdout),
     status: await getRuntimeStatus(config, options),
   };
+}
+
+async function controlHostAgentTask(config, action, options = {}) {
+  if ((options.platform || process.platform) !== 'win32') {
+    throw new SupervisorRuntimeError(
+      'Host Agent scheduled-task lifecycle controls are available only on the Windows repository host.',
+      'SKYCOMMAND_SUPERVISOR_HOST_AGENT_TASKS_UNAVAILABLE',
+    );
+  }
+
+  const scriptPath = require('node:path').join(
+    config.repositoryRoot,
+    'scripts',
+    'powershell',
+    'SkyCommand-HostAgentTask.ps1',
+  );
+  if (!fs.existsSync(scriptPath)) {
+    throw new SupervisorRuntimeError(
+      'The guarded Host Agent scheduled-task script is unavailable.',
+      'SKYCOMMAND_SUPERVISOR_HOST_AGENT_TASK_SCRIPT_UNAVAILABLE',
+    );
+  }
+
+  try {
+    const result = await (options.hostTaskExecutor || execFileAsync)(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-File', scriptPath, '-Action', action],
+      {
+        cwd: config.repositoryRoot,
+        encoding: 'utf8',
+        timeout: options.timeout || 120000,
+        maxBuffer: 1024 * 1024,
+        windowsHide: true,
+      },
+    );
+    return {
+      action: `${action}_HOST_AGENT`,
+      output: normalizeText(result.stdout),
+    };
+  } catch (error) {
+    throw new SupervisorRuntimeError(
+      'The guarded Host Agent scheduled-task operation failed.',
+      'SKYCOMMAND_SUPERVISOR_HOST_AGENT_TASK_FAILED',
+      { stderr: normalizeText(error?.stderr), exitCode: Number.isInteger(error?.code) ? error.code : null },
+    );
+  }
 }
 
 async function controlRuntime(config, action, options = {}) {
@@ -361,6 +429,9 @@ async function controlRuntime(config, action, options = {}) {
     return rebuildServices(config, ['temporal-worker'], options);
   }
   if (normalized === 'REBUILD_CODEX_BOOTSTRAP') return rebuildCodexBootstrap(config, options);
+  if (normalized === 'REBUILD_AGENT_SESSION_RUNTIME') return rebuildAgentSessionRuntime(config, options);
+  if (normalized === 'START_HOST_AGENT') return controlHostAgentTask(config, 'Start', options);
+  if (normalized === 'RESTART_HOST_AGENT') return controlHostAgentTask(config, 'Restart', options);
   return restartRuntime(config, options);
 }
 
@@ -373,11 +444,14 @@ module.exports = {
   controlRuntime,
   getRuntimeStatus,
   FINALIZATION_REBUILD_SERVICES,
+  AGENT_SESSION_RUNTIME_REBUILD_SERVICES,
   CODEX_BOOTSTRAP_REBUILD_SERVICES,
   FINALIZATION_SERVICE_SET,
   normalizeFinalizationServices,
   rebuildServices,
+  rebuildAgentSessionRuntime,
   rebuildCodexBootstrap,
+  controlHostAgentTask,
   parseComposePsOutput,
   rebuildBackend,
   rebuildWeb,

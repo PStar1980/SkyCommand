@@ -1,4 +1,4 @@
-const { CODEX_BOOTSTRAP_REBUILD_SERVICES } = require('../../../../packages/supervisor/src/config');
+const { AGENT_SESSION_RUNTIME_REBUILD_SERVICES, CODEX_BOOTSTRAP_REBUILD_SERVICES } = require('../../../../packages/supervisor/src/config');
 
 const DEV_RUNTIME_REFRESH_PERMISSION = 'DEV_RUNTIME_LIFECYCLE';
 const DEV_RUNTIME_REFRESH_CAPABILITY = 'skycommand_dev_runtime_refresh';
@@ -20,6 +20,7 @@ const PROFILE_DEFINITIONS = Object.freeze({
     affectedServices: Object.freeze([...CODEX_BOOTSTRAP_REBUILD_SERVICES]),
     reconciliationEvidence: Object.freeze(['SUPERVISOR_OPERATION', 'REGISTERED_SERVICE_RUNTIME']),
     oneShotServices: Object.freeze(['codex-managed-volume-init']),
+    healthOptionalServices: Object.freeze([]),
   }),
   TEMPORAL_WORKER: Object.freeze({
     profileCode: 'TEMPORAL_WORKER',
@@ -36,6 +37,20 @@ const PROFILE_DEFINITIONS = Object.freeze({
       'TEMPORAL_POLLER',
     ]),
     oneShotServices: Object.freeze([]),
+    healthOptionalServices: Object.freeze([]),
+  }),
+  AGENT_SESSION_RUNTIME: Object.freeze({
+    profileCode: 'AGENT_SESSION_RUNTIME',
+    action: 'REBUILD_AGENT_SESSION_RUNTIME',
+    supervisorPath: '/runtime/rebuild-agent-session-runtime',
+    targetService: 'agent-session-runtime',
+    repositoryCode: DEV_RUNTIME_REFRESH_REPOSITORY,
+    environmentCode: DEV_RUNTIME_REFRESH_ENVIRONMENT,
+    lifecycleProfileCode: DEV_RUNTIME_REFRESH_LIFECYCLE_PROFILE,
+    affectedServices: Object.freeze([...AGENT_SESSION_RUNTIME_REBUILD_SERVICES]),
+    reconciliationEvidence: Object.freeze(['SUPERVISOR_OPERATION', 'REGISTERED_SERVICE_RUNTIME']),
+    oneShotServices: Object.freeze([]),
+    healthOptionalServices: Object.freeze(['node-worker']),
   }),
 });
 
@@ -52,6 +67,7 @@ function getDevRuntimeRefreshProfile(value) {
     affectedServices: [...profile.affectedServices],
     reconciliationEvidence: [...profile.reconciliationEvidence],
     oneShotServices: [...profile.oneShotServices],
+    healthOptionalServices: [...profile.healthOptionalServices],
   };
 }
 

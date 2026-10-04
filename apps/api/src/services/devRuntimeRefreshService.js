@@ -54,6 +54,7 @@ const SAFE_SUPERVISOR_ACTIONS = new Set([
   'REBUILD_BACKEND',
   'REBUILD_TEMPORAL_WORKER',
   'REBUILD_CODEX_BOOTSTRAP',
+  'REBUILD_AGENT_SESSION_RUNTIME',
 ]);
 
 function normalizeText(value, fallback = '') {
@@ -167,6 +168,7 @@ function buildRequestDigest(profileOrCode) {
         targetService: profile.targetService,
         affectedServices: profile.affectedServices,
         oneShotServices: profile.oneShotServices,
+      healthOptionalServices: profile.healthOptionalServices,
         reconciliationEvidence: profile.reconciliationEvidence,
       }),
       'utf8',
@@ -293,7 +295,10 @@ function buildRuntimeEvidence(supervisorStatus, profile, observedAt = new Date()
       services.every((service) =>
         profile.oneShotServices.includes(service.service)
           ? service.state === 'COMPLETED_BY_GOVERNED_ACTION'
-          : service.running && service.health === 'HEALTHY',
+          : service.running && (
+              service.health === 'HEALTHY' ||
+              (profile.healthOptionalServices.includes(service.service) && service.health === 'NONE')
+            ),
       ),
   );
   return {
@@ -1096,6 +1101,7 @@ function getDevRuntimeRefreshCapabilitySummary(permissionCodes = [], agentId = '
       action: profile.action,
       affectedServices: profile.affectedServices,
       oneShotServices: profile.oneShotServices,
+      healthOptionalServices: profile.healthOptionalServices,
       reconciliationEvidence: profile.reconciliationEvidence,
       repositoryCode: profile.repositoryCode,
       environmentCode: profile.environmentCode,

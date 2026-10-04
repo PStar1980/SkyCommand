@@ -87,6 +87,24 @@ const verifiedTemporalWorkerGrant = verifyLifecycleGrant(temporalWorkerGrant.tok
 });
 assert.equal(verifiedTemporalWorkerGrant.operationId, refreshOperationId);
 
+const agentSessionRuntimeGrant = issueLifecycleGrant({
+  secret,
+  action: 'rebuild_agent_session_runtime',
+  operationId: refreshOperationId,
+  subject: 'user-123',
+  sessionId: 'session-456',
+  ttlSeconds: 45,
+  nowMs,
+  nonce: 'grant-agent-session-runtime-nonce',
+});
+assert.equal(agentSessionRuntimeGrant.payload.action, 'REBUILD_AGENT_SESSION_RUNTIME');
+assert.equal(agentSessionRuntimeGrant.payload.operationId, refreshOperationId);
+verifyLifecycleGrant(agentSessionRuntimeGrant.token, {
+  secret,
+  action: 'REBUILD_AGENT_SESSION_RUNTIME',
+  nowMs: nowMs + 10_000,
+});
+
 assert.throws(
   () => verifyLifecycleGrant(issued.token, { secret: 'wrong-secret', action: 'RESTART', nowMs }),
   /signature is invalid/i,

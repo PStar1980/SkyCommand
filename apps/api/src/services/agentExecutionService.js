@@ -1,4 +1,4 @@
-const { randomUUID } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const { Connection, Client } = require('@temporalio/client');
 
 const { pool, query } = require('../../../../packages/db/src/connection');
@@ -15,6 +15,7 @@ const {
 const { normalizeRuntimeConfigurationIdentity, resolvePersistedRecoveryRuntime } = require('../../../../packages/agents/src/runtimeConfiguration');
 const { buildExecutionContext } = require('../../../../packages/agents/src/executionContext');
 const { sha256Digest } = require('../../../../packages/agents/src/canonical');
+const { selectFinalRevalidatableContinuationResult } = require('../../../../packages/agents/src/continuationResult');
 const { resolveFakeRuntimeCase } = require('../../../../packages/agents/src/fakeRuntime');
 const { getAgentRuntimeTaskQueue } = require('../../../../packages/agents/src/runtimeWorker');
 const { getTemporalConfig } = require('../../../../packages/temporal/src/config');
@@ -23,6 +24,13 @@ const { normalizeRuntimeIdentity, projectRuntimeIdentity } = require('./agentRun
 const agentCapabilityAuthorizationService = require('./agentCapabilityAuthorizationService');
 const agentInteractionService = require('./agentInteractionService');
 const managedCodexBootstrapService = require('./managedCodexBootstrapService');
+const agentSessionService = require('./agentSessionService');
+const {
+  TERMINAL_RUNTIME_RELEASE_STATUSES,
+  releaseMarker,
+  runtimeBusyConditionSql,
+  runtimeOwnershipReleasedSql,
+} = require('./agentRuntimeAvailability');
 
 const MAX_INSTRUCTION_LENGTH = 20000;
 const MAX_LIMIT = 100;
@@ -65,9 +73,12 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function resolveDurableTerminalObservation(outcome, row = {}) {
-  if (!isPlainObject(outcome) || !isPlainObject(outcome.durableTerminalObservation)) return null;
-  const value = outcome.durableTerminalObservation;
+function sha256Text(value) {
+  return createHash('sha256').update(String(value ?? ''), 'utf8').digest('hex').toUpperCase();
+}
+
+function validateDurableTerminalObservation(value, row = {}) {
+  if (!isPlainObject(value)) return null;
   if (value.schemaVersion !== 'AGENT_PROVIDER_TERMINAL_OBSERVATION_V1'
     || value.providerBacked !== true
     || value.sendAcceptance !== 'ACKNOWLEDGED'
@@ -77,6 +88,44 @@ function resolveDurableTerminalObservation(outcome, row = {}) {
   if (row.provider_session_reference && value.providerSessionReference !== row.provider_session_reference) return null;
   if (row.provider_operation_reference && value.providerOperationReference && value.providerOperationReference !== row.provider_operation_reference) return null;
   return JSON.parse(JSON.stringify(value));
+}
+
+function resolveDurableTerminalObservation(outcome, row = {}) {
+  if (!isPlainObject(outcome)) return null;
+  return validateDurableTerminalObservation(outcome.durableTerminalObservation, row);
+}
+
+function historicalObservationMatchesRuntimeResult(observation, outcome, row = {}) {
+  if (!observation || !isPlainObject(outcome) || !isPlainObject(outcome.runtimeResult)) return false;
+  const runtimeResult = outcome.runtimeResult;
+  if (runtimeResult.providerBacked !== true
+    || runtimeResult.sendAcceptance !== observation.sendAcceptance
+    || runtimeResult.outcomeCertainty !== observation.outcomeCertainty
+    || String(runtimeResult.providerTerminalStatus || '').toUpperCase() !== observation.providerTerminalStatus
+    || (runtimeResult.providerTerminalFailure === true) !== (observation.providerTerminalFailure === true)
+    || text(runtimeResult.providerTurnId) !== text(observation.providerTurnId)
+    || text(runtimeResult.providerSessionReference) !== text(observation.providerSessionReference)
+    || text(runtimeResult.providerOperationReference) !== text(observation.providerOperationReference)
+    || (runtimeResult.providerErrorCode || null) !== (observation.providerErrorCode || null)) return false;
+  if (row.provider_turn_id && runtimeResult.providerTurnId !== row.provider_turn_id) return false;
+  if (row.provider_session_reference && runtimeResult.providerSessionReference !== row.provider_session_reference) return false;
+  if (row.provider_operation_reference && runtimeResult.providerOperationReference !== row.provider_operation_reference) return false;
+  const runtimeMessage = runtimeResult.taskOutputCandidate?.message;
+  const observationMessage = observation.taskOutputCandidate?.message;
+  if (typeof runtimeMessage !== 'string' || typeof observationMessage !== 'string') return false;
+  return sha256Text(runtimeMessage) === sha256Text(observationMessage);
+}
+
+function resolveHistoricalDurableTerminalObservation(outcome, eventRow, row = {}) {
+  const direct = resolveDurableTerminalObservation(outcome, row);
+  if (direct) return { observation: direct, source: 'PROVIDER_OPERATION_OUTCOME' };
+  if (!eventRow || eventRow.availability !== 'REPORTED' || eventRow.freshness !== 'CURRENT') return null;
+  const expectedCursor = row.provider_operation_id ? `operation:${row.provider_operation_id}:terminal-observed` : null;
+  if (!expectedCursor || eventRow.source_cursor !== expectedCursor) return null;
+  if (eventRow.agent_turn_id && row.agent_turn_id && eventRow.agent_turn_id !== row.agent_turn_id) return null;
+  const historical = validateDurableTerminalObservation(eventRow.payload, row);
+  if (!historical || !historicalObservationMatchesRuntimeResult(historical, outcome, row)) return null;
+  return { observation: historical, source: 'PROVIDER_TERMINAL_OBSERVED_EVENT' };
 }
 
 function assertUuid(value, fieldName) {
@@ -369,6 +418,45 @@ function buildAuthority({ request, project, workspace, selected, runtimeConfigur
   return authority;
 }
 
+function narrowSessionAuthority(current, prior) {
+  if (!prior?.granted || !prior?.executionSurfaces?.granted || !prior?.constraints) throw new AgentExecutionServiceError(409, 'SESSION_AUTHORITY_REVOKED', 'The owned Session has no certifiable prior authority ceiling.');
+  const narrowed = evaluateAuthority({
+    snapshotId: current.snapshotId,
+    authorityKind: current.authorityKind,
+    policyRevision: current.policyRevision,
+    sourcePolicyRevision: current.sourcePolicyRevision,
+    requested: current.requested,
+    configured: intersectScopes([current.configured, prior.configured]),
+    granted: intersectScopes([current.granted, prior.granted]),
+    requestedSurfaces: current.executionSurfaces.requested,
+    configuredSurfaces: current.executionSurfaces.configured,
+    grantedSurfaces: intersectExecutionSurfacePolicies({ requested: current.executionSurfaces.granted, configured: prior.executionSurfaces.granted, granted: prior.executionSurfaces.granted }).granted,
+    requestedConstraints: current.constraints,
+    configuredConstraints: current.constraints,
+    grantedConstraints: prior.constraints,
+    obligations: [...current.obligations, 'OWNED_SESSION_CONTINUATION'],
+    runtimeConfiguration: current.runtimeConfiguration,
+  });
+  const requestedModes = new Map(narrowed.executionSurfaces.requested.surfaces.map((entry) => [entry.surface, entry.mode]));
+  const denials = narrowed.denials.filter((denial) => denial.dimension !== 'executionSurface' || requestedModes.get(denial.value) !== 'DENY');
+  if (denials.length) throw new AgentExecutionServiceError(409, 'SESSION_AUTHORITY_REVOKED', 'Current authority cannot preserve the requested continuation within the previous Session ceiling.', { denials });
+  return narrowed;
+}
+
+// Projection and admission use the same authority calculation. Prior grants are
+// ceilings only; no expired grant is reused as current authority.
+function resolveSessionAuthority(row) {
+  const requested = row.requested_authority || {};
+  const runtimeConfiguration = normalizeRuntimeConfigurationIdentity({ runtimeInstallationId: row.installation_id, runtimeProfile: row.runtime_profile, configurationRevision: row.configuration_revision, configurationDigest: row.configuration_digest, capabilityManifestRevision: row.capability_manifest_revision, freshnessStatus: row.freshness_status });
+  return narrowSessionAuthority(buildAuthority({
+    request: { requestedScope: requested.requested || {}, requestedExecutionSurfaces: requested.surfaces || {}, constraints: requested.constraints || {} },
+    project: { authority_policy: row.authority_policy, policy_revision: row.project_policy_revision },
+    workspace: { workspace_policy: row.workspace_policy },
+    selected: row,
+    runtimeConfiguration,
+  }), row.prior_authority);
+}
+
 async function getRuntimeWorkerReadiness() {
   const config = getTemporalConfig();
   let connection;
@@ -486,7 +574,11 @@ async function getRunRow(runId, actor, { includeEvidence = false } = {}) {
             pw.environment_code,
             jsonb_build_object('authoritySnapshotId', a.authority_snapshot_id, 'digest', a.digest, 'snapshot', a.snapshot) AS authority_snapshot,
             CASE WHEN rc.runtime_cell_id IS NULL THEN NULL ELSE jsonb_build_object('runtimeCellId', rc.runtime_cell_id, 'runtimeKind', rc.runtime_kind, 'adapterVersion', rc.adapter_version, 'taskQueue', rc.task_queue, 'workerIdentity', rc.worker_identity, 'workerGeneration', rc.worker_generation, 'readinessStatus', rc.readiness_status, 'observedAt', rc.observed_at, 'heartbeatAt', rc.heartbeat_at, 'containmentProfile', rc.containment_profile, 'quarantineState', rc.quarantine_state, 'quarantineReason', rc.quarantine_reason, 'quarantinedAt', rc.quarantined_at, 'quarantineEvidence', rc.quarantine_evidence, 'quarantineClearedAt', rc.quarantine_cleared_at) END AS runtime_cell,
-            res.result_status,
+            CASE WHEN ar.status = 'COMPLETED' AND EXISTS (
+              SELECT 1 FROM worker.agent_events rv
+               WHERE rv.agent_run_id = ar.agent_run_id
+                 AND rv.event_type = 'AGENT_CONTINUATION_RESULT_REVALIDATED'
+            ) THEN 'COMPLETED' ELSE res.result_status END AS result_status,
             res.result AS terminal_result,
             capability_counts.capability_effect_count
        FROM worker.agent_runs ar
@@ -523,13 +615,48 @@ async function getRunRow(runId, actor, { includeEvidence = false } = {}) {
     agentCapabilityAuthorizationService.getManagedCapabilityEffects(runId),
     agentInteractionService.listAgentInteractionsForRun(runId),
   ]);
-  return { ...summary, executionContext: row.execution_context, authoritySnapshot: row.authority_snapshot, events: events.rows, providerOperations: operations.rows, capabilityEffects, interactions: interactions, result: resultRow.rows[0] || null };
+  const originalResult = resultRow.rows[0] || null;
+  const revalidationEvent = [...events.rows].reverse().find((event) => event.eventType === 'AGENT_CONTINUATION_RESULT_REVALIDATED' && event.payload?.effectiveResult);
+  const projectedResult = revalidationEvent
+    ? {
+      ...(originalResult || {}),
+      resultStatus: 'COMPLETED',
+      resultDigest: revalidationEvent.payload.effectiveResultDigest,
+      result: revalidationEvent.payload.effectiveResult,
+      revalidated: true,
+      originalResult: originalResult ? {
+        resultId: originalResult.resultId,
+        resultStatus: originalResult.resultStatus,
+        resultDigest: originalResult.resultDigest,
+        publishedAt: originalResult.publishedAt,
+      } : null,
+      revalidationEventId: revalidationEvent.eventId,
+    }
+    : originalResult;
+  if (revalidationEvent) summary.resultStatus = 'COMPLETED';
+  return { ...summary, executionContext: row.execution_context, authoritySnapshot: row.authority_snapshot, events: events.rows, providerOperations: operations.rows, capabilityEffects, interactions: interactions, result: projectedResult };
 }
 
-async function admitAgentRun(req, body = {}) {
+async function admitAgentRun(req, body = {}, options = {}) {
   const actor = actorFromRequest(req);
-  const request = normalizePublicRequest(req, body);
-  const submittedIntent = {
+  const ownedSession = options.sessionId ? await agentSessionService.loadOwnedSession({ query }, options.sessionId, actor) : null;
+  if (ownedSession) for (const key of Object.keys(body)) if (!['instruction', 'idempotencyKey', 'deadlineMs'].includes(key)) throw new AgentExecutionServiceError(400, 'AGENT_INPUT_NOT_ALLOWED', `body.${key} is not an accepted Session continuation input.`);
+  const request = normalizePublicRequest(req, ownedSession ? {
+    projectId: ownedSession.project_id,
+    definitionId: ownedSession.definition_id,
+    definitionVersionId: ownedSession.definition_version_id,
+    projectWorkspaceId: ownedSession.project_workspace_id,
+    requestedScope: ownedSession.requested_authority?.requested || {},
+    requestedExecutionSurfaces: ownedSession.requested_authority?.surfaces || {},
+    constraints: ownedSession.requested_authority?.constraints || {},
+    fakeRuntimeCaseId: ownedSession.fake_runtime_case_id,
+    ...body,
+  } : body);
+  const submittedIntent = ownedSession ? {
+    sessionId: ownedSession.session_id,
+    instruction: request.instruction,
+    deadlineMs: request.deadlineMs,
+  } : {
     projectId: request.projectId,
     definitionId: request.definitionId,
     definitionVersionId: request.definitionVersionId,
@@ -542,7 +669,7 @@ async function admitAgentRun(req, body = {}) {
     fakeRuntimeCaseId: request.fakeRuntimeCaseId,
   };
   const submittedIntentDigest = sha256Digest(submittedIntent);
-  const callerScopeKey = `${actor.internal ? 'internal' : actor.userId}:AGENT_RUN`;
+  const callerScopeKey = `${actor.internal ? 'internal' : actor.userId}:${ownedSession ? 'AGENT_SESSION_CONTINUATION' : 'AGENT_RUN'}`;
 
   const existing = await findExistingAdmission({ callerScopeKey, idempotencyKey: request.idempotencyKey, submittedIntentDigest });
   if (existing) {
@@ -553,19 +680,22 @@ async function admitAgentRun(req, body = {}) {
   const requestId = requestContext(req);
   const admissionRequestId = randomUUID();
   const rootExecutionId = randomUUID();
-  const sessionId = randomUUID();
+  const sessionId = ownedSession?.session_id || randomUUID();
   const agentRunId = randomUUID();
   const stableWorkflowId = `agent-run/${agentRunId}`;
-  const deadlineAt = new Date(Date.now() + request.deadlineMs).toISOString();
+  const requestedDeadlineAt = new Date(Date.now() + request.deadlineMs).toISOString();
 
   let accepted;
   try {
     accepted = await withTransaction(async (client) => {
+      const continuation = ownedSession ? await agentSessionService.loadOwnedSession(client, sessionId, actor, { forUpdate: true }) : null;
       const duplicate = await client.query(`SELECT admission_request_id, agent_run_id, submitted_intent_digest, resolved_spec_digest FROM worker.agent_admission_requests WHERE caller_scope_key = $1 AND idempotency_key = $2 FOR UPDATE`, [callerScopeKey, request.idempotencyKey]);
       if (duplicate.rowCount > 0) {
         if (duplicate.rows[0].submitted_intent_digest !== submittedIntentDigest) throw new AgentExecutionServiceError(409, 'AGENT_IDEMPOTENCY_CONFLICT', 'The idempotency key was already used with different submitted content.', { agentRunId: duplicate.rows[0].agent_run_id });
         return { replayed: true, admissionRequestId: duplicate.rows[0].admission_request_id, agentRunId: duplicate.rows[0].agent_run_id };
       }
+
+      if (continuation) agentSessionService.assertContinuationEligible(continuation);
 
       const principal = await ensurePrincipal(client, actor);
       const project = await assertProjectAccess(client, request.projectId, actor, 'PROJECT_READ');
@@ -574,6 +704,17 @@ async function admitAgentRun(req, body = {}) {
       const realCodexRuntime = isRealCodexSelection(selected);
       if (realCodexRuntime) assertCodexRuntimeEligibility(selected);
       else assertFakeRuntimeEligibility(selected);
+      if (realCodexRuntime) {
+        // The certified managed MCP gateway has one current capability context.
+        // Serialize all provider-backed Runs sharing this existing installation
+        // before binding a context, including first turns in different Sessions.
+        await client.query(`SELECT installation_id FROM core.agent_runtime_installations WHERE installation_id = $1 FOR UPDATE`, [selected.installation_id]);
+        const occupied = await client.query(`SELECT EXISTS (
+          SELECT 1 FROM worker.agent_runs busy
+          WHERE busy.installation_id = $1 AND ${runtimeBusyConditionSql('busy')}
+        ) AS busy`, [selected.installation_id]);
+        if (occupied.rows[0]?.busy) throw new AgentExecutionServiceError(409, 'SESSION_RUNTIME_BUSY', 'The managed runtime is occupied by an active or unresolved operation.', { retriable: true, outcomeCertainty: 'NOT_ACCEPTED' });
+      }
       const codexReadiness = realCodexRuntime ? await managedCodexBootstrapService.getBootstrapReadiness() : null;
       if (realCodexRuntime && (!codexReadiness.ok || codexReadiness.executionEnabled !== true)) {
         throw new AgentExecutionServiceError(503, 'AGENT_CODEX_RUNTIME_NOT_READY', 'The managed Codex runtime is not currently ready for the bounded read-only Agent Run.', { readiness: codexReadiness.readiness, readinessReason: codexReadiness.readinessReason });
@@ -595,7 +736,29 @@ async function admitAgentRun(req, body = {}) {
         freshnessStatus: selected.freshness_status,
         evidence: { taskQueue: runtimeReadiness.taskQueue, pollerCount: runtimeReadiness.pollerCount, sourceControlledFixture: !realCodexRuntime, providerRuntimeGeneration: codexReadiness?.runtimeGeneration || null, providerReadiness: codexReadiness?.readiness || null },
       });
-      const authority = buildAuthority({ request, project, workspace, selected, runtimeConfiguration });
+      const freshAuthority = buildAuthority({ request, project, workspace, selected, runtimeConfiguration });
+      const authority = continuation ? narrowSessionAuthority(freshAuthority, continuation.prior_authority) : freshAuthority;
+      let effectiveDeadlineMs = request.deadlineMs;
+      if (continuation && Number.isInteger(authority.constraints.maxDurationMs)) {
+        const durationCeiling = authority.constraints.maxDurationMs;
+        const explicitDeadline = body.deadlineMs !== undefined && body.deadlineMs !== null && body.deadlineMs !== '';
+        if (durationCeiling < MIN_DEADLINE_MS || explicitDeadline && request.deadlineMs > durationCeiling) {
+          throw new AgentExecutionServiceError(422, 'SESSION_DEADLINE_EXCEEDS_AUTHORITY', 'The continuation deadline exceeds the current narrowed Session duration ceiling.', { retriable: false, outcomeCertainty: 'NOT_ACCEPTED', maxDurationMs: durationCeiling });
+        }
+        effectiveDeadlineMs = Math.min(request.deadlineMs, durationCeiling);
+      }
+      const deadlineAt = continuation ? new Date(Date.now() + effectiveDeadlineMs).toISOString() : requestedDeadlineAt;
+      const sessionBinding = continuation ? {
+        mode: 'CONTINUE',
+        priorRunId: continuation.latest_run_id,
+        providerConversation: {
+          conversationReference: continuation.provider_conversation_reference || continuation.provider_session_reference,
+          providerSessionReference: continuation.provider_session_reference,
+        },
+        adapterVersion: selected.adapter_version || null,
+        model: realCodexRuntime ? selected.configuration?.model || null : null,
+        reasoningEffort: realCodexRuntime ? selected.configuration?.reasoningEffort || null : null,
+      } : null;
       const resolvedSpec = {
         projectId: project.project_id,
         definitionId: selected.definition_id,
@@ -611,9 +774,11 @@ async function admitAgentRun(req, body = {}) {
         providerModel: realCodexRuntime ? selected.configuration?.model || null : null,
         providerReasoningEffort: realCodexRuntime ? selected.configuration?.reasoningEffort || null : null,
         deadlineAt,
+        ...(continuation ? { effectiveDeadlineMs } : {}),
         authorityDigest: authority.digest,
         runtimeConfiguration,
         workflowId: stableWorkflowId,
+        ...(sessionBinding ? { sessionBinding } : {}),
       };
       const resolvedSpecDigest = sha256Digest(resolvedSpec);
       const initiatingActor = { kind: actor.internal ? 'INTERNAL_SERVICE' : 'USER', id: principal.principal_code, displayNameSnapshot: actor.displayName };
@@ -647,7 +812,8 @@ async function admitAgentRun(req, body = {}) {
           workerGeneration: runtimeReadiness.workerIdentity,
         },
         environmentProfile: { environmentCode: workspace.environment_code, profileCode: workspace.profile_code },
-        admission: { admissionRequestId, submittedIntentDigest, resolvedSpecDigest },
+        admission: { admissionRequestId, submittedIntentDigest, resolvedSpecDigest, ...(continuation ? { deadlineAt, effectiveDeadlineMs } : {}) },
+        ...(sessionBinding ? { sessionBinding } : {}),
       });
 
       await client.query(
@@ -655,7 +821,7 @@ async function admitAgentRun(req, body = {}) {
          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $5, $6, $7::jsonb, 'MANUAL')`,
         [rootExecutionId, project.project_id, actor.userId, principal.execution_principal_id, initiatingActor.kind, initiatingActor.id, JSON.stringify(initiatingActor)],
       );
-      await client.query(
+      if (!continuation) await client.query(
         `INSERT INTO worker.agent_sessions (session_id, execution_scope_id, project_id, initiating_user_id, session_model, status)
          VALUES ($1, $2, $3, $4, $5, 'ACTIVE')`,
         [sessionId, rootExecutionId, project.project_id, actor.userId, fakeCase.sessionModel],
@@ -703,6 +869,7 @@ async function admitAgentRun(req, body = {}) {
     if (error?.code === '23505') {
       const duplicate = await findExistingAdmission({ callerScopeKey, idempotencyKey: request.idempotencyKey, submittedIntentDigest });
       if (duplicate) return { accepted: true, replayed: true, statusCode: 202, admissionRequestId: duplicate.admission_request_id, run: await getRunRow(duplicate.agent_run_id, actor), dispatch: { durable: true, replay: true } };
+      if (ownedSession && error.constraint === 'uq_agent_session_active_run_lease') throw new AgentExecutionServiceError(409, 'SESSION_ALREADY_ACTIVE', 'The Session already has an active Run.', { retriable: true, outcomeCertainty: 'NOT_ACCEPTED' });
     }
     throw error;
   }
@@ -782,7 +949,11 @@ async function listAgentRuns(req, options = {}) {
     `SELECT ar.*, r.runtime_code, p.project_code, p.project_name, d.agent_code, v.revision AS agent_revision, pw.environment_code,
             jsonb_build_object('snapshotId', a.authority_snapshot_id, 'digest', a.digest) AS authority_snapshot,
             CASE WHEN rc.runtime_cell_id IS NULL THEN NULL ELSE jsonb_build_object('runtimeKind', rc.runtime_kind, 'workerGeneration', rc.worker_generation, 'readinessStatus', rc.readiness_status, 'observedAt', rc.observed_at) END AS runtime_cell,
-            res.result_status,
+            CASE WHEN ar.status = 'COMPLETED' AND EXISTS (
+              SELECT 1 FROM worker.agent_events rv
+               WHERE rv.agent_run_id = ar.agent_run_id
+                 AND rv.event_type = 'AGENT_CONTINUATION_RESULT_REVALIDATED'
+            ) THEN 'COMPLETED' ELSE res.result_status END AS result_status,
             (SELECT COUNT(*)::int FROM worker.agent_capability_effects ce WHERE ce.agent_run_id = ar.agent_run_id) AS capability_effect_count
        FROM worker.agent_runs ar
        JOIN core.agent_runtime_installations i ON i.installation_id = ar.installation_id
@@ -1057,6 +1228,1011 @@ async function recoverAgentRun(req, runId, body = {}) {
   };
 }
 
+
+function temporalWorkflowNotFound(error) {
+  const value = `${error?.name || ''} ${error?.code || ''} ${error?.message || error || ''}`;
+  return /WorkflowNotFound|WorkflowNotFoundError|workflow[^\n]{0,120}not found/i.test(value);
+}
+
+async function reconcileHistoricalTemporalSegments(runId) {
+  const segments = await query(
+    `SELECT temporal_workflow_id AS "workflowId", temporal_run_id AS "temporalRunId", segment_kind AS "segmentKind", status
+       FROM worker.agent_temporal_segments
+      WHERE agent_run_id = $1 AND status = 'RUNNING'
+      ORDER BY started_at`,
+    [runId],
+  );
+  if (segments.rowCount === 0) return { reconciled: 0, active: 0 };
+  const config = getTemporalConfig();
+  const connection = await Connection.connect({ address: config.address });
+  let reconciled = 0;
+  try {
+    const temporalClient = new Client({ connection, namespace: config.namespace });
+    for (const segment of segments.rows) {
+      let temporalStatus = null;
+      try {
+        const handle = temporalClient.workflow.getHandle(segment.workflowId, segment.temporalRunId || undefined);
+        const description = await handle.describe();
+        temporalStatus = String(description?.status?.name || description?.status || '').toUpperCase() || null;
+      } catch (error) {
+        if (!temporalWorkflowNotFound(error)) {
+          throw new AgentExecutionServiceError(503, 'AGENT_RUNTIME_HOLD_TEMPORAL_OBSERVATION_UNAVAILABLE', 'Temporal status could not be verified while releasing historical runtime ownership.', { retriable: true, outcomeCertainty: 'UNKNOWN' });
+        }
+        await query(
+          `UPDATE worker.agent_temporal_segments
+              SET status = 'UNKNOWN', ended_at = COALESCE(ended_at, CURRENT_TIMESTAMP)
+            WHERE agent_run_id = $1 AND temporal_workflow_id = $2 AND status = 'RUNNING'`,
+          [runId, segment.workflowId],
+        );
+        reconciled += 1;
+        continue;
+      }
+      const mapped = { COMPLETED: 'COMPLETED', FAILED: 'FAILED', CANCELED: 'CANCELED', TERMINATED: 'FAILED', TIMED_OUT: 'FAILED' }[temporalStatus];
+      if (!mapped) {
+        throw new AgentExecutionServiceError(409, 'AGENT_RUNTIME_HOLD_TEMPORAL_STILL_ACTIVE', 'A historical Temporal execution is still active; runtime ownership cannot be released.', { retriable: true, outcomeCertainty: 'UNKNOWN', temporalStatus });
+      }
+      await query(
+        `UPDATE worker.agent_temporal_segments
+            SET status = $3, ended_at = COALESCE(ended_at, CURRENT_TIMESTAMP)
+          WHERE agent_run_id = $1 AND temporal_workflow_id = $2 AND status = 'RUNNING'`,
+        [runId, segment.workflowId, mapped],
+      );
+      reconciled += 1;
+    }
+  } finally {
+    await connection.close();
+  }
+  return { reconciled, active: 0 };
+}
+
+function historicalRuntimeGeneration(row = {}) {
+  return text(
+    row.provider_operation_outcome?.runtimeEvidenceBoundary?.generation
+      || row.admitted_runtime_generation
+      || row.runtime_cell_generation,
+  ) || null;
+}
+
+
+function historicalAuthorityResidueMarker({ runId, sourceCursor, reconciledAt, activeGrantCount = 0, deniedPreDispatchEffectCount = 0, temporalSegmentsReconciled = 0 } = {}) {
+  return {
+    contract: 'agent_historical_authority_residue_reconciliation.v1',
+    reconciled: true,
+    runId: runId || null,
+    reason: 'TERMINAL_RUN_STALE_AUTHORITY',
+    activeGrantCount: Number(activeGrantCount || 0),
+    deniedPreDispatchEffectCount: Number(deniedPreDispatchEffectCount || 0),
+    temporalSegmentsReconciled: Number(temporalSegmentsReconciled || 0),
+    sourceCursor: sourceCursor || null,
+    reconciledAt: reconciledAt || new Date().toISOString(),
+  };
+}
+
+async function loadHistoricalAuthorityResidueEvidence(client, runId, { lock = false } = {}) {
+  const runLock = lock ? ' FOR UPDATE OF ar, es' : '';
+  const rowResult = await client.query(
+    `SELECT ar.agent_run_id, ar.session_id, ar.execution_scope_id, ar.installation_id, ar.status,
+            ar.outcome, ar.stop_state, ar.revocation_epoch, ar.terminal_at,
+            es.status AS scope_status, es.revocation_epoch AS scope_revocation_epoch,
+            r.runtime_code
+       FROM worker.agent_runs ar
+       JOIN worker.execution_scopes es ON es.execution_scope_id = ar.execution_scope_id
+       JOIN core.agent_runtime_installations i ON i.installation_id = ar.installation_id
+       JOIN core.agent_runtimes r ON r.agent_runtime_id = i.agent_runtime_id
+      WHERE ar.agent_run_id = $1${runLock}`,
+    [runId],
+  );
+  if (rowResult.rowCount === 0) throw new AgentExecutionServiceError(404, 'AGENT_AUTHORITY_RESIDUE_RUN_NOT_FOUND', 'The historical Agent Run was not found.');
+  const row = rowResult.rows[0];
+  const grantLock = lock ? ' FOR UPDATE' : '';
+  const effectLock = lock ? ' FOR UPDATE' : '';
+  const grants = await client.query(
+    `SELECT execution_grant_id, grant_kind, capability_effect_id, grant_state, revocation_epoch,
+            credential_expires_at, grant_metadata
+       FROM auth.execution_grants
+      WHERE agent_run_id = $1 AND grant_state = 'ACTIVE'
+      ORDER BY granted_at, execution_grant_id${grantLock}`,
+    [runId],
+  );
+  const leases = await client.query(
+    `SELECT resource_lease_id, lease_state
+       FROM worker.agent_resource_leases
+      WHERE agent_run_id = $1 AND lease_state IN ('ACTIVE', 'QUARANTINED')
+      ORDER BY acquired_at`,
+    [runId],
+  );
+  const providerHolds = await client.query(
+    `SELECT po.provider_operation_id, po.state, po.outcome_certainty
+       FROM worker.agent_provider_operations po
+      WHERE po.agent_run_id = $1
+        AND po.operation_type = 'SUBMIT_TURN'
+        AND (po.outcome_certainty = 'UNKNOWN' OR po.state IN ('UNKNOWN', 'RECOVERY_REQUIRED', 'JOURNALED', 'SENT', 'ACKNOWLEDGED', 'RECONCILING'))
+        AND NOT (${runtimeOwnershipReleasedSql('po')})
+      ORDER BY po.created_at`,
+    [runId],
+  );
+  const effects = await client.query(
+    `SELECT agent_capability_effect_id, dispatch_state, outcome_certainty,
+            native_browser_execution_id, native_browser_workflow_id, browser_automation_run_id
+       FROM worker.agent_capability_effects
+      WHERE agent_run_id = $1
+        AND dispatch_state IN ('INTENT', 'DISPATCHING', 'DISPATCHED', 'RECONCILING')
+        AND outcome_certainty IN ('UNKNOWN', 'NOT_CONFIRMED')
+      ORDER BY created_at, agent_capability_effect_id${effectLock}`,
+    [runId],
+  );
+  const effectEvidence = [];
+  for (const effect of effects.rows) {
+    const native = await client.query(
+      `SELECT browser_automation_run_id, execution_id, temporal_workflow_id, status, temporal_status
+         FROM worker.browser_automation_runs
+        WHERE managed_effect_id = $1
+           OR ($2::text IS NOT NULL AND execution_id = $2::text)
+           OR ($3::text IS NOT NULL AND temporal_workflow_id = $3)
+           OR ($4::uuid IS NOT NULL AND browser_automation_run_id = $4::uuid)
+        ORDER BY created_at
+        LIMIT 1`,
+      [
+        effect.agent_capability_effect_id,
+        effect.native_browser_execution_id || null,
+        effect.native_browser_workflow_id || null,
+        effect.browser_automation_run_id || null,
+      ],
+    );
+    effectEvidence.push({
+      ...effect,
+      nativeBrowserEvidence: native.rowCount > 0,
+      nativeBrowserStatus: native.rows[0]?.status || null,
+      nativeBrowserTemporalStatus: native.rows[0]?.temporal_status || null,
+    });
+  }
+  const temporal = await client.query(
+    `SELECT temporal_workflow_id, temporal_run_id, segment_kind, status
+       FROM worker.agent_temporal_segments
+      WHERE agent_run_id = $1 AND status = 'RUNNING'
+      ORDER BY started_at`,
+    [runId],
+  );
+  const activeSiblingRuns = await client.query(
+    `SELECT agent_run_id, status
+       FROM worker.agent_runs
+      WHERE execution_scope_id = $1
+        AND agent_run_id <> $2
+        AND status NOT IN ('COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELED', 'RECOVERY_REQUIRED')
+      ORDER BY created_at`,
+    [row.execution_scope_id, runId],
+  );
+  const unsafeEffects = effectEvidence.filter((effect) => effect.dispatch_state !== 'INTENT' || effect.nativeBrowserEvidence === true);
+  const terminal = TERMINAL_RUNTIME_RELEASE_STATUSES.includes(row.status);
+  return {
+    row,
+    terminal,
+    activeGrants: grants.rows,
+    activeLeases: leases.rows,
+    providerHolds: providerHolds.rows,
+    unresolvedEffects: effectEvidence,
+    unsafeEffects,
+    runningTemporalSegments: temporal.rows,
+    activeSiblingRuns: activeSiblingRuns.rows,
+    hasResidue: grants.rowCount > 0 || effectEvidence.length > 0,
+    safeCandidate: terminal
+      && row.runtime_code === 'OPENAI_CODEX_APP_SERVER'
+      && leases.rowCount === 0
+      && providerHolds.rowCount === 0
+      && activeSiblingRuns.rowCount === 0
+      && unsafeEffects.length === 0,
+  };
+}
+
+function safeHistoricalAuthorityResidueEvidence(evidence) {
+  return {
+    runId: evidence.row.agent_run_id,
+    sessionId: evidence.row.session_id,
+    executionScopeId: evidence.row.execution_scope_id,
+    installationId: evidence.row.installation_id,
+    runtimeCode: evidence.row.runtime_code,
+    runStatus: evidence.row.status,
+    scopeStatus: evidence.row.scope_status,
+    terminal: evidence.terminal,
+    hasResidue: evidence.hasResidue,
+    safeCandidate: evidence.safeCandidate,
+    activeGrantCount: evidence.activeGrants.length,
+    activeGrants: evidence.activeGrants.map((grant) => ({
+      grantId: grant.execution_grant_id,
+      grantKind: grant.grant_kind,
+      capabilityEffectId: grant.capability_effect_id || null,
+      credentialExpiresAt: grant.credential_expires_at || null,
+    })),
+    activeLeaseCount: evidence.activeLeases.length,
+    unreleasedProviderHoldCount: evidence.providerHolds.length,
+    unresolvedEffectCount: evidence.unresolvedEffects.length,
+    effects: evidence.unresolvedEffects.map((effect) => ({
+      effectId: effect.agent_capability_effect_id,
+      dispatchState: effect.dispatch_state,
+      outcomeCertainty: effect.outcome_certainty,
+      nativeBrowserExecutionId: effect.native_browser_execution_id || null,
+      nativeBrowserWorkflowId: effect.native_browser_workflow_id || null,
+      browserAutomationRunId: effect.browser_automation_run_id || null,
+      nativeBrowserEvidence: effect.nativeBrowserEvidence === true,
+      nativeBrowserStatus: effect.nativeBrowserStatus || null,
+      nativeBrowserTemporalStatus: effect.nativeBrowserTemporalStatus || null,
+    })),
+    unsafeEffectCount: evidence.unsafeEffects.length,
+    runningTemporalSegmentCount: evidence.runningTemporalSegments.length,
+    activeSiblingRunCount: evidence.activeSiblingRuns.length,
+  };
+}
+
+async function inspectHistoricalAuthorityResidue(req, runId) {
+  const actor = actorFromRequest(req);
+  if (!actor.internal) throw new AgentExecutionServiceError(403, 'AGENT_AUTHORITY_RESIDUE_INTERNAL_ONLY', 'Historical authority-residue inspection is restricted to the governed internal Agent service.');
+  const id = assertUuid(runId, 'runId');
+  return withTransaction(async (client) => ({ authorityResidue: safeHistoricalAuthorityResidueEvidence(await loadHistoricalAuthorityResidueEvidence(client, id)) }));
+}
+
+async function reconcileHistoricalAuthorityResidue(req, runId, body = {}) {
+  const actor = actorFromRequest(req);
+  if (!actor.internal) throw new AgentExecutionServiceError(403, 'AGENT_AUTHORITY_RESIDUE_INTERNAL_ONLY', 'Historical authority-residue reconciliation is restricted to the governed internal Agent service.');
+  if (Object.keys(body || {}).length) throw new AgentExecutionServiceError(400, 'AGENT_AUTHORITY_RESIDUE_INPUT_NOT_ALLOWED', 'Historical authority-residue reconciliation does not accept caller-supplied mutation parameters.');
+  const id = assertUuid(runId, 'runId');
+
+  const readiness = await managedCodexBootstrapService.getBootstrapReadiness();
+  if (!readiness?.ok || readiness?.executionEnabled !== true || !text(readiness?.runtimeGeneration)) {
+    throw new AgentExecutionServiceError(503, 'AGENT_AUTHORITY_RESIDUE_RUNTIME_NOT_CURRENT', 'The managed Codex runtime must be CURRENT and execution-enabled before historical authority residue can be reconciled.', { retriable: true, readiness: readiness?.readiness || 'UNKNOWN' });
+  }
+
+  const temporal = await reconcileHistoricalTemporalSegments(id);
+  return withTransaction(async (client) => {
+    const evidence = await loadHistoricalAuthorityResidueEvidence(client, id, { lock: true });
+    if (!evidence.terminal) throw new AgentExecutionServiceError(409, 'AGENT_AUTHORITY_RESIDUE_RUN_NOT_TERMINAL', 'Historical authority residue may be reconciled only for a terminal Agent Run.');
+    if (evidence.row.runtime_code !== 'OPENAI_CODEX_APP_SERVER') throw new AgentExecutionServiceError(409, 'AGENT_AUTHORITY_RESIDUE_RUNTIME_UNSUPPORTED', 'Historical authority-residue reconciliation is only supported for the managed Codex runtime.');
+    if (evidence.activeLeases.length) throw new AgentExecutionServiceError(409, 'AGENT_AUTHORITY_RESIDUE_ACTIVE_LEASE', 'A historical Run still owns an active or quarantined resource lease. Reconcile runtime ownership before authority residue.', { leaseCount: evidence.activeLeases.length });
+    if (evidence.providerHolds.length) throw new AgentExecutionServiceError(409, 'AGENT_AUTHORITY_RESIDUE_PROVIDER_HOLD', 'A historical Run still has unreleased provider-operation ownership. Use the provider runtime-hold reconciliation path first.', { providerHoldCount: evidence.providerHolds.length });
+    if (evidence.activeSiblingRuns.length) throw new AgentExecutionServiceError(409, 'AGENT_AUTHORITY_RESIDUE_SHARED_SCOPE_ACTIVE', 'The execution scope still contains another non-terminal Run; its authority epoch cannot be changed safely.', { activeSiblingRunCount: evidence.activeSiblingRuns.length });
+    if (evidence.runningTemporalSegments.length) throw new AgentExecutionServiceError(409, 'AGENT_AUTHORITY_RESIDUE_TEMPORAL_STILL_ACTIVE', 'A historical Temporal execution is still active after reconciliation.', { temporalSegmentCount: evidence.runningTemporalSegments.length });
+    if (evidence.unsafeEffects.length) {
+      const effect = evidence.unsafeEffects[0];
+      throw new AgentExecutionServiceError(409, 'AGENT_AUTHORITY_RESIDUE_EFFECT_UNRESOLVED', 'A historical capability effect has durable native Browser execution evidence or passed the pre-dispatch INTENT boundary.', {
+        effectId: effect.agent_capability_effect_id,
+        dispatchState: effect.dispatch_state,
+        nativeBrowserEvidence: effect.nativeBrowserEvidence === true,
+        nativeBrowserStatus: effect.nativeBrowserStatus || null,
+        nativeBrowserTemporalStatus: effect.nativeBrowserTemporalStatus || null,
+      });
+    }
+
+    const previousEvent = await client.query(
+      `SELECT source_cursor, payload
+         FROM worker.agent_events
+        WHERE agent_run_id = $1 AND event_type = 'AGENT_HISTORICAL_AUTHORITY_RESIDUE_RECONCILED'
+        ORDER BY event_sequence DESC
+        LIMIT 1`,
+      [id],
+    );
+    if (!evidence.hasResidue) {
+      return {
+        runId: id,
+        sessionId: evidence.row.session_id,
+        authorityResidueReconciled: previousEvent.rowCount > 0,
+        activeGrantsExpired: 0,
+        preDispatchEffectsDenied: 0,
+        temporalSegmentsReconciled: temporal.reconciled,
+        sourceCursor: previousEvent.rows[0]?.source_cursor || null,
+        idempotent: true,
+        alreadyClean: true,
+      };
+    }
+
+    const nextEpoch = Math.max(Number(evidence.row.revocation_epoch || 0), Number(evidence.row.scope_revocation_epoch || 0)) + 1;
+    const reconciledAt = new Date().toISOString();
+    const sourceCursor = `authority-residue:${id}:epoch:${nextEpoch}`;
+    const marker = historicalAuthorityResidueMarker({
+      runId: id,
+      sourceCursor,
+      reconciledAt,
+      activeGrantCount: evidence.activeGrants.length,
+      deniedPreDispatchEffectCount: evidence.unresolvedEffects.length,
+      temporalSegmentsReconciled: temporal.reconciled,
+    });
+
+    await client.query(
+      `UPDATE worker.execution_scopes
+          SET revocation_epoch = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE execution_scope_id = $1`,
+      [evidence.row.execution_scope_id, nextEpoch],
+    );
+    await client.query(
+      `UPDATE worker.agent_runs
+          SET revocation_epoch = $2,
+              stop_evidence = COALESCE(stop_evidence, '{}'::jsonb)
+                || jsonb_build_object('historicalAuthorityResidueReconciliation', $3::jsonb),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE agent_run_id = $1`,
+      [id, nextEpoch, JSON.stringify(marker)],
+    );
+    await client.query(
+      `UPDATE auth.execution_grants
+          SET grant_state = 'EXPIRED',
+              revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP),
+              revocation_epoch = $2,
+              grant_metadata = COALESCE(grant_metadata, '{}'::jsonb)
+                || jsonb_build_object('historicalAuthorityResidueReconciliation', $3::jsonb)
+        WHERE agent_run_id = $1 AND grant_state = 'ACTIVE'`,
+      [id, nextEpoch, JSON.stringify(marker)],
+    );
+    for (const effect of evidence.unresolvedEffects) {
+      await client.query(
+        `UPDATE worker.agent_capability_effects
+            SET dispatch_state = 'DENIED', outcome_certainty = 'REJECTED',
+                denial_reason = 'HISTORICAL_AUTHORITY_RESIDUE_RECONCILED_BEFORE_DISPATCH',
+                reconciliation_metadata = COALESCE(reconciliation_metadata, '{}'::jsonb)
+                  || jsonb_build_object(
+                    'historicalAuthorityResidueReconciliation', $2::jsonb,
+                    'nativeBrowserIdentityDisposition', 'PREALLOCATED_WITHOUT_DURABLE_NATIVE_EXECUTION'
+                  ),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE agent_capability_effect_id = $1
+            AND dispatch_state = 'INTENT'
+            AND outcome_certainty IN ('UNKNOWN', 'NOT_CONFIRMED')`,
+        [effect.agent_capability_effect_id, JSON.stringify(marker)],
+      );
+    }
+    await appendEvent(client, {
+      runId: id,
+      sessionId: evidence.row.session_id,
+      executionScopeId: evidence.row.execution_scope_id,
+      eventType: 'AGENT_HISTORICAL_AUTHORITY_RESIDUE_RECONCILED',
+      sourceCursor,
+      payload: {
+        activeGrantsExpired: evidence.activeGrants.length,
+        preDispatchEffectsDenied: evidence.unresolvedEffects.length,
+        temporalSegmentsReconciled: temporal.reconciled,
+        authorityEpoch: nextEpoch,
+        executionLivenessProvenAbsent: true,
+      },
+    });
+
+    return {
+      runId: id,
+      sessionId: evidence.row.session_id,
+      authorityResidueReconciled: true,
+      activeGrantsExpired: evidence.activeGrants.length,
+      preDispatchEffectsDenied: evidence.unresolvedEffects.length,
+      temporalSegmentsReconciled: temporal.reconciled,
+      revocationEpoch: nextEpoch,
+      sourceCursor,
+      idempotent: false,
+      alreadyClean: false,
+    };
+  });
+}
+
+
+function safeContinuationRevalidationEvidence(evidence = {}) {
+  const selected = evidence.selection?.normalized || null;
+  return {
+    runId: evidence.row?.agent_run_id || null,
+    sessionId: evidence.row?.session_id || null,
+    runStatus: evidence.row?.status || null,
+    runOutcome: evidence.row?.outcome || null,
+    sessionStatus: evidence.row?.session_status || null,
+    sessionModel: evidence.row?.session_model || null,
+    runtimeCode: evidence.row?.runtime_code || null,
+    scopeStatus: evidence.row?.scope_status || null,
+    originalResultStatus: evidence.row?.result_status || null,
+    originalResultDigest: evidence.row?.result_digest || null,
+    providerOperationId: evidence.row?.provider_operation_id || null,
+    providerOperationState: evidence.row?.operation_state || null,
+    providerOutcomeCertainty: evidence.row?.outcome_certainty || null,
+    providerTurnId: evidence.row?.provider_turn_id || null,
+    providerSessionReference: evidence.row?.provider_session_reference || null,
+    durableProviderTerminalStatus: evidence.observation?.providerTerminalStatus || null,
+    durableProviderErrorCode: evidence.observation?.providerErrorCode || null,
+    durableProviderObservationSource: evidence.observationSource || null,
+    candidateMessageDigest: evidence.messageDigest || null,
+    adjacentJsonValueCount: evidence.selection?.valueCount || 0,
+    selectedValueIndex: Number.isInteger(evidence.selection?.selectedIndex) ? evidence.selection.selectedIndex : null,
+    selectedSummary: selected?.previous_task_summary || null,
+    selectedCapabilityResult: selected?.capability_result || null,
+    capabilityEffect: evidence.effect ? {
+      effectId: evidence.effect.agent_capability_effect_id,
+      capabilityCode: evidence.effect.capability_code,
+      authorityDecision: evidence.effect.authority_decision,
+      dispatchState: evidence.effect.dispatch_state,
+      outcomeCertainty: evidence.effect.outcome_certainty,
+      browserAutomationRunId: evidence.effect.browser_automation_run_id || null,
+      nativeBrowserExecutionId: evidence.effect.native_browser_execution_id || null,
+      nativeBrowserWorkflowId: evidence.effect.native_browser_workflow_id || null,
+    } : null,
+    nativeBrowser: evidence.browser ? {
+      browserAutomationRunId: evidence.browser.browser_automation_run_id,
+      executionId: evidence.browser.execution_id || null,
+      temporalWorkflowId: evidence.browser.temporal_workflow_id || null,
+      status: evidence.browser.status || null,
+      temporalStatus: evidence.browser.temporal_status || null,
+      origin: evidence.browser.trigger_source || null,
+    } : null,
+    activeLeaseCount: evidence.activeLeaseCount || 0,
+    activeSiblingRunCount: evidence.activeSiblingRunCount || 0,
+    alreadyRevalidated: Boolean(evidence.revalidationEvent),
+    candidate: evidence.candidate === true,
+    blocker: evidence.blocker || null,
+  };
+}
+
+async function loadContinuationResultRevalidationEvidence(client, runId, { lock = false } = {}) {
+  const lockClause = lock ? ' FOR UPDATE OF ar, s' : '';
+  const rowResult = await client.query(
+    `SELECT ar.agent_run_id, ar.session_id, ar.execution_scope_id, ar.status, ar.outcome,
+            ar.execution_context, ar.project_id, ar.definition_id, ar.initiating_user_id,
+            ar.initiating_actor_snapshot, ar.trigger_source,
+            es.status AS scope_status,
+            s.status AS session_status, s.session_model, s.archived_at,
+            r.runtime_code, v.revision AS agent_revision,
+            res.agent_result_id, res.result_status, res.result_digest, res.result AS terminal_result, res.published_at,
+            t.agent_turn_id, t.status AS turn_status, t.output_digest,
+            t.provider_turn_id, t.provider_session_reference,
+            po.provider_operation_id, po.provider_operation_reference,
+            po.state AS operation_state, po.outcome_certainty, po.outcome AS provider_operation_outcome
+       FROM worker.agent_runs ar
+       JOIN worker.execution_scopes es ON es.execution_scope_id = ar.execution_scope_id
+       JOIN worker.agent_sessions s ON s.session_id = ar.session_id
+       JOIN core.agent_runtime_installations i ON i.installation_id = ar.installation_id
+       JOIN core.agent_runtimes r ON r.agent_runtime_id = i.agent_runtime_id
+       JOIN core.agent_definition_versions v ON v.definition_version_id = ar.definition_version_id
+       LEFT JOIN worker.agent_results res ON res.agent_run_id = ar.agent_run_id
+       LEFT JOIN LATERAL (
+         SELECT turn.*
+           FROM worker.agent_turns turn
+          WHERE turn.agent_run_id = ar.agent_run_id
+          ORDER BY turn.turn_number DESC, turn.created_at DESC
+          LIMIT 1
+       ) t ON TRUE
+       LEFT JOIN worker.agent_provider_operations po
+         ON po.agent_turn_id = t.agent_turn_id
+        AND po.operation_type = 'SUBMIT_TURN'
+      WHERE ar.agent_run_id = $1${lockClause}`,
+    [runId],
+  );
+  if (rowResult.rowCount === 0) throw new AgentExecutionServiceError(404, 'AGENT_CONTINUATION_REVALIDATION_RUN_NOT_FOUND', 'The Agent Run was not found.');
+  const row = rowResult.rows[0];
+
+  const revalidation = await client.query(
+    `SELECT agent_event_id, source_cursor, payload
+       FROM worker.agent_events
+      WHERE agent_run_id = $1
+        AND event_type = 'AGENT_CONTINUATION_RESULT_REVALIDATED'
+      ORDER BY event_sequence DESC
+      LIMIT 1`,
+    [runId],
+  );
+  const revalidationEvent = revalidation.rows[0] || null;
+
+  const observationEvents = await client.query(
+    `SELECT agent_event_id, agent_turn_id, source_cursor, availability, freshness, payload
+       FROM worker.agent_events
+      WHERE agent_run_id = $1
+        AND event_type = 'PROVIDER_TERMINAL_OBSERVED'
+        AND source_kind = 'SKYCOMMAND_AGENT_RUNTIME_ADAPTER'
+        AND source_cursor = $2
+      ORDER BY event_sequence DESC
+      LIMIT 2`,
+    [runId, row.provider_operation_id ? `operation:${row.provider_operation_id}:terminal-observed` : ''],
+  );
+  const observationEvent = observationEvents.rowCount === 1 ? observationEvents.rows[0] : null;
+  const resolvedObservation = resolveHistoricalDurableTerminalObservation(row.provider_operation_outcome, observationEvent, row);
+  const observation = resolvedObservation?.observation || null;
+  const observationSource = resolvedObservation?.source || null;
+  const message = observation?.taskOutputCandidate?.message || null;
+  const selection = message ? selectFinalRevalidatableContinuationResult(message) : { valid: false, code: 'CONTINUATION_RESULT_DURABLE_MESSAGE_MISSING', valueCount: 0 };
+  const messageDigest = message ? sha256Text(message) : null;
+
+  const effects = await client.query(
+    `SELECT agent_capability_effect_id, capability_code, authority_decision,
+            dispatch_state, outcome_certainty, native_browser_execution_id,
+            native_browser_workflow_id, browser_automation_run_id
+       FROM worker.agent_capability_effects
+      WHERE agent_run_id = $1
+      ORDER BY created_at, agent_capability_effect_id`,
+    [runId],
+  );
+  const effect = effects.rowCount === 1 ? effects.rows[0] : null;
+  let browser = null;
+  if (effect) {
+    const native = await client.query(
+      `SELECT browser_automation_run_id, execution_id, temporal_workflow_id,
+              status, temporal_status, trigger_source, managed_effect_id,
+              managed_agent_run_id, managed_session_id, managed_turn_id
+         FROM worker.browser_automation_runs
+        WHERE managed_effect_id = $1
+           OR ($2::uuid IS NOT NULL AND browser_automation_run_id = $2::uuid)
+        ORDER BY created_at
+        LIMIT 2`,
+      [effect.agent_capability_effect_id, effect.browser_automation_run_id || null],
+    );
+    if (native.rowCount === 1) browser = native.rows[0];
+  }
+
+  const leases = await client.query(
+    `SELECT COUNT(*)::int AS count
+       FROM worker.agent_resource_leases
+      WHERE agent_run_id = $1 AND lease_state IN ('ACTIVE', 'QUARANTINED')`,
+    [runId],
+  );
+  const siblings = await client.query(
+    `SELECT COUNT(*)::int AS count
+       FROM worker.agent_runs sibling
+      WHERE sibling.session_id = $1
+        AND sibling.agent_run_id <> $2
+        AND sibling.status NOT IN ('COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELED', 'RECOVERY_REQUIRED')`,
+    [row.session_id, runId],
+  );
+  const activeLeaseCount = Number(leases.rows[0]?.count || 0);
+  const activeSiblingRunCount = Number(siblings.rows[0]?.count || 0);
+
+  let blocker = null;
+  if (revalidationEvent && row.status === 'COMPLETED' && row.session_status === 'ACTIVE') blocker = null;
+  else if (row.runtime_code !== 'OPENAI_CODEX_APP_SERVER') blocker = 'AGENT_CONTINUATION_REVALIDATION_RUNTIME_UNSUPPORTED';
+  else if (row.status !== 'FAILED' || row.outcome !== 'PROVIDER_TERMINAL_FAILED') blocker = 'AGENT_CONTINUATION_REVALIDATION_RUN_STATE_INVALID';
+  else if (row.session_model !== 'PERSISTENT' || row.session_status !== 'CLOSED' || row.archived_at) blocker = 'AGENT_CONTINUATION_REVALIDATION_SESSION_STATE_INVALID';
+  else if (row.scope_status !== 'ACTIVE') blocker = 'AGENT_CONTINUATION_REVALIDATION_SCOPE_NOT_ACTIVE';
+  else if (row.result_status !== 'FAILED' || !row.result_digest || !row.terminal_result) blocker = 'AGENT_CONTINUATION_REVALIDATION_ORIGINAL_RESULT_MISSING';
+  else if (activeLeaseCount) blocker = 'AGENT_CONTINUATION_REVALIDATION_ACTIVE_LEASE';
+  else if (activeSiblingRunCount) blocker = 'AGENT_CONTINUATION_REVALIDATION_SESSION_BUSY';
+  else if (row.operation_state !== 'COMPLETED' || row.outcome_certainty !== 'ACKNOWLEDGED') blocker = 'AGENT_CONTINUATION_REVALIDATION_PROVIDER_OPERATION_INVALID';
+  else if (!observation
+    || observation.sendAcceptance !== 'ACKNOWLEDGED'
+    || observation.outcomeCertainty !== 'ACKNOWLEDGED'
+    || observation.providerTerminalStatus !== 'COMPLETED'
+    || observation.providerTerminalFailure !== true
+    || observation.providerErrorCode !== 'CODEX_CONTINUATION_RESULT_INVALID') blocker = 'AGENT_CONTINUATION_REVALIDATION_PROVIDER_OBSERVATION_INVALID';
+  else if (!selection.valid || selection.valueCount < 2) blocker = selection.code || 'AGENT_CONTINUATION_REVALIDATION_RESULT_INVALID';
+  else if (effects.rowCount !== 1 || !effect) blocker = 'AGENT_CONTINUATION_REVALIDATION_EFFECT_COUNT_INVALID';
+  else if (effect.capability_code !== 'command-center-status-snapshot'
+    || effect.authority_decision !== 'ALLOW'
+    || effect.dispatch_state !== 'COMPLETED'
+    || effect.outcome_certainty !== 'ACKNOWLEDGED'
+    || !effect.browser_automation_run_id) blocker = 'AGENT_CONTINUATION_REVALIDATION_EFFECT_INVALID';
+  else if (!browser
+    || browser.status !== 'SUCCESS'
+    || browser.temporal_status !== 'COMPLETED'
+    || browser.trigger_source !== 'AGENT_MANAGED'
+    || browser.managed_effect_id !== effect.agent_capability_effect_id
+    || browser.managed_agent_run_id !== row.agent_run_id
+    || browser.managed_session_id !== row.session_id
+    || browser.managed_turn_id !== row.agent_turn_id) blocker = 'AGENT_CONTINUATION_REVALIDATION_BROWSER_LEDGER_INVALID';
+  else {
+    const capability = selection.normalized.capability_result;
+    if (capability.effectId !== effect.agent_capability_effect_id
+      || capability.browserAutomationRunId !== String(effect.browser_automation_run_id)
+      || capability.dispatchState !== effect.dispatch_state
+      || capability.outcomeCertainty !== effect.outcome_certainty
+      || capability.ok !== true) blocker = 'AGENT_CONTINUATION_REVALIDATION_CAPABILITY_MISMATCH';
+  }
+
+  return {
+    row,
+    observation,
+    observationSource,
+    messageDigest,
+    selection,
+    effect,
+    browser,
+    activeLeaseCount,
+    activeSiblingRunCount,
+    revalidationEvent,
+    blocker,
+    candidate: !blocker && !revalidationEvent,
+  };
+}
+
+async function inspectContinuationResultRevalidation(req, runId) {
+  const actor = actorFromRequest(req);
+  if (!actor.internal) throw new AgentExecutionServiceError(403, 'AGENT_CONTINUATION_REVALIDATION_INTERNAL_ONLY', 'Continuation result revalidation inspection is restricted to the governed internal Agent service.');
+  const id = assertUuid(runId, 'runId');
+  return withTransaction(async (client) => ({
+    continuationResultRevalidation: safeContinuationRevalidationEvidence(await loadContinuationResultRevalidationEvidence(client, id)),
+  }));
+}
+
+async function revalidateContinuationResult(req, runId, body = {}) {
+  const actor = actorFromRequest(req);
+  if (!actor.internal) throw new AgentExecutionServiceError(403, 'AGENT_CONTINUATION_REVALIDATION_INTERNAL_ONLY', 'Continuation result revalidation is restricted to the governed internal Agent service.');
+  if (Object.keys(body || {}).length) throw new AgentExecutionServiceError(400, 'AGENT_CONTINUATION_REVALIDATION_INPUT_NOT_ALLOWED', 'Continuation result revalidation does not accept caller-supplied mutation parameters.');
+  const id = assertUuid(runId, 'runId');
+
+  const readiness = await managedCodexBootstrapService.getBootstrapReadiness();
+  if (!readiness?.ok || readiness?.executionEnabled !== true || !text(readiness?.runtimeGeneration)) {
+    throw new AgentExecutionServiceError(503, 'AGENT_CONTINUATION_REVALIDATION_RUNTIME_NOT_CURRENT', 'The managed Codex runtime must be CURRENT and execution-enabled before restoring Session eligibility.', { retriable: true, readiness: readiness?.readiness || 'UNKNOWN' });
+  }
+
+  return withTransaction(async (client) => {
+    const evidence = await loadContinuationResultRevalidationEvidence(client, id, { lock: true });
+    if (evidence.revalidationEvent) {
+      return {
+        runId: id,
+        sessionId: evidence.row.session_id,
+        revalidated: true,
+        idempotent: true,
+        alreadyRevalidated: true,
+        sourceCursor: evidence.revalidationEvent.source_cursor,
+        effectiveResultDigest: evidence.revalidationEvent.payload?.effectiveResultDigest || null,
+      };
+    }
+    if (evidence.blocker) {
+      throw new AgentExecutionServiceError(409, evidence.blocker, 'The durable continuation evidence does not satisfy the bounded deterministic revalidation contract.', {
+        revalidation: safeContinuationRevalidationEvidence(evidence),
+      });
+    }
+
+    const selected = evidence.selection.normalized;
+    const originalResult = JSON.parse(JSON.stringify(evidence.row.terminal_result));
+    const recoveredTaskOutput = {
+      ...(evidence.observation.taskOutputCandidate || {}),
+      previous_task_summary: selected.previous_task_summary,
+      capability_result: selected.capability_result,
+      message: evidence.selection.selectedSlice,
+      deterministicRevalidation: {
+        contract: 'agent_continuation_result_revalidation.v1',
+        source: evidence.observationSource || 'DURABLE_PROVIDER_TERMINAL_OBSERVATION',
+        selectedValueIndex: evidence.selection.selectedIndex,
+        adjacentJsonValueCount: evidence.selection.valueCount,
+        originalMessageDigest: evidence.messageDigest,
+      },
+    };
+    const effectiveResult = {
+      ...originalResult,
+      status: 'COMPLETED',
+      outcome: 'SUCCESS',
+      summary: 'Managed Codex Agent Run completed after deterministic revalidation of the already-acknowledged provider Turn.',
+      taskOutput: recoveredTaskOutput,
+      taskOutputSchema: 'agent-provider-result.v1',
+      errorCode: null,
+      providerEvidence: originalResult.providerEvidence ? {
+        ...originalResult.providerEvidence,
+        providerErrorCode: null,
+      } : originalResult.providerEvidence,
+      revalidation: {
+        contract: 'agent_continuation_result_revalidation.v1',
+        originalResultStatus: evidence.row.result_status,
+        originalResultDigest: evidence.row.result_digest,
+        originalLocalValidationErrorCode: 'CODEX_CONTINUATION_RESULT_INVALID',
+        providerOperationId: evidence.row.provider_operation_id,
+        providerTurnId: evidence.row.provider_turn_id,
+        providerSessionReference: evidence.row.provider_session_reference,
+        durableProviderObservationSource: evidence.observationSource || null,
+        capabilityEffectId: evidence.effect.agent_capability_effect_id,
+        browserAutomationRunId: evidence.effect.browser_automation_run_id,
+        browserExecutionId: evidence.browser.execution_id || null,
+        originalMessageDigest: evidence.messageDigest,
+        selectedValueIndex: evidence.selection.selectedIndex,
+        adjacentJsonValueCount: evidence.selection.valueCount,
+      },
+    };
+    const effectiveResultDigest = sha256Digest(effectiveResult);
+    const sourceCursor = `continuation-result-revalidation:${id}:${effectiveResultDigest}`;
+
+    await appendEvent(client, {
+      runId: id,
+      sessionId: evidence.row.session_id,
+      executionScopeId: evidence.row.execution_scope_id,
+      eventType: 'AGENT_CONTINUATION_RESULT_REVALIDATED',
+      sourceCursor,
+      payload: {
+        contract: 'agent_continuation_result_revalidation.v1',
+        originalResultId: evidence.row.agent_result_id,
+        originalResultStatus: evidence.row.result_status,
+        originalResultDigest: evidence.row.result_digest,
+        originalLocalValidationErrorCode: 'CODEX_CONTINUATION_RESULT_INVALID',
+        providerOperationId: evidence.row.provider_operation_id,
+        providerTurnId: evidence.row.provider_turn_id,
+        providerSessionReference: evidence.row.provider_session_reference,
+        durableProviderObservationSource: evidence.observationSource || null,
+        originalMessageDigest: evidence.messageDigest,
+        selectedValueIndex: evidence.selection.selectedIndex,
+        adjacentJsonValueCount: evidence.selection.valueCount,
+        capabilityEffectId: evidence.effect.agent_capability_effect_id,
+        browserAutomationRunId: evidence.effect.browser_automation_run_id,
+        browserExecutionId: evidence.browser.execution_id || null,
+        effectiveResultStatus: 'COMPLETED',
+        effectiveResultDigest,
+        effectiveResult,
+        noProviderTurnSubmitted: true,
+        noBrowserExecutionCreated: true,
+      },
+    });
+
+    await client.query(
+      `UPDATE worker.agent_runs
+          SET status = 'COMPLETED', outcome = 'SUCCESS', updated_at = CURRENT_TIMESTAMP
+        WHERE agent_run_id = $1
+          AND status = 'FAILED'
+          AND outcome = 'PROVIDER_TERMINAL_FAILED'`,
+      [id],
+    );
+    await client.query(
+      `UPDATE worker.agent_sessions
+          SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = $1
+          AND session_model = 'PERSISTENT'
+          AND status = 'CLOSED'
+          AND archived_at IS NULL`,
+      [evidence.row.session_id],
+    );
+
+    return {
+      runId: id,
+      sessionId: evidence.row.session_id,
+      revalidated: true,
+      idempotent: false,
+      alreadyRevalidated: false,
+      sourceCursor,
+      effectiveResultDigest,
+      providerTurnId: evidence.row.provider_turn_id,
+      providerSessionReference: evidence.row.provider_session_reference,
+      capabilityEffectId: evidence.effect.agent_capability_effect_id,
+      browserAutomationRunId: evidence.effect.browser_automation_run_id,
+      noProviderTurnSubmitted: true,
+      noBrowserExecutionCreated: true,
+    };
+  });
+}
+
+async function releaseHistoricalRuntimeHold(req, runId, body = {}) {
+  const actor = actorFromRequest(req);
+  if (!actor.internal) throw new AgentExecutionServiceError(403, 'AGENT_RUNTIME_HOLD_RELEASE_INTERNAL_ONLY', 'Historical runtime-hold release is restricted to the governed internal Agent service.');
+  const unexpected = Object.keys(body || {}).filter((key) => key !== 'providerOperationId');
+  if (unexpected.length) throw new AgentExecutionServiceError(400, 'AGENT_RUNTIME_HOLD_RELEASE_INPUT_NOT_ALLOWED', 'Historical runtime-hold release accepts only the exact providerOperationId when supplied.');
+  const id = assertUuid(runId, 'runId');
+  const expectedOperationId = body?.providerOperationId ? assertUuid(body.providerOperationId, 'providerOperationId') : null;
+
+  const readiness = await managedCodexBootstrapService.getBootstrapReadiness();
+  const currentRuntimeGeneration = text(readiness?.runtimeGeneration) || null;
+  if (!readiness?.ok || readiness?.executionEnabled !== true || !currentRuntimeGeneration) {
+    throw new AgentExecutionServiceError(503, 'AGENT_RUNTIME_HOLD_RELEASE_RUNTIME_NOT_CURRENT', 'The managed Codex runtime must be ready on a known current generation before historical ownership can be released.', { retriable: true, outcomeCertainty: 'UNKNOWN', readiness: readiness?.readiness || 'UNKNOWN' });
+  }
+
+  const temporal = await reconcileHistoricalTemporalSegments(id);
+
+  return withTransaction(async (client) => {
+    const rowResult = await client.query(
+      `SELECT ar.agent_run_id, ar.session_id, ar.execution_scope_id, ar.installation_id, ar.status, ar.outcome,
+              ar.stop_state, ar.revocation_epoch, ar.execution_context,
+              es.status AS scope_status, es.revocation_epoch AS scope_revocation_epoch,
+              r.runtime_code,
+              po.provider_operation_id, po.operation_type, po.provider_operation_reference,
+              po.state AS operation_state, po.outcome_certainty, po.outcome AS provider_operation_outcome,
+              t.agent_turn_id, t.status AS turn_status, t.provider_turn_id, t.provider_session_reference,
+              rc.worker_generation AS runtime_cell_generation, rc.quarantine_state,
+              adr.resolved_spec->'runtimeConfiguration'->>'processGeneration' AS admitted_runtime_generation
+         FROM worker.agent_runs ar
+         JOIN worker.execution_scopes es ON es.execution_scope_id = ar.execution_scope_id
+         JOIN core.agent_runtime_installations i ON i.installation_id = ar.installation_id
+         JOIN core.agent_runtimes r ON r.agent_runtime_id = i.agent_runtime_id
+         JOIN worker.agent_provider_operations po ON po.agent_run_id = ar.agent_run_id AND po.operation_type = 'SUBMIT_TURN'
+         LEFT JOIN worker.agent_turns t ON t.agent_turn_id = po.agent_turn_id
+         LEFT JOIN worker.agent_runtime_cells rc ON rc.agent_run_id = ar.agent_run_id
+         LEFT JOIN worker.agent_admission_requests adr ON adr.agent_run_id = ar.agent_run_id
+        WHERE ar.agent_run_id = $1
+        ORDER BY po.created_at DESC
+        LIMIT 1
+        FOR UPDATE OF ar, es, po`,
+      [id],
+    );
+    if (rowResult.rowCount === 0) throw new AgentExecutionServiceError(404, 'AGENT_RUNTIME_HOLD_RELEASE_OPERATION_NOT_FOUND', 'No historical provider submission is available for runtime-hold release.');
+    const row = rowResult.rows[0];
+    const priorRelease = row.provider_operation_outcome?.runtimeOwnershipRelease;
+    if (priorRelease?.released === true) {
+      return {
+        runId: id,
+        sessionId: row.session_id,
+        providerOperationId: row.provider_operation_id,
+        status: row.status,
+        runtimeOwnershipReleased: true,
+        providerOutcomePreservedAsUnknown: priorRelease.outcomePreservedAsUnknown === true,
+        previousRuntimeGeneration: priorRelease.previousRuntimeGeneration || null,
+        currentRuntimeGeneration: priorRelease.currentRuntimeGeneration || null,
+        sourceCursor: priorRelease.sourceCursor || null,
+        idempotent: true,
+      };
+    }
+    if (row.runtime_code !== 'OPENAI_CODEX_APP_SERVER') throw new AgentExecutionServiceError(409, 'AGENT_RUNTIME_HOLD_RELEASE_RUNTIME_UNSUPPORTED', 'Historical runtime-hold release is only supported for the managed Codex runtime.');
+    if (expectedOperationId && expectedOperationId !== row.provider_operation_id) throw new AgentExecutionServiceError(409, 'AGENT_RUNTIME_HOLD_RELEASE_OPERATION_MISMATCH', 'The requested provider operation does not match the durable historical submission.');
+    if (!['JOURNALED', 'SENT', 'ACKNOWLEDGED', 'UNKNOWN', 'RECONCILING', 'RECOVERY_REQUIRED'].includes(row.operation_state)) {
+      throw new AgentExecutionServiceError(409, 'AGENT_RUNTIME_HOLD_RELEASE_OPERATION_TERMINAL', 'The provider operation is already terminal and does not require historical runtime-hold release.');
+    }
+
+    await client.query('SELECT installation_id FROM core.agent_runtime_installations WHERE installation_id = $1 FOR UPDATE', [row.installation_id]);
+    const previousRuntimeGeneration = historicalRuntimeGeneration(row);
+    if (!previousRuntimeGeneration) {
+      throw new AgentExecutionServiceError(409, 'AGENT_RUNTIME_HOLD_RELEASE_GENERATION_UNPROVEN', 'The historical provider runtime generation is not durably known, so execution liveness cannot be fenced safely.');
+    }
+    if (previousRuntimeGeneration === currentRuntimeGeneration) {
+      throw new AgentExecutionServiceError(409, 'AGENT_RUNTIME_HOLD_RELEASE_GENERATION_STILL_CURRENT', 'The historical operation belongs to the current provider runtime generation and cannot be released as stale.', { retriable: true, outcomeCertainty: 'UNKNOWN' });
+    }
+
+    const effects = await client.query(
+      `SELECT agent_capability_effect_id, dispatch_state, outcome_certainty,
+              native_browser_execution_id, native_browser_workflow_id, browser_automation_run_id
+         FROM worker.agent_capability_effects
+        WHERE agent_run_id = $1
+          AND dispatch_state IN ('INTENT', 'DISPATCHING', 'DISPATCHED', 'RECONCILING')
+          AND outcome_certainty IN ('UNKNOWN', 'NOT_CONFIRMED')
+        FOR UPDATE`,
+      [id],
+    );
+    const preDispatchEffects = [];
+    let unsafeEffect = null;
+    for (const effect of effects.rows) {
+      if (effect.dispatch_state !== 'INTENT') {
+        unsafeEffect = { ...effect, nativeBrowserEvidence: true };
+        break;
+      }
+      // Managed Browser execution/workflow ids are preallocated when authority is
+      // approved, before startRegisteredAutomation persists a native run. Treat
+      // the ids as reservation evidence only; the durable Browser ledger is the
+      // irreversible-dispatch boundary.
+      const nativeEvidence = await client.query(
+        `SELECT browser_automation_run_id, execution_id, temporal_workflow_id, status, temporal_status
+           FROM worker.browser_automation_runs
+          WHERE managed_effect_id = $1
+             OR ($2::text IS NOT NULL AND execution_id = $2::text)
+             OR ($3::text IS NOT NULL AND temporal_workflow_id = $3)
+             OR ($4::uuid IS NOT NULL AND browser_automation_run_id = $4::uuid)
+          ORDER BY created_at
+          LIMIT 1`,
+        [
+          effect.agent_capability_effect_id,
+          effect.native_browser_execution_id || null,
+          effect.native_browser_workflow_id || null,
+          effect.browser_automation_run_id || null,
+        ],
+      );
+      if (nativeEvidence.rowCount > 0) {
+        unsafeEffect = {
+          ...effect,
+          nativeBrowserEvidence: true,
+          nativeBrowserStatus: nativeEvidence.rows[0]?.status || null,
+          nativeBrowserTemporalStatus: nativeEvidence.rows[0]?.temporal_status || null,
+        };
+        break;
+      }
+      preDispatchEffects.push(effect);
+    }
+    if (unsafeEffect) {
+      throw new AgentExecutionServiceError(
+        409,
+        'AGENT_RUNTIME_HOLD_RELEASE_EFFECT_UNRESOLVED',
+        'A historical managed capability effect has durable native Browser execution evidence or passed the pre-dispatch INTENT boundary and must be reconciled before runtime ownership can be released.',
+        {
+          retriable: false,
+          outcomeCertainty: 'UNKNOWN',
+          effectId: unsafeEffect.agent_capability_effect_id,
+          nativeBrowserEvidence: unsafeEffect.nativeBrowserEvidence === true,
+          nativeBrowserStatus: unsafeEffect.nativeBrowserStatus || null,
+          nativeBrowserTemporalStatus: unsafeEffect.nativeBrowserTemporalStatus || null,
+        },
+      );
+    }
+
+    const activeSegments = await client.query(`SELECT COUNT(*)::int AS count FROM worker.agent_temporal_segments WHERE agent_run_id = $1 AND status = 'RUNNING'`, [id]);
+    if (Number(activeSegments.rows[0]?.count || 0) > 0) {
+      throw new AgentExecutionServiceError(409, 'AGENT_RUNTIME_HOLD_TEMPORAL_STILL_ACTIVE', 'A historical Temporal execution is still marked active after reconciliation.', { retriable: true, outcomeCertainty: 'UNKNOWN' });
+    }
+
+    const releasedAt = new Date().toISOString();
+    const sourceCursor = `runtime-hold:${row.provider_operation_id}:released:${currentRuntimeGeneration}`;
+    const release = releaseMarker({ previousRuntimeGeneration, currentRuntimeGeneration, sourceCursor, releasedAt });
+    const nextEpoch = Math.max(Number(row.revocation_epoch || 0), Number(row.scope_revocation_epoch || 0)) + 1;
+
+    await client.query(
+      `UPDATE worker.execution_scopes
+          SET revocation_epoch = $2, status = 'RECOVERY_REQUIRED',
+              stop_reason = COALESCE(stop_reason, 'HISTORICAL_PROVIDER_OUTCOME_UNKNOWN_RUNTIME_FENCED'),
+              stopped_at = COALESCE(stopped_at, CURRENT_TIMESTAMP)
+        WHERE execution_scope_id = $1`,
+      [row.execution_scope_id, nextEpoch],
+    );
+    await client.query(
+      `UPDATE worker.agent_runs
+          SET revocation_epoch = $2, status = 'RECOVERY_REQUIRED',
+              outcome = COALESCE(outcome, 'HISTORICAL_PROVIDER_OUTCOME_UNKNOWN_RUNTIME_FENCED'),
+              stop_state = CASE WHEN stop_state = 'CONFIRMED' THEN stop_state ELSE 'UNCONFIRMED' END,
+              stop_evidence = COALESCE(stop_evidence, '{}'::jsonb) || jsonb_build_object('runtimeOwnershipRelease', $3::jsonb),
+              terminal_at = COALESCE(terminal_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+        WHERE agent_run_id = $1`,
+      [id, nextEpoch, JSON.stringify(release)],
+    );
+    await client.query(
+      `UPDATE auth.execution_grants
+          SET grant_state = 'REVOKED', revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP), revocation_epoch = $2,
+              grant_metadata = COALESCE(grant_metadata, '{}'::jsonb) || jsonb_build_object('runtimeOwnershipRelease', $3::jsonb)
+        WHERE agent_run_id = $1 AND grant_state = 'ACTIVE'`,
+      [id, nextEpoch, JSON.stringify(release)],
+    );
+    for (const effect of preDispatchEffects) {
+      await client.query(
+        `UPDATE worker.agent_capability_effects
+            SET dispatch_state = 'DENIED', outcome_certainty = 'REJECTED',
+                denial_reason = 'HISTORICAL_RUNTIME_OWNERSHIP_RELEASED_BEFORE_DISPATCH',
+                reconciliation_metadata = COALESCE(reconciliation_metadata, '{}'::jsonb)
+                  || jsonb_build_object(
+                    'runtimeOwnershipRelease', $2::jsonb,
+                    'nativeBrowserIdentityDisposition', 'PREALLOCATED_WITHOUT_DURABLE_NATIVE_EXECUTION'
+                  ),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE agent_capability_effect_id = $1 AND dispatch_state = 'INTENT'`,
+        [effect.agent_capability_effect_id, JSON.stringify(release)],
+      );
+    }
+    await client.query(
+      `UPDATE worker.agent_resource_leases
+          SET lease_state = 'RELEASED', released_at = COALESCE(released_at, CURRENT_TIMESTAMP),
+              quarantine_evidence = COALESCE(quarantine_evidence, '{}'::jsonb) || jsonb_build_object('runtimeOwnershipRelease', $2::jsonb)
+        WHERE agent_run_id = $1 AND lease_state IN ('ACTIVE', 'QUARANTINED')`,
+      [id, JSON.stringify(release)],
+    );
+    await client.query(
+      `UPDATE worker.agent_runtime_cells
+          SET quarantine_state = 'CLEARED', quarantine_reason = COALESCE(quarantine_reason, 'HISTORICAL_PROVIDER_RUNTIME_GENERATION_REPLACED'),
+              quarantine_cleared_at = COALESCE(quarantine_cleared_at, CURRENT_TIMESTAMP),
+              quarantine_evidence = COALESCE(quarantine_evidence, '{}'::jsonb) || jsonb_build_object('runtimeOwnershipRelease', $2::jsonb),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE agent_run_id = $1`,
+      [id, JSON.stringify(release)],
+    );
+    await client.query(
+      `UPDATE worker.agent_provider_operations
+          SET state = 'RECOVERY_REQUIRED',
+              outcome = COALESCE(outcome, '{}'::jsonb) || jsonb_build_object('runtimeOwnershipRelease', $2::jsonb),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE provider_operation_id = $1`,
+      [row.provider_operation_id, JSON.stringify(release)],
+    );
+    if (row.agent_turn_id) {
+      await client.query(
+        `UPDATE worker.agent_turns
+            SET status = CASE WHEN status IN ('COMPLETED', 'FAILED', 'CANCELED', 'REJECTED') THEN status ELSE 'RECOVERY_REQUIRED' END,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE agent_turn_id = $1`,
+        [row.agent_turn_id],
+      );
+    }
+    await client.query(`UPDATE worker.agent_sessions SET status = 'RECOVERY_REQUIRED', updated_at = CURRENT_TIMESTAMP WHERE session_id = $1`, [row.session_id]);
+    await appendEvent(client, {
+      runId: id,
+      sessionId: row.session_id,
+      executionScopeId: row.execution_scope_id,
+      eventType: 'AGENT_HISTORICAL_RUNTIME_OWNERSHIP_RELEASED',
+      sourceCursor,
+      payload: {
+        providerOperationId: row.provider_operation_id,
+        previousRuntimeGeneration,
+        currentRuntimeGeneration,
+        providerOutcomePreservedAsUnknown: true,
+        revokedAuthorityEpoch: nextEpoch,
+        deniedPreDispatchEffects: preDispatchEffects.length,
+        temporalSegmentsReconciled: temporal.reconciled,
+      },
+    });
+
+    return {
+      runId: id,
+      sessionId: row.session_id,
+      providerOperationId: row.provider_operation_id,
+      status: 'RECOVERY_REQUIRED',
+      runtimeOwnershipReleased: true,
+      providerOutcomePreservedAsUnknown: true,
+      previousRuntimeGeneration,
+      currentRuntimeGeneration,
+      revokedAuthorityEpoch: nextEpoch,
+      deniedPreDispatchEffects: preDispatchEffects.length,
+      temporalSegmentsReconciled: temporal.reconciled,
+      sourceCursor,
+    };
+  });
+}
+
 async function signalRun(workflowId, signalName, payload) {
   const config = getTemporalConfig();
   const connection = await Connection.connect({ address: config.address });
@@ -1148,8 +2324,15 @@ module.exports = {
   getAgentRunResult,
   cancelAgentRun,
   recoverAgentRun,
+  inspectHistoricalAuthorityResidue,
+  reconcileHistoricalAuthorityResidue,
+  inspectContinuationResultRevalidation,
+  revalidateContinuationResult,
+  releaseHistoricalRuntimeHold,
   stopExecutionScope,
   getRuntimeWorkerReadiness,
   normalizeRuntimeIdentity,
   projectRuntimeIdentity,
+  resolveSessionAuthority,
+  narrowSessionAuthority,
 };

@@ -2,6 +2,7 @@ const assistantIntegrationService = require('../services/assistantIntegrationSer
 const orchestratorRefreshService = require('../services/orchestratorRefreshService');
 const devRuntimeRefreshService = require('../services/devRuntimeRefreshService');
 const authService = require('../services/authService');
+const runtimeControlService = require('../services/runtimeControlService');
 
 function sendError(res, error, next) {
   if (error?.statusCode) {
@@ -337,6 +338,34 @@ async function getDevRuntimeRefresh(req, res, next) {
   }
 }
 
+async function getRuntimeControlStatus(req, res, next) {
+  try {
+    const result = await runtimeControlService.getRuntimeControlStatus({
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId || 'assistant-http',
+    });
+    return res.json(result);
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
+async function startRuntimeControl(req, res, next) {
+  try {
+    const result = await runtimeControlService.startRuntimeControl({
+      request: req.body || {},
+      permissions: req.permissions || [],
+      agentId: req.assistantIntegration?.agentId || 'assistant-http',
+      actor: req.user,
+      session: req.session,
+      requestContext: authService.getRequestContext(req),
+    });
+    return res.status(202).json({ ok: true, ...result });
+  } catch (error) {
+    return sendError(res, error, next);
+  }
+}
+
 async function getRun(req, res, next) {
   try {
     const run = await assistantIntegrationService.getRun(req.params.workflowId, { actor: req.user });
@@ -383,6 +412,8 @@ module.exports = {
   getWorkflowExecutionRun,
   getOrchestratorRefresh,
   getDevRuntimeRefresh,
+  getRuntimeControlStatus,
+  startRuntimeControl,
   listAutomations,
   startDevelopmentPromotion,
   startWorkflowExecution,
