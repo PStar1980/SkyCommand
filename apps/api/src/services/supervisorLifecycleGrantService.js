@@ -13,6 +13,17 @@ const ALLOWED_RUNTIME_CONTROL_PERMISSION_CODES = new Set([
   RUNTIME_CONTROL_PERMISSION,
   'DEV_RUNTIME_LIFECYCLE',
 ]);
+const DEV_RUNTIME_LIFECYCLE_ACTIONS = new Set([
+  'REBUILD_WEB',
+  'REBUILD_BACKEND',
+  'RESTART',
+  'STOP',
+  'REBUILD_TEMPORAL_WORKER',
+  'REBUILD_CODEX_BOOTSTRAP',
+  'REBUILD_AGENT_SESSION_RUNTIME',
+  'START_HOST_AGENT',
+  'RESTART_HOST_AGENT',
+]);
 
 async function defaultAuditRecorder(event) {
   const authService = require('./authService');
@@ -88,12 +99,12 @@ async function authorizeRuntimeControl({
   }
   if (
     normalizedPermissionCode === 'DEV_RUNTIME_LIFECYCLE' &&
-    !['REBUILD_TEMPORAL_WORKER', 'REBUILD_CODEX_BOOTSTRAP'].includes(normalizedAction)
+    !DEV_RUNTIME_LIFECYCLE_ACTIONS.has(normalizedAction)
   ) {
     throw createServiceError(
       403,
       'SKYCOMMAND_RUNTIME_CONTROL_PERMISSION_ACTION_MISMATCH',
-      'DEV runtime lifecycle authority is limited to registered worker refresh actions.',
+      'DEV runtime lifecycle authority is limited to the registered runtime-control allowlist.',
     );
   }
 
@@ -125,7 +136,11 @@ async function authorizeRuntimeControl({
           ? 'the SkyCommand Temporal orchestrator worker'
           : normalizedAction === 'REBUILD_CODEX_BOOTSTRAP'
             ? 'the fixed managed Codex bootstrap runtime cell'
-            : 'SkyCommand backend runtime';
+            : normalizedAction === 'REBUILD_AGENT_SESSION_RUNTIME'
+              ? 'the fixed Agent Session API + Node Worker runtime slice'
+              : normalizedAction === 'START_HOST_AGENT' || normalizedAction === 'RESTART_HOST_AGENT'
+                ? 'the host-native SkyCommand Host Agent scheduled task'
+              : 'SkyCommand backend runtime';
   const message = `${normalizedAction} authorized for the ${resourceLabel} through the host-native Supervisor.`;
 
   // High-risk self-lifecycle control fails closed if the authorization audit cannot be persisted.
@@ -165,6 +180,7 @@ module.exports = {
   RUNTIME_CONTROL_EVENT_TYPE,
   RUNTIME_CONTROL_PERMISSION,
   ALLOWED_RUNTIME_CONTROL_PERMISSION_CODES,
+  DEV_RUNTIME_LIFECYCLE_ACTIONS,
   RUNTIME_RESOURCE_ID,
   RUNTIME_RESOURCE_TYPE,
   authorizeRuntimeControl,

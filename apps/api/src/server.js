@@ -27,6 +27,7 @@ const agentRuntimeRoutes = require('./routes/agentRuntime.routes');
 const managedCodexBootstrap = require('./services/managedCodexBootstrapService');
 const agentExecutionRoutes = require('./routes/agentExecution.routes');
 const agentRunRoutes = require('./routes/agentRun.routes');
+const agentSessionRoutes = require('./routes/agentSession.routes');
 const agentInteractionRoutes = require('./routes/agentInteraction.routes');
 const executionScopeRoutes = require('./routes/executionScope.routes');
 const codexInternalRoutes = require('./routes/codexInternal.routes');
@@ -108,6 +109,7 @@ function createApp() {
   app.use('/api/agent-runtimes', agentRuntimeRoutes);
   app.use('/api/agent-executions', agentExecutionRoutes);
   app.use('/api/agent-runs', agentRunRoutes);
+  app.use('/api/agent-sessions', agentSessionRoutes);
   app.use('/api/agent-interactions', agentInteractionRoutes);
   app.use('/api/execution-scopes', executionScopeRoutes);
 

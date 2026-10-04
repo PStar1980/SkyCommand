@@ -3,8 +3,8 @@ import ApiObservabilityPanel from '../components/charts/ApiObservabilityPanel.js
 import ApplicationUserSummaryRow from '../components/charts/ApplicationUserSummaryRow.jsx';
 import DashboardVisuals from '../components/charts/DashboardVisuals.jsx';
 import DashboardRefreshActions from '../components/ui/DashboardRefreshActions.jsx';
-import ServerStatusPanel from '../components/ui/ServerStatusPanel.jsx';
 import SkyCommandRuntimeControls from '../components/SkyCommandRuntimeControls.jsx';
+import PlatformAvailabilityPanel from '../components/PlatformAvailabilityPanel.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import useSmartPolling, {
@@ -73,7 +73,6 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshingAt, setRefreshingAt] = useState(null);
   const [identityDays, setIdentityDays] = useState(7);
-  const [supervisorStatus, setSupervisorStatus] = useState(undefined);
   const [summary, setSummary] = useState({
     apiHealth: null,
     apiTelemetry: null,
@@ -100,14 +99,8 @@ function Dashboard() {
   const recentExecutions = summary.executions.items || [];
   const workerHealth = summary.worker || null;
   const workerNodes = workerHealth?.nodes || {};
-  const workflowHealth = summary.workflowHealth || null;
   const workflowRunRecords = summary.workflowRunsDetailed?.items || [];
   const scheduleRunRecords = summary.scheduleRunsDetailed?.items || [];
-  const workflowTaskQueue = workflowHealth?.taskQueue || {};
-  const hostAgentHealth = workflowHealth?.hostAgent || null;
-  const browserWorkerRuntime = supervisorStatus?.services?.find(
-    (service) => service.service === 'browser-worker',
-  );
 
   function changeIdentityWindow(event) {
     const nextDays = Number(event.target.value) || 7;
@@ -278,201 +271,18 @@ function Dashboard() {
 
       {error && <DismissibleAlert tone="danger">{error}</DismissibleAlert>}
 
-      <ServerStatusPanel
-        footer={
-          <SkyCommandRuntimeControls
+      <SkyCommandRuntimeControls canControl={hasPermission('INFRASTRUCTURE_DOCKER_CONTROL')}>
+        {(controls) => (
+          <PlatformAvailabilityPanel
+            busyAction={controls.busyAction}
             canControl={hasPermission('INFRASTRUCTURE_DOCKER_CONTROL')}
-            compact
-            onStatusChange={setSupervisorStatus}
+            onAction={controls.controlRuntime}
+            onDismissError={controls.clearRuntimeError}
+            runtimeControlStatus={controls.runtimeControlStatus}
+            runtimeError={controls.runtimeError}
           />
-        }
-        items={[
-          {
-            label: 'Supervisor',
-            value:
-              supervisorStatus === undefined
-                ? 'Checking'
-                : supervisorStatus?.supervisor === 'ONLINE'
-                  ? 'Online'
-                  : 'Offline',
-            status:
-              supervisorStatus === undefined
-                ? 'PENDING'
-                : supervisorStatus?.supervisor === 'ONLINE'
-                  ? 'ONLINE'
-                  : 'OFFLINE',
-            helper:
-              supervisorStatus === undefined
-                ? 'Checking host-native lifecycle control'
-                : supervisorStatus?.supervisor === 'ONLINE'
-                  ? `Host-native lifecycle control · Docker engine ${String(supervisorStatus.engineStatus || 'unknown').toUpperCase()}`
-                  : 'Host-native lifecycle control endpoint unavailable',
-          },
-          {
-            label: 'Web server',
-            value: 'Online',
-            status: 'ONLINE',
-            helper: `${window.location.host || 'Admin Web'} shell loaded`,
-          },
-          {
-            label: 'Database',
-            value: !summary.dbHealth
-              ? loading
-                ? 'Checking'
-                : 'Unknown'
-              : summary.dbHealth.ok
-                ? 'Online'
-                : 'Offline',
-            status: !summary.dbHealth
-              ? loading
-                ? 'PENDING'
-                : 'UNKNOWN'
-              : summary.dbHealth.ok
-                ? 'ONLINE'
-                : 'OFFLINE',
-            helper: formatDatabaseTarget(summary.dbHealth),
-          },
-          {
-            label: 'API server',
-            value: !summary.apiHealth
-              ? loading
-                ? 'Checking'
-                : 'Unknown'
-              : summary.apiHealth.ok
-                ? 'Online'
-                : 'Offline',
-            status: !summary.apiHealth
-              ? loading
-                ? 'PENDING'
-                : 'UNKNOWN'
-              : summary.apiHealth.ok
-                ? 'ONLINE'
-                : 'OFFLINE',
-            helper: summary.apiHealth?.service || 'Core API health endpoint',
-          },
-          {
-            label: 'Node worker',
-            value: !workerHealth
-              ? loading
-                ? 'Checking'
-                : 'Unknown'
-              : workerNodes.online > 0
-                ? 'Online'
-                : 'Offline',
-            status: !workerHealth
-              ? loading
-                ? 'PENDING'
-                : 'UNKNOWN'
-              : workerNodes.online > 0
-                ? workerHealth.overallStatus || 'ONLINE'
-                : 'OFFLINE',
-            helper: workerHealth
-              ? `${workerNodes.online || 0} of ${workerNodes.total || 0} node worker(s) online`
-              : 'Worker health is unavailable to this session',
-          },
-          {
-            label: 'Temporal server',
-            value: !workflowHealth
-              ? loading
-                ? 'Checking'
-                : 'Unknown'
-              : workflowHealth.temporal?.reachable
-                ? 'Online'
-                : 'Offline',
-            status: !workflowHealth
-              ? loading
-                ? 'PENDING'
-                : 'UNKNOWN'
-              : workflowHealth.temporal?.reachable
-                ? 'ONLINE'
-                : 'OFFLINE',
-            helper: workflowHealth?.temporal?.address || 'Temporal service endpoint',
-          },
-          {
-            label: 'Temporal worker',
-            value: !workflowHealth
-              ? loading
-                ? 'Checking'
-                : 'Unknown'
-              : workflowHealth.worker?.status === 'ONLINE' && workflowTaskQueue.healthy
-                ? 'Online'
-                : workflowHealth.worker?.status || 'Unknown',
-            status: !workflowHealth
-              ? loading
-                ? 'PENDING'
-                : 'UNKNOWN'
-              : workflowHealth.worker?.status === 'ONLINE' && workflowTaskQueue.healthy
-                ? 'ONLINE'
-                : workflowHealth.worker?.status || 'UNKNOWN',
-            helper: workflowHealth
-              ? `${workflowTaskQueue.pollerCount || 0} poller(s) · ${workflowTaskQueue.taskQueue || workflowTaskQueue.name || 'task queue'}`
-              : 'Temporal worker health is unavailable to this session',
-          },
-          {
-            label: 'Browser worker',
-            value:
-              supervisorStatus === undefined
-                ? 'Checking'
-                : !browserWorkerRuntime
-                  ? 'Unknown'
-                  : browserWorkerRuntime.running && browserWorkerRuntime.health === 'HEALTHY'
-                    ? 'Online'
-                    : browserWorkerRuntime.running
-                      ? browserWorkerRuntime.health === 'UNHEALTHY'
-                        ? 'Unhealthy'
-                        : 'Starting'
-                      : 'Offline',
-            status:
-              supervisorStatus === undefined
-                ? 'PENDING'
-                : !browserWorkerRuntime
-                  ? 'UNKNOWN'
-                  : browserWorkerRuntime.running && browserWorkerRuntime.health === 'HEALTHY'
-                    ? 'ONLINE'
-                    : browserWorkerRuntime.running
-                      ? browserWorkerRuntime.health === 'UNHEALTHY'
-                        ? 'OFFLINE'
-                        : 'PENDING'
-                      : 'OFFLINE',
-            helper: browserWorkerRuntime
-              ? `Dedicated Playwright / Temporal worker · ${browserWorkerRuntime.health || browserWorkerRuntime.state || 'starting'}`
-              : 'Dedicated Playwright execution service',
-          },
-          {
-            label: 'Host agent',
-            value: !workflowHealth
-              ? loading
-                ? 'Checking'
-                : 'Unknown'
-              : !hostAgentHealth?.enabled
-                ? 'Disabled'
-                : hostAgentHealth.online
-                  ? 'Online'
-                  : hostAgentHealth.status === 'STALE'
-                    ? 'Stale'
-                    : 'Offline',
-            status: !workflowHealth
-              ? loading
-                ? 'PENDING'
-                : 'UNKNOWN'
-              : !hostAgentHealth?.enabled
-                ? 'DISABLED'
-                : hostAgentHealth.online
-                  ? 'ONLINE'
-                  : hostAgentHealth.status || 'OFFLINE',
-            helper: !workflowHealth
-              ? 'Host Agent health is unavailable to this session'
-              : !hostAgentHealth?.enabled
-                ? 'Host execution disabled · SKYCOMMAND_HOST_AGENT_ENABLED=false'
-                : hostAgentHealth.online
-                  ? `${hostAgentHealth.recentHeartbeatCount || 0} recent heartbeat(s) · ${hostAgentHealth.taskQueue || 'host task queue'}`
-                  : hostAgentHealth.latestHeartbeat?.lastSeenAt
-                    ? `Last heartbeat ${new Date(hostAgentHealth.latestHeartbeat.lastSeenAt).toLocaleString()} · ${hostAgentHealth.taskQueue || 'host task queue'}`
-                    : `No Host Agent heartbeat · ${hostAgentHealth.taskQueue || 'host task queue'}`,
-          },
-        ]}
-      />
-
+        )}
+      </SkyCommandRuntimeControls>
       <DashboardVisuals
         recentExecutions={recentExecutions}
         scheduleRuns={scheduleRunRecords}

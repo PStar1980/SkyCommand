@@ -21,7 +21,7 @@ const { authorizeRuntimeControl } = require(
 const { verifyLifecycleGrant } = require(
   path.join(repositoryRoot, 'packages/supervisor/src/lifecycleGrant'),
 );
-const { CODEX_BOOTSTRAP_REBUILD_SERVICES } = require(
+const { AGENT_SESSION_RUNTIME_REBUILD_SERVICES, CODEX_BOOTSTRAP_REBUILD_SERVICES } = require(
   path.join(repositoryRoot, 'packages/supervisor/src/config'),
 );
 
@@ -509,13 +509,18 @@ async function testTransportAndDiscovery() {
     (error) => error.details.code === 'UPSTREAM_FAILURE' && error.details.outcomeUnknown === true,
   );
 
+  const agentSessionRuntime = runtimeRefresh.getDevRuntimeRefreshProfile('AGENT_SESSION_RUNTIME');
+  assert.equal(agentSessionRuntime.action, 'REBUILD_AGENT_SESSION_RUNTIME');
+  assert.equal(agentSessionRuntime.supervisorPath, '/runtime/rebuild-agent-session-runtime');
+  assert.deepEqual(agentSessionRuntime.affectedServices, AGENT_SESSION_RUNTIME_REBUILD_SERVICES);
+  assert.deepEqual(agentSessionRuntime.healthOptionalServices, ['node-worker']);
   const temporal = runtimeRefresh.getDevRuntimeRefreshProfile('TEMPORAL_WORKER');
   assert.equal(temporal.action, 'REBUILD_TEMPORAL_WORKER');
   assert.equal(temporal.supervisorPath, '/runtime/rebuild-temporal-worker');
   assert.deepEqual(temporal.affectedServices, ['temporal-worker']);
   assert.deepEqual(
     runtimeRefresh.listDevRuntimeRefreshProfiles().map((item) => item.profileCode),
-    ['CODEX_BOOTSTRAP', 'TEMPORAL_WORKER'],
+    ['CODEX_BOOTSTRAP', 'TEMPORAL_WORKER', 'AGENT_SESSION_RUNTIME'],
   );
   assert.equal(
     runtimeRefresh.buildSupervisorActionUrl('CODEX_BOOTSTRAP', {
@@ -523,6 +528,13 @@ async function testTransportAndDiscovery() {
       SKYCOMMAND_SUPERVISOR_PORT: '17170',
     }),
     'http://localhost:17170/runtime/rebuild-codex-bootstrap',
+  );
+  assert.equal(
+    runtimeRefresh.buildSupervisorActionUrl('AGENT_SESSION_RUNTIME', {
+      SKYCOMMAND_SUPERVISOR_HOST: 'localhost',
+      SKYCOMMAND_SUPERVISOR_PORT: '17170',
+    }),
+    'http://localhost:17170/runtime/rebuild-agent-session-runtime',
   );
   assert.equal(
     runtimeRefresh.buildSupervisorActionUrl('TEMPORAL_WORKER', {
@@ -582,6 +594,58 @@ async function testTransportAndDiscovery() {
   assert.equal(malformedActive.activeOperationPresent, true);
   assert.equal(malformedActive.activeOperation, null);
 
+  const agentSessionStatus = runtimeRefresh.projectSupervisorStatus(
+    {
+      ok: true,
+      supervisor: 'ONLINE',
+      engineStatus: 'ONLINE',
+      runtimeStatus: 'ONLINE',
+      operation: null,
+      lastOperation: {
+        operationId: OPERATION_ID,
+        action: 'REBUILD_AGENT_SESSION_RUNTIME',
+        status: 'SUCCEEDED',
+      },
+      services: [
+        { service: 'api', state: 'RUNNING', health: 'HEALTHY', running: true },
+        { service: 'node-worker', state: 'RUNNING', health: null, running: true },
+      ],
+    },
+    agentSessionRuntime,
+  );
+  const agentSessionEvidence = runtimeRefresh.buildRuntimeEvidence(
+    agentSessionStatus,
+    agentSessionRuntime,
+    '2026-10-02T20:00:00Z',
+  );
+  assert.equal(agentSessionEvidence.freshness, 'CURRENT');
+  assert.equal(agentSessionEvidence.generationOperationId, OPERATION_ID);
+  assert.equal(agentSessionEvidence.services.find((item) => item.service === 'node-worker').health, 'NONE');
+
+  const unhealthyApiEvidence = runtimeRefresh.buildRuntimeEvidence(
+    runtimeRefresh.projectSupervisorStatus(
+      {
+        ok: true,
+        supervisor: 'ONLINE',
+        engineStatus: 'ONLINE',
+        runtimeStatus: 'ONLINE',
+        lastOperation: {
+          operationId: OPERATION_ID,
+          action: 'REBUILD_AGENT_SESSION_RUNTIME',
+          status: 'SUCCEEDED',
+        },
+        services: [
+          { service: 'api', state: 'RUNNING', health: 'UNHEALTHY', running: true },
+          { service: 'node-worker', state: 'RUNNING', health: null, running: true },
+        ],
+      },
+      agentSessionRuntime,
+    ),
+    agentSessionRuntime,
+    '2026-10-02T20:00:00Z',
+  );
+  assert.equal(unhealthyApiEvidence.freshness, 'UNKNOWN');
+
   const cap = runtimeRefresh.getDevRuntimeRefreshCapabilitySummary(
     ['DEV_RUNTIME_LIFECYCLE'],
     'codex-local',
@@ -591,7 +655,7 @@ async function testTransportAndDiscovery() {
   assert.deepEqual(cap.requestFields, ['profileCode', 'idempotencyKey']);
   assert.deepEqual(
     cap.profiles.map((item) => item.profileCode),
-    ['CODEX_BOOTSTRAP', 'TEMPORAL_WORKER'],
+    ['CODEX_BOOTSTRAP', 'TEMPORAL_WORKER', 'AGENT_SESSION_RUNTIME'],
   );
   assert.equal(cap.grantPersisted, false);
   assert.equal(cap.directDockerReachable, false);
@@ -602,15 +666,25 @@ async function testTransportAndDiscovery() {
     ).executable,
     false,
   );
-  await assert.rejects(
-    () =>
-      authorizeRuntimeControl({
-        action: 'RESTART',
-        permissionCode: 'DEV_RUNTIME_LIFECYCLE',
-        confirmed: true,
-        auditRecorder: async () => {},
-      }),
-    (error) => error.code === 'SKYCOMMAND_RUNTIME_CONTROL_PERMISSION_ACTION_MISMATCH',
+  const devRuntimeRestartAuditEvents = [];
+  const devRuntimeRestartAuthorization = await authorizeRuntimeControl({
+    action: 'RESTART',
+    permissionCode: 'DEV_RUNTIME_LIFECYCLE',
+    confirmed: true,
+    actor: { userId: 'user-1', username: 'paul' },
+    session: { sessionId: 'session-1', appCode: 'SKYSERVER_ADMIN' },
+    auditRecorder: async (event) => devRuntimeRestartAuditEvents.push(event),
+  });
+  assert.equal(devRuntimeRestartAuthorization.authorization.action, 'RESTART');
+  assert.ok(devRuntimeRestartAuthorization.authorization.grant);
+  verifyLifecycleGrant(devRuntimeRestartAuthorization.authorization.grant, {
+    secret: process.env.SKYCOMMAND_SUPERVISOR_GRANT_SECRET,
+    action: 'RESTART',
+  });
+  assert.equal(devRuntimeRestartAuditEvents.length, 1);
+  assert.equal(
+    devRuntimeRestartAuditEvents[0].metadata.permissionCode,
+    'DEV_RUNTIME_LIFECYCLE',
   );
 }
 
@@ -752,6 +826,11 @@ async function testPermissionProjectionAndContracts() {
   assert.equal(requestSchema.additionalProperties, false);
   assert.deepEqual(requestSchema.required, ['profileCode', 'idempotencyKey']);
   assert.deepEqual(Object.keys(requestSchema.properties).sort(), ['idempotencyKey', 'profileCode']);
+  assert.deepEqual(requestSchema.properties.profileCode.enum, [
+    'CODEX_BOOTSTRAP',
+    'TEMPORAL_WORKER',
+    'AGENT_SESSION_RUNTIME',
+  ]);
   assert.ok(openApi.paths['/runtime-refresh/runs/{operationId}'].get);
   assert.ok(openApi.paths['/orchestrator-refresh/runs'].post);
 
@@ -796,6 +875,19 @@ async function testPermissionProjectionAndContracts() {
     migration,
     /managed_codex_runtime_lifecycle|agent_runtime_enrollment_operations/i,
   );
+  const r3Migration = fs.readFileSync(
+    path.join(
+      repositoryRoot,
+      'packages/db_build/src/migrations/00168__agent_session_runtime_refresh_profile.sql',
+    ),
+    'utf8',
+  );
+  for (const fragment of [
+    'AGENT_SESSION_RUNTIME',
+    'REBUILD_AGENT_SESSION_RUNTIME',
+    '["api","node-worker"]',
+  ]) assert.ok(r3Migration.includes(fragment), `R3 migration missing ${fragment}`);
+
   const serviceSource = fs.readFileSync(
     path.join(repositoryRoot, 'apps/api/src/services/devRuntimeRefreshService.js'),
     'utf8',

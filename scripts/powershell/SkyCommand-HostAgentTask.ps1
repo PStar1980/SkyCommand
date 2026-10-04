@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Install', 'Uninstall', 'Status', 'Start', 'Stop')]
+    [ValidateSet('Install', 'Uninstall', 'Status', 'Start', 'Stop', 'Restart')]
     [string]$Action = 'Status',
 
     [string]$TaskName = 'SkyCommand Host Agent'
@@ -314,6 +314,19 @@ switch ($Action) {
         }
         Stop-HostAgentScheduledRuntime -Task $task
         Write-Host "[SkyCommand Host Agent] Stop completed: $TaskName"
+    }
+
+    'Restart' {
+        $task = Get-HostAgentTask
+        if (-not $task) {
+            throw "Scheduled task is not installed: $TaskName"
+        }
+        if ([string]$task.Principal.LogonType -ne 'Interactive') {
+            throw "Scheduled task registration is stale (LogonType=$($task.Principal.LogonType)). Run 'npm run host-agent:auto-start:install' once to restore the interactive-token registration with the hidden GUI launcher before restarting the Host Agent."
+        }
+        Stop-HostAgentScheduledRuntime -Task $task
+        Start-ScheduledTask -TaskName $TaskName
+        Write-Host "[SkyCommand Host Agent] Restart requested: $TaskName"
     }
 
     'Status' {

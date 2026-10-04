@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Panel from '../components/ui/Panel.jsx';
 import StatusPill from '../components/ui/StatusPill.jsx';
@@ -21,9 +22,11 @@ function prettyJson(value) {
 }
 
 function AgentOperations() {
+  const location = useLocation();
+  const requestedRunId = new URLSearchParams(location.search).get('runId') || location.state?.runId || '';
   const { hasPermission } = useAuth();
   const [runs, setRuns] = useState([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(requestedRunId);
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -57,13 +60,17 @@ function AgentOperations() {
       const result = await agentService.listAgentRuns({ limit: 100 });
       const nextRuns = result.items || [];
       setRuns(nextRuns);
-      setSelectedId((current) => nextRuns.some((run) => run.runId === current) ? current : nextRuns[0]?.runId || '');
+      setSelectedId((current) => nextRuns.some((run) => run.runId === current) || (current && current === requestedRunId) ? current : requestedRunId || nextRuns[0]?.runId || '');
     } catch (loadError) {
       setError(loadError.message || 'Failed to load Agent Operations.');
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, []);
+  }, [requestedRunId]);
+
+  useEffect(() => {
+    if (requestedRunId) setSelectedId(requestedRunId);
+  }, [requestedRunId]);
 
   useEffect(() => {
     loadRuns();

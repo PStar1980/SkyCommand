@@ -11,6 +11,7 @@ const {
   ATTESTATION_SCHEMA,
   installedPackageArtifactSha256,
 } = require('./packageArtifactAttestation');
+const { parseSingleContinuationResult } = require('../../../packages/agents/src/continuationResult');
 
 const execFileAsync = promisify(execFile);
 const CODEX_VERSION = '0.154.0';
@@ -48,6 +49,26 @@ const RPC_STAGE_BY_METHOD = Object.freeze({
   'thread/resume': 'THREAD_RESUME',
   'turn/start': 'TURN_START',
   'turn/interrupt': 'TURN_INTERRUPT',
+});
+const CONTINUATION_OUTPUT_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['previous_task_summary', 'capability_result'],
+  properties: {
+    previous_task_summary: { type: 'string', minLength: 1, maxLength: 2000 },
+    capability_result: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ok', 'effectId', 'dispatchState', 'outcomeCertainty', 'browserAutomationRunId'],
+      properties: {
+        ok: { type: 'boolean' },
+        effectId: { type: 'string', minLength: 1 },
+        dispatchState: { type: 'string', enum: ['COMPLETED'] },
+        outcomeCertainty: { type: 'string', enum: ['ACKNOWLEDGED'] },
+        browserAutomationRunId: { type: 'string', minLength: 1 },
+      },
+    },
+  },
 });
 const SAFE_RPC_OUTCOMES = new Set(['SUCCEEDED', 'JSON_RPC_ERROR', 'TIMEOUT', 'TRANSPORT_ERROR']);
 const ACCOUNT_READ_ERROR_CLASSIFICATIONS = new Set([
@@ -903,12 +924,16 @@ class CodexAppServerClient {
     const params = message.params && typeof message.params === 'object' ? message.params : {};
     if (message.method === 'model/rerouted') {
       const reason = safeNotificationMessage(params.reason);
+      const reroutedModel = safeText(params.toModel, 80) || null;
+      const turnState = this.providerTurns.get(safeText(params.turnId, 160))
+        || [...this.providerTurns.values()].reverse().find((candidate) => candidate.threadId === params.threadId && candidate.status === 'IN_PROGRESS');
+      if (turnState && reroutedModel) turnState.observedModel = reroutedModel;
       this.#recordEvent({
         type: 'provider-model-rerouted',
         threadId: safeText(params.threadId, 160) || null,
         turnId: safeText(params.turnId, 160) || null,
         fromModel: safeText(params.fromModel, 80) || null,
-        toModel: safeText(params.toModel, 80) || null,
+        toModel: reroutedModel,
         reasonDigest: reason.messageDigest,
         reasonClass: reason.messageClass,
         observedAt: new Date().toISOString(),
@@ -989,7 +1014,14 @@ class CodexAppServerClient {
     if (message.method === 'item/agentMessage/delta') {
       const state = turnId ? this.providerTurns.get(turnId) : null;
       const delta = typeof params.delta === 'string' ? params.delta : '';
-      if (state && delta) state.message = `${state.message || ''}${delta}`.slice(0, 16000);
+      if (state && delta) {
+        const deltaItemId = safeText(params.itemId || params.item?.id, 160) || null;
+        if (state.activeAgentMessage && (!deltaItemId || !state.activeAgentMessage.id || deltaItemId === state.activeAgentMessage.id)) {
+          state.activeAgentMessage.text = `${state.activeAgentMessage.text || ''}${delta}`.slice(0, 16000);
+        } else {
+          state.message = `${state.message || ''}${delta}`.slice(0, 16000);
+        }
+      }
       return;
     }
     if (message.method === 'thread/tokenUsage/updated') {
@@ -1005,7 +1037,21 @@ class CodexAppServerClient {
       if (state && itemType === 'agentMessage') {
         const content = Array.isArray(item.content) ? item.content : [];
         const textValue = content.map((part) => typeof part?.text === 'string' ? part.text : '').join('');
-        if (textValue) state.message = textValue.slice(0, 16000);
+        const itemId = safeText(item.id || params.itemId, 160) || state.activeAgentMessage?.id || null;
+        if (message.method === 'item/started') {
+          state.activeAgentMessage = { id: itemId, text: textValue ? textValue.slice(0, 16000) : '' };
+        } else {
+          const completedText = textValue || (
+            state.activeAgentMessage && (!itemId || !state.activeAgentMessage.id || itemId === state.activeAgentMessage.id)
+              ? state.activeAgentMessage.text
+              : ''
+          );
+          if (completedText) {
+            state.message = completedText.slice(0, 16000);
+            state.finalAgentMessageId = itemId;
+          }
+          state.activeAgentMessage = null;
+        }
       }
       if (state && itemType === 'mcpToolCall') {
         const server = safeText(item.server || item.serverName, 80);
@@ -1094,7 +1140,15 @@ class CodexAppServerClient {
         ));
       }, timeoutMs);
       this.pending.set(String(id), { method, requestId: id, resolve, reject, timer });
-      this.process.stdin.write(`${JSON.stringify({ method, id, params })}\n`);
+      try {
+        this.process.stdin.write(`${JSON.stringify({ method, id, params })}\n`);
+      } catch (_error) {
+        clearTimeout(timer);
+        this.pending.delete(String(id));
+        const diagnostic = createRpcDiagnostic({ method, requestId: id, outcome: 'TRANSPORT_ERROR', failureCode: 'CODEX_RPC_WRITE_FAILED' });
+        this.latestRpcDiagnostic = diagnostic;
+        reject(new CodexAppServerError('CODEX_RPC_WRITE_FAILED', 'The Codex app-server transport write did not complete.', diagnostic ? { rpcDiagnostic: diagnostic } : {}));
+      }
     });
   }
 
@@ -1184,14 +1238,32 @@ class CodexAppServerClient {
     if (!this.initialized) throw new CodexAppServerError('CODEX_APP_SERVER_NOT_INITIALIZED', 'Codex app-server is not initialized.');
   }
 
-  async submitManagedTurn({ instruction, model = null, reasoningEffort = null, operationReference } = {}) {
+  async submitManagedTurn({ instruction, model = null, reasoningEffort = null, operationReference, sessionBinding = null } = {}) {
     this.#assertExecutionEnabled();
     const textValue = safeText(instruction, 20000);
     if (!textValue) throw new CodexAppServerError('CODEX_AGENT_INSTRUCTION_INVALID', 'A bounded Agent instruction is required.');
+    const continuation = sessionBinding !== null;
+    const ownedConversation = sessionBinding?.providerConversation || {};
+    if (continuation && (sessionBinding?.mode !== 'CONTINUE'
+      || !/^[A-Za-z0-9_.:-]{1,160}$/.test(String(ownedConversation.conversationReference || ''))
+      || ownedConversation.providerSessionReference !== null && ownedConversation.providerSessionReference !== undefined
+        && !/^[A-Za-z0-9_.:-]{1,160}$/.test(String(ownedConversation.providerSessionReference)))) {
+      throw new CodexAppServerError('CODEX_SESSION_BINDING_INVALID', 'Continuation requires the server-derived owned provider conversation binding.');
+    }
+    if (continuation && (sessionBinding.adapterVersion && sessionBinding.adapterVersion !== 'codex-app-server-readonly.v1'
+      || Object.hasOwn(sessionBinding, 'model') && sessionBinding.model !== model
+      || Object.hasOwn(sessionBinding, 'reasoningEffort') && sessionBinding.reasoningEffort !== reasoningEffort)) {
+      throw new CodexAppServerError('CODEX_SESSION_MODEL_INCOMPATIBLE', 'The requested execution selection differs from the pinned compatible Session binding.');
+    }
     let threadResponse;
     try {
-      threadResponse = await this.#rpc('thread/start', model ? { model } : {}, { timeoutMs: 30000 });
+      threadResponse = continuation
+        ? await this.#rpc('thread/resume', { threadId: ownedConversation.conversationReference, ...(model ? { model } : {}) }, { timeoutMs: 30000 })
+        : await this.#rpc('thread/start', model ? { model } : {}, { timeoutMs: 30000 });
     } catch (error) {
+      if (continuation) {
+        throw new CodexAppServerError('CODEX_SESSION_RESUME_UNAVAILABLE', 'The owned provider conversation could not be safely reattached; no new Turn was submitted.');
+      }
       if (error.code !== 'CODEX_RPC_TIMEOUT') throw error;
       return {
         runtimeKind: 'OPENAI_CODEX_APP_SERVER',
@@ -1217,8 +1289,50 @@ class CodexAppServerClient {
     }
     const thread = threadResponse?.thread && typeof threadResponse.thread === 'object' ? threadResponse.thread : threadResponse;
     const threadId = safeText(thread?.id || threadResponse?.threadId, 160);
-    const providerSessionReference = safeText(thread?.sessionId || threadResponse?.sessionId, 160) || null;
+    const returnedSessionReference = safeText(thread?.sessionId || threadResponse?.sessionId, 160) || null;
+    const providerSessionReference = returnedSessionReference || (continuation ? ownedConversation.providerSessionReference || null : null);
     if (!threadId) throw new CodexAppServerError('CODEX_THREAD_REFERENCE_MISSING', 'The pinned Codex app-server did not return a thread reference.');
+    if (continuation && (threadId !== ownedConversation.conversationReference
+      || ownedConversation.providerSessionReference && returnedSessionReference !== ownedConversation.providerSessionReference)) {
+      throw new CodexAppServerError('CODEX_SESSION_BINDING_MISMATCH', 'The provider returned a different conversation identity; no new Turn was submitted.');
+    }
+    const resumedModel = safeText(thread?.model || threadResponse?.model, 80) || null;
+    const resumedEffort = safeText(thread?.reasoningEffort || threadResponse?.reasoningEffort, 40) || null;
+    if (continuation && (model && resumedModel && model !== resumedModel
+      || reasoningEffort && resumedEffort && reasoningEffort !== resumedEffort)) {
+      throw new CodexAppServerError('CODEX_SESSION_MODEL_INCOMPATIBLE', 'The resumed provider model or effort differs from the compatible Session binding; no new Turn was submitted.');
+    }
+    if (continuation && (thread?.status?.type === 'active'
+      || Array.isArray(thread?.turns) && thread.turns.some((turn) => ['inprogress', 'in_progress', 'running'].includes(String(turn?.status || '').toLowerCase())))) {
+      throw new CodexAppServerError('CODEX_SESSION_PROVIDER_TURN_ACTIVE', 'The owned provider conversation still has an active Turn; no new Turn was submitted.');
+    }
+    if (continuation && (thread?.ephemeral === true
+      || thread?.status?.type && thread.status.type !== 'idle')) {
+      throw new CodexAppServerError('CODEX_SESSION_RESUME_UNAVAILABLE', 'The owned provider conversation is not persistently idle; no new Turn was submitted.');
+    }
+
+    const unknownAcceptance = (reason) => ({
+      runtimeKind: 'OPENAI_CODEX_APP_SERVER',
+      adapterVersion: 'codex-app-server-readonly.v1',
+      sendAcceptance: 'UNKNOWN',
+      outcomeCertainty: 'UNKNOWN',
+      providerSessionReference,
+      providerTurnId: null,
+      threadId,
+      providerOperationReference: operationReference || `codex:${threadId}:unknown-turn`,
+      requestedModel: model || null,
+      requestedReasoningEffort: reasoningEffort || null,
+      observedModel: null,
+      observedReasoningEffort: null,
+      usage: this.latestUsage,
+      physicalStop: { state: 'NOT_REQUESTED', evidence: 'provider_turn_submission_unknown' },
+      worker: null,
+      events: [],
+      capabilityInvocations: [],
+      taskOutputCandidate: null,
+      recoveryRequired: true,
+      providerErrorCode: reason,
+    });
 
     let turnResponse;
     try {
@@ -1227,48 +1341,37 @@ class CodexAppServerClient {
         input: [{ type: 'text', text: textValue }],
         ...(model ? { model } : {}),
         ...(reasoningEffort ? { effort: reasoningEffort } : {}),
+        ...(continuation ? { outputSchema: CONTINUATION_OUTPUT_SCHEMA } : {}),
       };
       turnResponse = await this.#rpc('turn/start', {
         ...turnParameters,
       }, { timeoutMs: 30000 });
     } catch (error) {
-      if (error.code !== 'CODEX_RPC_TIMEOUT') throw error;
-      return {
-        runtimeKind: 'OPENAI_CODEX_APP_SERVER',
-        adapterVersion: 'codex-app-server-readonly.v1',
-        sendAcceptance: 'UNKNOWN',
-        outcomeCertainty: 'UNKNOWN',
-        providerSessionReference,
-        providerTurnId: null,
-        threadId,
-        providerOperationReference: operationReference || `codex:${threadId}:unknown-turn`,
-        requestedModel: model || null,
-        requestedReasoningEffort: reasoningEffort || null,
-        observedModel: null,
-        observedReasoningEffort: null,
-        usage: this.latestUsage,
-        physicalStop: { state: 'NOT_REQUESTED', evidence: 'provider_turn_submission_timeout' },
-        worker: null,
-        events: [],
-        capabilityInvocations: [],
-        taskOutputCandidate: null,
-        recoveryRequired: true,
-      };
+      // Only a definite RPC rejection or a pre-write readiness failure proves
+      // that no Turn was accepted. A lost transport response is never replayed.
+      if (['CODEX_RPC_ERROR', 'CODEX_APP_SERVER_OFFLINE', 'CODEX_APP_SERVER_NOT_INITIALIZED', 'CODEX_RPC_METHOD_NOT_ALLOWED'].includes(error.code)) throw error;
+      return unknownAcceptance(error.code || 'CODEX_TURN_SUBMISSION_UNKNOWN');
     }
     const turn = turnResponse?.turn && typeof turnResponse.turn === 'object' ? turnResponse.turn : turnResponse;
     const providerTurnId = safeText(turn?.id || turnResponse?.turnId, 160);
-    if (!providerTurnId) throw new CodexAppServerError('CODEX_TURN_REFERENCE_MISSING', 'The pinned Codex app-server did not return a turn reference.');
+    if (!providerTurnId) return unknownAcceptance('CODEX_TURN_REFERENCE_MISSING');
     const state = {
       threadId,
       turnId: providerTurnId,
-      providerSessionReference,
+      continuation,
       status: 'IN_PROGRESS',
       startedAt: new Date().toISOString(),
       message: '',
+      activeAgentMessage: null,
+      finalAgentMessageId: null,
       capabilityInvocations: [],
       usage: null,
       observedModel: null,
       observedReasoningEffort: null,
+      ...(this.providerTurns.get(providerTurnId) || {}),
+      providerSessionReference,
+      requestedModel: model,
+      requestedReasoningEffort: reasoningEffort,
     };
     this.providerTurns.set(providerTurnId, state);
     return {
@@ -1308,8 +1411,8 @@ class CodexAppServerClient {
     });
   }
 
-  async startManagedTurn({ instruction, model = null, reasoningEffort = null, operationReference, deadlineAt = null } = {}) {
-    const accepted = await this.submitManagedTurn({ instruction, model, reasoningEffort, operationReference });
+  async startManagedTurn({ instruction, model = null, reasoningEffort = null, operationReference, deadlineAt = null, sessionBinding = null } = {}) {
+    const accepted = await this.submitManagedTurn({ instruction, model, reasoningEffort, operationReference, sessionBinding });
     if (accepted.sendAcceptance !== 'ACKNOWLEDGED') return accepted;
     return this.observeManagedTurn({
       providerTurnId: accepted.providerTurnId,
@@ -1355,6 +1458,10 @@ class CodexAppServerClient {
     }));
     const observedModel = state?.observedModel || model || null;
     const observedReasoningEffort = state?.observedReasoningEffort || null;
+    const continuationModelIncompatible = state?.continuation === true && completed && !canceled
+      && Boolean((state.requestedModel || model) && observedModel && (state.requestedModel || model) !== observedModel
+        || (state.requestedReasoningEffort || reasoningEffort) && observedReasoningEffort
+          && (state.requestedReasoningEffort || reasoningEffort) !== observedReasoningEffort);
     const taskOutputCandidate = state?.message ? {
       kind: 'CODEX_AGENT_MESSAGE',
       message: safeText(state.message, 16000),
@@ -1365,6 +1472,15 @@ class CodexAppServerClient {
       observedReasoningEffort,
       mcpCapabilityCount: capabilityInvocations.length,
     } : null;
+    let continuationResultInvalid = false;
+    if (state?.continuation && completed && !rejected && !canceled) {
+      const parsed = parseSingleContinuationResult(state.message, { requireSuccessfulCapability: true });
+      continuationResultInvalid = !parsed.valid;
+      if (!continuationResultInvalid && taskOutputCandidate) {
+        taskOutputCandidate.previous_task_summary = parsed.normalized.previous_task_summary;
+        taskOutputCandidate.capability_result = parsed.normalized.capability_result;
+      }
+    }
     return {
       runtimeKind: 'OPENAI_CODEX_APP_SERVER',
       adapterVersion: 'codex-app-server-readonly.v1',
@@ -1374,7 +1490,7 @@ class CodexAppServerClient {
       sendAcceptance: 'ACKNOWLEDGED',
       outcomeCertainty: uncertain ? 'UNKNOWN' : canceled ? 'CANCELED' : completed ? 'ACKNOWLEDGED' : 'UNKNOWN',
       providerTerminalStatus: providerStatus || 'UNKNOWN',
-      providerTerminalFailure: rejected,
+      providerTerminalFailure: rejected || continuationResultInvalid || continuationModelIncompatible,
       providerSessionReference: providerSessionReference || state?.providerSessionReference || null,
       providerTurnId: providerTurnId || state?.turnId || null,
       threadId: threadId || state?.threadId || null,
@@ -1383,7 +1499,7 @@ class CodexAppServerClient {
       requestedReasoningEffort: reasoningEffort || null,
       observedModel,
       observedReasoningEffort,
-      providerErrorCode: state?.error?.code || null,
+      providerErrorCode: continuationModelIncompatible ? 'CODEX_SESSION_MODEL_INCOMPATIBLE' : continuationResultInvalid ? 'CODEX_CONTINUATION_RESULT_INVALID' : state?.error?.code || null,
       providerErrorKind: state?.error?.kind || null,
       providerErrorHttpStatusCode: state?.error?.httpStatusCode || null,
       providerErrorMessageDigest: state?.error?.messageDigest || null,

@@ -92,6 +92,18 @@ router.post(
   infrastructureController.authorizeSkyCommandRuntimeControl,
 );
 
+router.get(
+  '/providers/docker/skycommand-runtime/status',
+  requirePermission('INFRASTRUCTURE_DOCKER_READ'),
+  infrastructureController.getSkyCommandRuntimeControlStatus,
+);
+
+router.post(
+  '/providers/docker/skycommand-runtime/actions',
+  requirePermission('INFRASTRUCTURE_DOCKER_CONTROL'),
+  infrastructureController.controlSkyCommandRuntime,
+);
+
 router.post(
   '/providers/docker/projects/:projectName/actions',
   requirePermission('INFRASTRUCTURE_DOCKER_CONTROL'),

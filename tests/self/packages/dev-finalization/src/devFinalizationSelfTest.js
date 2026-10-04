@@ -81,6 +81,47 @@ check('classifies web source changes', () => {
 check('classifies browser worker changes', () => {
   assert.deepEqual(finalization.classifyChangedPaths(['apps/browser-worker/src/index.js']).services, ['browser-worker']);
 });
+check('classifies shared continuation-result changes into the atomic managed Codex lifecycle closure', () => {
+  const expectedServices = [
+    'api',
+    'agent-runtime-worker',
+    'codex-managed-volume-init',
+    'codex-egress-proxy',
+    'codex-mcp-gateway',
+    'codex-agent-runtime-worker',
+    'codex-control-bridge',
+  ];
+  for (const changedPath of [
+    'packages/agents/src/continuationResult.js',
+    'packages\\agents\\src\\continuationResult.js',
+    './packages/agents/src/continuationResult.js',
+    'PACKAGES/AGENTS/SRC/CONTINUATIONRESULT.JS',
+  ]) {
+    assert.deepEqual(finalization.classifyChangedPaths([changedPath]).services, expectedServices);
+  }
+});
+check('does not expand unrelated agent source changes into the managed Codex lifecycle closure', () => {
+  assert.deepEqual(
+    finalization.classifyChangedPaths(['packages/agents/src/continuationResultOther.js']).services,
+    ['agent-runtime-worker'],
+  );
+});
+check('expands a direct Codex worker lifecycle request to the managed Codex bootstrap closure', () => {
+  assert.deepEqual(
+    finalization.selectLifecycleServices(['codex-agent-runtime-worker'], { deferOrchestrator: false }),
+    {
+      services: [
+        'api',
+        'codex-managed-volume-init',
+        'codex-egress-proxy',
+        'codex-mcp-gateway',
+        'codex-agent-runtime-worker',
+        'codex-control-bridge',
+      ],
+      deferredServices: [],
+    },
+  );
+});
 check('classifies managed Codex runtime services and Compose bootstrap changes', () => {
   assert.deepEqual(
     finalization.classifyChangedPaths([

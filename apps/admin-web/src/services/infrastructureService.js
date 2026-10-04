@@ -44,6 +44,19 @@ async function authorizeSkyCommandRuntimeControl(action) {
   );
 }
 
+async function getSkyCommandRuntimeControlStatus({ signal } = {}) {
+  return api.get('/api/infrastructure/providers/docker/skycommand-runtime/status',
+    signal ? { signal } : undefined,
+  );
+}
+
+async function controlSkyCommandRuntime(action, operationId) {
+  return api.post('/api/infrastructure/providers/docker/skycommand-runtime/actions', {
+    action,
+    operationId,
+  });
+}
+
 async function getDockerResourceDetail(resourceType, reference) {
   const pathByType = {
     IMAGE: 'images',
@@ -79,12 +92,14 @@ async function listDockerOperations(filters = {}) {
 
 export default {
   authorizeSkyCommandRuntimeControl,
+  controlSkyCommandRuntime,
   controlDockerComposeProject,
   controlDockerContainer,
   controlDockerResource,
   getDockerContainerDetail,
   getDockerResourceDetail,
   getDockerOverview,
+  getSkyCommandRuntimeControlStatus,
   listDockerOperations,
   streamDockerEvents,
   streamDockerTelemetry,

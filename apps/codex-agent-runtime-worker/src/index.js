@@ -461,7 +461,7 @@ async function buildHealth(runtimeClient = client, options = {}) {
 }
 
 function assertPilotOperationBody(body = {}) {
-  const allowed = new Set(['runId', 'operationId', 'sessionId', 'instruction', 'model', 'reasoningEffort', 'deadlineAt', 'timeoutMs', 'managedCapabilityRequest', 'providerTurnId', 'providerSessionReference', 'providerOperationReference', 'threadId', 'runtimeEvidenceBoundary']);
+  const allowed = new Set(['runId', 'operationId', 'sessionId', 'instruction', 'model', 'reasoningEffort', 'deadlineAt', 'timeoutMs', 'managedCapabilityRequest', 'providerTurnId', 'providerSessionReference', 'providerOperationReference', 'threadId', 'runtimeEvidenceBoundary', 'sessionBinding']);
   for (const key of Object.keys(body || {})) if (!allowed.has(key)) throw Object.assign(new Error('The Codex pilot operation body contains an unsupported field.'), { code: 'CODEX_PILOT_INPUT_NOT_ALLOWED' });
   for (const key of ['runId', 'operationId', 'sessionId']) {
     if (body[key] !== undefined && !UUID_PATTERN.test(String(body[key]))) throw Object.assign(new Error('The Codex pilot operation identity is invalid.'), { code: 'CODEX_PILOT_ID_INVALID' });
@@ -474,6 +474,18 @@ function assertPilotOperationBody(body = {}) {
   }
   if (body.runtimeEvidenceBoundary !== undefined && body.runtimeEvidenceBoundary !== null
     && !sanitizeBoundary(body.runtimeEvidenceBoundary)) throw Object.assign(new Error('The Codex runtime observation boundary is invalid.'), { code: 'CODEX_RUNTIME_EVIDENCE_BOUNDARY_INVALID' });
+  if (body.sessionBinding !== undefined && body.sessionBinding !== null) {
+    const binding = body.sessionBinding;
+    const conversation = binding?.providerConversation;
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)
+      || binding.mode !== 'CONTINUE' || !UUID_PATTERN.test(String(binding.priorRunId || ''))
+      || !conversation || typeof conversation !== 'object' || Array.isArray(conversation)
+      || !/^[A-Za-z0-9_.:-]{1,160}$/.test(String(conversation.conversationReference || ''))
+      || conversation.providerSessionReference !== null && conversation.providerSessionReference !== undefined
+        && !/^[A-Za-z0-9_.:-]{1,160}$/.test(String(conversation.providerSessionReference))) {
+      throw Object.assign(new Error('The owned Codex continuation binding is invalid.'), { code: 'CODEX_SESSION_BINDING_INVALID' });
+    }
+  }
   if (body.instruction !== undefined && (typeof body.instruction !== 'string' || !body.instruction.trim() || body.instruction.length > 20000)) throw Object.assign(new Error('The Codex pilot instruction is invalid.'), { code: 'CODEX_PILOT_INSTRUCTION_INVALID' });
   if (body.model !== undefined && (typeof body.model !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(body.model))) throw Object.assign(new Error('The Codex pilot model is invalid.'), { code: 'CODEX_PILOT_MODEL_INVALID' });
   if (body.reasoningEffort !== undefined && body.reasoningEffort !== null && !['low', 'medium', 'high'].includes(body.reasoningEffort)) throw Object.assign(new Error('The Codex pilot reasoning effort is invalid.'), { code: 'CODEX_PILOT_REASONING_INVALID' });
@@ -579,6 +591,7 @@ async function startCodexRuntime(body, runtimeClient = client) {
       model: body.model || null,
       reasoningEffort: body.reasoningEffort || null,
       operationReference: body.providerOperationReference || `codex:${body.operationId}`,
+      sessionBinding: body.sessionBinding || null,
     });
   } catch (error) {
     return {
@@ -645,6 +658,14 @@ async function observeCodexRuntime(body, runtimeClient = client) {
     },
   ] : [];
   const identity = runtimeClient.identity();
+  if (result.taskOutputCandidate?.previous_task_summary && result.providerTerminalFailure !== true) {
+    const reported = result.taskOutputCandidate.capability_result;
+    const canonical = contextResult?.invocation;
+    if (!canonical || reported?.ok !== !canonical.denied
+      || ['effectId', 'dispatchState', 'outcomeCertainty', 'browserAutomationRunId'].some((key) => reported?.[key] !== canonical[key])) {
+      result = { ...result, providerTerminalFailure: true, providerErrorCode: 'CODEX_CONTINUATION_CAPABILITY_RESULT_MISMATCH' };
+    }
+  }
   return {
     ...result,
     adapterVersion: REAL_RUNTIME_ADAPTER,

@@ -36,9 +36,11 @@ RUN set -eux; \
 WORKDIR /app
 COPY --from=codex-package --chown=node:node /opt/skycommand-codex-package/node_modules ./node_modules
 COPY --chown=node:node apps/codex-agent-runtime-worker/src ./apps/codex-agent-runtime-worker/src
+COPY --chown=node:node packages/agents/src/continuationResult.js ./packages/agents/src/continuationResult.js
 COPY --chown=node:node docker/codex-agent-runtime/package.json ./docker/codex-agent-runtime/package.json
 COPY --chown=node:node docker/codex-agent-runtime/package-lock.json ./docker/codex-agent-runtime/package-lock.json
 COPY --chown=node:node docker/codex-agent-runtime/config.toml /etc/skycommand/codex/config.toml
+RUN node -e "require('./apps/codex-agent-runtime-worker/src/appServerClient.js')"
 RUN node apps/codex-agent-runtime-worker/src/packageArtifactAttestation.js --write-build-attestation
 RUN mkdir -p /var/lib/codex /etc/skycommand/codex /run/codex-runtime-control \
     && chown node:node /var/lib/codex /etc/skycommand/codex /run/codex-runtime-control \

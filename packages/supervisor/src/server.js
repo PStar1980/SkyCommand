@@ -152,7 +152,7 @@ async function handleControl(req, res, action) {
     }
 
     if (
-      ['REBUILD_TEMPORAL_WORKER', 'REBUILD_CODEX_BOOTSTRAP'].includes(action) &&
+      ['REBUILD_TEMPORAL_WORKER', 'REBUILD_CODEX_BOOTSTRAP', 'REBUILD_AGENT_SESSION_RUNTIME'].includes(action) &&
       (authorization.method !== 'SIGNED_GRANT' || !authorization.operationId)
     ) {
       json(res, 403, {
@@ -172,7 +172,11 @@ async function handleControl(req, res, action) {
       ? 'temporal-worker'
       : action === 'REBUILD_CODEX_BOOTSTRAP'
         ? 'codex-managed-bootstrap'
-        : null,
+        : action === 'REBUILD_AGENT_SESSION_RUNTIME'
+          ? 'agent-session-runtime'
+          : ['START_HOST_AGENT', 'RESTART_HOST_AGENT'].includes(action)
+            ? 'host-agent'
+          : null,
   };
   activeOperation = operation;
 
@@ -192,7 +196,7 @@ async function handleControl(req, res, action) {
         runtimeStatus: result?.status?.runtimeStatus || null,
         services: result?.services || null,
       };
-      console.log(`[SkyCommand Supervisor] ${action} completed: ${result.status.runtimeStatus}`);
+      console.log(`[SkyCommand Supervisor] ${action} completed: ${result?.status?.runtimeStatus || 'operation accepted'}`);
     } catch (error) {
       lastOperation = {
         ...operation,
@@ -269,6 +273,21 @@ async function requestHandler(req, res) {
 
     if (req.method === 'POST' && req.url === '/runtime/rebuild-codex-bootstrap') {
       await handleControl(req, res, 'REBUILD_CODEX_BOOTSTRAP');
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/runtime/rebuild-agent-session-runtime') {
+      await handleControl(req, res, 'REBUILD_AGENT_SESSION_RUNTIME');
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/runtime/start-host-agent') {
+      await handleControl(req, res, 'START_HOST_AGENT');
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/runtime/restart-host-agent') {
+      await handleControl(req, res, 'RESTART_HOST_AGENT');
       return;
     }
 

@@ -9,6 +9,8 @@ const path = require('node:path');
 const {
   DEFAULT_BACKEND_REBUILD_SERVICES,
   DEFAULT_RUNTIME_SERVICES,
+  DEFAULT_PLATFORM_SERVICES,
+  AGENT_SESSION_RUNTIME_REBUILD_SERVICES,
   CODEX_BOOTSTRAP_REBUILD_SERVICES,
   getSupervisorConfig,
   parseBackendRebuildServices,
@@ -19,8 +21,10 @@ const {
   getRuntimeStatus,
   isDockerEngineUnavailable,
   parseComposePsOutput,
+  rebuildAgentSessionRuntime,
   rebuildBackend,
   rebuildCodexBootstrap,
+  controlHostAgentTask,
   rebuildWeb,
 } = require('./runtimeLifecycle');
 
@@ -128,6 +132,10 @@ assert.ok(config.runtimeServices.includes('codex-egress-proxy'));
 assert.ok(config.runtimeServices.includes('codex-mcp-gateway'));
 assert.ok(config.runtimeServices.includes('codex-agent-runtime-worker'));
 assert.ok(config.runtimeServices.includes('codex-control-bridge'));
+assert.deepEqual(config.platformServices, DEFAULT_PLATFORM_SERVICES);
+assert.ok(config.platformServices.includes('web'));
+assert.ok(config.platformServices.includes('temporal-volume-init'));
+assert.ok(config.platformServices.includes('codex-managed-volume-init'));
 assert.ok(config.backendRebuildServices.includes('browser-worker'));
 assert.ok(config.backendRebuildServices.includes('agent-runtime-worker'));
 assert.ok(config.backendRebuildServices.includes('codex-egress-proxy'));
@@ -200,6 +208,9 @@ getRuntimeStatus(config, { executor: fakeExecutor })
     assert.equal(status.engineStatus, 'ONLINE');
     assert.equal(status.runtimeStatus, 'ONLINE');
     assert.equal(status.runningCount, config.runtimeServices.length);
+    assert.equal(status.services.length, config.platformServices.length);
+    assert.ok(status.services.some((service) => service.service === 'codex-managed-volume-init'));
+    assert.ok(status.services.some((service) => service.service === 'temporal-volume-init'));
 
     let rebuildObserved = false;
     const rebuildExecutor = async (_command, dockerArgs) => {
@@ -258,6 +269,49 @@ getRuntimeStatus(config, { executor: fakeExecutor })
       assert.equal(codexResult.action, 'REBUILD_CODEX_BOOTSTRAP');
       assert.deepEqual(codexResult.services, CODEX_BOOTSTRAP_REBUILD_SERVICES);
       assert.equal(codexRebuildObserved, true);
+
+      let agentSessionRebuildObserved = false;
+      const agentSessionRebuildExecutor = async (_command, dockerArgs, executionOptions) => {
+        if (dockerArgs.includes('--force-recreate')) {
+          agentSessionRebuildObserved = true;
+          assert.equal(executionOptions.cwd, config.repositoryRoot);
+          assert.deepEqual(
+            dockerArgs.slice(-AGENT_SESSION_RUNTIME_REBUILD_SERVICES.length),
+            AGENT_SESSION_RUNTIME_REBUILD_SERVICES,
+          );
+          assert.deepEqual(
+            dockerArgs.slice(
+              -AGENT_SESSION_RUNTIME_REBUILD_SERVICES.length - 4,
+              -AGENT_SESSION_RUNTIME_REBUILD_SERVICES.length,
+            ),
+            ['up', '-d', '--build', '--force-recreate'],
+          );
+          return { stdout: 'fixed Agent Session runtime rebuilt', stderr: '' };
+        }
+        return fakeExecutor(_command, dockerArgs);
+      };
+      const agentSessionResult = await rebuildAgentSessionRuntime(config, {
+        executor: agentSessionRebuildExecutor,
+      });
+      assert.equal(agentSessionResult.action, 'REBUILD_AGENT_SESSION_RUNTIME');
+      assert.deepEqual(agentSessionResult.services, AGENT_SESSION_RUNTIME_REBUILD_SERVICES);
+      assert.equal(agentSessionRebuildObserved, true);
+
+      let hostAgentTaskObserved = false;
+      const hostAgentTaskResult = await controlHostAgentTask(config, 'Start', {
+        platform: 'win32',
+        hostTaskExecutor: async (command, args, executionOptions) => {
+          hostAgentTaskObserved = true;
+          assert.equal(command, 'powershell.exe');
+          assert.ok(args.some((argument) => argument.endsWith('SkyCommand-HostAgentTask.ps1')));
+          assert.deepEqual(args.slice(-2), ['-Action', 'Start']);
+          assert.equal(executionOptions.cwd, config.repositoryRoot);
+          assert.equal(executionOptions.windowsHide, true);
+          return { stdout: 'start requested' };
+        },
+      });
+      assert.equal(hostAgentTaskObserved, true);
+      assert.equal(hostAgentTaskResult.action, 'Start_HOST_AGENT');
       console.log('✅ SkyCommand Supervisor self-test passed.');
     });
   })

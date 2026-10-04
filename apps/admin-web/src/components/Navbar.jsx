@@ -109,6 +109,7 @@ const COMMAND_SEARCH_ALIASES = {
   agents: '/agents/projects',
   'agent projects': '/agents/projects',
   'agent operations': '/agents/operations',
+  'agent sessions': '/agents/sessions',
   'run agent': '/agents/run',
   'agent runs': '/agents/operations',
   'manage agents': '/agents/manage',
@@ -586,6 +587,13 @@ function createNavGroups(hasPermission, hasRole) {
           icon: '▶',
           visible: hasPermission('AGENT_RUN'),
           description: 'Durable fake Agent Runs and evidence',
+        },
+        {
+          label: 'Agent Sessions',
+          to: '/agents/sessions',
+          icon: '◎',
+          visible: hasPermission('AGENT_RUN'),
+          description: 'Owned conversations and continuation',
         },
         {
           label: 'Run Agent',

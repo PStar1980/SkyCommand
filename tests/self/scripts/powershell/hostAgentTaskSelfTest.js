@@ -46,6 +46,8 @@ assert.match(taskScript, /\/PID/);
 assert.match(taskScript, /\/T/);
 assert.match(taskScript, /\/F/);
 assert.match(taskScript, /Stop completed:/);
+assert.match(taskScript, /'Restart' \{/);
+assert.match(taskScript, /Restart requested:/);
 assert.match(taskScript, /Host Agent is already running; start request not required/);
 assert.match(taskScript, /Unregister-ScheduledTask/);
 assert.match(taskScript, /Get-Command wscript\.exe/);

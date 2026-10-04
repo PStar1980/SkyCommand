@@ -4,6 +4,7 @@ const browserAutomationRegistryService = require('./browserAutomationRegistrySer
 const workflowAgentExecutionService = require('./workflowAgentExecutionService');
 const orchestratorRefreshService = require('./orchestratorRefreshService');
 const devRuntimeRefreshService = require('./devRuntimeRefreshService');
+const runtimeControlService = require('./runtimeControlService');
 const developmentPromotionStartService = require('./developmentPromotionStartService');
 const managedCodexBootstrapService = require('./managedCodexBootstrapService');
 const promotionPreflight = require('../../../../packages/dev-finalization/src/promotionPreflight');
@@ -606,6 +607,30 @@ function getCapabilities({
     workflowAgentExecution: workflowAgentExecutionService.getCapabilitySummary(),
     orchestratorRefresh: orchestratorRefreshService.getCapabilitySummary(permissionCodes),
     devRuntimeRefresh: devRuntimeRefreshService.getDevRuntimeRefreshCapabilitySummary(permissionCodes, agentId),
+    runtimeControl: {
+      capability: 'skycommand_runtime_control',
+      enabled:
+        agentId === runtimeControlService.ASSISTANT_AGENT_ID &&
+        permissionCodes.includes(runtimeControlService.ASSISTANT_PERMISSION),
+      executable:
+        agentId === runtimeControlService.ASSISTANT_AGENT_ID &&
+        permissionCodes.includes(runtimeControlService.ASSISTANT_PERMISSION),
+      principalAgentId: runtimeControlService.ASSISTANT_AGENT_ID,
+      requiredPermissionCodes: [runtimeControlService.ASSISTANT_PERMISSION],
+      actions: Object.keys(runtimeControlService.ACTIONS),
+      statusEndpoint: '/api/assistant/runtime-controls/status',
+      startEndpoint: '/api/assistant/runtime-controls/runs',
+      requestFields: ['action', 'operationId'],
+      operationIdRequired: true,
+      idempotencyEnforced: false,
+      directDockerReachable: false,
+      blockedReason:
+        agentId !== runtimeControlService.ASSISTANT_AGENT_ID
+          ? 'SKYCOMMAND_RUNTIME_CONTROL_PRINCIPAL_NOT_ALLOWED'
+          : permissionCodes.includes(runtimeControlService.ASSISTANT_PERMISSION)
+            ? null
+            : 'SKYCOMMAND_RUNTIME_CONTROL_PERMISSION_SCOPE_MISSING',
+    },
     managedCodexBootstrap: {
       enabled: agentId === MANAGED_CODEX_AGENT_ID,
       executionEnabled: false,
@@ -877,7 +902,12 @@ function getOpenApiDocument() {
                   additionalProperties: false,
                   required: ['profileCode', 'idempotencyKey'],
                   properties: {
-                    profileCode: { type: 'string', enum: ['CODEX_BOOTSTRAP', 'TEMPORAL_WORKER'] },
+                    profileCode: {
+                      type: 'string',
+                      enum: devRuntimeRefreshService.listDevRuntimeRefreshProfiles().map(
+                        (profile) => profile.profileCode,
+                      ),
+                    },
                     idempotencyKey: {
                       type: 'string',
                       minLength: 1,
@@ -914,6 +944,51 @@ function getOpenApiDocument() {
           responses: {
             200: { description: 'Safe lifecycle, Supervisor, and runtime-freshness projection.' },
             404: { description: 'Operation not found for this principal.' },
+          },
+        },
+      },
+      '/runtime-controls/status': {
+        get: {
+          operationId: 'skycommand_runtime_control_status',
+          description:
+            'Read the observed DEV Supervisor and Host Agent states plus the fixed runtime-control actions currently available. Unknown states fail closed and no host commands or grants are returned.',
+          'x-required-permission-codes': [runtimeControlService.ASSISTANT_PERMISSION],
+          responses: {
+            200: { description: 'Safe current runtime-control state and available actions.' },
+            403: { description: 'Assistant identity or DEV runtime permission is not authorized.' },
+          },
+        },
+      },
+      '/runtime-controls/runs': {
+        post: {
+          operationId: 'skycommand_runtime_control_start',
+          description:
+            'Admit one fixed DEV runtime-control action through the shared API authorization and signed Supervisor or registered Host Agent lifecycle path. action and operationId are required; caller-selected Docker services, commands, environment, and repository are not accepted. Signed grants are not returned.',
+          'x-required-permission-codes': [runtimeControlService.ASSISTANT_PERMISSION],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['action', 'operationId'],
+                  properties: {
+                    action: {
+                      type: 'string',
+                      enum: Object.keys(runtimeControlService.ACTIONS),
+                    },
+                    operationId: { type: 'string', format: 'uuid' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            202: { description: 'Governed runtime control accepted with an operation receipt.' },
+            403: { description: 'Assistant identity, permission, or action is not authorized.' },
+            409: { description: 'The action does not match observed service state or the Supervisor is busy.' },
+            503: { description: 'No available governed controller can perform the requested action.' },
           },
         },
       },

@@ -3,6 +3,7 @@ const authService = require('../services/authService');
 const dockerEventStreamService = require('../services/dockerEventStreamService');
 const dockerTelemetryStreamService = require('../services/dockerTelemetryStreamService');
 const supervisorLifecycleGrantService = require('../services/supervisorLifecycleGrantService');
+const runtimeControlService = require('../services/runtimeControlService');
 
 
 function assertInternalServiceRequest(req) {
@@ -188,6 +189,32 @@ async function authorizeSkyCommandRuntimeControl(req, res, next) {
   }
 }
 
+async function getSkyCommandRuntimeControlStatus(req, res, next) {
+  try {
+    const result = await runtimeControlService.getRuntimeControlStatus({
+      permissions: req.permissions || [],
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function controlSkyCommandRuntime(req, res, next) {
+  try {
+    const result = await runtimeControlService.startRuntimeControl({
+      request: req.body || {},
+      permissions: req.permissions || [],
+      actor: req.user,
+      session: req.session,
+      requestContext: authService.getRequestContext(req),
+    });
+    res.status(202).json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function listDockerOperations(req, res, next) {
   try {
     const result = await infrastructureService.listDockerOperations(req.query || {});
@@ -204,6 +231,8 @@ module.exports = {
   ingestDockerEvent,
   ingestDockerTelemetry,
   authorizeSkyCommandRuntimeControl,
+  getSkyCommandRuntimeControlStatus,
+  controlSkyCommandRuntime,
   streamDockerEvents,
   streamDockerTelemetry,
   controlDockerComposeProject,

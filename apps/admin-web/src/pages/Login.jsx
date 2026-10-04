@@ -8,6 +8,25 @@ import supervisorService from '../services/supervisorService.js';
 const LOGIN_REDIRECT_PATH = '/dashboard';
 const REMEMBERED_EMAIL_KEY = 'skycommand.rememberedEmail';
 const SUPERVISOR_POLL_MS = 2000;
+const RUNTIME_START_TIMEOUT_MS = 210000;
+const RUNTIME_ONE_SHOT_SERVICES = new Set([
+  'temporal-volume-init',
+  'codex-managed-volume-init',
+]);
+
+function runtimeStartFailureMessage(status) {
+  const runtimeState = String(status?.runtimeStatus || 'UNKNOWN').toUpperCase();
+  const unavailable = (Array.isArray(status?.services) ? status.services : [])
+    .filter((service) => !RUNTIME_ONE_SHOT_SERVICES.has(service?.service))
+    .filter((service) => service?.running !== true || String(service?.health || '').toUpperCase() === 'UNHEALTHY')
+    .map((service) => service?.service)
+    .filter(Boolean);
+
+  const suffix = unavailable.length > 0
+    ? ` Persistent services not ready: ${unavailable.join(', ')}.`
+    : '';
+  return `SkyCommand runtime start completed with status ${runtimeState}.${suffix}`;
+}
 
 function Login() {
   const navigate = useNavigate();
@@ -51,14 +70,15 @@ function Login() {
         const status = await supervisorService.getRuntimeStatus({ signal: controller.signal });
         if (!active) return;
         setRuntimeStatus(status);
-        setRuntimeError('');
-        if (status.runtimeStatus === 'ONLINE') setStartingRuntime(false);
+        if (status.runtimeStatus === 'ONLINE') {
+          setRuntimeError('');
+          setStartingRuntime(false);
+        }
       } catch (statusError) {
         if (!active || statusError?.name === 'AbortError') return;
         // Supervisor support is optional during rollout. If it is not installed yet,
         // preserve the ordinary login experience rather than blocking access.
         setRuntimeStatus(null);
-        setRuntimeError('');
       } finally {
         if (active) timerId = window.setTimeout(refreshRuntimeStatus, SUPERVISOR_POLL_MS);
       }
@@ -78,10 +98,25 @@ function Login() {
     setStartingRuntime(true);
 
     try {
-      await supervisorService.startRuntime();
+      const accepted = await supervisorService.startRuntime();
+      const requestedAt = accepted?.operation?.requestedAt;
+      if (!requestedAt) {
+        throw new Error('SkyCommand Supervisor did not return a runtime-start operation timestamp.');
+      }
+
+      const status = await supervisorService.waitForOperationCompletion({
+        action: 'START',
+        requestedAt,
+        timeoutMs: RUNTIME_START_TIMEOUT_MS,
+      });
+      setRuntimeStatus(status);
+      if (String(status?.runtimeStatus || '').toUpperCase() !== 'ONLINE') {
+        setRuntimeError(runtimeStartFailureMessage(status));
+      }
     } catch (startError) {
-      setStartingRuntime(false);
       setRuntimeError(startError.message || 'SkyCommand runtime start failed.');
+    } finally {
+      setStartingRuntime(false);
     }
   }
 
@@ -115,7 +150,11 @@ function Login() {
   }
 
   const runtimeOffline = runtimeStatus && runtimeStatus.runtimeStatus !== 'ONLINE';
-  const runtimeServices = Array.isArray(runtimeStatus?.services) ? runtimeStatus.services : [];
+  const runtimeServices = (Array.isArray(runtimeStatus?.services) ? runtimeStatus.services : [])
+    .filter((service) => !RUNTIME_ONE_SHOT_SERVICES.has(service?.service));
+  const runtimeHeading = String(runtimeStatus?.runtimeStatus || '').toUpperCase() === 'STOPPED'
+    ? 'SkyCommand runtime offline'
+    : `SkyCommand runtime ${String(runtimeStatus?.runtimeStatus || 'not ready').toLowerCase()}`;
 
   return (
     <div className="sky-login-wrap">
@@ -163,7 +202,7 @@ function Login() {
               <div className="sky-page-kicker">Runtime control</div>
               <div className="sky-runtime-bootstrap-heading">
                 <span className="sky-runtime-bootstrap-indicator" aria-hidden="true" />
-                SkyCommand runtime offline
+                {runtimeHeading}
               </div>
               <p className="sky-muted mb-0">
                 The control shell and Supervisor are online. Start the local Docker runtime to

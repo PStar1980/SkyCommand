@@ -220,20 +220,24 @@ assert.match(appShellSource, /\[location\.pathname\]/);
 
 const dashboardSource = fs.readFileSync(path.join(sourceRoot, 'pages/Dashboard.jsx'), 'utf8');
 assert.match(dashboardSource, /showRouteTable=\{false\}/);
-assert.match(dashboardSource, /<ServerStatusPanel/);
-assert.match(dashboardSource, /label: 'Supervisor'/);
-assert.match(dashboardSource, /onStatusChange=\{setSupervisorStatus\}/);
-assert.match(dashboardSource, /label: 'Web server'/);
-assert.match(dashboardSource, /label: 'Temporal worker'/);
-assert.match(dashboardSource, /label: 'Host agent'/);
-assert.match(dashboardSource, /hostAgentHealth\.online/);
+assert.match(dashboardSource, /<PlatformAvailabilityPanel/);
+const availabilitySource = fs.readFileSync(
+  path.join(sourceRoot, 'components/PlatformAvailabilityPanel.jsx'),
+  'utf8',
+);
+for (const segment of ["label: 'Frontend'", "label: 'Backend'", "label: 'Agent'", "label: 'Codex'"]) {
+  assert.ok(availabilitySource.includes(segment), `${segment} should appear in Platform Availability.`);
+}
+assert.match(availabilitySource, /processCard\('supervisor', 'Supervisor'/);
+assert.match(availabilitySource, /containerCard\('web', 'Web frontend'/);
+assert.match(availabilitySource, /containerCard\('temporal-worker', 'Temporal worker'/);
+assert.match(availabilitySource, /processCard\('host-agent', 'Host Agent'/);
+assert.match(availabilitySource, /codex-agent-runtime-worker/);
 assert.match(dashboardSource, /title="SkyCommand User Summary"/);
 assert.match(dashboardSource, />SkyCommand access activity<\/h2>/);
 assert.doesNotMatch(dashboardSource, /SkyWeb User Summary/);
 assert.doesNotMatch(dashboardSource, /skyweb-user-summary/);
 assert.doesNotMatch(dashboardSource, /appCode: 'SKYWEB'/);
-assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Online'/);
-assert.match(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'ONLINE'/);
 assert.doesNotMatch(dashboardSource, /sky-command-center-page/);
 assert.doesNotMatch(cssSource, /Command Center gold-outline experiment/);
 assert.match(cssSource, /--sky-card-outline: rgba\(220, 177, 63, 0\.68\);/);
@@ -252,8 +256,6 @@ for (const selector of [
   assert.ok(cssSource.includes(selector), `${selector} should participate in the global gold card-outline contract.`);
 }
 assert.match(cssSource, /border: 1px solid var\(--sky-card-outline\);/);
-assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'Polling'/);
-assert.doesNotMatch(dashboardSource, /workflowTaskQueue\.healthy[\s\S]*?\? 'POLLING'/);
 assert.doesNotMatch(dashboardSource, /label: 'Readiness'/);
 assert.doesNotMatch(dashboardSource, /productionReadiness/);
 
@@ -319,13 +321,13 @@ const serverStatusPanelSource = fs.readFileSync(
   'utf8',
 );
 assert.match(serverStatusPanelSource, /ONLINE_STATUSES/);
-assert.match(serverStatusPanelSource, /Supervisor, web shell/);
-assert.match(serverStatusPanelSource, /host execution agent/);
+assert.match(serverStatusPanelSource, /getContainerHref/);
+assert.match(serverStatusPanelSource, /docker\/containers/);
 assert.match(serverStatusPanelSource, /isOnlineService\(item\) \? 'is-online' : ''/);
 
 assert.match(cssSource, /route-contained workflow graph/);
 assert.match(cssSource, /\.sky-workflow-history-detail-stack \.sky-workflow-visual-map \{[\s\S]*?overflow-x: auto;/);
-assert.match(cssSource, /\.sky-server-status-grid \{[\s\S]*?repeat\(8, minmax\(0, 1fr\)\)/);
+assert.match(cssSource, /\.sky-server-status-grid \{[\s\S]*?repeat\(auto-fit, minmax\(9\.5rem, 1fr\)\)/);
 assert.match(cssSource, /\.sky-server-status-card\.is-online \{[\s\S]*?rgba\(255, 210, 97, 0\.78\)/);
 
 console.log('[SkyCommand] Dashboard header and page typography self-test passed.');

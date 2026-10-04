@@ -82,6 +82,7 @@ const CODEX_BOOTSTRAP_FINGERPRINT_INPUTS = Object.freeze([
   'apps/codex-agent-runtime-worker/src/index.js',
   'apps/codex-agent-runtime-worker/src/packageArtifactAttestation.js',
   'apps/codex-agent-runtime-worker/src/runtimeEgressEvidence.js',
+  'packages/agents/src/continuationResult.js',
   'apps/codex-control-bridge/src/credentialInit.js',
   'apps/codex-control-bridge/src/index.js',
   'apps/codex-egress-proxy/src/authAbDiagnostics.js',
